@@ -64,7 +64,7 @@ describe('A2A Routes Live Verification', () => {
     let foundCount = 0
     
     methods.forEach(method => {
-      if (typeof (client as any)[method] === 'function') {
+      if (typeof (client as Record<string, unknown>)[method] === 'function') {
         foundCount++
       } else {
         missingMethods.push(method)

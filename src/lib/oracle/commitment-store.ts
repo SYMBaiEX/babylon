@@ -63,13 +63,21 @@ export class CommitmentStore {
   }
 
   /**
-   * Store commitment with encrypted salt
+   * Store commitment with encrypted salt (upsert to handle updates)
    */
   static async store(commitment: StoredCommitment): Promise<void> {
     const encryptedSalt = this.encryptSalt(commitment.salt)
 
-    await prisma.oracleCommitment.create({
-      data: {
+    await prisma.oracleCommitment.upsert({
+      where: {
+        questionId: commitment.questionId
+      },
+      update: {
+        sessionId: commitment.sessionId,
+        saltEncrypted: encryptedSalt,
+        commitment: commitment.commitment
+      },
+      create: {
         id: `commitment-${commitment.questionId}-${Date.now()}`,
         questionId: commitment.questionId,
         sessionId: commitment.sessionId,

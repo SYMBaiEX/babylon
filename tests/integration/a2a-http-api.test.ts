@@ -19,6 +19,10 @@ describe('A2A HTTP API Integration', () => {
     // Check if server is running
     await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(1000) })
 
+    if (!prisma || !prisma.user) {
+      throw new Error('Prisma client not initialized');
+    }
+
     // Create test user
     testUserId = await generateSnowflakeId()
     await prisma.user.create({
@@ -30,17 +34,25 @@ describe('A2A HTTP API Integration', () => {
         reputationPoints: 100,
         profileComplete: true,
         hasUsername: true,
-          isTest: true,
+        isTest: true,
         updatedAt: new Date()
       }
     })
 
     // Get an existing market for testing
+    if (!prisma.market) {
+      throw new Error('Prisma market model not available');
+    }
+
     const existingMarket = await prisma.market.findFirst({
       where: { resolved: false }
     })
     
-    testMarketId = existingMarket!.id
+    if (!existingMarket) {
+      throw new Error('No unresolved market found for testing');
+    }
+    
+    testMarketId = existingMarket.id
   })
 
   describe('Agent Card Discovery', () => {

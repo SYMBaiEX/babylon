@@ -10,7 +10,21 @@ import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { ethers } from 'ethers'
-import type { AgentRuntime } from '@elizaos/core'
+import type { AgentRuntime, State, Memory } from '@elizaos/core'
+import { createUniqueUuid } from '@elizaos/core'
+import type { ExperienceService, AgentMessage, ProviderResult } from '../shared/types'
+
+// Helper to convert AgentMessage to Memory format
+function messageToMemory(message: AgentMessage, runtime: AgentRuntime): Memory {
+  return {
+    id: createUniqueUuid(runtime, `test-${Date.now()}`),
+    entityId: createUniqueUuid(runtime, message.userId),
+    agentId: createUniqueUuid(runtime, message.agentId),
+    roomId: createUniqueUuid(runtime, message.agentId),
+    content: message.content,
+    createdAt: Date.now(),
+  }
+}
 
 describe('Agent Context Providers', () => {
   let testAgentId: string
@@ -65,7 +79,7 @@ describe('Agent Context Providers', () => {
     })
 
     it('should record and query experiences if service is available', async () => {
-      const experienceService = runtime.getService('EXPERIENCE') as any
+      const experienceService = runtime.getService('EXPERIENCE') as ExperienceService | null
       
       if (!experienceService) {
         console.log('⚠️  Experience service not available, skipping test')
@@ -127,11 +141,13 @@ describe('Agent Context Providers', () => {
         }
       })
       
-      const result = await headlinesProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Get headlines' }
-      } as any, undefined)
+      }
+      const memory = messageToMemory(message, runtime)
+      const result = await headlinesProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       expect(typeof result.text).toBe('string')
@@ -158,7 +174,8 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'A test company that gained value',
           currentPrice: 150,
-          initialPrice: 100
+          initialPrice: 100,
+          updatedAt: new Date()
         }
       })
       
@@ -169,15 +186,18 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'A test company that lost value',
           currentPrice: 50,
-          initialPrice: 100
+          initialPrice: 100,
+          updatedAt: new Date()
         }
       })
       
-      const result = await marketMoversProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Get market movers' }
-      } as any, undefined)
+      }
+      const memory = messageToMemory(message, runtime)
+      const result = await marketMoversProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       expect(result.text).toContain('GAINERS')
@@ -197,19 +217,22 @@ describe('Agent Context Providers', () => {
       const agentWalletProvider = runtime.providers.find(p => p.name === 'BABYLON_AGENT_WALLET')
       expect(agentWalletProvider).toBeDefined()
       
-      const result = await agentWalletProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Show my wallet' }
-      } as any, undefined)
+      }
+      const memory = messageToMemory(message, runtime)
+      const result = await agentWalletProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       expect(result.text).toContain('Your Wallet')
       expect(result.text).toContain('BALANCES')
       expect(result.data).toBeDefined()
       expect(result.data?.balances).toBeDefined()
-      expect(result.data?.balances.virtualBalance).toBe(10000)
-      expect(result.data?.balances.reputationPoints).toBe(1000)
+      const balances = result.data?.balances as { virtualBalance?: number; reputationPoints?: number }
+      expect(balances?.virtualBalance).toBe(10000)
+      expect(balances?.reputationPoints).toBe(1000)
     })
   })
 
@@ -227,15 +250,18 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'Technology company',
           currentPrice: 180,
-          initialPrice: 150
+          initialPrice: 150,
+          updatedAt: new Date()
         }
       })
       
-      const result = await entityMentionsProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'What do you think about $AAPL and Apple Inc?' }
-      } as any, undefined)
+      }
+      const memory = messageToMemory(message, runtime)
+      const result = await entityMentionsProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       if (result.text) {
@@ -268,11 +294,13 @@ describe('Agent Context Providers', () => {
         }
       })
       
-      const result = await entityMentionsProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Have you talked to @testuser123?' }
-      } as any, undefined)
+      }
+      const memory = messageToMemory(message, runtime)
+      const result = await entityMentionsProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       if (result.text) {
@@ -289,11 +317,14 @@ describe('Agent Context Providers', () => {
       const trendingTopicsProvider = runtime.providers.find(p => p.name === 'BABYLON_TRENDING_TOPICS')
       expect(trendingTopicsProvider).toBeDefined()
       
-      const result = await trendingTopicsProvider!.get(runtime, {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'What is trending?' }
-      } as any, undefined)
+      }
+      // Convert message to Memory format for provider
+      const memory = messageToMemory(message, runtime)
+      const result = await trendingTopicsProvider!.get(runtime, memory, {} as State) as ProviderResult
       
       expect(result.text).toBeDefined()
       expect(typeof result.text).toBe('string')
@@ -317,19 +348,20 @@ describe('Agent Context Providers', () => {
 
     it('should provide context when agent receives a message', async () => {
       // This tests that providers are properly invoked during message processing
-      const message = {
+      const message: AgentMessage = {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'What should I invest in?' },
         roomId: 'test-room'
-      } as any
+      }
       
       // Get all provider contexts
       const contexts: string[] = []
       
       for (const provider of runtime.providers) {
         try {
-          const result = await provider.get(runtime, message, undefined)
+          const memory = messageToMemory(message, runtime)
+          const result = await provider.get(runtime, memory, {} as State) as ProviderResult
           if (result.text) {
             contexts.push(result.text)
           }

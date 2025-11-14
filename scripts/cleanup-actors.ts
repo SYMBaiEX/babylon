@@ -1,26 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-
-interface Actor {
-  id: string;
-  name: string;
-  realName: string;
-  originalFirstName?: string;
-  originalLastName?: string;
-  postStyle?: string;
-  hasPool?: boolean;
-  [key: string]: any;
-}
-
-interface Organization {
-  id: string;
-  name: string;
-  initialPrice?: number;
-  [key: string]: any;
-}
+import type { ActorData, Organization } from '../src/shared/types';
 
 interface ActorsData {
-  actors: Actor[];
+  actors: ActorData[];
   organizations: Organization[];
 }
 

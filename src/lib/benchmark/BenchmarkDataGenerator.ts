@@ -33,8 +33,8 @@ export interface GameState {
   predictionMarkets: PredictionMarket[];
   perpetualMarkets: PerpetualMarket[];
   agents: SimulatedAgent[];
-  posts?: any[];
-  groupChats?: any[];
+  posts?: Post[];
+  groupChats?: GroupChat[];
 }
 
 export interface PredictionMarket {

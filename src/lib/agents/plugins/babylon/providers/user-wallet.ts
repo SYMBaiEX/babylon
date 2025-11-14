@@ -7,6 +7,7 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type { A2AUserWalletResponse } from '@/types/a2a-responses'
 
 /**
  * Provider: Query User Wallet
@@ -52,19 +53,7 @@ Example: "Check user_abc123's wallet" or "What positions does @trader have?"` }
     // Fetch wallet data via A2A protocol
     const walletData = await babylonRuntime.a2aClient.sendRequest('a2a.getUserWallet', { userId })
     
-    const walletTyped = walletData as { 
-      balance: { 
-        balance?: number
-        reputationPoints?: number
-        lifetimePnL?: number
-        totalDeposited?: number
-        totalWithdrawn?: number
-      }
-      positions: { 
-        marketPositions?: unknown[]
-        perpPositions?: unknown[] 
-      }
-    }
+    const walletTyped = walletData as A2AUserWalletResponse
     
     const balance = walletTyped.balance
     const positions = walletTyped.positions
@@ -85,13 +74,16 @@ ${isProfitable ? '📈' : '📉'} Lifetime P&L: ${isProfitable ? '+' : ''}$${lif
 
 ${positions.perpPositions && positions.perpPositions.length > 0 ? 
   `🔮 Perpetual Futures (${positions.perpPositions.length}):
-${positions.perpPositions.map((p: any) => `  • ${p.ticker}: ${p.side.toUpperCase()} $${p.size} @ ${p.entryPrice} (${p.leverage}x)
-    Current: $${p.currentPrice} | P&L: ${p.unrealizedPnL >= 0 ? '+' : ''}$${p.unrealizedPnL}`).join('\n')}` 
+${positions.perpPositions.map((p) => {
+  const amount = p.amount || p.size
+  return `  • ${p.ticker}: ${p.side.toUpperCase()} $${amount} @ ${p.entryPrice} (${p.leverage}x)
+    Current: $${p.currentPrice} | P&L: ${p.unrealizedPnL >= 0 ? '+' : ''}$${p.unrealizedPnL}`
+}).join('\n')}` 
   : '🔮 No perpetual positions'}
 
 ${positions.marketPositions && positions.marketPositions.length > 0 ?
   `🎯 Prediction Markets (${positions.marketPositions.length}):
-${positions.marketPositions.map((p: any) => `  • ${p.side} on "${p.question.substring(0, 60)}..."
+${positions.marketPositions.map((p) => `  • ${p.side} on "${p.question.substring(0, 60)}..."
     ${p.shares.toFixed(2)} shares @ $${p.avgPrice.toFixed(3)} (Current: $${p.currentPrice.toFixed(3)})
     P&L: ${p.unrealizedPnL >= 0 ? '+' : ''}$${p.unrealizedPnL.toFixed(2)}`).join('\n')}`
   : '🎯 No prediction market positions'}

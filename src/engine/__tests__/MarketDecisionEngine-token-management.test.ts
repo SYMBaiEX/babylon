@@ -49,21 +49,38 @@ import { MarketContextService } from '@/lib/services/market-context-service';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { NPCMarketContext } from '@/types/market-context';
 
+interface JSONSchema {
+  required?: string[];
+  properties?: Record<string, {
+    type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    description?: string;
+    items?: unknown;
+    properties?: Record<string, unknown>;
+  }>;
+}
+
+interface GenerateJSONOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  format?: 'xml' | 'json';
+}
+
 // Mock LLM client for testing
 class MockLLMClient extends BabylonLLMClient {
-  private mockResponses: any[] = [];
+  private mockResponses: unknown[] = [];
   private callCount = 0;
 
   constructor() {
     super();
   }
 
-  setMockResponse(response: any) {
+  setMockResponse<T>(response: T): void {
     this.mockResponses.push(response);
   }
 
-  async generateJSON<T>(_prompt: string, _schema?: any, _options?: any): Promise<T> {
-    const response = this.mockResponses[this.callCount] || [];
+  async generateJSON<T>(_prompt: string, _schema?: JSONSchema, _options?: GenerateJSONOptions): Promise<T> {
+    const response = this.mockResponses[this.callCount] ?? ([] as unknown);
     this.callCount++;
     return response as T;
   }

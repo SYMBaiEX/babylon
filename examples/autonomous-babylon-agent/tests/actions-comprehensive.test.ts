@@ -14,9 +14,15 @@ import fs from 'fs'
 
 dotenv.config({ path: '.env.local' })
 
+interface AgentIdentity {
+  tokenId: number
+  address: string
+  agentId: string
+}
+
 describe('A2A Comprehensive Actions Test', () => {
   let client: BabylonA2AClient
-  let agentIdentity: any
+  let agentIdentity: AgentIdentity
   let testPostId: string | null = null
   let testMarketId: string | null = null
   let testChatId: string | null = null

@@ -16,8 +16,8 @@ import { join } from 'path'
 config({ path: join(process.cwd(), '.env') })
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '../../src/lib/database-service'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
+import { prisma } from '@/lib/prisma'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 console.log('[TEST] Using configured database for integration tests')
 
@@ -28,6 +28,9 @@ let groupChatId: string
 
 describe('Complete User Social Features Integration', () => {
   beforeAll(async () => {
+    if (!prisma || !prisma.user) {
+      throw new Error('Prisma client not initialized');
+    }
     console.log('\n🧪 Setting up test users...\n')
     
     // Find or create two test users
@@ -107,7 +110,11 @@ describe('Complete User Social Features Integration', () => {
   })
 
   afterAll(async () => {
-    await prisma.$disconnect()
+    // Prisma disconnect is handled automatically in serverless environments
+    // Only disconnect if prisma is available and has the method
+    if (prisma && typeof (prisma as any).$disconnect === 'function') {
+      await (prisma as any).$disconnect().catch(() => {});
+    }
   })
 
   describe('1. User Following Each Other', () => {

@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+import { prisma } from '@/lib/prisma'
 import { PrismaClient } from '@prisma/client'
 import { WaitlistService } from '@/lib/services/waitlist-service'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
-
-const prisma = new PrismaClient()
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Referral System', () => {
   let user1Id: string
@@ -12,6 +11,9 @@ describe('Referral System', () => {
   let user1InviteCode: string
 
   beforeAll(async () => {
+    if (!prisma || !prisma.user) {
+      throw new Error('Prisma client not initialized');
+    }
     // Clean up any existing test users - intentionally not catching errors (should fail fast)
     await prisma.user.deleteMany({
       where: {
@@ -297,14 +299,15 @@ describe('Referral System', () => {
       select: { referralCode: true }
     })
 
-    // Create a temp user
+    // Create a temp user with unique username
+    const uniqueId = await generateSnowflakeId()
     const tempUser = await prisma.user.create({
       data: {
-        id: await generateSnowflakeId(),
-        username: 'temp_self_ref_test',
+        id: uniqueId,
+        username: `temp_self_ref_${uniqueId}`,
         displayName: 'Temp User',
         bio: 'Test',
-        privyId: 'test-privy-id-temp',
+        privyId: `test-privy-id-temp-${uniqueId}`,
         reputationPoints: 1000,
         isTest: true,
 
@@ -318,7 +321,7 @@ describe('Referral System', () => {
 
     // Try to use their own code (should fail)
     const selfRefResult = await WaitlistService.markAsWaitlisted(tempUser.id, tempResult.inviteCode)
-    expect(selfRefResult.referrerRewarded).toBeUndefined() // or false
+    expect(selfRefResult.referrerRewarded).toBe(false) // Self-referral should not reward
 
     // Clean up
     await prisma.user.delete({ where: { id: tempUser.id } })
@@ -442,7 +445,7 @@ describe('Referral System', () => {
     // Try to mark again with User 1's code (should fail/be ignored)
     const secondRef = await WaitlistService.markAsWaitlisted(tempUser.id, user1InviteCode)
     expect(secondRef.success).toBe(true)
-    expect(secondRef.referrerRewarded).toBeUndefined() // Already referred
+    expect(secondRef.referrerRewarded).toBe(false) // Already referred, should not reward again
 
     // Verify the user is still only referred by User 3
     const tempUserCheck = await prisma.user.findUnique({

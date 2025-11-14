@@ -134,7 +134,8 @@ export async function disconnectAgentA2AClient(runtime: AgentRuntime): Promise<v
   }
 
   try {
-    await (babylonRuntime.a2aClient as any).disconnect()
+    // HttpA2AClient doesn't have a disconnect method (it's stateless)
+    // Just clear the reference
     babylonRuntime.a2aClient = undefined
     
     logger.info('A2A client disconnected', { agentId: runtime.agentId })

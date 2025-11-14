@@ -102,13 +102,19 @@ function FeedPageContent() {
 
   useEffect(() => {
     const loadActorNames = async () => {
-      const response = await fetch('/data/actors.json')
-      const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
-      const nameMap = new Map<string, string>()
-      data.actors?.forEach((actor) => {
-        nameMap.set(actor.id, actor.name)
-      })
-      setActorNames(nameMap)
+      try {
+        const response = await fetch('/data/actors.json')
+        if (!response.ok) return
+        const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
+        const nameMap = new Map<string, string>()
+        data.actors?.forEach((actor) => {
+          nameMap.set(actor.id, actor.name)
+        })
+        setActorNames(nameMap)
+      } catch (err) {
+        console.error('Failed to load actor names:', err)
+        // Fail silently - actor names are optional
+      }
     }
     loadActorNames()
   }, [])
@@ -133,16 +139,20 @@ function FeedPageContent() {
       else setLoading(true)
     }
 
-    const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
-    if (!response.ok) {
-      if (append) setHasMore(false)
-      setLoadingMore(false)
-      return
-    }
+    try {
+      const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
+      if (!response.ok) {
+        if (append) setHasMore(false)
+        if (!skipLoadingState) {
+          if (append) setLoadingMore(false)
+          else setLoading(false)
+        }
+        return
+      }
 
-    const data = await response.json()
-    const newPosts = data.posts as FeedPost[]
-    const total = data.total as number | undefined
+      const data = await response.json()
+      const newPosts = data.posts as FeedPost[]
+      const total = data.total as number | undefined
 
     // CRITICAL: Check for duplicates BEFORE any setState
     // Use ref to get current posts (not stale closure)
@@ -230,6 +240,14 @@ function FeedPageContent() {
       if (append) setLoadingMore(false)
       else setLoading(false)
     }
+    } catch (err) {
+      console.error('Failed to fetch latest posts:', err)
+      if (append) setHasMore(false)
+      if (!skipLoadingState) {
+        if (append) setLoadingMore(false)
+        else setLoading(false)
+      }
+    }
   }, [tab])
 
   const handleRefresh = useCallback(async () => {
@@ -309,25 +327,35 @@ function FeedPageContent() {
 
       setLoadingFollowing(true)
       
-      const token = await getAccessToken()
+      try {
+        const token = await getAccessToken()
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch(
+          `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+          { headers }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch following posts')
+        }
+
+        const data = await response.json()
+        setFollowingPosts(data.posts as FeedPost[])
+      } catch (err) {
+        console.error('Failed to fetch following posts:', err)
+        // Keep existing posts on error
+      } finally {
+        setLoadingFollowing(false)
       }
-
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(
-        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
-        { headers }
-      )
-
-      const data = await response.json()
-      setFollowingPosts(data.posts as FeedPost[])
-      setLoadingFollowing(false)
     }
 
     fetchFollowingPosts()

@@ -4,10 +4,18 @@
  * Tests the world context generation from database
  */
 
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, beforeAll } from 'bun:test'
 import { generateWorldContext } from '@/lib/prompts'
+import { prisma } from '@/lib/prisma'
 
 describe('World Context Generation', () => {
+  beforeAll(() => {
+    // Ensure Prisma is initialized
+    if (!prisma || !prisma.market) {
+      throw new Error('Prisma client not initialized. Check DATABASE_URL environment variable.')
+    }
+  })
+
   test('Generate basic world context', async () => {
     const context = await generateWorldContext({
       maxActors: 10,

@@ -125,7 +125,9 @@ export class HttpA2AClient {
   async proposeCoalition(params: {
     name: string
     strategy: string
-    targetMarket?: string
+    targetMarket: string
+    minMembers: number
+    maxMembers: number
   }) {
     return this.request('a2a.proposeCoalition', params)
   }
@@ -151,10 +153,11 @@ export class HttpA2AClient {
    */
   async shareAnalysis(analysis: {
     marketId: string
+    analyst: string
     prediction: number
     confidence: number
-    reasoning?: string
-    dataPoints?: unknown[]
+    reasoning: string
+    dataPoints: Record<string, string | number | boolean | null>
     timestamp: number
   }) {
     return this.request('a2a.shareAnalysis', analysis)

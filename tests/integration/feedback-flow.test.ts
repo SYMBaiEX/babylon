@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import {
   CompletionFormat,
@@ -13,6 +13,11 @@ import {
   type TradeMetrics,
   type GameMetrics,
 } from '@/lib/reputation/reputation-service'
+
+// Ensure prisma is available
+if (!prisma) {
+  throw new Error('Prisma client is not initialized. Check DATABASE_URL environment variable.');
+}
 
 describe('Feedback System', () => {
   let testUserId: string

@@ -13,9 +13,9 @@
 
 import { describe, it, expect, beforeAll } from 'bun:test'
 import { execSync } from 'child_process'
-import { prisma } from '../../src/lib/prisma'
-import { getOracleService } from '../../src/lib/oracle'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
+import { prisma } from '@/lib/prisma'
+import { getOracleService } from '@/lib/oracle'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
   let oracleService: ReturnType<typeof getOracleService> | null = null

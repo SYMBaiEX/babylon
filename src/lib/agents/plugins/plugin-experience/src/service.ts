@@ -1,24 +1,20 @@
 import {
-  Service,
   type IAgentRuntime,
   type ServiceTypeName,
-  logger,
   type UUID,
-  type Memory,
-  createUniqueUuid,
+  logger,
   ModelType,
+  Service
 } from '@elizaos/core';
+import { v4 as uuidv4 } from 'uuid';
 import {
   type Experience,
-  type ExperienceQuery,
   type ExperienceAnalysis,
-  ExperienceType,
-  OutcomeType,
-  type ExperienceEvent,
+  type ExperienceQuery,
   ExperienceServiceType,
+  ExperienceType,
+  OutcomeType
 } from './types';
-import { v4 as uuidv4 } from 'uuid';
-import { analyzeExperience, detectPatterns } from './utils/experienceAnalyzer';
 import { ConfidenceDecayManager } from './utils/confidenceDecay';
 import { ExperienceRelationshipManager } from './utils/experienceRelationships';
 
@@ -352,9 +348,11 @@ export class ExperienceService extends Service {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      const aVal = a[i] ?? 0;
+      const bVal = b[i] ?? 0;
+      dotProduct += aVal * bVal;
+      normA += aVal * aVal;
+      normB += bVal * bVal;
     }
 
     if (normA === 0 || normB === 0) return 0;
@@ -405,7 +403,7 @@ export class ExperienceService extends Service {
       if (exp.outcome === OutcomeType.NEGATIVE && exp.learning.includes('instead')) {
         // Extract alternative from learning
         const match = exp.learning.match(/instead\s+(.+?)(?:\.|$)/i);
-        if (match) {
+        if (match && match[1]) {
           alternatives.add(match[1].trim());
         }
       }
@@ -446,7 +444,7 @@ export class ExperienceService extends Service {
     if (failureTypes.size > 0) {
       const mostCommonFailure = Array.from(failureTypes.entries()).sort((a, b) => b[1] - a[1])[0];
 
-      if (mostCommonFailure[1] > 1) {
+      if (mostCommonFailure && mostCommonFailure[1] > 1) {
         recommendations.push(`Address recurring issue: ${mostCommonFailure[0]}`);
       }
     }

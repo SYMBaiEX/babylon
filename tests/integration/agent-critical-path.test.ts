@@ -27,7 +27,8 @@ const API_BASE_URL = process.env.BABYLON_API_URL || 'http://localhost:3000'
 
 // Agent auth uses ENVIRONMENT variables, not database
 // Use CRON_SECRET for agent authentication
-const TEST_AGENT_ID = process.env.BABYLON_AGENT_ID || 'babylon-agent-alice'
+const DEFAULT_TEST_AGENT_ID = 'babylon-agent-alice'
+const TEST_AGENT_ID = process.env.BABYLON_AGENT_ID || DEFAULT_TEST_AGENT_ID
 const TEST_AGENT_SECRET = process.env.CRON_SECRET
 
 describe('Agent Critical Path - Integration', () => {
@@ -36,10 +37,13 @@ describe('Agent Critical Path - Integration', () => {
   test.skipIf(!serverAvailable)('1. Agent can authenticate', async () => {
     console.log(`\n🔐 Testing authentication at ${API_BASE_URL}/api/agents/auth`)
     console.log(`   Agent ID: ${TEST_AGENT_ID}`)
+    if (!process.env.BABYLON_AGENT_ID) {
+      console.log(`   (using default "${DEFAULT_TEST_AGENT_ID}" for local testing)`)
+    }
     
     if (!TEST_AGENT_SECRET) {
-      console.log(`   ⚠️  BABYLON_AGENT_SECRET not set - skipping auth test`)
-      console.log(`   Set BABYLON_AGENT_SECRET in environment to test authentication`)
+      console.log(`   ⚠️  CRON_SECRET not set - skipping auth test`)
+      console.log(`   Set CRON_SECRET in environment to test authentication`)
       return
     }
     
@@ -61,7 +65,7 @@ describe('Agent Critical Path - Integration', () => {
     if (!response.ok) {
       console.error(`   ❌ Authentication failed (${response.status}):`, data)
       if (!TEST_AGENT_SECRET) {
-        console.log(`   💡 This is expected - set BABYLON_AGENT_SECRET to enable agent auth`)
+        console.log(`   💡 This is expected - set CRON_SECRET to enable agent auth`)
         return
       }
       throw new Error(`Agent authentication failed: ${data.error?.message || 'Unknown error'}`)
@@ -158,12 +162,17 @@ describe('Agent Critical Path - Integration', () => {
   test.skipIf(!serverAvailable)('6. Verify agent credentials are configured', () => {
     console.log(`\n🔧 Environment check:`)
     console.log(`   BABYLON_API_URL: ${API_BASE_URL}`)
-    console.log(`   BABYLON_AGENT_SECRET: ${TEST_AGENT_SECRET ? '✅ Set' : '⚠️  Not set (optional)'}`)
+    console.log(
+      `   BABYLON_AGENT_ID: ${
+        process.env.BABYLON_AGENT_ID ? process.env.BABYLON_AGENT_ID : `${DEFAULT_TEST_AGENT_ID} (default)`
+      }`
+    )
+    console.log(`   CRON_SECRET: ${TEST_AGENT_SECRET ? '✅ Set' : '⚠️  Not set (optional)'}`)
     console.log(`   AGENT0_ENABLED: ${process.env.AGENT0_ENABLED || 'false'}`)
 
     // This is optional - agent auth is only needed for autonomous agents
     if (!TEST_AGENT_SECRET) {
-      console.log(`   💡 To test agent auth, set BABYLON_AGENT_SECRET in .env`)
+      console.log(`   💡 To test agent auth, set CRON_SECRET in .env`)
     }
     
     // Test passes either way - just documenting the config

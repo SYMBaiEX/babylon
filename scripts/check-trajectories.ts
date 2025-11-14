@@ -3,6 +3,7 @@
  */
 
 import { prisma } from '../src/lib/prisma';
+import type { TrajectoryStep } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/types';
 
 async function checkTrajectories() {
   console.log('Checking for trajectories...\n');
@@ -57,8 +58,8 @@ async function checkTrajectories() {
       console.log(`  Reward: ${sample.totalReward}`);
       console.log(`  Status: ${sample.finalStatus}`);
       
-      const steps = JSON.parse(sample.stepsJson);
-      console.log(`  LLM calls: ${steps.reduce((sum: number, s: any) => sum + (s.llmCalls?.length || 0), 0)}`);
+      const steps = JSON.parse(sample.stepsJson) as TrajectoryStep[];
+      console.log(`  LLM calls: ${steps.reduce((sum: number, s: TrajectoryStep) => sum + (s.llmCalls?.length || 0), 0)}`);
     }
   } else {
     console.log('\n⚠️  No trajectories found for today');

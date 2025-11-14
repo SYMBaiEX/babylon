@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import type { ActorData, Organization } from '../src/shared/types';
 
 interface ActorsData {
-  actors: any[];
-  organizations: any[];
+  actors: ActorData[];
+  organizations: Organization[];
 }
 
 // Fields that should be present based on usage analysis
@@ -65,7 +66,7 @@ function analyzeActors() {
     console.log('  ✓ None');
   } else {
     extraActorFields.forEach(f => {
-      const count = data.actors.filter(a => a[f] !== undefined).length;
+      const count = data.actors.filter(a => (a as unknown as Record<string, unknown>)[f] !== undefined).length;
       console.log(`  - ${f} (present in ${count}/${data.actors.length} actors)`);
     });
   }
@@ -74,7 +75,10 @@ function analyzeActors() {
   console.log('\nMissing required fields:');
   let missingCount = 0;
   for (const field of REQUIRED_ACTOR_FIELDS) {
-    const actorsMissing = data.actors.filter(a => a[field] === undefined || a[field] === null || a[field] === '');
+    const actorsMissing = data.actors.filter(a => {
+      const value = (a as unknown as Record<string, unknown>)[field];
+      return value === undefined || value === null || value === '';
+    });
     if (actorsMissing.length > 0) {
       missingCount++;
       console.log(`  - ${field} missing from ${actorsMissing.length} actors:`);
@@ -104,7 +108,7 @@ function analyzeActors() {
     console.log('  ✓ None');
   } else {
     extraOrgFields.forEach(f => {
-      const count = data.organizations.filter(o => o[f] !== undefined).length;
+      const count = data.organizations.filter(o => (o as unknown as Record<string, unknown>)[f] !== undefined).length;
       console.log(`  - ${f} (present in ${count}/${data.organizations.length} orgs)`);
     });
   }
@@ -113,7 +117,10 @@ function analyzeActors() {
   console.log('\nMissing required fields:');
   missingCount = 0;
   for (const field of REQUIRED_ORG_FIELDS) {
-    const orgsMissing = data.organizations.filter(o => o[field] === undefined || o[field] === null || o[field] === '');
+    const orgsMissing = data.organizations.filter(o => {
+      const value = (o as unknown as Record<string, unknown>)[field];
+      return value === undefined || value === null || value === '';
+    });
     if (orgsMissing.length > 0) {
       missingCount++;
       console.log(`  - ${field} missing from ${orgsMissing.length} orgs:`);

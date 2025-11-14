@@ -12,9 +12,11 @@ import { AutomationPipeline } from '../AutomationPipeline';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 // Mock external dependencies not yet available
-const toARTTrajectory = (traj: any) => ({ messages: [], reward: 0, metadata: {} });
-const groupTrajectories = (trajs: any[]) => ({ groups: [] });
-const prepareForRULER = (trajs: any[]) => ({ trajectories: [] });
+import type { TrajectoryRecord, TrajectoryGroup } from '../../plugin-trajectory-logger/src/types';
+import type { ARTTrajectory } from '../../plugin-trajectory-logger/src/types';
+const toARTTrajectory = (_traj: TrajectoryRecord): ARTTrajectory => ({ messages: [], reward: 0, metadata: {} });
+const groupTrajectories = (_trajs: TrajectoryRecord[]): { groups: TrajectoryGroup[] } => ({ groups: [] });
+const prepareForRULER = (_trajs: TrajectoryRecord[]): { trajectories: ARTTrajectory[] } => ({ trajectories: [] });
 const exportForOpenPipeART = async () => ({ success: true });
 const exportGroupedForGRPO = async () => ({ success: true });
 

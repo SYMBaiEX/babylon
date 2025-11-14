@@ -4,6 +4,7 @@
  * Core service for collecting agent interaction trajectories for RL training
  */
 
+import type { UUID } from '@elizaos/core';
 import type { 
   Trajectory, 
   TrajectoryStep, 
@@ -28,15 +29,15 @@ export class TrajectoryLoggerService {
       episodeId?: string;
       batchId?: string;
       groupIndex?: number;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     } = {}
   ): string {
     const trajectoryId = uuidv4();
     const now = Date.now();
 
     const trajectory: Trajectory = {
-      trajectoryId: trajectoryId as any,
-      agentId: agentId as any,
+      trajectoryId: trajectoryId as UUID,
+      agentId: agentId as UUID,
       startTime: now,
       endTime: now,
       durationMs: 0,
@@ -72,7 +73,7 @@ export class TrajectoryLoggerService {
     }
 
     const step: TrajectoryStep = {
-      stepId: stepId as any,
+      stepId: stepId as UUID,
       stepNumber: trajectory.steps.length,
       timestamp: envState.timestamp,
       environmentState: envState,
@@ -106,7 +107,7 @@ export class TrajectoryLoggerService {
     if (!step) return;
 
     const fullLLMCall: LLMCall = {
-      callId: uuidv4() as any,
+      callId: uuidv4(),
       timestamp: Date.now(),
       ...llmCall,
     };
@@ -149,7 +150,7 @@ export class TrajectoryLoggerService {
     if (!step) return;
 
     step.action = {
-      attemptId: uuidv4() as any,
+      attemptId: uuidv4(),
       timestamp: Date.now(),
       ...action,
     };
@@ -173,7 +174,7 @@ export class TrajectoryLoggerService {
   async endTrajectory(
     trajectoryId: string,
     status: 'completed' | 'terminated' | 'error' | 'timeout',
-    finalMetrics?: Record<string, any>
+    finalMetrics?: Record<string, unknown>
   ): Promise<void> {
     const trajectory = this.activeTrajectories.get(trajectoryId);
     if (!trajectory) return;

@@ -86,7 +86,10 @@ export class BenchmarkRunner {
     const a2aInterface = new SimulationA2AInterface(engine, config.agentUserId);
     
     // Inject A2A interface into agent runtime
-    (config.agentRuntime as any).a2aClient = a2aInterface;
+    interface RuntimeWithA2A extends IAgentRuntime {
+      a2aClient?: SimulationA2AInterface;
+    }
+    (config.agentRuntime as RuntimeWithA2A).a2aClient = a2aInterface;
     
     // 4. Set up trajectory recording if enabled
     let trajectoryRecorder: TrajectoryRecorder | undefined;

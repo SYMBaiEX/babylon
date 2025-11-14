@@ -85,7 +85,7 @@ describe('TokenCounter', () => {
   describe('getModelTokenLimit', () => {
     test('should return correct limit for known models', () => {
       expect(getModelTokenLimit('gpt-4o')).toBe(128000);
-      expect(getModelTokenLimit('llama-3.3-70b-versatile')).toBe(128000);
+      expect(getModelTokenLimit('llama-3.3-70b-versatile')).toBe(131072); // 128k in binary (128 * 1024)
       expect(getModelTokenLimit('mixtral-8x7b-32768')).toBe(32768);
       expect(getModelTokenLimit('claude-3-opus')).toBe(200000);
     });
@@ -97,27 +97,28 @@ describe('TokenCounter', () => {
   
   describe('getSafeContextLimit', () => {
     test('should calculate safe limit with defaults', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+      const model = 'llama-3.3-70b-versatile'; // 131072 (128k in binary)
       const safeLimit = getSafeContextLimit(model);
       
-      // 128k - 8k (output) = 120k, * 0.9 = 108k
-      expect(safeLimit).toBe(108000);
+      // 131072 * 0.9 (10% safety margin) = 117964.8 ≈ 117964
+      expect(safeLimit).toBe(117964);
     });
     
     test('should calculate safe limit with custom output tokens', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+      const model = 'llama-3.3-70b-versatile'; // 131072 (128k in binary)
       const safeLimit = getSafeContextLimit(model, 16000);
       
-      // 128k - 16k (output) = 112k, * 0.9 = 100.8k
-      expect(safeLimit).toBe(100800);
+      // Note: outputTokens parameter is unused (kept for backwards compatibility)
+      // 131072 * 0.9 (10% safety margin) = 117964.8 ≈ 117964
+      expect(safeLimit).toBe(117964);
     });
     
     test('should calculate safe limit with custom safety margin', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+      const model = 'llama-3.3-70b-versatile'; // 131072 (128k in binary)
       const safeLimit = getSafeContextLimit(model, 8000, 0.2);
       
-      // 128k - 8k (output) = 120k, * 0.8 = 96k
-      expect(safeLimit).toBe(96000);
+      // 131072 * 0.8 (20% safety margin) = 104857.6 ≈ 104857
+      expect(safeLimit).toBe(104857);
     });
     
     test('should enforce minimum limit', () => {

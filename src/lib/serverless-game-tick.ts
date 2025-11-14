@@ -24,6 +24,8 @@ import { generateSnowflakeId } from './snowflake';
 import type { ExecutionResult } from '@/types/market-decisions';
 import { getOracleService } from './oracle';
 import { worldFactsService } from './services/world-facts-service';
+import { rssFeedService } from './services/rss-feed-service';
+import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -52,6 +54,13 @@ export interface GameTickResult {
   oracleCommits: number;
   oracleReveals: number;
   oracleErrors: number;
+  worldFactsUpdated?: boolean;
+  worldFactsStats?: {
+    feedsFetched: number;
+    newHeadlines: number;
+    parodiesGenerated: number;
+    headlinesCleaned: number;
+  };
 }
 
 /**
@@ -343,6 +352,14 @@ export async function executeGameTick(): Promise<GameTickResult> {
         failed: syncResult.failed || 0,
       };
       logger.info('Reputation sync completed', result.reputationSyncStats, 'GameTick');
+    }
+
+    // Update world facts if needed (checks 24-hour interval internally)
+    const worldFactsResult = await updateWorldFactsIfNeeded();
+    result.worldFactsUpdated = worldFactsResult.updated;
+    if (worldFactsResult.updated && worldFactsResult.stats) {
+      result.worldFactsStats = worldFactsResult.stats;
+      logger.info('World facts update completed', worldFactsResult.stats, 'GameTick');
     }
 
     // Process alpha group invites (small chance for highly engaged users)
@@ -1992,4 +2009,102 @@ async function forceTrendingCalculation(): Promise<boolean> {
   
   logger.info('Forced trending calculation complete', {}, 'GameTick');
   return true;
+}
+
+// World facts update interval (24 hours in milliseconds)
+const WORLD_FACTS_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Check if we should update world facts
+ * Uses the most recent RSSHeadline's fetchedAt timestamp
+ */
+async function shouldUpdateWorldFacts(): Promise<boolean> {
+  const lastHeadline = await prisma.rSSHeadline.findFirst({
+    orderBy: { fetchedAt: 'desc' },
+    select: { fetchedAt: true },
+  });
+
+  if (!lastHeadline || !lastHeadline.fetchedAt) {
+    return true; // Never updated before
+  }
+
+  const timeSinceLastUpdate = Date.now() - lastHeadline.fetchedAt.getTime();
+  return timeSinceLastUpdate >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+}
+
+/**
+ * Update world facts if needed (called from game tick)
+ * Only updates if it's been 24+ hours since the last update
+ * 
+ * @returns Object with updated status and optional stats
+ */
+async function updateWorldFactsIfNeeded(): Promise<{
+  updated: boolean;
+  stats?: {
+    feedsFetched: number;
+    newHeadlines: number;
+    parodiesGenerated: number;
+    headlinesCleaned: number;
+  };
+}> {
+  const shouldUpdate = await shouldUpdateWorldFacts();
+
+  if (!shouldUpdate) {
+    logger.debug('World facts update not needed yet', undefined, 'GameTick');
+    return { updated: false };
+  }
+
+  logger.info('🌍 Starting world facts update from game tick', undefined, 'GameTick');
+
+  try {
+    const startTime = Date.now();
+
+    // Step 1: Fetch all RSS feeds
+    logger.info('Fetching RSS feeds...', undefined, 'GameTick');
+    const feedResult = await rssFeedService.fetchAllFeeds();
+    logger.info(
+      `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
+      feedResult,
+      'GameTick'
+    );
+
+    // Step 2: Transform untransformed headlines into parodies
+    logger.info('Generating parody headlines...', undefined, 'GameTick');
+    const untransformedHeadlines = await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
+    
+    const generator = createParodyHeadlineGenerator();
+    const parodies = await generator.processHeadlines(untransformedHeadlines);
+    logger.info(
+      `Generated ${parodies.length} parody headlines`,
+      { count: parodies.length },
+      'GameTick'
+    );
+
+    // Step 3: Clean up old headlines (older than 7 days)
+    logger.info('Cleaning up old headlines...', undefined, 'GameTick');
+    const cleaned = await rssFeedService.cleanupOldHeadlines();
+    logger.info(`Cleaned up ${cleaned} old headlines`, { count: cleaned }, 'GameTick');
+
+    const duration = Date.now() - startTime;
+    logger.info('✅ World facts update completed', {
+      duration: `${duration}ms`,
+      feedsFetched: feedResult.fetched,
+      newHeadlines: feedResult.stored,
+      parodiesGenerated: parodies.length,
+      headlinesCleaned: cleaned,
+    }, 'GameTick');
+
+    return {
+      updated: true,
+      stats: {
+        feedsFetched: feedResult.fetched,
+        newHeadlines: feedResult.stored,
+        parodiesGenerated: parodies.length,
+        headlinesCleaned: cleaned,
+      },
+    };
+  } catch (error) {
+    logger.error('World facts update failed', { error }, 'GameTick');
+    return { updated: false };
+  }
 }

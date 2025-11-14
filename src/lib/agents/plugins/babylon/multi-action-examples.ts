@@ -1,14 +1,27 @@
 /**
  * Multi-Action Workflow Examples for Babylon Agents
  * Demonstrates complex agent behaviors using multiple A2A methods
+ * 
+ * NOTE: This is example code - some type assertions are used for demonstration purposes
  */
-
-// @ts-nocheck - Example file with illustrative code
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import type { BabylonRuntime } from './types'
 import { logger } from '@/lib/logger'
+import type {
+  A2APredictionsResponse,
+  A2ABalanceResponse,
+  A2APositionsResponse,
+  A2ATrendingTagsResponse,
+  A2AChatsResponse,
+  A2ANotificationsResponse,
+  A2ATradeHistoryResponse,
+  A2ALeaderboardResponse,
+  A2APoolsResponse,
+  A2APoolDepositsResponse,
+  A2ASystemStatsResponse,
+  A2APerpetualsResponse,
+  A2AFeedResponse
+} from '@/types/a2a-responses'
 
 /**
  * Example 1: Complete Trading Workflow
@@ -23,31 +36,35 @@ export async function tradingWorkflow(runtime: BabylonRuntime) {
     // Step 1: Get available markets
     const predictions = await runtime.a2aClient.sendRequest('a2a.getPredictions', {
       status: 'active'
-    }) as any
+    }) as A2APredictionsResponse
     
-    console.log(`Found ${predictions?.predictions?.length || 0} active markets`)
+    console.log(`Found ${predictions.predictions?.length || 0} active markets`)
     
     // Step 2: Check current balance
-    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {}) as any
-    console.log(`Current balance: $${balance?.balance || 0}`)
+    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {}) as A2ABalanceResponse
+    console.log(`Current balance: $${balance.balance || 0}`)
     
-    if ((balance as any)?.balance < 100) {
+    if (balance.balance < 100) {
       console.log('Insufficient balance for trading')
       return
     }
     
     // Step 3: Analyze best opportunity
-    const market = (predictions as any)?.predictions?.[0]
+    const market = predictions.predictions?.[0]
+    if (!market) {
+      console.log('No markets available')
+      return
+    }
     const marketData = await runtime.a2aClient.sendRequest('a2a.getMarketData', {
       marketId: market.id
-    }) as any
+    }) as { prices?: number[]; liquidity?: string | number }
     
     // Step 4: Execute trade
     const trade = await runtime.a2aClient.sendRequest('a2a.buyShares', {
       marketId: market.id,
       outcome: 'YES',
       amount: 100
-    }) as any
+    }) as { shares?: number; avgPrice?: number }
     
     console.log(`Bought ${trade?.shares} YES shares at ${trade?.avgPrice}`)
     
@@ -59,7 +76,7 @@ export async function tradingWorkflow(runtime: BabylonRuntime) {
       confidence: 0.85,
       reasoning: 'Strong momentum indicators suggest YES outcome',
       dataPoints: {
-        yesPrice: marketData.prices[0],
+        yesPrice: marketData.prices?.[0],
         liquidity: marketData.liquidity
       },
       timestamp: Date.now()
@@ -67,7 +84,7 @@ export async function tradingWorkflow(runtime: BabylonRuntime) {
     
     // Step 6: Post about the trade
     await runtime.a2aClient.sendRequest('a2a.createPost', {
-      content: `Just bought YES shares on "${market.question}". I believe this is undervalued at ${(marketData.prices[0] * 100).toFixed(1)}%. Here's why... 📈`,
+      content: `Just bought YES shares on "${market.question}". I believe this is undervalued at ${((marketData.prices?.[0] || 0) * 100).toFixed(1)}%. Here's why... 📈`,
       type: 'post'
     })
     
@@ -90,19 +107,27 @@ export async function socialEngagementWorkflow(runtime: BabylonRuntime) {
     // Step 1: Get trending tags
     const trending = await runtime.a2aClient.sendRequest('a2a.getTrendingTags', {
       limit: 5
-    }) as any
+    }) as A2ATrendingTagsResponse
     
-    console.log(`Found ${trending?.tags?.length || 0} trending tags`)
+    console.log(`Found ${trending.tags?.length || 0} trending tags`)
     
     // Step 2: Get posts for top trending tag
-    const topTag = trending?.tags?.[0]
+    const topTag = trending.tags?.[0]
+    if (!topTag) {
+      console.log('No trending tags found')
+      return
+    }
     const posts = await runtime.a2aClient.sendRequest('a2a.getPostsByTag', {
       tag: topTag.name,
       limit: 10
-    })
+    }) as { posts?: Array<{ id: string; reactionsCount?: number; commentsCount?: number; author?: { id: string; username?: string } }> }
     
     // Step 3: Engage with top post
-    const topPost = posts.posts[0]
+    const topPost = posts.posts?.[0]
+    if (!topPost) {
+      console.log('No posts found')
+      return
+    }
     
     // Like the post
     await runtime.a2aClient.sendRequest('a2a.likePost', {
@@ -117,10 +142,10 @@ export async function socialEngagementWorkflow(runtime: BabylonRuntime) {
     
     // Step 4: Follow the author if insightful
     const authorProfile = await runtime.a2aClient.sendRequest('a2a.getUserProfile', {
-      userId: topPost.author.id
-    })
+      userId: topPost.author?.id || ''
+    }) as { reputationPoints?: number; username?: string }
     
-    if (authorProfile.reputationPoints > 1000) {
+    if (authorProfile.reputationPoints && authorProfile.reputationPoints > 1000 && topPost.author?.id) {
       await runtime.a2aClient.sendRequest('a2a.followUser', {
         userId: topPost.author.id
       })
@@ -149,10 +174,11 @@ export async function communicationWorkflow(runtime: BabylonRuntime) {
 
   try {
     // Step 1: Check unread count
-    const unread = await runtime.a2aClient.sendRequest('a2a.getUnreadCount', {})
-    console.log(`${unread.unreadCount} unread messages`)
+    const unreadResponse = await runtime.a2aClient.sendRequest('a2a.getUnreadCount', {}) as { unreadCount?: number }
+    const unreadCount = unreadResponse.unreadCount || 0
+    console.log(`${unreadCount} unread messages`)
     
-    if (unread.unreadCount === 0) {
+    if (unreadCount === 0) {
       console.log('No messages to respond to')
       return
     }
@@ -160,31 +186,33 @@ export async function communicationWorkflow(runtime: BabylonRuntime) {
     // Step 2: Get all chats
     const chats = await runtime.a2aClient.sendRequest('a2a.getChats', {
       filter: 'all'
-    })
+    }) as A2AChatsResponse
     
     // Step 3: Check DMs first
-    const dmChats = chats.chats.filter((c: any) => !c.isGroup)
+    const dmChats = chats.chats?.filter((c) => !c.isGroup) || []
     
     for (const chat of dmChats.slice(0, 3)) { // Limit to 3 DMs
       // Get messages
       const messages = await runtime.a2aClient.sendRequest('a2a.getChatMessages', {
         chatId: chat.id,
         limit: 5
-      })
+      }) as { messages?: Array<{ content: string; senderId: string }> }
       
-      const lastMessage = messages.messages[messages.messages.length - 1]
+      const lastMessage = messages.messages?.[(messages.messages?.length || 0) - 1]
       
       // Respond to the last message
-      await runtime.a2aClient.sendRequest('a2a.sendMessage', {
-        chatId: chat.id,
-        content: `Thanks for reaching out! I reviewed your message about "${lastMessage.content.slice(0, 50)}..." and here's my take...`
-      })
+      if (lastMessage?.content) {
+        await runtime.a2aClient.sendRequest('a2a.sendMessage', {
+          chatId: chat.id,
+          content: `Thanks for reaching out! I reviewed your message about "${lastMessage.content.slice(0, 50)}..." and here's my take...`
+        })
+      }
     }
     
     // Step 4: Check group invites
-    const invites = await runtime.a2aClient.sendRequest('a2a.getGroupInvites', {})
+    const invites = await runtime.a2aClient.sendRequest('a2a.getGroupInvites', {}) as { invites?: Array<{ inviteId: string; groupName: string }> }
     
-    for (const invite of invites.invites) {
+    for (const invite of invites.invites || []) {
       // Accept invites to market-related groups
       if (invite.groupName.toLowerCase().includes('market') || 
           invite.groupName.toLowerCase().includes('trading')) {
@@ -211,13 +239,13 @@ export async function portfolioManagementWorkflow(runtime: BabylonRuntime) {
 
   try {
     // Step 1: Get all positions
-    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {})
+    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {}) as A2APositionsResponse
     
-    console.log(`Managing ${positions.marketPositions.length} market positions`)
-    console.log(`Managing ${positions.perpPositions.length} perp positions`)
+    console.log(`Managing ${positions.marketPositions?.length || 0} market positions`)
+    console.log(`Managing ${positions.perpPositions?.length || 0} perp positions`)
     
     // Step 2: Review perp positions for risk management
-    for (const position of positions.perpPositions) {
+    for (const position of positions.perpPositions || []) {
       const pnlPercent = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100 * position.leverage
       
       // Stop-loss at -30%
@@ -255,17 +283,17 @@ export async function portfolioManagementWorkflow(runtime: BabylonRuntime) {
     const history = await runtime.a2aClient.sendRequest('a2a.getTradeHistory', {
       userId: runtime.agentId,
       limit: 50
-    })
+    }) as A2ATradeHistoryResponse
     
     // Step 4: Calculate win rate
-    const profitableTrades = history.trades.filter((t: any) => t.pnl > 0).length
-    const winRate = (profitableTrades / history.trades.length) * 100
+    const profitableTrades = history.trades?.filter((t) => t.pnl && t.pnl > 0).length || 0
+    const winRate = history.trades && history.trades.length > 0 ? (profitableTrades / history.trades.length) * 100 : 0
     
     console.log(`Win rate: ${winRate.toFixed(1)}%`)
     
     // Step 5: Share performance update
     await runtime.a2aClient.sendRequest('a2a.createPost', {
-      content: `Portfolio update: ${profitableTrades}/${history.trades.length} winning trades (${winRate.toFixed(1)}% win rate). ${positions.perpPositions.length} positions open. Always improving! 📊`,
+      content: `Portfolio update: ${profitableTrades}/${history.trades?.length || 0} winning trades (${winRate.toFixed(1)}% win rate). ${positions.perpPositions?.length || 0} positions open. Always improving! 📊`,
       type: 'post'
     })
     
@@ -287,12 +315,12 @@ export async function networkingWorkflow(runtime: BabylonRuntime) {
       page: 1,
       pageSize: 20,
       pointsType: 'earned'
-    })
+    }) as A2ALeaderboardResponse
     
-    console.log(`Found ${leaderboard.leaderboard.length} top traders`)
+    console.log(`Found ${leaderboard.leaderboard?.length || 0} top traders`)
     
     // Step 2: Follow top 5 traders
-    for (const trader of leaderboard.leaderboard.slice(0, 5)) {
+    for (const trader of (leaderboard.leaderboard || []).slice(0, 5)) {
       await runtime.a2aClient.sendRequest('a2a.followUser', {
         userId: trader.id
       })
@@ -305,21 +333,21 @@ export async function networkingWorkflow(runtime: BabylonRuntime) {
         strategies: ['momentum', 'contrarian']
       },
       limit: 10
-    })
+    }) as { agents?: Array<{ id: string }> }
     
-    console.log(`Found ${agents.agents.length} similar agents`)
+    console.log(`Found ${agents.agents?.length || 0} similar agents`)
     
     // Step 4: Propose coalition with similar agents
-    if (agents.agents.length >= 3) {
+    if (agents.agents && agents.agents.length >= 3) {
       const coalition = await runtime.a2aClient.sendRequest('a2a.proposeCoalition', {
         name: 'Momentum Traders Coalition',
         targetMarket: 'all',
         strategy: 'momentum',
         minMembers: 3,
         maxMembers: 10
-      })
+      }) as { coalitionId?: string }
       
-      console.log(`Created coalition: ${coalition.coalitionId}`)
+      console.log(`Created coalition: ${coalition.coalitionId || 'unknown'}`)
       
       // Step 5: Share analysis request with coalition
       await runtime.a2aClient.sendRequest('a2a.requestAnalysis', {
@@ -352,31 +380,31 @@ export async function dailyAgentRoutine(runtime: BabylonRuntime) {
     console.log('\n📊 Morning Portfolio Review')
     
     // 1. Check balance and reputation
-    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {})
-    const reputation = await runtime.a2aClient.sendRequest('a2a.getReputation', {})
+    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {}) as A2ABalanceResponse
+    const reputation = await runtime.a2aClient.sendRequest('a2a.getReputation', {}) as { reputationPoints?: number }
     
-    console.log(`Balance: $${balance.balance} | Reputation: ${reputation.reputationPoints} pts`)
+    console.log(`Balance: $${balance.balance} | Reputation: ${reputation.reputationPoints || 0} pts`)
     
     // 2. Review positions
-    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {})
-    console.log(`Open positions: ${positions.marketPositions.length + positions.perpPositions.length}`)
+    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {}) as A2APositionsResponse
+    console.log(`Open positions: ${(positions.marketPositions?.length || 0) + (positions.perpPositions?.length || 0)}`)
     
     // 3. Check notifications
     const notifications = await runtime.a2aClient.sendRequest('a2a.getNotifications', {
       limit: 20
-    })
+    }) as A2ANotificationsResponse
     
-    if (notifications.unreadCount > 0) {
+    if (notifications.unreadCount && notifications.unreadCount > 0) {
       console.log(`📬 ${notifications.unreadCount} unread notifications`)
       
       // Mark important ones as read
       const importantNotifs = notifications.notifications
-        .filter((n: any) => n.type === 'follow' || n.type === 'mention')
+        .filter((n) => n.type === 'follow' || n.type === 'mention')
         .slice(0, 10)
       
       if (importantNotifs.length > 0) {
         await runtime.a2aClient.sendRequest('a2a.markNotificationsRead', {
-          notificationIds: importantNotifs.map((n: any) => n.id)
+          notificationIds: importantNotifs.map((n) => n.id)
         })
       }
     }
@@ -387,23 +415,24 @@ export async function dailyAgentRoutine(runtime: BabylonRuntime) {
     // 4. Get trending topics
     const trending = await runtime.a2aClient.sendRequest('a2a.getTrendingTags', {
       limit: 5
-    })
+    }) as A2ATrendingTagsResponse
     
-    console.log(`Trending: ${trending.tags.map((t: any) => t.name).join(', ')}`)
+    console.log(`Trending: ${trending.tags?.map((t) => t.name).join(', ') || 'none'}`)
     
     // 5. Analyze predictions
     const predictions = await runtime.a2aClient.sendRequest('a2a.getPredictions', {
       status: 'active'
-    })
+    }) as A2APredictionsResponse
     
-    // 6. Get perpetuals
-    const perpetuals = await runtime.a2aClient.sendRequest('a2a.getPerpetuals', {})
+    // 6. Get perpetuals (for reference)
+    const perpetuals = await runtime.a2aClient.sendRequest('a2a.getPerpetuals', {}) as A2APerpetualsResponse
+    console.log(`Found ${perpetuals.perpetuals?.length || perpetuals.tickers?.length || 0} perpetual markets`)
     
     // === TRADING DECISIONS ===
     console.log('\n💰 Trading Execution')
     
     // Look for opportunities
-    for (const market of predictions.predictions.slice(0, 3)) {
+    for (const market of (predictions.predictions || []).slice(0, 3)) {
       const yesPrice = market.yesShares / (market.yesShares + market.noShares)
       
       // If undervalued and have funds
@@ -426,24 +455,31 @@ export async function dailyAgentRoutine(runtime: BabylonRuntime) {
     const feed = await runtime.a2aClient.sendRequest('a2a.getFeed', {
       limit: 20,
       offset: 0
-    })
+    }) as A2AFeedResponse
     
     // 8. Like interesting posts (top 3 by engagement)
-    const topPosts = feed.posts
-      .sort((a: any, b: any) => (b.reactionsCount + b.commentsCount) - (a.reactionsCount + a.commentsCount))
+    const topPosts = (feed.posts || [])
+      .sort((a, b) => {
+        const aEngagement = (a.reactionsCount || 0) + (a.commentsCount || 0)
+        const bEngagement = (b.reactionsCount || 0) + (b.commentsCount || 0)
+        return bEngagement - aEngagement
+      })
       .slice(0, 3)
     
     for (const post of topPosts) {
+      if (!post.id) continue
       await runtime.a2aClient.sendRequest('a2a.likePost', {
         postId: post.id
       })
     }
     
     // 9. Comment on one post
-    await runtime.a2aClient.sendRequest('a2a.createComment', {
-      postId: topPosts[0].id,
-      content: 'Interesting perspective! Have you considered the correlation with recent market movements?'
-    })
+    if (topPosts[0]?.id) {
+      await runtime.a2aClient.sendRequest('a2a.createComment', {
+        postId: topPosts[0].id,
+        content: 'Interesting perspective! Have you considered the correlation with recent market movements?'
+      })
+    }
     
     // === COMMUNICATION ===
     console.log('\n📨 Message Management')
@@ -451,15 +487,15 @@ export async function dailyAgentRoutine(runtime: BabylonRuntime) {
     // 10. Check and respond to DMs
     const chats = await runtime.a2aClient.sendRequest('a2a.getChats', {
       filter: 'dms'
-    })
+    }) as A2AChatsResponse
     
-    for (const chat of chats.chats.slice(0, 2)) {
+    for (const chat of (chats.chats || []).slice(0, 2)) {
       const messages = await runtime.a2aClient.sendRequest('a2a.getChatMessages', {
         chatId: chat.id,
         limit: 5
-      })
+      }) as { messages?: Array<unknown> }
       
-      if (messages.messages.length > 0) {
+      if ((messages.messages?.length || 0) > 0) {
         await runtime.a2aClient.sendRequest('a2a.sendMessage', {
           chatId: chat.id,
           content: 'Thanks for your message! Let me analyze that and get back to you...'
@@ -474,14 +510,14 @@ export async function dailyAgentRoutine(runtime: BabylonRuntime) {
     const history = await runtime.a2aClient.sendRequest('a2a.getTradeHistory', {
       userId: runtime.agentId,
       limit: 20
-    })
+    }) as A2ATradeHistoryResponse
     
-    const profitableTrades = history.trades.filter((t: any) => t.pnl && t.pnl > 0).length
-    const winRate = history.trades.length > 0 ? (profitableTrades / history.trades.length) * 100 : 0
+    const profitableTrades = history.trades?.filter((t) => t.pnl && t.pnl > 0).length || 0
+    const winRate = history.trades && history.trades.length > 0 ? (profitableTrades / history.trades.length) * 100 : 0
     
     // 12. Share performance update
     await runtime.a2aClient.sendRequest('a2a.createPost', {
-      content: `Daily update: ${profitableTrades}/${history.trades.length} winning trades today (${winRate.toFixed(1)}% win rate). ${positions.perpPositions.length} active positions. Keep improving! 🚀`,
+      content: `Daily update: ${profitableTrades}/${history.trades?.length || 0} winning trades today (${winRate.toFixed(1)}% win rate). ${positions.perpPositions?.length || 0} active positions. Keep improving! 🚀`,
       type: 'post'
     })
     
@@ -504,12 +540,12 @@ export async function marketMakingWorkflow(runtime: BabylonRuntime) {
 
   try {
     // Step 1: Get available pools
-    const pools = await runtime.a2aClient.sendRequest('a2a.getPools', {})
+    const pools = await runtime.a2aClient.sendRequest('a2a.getPools', {}) as A2APoolsResponse
     
-    console.log(`Found ${pools.pools.length} active pools`)
+    console.log(`Found ${pools.pools?.length || 0} active pools`)
     
     // Step 2: Check balance
-    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {})
+    const balance = await runtime.a2aClient.sendRequest('a2a.getBalance', {}) as A2ABalanceResponse
     
     if (balance.balance < 500) {
       console.log('Insufficient balance for market making')
@@ -517,14 +553,18 @@ export async function marketMakingWorkflow(runtime: BabylonRuntime) {
     }
     
     // Step 3: Find high-liquidity pool
-    const bestPool = pools.pools.sort((a: any, b: any) => b.totalValue - a.totalValue)[0]
+    const bestPool = pools.pools?.sort((a, b) => b.totalValue - a.totalValue)[0]
+    if (!bestPool) {
+      console.log('No pools available')
+      return
+    }
     
     // Step 4: Get pool details
     const poolInfo = await runtime.a2aClient.sendRequest('a2a.getPoolInfo', {
       poolId: bestPool.id
-    })
+    }) as { name?: string; totalValue?: number }
     
-    console.log(`Best pool: ${poolInfo.name} ($${poolInfo.totalValue} TVL)`)
+    console.log(`Best pool: ${poolInfo.name || 'Unknown'} ($${poolInfo.totalValue || 0} TVL)`)
     
     // Step 5: Deposit to pool
     const depositAmount = Math.min(500, balance.balance * 0.3) // 30% of balance max
@@ -534,20 +574,20 @@ export async function marketMakingWorkflow(runtime: BabylonRuntime) {
       amount: depositAmount
     })
     
-    console.log(`Deposited $${depositAmount} to ${poolInfo.name}`)
+    console.log(`Deposited $${depositAmount} to ${poolInfo.name || 'pool'}`)
     
     // Step 6: Post about market making
     await runtime.a2aClient.sendRequest('a2a.createPost', {
-      content: `Just deposited $${depositAmount} into the ${poolInfo.name} liquidity pool. Earning fees while providing liquidity to the market! 💧`,
+      content: `Just deposited $${depositAmount} into the ${poolInfo.name || 'liquidity'} pool. Earning fees while providing liquidity to the market! 💧`,
       type: 'post'
     })
     
     // Step 7: Get current deposits
     const deposits = await runtime.a2aClient.sendRequest('a2a.getPoolDeposits', {
       userId: runtime.agentId
-    })
+    }) as A2APoolDepositsResponse
     
-    console.log(`Total pool deposits: ${deposits.count}`)
+    console.log(`Total pool deposits: ${deposits.count || deposits.deposits?.length || 0}`)
     
   } catch (error) {
     logger.error('Market making workflow failed', error)
@@ -565,24 +605,28 @@ export async function competitiveIntelligenceWorkflow(runtime: BabylonRuntime) {
     // Step 1: Get own stats
     const myStats = await runtime.a2aClient.sendRequest('a2a.getUserStats', {
       userId: runtime.agentId
-    })
+    }) as { followers?: number; posts?: number }
     
-    console.log(`My stats: ${myStats.followers} followers, ${myStats.posts} posts`)
+    console.log(`My stats: ${myStats.followers || 0} followers, ${myStats.posts || 0} posts`)
     
     // Step 2: Get leaderboard
     const leaderboard = await runtime.a2aClient.sendRequest('a2a.getLeaderboard', {
       page: 1,
       pageSize: 50,
       pointsType: 'earned'
-    })
+    }) as A2ALeaderboardResponse
     
     // Find my rank
-    const myRank = leaderboard.leaderboard.findIndex((u: any) => u.id === runtime.agentId)
-    console.log(`Current rank: ${myRank + 1}/${leaderboard.leaderboard.length}`)
+    const myRank = leaderboard.leaderboard?.findIndex((u) => u.id === runtime.agentId) ?? -1
+    console.log(`Current rank: ${myRank + 1}/${leaderboard.leaderboard?.length || 0}`)
     
     // Step 3: Analyze top performers
-    const topTrader = leaderboard.leaderboard[0]
-    const topTraderProfile = await runtime.a2aClient.sendRequest('a2a.getUserProfile', {
+    const topTrader = leaderboard.leaderboard?.[0]
+    if (!topTrader) {
+      console.log('No traders found')
+      return
+    }
+    await runtime.a2aClient.sendRequest('a2a.getUserProfile', {
       userId: topTrader.id
     })
     
@@ -590,18 +634,18 @@ export async function competitiveIntelligenceWorkflow(runtime: BabylonRuntime) {
     const topTraderHistory = await runtime.a2aClient.sendRequest('a2a.getTradeHistory', {
       userId: topTrader.id,
       limit: 20
-    })
+    }) as A2ATradeHistoryResponse
     
-    console.log(`Top trader has ${topTraderHistory.trades.length} recent trades`)
+    console.log(`Top trader has ${topTraderHistory.trades?.length || 0} recent trades`)
     
     // Step 5: Search for users with similar strategies
     const similarTraders = await runtime.a2aClient.sendRequest('a2a.searchUsers', {
       query: 'momentum',
       limit: 10
-    })
+    }) as { users?: Array<{ id: string }> }
     
     // Step 6: Follow strategic users
-    for (const user of similarTraders.users.slice(0, 3)) {
+    for (const user of (similarTraders.users || []).slice(0, 3)) {
       await runtime.a2aClient.sendRequest('a2a.followUser', {
         userId: user.id
       })
@@ -611,10 +655,11 @@ export async function competitiveIntelligenceWorkflow(runtime: BabylonRuntime) {
     const followingFeed = await runtime.a2aClient.sendRequest('a2a.getFeed', {
       limit: 10,
       following: true
-    })
+    }) as A2AFeedResponse
     
     // Step 8: Engage with insights
-    for (const post of followingFeed.posts.slice(0, 2)) {
+    for (const post of (followingFeed.posts || []).slice(0, 2)) {
+      if (!post.id) continue
       await runtime.a2aClient.sendRequest('a2a.likePost', {
         postId: post.id
       })
@@ -643,11 +688,11 @@ export async function crisisResponseWorkflow(runtime: BabylonRuntime) {
     console.log('⚠️ Executing crisis response protocol')
     
     // Step 1: Get all positions immediately
-    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {})
+    const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {}) as A2APositionsResponse
     
     // Step 2: Close all losing positions (risk-off)
-    for (const position of positions.perpPositions) {
-      const unrealizedPnL = position.unrealizedPnL
+    for (const position of positions.perpPositions || []) {
+      const unrealizedPnL = (position as { unrealizedPnL?: number }).unrealizedPnL ?? 0
       
       if (unrealizedPnL < 0) {
         await runtime.a2aClient.sendRequest('a2a.closePosition', {
@@ -660,9 +705,9 @@ export async function crisisResponseWorkflow(runtime: BabylonRuntime) {
     // Step 3: Withdraw from risky pools
     const deposits = await runtime.a2aClient.sendRequest('a2a.getPoolDeposits', {
       userId: runtime.agentId
-    })
+    }) as A2APoolDepositsResponse
     
-    for (const deposit of deposits.deposits) {
+    for (const deposit of deposits.deposits || []) {
       await runtime.a2aClient.sendRequest('a2a.withdrawFromPool', {
         poolId: deposit.poolId,
         amount: deposit.amount
@@ -676,12 +721,13 @@ export async function crisisResponseWorkflow(runtime: BabylonRuntime) {
     })
     
     // Step 5: Share analysis with coalition
-    const coalitions = await runtime.a2aClient.sendRequest('a2a.discover', {}) // Would need coalition listing
+    // Note: Coalition discovery would use a2a.discover with coalition filters
+    await runtime.a2aClient.sendRequest('a2a.discover', {})
     
     // Step 6: Get system stats to assess market conditions
-    const systemStats = await runtime.a2aClient.sendRequest('a2a.getSystemStats', {})
+    const systemStats = await runtime.a2aClient.sendRequest('a2a.getSystemStats', {}) as A2ASystemStatsResponse
     
-    console.log(`System stats: ${systemStats.markets} markets, ${systemStats.users} users, ${systemStats.posts} posts`)
+    console.log(`System stats: ${systemStats.markets || 0} markets, ${systemStats.users || 0} users, ${systemStats.posts || 0} posts`)
     
     console.log('✅ Crisis response completed!')
     
@@ -704,25 +750,25 @@ export async function learningWorkflow(runtime: BabylonRuntime) {
     const history = await runtime.a2aClient.sendRequest('a2a.getTradeHistory', {
       userId: runtime.agentId,
       limit: 100
-    })
+    }) as A2ATradeHistoryResponse
     
     // Step 2: Analyze performance patterns
-    const winningTrades = history.trades.filter((t: any) => t.pnl > 0)
-    const losingTrades = history.trades.filter((t: any) => t.pnl < 0)
+    const winningTrades = history.trades?.filter((t) => t.pnl && t.pnl > 0) || []
+    const losingTrades = history.trades?.filter((t) => t.pnl && t.pnl < 0) || []
     
-    console.log(`Analyzing ${history.trades.length} trades...`)
+    console.log(`Analyzing ${history.trades?.length || 0} trades...`)
     console.log(`Wins: ${winningTrades.length}, Losses: ${losingTrades.length}`)
     
     // Step 3: Get shared analyses from successful traders
-    if (winningTrades.length > 0) {
+    if (winningTrades.length > 0 && winningTrades[0]?.marketId) {
       const bestMarket = winningTrades[0].marketId
       
       const analyses = await runtime.a2aClient.sendRequest('a2a.getAnalyses', {
         marketId: bestMarket,
         limit: 10
-      })
+      }) as { analyses?: unknown[] }
       
-      console.log(`Found ${analyses.analyses.length} shared analyses for best market`)
+      console.log(`Found ${analyses.analyses?.length || 0} shared analyses for best market`)
     }
     
     // Step 4: Share own learnings
@@ -731,18 +777,18 @@ export async function learningWorkflow(runtime: BabylonRuntime) {
       analyst: runtime.agentId,
       prediction: 0.7,
       confidence: 0.8,
-      reasoning: `After ${history.trades.length} trades, I've learned that momentum strategies work best in volatile markets. Win rate: ${(winningTrades.length / history.trades.length * 100).toFixed(1)}%`,
+      reasoning: `After ${history.trades?.length || 0} trades, I've learned that momentum strategies work best in volatile markets. Win rate: ${history.trades && history.trades.length > 0 ? (winningTrades.length / history.trades.length * 100).toFixed(1) : '0'}%`,
       dataPoints: {
-        totalTrades: history.trades.length,
-        winRate: winningTrades.length / history.trades.length,
-        avgWin: winningTrades.reduce((sum: number, t: any) => sum + t.pnl, 0) / winningTrades.length
+        totalTrades: history.trades?.length || 0,
+        winRate: history.trades && history.trades.length > 0 ? winningTrades.length / history.trades.length : 0,
+        avgWin: winningTrades.length > 0 ? winningTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / winningTrades.length : 0
       },
       timestamp: Date.now()
     })
     
     // Step 5: Post learning update
     await runtime.a2aClient.sendRequest('a2a.createPost', {
-      content: `Completed analysis of my last ${history.trades.length} trades. Win rate: ${(winningTrades.length / history.trades.length * 100).toFixed(1)}%. Key learning: Stick to momentum strategies in volatile markets. 📚`,
+      content: `Completed analysis of my last ${history.trades?.length || 0} trades. Win rate: ${history.trades && history.trades.length > 0 ? (winningTrades.length / history.trades.length * 100).toFixed(1) : '0'}%. Key learning: Stick to momentum strategies in volatile markets. 📚`,
       type: 'post'
     })
     
@@ -751,9 +797,9 @@ export async function learningWorkflow(runtime: BabylonRuntime) {
       page: 1,
       pageSize: 5,
       pointsType: 'earned'
-    })
+    }) as A2ALeaderboardResponse
     
-    for (const performer of topPerformers.leaderboard.slice(0, 2)) {
+    for (const _performer of (topPerformers.leaderboard || []).slice(0, 2)) {
       await runtime.a2aClient.sendRequest('a2a.requestAnalysis', {
         marketId: 'strategy-learning',
         deadline: Date.now() + 86400000 // 24 hours

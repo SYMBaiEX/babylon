@@ -93,18 +93,28 @@ export default function PerpsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const perpsRes = await fetch('/api/markets/perps');
-    const perpsData = await perpsRes.json();
-
-    setPerpMarkets(perpsData.markets || []);
-
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
+    try {
+      const perpsRes = await fetch('/api/markets/perps');
+      
+      if (!perpsRes.ok) {
+        throw new Error('Failed to fetch perp markets');
       }
-    }
 
-    setLoading(false);
+      const perpsData = await perpsRes.json();
+
+      setPerpMarkets(perpsData.markets || []);
+
+      if (isAuth && userId) {
+        if (refreshPositionsRef.current) {
+          await refreshPositionsRef.current();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch perp markets:', err);
+      // Keep existing markets on error
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // Store fetchData in ref

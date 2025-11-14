@@ -209,6 +209,7 @@ function SidebarContent() {
             <Link
               key={item.name}
               href={item.href}
+              prefetch={true}
               className={cn(
                 'group relative flex items-center px-4 py-3',
                 'transition-colors duration-200',

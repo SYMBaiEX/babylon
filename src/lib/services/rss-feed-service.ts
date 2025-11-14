@@ -10,7 +10,7 @@
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import type { RSSFeedSource, RSSHeadline } from '@prisma/client';
+import type { RSSHeadline, Prisma } from '@prisma/client';
 import { parseStringPromise } from 'xml2js';
 
 export interface RSSFeedItem {
@@ -172,7 +172,7 @@ export class RSSFeedService {
               publishedAt,
               summary: item.description || null,
               content: item.content || null,
-              rawData: item as unknown as Record<string, unknown>,
+              rawData: JSON.parse(JSON.stringify(item)) as Prisma.InputJsonValue,
               fetchedAt: new Date(),
             },
           });

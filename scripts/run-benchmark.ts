@@ -19,9 +19,13 @@ import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
 import { logger } from '@/lib/logger';
 import * as path from 'path';
 
+import type { IAgentRuntime } from '@elizaos/core';
+
 // This is a simplified version - in production you'd load actual agent runtime
-class MockAgentRuntime {
+class MockAgentRuntime implements Partial<IAgentRuntime> {
   // Mock implementation for testing
+  // agentId must be in UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  agentId = '00000000-0000-0000-0000-000000000000' as `${string}-${string}-${string}-${string}-${string}`;
 }
 
 async function main() {
@@ -50,7 +54,7 @@ async function main() {
   });
   
   // Create agent runtime (mock for now)
-  const agentRuntime = new MockAgentRuntime() as any;
+  const agentRuntime = new MockAgentRuntime() as IAgentRuntime;
   
   // Configure benchmark run
   const config: BenchmarkRunConfig = {

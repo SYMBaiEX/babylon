@@ -6,6 +6,7 @@ import {
   type Memory,
   type Content,
   EventType,
+  ChannelType,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import { AutonomousServiceType } from './types';
@@ -83,10 +84,11 @@ export class AutonomyService extends Service {
         worldId,
         agentId: this.runtime.agentId,
         source: 'autonomy-plugin',
-        type: 'AUTONOMOUS' as any,
+        type: ChannelType.DM, // Room type - using DM for autonomous thoughts
         metadata: {
           source: 'autonomy-plugin',
           description: 'Room for autonomous agent thinking',
+          type: 'AUTONOMOUS',
         },
       });
     }
@@ -228,7 +230,7 @@ export class AutonomyService extends Service {
           m.entityId === agentEntity.id &&
           m.content?.text &&
           m.content?.metadata &&
-          (m.content.metadata as any)?.isAutonomous === true
+          (m.content.metadata as { isAutonomous?: boolean })?.isAutonomous === true
       )
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 

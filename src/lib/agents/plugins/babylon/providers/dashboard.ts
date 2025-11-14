@@ -8,6 +8,13 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type {
+  A2ABalanceResponse,
+  A2APositionsResponse,
+  A2APredictionsResponse,
+  A2AFeedResponse,
+  A2AUnreadCountResponse
+} from '@/types/a2a-responses'
 
 /**
  * Provider: Comprehensive Dashboard
@@ -39,11 +46,11 @@ export const dashboardProvider: Provider = {
       babylonRuntime.a2aClient.sendRequest('a2a.getUnreadCount', {})
     ])
     
-    const balanceData = balance as { balance?: number; reputationPoints?: number }
-    const positionsData = positions as { marketPositions?: unknown[]; perpPositions?: unknown[] }
-    const predictionsData = predictions as { predictions?: unknown[] }
-    const feedData = feed as { posts?: unknown[] }
-    const unreadData = unreadCount as { unreadCount?: number }
+    const balanceData = balance as A2ABalanceResponse
+    const positionsData = positions as A2APositionsResponse
+    const predictionsData = predictions as A2APredictionsResponse
+    const feedData = feed as A2AFeedResponse
+    const unreadData = unreadCount as A2AUnreadCountResponse
     
     const totalPositions = (positionsData.marketPositions?.length || 0) + (positionsData.perpPositions?.length || 0)
     
@@ -55,7 +62,7 @@ Points: ${balanceData.reputationPoints || 0} pts
 Open Positions: ${totalPositions}
 
 📈 ACTIVE MARKETS (Top 3)
-${predictionsData.predictions?.slice(0, 3).map((m: any, i: number) => {
+${predictionsData.predictions?.slice(0, 3).map((m, i: number) => {
   const total = m.yesShares + m.noShares
   const yesPrice = total > 0 ? (m.yesShares / total * 100).toFixed(1) : '50.0'
   return `${i + 1}. ${m.question}
@@ -63,7 +70,7 @@ ${predictionsData.predictions?.slice(0, 3).map((m: any, i: number) => {
 }).join('\n') || 'No active markets'}
 
 📱 SOCIAL FEED (Recent)
-${feedData.posts?.slice(0, 3).map((p: any, i: number) => 
+${feedData.posts?.slice(0, 3).map((p, i: number) => 
   `${i + 1}. @${p.author?.username || 'user'}: ${p.content?.substring(0, 60)}...`
 ).join('\n') || 'No recent posts'}
 

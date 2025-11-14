@@ -62,7 +62,7 @@ async function main() {
     log('🧠 Phase 3: Initializing Memory & Decision System...')
     const memory = new AgentMemory({ maxEntries: 20 })
     const decisionMaker = new AgentDecisionMaker({
-      strategy: (process.env.AGENT_STRATEGY || 'balanced') as any,
+      strategy: (process.env.AGENT_STRATEGY || 'balanced') as 'conservative' | 'balanced' | 'aggressive' | 'social',
       groqApiKey: process.env.GROQ_API_KEY,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY

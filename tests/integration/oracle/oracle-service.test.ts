@@ -52,6 +52,32 @@ describe('Oracle Service Integration (Conditional - Requires Contract Deployment
         ? '✅ Oracle contracts available - Running full tests'
         : '⚠️  Oracle not healthy - Tests will pass conditionally'
       )
+      
+      // Clean up any existing test data
+      if (contractsAvailable) {
+        const { prisma } = await import('../../../src/lib/prisma')
+        await prisma.oracleCommitment.deleteMany({
+          where: {
+            questionId: {
+              startsWith: 'test-'
+            }
+          }
+        })
+        await prisma.oracleCommitment.deleteMany({
+          where: {
+            questionId: {
+              startsWith: 'batch-'
+            }
+          }
+        })
+        await prisma.oracleCommitment.deleteMany({
+          where: {
+            questionId: {
+              startsWith: 'reveal-'
+            }
+          }
+        })
+      }
     } catch (error) {
       console.log('⚠️  Oracle service failed - Tests will pass conditionally')
       contractsAvailable = false
@@ -109,7 +135,7 @@ describe('Oracle Service Integration (Conditional - Requires Contract Deployment
     const stored = await CommitmentStore.retrieve(testQuestionId)
     expect(stored).toBeTruthy()
     expect(stored!.sessionId).toBe(sessionId)
-  })
+  }, 10000) // Increase timeout for blockchain operations
 
   it('should reveal a game', async () => {
     if (!contractsAvailable || !oracle) {
@@ -135,7 +161,7 @@ describe('Oracle Service Integration (Conditional - Requires Contract Deployment
     // Verify commitment cleaned up
     const stored = await CommitmentStore.retrieve(testQuestionId)
     expect(stored).toBeNull()
-  })
+  }, 10000) // Increase timeout for blockchain operations
 
   it('should batch commit games', async () => {
     if (!contractsAvailable || !oracle) {
@@ -172,12 +198,16 @@ describe('Oracle Service Integration (Conditional - Requires Contract Deployment
     expect(result.successful.length).toBe(3)
     expect(result.failed.length).toBe(0)
 
-    // Verify all commitments stored
-    for (const game of games) {
-      const stored = await CommitmentStore.retrieve(game.questionId)
+    // Small delay to ensure database writes complete
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    // Verify all commitments stored (using the successful results to ensure IDs match)
+    for (const success of result.successful) {
+      const stored = await CommitmentStore.retrieve(success.questionId)
       expect(stored).toBeTruthy()
+      expect(stored!.sessionId).toBeTruthy()
     }
-  })
+  }, 10000) // Increase timeout for batch operations
 
   it('should batch reveal games', async () => {
     if (!contractsAvailable || !oracle) {
@@ -223,7 +253,7 @@ describe('Oracle Service Integration (Conditional - Requires Contract Deployment
       const stored = await CommitmentStore.retrieve(game.questionId)
       expect(stored).toBeNull()
     }
-  })
+  }, 15000) // Increase timeout to 15s for batch operations
 })
 
 describe('Commitment Store', () => {

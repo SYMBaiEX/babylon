@@ -38,8 +38,8 @@ test.describe('Follow System - Complete Coverage', () => {
     })
 
     if (users.length >= 2) {
-      testUser1 = users[0] as any
-      testUser2 = users[1] as any
+      testUser1 = users[0]!
+      testUser2 = users[1]!
     } else {
       throw new Error('Not enough test users found. Need at least 2 users.')
     }

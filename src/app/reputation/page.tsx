@@ -34,31 +34,37 @@ export default function ReputationPage() {
 
     const fetchReputation = async () => {
       setLoading(true)
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/reputation`)
+      try {
+        const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/reputation`)
 
-      if (response.ok) {
-        const data = await response.json()
+        if (response.ok) {
+          const data = await response.json()
 
-        if (data.hasNft) {
-          setStats({
-            currentReputation: data.currentReputation || 100,
-            totalWins: data.totalWins || 0,
-            totalLosses: data.totalLosses || 0,
-            winRate: data.winRate || 0,
-            recentActivity: data.recentActivity || []
-          })
-        } else {
-          // User doesn't have NFT yet
-          setStats({
-            currentReputation: 100,
-            totalWins: 0,
-            totalLosses: 0,
-            winRate: 0,
-            recentActivity: []
-          })
+          if (data.hasNft) {
+            setStats({
+              currentReputation: data.currentReputation || 100,
+              totalWins: data.totalWins || 0,
+              totalLosses: data.totalLosses || 0,
+              winRate: data.winRate || 0,
+              recentActivity: data.recentActivity || []
+            })
+          } else {
+            // User doesn't have NFT yet
+            setStats({
+              currentReputation: 100,
+              totalWins: 0,
+              totalLosses: 0,
+              winRate: 0,
+              recentActivity: []
+            })
+          }
         }
+      } catch (err) {
+        console.error('Failed to fetch reputation:', err)
+        // Keep existing stats on error
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     fetchReputation()

@@ -118,9 +118,10 @@ Generate with: `openssl rand -hex 32`
 For autonomous agents:
 
 ```env
-# Agent authentication
+# Agent authentication (BABYLON_AGENT_ID defaults to "babylon-agent-alice" locally)
+# Set a unique value in staging/production to match your deployed agent.
 BABYLON_AGENT_ID="babylon-agent-default"
-BABYLON_AGENT_SECRET="generate_with_openssl_rand_hex_32"
+CRON_SECRET="generate_with_openssl_rand_hex_32"
 
 # Trading limits
 BABYLON_MAX_TRADE_SIZE="100"
@@ -237,8 +238,10 @@ NEXTAUTH_SECRET="generate_with_openssl_rand_hex_32"
 # ============================================
 # AGENT CONFIGURATION (Optional)
 # ============================================
+# BABYLON_AGENT_ID defaults to "babylon-agent-alice" for local testing.
+# Set a custom value when deploying shared environments.
 BABYLON_AGENT_ID="babylon-agent-default"
-BABYLON_AGENT_SECRET=""
+CRON_SECRET=""
 BABYLON_MAX_TRADE_SIZE="100"
 BABYLON_MAX_POSITION_SIZE="500"
 BABYLON_MIN_CONFIDENCE="0.6"

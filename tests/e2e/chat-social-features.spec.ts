@@ -36,8 +36,27 @@ test.describe('Chat and Social Features E2E', () => {
     })
 
     if (existingUsers.length >= 2) {
-      testUser1 = existingUsers[0] as any
-      testUser2 = existingUsers[1] as any
+      const user1 = existingUsers[0]!
+      const user2 = existingUsers[1]!
+      
+      // Validate required fields are not null
+      if (!user1.username || !user1.displayName || !user1.privyId ||
+          !user2.username || !user2.displayName || !user2.privyId) {
+        throw new Error('Test users must have username, displayName, and privyId')
+      }
+      
+      testUser1 = {
+        id: user1.id,
+        username: user1.username,
+        displayName: user1.displayName,
+        privyId: user1.privyId,
+      }
+      testUser2 = {
+        id: user2.id,
+        username: user2.username,
+        displayName: user2.displayName,
+        privyId: user2.privyId,
+      }
       
       // Generate DM chat ID
       const sortedIds = [testUser1.id, testUser2.id].sort()

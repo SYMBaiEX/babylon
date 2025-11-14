@@ -76,6 +76,13 @@ function createPrismaClient() {
   // This allows the Vercel Prisma integration to work while maintaining compatibility
   let databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
   
+  // In test environments, require DATABASE_URL
+  if (isTestEnvironment() && !databaseUrl) {
+    throw new Error(
+      'DATABASE_URL is required in test environment. Please set DATABASE_URL or PRISMA_DATABASE_URL environment variable.'
+    );
+  }
+  
   if (!databaseUrl && process.env.NODE_ENV === 'production') {
     console.error('[Prisma] ERROR: Neither PRISMA_DATABASE_URL nor DATABASE_URL is set');
   }
@@ -115,6 +122,70 @@ function createPrismaClient() {
 }
 
 /**
+ * Detect if we're in a test environment
+ * Bun doesn't always set NODE_ENV=test, so we check multiple indicators
+ * Note: Edge Runtime doesn't support Node.js APIs like process.argv
+ */
+function isTestEnvironment(): boolean {
+  // Check explicit environment variables first (most reliable, works in all runtimes)
+  if (process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test') {
+    return true;
+  }
+  
+  // Check if we're running under bun test (check process.argv and main module)
+  // This only works in Node.js runtime, not Edge Runtime
+  // Edge Runtime doesn't have process.argv, so we check for its existence first
+  if (typeof process !== 'undefined') {
+    // Check process.argv for test commands (only if available - not in Edge Runtime)
+    try {
+      // Check if process.argv exists (it doesn't in Edge Runtime)
+      if ('argv' in process && Array.isArray(process.argv)) {
+        const args = process.argv.join(' ');
+        if (args.includes('bun test') || args.includes('bunx test') || 
+            args.includes('bun run test') || args.includes('/bun test')) {
+          return true;
+        }
+      }
+    } catch {
+      // Ignore errors if process.argv is not available (Edge Runtime)
+    }
+    
+    // Check if main module is a test file (more reliable than stack trace)
+    // This only works in Node.js runtime, not Edge Runtime
+    try {
+      // Check if require is available (it's not in Edge Runtime)
+      if (typeof require !== 'undefined' && require.main) {
+        const mainModule = require.main;
+        if (mainModule && mainModule.filename) {
+          const filename = mainModule.filename;
+          if (filename.includes('/tests/') || filename.includes('\\tests\\') ||
+              filename.includes('/test') || filename.endsWith('.test.ts') ||
+              filename.endsWith('.test.js') || filename.endsWith('.spec.ts')) {
+            return true;
+          }
+        }
+      }
+      // Fallback to process.mainModule if require.main is not available
+      else if ((process as { mainModule?: NodeModule }).mainModule) {
+        const mainModule = (process as { mainModule?: NodeModule }).mainModule;
+        if (mainModule && mainModule.filename) {
+          const filename = mainModule.filename;
+          if (filename.includes('/tests/') || filename.includes('\\tests\\') ||
+              filename.includes('/test') || filename.endsWith('.test.ts') ||
+              filename.endsWith('.test.js') || filename.endsWith('.spec.ts')) {
+            return true;
+          }
+        }
+      }
+    } catch {
+      // Ignore errors in module inspection (Edge Runtime, etc.)
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Get or create the base Prisma client
  */
 function getPrismaClient(): PrismaClient | null {
@@ -126,12 +197,24 @@ function getPrismaClient(): PrismaClient | null {
     return null;
   }
   
+  // In test environments, ensure we always try to initialize
+  const isTestEnv = isTestEnvironment();
+  
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
-    
-    // Add connection lifecycle logging in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Prisma] Created new Prisma Client instance');
+    try {
+      globalForPrisma.prisma = createPrismaClient();
+      
+      // Add connection lifecycle logging in development and test
+      if (process.env.NODE_ENV === 'development' || isTestEnv) {
+        console.log('[Prisma] Created new Prisma Client instance');
+      }
+    } catch (error) {
+      if (isTestEnv) {
+        console.error('[Prisma] Failed to initialize Prisma client in test environment:', error);
+        throw error;
+      }
+      // In non-test environments, allow null to be returned (will throw later)
+      return null;
     }
   }
   
@@ -140,6 +223,15 @@ function getPrismaClient(): PrismaClient | null {
 
 // Get base Prisma client (will be null during build time)
 const basePrismaClient = getPrismaClient();
+
+// Check if we're in a test environment
+const isTestEnv = isTestEnvironment();
+
+// In test environments, ensure Prisma is initialized
+if (isTestEnv && !basePrismaClient) {
+  console.error('[Prisma] ERROR: Prisma client is not initialized in test environment. Check DATABASE_URL environment variable.');
+  throw new Error('Prisma client is not initialized in test environment. Check DATABASE_URL environment variable.');
+}
 
 // Export base client for operations that need full type inference
 // (e.g., when retry proxy loses type information for complex union types)
@@ -155,7 +247,15 @@ export const prisma: PrismaClient = (basePrismaClient
       maxDelayMs: 5000,
       jitter: true,
     })) as PrismaClient
-  : null as unknown as PrismaClient // Type cast for build time
+  : (() => {
+      // In non-build environments, Prisma should always be initialized
+      // This helps catch configuration issues early
+      if (!isBuildTime) {
+        console.error('[Prisma] ERROR: Prisma client is not initialized. Check DATABASE_URL environment variable.');
+        throw new Error('Prisma client is not initialized. Check DATABASE_URL environment variable.');
+      }
+      return null as unknown as PrismaClient; // Type cast for build time only
+    })()
 );
 
 if (process.env.NODE_ENV !== 'production' && basePrismaClient) {

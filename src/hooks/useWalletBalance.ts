@@ -41,22 +41,35 @@ export function useWalletBalance(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(userId)}/balance`,
-      { signal: controller.signal }
-    );
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/balance`,
+        { signal: controller.signal }
+      );
 
-    const data = await response.json();
+      if (controller.signal.aborted) return;
 
-    if (controller.signal.aborted) return;
+      if (!response.ok) {
+        throw new Error('Failed to fetch wallet balance');
+      }
 
-    setState({
-      balance: Number(data.balance) || 0,
-      lifetimePnL: Number(data.lifetimePnL) || 0,
-    });
+      const data = await response.json();
 
-    if (!controller.signal.aborted) {
-      setLoading(false);
+      if (controller.signal.aborted) return;
+
+      setState({
+        balance: Number(data.balance) || 0,
+        lifetimePnL: Number(data.lifetimePnL) || 0,
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      setError(err instanceof Error ? err : new Error('Failed to fetch wallet balance'));
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [userId, enabled]);
 

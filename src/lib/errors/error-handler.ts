@@ -272,8 +272,12 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   ) => Promise<NextResponse> | NextResponse
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (req: NextRequest, context?: TContext): Promise<NextResponse> => {
-    const response = await handler(req, context!);
-    return response;
+    try {
+      const response = await handler(req, context!);
+      return response;
+    } catch (error) {
+      return errorHandler(error, req);
+    }
   };
 }
 

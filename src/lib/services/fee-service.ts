@@ -5,7 +5,7 @@
  */
 
 import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { Prisma } from '@prisma/client'

@@ -16,6 +16,11 @@ describe('Game Tick Group Generation', () => {
   let testNpc3Id: string;
 
   beforeAll(async () => {
+    // Ensure Prisma is initialized
+    if (!prisma || !prisma.actor) {
+      throw new Error('Prisma client not initialized. Check DATABASE_URL environment variable.')
+    }
+
     // Create test NPCs with positive relationships
     testNpc1Id = await generateSnowflakeId();
     testNpc2Id = await generateSnowflakeId();

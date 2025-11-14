@@ -79,7 +79,7 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
     agentId: agent.id as `${string}-${string}-${string}-${string}-${string}`,
     character,
     databaseAdapter: undefined // Using our own Prisma setup
-  } as any)
+  } as ConstructorParameters<typeof AgentRuntime>[0])
 
   // CRITICAL: Set logger on runtime (use console.bind pattern from otc-agent working implementation)
   // Provide all required properties for the Logger type

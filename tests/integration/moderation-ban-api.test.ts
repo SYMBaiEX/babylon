@@ -7,13 +7,19 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
+import type { User, Actor } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
-let testAdmin: any;
-let testUser: any;
-let testActor: any;
-let anotherAdmin: any;
+// Ensure prisma is available
+if (!prisma) {
+  throw new Error('Prisma client is not initialized. Check DATABASE_URL environment variable.');
+}
+
+let testAdmin: User;
+let testUser: User;
+let testActor: Actor;
+let anotherAdmin: User;
 
 beforeAll(async () => {
   console.log('🌱 Setting up ban/unban API test data...');

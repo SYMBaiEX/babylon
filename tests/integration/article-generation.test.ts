@@ -3,9 +3,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '../../src/lib/database-service'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
-import { db } from '../../src/lib/database-service'
+import { prisma } from '@/lib/prisma'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Article Generation Integration', () => {
   let testOrgId: string
@@ -60,20 +59,22 @@ Finally, the fourth paragraph concludes the article with actionable insights and
 
     testArticleId = await generateSnowflakeId()
 
-    const article = await db.createPostWithAllFields({
-      id: testArticleId,
-      type: 'article',
-      content: summary,
-      fullContent: fullArticle,
-      articleTitle: articleTitle,
-      byline: 'By Test Reporter',
-      category: 'finance',
-      sentiment: 'positive',
-      biasScore: 0.2,
-      authorId: testOrgId,
-      gameId: 'continuous',
-      dayNumber: 1,
-      timestamp: new Date(),
+    const article = await prisma.post.create({
+      data: {
+        id: testArticleId,
+        type: 'article',
+        content: summary,
+        fullContent: fullArticle,
+        articleTitle: articleTitle,
+        byline: 'By Test Reporter',
+        category: 'finance',
+        sentiment: 'positive',
+        biasScore: 0.2,
+        authorId: testOrgId,
+        gameId: 'continuous',
+        dayNumber: 1,
+        timestamp: new Date(),
+      },
     })
 
     expect(article).toBeDefined()
@@ -113,16 +114,18 @@ Finally, the fourth paragraph concludes the article with actionable insights and
 
     // In production, the game tick would skip articles < 400 chars
     // This test validates the expected behavior
-    const article = await db.createPostWithAllFields({
-      id: shortArticleId,
-      type: 'article',
-      content: 'Short summary',
-      fullContent: shortContent,
-      articleTitle: 'Short Article',
-      authorId: testOrgId,
-      gameId: 'continuous',
-      dayNumber: 1,
-      timestamp: new Date(),
+    const article = await prisma.post.create({
+      data: {
+        id: shortArticleId,
+        type: 'article',
+        content: 'Short summary',
+        fullContent: shortContent,
+        articleTitle: 'Short Article',
+        authorId: testOrgId,
+        gameId: 'continuous',
+        dayNumber: 1,
+        timestamp: new Date(),
+      },
     })
 
     // Article is created in DB, but in game tick it would be skipped

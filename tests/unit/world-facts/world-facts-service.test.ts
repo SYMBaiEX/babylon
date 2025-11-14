@@ -2,10 +2,9 @@
  * World Facts Service Tests
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, afterEach } from 'bun:test';
 import { prisma } from '@/lib/prisma';
 import { worldFactsService } from '@/lib/services/world-facts-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
 
 describe('WorldFactsService', () => {
   const testCategory = 'test';

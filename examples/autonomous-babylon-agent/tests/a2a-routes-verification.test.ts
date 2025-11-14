@@ -142,7 +142,7 @@ describe('A2A Client Method Availability', () => {
     let missingMethods: string[] = []
     
     methods.forEach(method => {
-      if (typeof (client as any)[method] !== 'function') {
+      if (typeof (client as Record<string, unknown>)[method] !== 'function') {
         missingMethods.push(method)
       }
     })

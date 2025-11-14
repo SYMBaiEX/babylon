@@ -3,7 +3,7 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { nanoid } from 'nanoid';
@@ -67,13 +67,55 @@ export class WaitlistService {
       throw new Error('User not found - must complete onboarding first')
     }
 
-    // If user already marked as waitlisted, return their info
+    // If user already marked as waitlisted, still check for referral code validation
+    // but don't change their position or status
     if (user.waitlistPosition && user.isWaitlistActive) {
+      // Still validate referral code if provided (for self-referral/double-referral checks)
+      let referrerRewarded = false
+      
+      if (referralCode) {
+        const referrer = await prisma.user.findUnique({
+          where: { referralCode },
+          select: { 
+            id: true,
+          },
+        })
+
+        if (referrer) {
+          // PREVENT SELF-REFERRAL: Can't refer yourself!
+          if (referrer.id === userId) {
+            logger.warn(`User ${userId} attempted self-referral`, {
+              userId,
+              referralCode,
+            }, 'WaitlistService')
+            referrerRewarded = false
+          }
+          // PREVENT DOUBLE-REFERRAL: Check if user was already referred
+          else if (user.referredBy) {
+            logger.warn(`User ${userId} already referred by ${user.referredBy}, ignoring new referral`, {
+              userId,
+              existingReferrer: user.referredBy,
+              attemptedReferrer: referrer.id,
+            }, 'WaitlistService')
+            referrerRewarded = false
+          }
+          // Valid referral - but user already waitlisted, so don't reward again
+          else {
+            referrerRewarded = false
+            logger.info(`User ${userId} already waitlisted, referral code ${referralCode} ignored`, {
+              userId,
+              referralCode,
+            }, 'WaitlistService')
+          }
+        }
+      }
+      
       return {
         success: true,
         waitlistPosition: user.waitlistPosition,
         inviteCode: user.referralCode || '',
         points: user.reputationPoints,
+        referrerRewarded,
       }
     }
 
@@ -110,6 +152,7 @@ export class WaitlistService {
             userId,
             referralCode,
           }, 'WaitlistService')
+          referrerRewarded = false
         }
         // PREVENT DOUBLE-REFERRAL: Check if user was already referred
         else if (user.referredBy) {
@@ -118,6 +161,7 @@ export class WaitlistService {
             existingReferrer: user.referredBy,
             attemptedReferrer: referrer.id,
           }, 'WaitlistService')
+          referrerRewarded = false
         }
         // Valid referral - award points!
         else {

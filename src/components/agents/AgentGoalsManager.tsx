@@ -446,7 +446,7 @@ function CreateGoalDialog({
       description: formData.description,
       priority: formData.priority,
       target: formData.targetValue ? {
-        metric: formData.targetMetric as any,
+        metric: formData.targetMetric as 'pnl' | 'balance' | 'followers' | 'posts' | 'win_rate' | 'trades' | 'engagement' | 'reputation',
         value: parseFloat(formData.targetValue),
         unit: formData.targetUnit
       } : undefined

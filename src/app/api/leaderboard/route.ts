@@ -140,7 +140,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Parse and validate query parameters
   const queryParams = Object.fromEntries(searchParams.entries())
-  const { page, pageSize, minPoints, pointsType } = LeaderboardQuerySchema.parse(queryParams)
+  const validationResult = LeaderboardQuerySchema.safeParse(queryParams)
+  
+  if (!validationResult.success) {
+    // Throw ZodError so error handler can catch it and return 400
+    throw validationResult.error
+  }
+  
+  const { page, pageSize, minPoints, pointsType } = validationResult.data
 
   const pointsCategory = (pointsType ?? 'all') as 'all' | 'earned' | 'referral'
 

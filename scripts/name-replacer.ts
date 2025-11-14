@@ -1,30 +1,16 @@
-// @ts-nocheck
-
 import * as fs from 'fs';
 import * as path from 'path';
+import type { ActorData, Organization } from '../src/shared/types';
 
-interface Actor {
-  id: string;
-  name: string;
-  realName: string;
-  username: string;
-  originalFirstName: string;
-  originalLastName: string;
-  originalHandle: string;
-  [key: string]: any;
-}
-
-interface Organization {
-  id: string;
-  name: string;
+// Extended Organization type for name replacement (includes fields from actors.json)
+interface OrganizationWithNameFields extends Organization {
   originalName: string;
   originalHandle: string;
-  [key: string]: any;
 }
 
 interface ActorsData {
-  actors: Actor[];
-  organizations: Organization[];
+  actors: ActorData[]; // ActorData already includes originalFirstName, originalLastName, originalHandle
+  organizations: OrganizationWithNameFields[];
 }
 
 interface ReplacementPattern {
@@ -33,7 +19,9 @@ interface ReplacementPattern {
   description: string;
 }
 
-// Helper function to match case of original string
+// Helper function to match case of original string (currently unused but kept for potential future use)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// @ts-expect-error - Function is kept for potential future use
 function matchCase(original: string, replacement: string): string {
   if (original === original.toUpperCase()) {
     return replacement.toUpperCase();
@@ -41,8 +29,8 @@ function matchCase(original: string, replacement: string): string {
   if (original === original.toLowerCase()) {
     return replacement.toLowerCase();
   }
-  if (original[0] === original[0].toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {
-    return replacement[0].toUpperCase() + replacement.slice(1).toLowerCase();
+  if (original.length > 0 && original[0] === original[0]!.toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {
+    return replacement.length > 0 ? replacement[0]!.toUpperCase() + replacement.slice(1).toLowerCase() : replacement;
   }
   return replacement;
 }
@@ -78,7 +66,9 @@ export class NameReplacer {
       this.addPattern(fullWithSpaceOriginal, fullWithSpaceReplacement, `Full name with space: ${fullWithSpaceOriginal}`);
       
       // First name only patterns (First, first, FIRST)
-      this.addPattern(originalFirstName, firstName, `First name: ${originalFirstName}`);
+      if (originalFirstName && firstName) {
+        this.addPattern(originalFirstName, firstName, `First name: ${originalFirstName}`);
+      }
       
       // Last name only patterns (Last, last, LAST)
       this.addPattern(originalLastName, lastName, `Last name: ${originalLastName}`);
@@ -204,7 +194,12 @@ if (require.main === module) {
     });
     console.log('  ...');
   } else {
-    const targetPath = path.resolve(args[0]);
+    const targetPathArg = args[0];
+    if (!targetPathArg) {
+      console.error('Error: No target path provided');
+      process.exit(1);
+    }
+    const targetPath = path.resolve(targetPathArg);
     
     if (fs.statSync(targetPath).isDirectory()) {
       const files = getAllFiles(targetPath);

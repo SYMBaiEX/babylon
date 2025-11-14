@@ -189,7 +189,23 @@ async function main() {
   console.log('='.repeat(60));
   console.log('📊 Step 3: Validating generated data...\n');
 
-  const prismaExt = prisma as any;
+  interface PrismaTrajectory {
+    trajectoryId: string;
+    stepsJson: string;
+    totalReward: number;
+  }
+
+  const prismaExt = prisma as unknown as {
+    trajectory: {
+      count: (args: { where: { agentId: string } }) => Promise<number>;
+      aggregate: (args: {
+        where: { agentId: string };
+        _avg: { episodeLength: boolean; totalReward: boolean; durationMs: boolean };
+      }) => Promise<{ _avg: { episodeLength: number | null; totalReward: number | null; durationMs: number | null } }>;
+      findFirst: (args: { where: { trajectoryId: string } }) => Promise<PrismaTrajectory | null>;
+    };
+  };
+
   const count = await prismaExt.trajectory.count({
     where: {
       agentId: testAgent.id
@@ -209,7 +225,7 @@ async function main() {
 
   console.log(`  Average steps: ${stats._avg.episodeLength?.toFixed(1)}`);
   console.log(`  Average reward: ${stats._avg.totalReward?.toFixed(2)}`);
-  console.log(`  Average duration: ${(stats._avg.durationMs / 1000).toFixed(1)}s`);
+  console.log(`  Average duration: ${(stats._avg.durationMs ? stats._avg.durationMs / 1000 : 0).toFixed(1)}s`);
 
   const llmCount = await prisma.llmCallLog.count({
     where: {
@@ -224,16 +240,22 @@ async function main() {
   console.log('📊 Step 4: Sample trajectory...\n');
 
   const sample = await prismaExt.trajectory.findFirst({
-    where: { trajectoryId: createdTrajectories[0] }
+    where: { trajectoryId: createdTrajectories[0]! }
   });
 
   if (sample) {
-    const steps = JSON.parse(sample.stepsJson);
+    interface TrajectoryStep {
+      llmCalls: Array<Record<string, unknown>>;
+      providerAccesses: Array<Record<string, unknown>>;
+      action: { actionType: string };
+    }
+
+    const steps = JSON.parse(sample.stepsJson) as TrajectoryStep[];
     console.log(`  Trajectory: ${sample.trajectoryId.substring(0, 12)}...`);
     console.log(`  Steps: ${steps.length}`);
-    console.log(`  LLM calls: ${steps.reduce((s: number, st: any) => s + st.llmCalls.length, 0)}`);
-    console.log(`  Provider accesses: ${steps.reduce((s: number, st: any) => s + st.providerAccesses.length, 0)}`);
-    console.log(`  Actions: ${steps.map((s: any) => s.action.actionType).join(', ')}`);
+    console.log(`  LLM calls: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.llmCalls.length, 0)}`);
+    console.log(`  Provider accesses: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.providerAccesses.length, 0)}`);
+    console.log(`  Actions: ${steps.map((s: TrajectoryStep) => s.action.actionType).join(', ')}`);
     console.log(`  Reward: ${sample.totalReward}`);
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { type Page } from '@playwright/test'
+import type { MetaMask } from '../../types/test-types'
 // Note: MetaMask import from Synpress will be used when wallet testing is needed
 // import { MetaMask } from '@synthetixio/synpress'
 
@@ -186,7 +187,7 @@ export async function checkPrivyAuth(page: Page): Promise<boolean> {
  */
 export async function loginWithPrivyWallet(
   page: Page,
-  metamask: any // MetaMask from @synthetixio/synpress
+  metamask: MetaMask // MetaMask from @synthetixio/synpress
 ): Promise<void> {
   console.log('🔐 Starting Privy wallet login...')
   

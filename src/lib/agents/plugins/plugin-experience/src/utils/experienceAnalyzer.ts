@@ -1,4 +1,5 @@
-import { Experience, ExperienceType, OutcomeType } from '../types.js';
+import type { Experience } from '../types.js';
+import { ExperienceType, OutcomeType } from '../types.js';
 
 export interface ExperienceAnalysis {
   isSignificant: boolean;
@@ -25,7 +26,7 @@ export async function analyzeExperience(
 
   // Check for contradictions with previous experiences
   const contradictions = findContradictions(partialExperience, recentExperiences);
-  if (contradictions.length > 0) {
+  if (contradictions.length > 0 && contradictions[0]) {
     return {
       isSignificant: true,
       learning: `New outcome contradicts previous experience: ${partialExperience.result} vs ${contradictions[0].result}`,
@@ -203,9 +204,15 @@ export async function detectPatterns(experiences: Experience[]): Promise<
     const recentLearning = learningExperiences.slice(0, 10);
     const timeDiffs: number[] = [];
     for (let i = 1; i < recentLearning.length; i++) {
-      timeDiffs.push(recentLearning[i - 1].createdAt - recentLearning[i].createdAt);
+      const prev = recentLearning[i - 1];
+      const curr = recentLearning[i];
+      if (prev && curr) {
+        timeDiffs.push(prev.createdAt - curr.createdAt);
+      }
     }
-    const avgTimeBetweenLearning = timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length;
+    const avgTimeBetweenLearning = timeDiffs.length > 0 
+      ? timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length 
+      : 0;
 
     patterns.push({
       description: `Learning new things every ${Math.round(avgTimeBetweenLearning / 60000)} minutes on average`,

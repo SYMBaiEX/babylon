@@ -6,8 +6,8 @@
 
 export interface MemoryEntry {
   action: string
-  params: any
-  result: any
+  params: Record<string, unknown>
+  result: Record<string, unknown>
   timestamp: number
 }
 

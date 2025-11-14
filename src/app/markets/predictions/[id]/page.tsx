@@ -83,42 +83,54 @@ export default function PredictionDetailPage() {
   }, [marketId, market, trackMarketView])
 
   const fetchMarketData = useCallback(async () => {
-    const userId = authenticated && user?.id ? `?userId=${user.id}` : ''
-    const response = await fetch(`/api/markets/predictions${userId}`)
-    const data = await response.json()
-    const foundMarket = data.questions?.find((q: PredictionMarket) => 
-      q.id.toString() === marketId
-    )
-    
-    if (!foundMarket) {
-      toast.error('Market not found')
+    try {
+      const userId = authenticated && user?.id ? `?userId=${user.id}` : ''
+      const response = await fetch(`/api/markets/predictions${userId}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch market data')
+      }
+
+      const data = await response.json()
+      const foundMarket = data.questions?.find((q: PredictionMarket) => 
+        q.id.toString() === marketId
+      )
+      
+      if (!foundMarket) {
+        toast.error('Market not found')
+        router.push(from === 'dashboard' ? '/markets' : '/markets/predictions')
+        return
+      }
+
+      setMarket(foundMarket)
+      setUserPosition(foundMarket.userPosition as PredictionPosition | null)
+
+      // Generate mock price history (you'll want to replace this with real data)
+      const now = Date.now()
+      const history: PricePoint[] = []
+      const yesShares = foundMarket.yesShares || 500
+      const noShares = foundMarket.noShares || 500
+      
+      for (let i = 100; i >= 0; i--) {
+        const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
+        // Simulate some price movement
+        const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
+        const totalShares = yesShares + noShares
+        const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+        const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
+        const noPrice = 1 - yesPrice
+        const volume = Math.random() * 100
+        history.push({ time, yesPrice, noPrice, volume })
+      }
+      
+      setPriceHistory(history)
+    } catch (err) {
+      console.error('Failed to fetch market data:', err)
+      toast.error('Failed to load market data')
       router.push(from === 'dashboard' ? '/markets' : '/markets/predictions')
-      return
+    } finally {
+      setLoading(false)
     }
-
-    setMarket(foundMarket)
-    setUserPosition(foundMarket.userPosition as PredictionPosition | null)
-
-    // Generate mock price history (you'll want to replace this with real data)
-    const now = Date.now()
-    const history: PricePoint[] = []
-    const yesShares = foundMarket.yesShares || 500
-    const noShares = foundMarket.noShares || 500
-    
-    for (let i = 100; i >= 0; i--) {
-      const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
-      // Simulate some price movement
-      const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
-      const totalShares = yesShares + noShares
-      const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
-      const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
-      const noPrice = 1 - yesPrice
-      const volume = Math.random() * 100
-      history.push({ time, yesPrice, noPrice, volume })
-    }
-    
-    setPriceHistory(history)
-    setLoading(false)
   }, [marketId, router, authenticated, user?.id, from])
 
   useEffect(() => {

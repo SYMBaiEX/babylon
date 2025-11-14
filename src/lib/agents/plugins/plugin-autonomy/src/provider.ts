@@ -1,5 +1,6 @@
-import { type IAgentRuntime, type Memory, type Provider, type State, asUUID } from '@elizaos/core';
-import { AutonomyService } from 'service';
+import type { IAgentRuntime, Memory, Provider, State } from '@elizaos/core';
+import { asUUID } from '@elizaos/core';
+import type { AutonomyService } from './service';
 
 /**
  * Admin Chat Provider - provides conversation history with admin user

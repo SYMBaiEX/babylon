@@ -18,8 +18,10 @@ import { storeTagsForPost } from './services/tag-storage-service';
 import { generateSnowflakeId } from './snowflake';
 
 class DatabaseService {
-  // Expose prisma for direct queries
-  public prisma = prisma;
+  // Expose prisma for direct queries - use getter to avoid issues if prisma isn't initialized
+  get prisma() {
+    return prisma;
+  }
   /**
    * Initialize game state in database
    */
@@ -827,8 +829,34 @@ class DatabaseService {
   }
 }
 
-// Singleton instance
-export const db = new DatabaseService();
+// Singleton instance - ensure it's always available
+let dbInstance: DatabaseService | null = null;
+
+function getDbInstance(): DatabaseService {
+  if (!dbInstance) {
+    dbInstance = new DatabaseService();
+  }
+  return dbInstance;
+}
+
+// Initialize db instance at module load time
+// The getter for prisma will handle initialization errors when accessed
+function createDatabaseService(): DatabaseService {
+  try {
+    return getDbInstance();
+  } catch {
+    // If initialization fails, create a minimal instance
+    // The prisma getter will throw a proper error when accessed
+    return new DatabaseService();
+  }
+}
+
+// Export db - initialize immediately for Bun compatibility
+const _dbExport = createDatabaseService();
+export const db: DatabaseService = _dbExport;
+
+// Also export as default for compatibility
+export default db;
 
 // Export prisma for direct access (for API routes that need it)
 export { prisma } from './prisma';

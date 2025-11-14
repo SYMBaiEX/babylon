@@ -5,10 +5,9 @@ import {
   type State,
   logger,
   type HandlerCallback,
-  type ProviderResult,
   ModelType,
 } from '@elizaos/core';
-import { ExperienceService } from '../service';
+import type { ExperienceService } from '../service';
 import { ExperienceType, OutcomeType } from '../types';
 
 export const experienceEvaluator: Evaluator = {
@@ -57,7 +56,7 @@ export const experienceEvaluator: Evaluator = {
     },
   ],
 
-  async validate(runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> {
+  async validate(runtime: IAgentRuntime, message: Memory): Promise<boolean> {
     // Only run every 10 messages and only on agent messages
     if (message.entityId !== runtime.agentId) {
       return false;
@@ -85,11 +84,11 @@ export const experienceEvaluator: Evaluator = {
 
   async handler(
     runtime: IAgentRuntime,
-    message: Memory,
+    _message: Memory,
     state?: State,
-    options?: Record<string, unknown>,
-    callback?: HandlerCallback,
-    responses?: Memory[]
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback,
+    _responses?: Memory[]
   ): Promise<void> {
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
@@ -107,7 +106,7 @@ export const experienceEvaluator: Evaluator = {
 
     // Combine recent messages into analysis context
     const conversationContext = recentMessages
-      .map((m) => m.content.text)
+      .map((m: Memory) => m.content.text)
       .filter(Boolean)
       .join(' ');
 
@@ -152,7 +151,13 @@ Return empty array [] if no novel experiences found.`;
       prompt: extractionPrompt,
     });
 
-    let experiences: any[] = [];
+    let experiences: Array<{
+      type: string
+      learning: string
+      context?: string
+      confidence: number
+      reasoning?: string
+    }> = [];
     const jsonMatch = response.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       experiences = JSON.parse(jsonMatch[0]);

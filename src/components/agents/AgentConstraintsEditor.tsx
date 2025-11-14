@@ -265,7 +265,7 @@ export function AgentConstraintsEditor({
                           : constraints.trading.allowedMarketTypes.filter(t => t !== 'prediction')
                         setConstraints({
                           ...constraints,
-                          trading: { ...constraints.trading, allowedMarketTypes: types as any }
+                          trading: { ...constraints.trading, allowedMarketTypes: types as ('prediction' | 'perp')[] }
                         })
                       }}
                     />
@@ -280,7 +280,7 @@ export function AgentConstraintsEditor({
                           : constraints.trading.allowedMarketTypes.filter(t => t !== 'perp')
                         setConstraints({
                           ...constraints,
-                          trading: { ...constraints.trading, allowedMarketTypes: types as any }
+                          trading: { ...constraints.trading, allowedMarketTypes: types as ('prediction' | 'perp')[] }
                         })
                       }}
                     />

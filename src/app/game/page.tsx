@@ -28,13 +28,21 @@ export default function GamePage() {
 
   const loadGameData = async () => {
     setRefreshing(true)
-    const response = await fetch('/api/stats')
-    const data = await response.json()
-    setStats(data.stats)
-    setEngineStatus(data.engineStatus)
-    setError(null)
-    setLoading(false)
-    setRefreshing(false)
+    try {
+      const response = await fetch('/api/stats')
+      if (!response.ok) {
+        throw new Error('Failed to fetch game stats')
+      }
+      const data = await response.json()
+      setStats(data.stats)
+      setEngineStatus(data.engineStatus)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load game data')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }
 
   // Initial load

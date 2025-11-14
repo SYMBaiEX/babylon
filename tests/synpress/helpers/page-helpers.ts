@@ -199,10 +199,10 @@ export function checkForConsoleErrors(page: Page): string[] {
 /**
  * Mock API response
  */
-export async function mockApiResponse(
+export async function mockApiResponse<T = Record<string, never>>(
   page: Page,
   urlPattern: string | RegExp,
-  response: any
+  response: T
 ): Promise<void> {
   await page.route(urlPattern, (route) => {
     route.fulfill({

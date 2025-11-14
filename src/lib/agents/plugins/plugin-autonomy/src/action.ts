@@ -58,7 +58,7 @@ export const sendToAdminAction: Action = {
       return false; // Service not available
     }
 
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as { getAutonomousRoomId?: () => string | undefined }).getAutonomousRoomId?.();
     if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
       return false; // Not in autonomous context
     }
@@ -91,8 +91,8 @@ export const sendToAdminAction: Action = {
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State,
-    options?: { [key: string]: unknown },
+    _state?: State,
+    _options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     // Double-check we're in autonomous context
@@ -105,7 +105,7 @@ export const sendToAdminAction: Action = {
       };
     }
 
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as { getAutonomousRoomId?: () => string | undefined }).getAutonomousRoomId?.();
     if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
       return {
         success: false,
@@ -124,8 +124,6 @@ export const sendToAdminAction: Action = {
       };
     }
 
-    const _adminUUID = asUUID(adminUserId);
-
     // Find the most recent room where admin and agent have communicated
     // Note: Since we can't directly query by entityId, use a fallback approach
     const adminMessages = await runtime.getMemories({
@@ -137,7 +135,12 @@ export const sendToAdminAction: Action = {
     let targetRoomId: UUID;
     if (adminMessages && adminMessages.length > 0) {
       // Use the room from the most recent admin message
-      targetRoomId = adminMessages[adminMessages.length - 1].roomId!;
+      const lastMessage = adminMessages[adminMessages.length - 1];
+      if (!lastMessage?.roomId) {
+        targetRoomId = runtime.agentId; // Fallback to agent's default room
+      } else {
+        targetRoomId = lastMessage.roomId;
+      }
     } else {
       // No existing conversation, use agent's primary room
       targetRoomId = runtime.agentId; // Fallback to agent's default room

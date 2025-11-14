@@ -2,37 +2,44 @@
  * Character Mapping Service Tests
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, beforeAll } from 'bun:test';
 import { prisma } from '@/lib/prisma';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 describe('CharacterMappingService', () => {
-  const testCharacterId = 'test-char-' + Date.now();
-  const testOrgId = 'test-org-' + Date.now();
+  beforeAll(() => {
+    // Ensure Prisma is initialized before any tests run
+    if (!prisma || !prisma.characterMapping || !prisma.organizationMapping) {
+      throw new Error('Prisma client not initialized or CharacterMapping/OrganizationMapping models not available. Make sure Prisma Client is generated (run: npx prisma generate) and DATABASE_URL is set.');
+    }
+  });
 
   beforeEach(async () => {
-    // Create test character mapping
+    
+    // Create test character mapping with unique names to avoid conflicts
     await prisma.characterMapping.create({
       data: {
         id: await generateSnowflakeId(),
-        realName: 'Test Musk',
-        parodyName: 'Test AIlon',
-        category: 'tech',
-        aliases: ['Musk Test'],
+        realName: 'Xenon Testington',
+        parodyName: 'Neon Testifier',
+        category: 'test',
+        aliases: ['X. Testington', 'Testington'],
         priority: 100,
+        isActive: true,
       },
     });
 
-    // Create test org mapping
+    // Create test org mapping with unique names
     await prisma.organizationMapping.create({
       data: {
         id: await generateSnowflakeId(),
-        realName: 'Test AI',
-        parodyName: 'Test LIE',
-        category: 'tech',
-        aliases: [],
+        realName: 'TestCorp Industries',
+        parodyName: 'FailCorp Disasters',
+        category: 'test',
+        aliases: ['TestCorp'],
         priority: 100,
+        isActive: true,
       },
     });
 
@@ -41,16 +48,22 @@ describe('CharacterMappingService', () => {
   });
 
   afterEach(async () => {
+    // Ensure Prisma is initialized
+    if (!prisma || !prisma.characterMapping || !prisma.organizationMapping) {
+      console.warn('⚠️ Skipping cleanup - Prisma not initialized');
+      return;
+    }
+    
     // Cleanup test data
     await prisma.characterMapping.deleteMany({
       where: {
-        realName: { in: ['Test Musk'] },
+        realName: { in: ['Xenon Testington'] },
       },
     });
 
     await prisma.organizationMapping.deleteMany({
       where: {
-        realName: { in: ['Test AI'] },
+        realName: { in: ['TestCorp Industries'] },
       },
     });
 
@@ -58,46 +71,46 @@ describe('CharacterMappingService', () => {
   });
 
   test('should transform character names in text', async () => {
-    const text = 'Test Musk announced a new product today.';
+    const text = 'Xenon Testington announced a new product today.';
     const result = await characterMappingService.transformText(text);
 
-    expect(result.transformedText).toContain('Test AIlon');
-    expect(result.transformedText).not.toContain('Test Musk');
-    expect(result.characterMappings['Test Musk']).toBe('Test AIlon');
+    expect(result.transformedText).toContain('Neon Testifier');
+    expect(result.transformedText).not.toContain('Xenon Testington');
+    expect(result.characterMappings['Xenon Testington']).toBe('Neon Testifier');
     expect(result.replacementCount).toBeGreaterThan(0);
   });
 
   test('should transform organization names in text', async () => {
-    const text = 'Test AI released a new model.';
+    const text = 'TestCorp Industries released a new model.';
     const result = await characterMappingService.transformText(text);
 
-    expect(result.transformedText).toContain('Test LIE');
-    expect(result.transformedText).not.toContain('Test AI');
-    expect(result.organizationMappings['Test AI']).toBe('Test LIE');
+    expect(result.transformedText).toContain('FailCorp Disasters');
+    expect(result.transformedText).not.toContain('TestCorp Industries');
+    expect(result.organizationMappings['TestCorp Industries']).toBe('FailCorp Disasters');
   });
 
   test('should handle case-insensitive matching', async () => {
-    const text = 'test musk and TEST MUSK are the same person.';
+    const text = 'xenon testington and XENON TESTINGTON are the same person.';
     const result = await characterMappingService.transformText(text);
 
-    expect(result.transformedText.toLowerCase()).toContain('test ailon');
+    expect(result.transformedText.toLowerCase()).toContain('neon testifier');
     expect(result.replacementCount).toBeGreaterThan(0);
   });
 
   test('should handle aliases', async () => {
-    const text = 'Musk Test made an announcement.';
+    const text = 'X. Testington made an announcement.';
     const result = await characterMappingService.transformText(text);
 
-    expect(result.transformedText).toContain('Test AIlon');
+    expect(result.transformedText).toContain('Neon Testifier');
     expect(result.replacementCount).toBeGreaterThan(0);
   });
 
   test('should detect real names in text', async () => {
-    const text = 'Test Musk and Test AI are mentioned here.';
+    const text = 'Xenon Testington and TestCorp Industries are mentioned here.';
     const detected = await characterMappingService.detectRealNames(text);
 
-    expect(detected).toContain('Test Musk');
-    expect(detected).toContain('Test AI');
+    expect(detected).toContain('Xenon Testington');
+    expect(detected).toContain('TestCorp Industries');
   });
 
   test('should return empty array when no real names detected', async () => {
@@ -112,7 +125,7 @@ describe('CharacterMappingService', () => {
 
     expect(mappings).toBeDefined();
     expect(Array.isArray(mappings)).toBe(true);
-    expect(mappings.some(m => m.realName === 'Test Musk')).toBe(true);
+    expect(mappings.some(m => m.realName === 'Xenon Testington')).toBe(true);
   });
 
   test('should get all organization mappings', async () => {
@@ -120,7 +133,7 @@ describe('CharacterMappingService', () => {
 
     expect(mappings).toBeDefined();
     expect(Array.isArray(mappings)).toBe(true);
-    expect(mappings.some(m => m.realName === 'Test AI')).toBe(true);
+    expect(mappings.some(m => m.realName === 'TestCorp Industries')).toBe(true);
   });
 });
 

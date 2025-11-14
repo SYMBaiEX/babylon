@@ -52,7 +52,7 @@ async function testA2ARoutes() {
   let missing: string[] = []
   
   methods.forEach(method => {
-    if (typeof (client as any)[method] === 'function') {
+    if (typeof (client as Record<string, unknown>)[method] === 'function') {
       found++
     } else {
       missing.push(method)

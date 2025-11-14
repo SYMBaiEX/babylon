@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
-import { prisma } from '../../src/lib/database-service'
+import { generateSnowflakeId } from '@/lib/snowflake'
+import { prisma } from '@/lib/prisma'
 
 const shouldSkipWaitlistTests = process.env.CI === 'true' || process.env.SKIP_WAITLIST_TESTS === 'true'
 type WaitlistServiceModule = typeof import('@/lib/services/waitlist-service')
@@ -14,6 +14,11 @@ describeWaitlistIntegration('Referral System - Service Integration', () => {
   let WaitlistService: WaitlistServiceModule['WaitlistService']
 
   beforeAll(async () => {
+    // Ensure Prisma is initialized
+    if (!prisma || !prisma.user) {
+      throw new Error('Prisma client not initialized. Check DATABASE_URL environment variable.')
+    }
+
     ;({ WaitlistService } = await import('@/lib/services/waitlist-service'))
 
     // Clean up any existing test users

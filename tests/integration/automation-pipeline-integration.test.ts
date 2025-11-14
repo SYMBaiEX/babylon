@@ -9,8 +9,15 @@
 // @ts-nocheck - Requires trajectory schema not yet available
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import { AutomationPipeline } from '@/lib/training/AutomationPipeline';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaBase } from '@/lib/prisma';
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { Prisma } from '@prisma/client';
+
+// Ensure prisma is available
+if (!prisma) {
+  throw new Error('Prisma client is not initialized. Check DATABASE_URL environment variable.');
+}
 
 describe('AutomationPipeline - Integration Tests', () => {
   let pipeline: AutomationPipeline;
@@ -18,6 +25,7 @@ describe('AutomationPipeline - Integration Tests', () => {
     trajectoryIds: string[];
     batchIds: string[];
     modelIds: string[];
+    agentIds: string[];
   };
 
   beforeAll(async () => {
@@ -32,7 +40,44 @@ describe('AutomationPipeline - Integration Tests', () => {
       trajectoryIds: [],
       batchIds: [],
       modelIds: [],
+      agentIds: [],
     };
+
+    // Create test agents that will be used in tests
+    const agentIds = [
+      'test-agent-0', 'test-agent-1', 'test-agent-2', 'test-agent-3', 'test-agent-4',
+      'test-agent-readiness-0', 'test-agent-readiness-1', 'test-agent-readiness-2',
+      'test-agent-readiness-3', 'test-agent-readiness-4', 'test-agent-readiness-5',
+      'test-agent-readiness-6', 'test-agent-readiness-7', 'test-agent-readiness-8',
+      'test-agent-readiness-9',
+      'e2e-agent-0', 'e2e-agent-1', 'e2e-agent-2', 'e2e-agent-3', 'e2e-agent-4', 'e2e-agent-5',
+    ];
+
+    for (const agentId of agentIds) {
+      try {
+        await prisma.user.create({
+          data: {
+            id: agentId,
+            username: `test-${agentId}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            displayName: `Test Agent ${agentId}`,
+            isAgent: true,
+            isTest: true,
+            virtualBalance: 10000,
+            reputationPoints: 100,
+            updatedAt: new Date(),
+          },
+        });
+        testData.agentIds.push(agentId);
+      } catch (error) {
+        // Agent might already exist, that's okay - try to use existing one
+        const existing = await prisma.user.findUnique({ where: { id: agentId } });
+        if (existing) {
+          testData.agentIds.push(agentId);
+        } else if (!(error as { code?: string }).code?.includes('P2002')) {
+          console.warn(`Failed to create test agent ${agentId}:`, error);
+        }
+      }
+    }
   });
 
   afterEach(async () => {
@@ -84,13 +129,30 @@ describe('AutomationPipeline - Integration Tests', () => {
   });
 
   afterAll(async () => {
+    // Cleanup test agents
+    if (testData.agentIds.length > 0) {
+      try {
+        await prisma.user.deleteMany({
+          where: {
+            id: {
+              in: testData.agentIds
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Failed to cleanup test agents:', error);
+      }
+    }
     await prisma.$disconnect();
   });
 
   describe('Database Integration', () => {
     test('should connect to database', async () => {
-      const result = await prisma.$queryRaw`SELECT 1 as result`;
+      // Use prismaBase (unwrapped client) to avoid JsonBody enum issues with retry proxy
+      const result = await prismaBase.$queryRawUnsafe('SELECT 1 as result');
       expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect((result as Array<{ result: number }>)[0]?.result).toBe(1);
     });
 
     test('should access trajectory table', async () => {

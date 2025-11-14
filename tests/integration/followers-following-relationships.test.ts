@@ -15,7 +15,7 @@ config({ path: join(process.cwd(), '.env') });
 
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { generateSnowflakeId } from '../../src/lib/snowflake';
-import { prisma } from '../../src/lib/database-service';
+import { prisma } from '@/lib/prisma';
 
 describe('Followers/Following and Relationships Integration Tests', () => {
   let testUser: { id: string; username: string | null; displayName: string | null };

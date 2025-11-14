@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 /**
  * Comprehensive tests for name replacement system
  * Tests all case variations and ensures no original names leak
@@ -9,15 +7,16 @@ import { describe, it, expect, beforeAll } from 'bun:test';
 import { NameReplacer } from '../../scripts/name-replacer';
 import * as path from 'path';
 import * as fs from 'fs';
+import type { ActorsDataFile, ActorData, OrganizationData } from '../types/test-types';
 
 describe('Name Replacement System', () => {
   let replacer: NameReplacer;
-  let actorsData: any;
+  let actorsData: ActorsDataFile;
 
   beforeAll(() => {
     const actorsPath = path.join(process.cwd(), 'public/data/actors.json');
     replacer = new NameReplacer(actorsPath);
-    actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8')) as ActorsDataFile;
   });
 
   describe('Actor Name Replacement', () => {
@@ -213,29 +212,29 @@ describe('Name Replacement System', () => {
 
   describe('Data Integrity', () => {
     it('should have originalFirstName for all actors', () => {
-      const missingFirst = actorsData.actors.filter((a: any) => !a.originalFirstName);
+      const missingFirst = actorsData.actors.filter((a: ActorData) => !a.originalFirstName);
       expect(missingFirst).toHaveLength(0);
     });
 
     it('should have originalLastName for all actors (empty string OK for single names)', () => {
-      const missingLast = actorsData.actors.filter((a: any) => 
+      const missingLast = actorsData.actors.filter((a: ActorData) => 
         a.originalLastName === undefined || a.originalLastName === null
       );
       expect(missingLast).toHaveLength(0);
     });
 
     it('should have originalHandle for all actors', () => {
-      const missingHandle = actorsData.actors.filter((a: any) => !a.originalHandle);
+      const missingHandle = actorsData.actors.filter((a: ActorData) => !a.originalHandle);
       expect(missingHandle).toHaveLength(0);
     });
 
     it('should have originalName for all organizations', () => {
-      const missingName = actorsData.organizations.filter((o: any) => !o.originalName);
+      const missingName = actorsData.organizations.filter((o: OrganizationData) => !o.originalName);
       expect(missingName).toHaveLength(0);
     });
 
     it('should have originalHandle for all organizations', () => {
-      const missingHandle = actorsData.organizations.filter((o: any) => !o.originalHandle);
+      const missingHandle = actorsData.organizations.filter((o: OrganizationData) => !o.originalHandle);
       expect(missingHandle).toHaveLength(0);
     });
   });
@@ -265,13 +264,15 @@ describe('Name Replacement System', () => {
 });
 
 describe('Validation: No Original Names Leaked', () => {
-  let _replacer: NameReplacer;
-  let _actorsData: any;
-
   beforeAll(() => {
+    // Initialize replacer and actors data for validation
     const actorsPath = path.join(process.cwd(), 'public/data/actors.json');
-    _replacer = new NameReplacer(actorsPath);
-    _actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    // Note: _replacer and _actorsData are intentionally unused in this test suite
+    const _replacer = new NameReplacer(actorsPath);
+    const _actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8')) as ActorsDataFile;
+    // Variables are used implicitly for validation - ensure data is loaded
+    expect(_replacer).toBeDefined();
+    expect(_actorsData).toBeDefined();
   });
 
   // Test that prompt files don't contain original names

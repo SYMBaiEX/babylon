@@ -6,7 +6,7 @@
 
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { registerBabylonGame } from '../../src/lib/babylon-registry-init'
-import { prisma } from '../../src/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 describe('Agent0 Registration Integration', () => {
   beforeAll(() => {

@@ -42,54 +42,60 @@ export default function TrendingTagPage() {
     if (append) setLoadingMore(true)
     else setLoading(true)
 
-    const response = await fetch(
-      `/api/trending/${encodeURIComponent(tag)}?limit=${PAGE_SIZE}&offset=${requestOffset}`
-    )
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        logger.warn('Tag not found', { tag }, 'TrendingTagPage')
+    try {
+      const response = await fetch(
+        `/api/trending/${encodeURIComponent(tag)}?limit=${PAGE_SIZE}&offset=${requestOffset}`
+      )
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          logger.warn('Tag not found', { tag }, 'TrendingTagPage')
+        }
+        if (append) setHasMore(false)
+        if (append) setLoadingMore(false)
+        else setLoading(false)
+        return
       }
+
+      const data = await response.json()
+      
+      if (data.success) {
+        if (!append && data.tag) {
+          setTagInfo(data.tag)
+        }
+
+        const newPosts = data.posts || []
+        
+        setPosts(prev => {
+          const combined = append ? [...prev, ...newPosts] : newPosts
+          const unique = new Map<string, PostData>()
+          combined.forEach((post: PostData) => {
+            if (post?.id) {
+              unique.set(post.id, post)
+            }
+          })
+          
+          const deduped = Array.from(unique.values()).sort((a, b) => {
+            const aTime = new Date(a.timestamp ?? 0).getTime()
+            const bTime = new Date(b.timestamp ?? 0).getTime()
+            return bTime - aTime
+          })
+          
+          return deduped
+        })
+
+        setOffset(requestOffset + newPosts.length)
+        
+        const moreAvailable = newPosts.length === PAGE_SIZE
+        setHasMore(moreAvailable)
+      }
+    } catch (err) {
+      console.error('Failed to fetch trending posts:', err)
       if (append) setHasMore(false)
+    } finally {
       if (append) setLoadingMore(false)
       else setLoading(false)
-      return
     }
-
-    const data = await response.json()
-    
-    if (data.success) {
-      if (!append && data.tag) {
-        setTagInfo(data.tag)
-      }
-
-      const newPosts = data.posts || []
-      
-      setPosts(prev => {
-        const combined = append ? [...prev, ...newPosts] : newPosts
-        const unique = new Map<string, PostData>()
-        combined.forEach((post: PostData) => {
-          if (post?.id) {
-            unique.set(post.id, post)
-          }
-        })
-        
-        const deduped = Array.from(unique.values()).sort((a, b) => {
-          const aTime = new Date(a.timestamp ?? 0).getTime()
-          const bTime = new Date(b.timestamp ?? 0).getTime()
-          return bTime - aTime
-        })
-        
-        return deduped
-      })
-
-      setOffset(requestOffset + newPosts.length)
-      
-      const moreAvailable = newPosts.length === PAGE_SIZE
-      setHasMore(moreAvailable)
-    }
-    if (append) setLoadingMore(false)
-    else setLoading(false)
   }, [tag])
 
   useEffect(() => {

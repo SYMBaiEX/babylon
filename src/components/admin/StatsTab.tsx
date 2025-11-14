@@ -94,11 +94,19 @@ export function StatsTab() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchStats()
-    fetchFeeStats()
+    const loadData = async () => {
+      try {
+        await fetchStats()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load stats')
+        setLoading(false)
+      }
+      fetchFeeStats() // This one fails silently
+    }
+    
+    loadData()
     const interval = setInterval(() => {
-      fetchStats()
-      fetchFeeStats()
+      loadData()
     }, 30000) // Refresh every 30s
     return () => clearInterval(interval)
   }, [])

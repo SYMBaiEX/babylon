@@ -16,15 +16,15 @@ export const autonomyStatusProvider: Provider = {
     }
 
     // Check if we're in the autonomous room - if so, don't show status (avoid noise)
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as { getAutonomousRoomId?: () => string | undefined }).getAutonomousRoomId?.();
     if (autonomousRoomId && message.roomId === autonomousRoomId) {
       return { text: '' }; // Don't show in autonomous context
     }
 
     // Get autonomy settings and service status
     const autonomyEnabled = runtime.getSetting('AUTONOMY_ENABLED');
-    const serviceRunning = (autonomyService as any).isLoopRunning?.() || false;
-    const interval = (autonomyService as any).getLoopInterval?.() || 30000;
+    const serviceRunning = (autonomyService as { isLoopRunning?: () => boolean }).isLoopRunning?.() || false;
+    const interval = (autonomyService as { getLoopInterval?: () => number }).getLoopInterval?.() || 30000;
 
     // Determine status
     let status: string;

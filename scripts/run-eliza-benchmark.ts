@@ -19,6 +19,7 @@ import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
 import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
 // @ts-expect-error - initializeAgentRuntime may not be exported yet
 import { initializeAgentRuntime } from '@/lib/agents/plugins/babylon/integration';
+import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import * as path from 'path';
@@ -106,7 +107,10 @@ async function runElizaBenchmark(config: ElizaBenchmarkConfig): Promise<Simulati
   
   // 5. Create A2A interface and inject into runtime
   const a2aInterface = new SimulationA2AInterface(engine, config.agentUserId);
-  (runtime as any).a2aClient = a2aInterface;
+  interface RuntimeWithA2A extends IAgentRuntime {
+    a2aClient?: SimulationA2AInterface;
+  }
+  (runtime as RuntimeWithA2A).a2aClient = a2aInterface;
   
   logger.info('Runtime and A2A interface initialized');
   

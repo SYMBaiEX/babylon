@@ -9,6 +9,7 @@
  */
 
 import { test, expect } from './fixtures/admin-auth'
+import type { Route } from '@playwright/test'
 
 test.describe('Admin Actions - Promoting Users to Admin', () => {
   test('should successfully promote a user to admin', async ({ adminPage }) => {
@@ -81,7 +82,7 @@ test.describe('Admin Actions - Promoting Users to Admin', () => {
 
   test('should handle errors when promoting user', async ({ adminPage }) => {
     // Override route to return error
-    await adminPage.route('**/api/admin/admins/*', (route: any) => {
+    await adminPage.route('**/api/admin/admins/*', (route: Route) => {
       if (route.request().method() === 'POST') {
         route.fulfill({
           status: 400,

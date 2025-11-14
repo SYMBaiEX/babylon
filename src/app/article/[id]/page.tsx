@@ -41,33 +41,34 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       setIsLoading(true);
       setError(null);
 
-      // Fetch from posts API since articles are posts with type='article'
-      const response = await fetch(`/api/posts/${articleId}`).catch((err: Error) => {
-        setError(err.message);
+      try {
+        // Fetch from posts API since articles are posts with type='article'
+        const response = await fetch(`/api/posts/${articleId}`);
+        
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          const errorMsg = result.error?.message || 'Failed to load article';
+          setError(errorMsg);
+          setIsLoading(false);
+          return;
+        }
+        
+        const result = await response.json();
+        const articleData = result.data || result;
+        
+        // Verify it's actually an article
+        if (articleData.type !== 'article') {
+          // Redirect to regular post page if not an article
+          router.replace(`/post/${articleId}`);
+          return;
+        }
+        
+        setArticle(articleData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load article');
+      } finally {
         setIsLoading(false);
-        throw err;
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        const errorMsg = result.error?.message || 'Failed to load article';
-        setError(errorMsg);
-        setIsLoading(false);
-        throw new Error(errorMsg);
       }
-
-      const articleData = result.data || result;
-      
-      // Verify it's actually an article
-      if (articleData.type !== 'article') {
-        // Redirect to regular post page if not an article
-        router.replace(`/post/${articleId}`);
-        return;
-      }
-      
-      setArticle(articleData);
-      setIsLoading(false);
     };
 
     loadArticle();

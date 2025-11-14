@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { prisma } from '../../src/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import {
   notifyCommentOnPost,
   notifyReactionOnPost,

@@ -8,6 +8,7 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type { A2APredictionsResponse, A2APerpetualsResponse } from '@/types/a2a-responses'
 
 /**
  * Provider: Current Markets
@@ -34,17 +35,19 @@ export const marketsProvider: Provider = {
       babylonRuntime.a2aClient.sendRequest('a2a.getPerpetuals', {})
     ])
     
-    const predictionsData = predictions as { predictions?: unknown[] }
-    const perpetualsData = perpetuals as { tickers?: unknown[] }
+    const predictionsData = predictions as A2APredictionsResponse
+    const perpetualsData = perpetuals as A2APerpetualsResponse
+    
+    const tickers = perpetualsData.tickers || perpetualsData.perpetuals || []
     
     return { text: `Available Markets:
 
 Prediction Markets (${predictionsData.predictions?.length || 0}):
-${predictionsData.predictions?.slice(0, 10).map((m: any, i: number) => `${i + 1}. ${m.question}
+${predictionsData.predictions?.slice(0, 10).map((m, i: number) => `${i + 1}. ${m.question}
    YES: ${m.yesShares} | NO: ${m.noShares}
    Liquidity: ${m.liquidity}`).join('\n') || 'None'}
 
-Perpetual Markets (${perpetualsData.tickers?.length || 0}):
-${perpetualsData.tickers?.slice(0, 10).map((p: any, i: number) => `${i + 1}. ${p.name} (${p.ticker}) @ $${p.currentPrice}`).join('\n') || 'None'}` }
+Perpetual Markets (${tickers.length}):
+${tickers.slice(0, 10).map((p, i: number) => `${i + 1}. ${p.name} (${p.ticker}) @ $${p.currentPrice}`).join('\n') || 'None'}` }
   }
 }

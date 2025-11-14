@@ -2,7 +2,7 @@
  * RSS Feed Service Tests
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, beforeAll } from 'bun:test';
 import { prisma } from '@/lib/prisma';
 import { rssFeedService } from '@/lib/services/rss-feed-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -10,7 +10,15 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 describe('RSSFeedService', () => {
   const testFeedId = 'test-feed-' + Date.now();
 
+  beforeAll(() => {
+    // Ensure Prisma is initialized before any tests run
+    if (!prisma || !prisma.rSSFeedSource || !prisma.rSSHeadline) {
+      throw new Error('Prisma client not initialized or RSS models not available. Make sure Prisma Client is generated (run: npx prisma generate) and DATABASE_URL is set.');
+    }
+  });
+
   beforeEach(async () => {
+    
     // Create test feed source
     await prisma.rSSFeedSource.create({
       data: {
@@ -24,6 +32,12 @@ describe('RSSFeedService', () => {
   });
 
   afterEach(async () => {
+    // Ensure Prisma is initialized
+    if (!prisma || !prisma.rSSHeadline || !prisma.rSSFeedSource) {
+      console.warn('⚠️ Skipping cleanup - Prisma not initialized');
+      return;
+    }
+    
     // Cleanup test data
     await prisma.rSSHeadline.deleteMany({
       where: {
@@ -123,10 +137,10 @@ describe('RSSFeedService', () => {
 
     // Mock fetch for this test
     const originalFetch = global.fetch;
-    global.fetch = async () => ({
+    global.fetch = Object.assign(async () => ({
       ok: true,
       text: async () => rssXml,
-    }) as Response;
+    }) as Response, { preconnect: originalFetch.preconnect });
 
     try {
       const feed = await rssFeedService.fetchFeed('https://example.com/test.xml');
@@ -144,11 +158,11 @@ describe('RSSFeedService', () => {
   test('should handle fetch errors gracefully', async () => {
     // Mock fetch to fail
     const originalFetch = global.fetch;
-    global.fetch = async () => ({
+    global.fetch = Object.assign(async () => ({
       ok: false,
       status: 404,
       statusText: 'Not Found',
-    }) as Response;
+    }) as Response, { preconnect: originalFetch.preconnect });
 
     try {
       await expect(

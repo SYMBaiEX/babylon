@@ -16,11 +16,20 @@ const AFFILIATION_FIXES: Record<string, string> = {
   'fAIx-news': 'faux-news',
 };
 
+interface Organization {
+  id: string;
+}
+
+interface ActorsData {
+  actors: Array<{ name: string; affiliations?: string[] }>;
+  organizations: Organization[];
+}
+
 function fixAffiliations() {
   const actorsPath = path.join(process.cwd(), 'public/data/actors.json');
-  const data = JSON.parse(fs.readFileSync(actorsPath, 'utf-8'));
+  const data: ActorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8'));
   
-  const orgIds = new Set(data.organizations.map((o: any) => o.id));
+  const orgIds = new Set(data.organizations.map((o: Organization) => o.id));
   
   console.log('=== FIXING ACTOR AFFILIATIONS ===\n');
   

@@ -10,6 +10,10 @@ import { prisma } from '@/lib/prisma'
 
 describe('Pools System', () => {
   test('Can query pools from database', async () => {
+    if (!prisma || !prisma.pool) {
+      throw new Error('Prisma client not initialized. Check DATABASE_URL environment variable.')
+    }
+    
     const poolCount = await prisma.pool.count()
     
     expect(poolCount).toBeGreaterThanOrEqual(0)
@@ -22,6 +26,10 @@ describe('Pools System', () => {
   })
 
   test('Can query actors with pools', async () => {
+    if (!prisma || !prisma.actor) {
+      throw new Error('Prisma client not initialized. Check DATABASE_URL environment variable.')
+    }
+    
     const tradingActorCount = await prisma.actor.count({ where: { hasPool: true } })
     
     expect(tradingActorCount).toBeGreaterThanOrEqual(0)

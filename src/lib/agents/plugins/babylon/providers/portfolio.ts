@@ -6,6 +6,7 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type { A2ABalanceResponse, A2APositionsResponse } from '@/types/a2a-responses'
 
 /**
  * Provider: Portfolio State
@@ -30,8 +31,8 @@ export const portfolioProvider: Provider = {
       babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId })
     ])
     
-    const balance = balanceData as { balance?: number; reputationPoints?: number }
-    const positions = positionsData as { marketPositions?: unknown[]; perpPositions?: unknown[] }
+    const balance = balanceData as A2ABalanceResponse
+    const positions = positionsData as A2APositionsResponse
     
     return { text: `Your Portfolio:
 
@@ -39,10 +40,13 @@ Balance: $${balance.balance || 0}
 Points Balance: ${balance.reputationPoints || 0} pts
 
 Open Prediction Positions (${positions.marketPositions?.length || 0}):
-${positions.marketPositions?.map((p: any) => `- ${p.question}: ${p.side} ${p.shares} shares @ avg ${p.avgPrice}`).join('\n') || 'None'}
+${positions.marketPositions?.map((p) => `- ${p.question}: ${p.side} ${p.shares} shares @ avg ${p.avgPrice}`).join('\n') || 'None'}
 
 Open Perp Positions (${positions.perpPositions?.length || 0}):
-${positions.perpPositions?.map((p: any) => `- ${p.ticker}: ${p.side.toUpperCase()} $${p.amount} @ ${p.entryPrice} (${p.leverage}x)
-  Current: $${p.currentPrice}`).join('\n') || 'None'}` }
+${positions.perpPositions?.map((p) => {
+  const amount = p.amount || p.size
+  return `- ${p.ticker}: ${p.side.toUpperCase()} $${amount} @ ${p.entryPrice} (${p.leverage}x)
+  Current: $${p.currentPrice}`
+}).join('\n') || 'None'}` }
   }
 }

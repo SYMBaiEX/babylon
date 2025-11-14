@@ -5,12 +5,17 @@ import { sendToAdminAction } from '../src/action';
 import { AutonomyService } from '../src/service';
 import { autonomyStatusProvider } from '../src/status-provider';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
+import type { JsonValue } from '@/types/common';
 
 describe('Autonomy Plugin Tests', () => {
   let mockRuntime: IAgentRuntime;
   let mockMessage: Memory;
   let mockState: State;
-  let updateAgentCalls: any[] = [];
+  interface UpdateAgentCall {
+    agentId: UUID;
+    updates: Record<string, JsonValue>;
+  }
+  let updateAgentCalls: UpdateAgentCall[] = [];
 
   beforeEach(() => {
     updateAgentCalls = [];
@@ -29,16 +34,18 @@ describe('Autonomy Plugin Tests', () => {
       getSetting: (key: string) => {
         return dynamicSettings[key as keyof typeof dynamicSettings];
       },
-      setSetting: (key: string, value: any) => {
+      setSetting: (key: string, value: JsonValue) => {
         mockRuntime.character.settings = mockRuntime.character.settings || {};
-        mockRuntime.character.settings[key] = value;
-        (dynamicSettings as any)[key] = value; // Update dynamic settings
+        if (value !== null) {
+          mockRuntime.character.settings[key] = value as string | number | boolean | Record<string, any>;
+        }
+        (dynamicSettings as Record<string, JsonValue>)[key] = value; // Update dynamic settings
       },
-      updateAgent: async (agentId: UUID, updates: any) => {
+      updateAgent: async (agentId: UUID, updates: Record<string, JsonValue>) => {
         updateAgentCalls.push({ agentId, updates });
         return true;
       },
-      getMemories: async (params: any) => [],
+      getMemories: async (_params: Record<string, JsonValue>) => [],
       createMemory: async () => 'test-memory-id' as UUID,
       createRoom: async () => {},
       getRoom: async () => null,

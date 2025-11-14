@@ -11,6 +11,7 @@ dotenv.config({ path: '.env.local' })
 import { AgentMemory } from './memory.js'
 import { AgentDecisionMaker } from './decision.js'
 import { executeAction } from './actions.js'
+import type { BabylonA2AClient } from './a2a-client.js'
 import fs from 'fs'
 import path from 'path'
 
@@ -20,32 +21,11 @@ const simulationPath = '../../src/lib/benchmark/SimulationEngine.js'
 const a2aInterfacePath = '../../src/lib/benchmark/SimulationA2AInterface.js'
 const visualizerPath = '../../src/lib/benchmark/MetricsVisualizer.js'
 
-interface BenchmarkSnapshot {
-  id: string
-  ticks: any[]
-  initialState: any
-  [key: string]: any
-}
+// Use proper types from BenchmarkDataGenerator
+type BenchmarkSnapshot = import('../../../dist/src/lib/benchmark/BenchmarkDataGenerator.js').BenchmarkGameSnapshot
 
-interface SimulationResult {
-  id: string
-  metrics: {
-    totalPnl: number
-    predictionMetrics: {
-      accuracy: number
-      totalPositions: number
-    }
-    perpMetrics: {
-      winRate: number
-      totalTrades: number
-    }
-    optimalityScore: number
-    timing: {
-      totalDuration: number
-    }
-  }
-  [key: string]: any
-}
+// Use proper types from SimulationEngine
+type SimulationResult = import('../../../dist/src/lib/benchmark/SimulationEngine.js').SimulationResult
 
 const LOG_DIR = './logs'
 const LOG_FILE = path.join(LOG_DIR, 'benchmark.log')
@@ -112,7 +92,7 @@ async function runBenchmark(
   log('🧠 Initializing agent memory and decision maker...')
   const memory = new AgentMemory({ maxEntries: 20 })
   const decisionMaker = new AgentDecisionMaker({
-    strategy: (process.env.AGENT_STRATEGY || 'balanced') as any,
+    strategy: (process.env.AGENT_STRATEGY || 'balanced') as 'conservative' | 'balanced' | 'aggressive' | 'social',
     groqApiKey: process.env.GROQ_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY
@@ -135,10 +115,10 @@ async function runBenchmark(
     
     await (async () => {
       // Gather context via A2A interface
-      const portfolio = await a2aInterface.sendRequest('a2a.getPortfolio') as { balance: number; positions: unknown[]; pnl: number }
-      const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as { predictions: unknown[] }
-      const perpetuals = await a2aInterface.sendRequest('a2a.getPerpetuals') as { perpetuals: unknown[] }
-      const feed = await a2aInterface.sendRequest('a2a.getFeed', { limit: 10 }) as { posts: unknown[] }
+      const portfolio = await a2aInterface.sendRequest('a2a.getPortfolio') as { balance: number; positions: Array<Record<string, unknown>>; pnl: number }
+      const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as { predictions: Array<Record<string, unknown>> }
+      const perpetuals = await a2aInterface.sendRequest('a2a.getPerpetuals') as { perpetuals: Array<Record<string, unknown>> }
+      const feed = await a2aInterface.sendRequest('a2a.getFeed', { limit: 10 }) as { posts: Array<Record<string, unknown>> }
       
       const markets = {
         predictions: predictions.predictions || [],
@@ -157,13 +137,14 @@ async function runBenchmark(
       
       // Execute action (if not HOLD)
       if (decision.action !== 'HOLD') {
-        const result = await executeAction(a2aInterface as never, decision)
+        // SimulationA2AInterface now implements the same interface as BabylonA2AClient
+        const result = await executeAction(a2aInterface as BabylonA2AClient, decision)
         
         if (result.success) {
           memory.add({
             action: decision.action,
-            params: decision.params,
-            result: result.data,
+            params: decision.params || {},
+            result: result.data || {},
             timestamp: Date.now()
           })
         }

@@ -1,5 +1,6 @@
-import { type Provider, type IAgentRuntime, type Memory, type State, logger } from '@elizaos/core';
-import { ExperienceService } from '../service';
+import type { Provider, IAgentRuntime, Memory, State } from '@elizaos/core';
+import { logger } from '@elizaos/core';
+import type { ExperienceService } from '../service';
 
 /**
  * Simple experience provider that injects relevant experiences into context
@@ -12,8 +13,8 @@ export const experienceProvider: Provider = {
   async get(
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State
-  ): Promise<{ text?: string; data?: any }> {
+    _state?: State
+  ): Promise<{ text?: string; data?: Record<string, unknown> }> {
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
     if (!experienceService) {

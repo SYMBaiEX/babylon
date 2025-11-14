@@ -106,20 +106,30 @@ export default function PredictionsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const predictionsRes = await fetch(
-      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-    );
-    const predictionsData = await predictionsRes.json();
-
-    setPredictions(predictionsData.questions || []);
-
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
+    try {
+      const predictionsRes = await fetch(
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+      );
+      
+      if (!predictionsRes.ok) {
+        throw new Error('Failed to fetch predictions');
       }
-    }
 
-    setLoading(false);
+      const predictionsData = await predictionsRes.json();
+
+      setPredictions(predictionsData.questions || []);
+
+      if (isAuth && userId) {
+        if (refreshPositionsRef.current) {
+          await refreshPositionsRef.current();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch predictions:', err);
+      // Keep existing predictions on error
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // Store fetchData in ref

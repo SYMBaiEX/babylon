@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '../../src/lib/database-service'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
+import { prisma } from '@/lib/prisma'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Follow System API Integration Tests', () => {
   let testUser1: { id: string; username: string | null; privyId: string | null }
@@ -176,7 +176,28 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should not allow duplicate follows', async () => {
-      // Try to create duplicate follow
+      // Ensure the follow exists from previous test
+      const existingFollow = await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+      })
+
+      // If follow doesn't exist, create it first
+      if (!existingFollow) {
+        await prisma.follow.create({
+          data: {
+            id: await generateSnowflakeId(),
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        })
+      }
+
+      // Try to create duplicate follow - should fail
       let errorCaught = false
       try {
         await prisma.follow.create({
@@ -186,9 +207,13 @@ describe('Follow System API Integration Tests', () => {
             followingId: testUser2.id,
           },
         })
-      } catch (error: any) {
+        // Should not reach here
+        expect(false).toBe(true)
+      } catch (error: unknown) {
         errorCaught = true
-        expect(error.code).toBe('P2002') // Unique constraint violation
+        // Check for unique constraint violation
+        const prismaError = error as { code?: string };
+        expect(prismaError.code).toBe('P2002')
       }
 
       expect(errorCaught).toBe(true) // Should have thrown an error
@@ -339,7 +364,7 @@ describe('Follow System API Integration Tests', () => {
 
   describe('User-to-NPC Follow', () => {
     it('should create user-actor follow relationship', async () => {
-      // Clean up any existing follows
+      // Clean up any existing follows - ensure it completes
       await prisma.userActorFollow.deleteMany({
         where: {
           userId: testUser1.id,
@@ -347,12 +372,48 @@ describe('Follow System API Integration Tests', () => {
         },
       })
 
-      // Create follow
-      const follow = await prisma.userActorFollow.create({
-        data: {
+      // Wait a bit to ensure cleanup is committed
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Verify cleanup worked
+      const existing = await prisma.userActorFollow.findUnique({
+        where: {
+          userId_actorId: {
+            userId: testUser1.id,
+            actorId: testActor.id,
+          },
+        },
+      })
+
+      if (existing) {
+        // Force delete if still exists
+        await prisma.userActorFollow.delete({
+          where: {
+            userId_actorId: {
+              userId: testUser1.id,
+              actorId: testActor.id,
+            },
+          },
+        })
+        // Wait again after delete
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Create follow using upsert to handle any race conditions
+      const follow = await prisma.userActorFollow.upsert({
+        where: {
+          userId_actorId: {
+            userId: testUser1.id,
+            actorId: testActor.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
+        },
+        update: {
+          // If it exists, just keep existing record
         },
         include: {
           User: {
@@ -380,6 +441,24 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should not allow duplicate actor follows', async () => {
+      // Ensure the relationship exists from previous test
+      await prisma.userActorFollow.upsert({
+        where: {
+          userId_actorId: {
+            userId: testUser1.id,
+            actorId: testActor.id,
+          },
+        },
+        create: {
+          id: await generateSnowflakeId(),
+          userId: testUser1.id,
+          actorId: testActor.id,
+        },
+        update: {},
+      })
+
+      // Now try to create duplicate - should fail
+      let errorCaught = false
       try {
         await prisma.userActorFollow.create({
           data: {
@@ -388,11 +467,12 @@ describe('Follow System API Integration Tests', () => {
             actorId: testActor.id,
           },
         })
-        expect(false).toBe(true) // Should not reach here
-      } catch (error: any) {
-        expect(error.code).toBe('P2002') // Unique constraint violation
+      } catch (error: unknown) {
+        errorCaught = true
+        expect((error as { code?: string }).code).toBe('P2002') // Unique constraint violation
       }
 
+      expect(errorCaught).toBe(true) // Should have thrown an error
       console.log('✅ Duplicate actor follow prevented')
     })
 
@@ -501,13 +581,23 @@ describe('Follow System API Integration Tests', () => {
         },
       })
 
-      // Create follow
-      await prisma.userActorFollow.create({
-        data: {
+      // Wait to ensure cleanup is committed
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Create follow using upsert to avoid duplicates
+      await prisma.userActorFollow.upsert({
+        where: {
+          userId_actorId: {
+            userId: testUser1.id,
+            actorId: testActor.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
         },
+        update: {},
       })
 
       // Get actor follows
@@ -543,8 +633,8 @@ describe('Follow System API Integration Tests', () => {
           },
         })
         expect(false).toBe(true) // Should not reach here
-      } catch (error: any) {
-        expect(error.code).toBeTruthy() // Should throw database error
+      } catch (error: unknown) {
+        expect((error as { code?: string }).code).toBeTruthy() // Should throw database error
       }
 
       console.log('✅ Non-existent user follow prevented')
@@ -571,8 +661,8 @@ describe('Follow System API Integration Tests', () => {
         })
 
         console.log('⚠️  Database allows self-follow (API should prevent)')
-      } catch (error: any) {
-        console.log('✅ Self-follow prevented at database level')
+      } catch (error: unknown) {
+        console.log('✅ Self-follow prevented at database level', (error as { code?: string }).code)
       }
     })
   })

@@ -21,9 +21,15 @@ import fs from 'fs'
 
 dotenv.config({ path: '.env.local' })
 
+interface AgentIdentity {
+  tokenId: number
+  address: string
+  agentId: string
+}
+
 describe('E2E - Autonomous Agent Live Tests', () => {
   // Shared state across tests
-  let agentIdentity: any
+  let agentIdentity: AgentIdentity
   let a2aClient: BabylonA2AClient
   let decisionMaker: AgentDecisionMaker
   let memory: AgentMemory

@@ -37,7 +37,7 @@ export class Agent0Client implements IAgent0Client {
   private sdk: SDK | null
   private chainId: number
   private config: {
-    network: 'sepolia' | 'mainnet'
+    network: 'sepolia' | 'mainnet' | 'localnet'
     rpcUrl: string
     privateKey: string
     ipfsProvider?: 'node' | 'filecoinPin' | 'pinata'
@@ -49,7 +49,7 @@ export class Agent0Client implements IAgent0Client {
   private initPromise: Promise<void> | null = null
   
   constructor(config: {
-    network: 'sepolia' | 'mainnet'
+    network: 'sepolia' | 'mainnet' | 'localnet'
     rpcUrl: string
     privateKey: string
     ipfsProvider?: 'node' | 'filecoinPin' | 'pinata'
@@ -58,7 +58,14 @@ export class Agent0Client implements IAgent0Client {
     filecoinPrivateKey?: string
     subgraphUrl?: string
   }) {
-    this.chainId = config.network === 'sepolia' ? 11155111 : 1
+    // Set chain ID based on network
+    if (config.network === 'localnet') {
+      this.chainId = 31337 // Anvil default chain ID
+    } else if (config.network === 'sepolia') {
+      this.chainId = 11155111
+    } else {
+      this.chainId = 1 // mainnet
+    }
     this.config = config
     this.sdk = null
   }
@@ -372,17 +379,25 @@ let agent0ClientInstance: Agent0Client | null = null
 
 export function getAgent0Client(): Agent0Client {
   if (!agent0ClientInstance) {
-    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL
-    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || process.env.AGENT0_PRIVATE_KEY
+    // Support localnet RPC URL
+    const rpcUrl = process.env.AGENT0_RPC_URL || 
+                   process.env.BASE_SEPOLIA_RPC_URL || 
+                   process.env.BASE_RPC_URL ||
+                   (process.env.AGENT0_NETWORK === 'localnet' ? 'http://localhost:8545' : undefined)
+    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || 
+                       process.env.AGENT0_PRIVATE_KEY ||
+                       (process.env.AGENT0_NETWORK === 'localnet' ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' : undefined)
     
     if (!rpcUrl || !privateKey) {
       throw new Error(
-        'Agent0Client requires BASE_SEPOLIA_RPC_URL and BABYLON_GAME_PRIVATE_KEY environment variables'
+        'Agent0Client requires RPC URL and private key. Set AGENT0_RPC_URL or BASE_SEPOLIA_RPC_URL, and BABYLON_GAME_PRIVATE_KEY or AGENT0_PRIVATE_KEY'
       )
     }
     
+    const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet' | 'localnet') || 'sepolia'
+    
     agent0ClientInstance = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+      network,
       rpcUrl,
       privateKey,
       ipfsProvider: (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') || 'node',

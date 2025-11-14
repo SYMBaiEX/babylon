@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
 
 // Test user data structure
@@ -58,8 +58,8 @@ const TEST_USERS_DATA = [
 ];
 
 let createdTestUsers: TestUser[] = [];
-let reporterUsers: any[] = [];
-let adminUser: any;
+let reporterUsers: TestUser[] = [];
+let adminUser: TestUser;
 
 // Calculate bad user score
 function calculateBadUserScore(reports: number, blocks: number, mutes: number, followers: number): number {
@@ -71,6 +71,10 @@ function calculateBadUserScore(reports: number, blocks: number, mutes: number, f
 
 beforeAll(async () => {
   console.log('🌱 Setting up moderation sorting test data...');
+
+  if (!prisma || !prisma.user) {
+    throw new Error('Prisma client not initialized');
+  }
 
   // Create enough reporter users to avoid unique constraint issues
   // Need at least 50 for the spammer test case (50 reports)
@@ -230,6 +234,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   console.log('🧹 Cleaning up moderation test data...');
+
+  if (!prisma || !adminUser) {
+    console.log('⚠️ Skipping cleanup - Prisma not initialized or adminUser not created');
+    return;
+  }
 
   // Clean up test users and related data
   const userIds = createdTestUsers.map(u => u.id);

@@ -1,4 +1,5 @@
-import { Experience, ExperienceType, OutcomeType } from '../types.js';
+import type { Experience } from '../types.js';
+import { ExperienceType, OutcomeType } from '../types.js';
 
 export function formatExperienceForDisplay(experience: Experience): string {
   const typeEmoji = getTypeEmoji(experience.type);

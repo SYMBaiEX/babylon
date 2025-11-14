@@ -40,10 +40,10 @@ export interface ProviderAccess {
   timestamp: number;
   
   // What was requested
-  query?: Record<string, any>;
+  query?: Record<string, unknown>;
   
   // What was returned
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   
   // Context
   purpose: string; // Why this provider was accessed
@@ -56,7 +56,7 @@ export interface ActionAttempt {
   // Action details
   actionType: string; // 'CREATE_POST', 'BUY_SHARES', 'SEND_MESSAGE', etc.
   actionName: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   
   // Context that led to this action
   reasoning?: string; // Why agent chose this action
@@ -64,7 +64,7 @@ export interface ActionAttempt {
   
   // Outcome
   success: boolean;
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
   error?: string;
   
   // Reward signals
@@ -89,7 +89,7 @@ export interface EnvironmentState {
   recentEngagement?: number;
   
   // Any other relevant state
-  custom?: Record<string, any>;
+  custom?: Record<string, unknown>;
 }
 
 export interface TrajectoryStep {
@@ -99,7 +99,7 @@ export interface TrajectoryStep {
   
   // Environment observation at this step
   environmentState: EnvironmentState;
-  observation: Record<string, any>; // Raw observation from environment
+  observation: Record<string, unknown>; // Raw observation from environment
   
   // Agent cognition
   llmCalls: LLMCall[]; // All LLM calls made during this step
@@ -114,7 +114,7 @@ export interface TrajectoryStep {
   done: boolean; // Is episode finished?
   
   // Metadata
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RewardComponents {
@@ -177,7 +177,7 @@ export interface Trajectory {
     successRate?: number;
     errorCount?: number;
     
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   // Context for training (For RULER judge to use)
@@ -196,11 +196,11 @@ export interface Trajectory {
     comparisonGroup?: string; // For RULER comparison
     
     // Additional context for RULER
-    initialState?: Record<string, any>; // Starting conditions
+    initialState?: Record<string, unknown>; // Starting conditions
     goalDescription?: string; // What agent was trying to achieve
     constraints?: string[]; // Rules/constraints agent should follow
     
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -245,14 +245,14 @@ export interface ARTTrajectory {
     // Game knowledge for RULER
     gameKnowledge?: {
       trueProbabilities?: Record<string, number>;
-      actualOutcomes?: Record<string, any>;
-      hiddenVariables?: Record<string, any>;
+      actualOutcomes?: Record<string, unknown>;
+      hiddenVariables?: Record<string, unknown>;
     };
     
     // Performance metrics for RULER
-    metrics?: Record<string, any>;
+    metrics?: Record<string, unknown>;
     
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   // Metrics (for analysis, not training)
@@ -321,7 +321,6 @@ export interface RewardRequest {
     riskManagement?: boolean;
     socialQuality?: boolean;
     strategyCoherence?: boolean;
-    [key: string]: boolean | undefined;
   };
 }
 
@@ -384,5 +383,5 @@ export interface TrainingBatch {
   // Metadata
   createdAt: number;
   modelVersion: string;
-  trainingConfig?: Record<string, any>;
+  trainingConfig?: Record<string, unknown>;
 }

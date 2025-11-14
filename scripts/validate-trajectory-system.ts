@@ -9,6 +9,7 @@ import { prisma } from '../src/lib/prisma';
 import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
 import { toARTTrajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
 import { exportForOpenPipeART } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/export';
+import type { TrajectoryStep, Trajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/types';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -43,7 +44,17 @@ async function main() {
 
       if (Number(count[0]?.count || 0) > 0) {
         // Show sample data
-        const sample = await prisma.$queryRaw<Array<any>>`
+        interface TrajectoryRow {
+          trajectory_id: string;
+          agent_id: string;
+          episode_length: number;
+          total_reward: number;
+          final_status: string;
+          created_at: Date;
+          data_size: number;
+        }
+
+        const sample = await prisma.$queryRaw<Array<TrajectoryRow>>`
           SELECT 
             trajectory_id,
             agent_id,
@@ -165,12 +176,29 @@ async function main() {
     console.log('📊 STEP 3: Verifying database storage...\n');
 
     if (hasTrajectories) {
-      const stored = await prisma.$queryRaw<Array<any>>`
+      interface TrajectoryRow {
+        trajectory_id: string;
+        agent_id: string;
+        scenario_id: string | null;
+        episode_length: number;
+        total_reward: number;
+        window_id: string | null;
+        steps_json: string;
+        reward_components_json: string;
+        metrics_json: string;
+        metadata_json: string;
+        start_time: Date;
+        end_time: Date;
+        duration_ms: number;
+        created_at: Date;
+      }
+
+      const stored = await prisma.$queryRaw<Array<TrajectoryRow>>`
         SELECT * FROM trajectories WHERE trajectory_id = ${trajId} LIMIT 1
       `;
 
       if (stored.length > 0) {
-        const traj = stored[0];
+        const traj = stored[0]!;
         console.log('  ✅ Found in database:');
         console.log(`     ID: ${traj.trajectory_id}`);
         console.log(`     Agent: ${traj.agent_id}`);
@@ -180,14 +208,17 @@ async function main() {
         console.log(`     Created: ${new Date(traj.created_at).toLocaleString()}\n`);
 
         // Validate JSON data
-        const steps = JSON.parse(traj.steps_json);
+        const steps = JSON.parse(traj.steps_json) as TrajectoryStep[];
         console.log('  ✅ Steps JSON valid:');
         console.log(`     Total steps: ${steps.length}`);
-        console.log(`     LLM calls: ${steps.reduce((s: number, st: any) => s + st.llmCalls.length, 0)}`);
-        console.log(`     Provider accesses: ${steps.reduce((s: number, st: any) => s + st.providerAccesses.length, 0)}\n`);
+        console.log(`     LLM calls: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.llmCalls.length, 0)}`);
+        console.log(`     Provider accesses: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.providerAccesses.length, 0)}\n`);
 
         // Check LLM call logs
-        const llmCalls = await prisma.$queryRaw<Array<any>>`
+        interface LLMCallCount {
+          count: bigint;
+        }
+        const llmCalls = await prisma.$queryRaw<Array<LLMCallCount>>`
           SELECT COUNT(*) as count FROM llm_call_logs WHERE trajectory_id = ${trajId}
         `;
         console.log(`  ✅ LLM calls in separate table: ${llmCalls[0]?.count || 0}\n`);
@@ -198,21 +229,21 @@ async function main() {
         console.log('='.repeat(70));
         console.log('🔄 STEP 4: Converting to ART format...\n');
 
-        const fullTraj = {
-          trajectoryId: traj.trajectory_id,
-          agentId: traj.agent_id,
-          scenarioId: traj.scenario_id,
+        const fullTraj: Trajectory = {
+          trajectoryId: traj.trajectory_id as Trajectory['trajectoryId'],
+          agentId: traj.agent_id as Trajectory['agentId'],
+          scenarioId: traj.scenario_id || undefined,
           startTime: new Date(traj.start_time).getTime(),
           endTime: new Date(traj.end_time).getTime(),
           durationMs: traj.duration_ms,
           steps,
           totalReward: traj.total_reward,
-          rewardComponents: JSON.parse(traj.reward_components_json),
-          metrics: JSON.parse(traj.metrics_json),
-          metadata: JSON.parse(traj.metadata_json)
+          rewardComponents: JSON.parse(traj.reward_components_json) as Trajectory['rewardComponents'],
+          metrics: JSON.parse(traj.metrics_json) as Trajectory['metrics'],
+          metadata: JSON.parse(traj.metadata_json) as Trajectory['metadata']
         };
 
-        const artTraj = toARTTrajectory(fullTraj as any);
+        const artTraj = toARTTrajectory(fullTraj);
 
         console.log('  ✅ Converted to ART format:');
         console.log(`     Messages: ${artTraj.messages.length}`);

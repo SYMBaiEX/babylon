@@ -83,28 +83,34 @@ export function GroupChatsAdmin() {
 
   const loadGroups = async () => {
     setIsLoading(true);
-    const params = new URLSearchParams({
-      sortBy,
-      sortOrder,
-    });
-    
-    if (creatorFilter) {
-      params.append('creator', creatorFilter);
-    }
+    try {
+      const params = new URLSearchParams({
+        sortBy,
+        sortOrder,
+      });
+      
+      if (creatorFilter) {
+        params.append('creator', creatorFilter);
+      }
 
-    const response = await fetch(`/api/admin/groups?${params}`);
-    const data = await response.json();
+      const response = await fetch(`/api/admin/groups?${params}`);
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to load groups');
-    }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load groups');
+      }
 
-    const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
-    if (!validation.success) {
-      throw new Error('Invalid group data structure');
+      const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
+      if (!validation.success) {
+        throw new Error('Invalid group data structure');
+      }
+      setGroups(validation.data);
+    } catch (err) {
+      console.error('Failed to load groups:', err);
+      // Keep existing groups on error, just stop loading
+    } finally {
+      setIsLoading(false);
     }
-    setGroups(validation.data);
-    setIsLoading(false);
   };
 
   const loadMessages = async (groupId: string) => {
@@ -115,23 +121,29 @@ export function GroupChatsAdmin() {
 
     setLoadingMessages(prev => ({ ...prev, [groupId]: true }));
     
-    const response = await fetch(`/api/admin/groups/${groupId}/messages?limit=100`);
-    const data = await response.json();
+    try {
+      const response = await fetch(`/api/admin/groups/${groupId}/messages?limit=100`);
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to load messages');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load messages');
+      }
+
+      const validation = z.array(FullMessageSchema).safeParse(data.data.messages);
+      if (!validation.success) {
+        throw new Error('Invalid message data structure');
+      }
+
+      setFullMessages(prev => ({
+        ...prev,
+        [groupId]: validation.data,
+      }));
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+      // Don't set messages on error
+    } finally {
+      setLoadingMessages(prev => ({ ...prev, [groupId]: false }));
     }
-
-    const validation = z.array(FullMessageSchema).safeParse(data.data.messages);
-    if (!validation.success) {
-      throw new Error('Invalid message data structure');
-    }
-
-    setFullMessages(prev => ({
-      ...prev,
-      [groupId]: validation.data,
-    }));
-    setLoadingMessages(prev => ({ ...prev, [groupId]: false }));
   };
 
   const toggleGroup = async (groupId: string) => {

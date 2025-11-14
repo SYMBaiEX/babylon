@@ -22,6 +22,8 @@ const agentSessions = new Map<string, AgentSession>();
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
 const SESSION_PREFIX = 'agent:session:';
 const useRedis = isRedisAvailable() && redis !== null;
+const DEFAULT_TEST_AGENT_ID = 'babylon-agent-alice';
+const isProduction = process.env.NODE_ENV === 'production';
 
 /**
  * Clean up expired sessions
@@ -49,11 +51,22 @@ export function cleanupExpiredSessions(): void {
  */
 export function verifyAgentCredentials(agentId: string, agentSecret: string): boolean {
   // Get configured agent credentials from environment
-  const configuredAgentId = process.env.BABYLON_AGENT_ID || 'babylon-agent-alice';
-  const configuredAgentSecret = process.env.BABYLON_AGENT_SECRET;
+  const configuredAgentId =
+    process.env.BABYLON_AGENT_ID ??
+    (!isProduction ? DEFAULT_TEST_AGENT_ID : undefined);
+  const configuredAgentSecret = process.env.CRON_SECRET;
 
   if (!configuredAgentSecret) {
-    logger.error('BABYLON_AGENT_SECRET not configured in environment', undefined, 'AgentAuth');
+    logger.error('CRON_SECRET not configured in environment', undefined, 'AgentAuth');
+    return false;
+  }
+
+  if (!configuredAgentId) {
+    logger.error(
+      'BABYLON_AGENT_ID must be configured in production environments',
+      undefined,
+      'AgentAuth'
+    );
     return false;
   }
 

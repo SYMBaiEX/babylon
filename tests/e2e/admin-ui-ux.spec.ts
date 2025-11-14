@@ -13,6 +13,7 @@
  */
 
 import { test, expect } from './fixtures/admin-auth'
+import type { Route } from '@playwright/test'
 
 test.describe('Admin UI/UX - Keyboard Navigation', () => {
   test('should navigate tabs with keyboard', async ({ adminPage }) => {
@@ -264,7 +265,7 @@ test.describe('Admin UI/UX - Loading States', () => {
 test.describe('Admin UI/UX - Empty States', () => {
   test('should show empty state when no data available', async ({ adminPage }) => {
     // Mock empty response
-    await adminPage.route('**/api/admin/users*', (route: any) => {
+    await adminPage.route('**/api/admin/users*', (route: Route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -291,7 +292,7 @@ test.describe('Admin UI/UX - Empty States', () => {
 
   test('should show helpful message in empty state', async ({ adminPage }) => {
     // Mock empty admin response
-    await adminPage.route('**/api/admin/admins', (route: any) => {
+    await adminPage.route('**/api/admin/admins', (route: Route) => {
       if (route.request().method() === 'GET') {
         route.fulfill({
           status: 200,
@@ -542,7 +543,7 @@ test.describe('Admin UI/UX - Error Recovery', () => {
   test('should allow retry after error', async ({ adminPage }) => {
     // Mock error response
     let requestCount = 0
-    await adminPage.route('**/api/admin/stats', (route: any) => {
+    await adminPage.route('**/api/admin/stats', (route: Route) => {
       requestCount++
       if (requestCount === 1) {
         route.fulfill({

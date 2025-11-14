@@ -12,15 +12,15 @@ import { generateText } from 'ai'
 import type { MemoryEntry } from './memory.js'
 
 export interface DecisionContext {
-  portfolio: { balance: number; positions: any[]; pnl: number }
-  markets: { predictions: any[]; perps: any[] }
-  feed: { posts: any[] }
+  portfolio: { balance: number; positions: Array<Record<string, unknown>>; pnl: number }
+  markets: { predictions: Array<Record<string, unknown>>; perps: Array<Record<string, unknown>> }
+  feed: { posts: Array<Record<string, unknown>> }
   memory: MemoryEntry[]
 }
 
 export interface Decision {
   action: 'BUY_YES' | 'BUY_NO' | 'SELL' | 'OPEN_LONG' | 'OPEN_SHORT' | 'CLOSE_POSITION' | 'CREATE_POST' | 'CREATE_COMMENT' | 'HOLD'
-  params?: any
+  params?: Record<string, unknown>
   reasoning?: string
 }
 
@@ -33,7 +33,7 @@ export interface DecisionMakerConfig {
 
 export class AgentDecisionMaker {
   private config: DecisionMakerConfig
-  private model: any
+  private model: ReturnType<typeof import('@ai-sdk/groq').createGroq>['languageModel'] | ReturnType<typeof import('@ai-sdk/anthropic').createAnthropic> | ReturnType<typeof import('@ai-sdk/openai').createOpenAI>['languageModel']
   private providerName: string
 
   constructor(config: DecisionMakerConfig) {
