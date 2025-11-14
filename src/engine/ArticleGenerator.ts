@@ -338,6 +338,24 @@ export class ArticleGenerator {
       tagsArray = [];
     }
 
+    // Handle slant (could be string or wrapped in object)
+    let slantString: string | undefined;
+    if (typeof articleData.slant === 'string') {
+      slantString = articleData.slant;
+    } else if (articleData.slant && typeof articleData.slant === 'object') {
+      // If slant is an object, try to extract the actual value or stringify it
+      if ('response' in articleData.slant && typeof (articleData.slant as any).response === 'object') {
+        // If there's a nested response object, it's malformed - extract title or summary as fallback
+        const nestedResponse = (articleData.slant as any).response;
+        slantString = nestedResponse.slant || nestedResponse.title || undefined;
+      } else {
+        // Try to extract a meaningful string representation
+        slantString = JSON.stringify(articleData.slant);
+      }
+    } else {
+      slantString = undefined;
+    }
+
     // Create article object
     const article: Article = {
       id: await generateSnowflakeId(),
@@ -350,7 +368,7 @@ export class ArticleGenerator {
       bylineActorId: journalist?.id,
       biasScore,
       sentiment: articleData.sentiment || 'neutral',
-      slant: articleData.slant,
+      slant: slantString,
       relatedEventId: event.id,
       relatedQuestion: event.relatedQuestion || undefined,
       relatedActorIds: event.actors || [],

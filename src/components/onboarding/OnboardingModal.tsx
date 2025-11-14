@@ -307,86 +307,80 @@ export function OnboardingModal({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium">Profile Picture</label>
-        <div className="flex items-center gap-4">
-          <div className="relative w-24 h-24 rounded-full overflow-hidden bg-muted group">
-            <Image
-              src={currentProfileImage}
-              alt="Profile picture"
-              fill
-              className="object-cover"
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <label className="p-2 bg-background/80 hover:bg-background rounded-lg cursor-pointer">
-                <Upload className="w-4 h-4" />
-                <input type="file" accept="image/*" onChange={handleProfileImageUpload} className="hidden" />
-              </label>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => cycleProfilePicture('prev')} className="p-2 bg-muted hover:bg-muted/70 rounded-lg">
+      <div className="flex items-start gap-4">
+        <div className="relative w-24 h-24 shrink-0 rounded-full overflow-hidden bg-muted group">
+          <Image
+            src={currentProfileImage}
+            alt="Profile picture"
+            fill
+            className="object-cover"
+            unoptimized
+          />
+          <div className="absolute inset-0 bg-black/50 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+            <button type="button" onClick={() => cycleProfilePicture('prev')} className="p-1.5 bg-background/80 hover:bg-background rounded-lg">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button type="button" onClick={() => cycleProfilePicture('next')} className="p-2 bg-muted hover:bg-muted/70 rounded-lg">
+            <label className="p-1.5 bg-background/80 hover:bg-background rounded-lg cursor-pointer">
+              <Upload className="w-4 h-4" />
+              <input type="file" accept="image/*" onChange={handleProfileImageUpload} className="hidden" />
+            </label>
+            <button type="button" onClick={() => cycleProfilePicture('next')} className="p-1.5 bg-background/80 hover:bg-background rounded-lg">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground flex-1">
-            Browse through {TOTAL_PROFILE_PICTURES} AI-generated images or upload your own
-          </p>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <label htmlFor="displayName" className="block text-sm font-medium">
-          Display Name
-        </label>
-        <input
-          id="displayName"
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Your display name"
-          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-          maxLength={50}
-        />
-      </div>
+        <div className="flex-1 space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="displayName" className="block text-sm font-medium">
+              Display Name
+            </label>
+            <input
+              id="displayName"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Your display name"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
+              maxLength={50}
+            />
+          </div>
 
-      <div className="space-y-2">
-        <label htmlFor="username" className="block text-sm font-medium">
-          Username
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
-          <input
-            id="username"
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your handle"
-            className="w-full pl-8 pr-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-            maxLength={20}
-          />
-          {isCheckingUsername && (
-            <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-          )}
-          {usernameStatus === 'available' && !isCheckingUsername && (
-            <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
-          )}
-          {usernameStatus === 'taken' && !isCheckingUsername && (
-            <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
-          )}
+          <div className="space-y-2">
+            <label htmlFor="username" className="block text-sm font-medium">
+              Username
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your handle"
+                className="w-full pl-8 pr-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
+                maxLength={20}
+              />
+              {isCheckingUsername && (
+                <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+              )}
+              {usernameStatus === 'available' && !isCheckingUsername && (
+                <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+              )}
+              {usernameStatus === 'taken' && !isCheckingUsername && (
+                <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
+              )}
+            </div>
+            {usernameStatus === 'taken' && usernameSuggestion && (
+              <p className="text-xs text-muted-foreground">
+                Suggestion:{' '}
+                <button type="button" className="underline" onClick={() => setUsername(usernameSuggestion)}>
+                  {usernameSuggestion}
+                </button>
+              </p>
+            )}
+          </div>
         </div>
-        {usernameStatus === 'taken' && usernameSuggestion && (
-          <p className="text-xs text-muted-foreground">
-            Suggestion:{' '}
-            <button type="button" className="underline" onClick={() => setUsername(usernameSuggestion)}>
-              {usernameSuggestion}
-            </button>
-          </p>
-        )}
       </div>
 
       <div className="space-y-2">
@@ -405,8 +399,15 @@ export function OnboardingModal({
         <p className="text-xs text-muted-foreground text-right">{bio.length}/280</p>
       </div>
 
-      <div className="space-y-3 border-t border-border pt-4">
-        <label className="flex items-start gap-3 cursor-pointer group">
+      {(formError || error) && (
+        <div className="flex items-center gap-2 text-red-500 text-sm">
+          <AlertCircle className="w-4 h-4" />
+          <span>{formError || error}</span>
+        </div>
+      )}
+
+      <div className="flex items-start gap-4">
+        <label className="flex items-start gap-3 cursor-pointer group flex-1">
           <input
             type="checkbox"
             checked={acceptedTerms}
@@ -436,37 +437,16 @@ export function OnboardingModal({
             </a>
           </span>
         </label>
-      </div>
-
-      {(formError || error) && (
-        <div className="flex items-center gap-2 text-red-500 text-sm">
-          <AlertCircle className="w-4 h-4" />
-          <span>{formError || error}</span>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center">
         <button
-          type="button"
-          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-          onClick={handleSkip}
+          type="submit"
+          className={cn(
+            'px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg whitespace-nowrap hover:bg-[#0066FF]/90',
+            isSubmitting && 'opacity-60'
+          )}
           disabled={isSubmitting}
-          title="Use generated profile and continue"
         >
-          Use Generated Profile
+          {isSubmitting ? 'Saving...' : 'Continue'}
         </button>
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className={cn(
-              'px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg flex items-center gap-2 hover:bg-[#0066FF]/90',
-              isSubmitting && 'opacity-60'
-            )}
-            disabled={isSubmitting}
-          >
-              {isSubmitting ? 'Saving...' : 'Continue'}
-          </button>
-        </div>
       </div>
     </form>
   )
@@ -554,7 +534,7 @@ export function OnboardingModal({
     <>
       <div
         className={cn(
-          "fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300",
+          "fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300 rounded-lg",
           isVisible ? "opacity-100" : "opacity-0"
         )}
         onClick={canClose ? onClose : undefined}

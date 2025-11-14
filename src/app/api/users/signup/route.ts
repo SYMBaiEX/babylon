@@ -108,10 +108,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       select: { id: true },
     })
 
-    await tx.user.findUnique({
-      where: { walletAddress: walletAddress! },
-      select: { id: true },
-    })
+    if (walletAddress) {
+      await tx.user.findUnique({
+        where: { walletAddress: walletAddress },
+        select: { id: true },
+      })
+    }
 
     // Resolve referral (if provided)
     let resolvedReferrerId: string | null = null
