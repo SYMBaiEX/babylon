@@ -161,14 +161,6 @@ export default function PredictionDetailPage() {
     ? calculateExpectedPayout(calculation.sharesBought, calculation.avgPrice)
     : 0
   const expectedProfit = expectedPayout - amountNum
-  const isMarketResolved =
-    !!market &&
-    (market.status === 'resolved' ||
-      market.resolvedOutcome !== undefined ||
-      market.resolved)
-  const isMarketExpired =
-    !!market?.resolutionDate &&
-    new Date(market.resolutionDate).getTime() < Date.now()
 
   const handleTradeEvent = useCallback((event: PredictionTradeSSE) => {
     setMarket((prev) => {

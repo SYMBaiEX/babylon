@@ -12,6 +12,9 @@ export interface UserPredictionPosition {
   shares: number;
   avgPrice: number;
   currentPrice: number;
+  currentValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
   resolved: boolean;
   resolution: boolean | null;
 }

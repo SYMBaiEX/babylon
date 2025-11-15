@@ -184,7 +184,7 @@ function ChartTooltipContent({
     if (labelFormatter) {
       return (
         <div className={cn("font-medium", labelClassName)}>
-          {labelFormatter(value, payload)}
+          {labelFormatter(value, payload ?? [])}
         </div>
       );
     }
@@ -208,7 +208,7 @@ function ChartTooltipContent({
     return null;
   }
 
-  const nestLabel = payload.length === 1 && indicator !== "dot";
+  const nestLabel = (payload?.length ?? 0) === 1 && indicator !== "dot";
 
   return (
     <div
@@ -315,7 +315,9 @@ function ChartLegendContent({
 }) {
   const { config } = useChart();
 
-  if (!payload?.length) {
+  const safePayload = payload ?? [];
+
+  if (safePayload.length === 0) {
     return null;
   }
 
@@ -327,7 +329,7 @@ function ChartLegendContent({
         className
       )}
     >
-        {filteredPayload.map((item) => {
+        {safePayload.map((item) => {
         const key = `${nameKey || item.dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
 

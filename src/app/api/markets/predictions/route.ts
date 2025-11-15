@@ -101,6 +101,7 @@
 
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/database-service';
+import type { Market, Position } from '@prisma/client';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -111,7 +112,12 @@ import { PredictionPricing } from '@/lib/prediction-pricing';
 
 const FALLBACK_PROBABILITY = 0.5;
 
-function buildPositionSnapshot(p: any, market: any) {
+type PositionWithMarket = Position & { Market?: Market | null };
+
+function buildPositionSnapshot(
+  p: PositionWithMarket,
+  market?: Market | null
+) {
   const yesShares = market ? Number(market.yesShares) : 0;
   const noShares = market ? Number(market.noShares) : 0;
   const totalShares = yesShares + noShares;

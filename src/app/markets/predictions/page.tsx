@@ -138,7 +138,6 @@ export default function PredictionsPage() {
     );
     setPredictions(fetchedPredictions);
 
-    const now = Date.now();
     setSparklineData((prev) => {
       const next = { ...prev };
       fetchedPredictions.forEach((prediction) => {
