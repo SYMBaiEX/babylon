@@ -1,10 +1,10 @@
 'use client'
 
 import { memo, useMemo } from 'react'
-import { Area, AreaChart } from 'recharts'
+import { LineChart, Line } from 'recharts'
 
 interface PredictionSparklineProps {
-  data: Array<{ time: number; yesPrice: number }>
+  data: Array<{ time: number; yesPrice: number; noPrice: number }>
   width?: number
   height?: number
 }
@@ -12,10 +12,15 @@ interface PredictionSparklineProps {
 function PredictionSparklineBase({ data, width = 120, height = 32 }: PredictionSparklineProps) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return []
-    return data.slice(-20).map((point) => ({
-      probability: point.yesPrice * 100,
-      timestamp: point.time,
-    }))
+    return data.slice(-20).map((point) => {
+      const yes = (point.yesPrice ?? 0.5) * 100
+      const no = point.noPrice !== undefined ? point.noPrice * 100 : 100 - yes
+      return {
+        yesProbability: yes,
+        noProbability: no,
+        timestamp: point.time,
+      }
+    })
   }, [data])
 
   if (chartData.length === 0) {
@@ -23,27 +28,29 @@ function PredictionSparklineBase({ data, width = 120, height = 32 }: PredictionS
   }
 
   return (
-    <AreaChart
+    <LineChart
       width={width}
       height={height}
       data={chartData}
       margin={{ top: 2, right: 0, bottom: 2, left: 0 }}
     >
-      <defs>
-        <linearGradient id="sparklineGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.8} />
-          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.1} />
-        </linearGradient>
-      </defs>
-      <Area
+      <Line
         type="monotone"
-        dataKey="probability"
-        stroke="#0ea5e9"
+        dataKey="yesProbability"
+        stroke="#22c55e"
         strokeWidth={1.5}
-        fill="url(#sparklineGradient)"
+        dot={false}
         isAnimationActive={false}
       />
-    </AreaChart>
+      <Line
+        type="monotone"
+        dataKey="noProbability"
+        stroke="#ef4444"
+        strokeWidth={1.5}
+        dot={false}
+        isAnimationActive={false}
+      />
+    </LineChart>
   )
 }
 

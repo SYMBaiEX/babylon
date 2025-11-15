@@ -119,16 +119,28 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
             }}
           >
             <defs>
-              <linearGradient id={`fillProbability-${marketId}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={`fillProbabilityYes-${marketId}`} x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor={lineColor}
+                  stopColor="#16a34a"
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor={lineColor}
-                  stopOpacity={0.1}
+                  stopColor="#16a34a"
+                  stopOpacity={0.05}
+                />
+              </linearGradient>
+              <linearGradient id={`fillProbabilityNo-${marketId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="#dc2626"
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="#dc2626"
+                  stopOpacity={0.05}
                 />
               </linearGradient>
               {/* YES zone gradient (green, top half) */}
@@ -184,6 +196,24 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
               tickFormatter={(value) => `${value.toFixed(0)}%`}
               domain={[0, 100]}
             />
+            <Area
+              type="monotone"
+              dataKey="probability"
+              stroke="#16a34a"
+              strokeWidth={2}
+              fill={`url(#fillProbabilityYes-${marketId})`}
+              isAnimationActive={false}
+              name="YES"
+            />
+            <Area
+              type="monotone"
+              dataKey="noProbability"
+              stroke="#dc2626"
+              strokeWidth={2}
+              fill={`url(#fillProbabilityNo-${marketId})`}
+              isAnimationActive={false}
+              name="NO"
+            />
             <ChartTooltip
               cursor={{ stroke: lineColor, strokeWidth: 1, strokeDasharray: '4 4' }}
               content={
@@ -197,8 +227,8 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
                   }}
                   formatter={(value, name) => {
                     if (typeof value !== 'number') return value;
-                    const displayName = name === 'probability' ? 'YES' : 'NO';
-                    const color = name === 'probability' ? '#16a34a' : '#dc2626';
+                    const displayName = name === 'probability' ? 'YES' : name === 'noProbability' ? 'NO' : name;
+                    const color = displayName === 'YES' ? '#16a34a' : '#dc2626';
                     return (
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></div>
@@ -261,4 +291,3 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
     </div>
   );
 }
-

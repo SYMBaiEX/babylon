@@ -69,7 +69,7 @@ export default function PredictionsPage() {
   // Data
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sparklineData, setSparklineData] = useState<Record<string, Array<{ time: number; yesPrice: number }>>>({});
+  const [sparklineData, setSparklineData] = useState<Record<string, Array<{ time: number; yesPrice: number; noPrice: number }>>>({});
 
   const {
     data: _portfolioPnL,
@@ -146,8 +146,9 @@ export default function PredictionsPage() {
         const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0);
         const yesProbability =
           totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
+        const noProbability = 1 - yesProbability;
         if (!next[id] || next[id].length === 0) {
-          next[id] = [{ time: fetchedAt, yesPrice: yesProbability }];
+          next[id] = [{ time: fetchedAt, yesPrice: yesProbability, noPrice: noProbability }];
         }
       });
       return next;
@@ -172,10 +173,10 @@ export default function PredictionsPage() {
     fetchData();
   }, [fetchData]);
 
-  const appendSparklinePoint = useCallback((marketId: string, yesPrice: number) => {
+  const appendSparklinePoint = useCallback((marketId: string, yesPrice: number, noPrice: number) => {
     setSparklineData((prev) => {
       const existing = prev[marketId] ?? [];
-      const nextPoints = [...existing, { time: Date.now(), yesPrice }];
+      const nextPoints = [...existing, { time: Date.now(), yesPrice, noPrice }];
       while (nextPoints.length > 20) {
         nextPoints.shift();
       }
@@ -203,7 +204,7 @@ export default function PredictionsPage() {
       const totalShares = event.yesShares + event.noShares;
       const yesProbability =
         totalShares > 0 ? event.yesPrice : 0.5;
-      appendSparklinePoint(event.marketId, yesProbability);
+      appendSparklinePoint(event.marketId, yesProbability, 1 - yesProbability);
     },
     onResolution: (event) => {
       setPredictions((prev) =>
@@ -218,7 +219,7 @@ export default function PredictionsPage() {
           };
         })
       );
-      appendSparklinePoint(event.marketId, event.yesPrice);
+      appendSparklinePoint(event.marketId, event.yesPrice, event.noPrice);
     },
   });
 
