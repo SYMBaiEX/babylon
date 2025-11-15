@@ -15,17 +15,24 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+const sentryDisabled =
+  process.env.NEXT_PUBLIC_DISABLE_SENTRY === 'true' ||
+  process.env.DISABLE_SENTRY === 'true'
+
 // Log initialization status in development
 if (process.env.NODE_ENV === 'development') {
-  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  if (sentryDisabled) {
+    console.info('[Sentry Client] Disabled via DISABLE_SENTRY flag')
+  } else if (!process.env.NEXT_PUBLIC_SENTRY_DSN) {
     console.warn('[Sentry Client] NEXT_PUBLIC_SENTRY_DSN is not configured. Add it to your .env.local file to enable error tracking.')
   } else {
     console.log('[Sentry Client] Initializing with DSN:', process.env.NEXT_PUBLIC_SENTRY_DSN.substring(0, 20) + '...')
   }
 }
 
-Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+if (!sentryDisabled) {
+  Sentry.init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   
   // Environment detection
   environment: process.env.NODE_ENV || 'development',
@@ -160,8 +167,8 @@ Sentry.init({
     }
     return event
   },
-})
+  })
+}
 
 // Export router transition handler for Next.js App Router
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
-
