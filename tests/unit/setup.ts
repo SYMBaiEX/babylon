@@ -1,0 +1,111 @@
+/**
+ * Unit Test Setup
+ *
+ * Provides mocked Prisma client and other dependencies for unit tests.
+ * Unit tests should not require a real database connection.
+ */
+
+import { mock, beforeAll } from 'bun:test'
+
+// Mock Prisma client for all unit tests
+beforeAll(() => {
+  // Set test environment variables
+  // @ts-expect-error - Need to override NODE_ENV for testing
+  process.env.NODE_ENV = 'test'
+  process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test'
+  process.env.REDIS_URL = 'redis://localhost:6379'
+
+  // Mock the Prisma module entirely
+  mock.module('@/lib/prisma', () => {
+    const mockPrismaClient = createMockPrismaClient()
+    return {
+      prisma: mockPrismaClient,
+      prismaBase: mockPrismaClient
+    }
+  })
+
+  // Mock Redis as well
+  mock.module('ioredis', () => {
+    return {
+      default: class MockRedis {
+        constructor() {}
+        on() { return this }
+        connect() { return Promise.resolve() }
+        disconnect() { return Promise.resolve() }
+        get() { return Promise.resolve(null) }
+        set() { return Promise.resolve('OK') }
+        del() { return Promise.resolve(1) }
+        expire() { return Promise.resolve(1) }
+        ttl() { return Promise.resolve(-1) }
+        keys() { return Promise.resolve([]) }
+        flushall() { return Promise.resolve('OK') }
+        pipeline() {
+          return {
+            exec: () => Promise.resolve([])
+          }
+        }
+      }
+    }
+  })
+})
+
+/**
+ * Create a mock Prisma client with all necessary models
+ */
+function createMockPrismaClient() {
+  const mockModels = [
+    'user', 'actor', 'pool', 'market', 'position', 'trade',
+    'post', 'comment', 'worldFact', 'parodyHeadline',
+    'waitlistEntry', 'points', 'marketOutcome', 'vote',
+    'marketSpotlight', 'userGroup', 'userGroupMember',
+    'actorFollow', 'userActorFollow', 'actorRelationship',
+    'nPCTrade', 'marketPool', 'liquidityPosition', 'swap',
+    'userStats', 'aiPrompt', 'threadMessage', 'userGroupAdmin',
+    'userGroupInvite', 'article', 'rSSFeedItem', 'conversation',
+    'notification', 'fact', 'factCategoryBlacklist',
+    'factResponse', 'topicCategory', 'stickerPackCollectionInfo',
+    'leaderboardResults', 'onChainUserMapping', 'automationTask',
+    'automationLog', 'automationCampaign', 'notification',
+    'feedback', 'reputationLog', 'achievements'
+  ]
+
+  const mockClient: any = {
+    $connect: mock(() => Promise.resolve()),
+    $disconnect: mock(() => Promise.resolve()),
+    $queryRaw: mock(() => Promise.resolve([])),
+    $executeRaw: mock(() => Promise.resolve(0)),
+    $transaction: mock(async (fn: any) => {
+      // Execute the transaction function with the mock client
+      return await fn(mockClient)
+    })
+  }
+
+  // Add mock methods for each Prisma model
+  for (const modelName of mockModels) {
+    mockClient[modelName] = {
+      findUnique: mock(() => Promise.resolve(null)),
+      findMany: mock(() => Promise.resolve([])),
+      findFirst: mock(() => Promise.resolve(null)),
+      count: mock(() => Promise.resolve(0)),
+      create: mock(() => Promise.resolve({ id: 'mock-id' })),
+      createMany: mock(() => Promise.resolve({ count: 0 })),
+      update: mock(() => Promise.resolve({ id: 'mock-id' })),
+      updateMany: mock(() => Promise.resolve({ count: 0 })),
+      upsert: mock(() => Promise.resolve({ id: 'mock-id' })),
+      delete: mock(() => Promise.resolve({ id: 'mock-id' })),
+      deleteMany: mock(() => Promise.resolve({ count: 0 })),
+      aggregate: mock(() => Promise.resolve({
+        _count: 0,
+        _sum: null,
+        _avg: null,
+        _min: null,
+        _max: null
+      })),
+      groupBy: mock(() => Promise.resolve([]))
+    }
+  }
+
+  return mockClient
+}
+
+export { createMockPrismaClient }

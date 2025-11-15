@@ -1,6 +1,14 @@
 """
-Babylon Agent - FULLY INSTRUMENTED
-Logs EVERY input/output to verify data flow
+Babylon Agent - DEBUGGING VERSION
+Fully instrumented version that logs EVERY input/output to verify data flow.
+
+Use this for:
+- Debugging A2A protocol issues
+- Verifying tool calls and responses
+- Understanding agent decision flow
+- Development and testing
+
+For production, use agent.py instead.
 """
 
 import os

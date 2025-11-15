@@ -27,6 +27,35 @@ describe('Agents API Routes - Comprehensive Tests', () => {
   let testUserId: string
   let testAgentId: string
 
+  // Helper to ensure agent exists (recreate if deleted)
+  async function ensureAgentExists(): Promise<void> {
+    const agentExists = await prisma.user.findUnique({ where: { id: testAgentId } })
+    if (!agentExists) {
+      await prisma.user.create({
+        data: {
+          id: testAgentId,
+          username: `agent_api_test_${Date.now()}`,
+          displayName: 'Test API Agent',
+          bio: 'Test agent for API testing',
+          isAgent: true,
+          managedBy: testUserId,
+          agentSystem: 'You are a test agent',
+          agentModelTier: 'free',
+          agentPointsBalance: 100,
+          agentTotalDeposited: 100,
+          agentStatus: 'active',
+          profileComplete: true,
+          hasUsername: true,
+          reputationPoints: 0,
+          virtualBalance: 0,
+          totalDeposited: 0,
+          isTest: true,
+          updatedAt: new Date()
+        }
+      })
+    }
+  }
+
   beforeAll(async () => {
     // Create test user
     testUserId = await generateSnowflakeId()
@@ -81,6 +110,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('GET /api/agents (list)', () => {
     it('should return agents with REAL performance stats (not zeros)', async () => {
+      await ensureAgentExists()
+      
       // Record a trade to test real stats
       await agentPnLService.recordTrade({
         agentId: testAgentId,
@@ -113,6 +144,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should filter by autonomousTrading flag', async () => {
+      await ensureAgentExists()
+      
       // Enable autonomous trading
       await prisma.user.update({
         where: { id: testAgentId },
@@ -136,6 +169,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('GET /api/agents/[agentId] (get details)', () => {
     it('should return agent with REAL totalTrades and winRate', async () => {
+      await ensureAgentExists()
+      
       const agent = await agentService.getAgent(testAgentId, testUserId)
       expect(agent).toBeDefined()
 
@@ -147,6 +182,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should include bio array', async () => {
+      await ensureAgentExists()
+      
       // Update agent with bio (stored as newline-separated string in bio field)
       await prisma.user.update({
         where: { id: testAgentId },
@@ -170,6 +207,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should throw error for unauthorized access', async () => {
+      await ensureAgentExists()
+      
       const otherUserId = await generateSnowflakeId()
       await prisma.user.create({
         data: {
@@ -195,6 +234,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('PUT /api/agents/[agentId] (update)', () => {
     it('should update agent name', async () => {
+      await ensureAgentExists()
+      
       const updated = await agentService.updateAgent(testAgentId, testUserId, {
         name: 'Updated Test Agent'
       })
@@ -203,6 +244,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should update agent system prompt', async () => {
+      await ensureAgentExists()
+      
       const updated = await agentService.updateAgent(testAgentId, testUserId, {
         system: 'You are an updated test agent'
       })
@@ -211,6 +254,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should update autonomous features', async () => {
+      await ensureAgentExists()
+      
       const updated = await agentService.updateAgent(testAgentId, testUserId, {
         autonomousTrading: true,
         autonomousPosting: true,
@@ -223,6 +268,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should update model tier', async () => {
+      await ensureAgentExists()
+      
       const updated = await agentService.updateAgent(testAgentId, testUserId, {
         modelTier: 'pro'
       })
@@ -233,6 +280,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('POST /api/agents/[agentId]/chat (send message)', () => {
     it('should save user message', async () => {
+      await ensureAgentExists()
+      
       const messagesBefore = await agentService.getChatHistory(testAgentId, 100)
       const countBefore = messagesBefore.length
 
@@ -252,6 +301,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should deduct points for chat', async () => {
+      await ensureAgentExists()
+      
       const balanceBefore = (await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentPointsBalance: true }
@@ -268,6 +319,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should create agent log for chat', async () => {
+      await ensureAgentExists()
+      
       const logId = uuidv4()
       await prisma.agentLog.create({
         data: {
@@ -295,6 +348,20 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('GET /api/agents/[agentId]/chat (get history)', () => {
     it('should retrieve chat history', async () => {
+      await ensureAgentExists()
+      
+      // Create a message first to ensure there's at least one
+      await prisma.agentMessage.create({
+        data: {
+          id: uuidv4(),
+          agentUserId: testAgentId,
+          role: 'user',
+          content: 'Test message for history',
+          pointsCost: 0,
+          metadata: {}
+        }
+      })
+      
       const messages = await agentService.getChatHistory(testAgentId, 50)
       
       expect(Array.isArray(messages)).toBe(true)
@@ -320,6 +387,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('POST /api/agents/[agentId]/wallet (transactions)', () => {
     it('should deposit points to agent', async () => {
+      await ensureAgentExists()
+      
       const balanceBefore = (await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentPointsBalance: true }
@@ -336,6 +405,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should withdraw points from agent', async () => {
+      await ensureAgentExists()
+      
       const balanceBefore = (await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentPointsBalance: true }
@@ -352,6 +423,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should record points transaction', async () => {
+      await ensureAgentExists()
+      
       const txId = uuidv4()
       await prisma.agentPointsTransaction.create({
         data: {
@@ -386,6 +459,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should reject withdrawal exceeding agent balance', async () => {
+      await ensureAgentExists()
+      
       const agentBalance = (await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentPointsBalance: true }
@@ -400,6 +475,23 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('GET /api/agents/[agentId]/wallet (get transactions)', () => {
     it('should retrieve transaction history', async () => {
+      await ensureAgentExists()
+      
+      // Create a transaction first to ensure there's at least one
+      await prisma.agentPointsTransaction.create({
+        data: {
+          id: uuidv4(),
+          managerUserId: testUserId,
+          agentUserId: testAgentId,
+          type: 'deposit',
+          amount: 10,
+          balanceBefore: 100,
+          balanceAfter: 110,
+          description: 'Test transaction for history',
+          createdAt: new Date()
+        }
+      })
+      
       const transactions = await prisma.agentPointsTransaction.findMany({
         where: { agentUserId: testAgentId },
         orderBy: { createdAt: 'desc' },
@@ -424,6 +516,20 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('GET /api/agents/[agentId]/logs', () => {
     it('should retrieve agent logs', async () => {
+      await ensureAgentExists()
+      
+      // Create a log first to ensure there's at least one
+      await prisma.agentLog.create({
+        data: {
+          id: uuidv4(),
+          agentUserId: testAgentId,
+          type: 'system',
+          level: 'info',
+          message: 'Test log for history',
+          metadata: {}
+        }
+      })
+      
       const logs = await prisma.agentLog.findMany({
         where: { agentUserId: testAgentId },
         orderBy: { createdAt: 'desc' },
@@ -459,6 +565,23 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should include metadata', async () => {
+      await ensureAgentExists()
+      
+      // Create a log with metadata first
+      await prisma.agentLog.create({
+        data: {
+          id: uuidv4(),
+          agentUserId: testAgentId,
+          type: 'chat',
+          level: 'info',
+          message: 'Test log with metadata',
+          metadata: {
+            testKey: 'testValue',
+            anotherKey: 123
+          }
+        }
+      })
+      
       const logs = await prisma.agentLog.findMany({
         where: { agentUserId: testAgentId },
         orderBy: { createdAt: 'desc' },
@@ -603,6 +726,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('Points Balance Tracking', () => {
     it('should track totalDeposited correctly', async () => {
+      await ensureAgentExists()
+      
       const before = await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentTotalDeposited: true }
@@ -619,6 +744,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should track totalWithdrawn correctly', async () => {
+      await ensureAgentExists()
+      
       const before = await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentTotalWithdrawn: true }
@@ -635,6 +762,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should track totalPointsSpent correctly', async () => {
+      await ensureAgentExists()
+      
       const before = await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentTotalPointsSpent: true }
@@ -653,6 +782,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
 
   describe('Agent Status Management', () => {
     it('should have valid status values', async () => {
+      await ensureAgentExists()
+      
       const agent = await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentStatus: true }
@@ -663,6 +794,8 @@ describe('Agents API Routes - Comprehensive Tests', () => {
     })
 
     it('should update lastChatAt on chat activity', async () => {
+      await ensureAgentExists()
+      
       const before = await prisma.user.findUnique({
         where: { id: testAgentId },
         select: { agentLastChatAt: true }

@@ -40,7 +40,8 @@ describe('Feedback System', () => {
     await prisma.feedback.deleteMany({ where: { toUserId: testUserId } })
     await prisma.agentPerformanceMetrics.deleteMany({ where: { userId: testUserId } })
     await prisma.user.delete({ where: { id: testUserId } })
-    await prisma.$disconnect()
+    // DON'T disconnect Prisma here - it's a singleton shared across all tests
+    // Disconnecting here will break other tests running in the same suite
   })
 
   test('Generate feedback for profitable trade', async () => {

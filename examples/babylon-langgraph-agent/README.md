@@ -1,16 +1,17 @@
 # 🤖 Babylon Autonomous Agent - Python + LangGraph
 
-Complete autonomous trading agent built with **LangGraph** and **Agent0 SDK** for Babylon prediction markets.
+Production-ready autonomous trading agent built with **LangGraph** and **HTTP A2A** for Babylon prediction markets.
 
 ## Features
 
-- 🔗 **Agent0 Integration** - ERC-8004 identity on Ethereum
-- 🌐 **Babylon A2A Protocol** - Full WebSocket integration
-- 🧠 **LangGraph ReAct Agent** - Reasoning and action loop
+- 🌐 **HTTP A2A Protocol** - Recommended mode (works with Vercel/serverless)
+- 🧠 **LangGraph ReAct Agent** - Reasoning and action loop with Groq LLM
 - 💾 **Persistent Memory** - Conversation and action history
 - 🔄 **Autonomous Loop** - Continuous decision making
-- 📊 **All Babylon Actions** - Trade, post, comment, chat
+- 📊 **Babylon Actions** - Trade markets, post to feed, manage portfolio
+- ✅ **Proper Validation** - Input validation and error handling
 - 🧪 **Fully Tested** - Integration and unit tests
+- 🔍 **Debug Mode** - Fully instrumented version for development
 
 ---
 
@@ -18,11 +19,12 @@ Complete autonomous trading agent built with **LangGraph** and **Agent0 SDK** fo
 
 ```
 ┌──────────────────┐
-│  Agent0 SDK      │ ← ERC-8004 Registration
-│  (Python)        │
+│  Ethereum Wallet  │ ← Private Key Identity
+│  (eth_account)    │
 └────────┬─────────┘
          │
-         ├→ On-Chain Identity
+         ├→ Agent Identity
+         │  (address + token_id)
          │
          ▼
 ┌──────────────────┐
@@ -32,14 +34,15 @@ Complete autonomous trading agent built with **LangGraph** and **Agent0 SDK** fo
          │
          ├→ Tools (Babylon Actions)
          │  - get_markets
+         │  - get_portfolio
          │  - buy_shares
          │  - create_post
-         │  - etc.
+         │  - get_feed
          │
          ▼
 ┌──────────────────┐
-│  Babylon A2A     │ ← WebSocket Protocol
-│  (JSON-RPC 2.0)  │
+│  Babylon A2A     │ ← HTTP Protocol (Recommended)
+│  (JSON-RPC 2.0)  │   http://localhost:3000/api/a2a
 └──────────────────┘
 ```
 
@@ -54,14 +57,13 @@ uv sync
 ```
 
 ### 2. Configure
-Create a `.env` file (or copy `.env.example`):
+Create a `.env` file:
 ```bash
-# Agent0 / ERC-8004
+# Ethereum Wallet (for agent identity)
 AGENT0_PRIVATE_KEY=0x...your_private_key
 
-# Babylon
-BABYLON_A2A_URL=ws://localhost:3000/a2a
-BABYLON_HTTP_URL=http://localhost:3000
+# Babylon A2A (HTTP endpoint - recommended)
+BABYLON_A2A_URL=http://localhost:3000/api/a2a
 
 # LLM
 GROQ_API_KEY=gsk_...your_groq_api_key
@@ -72,20 +74,7 @@ AGENT_STRATEGY=balanced
 TICK_INTERVAL=30
 ```
 
-### 3. Verify Setup
-```bash
-# Verify Agent0 identity and Babylon connectivity
-uv run python verify_setup.py
-```
-
-This will check:
-- ✅ Environment variables
-- ✅ Agent0 identity (private key, signing)
-- ✅ A2A authentication (message format, signatures)
-- ✅ Babylon connectivity (WebSocket, handshake, method calls)
-- ✅ Python dependencies
-
-### 4. Run Tests
+### 3. Run Tests
 ```bash
 # Run all tests
 uv run pytest tests/ -v
@@ -94,58 +83,56 @@ uv run pytest tests/ -v
 uv run pytest tests/test_a2a_integration.py -v -s
 ```
 
-### 5. Start Agent
+### 4. Start Agent
 ```bash
 # Make sure Babylon server is running first!
 # In another terminal: cd /Users/shawwalters/babylon && npm run dev
 
-# Run the HTTP agent (recommended for Babylon)
-uv run python agent_http.py
+# Production mode: Run indefinitely
+uv run python agent.py
 
-# Test mode: Run for 10 ticks with logging
-uv run python agent_http.py --test
+# Test mode: Run for 10 ticks
+uv run python agent.py --test
 
 # Custom test: Run for 5 ticks with logs
-uv run python agent_http.py --ticks 5 --log test.jsonl
+uv run python agent.py --ticks 5 --log test.jsonl
 
 # Fast test: 3 ticks with 5s intervals
-TICK_INTERVAL=5 uv run python agent_http.py --ticks 3
+TICK_INTERVAL=5 uv run python agent.py --ticks 3
+
+# Debug mode: Fully instrumented version (logs everything)
+uv run python agent_instrumented.py --ticks 2
 ```
 
-**Test Mode Features:**
+**Command Line Options:**
 - `--test` - Run for 10 ticks and exit (quick validation)
 - `--ticks N` - Run for N ticks and exit
-- `--log FILE` - Save comprehensive logs to FILE.jsonl
-- Auto-generates summary statistics
-- Perfect for development and debugging
+- `--log FILE` - Save comprehensive logs to FILE.jsonl (auto-generates summary)
 
-See [TEST_MODE_README.md](./TEST_MODE_README.md) for complete guide.
+**Files:**
+- `agent.py` - Production-ready agent (use this)
+- `agent_instrumented.py` - Debugging version with full I/O logging
 
 ---
 
 ## What It Does
 
-### Registration Phase
+### Agent Initialization
 ```python
-# 1. Initialize Agent0 SDK
-sdk = SDK(
-    chain_id=11155111,  # Sepolia
-    rpc_url=os.getenv('AGENT0_RPC_URL'),
-    signer=os.getenv('AGENT0_PRIVATE_KEY')
+# 1. Create identity from private key
+account = Account.from_key(os.getenv('AGENT0_PRIVATE_KEY'))
+token_id = int(time.time()) % 100000
+agent_id = f"11155111:{token_id}"
+
+# 2. Connect to Babylon A2A (HTTP)
+client = BabylonA2AClient(
+    http_url='http://localhost:3000/api/a2a',
+    address=account.address,
+    token_id=token_id
 )
 
-# 2. Create and register agent
-agent = sdk.create_agent(
-    name="Babylon Trader",
-    description="Autonomous trading agent",
-    image=None
-)
-
-agent.set_a2a("ws://localhost:3000/a2a", "1.0.0")
-registration = agent.register_ipfs()
-
-# 3. Get identity
-token_id = registration['agentId'].split(':')[1]
+# 3. Initialize LangGraph agent
+agent = BabylonAgent(strategy='balanced')
 ```
 
 ### Autonomous Loop
@@ -183,54 +170,40 @@ while True:
 
 The agent has these LangGraph tools:
 
-### Trading Tools
+### Market Tools
 ```python
 @tool
-def get_markets() -> dict:
-    """Get available prediction markets and perpetual futures"""
+async def get_markets() -> str:
+    """Get available prediction markets"""
     
-@tool  
-def buy_prediction_shares(market_id: str, outcome: str, amount: float) -> dict:
+@tool
+async def buy_shares(market_id: str, outcome: str, amount: float) -> str:
     """Buy YES or NO shares in a prediction market"""
-
-@tool
-def sell_prediction_shares(market_id: str, shares: float) -> dict:
-    """Sell shares from a prediction market position"""
-
-@tool
-def open_perp_position(ticker: str, side: str, size: float, leverage: int) -> dict:
-    """Open a long or short position in perpetual futures"""
-
-@tool
-def close_perp_position(position_id: str) -> dict:
-    """Close an open perpetual futures position"""
-```
-
-### Social Tools
-```python
-@tool
-def create_post(content: str) -> dict:
-    """Create a post in the Babylon feed"""
-
-@tool
-def create_comment(post_id: str, content: str) -> dict:
-    """Comment on a post"""
-
-@tool
-def get_feed(limit: int = 20) -> dict:
-    """Get recent posts from the feed"""
 ```
 
 ### Portfolio Tools
 ```python
 @tool
-def get_portfolio() -> dict:
-    """Get current portfolio: balance, positions, P&L"""
+async def get_portfolio() -> str:
+    """Get current portfolio: balance and positions"""
+```
+
+### Social Tools
+```python
+@tool
+async def create_post(content: str) -> str:
+    """Create a post in the Babylon feed (max 280 chars)"""
 
 @tool
-def get_balance() -> dict:
-    """Get current wallet balance"""
+async def get_feed(limit: int = 20) -> str:
+    """Get recent posts from the feed"""
 ```
+
+All tools include:
+- ✅ Input validation
+- ✅ Proper error handling
+- ✅ Memory tracking
+- ✅ JSON-RPC 2.0 compliance
 
 ---
 
@@ -358,23 +331,34 @@ It's a **complete external agent** showing how to build with Babylon's APIs!
 
 ---
 
+## File Structure
+
+```
+examples/babylon-langgraph-agent/
+├── agent.py                 # Production-ready agent (main file)
+├── agent_instrumented.py    # Debugging version with full logging
+├── benchmark_runner.py      # Benchmark testing framework
+├── tests/                   # Test suite
+├── README.md               # This file
+└── pyproject.toml          # Dependencies
+```
+
 ## Requirements
 
 - Python 3.11+
 - UV package manager
-- Agent0 SDK (Python)
-- LangGraph
+- LangGraph & LangChain
 - Groq API key
-- Ethereum wallet (for Agent0)
+- Ethereum wallet private key
+- Babylon server running (for A2A endpoint)
 
 ---
 
 ## Learn More
 
-- [Agent0 SDK](https://sdk.ag0.xyz/)
 - [LangGraph](https://langchain-ai.github.io/langgraph/)
 - [Babylon A2A Protocol](/docs/a2a/protocol)
-- [Example Code](./agent.py)
+- [HTTP A2A Mode](/docs/a2a/server-configuration)
 
 ---
 

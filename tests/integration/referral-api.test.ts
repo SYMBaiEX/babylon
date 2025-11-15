@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { prisma } from '@/lib/prisma'
 
-const shouldSkipWaitlistTests = process.env.CI === 'true' || process.env.SKIP_WAITLIST_TESTS === 'true'
+// Skip only if explicitly requested or if database is not available
+const shouldSkipWaitlistTests = process.env.SKIP_WAITLIST_TESTS === 'true' || !process.env.DATABASE_URL
 type WaitlistServiceModule = typeof import('@/lib/services/waitlist-service')
 
 const describeWaitlistIntegration = shouldSkipWaitlistTests ? describe.skip : describe
@@ -35,7 +36,8 @@ describeWaitlistIntegration('Referral System - Service Integration', () => {
     // Clean up test users
     if (user1Id) await prisma.user.delete({ where: { id: user1Id } }).catch(() => {})
     if (user2Id) await prisma.user.delete({ where: { id: user2Id } }).catch(() => {})
-    await prisma.$disconnect()
+    // DON'T disconnect Prisma here - it's a singleton shared across all tests
+    // Disconnecting here will break other tests running in the same suite
   })
 
   it('should create users and mark as waitlisted via Service', async () => {

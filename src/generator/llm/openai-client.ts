@@ -123,7 +123,15 @@ export class BabylonLLMClient {
       : undefined;
 
     const systemContent = format === 'xml'
-      ? 'You are an XML-only assistant. CRITICAL: Respond ONLY with valid XML. Do NOT write explanations, do NOT use markdown code blocks, do NOT write JSON. Start your response with < and end with >. Close all tags.'
+      ? 'You are an XML-only assistant. CRITICAL INSTRUCTIONS:\n' +
+        '1. Respond ONLY with valid XML - NO explanations, NO reasoning, NO markdown\n' +
+        '2. Start your response IMMEDIATELY with < (the opening tag)\n' +
+        '3. End your response with > (the closing tag)\n' +
+        '4. Do NOT write "Okay, let\'s see" or any thinking process\n' +
+        '5. Do NOT write "Here is the XML" or any preamble\n' +
+        '6. Just output the pure XML structure directly\n' +
+        'WRONG: "Okay, let\'s see. I need to..."\n' +
+        'CORRECT: "<decisions><decision>..."'
       : 'You are a JSON-only assistant. You must respond ONLY with valid JSON. No explanations, no markdown, no other text.';
 
     const messages = [
@@ -284,7 +292,7 @@ export class BabylonLLMClient {
         // Use qwen3-32b as workhorse model for most operations
         return 'qwen/qwen3-32b';
       case 'claude':
-        return 'claude-3-5-sonnet-20241022';
+        return 'claude-3-5-sonnet';
       case 'openai':
         return 'gpt-4o-mini';
       default:

@@ -5,7 +5,7 @@
  * Ensures all actors have appropriate follower counts based on their tier.
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { existsSync, readFileSync } from 'fs';

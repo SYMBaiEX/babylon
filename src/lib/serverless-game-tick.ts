@@ -13,7 +13,7 @@ import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { ActorTier, WorldEvent } from '@/shared/types';
-import { db } from './database-service';
+import db from './database-service';
 import { logger } from './logger';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { prisma } from './prisma';
@@ -529,7 +529,7 @@ async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<vo
     const hoursAgo = Math.floor((i / count) * 24);
     const articleTimestamp = new Date(timestamp.getTime() - hoursAgo * 60 * 60 * 1000);
     
-    await db.createPostWithAllFields({
+    await db().createPostWithAllFields({
       id: await generateSnowflakeId(),
       type: 'article',
       content: article.summary,
@@ -763,7 +763,7 @@ Return your response as XML in this exact format:
           return { posts: 0, articles: 0 };
         }
 
-        await db.createPostWithAllFields({
+        await db().createPostWithAllFields({
           id: await generateSnowflakeId(),
           content: postContent,
           authorId: creator.id,
@@ -830,7 +830,7 @@ Return your response as XML in this exact format:
             return { posts: 0, articles: 0 };
           }
 
-          await db.createPostWithAllFields({
+          await db().createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'article',
             content: summary,
@@ -881,7 +881,7 @@ Return your response as XML in this exact format:
             return { posts: 0, articles: 0 };
           }
 
-          await db.createPostWithAllFields({
+          await db().createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'post', // Regular post, not article
             content: orgPostContent,
@@ -1072,7 +1072,7 @@ async function generateArticles(
           continue;
         }
 
-        await db.createPostWithAllFields({
+        await db().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
           content: article.summary || '',
@@ -1203,7 +1203,7 @@ Return your response as XML in this exact format:
       const randomJitter = Math.random() * timeSlotMs * 0.8;
       const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
       
-      await db.createPostWithAllFields({
+      await db().createPostWithAllFields({
         id: await generateSnowflakeId(),
         type: 'article',
         content: summary,
@@ -1391,7 +1391,7 @@ async function updateMarketPricesFromTrades(
       data: { currentPrice: newPrice },
     });
 
-    await db.recordPriceUpdate(company.id, newPrice, change, changePercent);
+    await db().recordPriceUpdate(company.id, newPrice, change, changePercent);
 
     logger.info(
       `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
@@ -1822,7 +1822,7 @@ async function publishOracleReveals(
 async function updateWidgetCaches(): Promise<number> {
   let cachesUpdated = 0;
 
-  const companies = await db.getCompanies();
+  const companies = await db().getCompanies();
 
   if (!companies || companies.length === 0) {
     logger.warn('No companies found for widget cache update', {}, 'GameTick');
@@ -1836,7 +1836,7 @@ async function updateWidgetCaches(): Promise<number> {
         const currentPrice =
           company.currentPrice || company.initialPrice || 100;
 
-        const priceHistory = await db.getPriceHistory(company.id, 1440);
+        const priceHistory = await db().getPriceHistory(company.id, 1440);
 
         let changePercent24h = 0;
 

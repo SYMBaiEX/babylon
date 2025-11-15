@@ -9,7 +9,7 @@
  */
 
 import { PrivyClient } from '@privy-io/server-auth'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { v4 as uuidv4 } from 'uuid'

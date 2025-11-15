@@ -71,10 +71,13 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
     const resolutionDate = new Date()
     resolutionDate.setDate(resolutionDate.getDate() + 3)
 
+    // Use timestamp to ensure unique questionNumber
+    const uniqueQuestionNumber = 9000 + Math.floor(Date.now() % 1000)
+
     const question = await prisma.question.create({
       data: {
         id: testQuestionId,
-        questionNumber: 9999,
+        questionNumber: uniqueQuestionNumber,
         text: 'Will this E2E test pass?',
         scenarioId: 1,
         outcome: true,  // YES will win
@@ -130,8 +133,8 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
   })
 
   it('Step 2: Verify oracle contract state', async () => {
-    if (!contractsAvailable || !oracleService) {
-      console.log('⏭️  Skipping - contracts not available')
+    if (!contractsAvailable || !oracleService || !testQuestionId || !sessionId) {
+      console.log('⏭️  Skipping - contracts not available or Step 1 failed')
       expect(true).toBe(true) // Pass
       return
     }
@@ -171,8 +174,8 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
   })
 
   it('Step 4: Resolve question and reveal on oracle', async () => {
-    if (!contractsAvailable || !oracleService) {
-      console.log('⏭️  Skipping - contracts not available')
+    if (!contractsAvailable || !oracleService || !testQuestionId) {
+      console.log('⏭️  Skipping - contracts not available or Step 1 failed')
       expect(true).toBe(true) // Pass
       return
     }
@@ -217,8 +220,8 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
   })
 
   it('Step 5: Verify outcome can be read from oracle', async () => {
-    if (!contractsAvailable || !oracleService) {
-      console.log('⏭️  Skipping - contracts not available')
+    if (!contractsAvailable || !oracleService || !sessionId) {
+      console.log('⏭️  Skipping - contracts not available or previous steps failed')
       expect(true).toBe(true) // Pass
       return
     }
@@ -244,12 +247,23 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
       expect(true).toBe(true) // Pass
       return
     }
-    // Delete test question
-    await prisma.question.delete({
-      where: { id: testQuestionId }
-    })
-
-    console.log('✅ Step 6: Test data cleaned up')
+    
+    // Only delete if testQuestionId was set
+    if (testQuestionId) {
+      try {
+        await prisma.question.delete({
+          where: { id: testQuestionId }
+        })
+        console.log('✅ Step 6: Test data cleaned up')
+      } catch (error) {
+        // Question might not exist if Step 1 failed
+        console.log('⚠️  No cleanup needed - test question not found')
+      }
+    } else {
+      console.log('⚠️  No cleanup needed - testQuestionId not set')
+    }
+    
+    expect(true).toBe(true) // Pass
   })
 })
 

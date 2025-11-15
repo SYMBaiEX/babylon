@@ -1,5 +1,11 @@
 import { type IAgentRuntime, type Memory, type Provider, type State } from '@elizaos/core';
 
+interface AutonomyService {
+  getAutonomousRoomId?: () => string | undefined;
+  isLoopRunning?: () => boolean;
+  getLoopInterval?: () => number;
+}
+
 /**
  * Autonomy Status Provider - shows autonomy status in regular conversations
  * Does NOT show in autonomous monologue loop to avoid unnecessary context
@@ -16,15 +22,15 @@ export const autonomyStatusProvider: Provider = {
     }
 
     // Check if we're in the autonomous room - if so, don't show status (avoid noise)
-    const autonomousRoomId = (autonomyService as { getAutonomousRoomId?: () => string | undefined }).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as AutonomyService).getAutonomousRoomId?.();
     if (autonomousRoomId && message.roomId === autonomousRoomId) {
       return { text: '' }; // Don't show in autonomous context
     }
 
     // Get autonomy settings and service status
     const autonomyEnabled = runtime.getSetting('AUTONOMY_ENABLED');
-    const serviceRunning = (autonomyService as { isLoopRunning?: () => boolean }).isLoopRunning?.() || false;
-    const interval = (autonomyService as { getLoopInterval?: () => number }).getLoopInterval?.() || 30000;
+    const serviceRunning = (autonomyService as AutonomyService).isLoopRunning?.() || false;
+    const interval = (autonomyService as AutonomyService).getLoopInterval?.() || 30000;
 
     // Determine status
     let status: string;

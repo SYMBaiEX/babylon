@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import {  AuthorizationError } from '@/lib/errors';

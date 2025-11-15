@@ -48,7 +48,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { getCache, setCache } from '@/lib/cache-service';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';

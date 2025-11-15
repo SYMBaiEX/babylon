@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 // Test user credentials (created in beforeAll)
 let testUser1: { id: string; username: string; displayName: string; privyId: string }

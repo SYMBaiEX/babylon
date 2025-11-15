@@ -348,11 +348,11 @@ export class ExperienceService extends Service {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      const aVal = a[i] ?? 0;
-      const bVal = b[i] ?? 0;
-      dotProduct += aVal * bVal;
-      normA += aVal * aVal;
-      normB += bVal * bVal;
+      const valueA = a[i] ?? 0;
+      const valueB = b[i] ?? 0;
+      dotProduct += valueA * valueB;
+      normA += valueA * valueA;
+      normB += valueB * valueB;
     }
 
     if (normA === 0 || normB === 0) return 0;
@@ -403,8 +403,9 @@ export class ExperienceService extends Service {
       if (exp.outcome === OutcomeType.NEGATIVE && exp.learning.includes('instead')) {
         // Extract alternative from learning
         const match = exp.learning.match(/instead\s+(.+?)(?:\.|$)/i);
-        if (match && match[1]) {
-          alternatives.add(match[1].trim());
+        const alternative = match?.[1]?.trim();
+        if (alternative) {
+          alternatives.add(alternative);
         }
       }
     }
@@ -441,12 +442,12 @@ export class ExperienceService extends Service {
         failureTypes.set(key, (failureTypes.get(key) || 0) + 1);
       });
 
-    if (failureTypes.size > 0) {
-      const mostCommonFailure = Array.from(failureTypes.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (failureTypes.size > 0) {
+        const mostCommonFailure = Array.from(failureTypes.entries()).sort((a, b) => b[1] - a[1])[0];
 
-      if (mostCommonFailure && mostCommonFailure[1] > 1) {
-        recommendations.push(`Address recurring issue: ${mostCommonFailure[0]}`);
-      }
+        if (mostCommonFailure && mostCommonFailure[1] > 1) {
+          recommendations.push(`Address recurring issue: ${mostCommonFailure[0]}`);
+        }
     }
 
     // Add domain-specific recommendations

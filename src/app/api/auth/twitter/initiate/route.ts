@@ -52,7 +52,7 @@ import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import crypto from 'crypto'
 

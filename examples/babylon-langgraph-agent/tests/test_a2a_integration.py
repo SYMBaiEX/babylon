@@ -253,21 +253,17 @@ class TestEndToEndIntegration:
     async def test_complete_flow(self, test_identity, web3_account):
         """Test complete agent flow: connect -> authenticate -> query -> act"""
         # Import the actual agent
-        from agent_v2 import BabylonA2AClient
+        from agent import BabylonA2AClient
         
-        # 1. Create client
+        # 1. Create client (HTTP mode)
         client = BabylonA2AClient(
-            ws_url=BABYLON_A2A_URL,
+            http_url=BABYLON_A2A_URL.replace('ws://', 'http://').replace('/a2a', '/api/a2a'),
             address=test_identity['address'],
-            token_id=test_identity['tokenId'],
-            private_key=TEST_PRIVATE_KEY
+            token_id=test_identity['tokenId']
         )
         
         print("📝 Step 1: Create client")
-        
-        # 2. Connect and authenticate
-        await client.connect()
-        print(f"📝 Step 2: Connected with agent ID: {client.agent_id}")
+        print(f"📝 Step 2: Client ready with agent ID: {client.agent_id}")
         
         # 3. Get balance
         balance_result = await client.call('a2a.getBalance', {})
@@ -307,15 +303,14 @@ def test_generate_verification_report():
     print("  - A2A handshake message format")
     
     print("\n⏳ REQUIRES RUNNING SERVER:")
-    print("  - WebSocket connection to Babylon")
-    print("  - A2A authentication handshake")
-    print("  - JSON-RPC method calls")
+    print("  - HTTP A2A connection to Babylon")
+    print("  - JSON-RPC method calls over HTTP POST")
     print("  - Complete end-to-end flow")
     
     print("\n📋 NEXT STEPS:")
     print("  1. Start Babylon server: cd /Users/shawwalters/babylon && npm run dev")
     print("  2. Run integration tests: uv run pytest tests/test_a2a_integration.py -v -s")
-    print("  3. Run agent: uv run python agent_v2.py")
+    print("  3. Run agent: uv run python agent.py --test")
     
     print("\n" + "="*60)
     print("")

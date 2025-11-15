@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 

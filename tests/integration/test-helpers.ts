@@ -7,11 +7,31 @@ import { test } from 'bun:test'
 /**
  * Check if a server is available at the given URL
  * @param url - The base URL to check
- * @param timeout - Timeout in milliseconds (default: 2000)
+ * @param timeout - Timeout in milliseconds (default: 5000)
  * @returns true if server is available, false otherwise
  */
-export async function isServerAvailable(url: string, timeout = 2000): Promise<boolean> {
+export async function isServerAvailable(url: string, timeout = 5000): Promise<boolean> {
+  // If TEST_SERVER_AVAILABLE is set, assume server is available and do a quick check
+  if (process.env.TEST_SERVER_AVAILABLE === 'true') {
+    try {
+      // Quick check with shorter timeout since we expect it to be ready
+      const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) })
+      return response.ok
+    } catch {
+      // Fall through to full check if health endpoint fails
+    }
+  }
+  
   try {
+    // Try health endpoint first (more reliable)
+    try {
+      const healthResponse = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(timeout) })
+      if (healthResponse.ok) return true
+    } catch {
+      // Fall through to root check
+    }
+    
+    // Fallback to root URL check
     const response = await fetch(url, { signal: AbortSignal.timeout(timeout) })
     return response.status < 500
   } catch {
@@ -24,6 +44,48 @@ export async function isServerAvailable(url: string, timeout = 2000): Promise<bo
  */
 export function getTestBaseUrl(): string {
   return process.env.TEST_API_URL || 'http://localhost:3000'
+}
+
+/**
+ * Check server availability at module load time
+ * This is used by test files that need to check server availability when imported
+ * Respects TEST_SERVER_AVAILABLE environment variable for better reliability
+ */
+export async function checkServerAvailableAtLoadTime(): Promise<boolean> {
+  const BASE_URL = getTestBaseUrl()
+  
+  // If TEST_SERVER_AVAILABLE is set, do a more lenient check
+  if (process.env.TEST_SERVER_AVAILABLE === 'true') {
+    try {
+      // Try health endpoint first (more reliable)
+      const healthResponse = await fetch(`${BASE_URL}/api/health`, {
+        signal: AbortSignal.timeout(5000), // Longer timeout when we expect server to be ready
+      })
+      if (healthResponse.ok) return true
+    } catch {
+      // Fall through
+    }
+    
+    // Fallback to root check with longer timeout
+    try {
+      const response = await fetch(BASE_URL, {
+        signal: AbortSignal.timeout(5000),
+      })
+      return response.status < 500
+    } catch {
+      return false
+    }
+  }
+  
+  // Standard check with original timeout
+  try {
+    const response = await fetch(BASE_URL, {
+      signal: AbortSignal.timeout(5000), // Increased from 2000 for better reliability
+    })
+    return response.status < 500
+  } catch {
+    return false
+  }
 }
 
 /**

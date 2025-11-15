@@ -116,7 +116,7 @@ Generate ONLY the post text, nothing else.`;
     // LOG LLM CALL
     if (trajectoryId) {
       trajectoryRecorder.logLLMCall(trajectoryId, {
-        model: agent.agentModelTier === 'pro' ? 'llama-3.1-70b' : 'llama-3.1-8b',
+        model: agent.agentModelTier === 'pro' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant',
         systemPrompt,
         userPrompt,
         response: postContent,

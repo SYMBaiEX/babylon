@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 
 interface PageProps {

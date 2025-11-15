@@ -10,13 +10,13 @@
  * - Runs migrations and seeds
  * 
  * Usage:
- *   bun scripts/db.ts start       # Start PostgreSQL
- *   bun scripts/db.ts stop        # Stop PostgreSQL
- *   bun scripts/db.ts restart     # Restart PostgreSQL
- *   bun scripts/db.ts status      # Check status
- *   bun scripts/db.ts migrate     # Run Prisma migrations
- *   bun scripts/db.ts seed        # Seed database
- *   bun scripts/db.ts reset       # Reset database (drop + migrate + seed)
+ *   bun scripts/db().ts start       # Start PostgreSQL
+ *   bun scripts/db().ts stop        # Stop PostgreSQL
+ *   bun scripts/db().ts restart     # Restart PostgreSQL
+ *   bun scripts/db().ts status      # Check status
+ *   bun scripts/db().ts migrate     # Run Prisma migrations
+ *   bun scripts/db().ts seed        # Seed database
+ *   bun scripts/db().ts reset       # Reset database (drop + migrate + seed)
  */
 
 import { $ } from 'bun';
@@ -270,7 +270,7 @@ function showHelp(): void {
   logger.info(`
 Babylon Database Management
 
-Usage: bun scripts/db.ts <command>
+Usage: bun scripts/db().ts <command>
 
 Commands:
   start       Start PostgreSQL container
@@ -283,10 +283,10 @@ Commands:
   help        Show this help message
 
 Examples:
-  bun scripts/db.ts start
-  bun scripts/db.ts migrate
-  bun scripts/db.ts seed
-  bun scripts/db.ts status
+  bun scripts/db().ts start
+  bun scripts/db().ts migrate
+  bun scripts/db().ts seed
+  bun scripts/db().ts status
 
 Environment:
   The database connection URL should be set in your .env file:

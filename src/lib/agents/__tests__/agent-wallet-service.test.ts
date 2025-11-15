@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { agentWalletService } from '../identity/AgentWalletService'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Agent Wallet Service', () => {

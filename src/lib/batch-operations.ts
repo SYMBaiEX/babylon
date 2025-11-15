@@ -18,7 +18,7 @@
  * await batchExecute(
  *   organizations,
  *   10, // Process 10 at a time
- *   async (org) => await db.upsertOrganization(org)
+ *   async (org) => await db().upsertOrganization(org)
  * );
  * ```
  */

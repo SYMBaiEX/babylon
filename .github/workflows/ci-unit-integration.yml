@@ -1,0 +1,173 @@
+name: CI - Unit & Integration
+
+on:
+  pull_request:
+    branches: [production, staging]
+  push:
+    branches: [production, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  test-unit-integration:
+    name: Unit & Integration Tests
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Setup test environment
+        env:
+          # Use CI test database directly
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          # Pass secrets with correct names (not _VAR suffix)
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
+          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
+          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
+          REDIS_URL: redis://localhost:6379
+        run: bash scripts/ci/prepare-env.sh
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          # Generate Prisma client first
+          echo "🔧 Generating Prisma client..."
+          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+          # Force reset and apply migrations
+          echo "🗄️ Resetting database and applying migrations..."
+          bunx prisma migrate reset --force --skip-generate --skip-seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+          # Verify tables exist
+          echo "🔍 Verifying database tables..."
+          bunx prisma db execute --stdin <<< 'SELECT tablename FROM pg_tables WHERE schemaname = '\''public'\'' LIMIT 5;' 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+
+          # Run seed to ensure test data is loaded
+          echo "🌱 Seeding database..."
+          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+          echo "✅ Database setup complete"
+
+      - name: Build for tests
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          SKIP_ENV_VALIDATION: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          echo "🏗️ Building project for tests..."
+          bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          echo "✅ Build complete"
+
+      - name: Run Unit Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+        run: |
+          echo "🧪 Running unit tests with database connection..."
+          echo "📊 Database URL configured: ${DATABASE_URL:0:30}..."
+          bun test tests/unit/ --coverage
+        continue-on-error: false
+
+      - name: Start Next.js dev server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          PORT: 3000
+        run: |
+          echo "🚀 Starting Next.js dev server for integration tests..."
+          SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          echo "📝 Server PID: $(cat /tmp/next-server.pid)"
+
+          # Wait for server to be ready (max 60s)
+          echo "⏳ Waiting for server to be ready..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3000 > /dev/null 2>&1; do echo -n "."; sleep 1; done' || {
+            echo "❌ Server failed to start. Logs:"
+            cat /tmp/next-server.log
+            exit 1
+          }
+          echo ""
+          echo "✅ Next.js dev server is ready"
+
+      - name: Run Integration Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          TEST_API_URL: http://localhost:3000
+          NODE_ENV: test
+        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
+        continue-on-error: false
+
+      - name: Stop Next.js dev server
+        if: always()
+        run: |
+          if [ -f /tmp/next-server.pid ]; then
+            echo "🛑 Stopping Next.js dev server..."
+            kill $(cat /tmp/next-server.pid) || true
+            rm /tmp/next-server.pid
+          fi
+          # Show last 50 lines of server logs if they exist
+          if [ -f /tmp/next-server.log ]; then
+            echo "📝 Server logs (last 50 lines):"
+            tail -50 /tmp/next-server.log
+          fi
+
+

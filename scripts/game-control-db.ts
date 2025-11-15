@@ -5,9 +5,9 @@
  * Direct database script to start/pause the game (works without running server)
  * 
  * Usage:
- *   bun run scripts/game-control-db.ts start   - Start the game
- *   bun run scripts/game-control-db.ts pause   - Pause the game
- *   bun run scripts/game-control-db.ts status  - Check game status
+ *   bun run scripts/game-control-db().ts start   - Start the game
+ *   bun run scripts/game-control-db().ts pause   - Pause the game
+ *   bun run scripts/game-control-db().ts status  - Check game status
  */
 
 import { logger } from '@/lib/logger';

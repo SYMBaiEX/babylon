@@ -93,9 +93,9 @@ Return ONLY valid XML in this exact format:
 
 If no good tags can be extracted, return: <tags></tags>`
 
-  // Use llama-3.1-8b-instant (130k in, 130k out - no restrictions!)
+  // Use llama-3.1-8b-instant for fast tag generation (free tier)
   const model = process.env.GROQ_API_KEY 
-    ? 'llama-3.1-8b-instant' // 130k in/out, fast, no token limits
+    ? 'llama-3.1-8b-instant' // Free tier: Fast and efficient
     : 'gpt-4o-mini'
 
   const response = await openai.chat.completions.create({

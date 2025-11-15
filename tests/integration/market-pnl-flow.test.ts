@@ -43,7 +43,8 @@ describe('Market P&L Flow', () => {
     await prisma.balanceTransaction.deleteMany({ where: { userId: testUserId } })
     await prisma.pointsTransaction.deleteMany({ where: { userId: testUserId } })
     await prisma.user.delete({ where: { id: testUserId } })
-    await prisma.$disconnect()
+    // DON'T disconnect Prisma here - it's a singleton shared across all tests
+    // Disconnecting here will break other tests running in the same suite
   })
 
   test('Buy shares - no P&L impact', async () => {

@@ -169,7 +169,7 @@ function parseRepostContent(content: string): {
 export const GET = withErrorHandling(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const limit = parseInt(searchParams.get('limit') || '100')
-  const offset = parseInt(searchParams.get('offset') || '0')
+  const cursor = searchParams.get('cursor') || undefined // Cursor-based pagination
   const actorId = searchParams.get('actorId') || undefined
   const following = searchParams.get('following') === 'true'
   const userId = searchParams.get('userId') || undefined
@@ -222,7 +222,6 @@ export const GET = withErrorHandling(async (request: Request) => {
           posts: [],
           total: 0,
           limit,
-          offset,
           source: 'following',
         });
       }
@@ -232,7 +231,7 @@ export const GET = withErrorHandling(async (request: Request) => {
         userId,
         allFollowedIds,
         limit,
-        offset
+        cursor
       );
 
       // Get user data for posts
@@ -382,37 +381,48 @@ export const GET = withErrorHandling(async (request: Request) => {
           success: true,
           posts: formattedFollowingPosts,
           limit,
-          offset,
           source: 'following',
         });
       }
     }
-    // Get posts from database with caching
+    // Get posts from database with cursor-based pagination
     let posts;
     
-    logger.info('Fetching posts from database (with cache)', { limit, offset, actorId, type, hasActorId: !!actorId, hasType: !!type }, 'GET /api/posts');
+    logger.info('Fetching posts from database', { limit, cursor, actorId, type }, 'GET /api/posts');
     
     if (type) {
       // Filter by type (e.g., 'article')
-      logger.info('Filtering posts by type', { type, limit, offset }, 'GET /api/posts');
+      logger.info('Filtering posts by type', { type, limit, cursor }, 'GET /api/posts');
+      
+      const where: {
+        type: string;
+        deletedAt: null;
+        timestamp?: { lt: Date };
+      } = {
+        type,
+        deletedAt: null,
+      };
+      
+      // Use cursor if provided (cursor = timestamp of last post)
+      if (cursor) {
+        where.timestamp = { lt: new Date(cursor) };
+      }
+      
       posts = await prisma.post.findMany({
-        where: { 
-          type,
-          deletedAt: null, // Filter out deleted posts
-        },
+        where,
         orderBy: { timestamp: 'desc' },
         take: limit,
-        skip: offset,
       });
+      
       logger.info('Fetched posts by type', { type, count: posts.length }, 'GET /api/posts');
     } else if (actorId) {
-      // Get posts by specific actor (cached)
-      posts = await cachedDb.getPostsByActor(actorId, limit);
+      // Get posts by specific actor (cached with cursor)
+      posts = await cachedDb.getPostsByActor(actorId, limit, cursor);
       logger.info('Fetched posts by actor (cached)', { actorId, count: posts.length }, 'GET /api/posts');
     } else {
-      // Get recent posts from database (cached)
-      posts = await cachedDb.getRecentPosts(limit, offset);
-      logger.info('Fetched recent posts (cached)', { count: posts.length, limit, offset }, 'GET /api/posts');
+      // Get recent posts with cursor-based pagination
+      posts = await cachedDb.getRecentPosts(limit, cursor);
+      logger.info('Fetched recent posts (cached)', { count: posts.length, limit, cursor }, 'GET /api/posts');
     }
     
     // Log post structure for debugging
@@ -621,14 +631,20 @@ export const GET = withErrorHandling(async (request: Request) => {
       postCount: formattedPosts.length,
       total: formattedPosts.length,
       limit,
-      offset 
+      cursor
     }, 'GET /api/posts');
+    
+    // Calculate next cursor (timestamp of last post)
+    const nextCursor = formattedPosts.length > 0 
+      ? formattedPosts[formattedPosts.length - 1]?.timestamp 
+      : null;
     
     const response = NextResponse.json({
       success: true,
       posts: formattedPosts,
       limit,
-      offset,
+      cursor: nextCursor, // Next cursor for pagination
+      hasMore: formattedPosts.length === limit, // Has more if we got a full page
     });
     
     // Real-time feeds should not be cached (no-store)

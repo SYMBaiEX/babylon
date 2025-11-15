@@ -15,7 +15,7 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'

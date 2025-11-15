@@ -108,18 +108,18 @@ describe('ART Format Validation', () => {
       expect(messages.length).toBeGreaterThan(0);
 
       // Should have system message
-      const systemMsg = messages.find(m => m.role === 'system');
+      const systemMsg = messages.find((m: { role: string; content: string }) => m.role === 'system');
       expect(systemMsg).toBeDefined();
       expect(systemMsg!.content).toContain('trading agent');
 
       // Should have user message (observation)
-      const userMsg = messages.find(m => m.role === 'user');
+      const userMsg = messages.find((m: { role: string; content: string }) => m.role === 'user');
       expect(userMsg).toBeDefined();
       expect(userMsg!.content).toContain('$1000');
       expect(userMsg!.content).toContain('BTC');
 
       // Should have assistant message (action)
-      const assistantMsg = messages.find(m => m.role === 'assistant');
+      const assistantMsg = messages.find((m: { role: string; content: string }) => m.role === 'assistant');
       expect(assistantMsg).toBeDefined();
       expect(assistantMsg!.content).toContain('buy');
 
@@ -803,16 +803,16 @@ describe('ART Format Validation', () => {
       }
 
       // System message should establish identity
-      const systemMsg = messages.find(m => m.role === 'system')!;
+      const systemMsg = messages.find((m: { role: string; content: string }) => m.role === 'system')!;
       expect(systemMsg.content.length).toBeGreaterThan(20);
 
       // User message should have context
-      const userMsg = messages.find(m => m.role === 'user')!;
+      const userMsg = messages.find((m: { role: string; content: string }) => m.role === 'user')!;
       expect(userMsg.content.length).toBeGreaterThan(50);
       expect(userMsg.content).toContain('$1000');
 
       // Assistant message should have decision
-      const assistantMsg = messages.find(m => m.role === 'assistant')!;
+      const assistantMsg = messages.find((m: { role: string; content: string }) => m.role === 'assistant')!;
       expect(assistantMsg.content.length).toBeGreaterThan(20);
       expect(assistantMsg.content.toLowerCase()).toContain('buy');
 

@@ -119,13 +119,22 @@ export class CommitmentStore {
 
   /**
    * Delete commitment after reveal (cleanup)
+   * Idempotent - won't fail if commitment already deleted
    */
   static async delete(questionId: string): Promise<void> {
-    await prisma.oracleCommitment.delete({
-      where: { questionId }
-    })
-
-    logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
+    try {
+      await prisma.oracleCommitment.delete({
+        where: { questionId }
+      })
+      logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
+    } catch (error: unknown) {
+      // If record not found, that's okay (idempotent)
+      if ((error as { code?: string })?.code === 'P2025') {
+        logger.info(`Commitment already deleted for question ${questionId}`, undefined, 'CommitmentStore')
+        return
+      }
+      throw error
+    }
   }
 
   /**

@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'

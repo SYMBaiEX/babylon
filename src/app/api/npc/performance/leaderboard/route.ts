@@ -7,7 +7,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
 // Type for pool with included relations

@@ -5,7 +5,7 @@
  * Analyzes entry timing, exit timing, hold duration, and risk management.
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import type { TradeMetrics } from '@/lib/reputation/reputation-service'
 
 interface TradePosition {

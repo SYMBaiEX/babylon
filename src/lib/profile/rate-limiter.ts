@@ -5,7 +5,7 @@
  * how often users can update their profiles.
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 

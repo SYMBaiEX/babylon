@@ -4,12 +4,11 @@
  * Tests for goal creation, progress tracking, and management
  */
 
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { autonomousPlanningCoordinator } from '@/lib/agents/autonomous/AutonomousPlanningCoordinator'
-import type { IAgentRuntime } from '@elizaos/core'
-import type { AgentGoal, AgentDirective, AgentConstraints } from '@/lib/agents/types/goals'
+import type { AgentDirective, AgentConstraints } from '@/lib/agents/types/goals'
 import { DEFAULT_CONSTRAINTS } from '@/lib/agents/types/goals'
 
 describe('Agent Goals System', () => {
@@ -314,7 +313,6 @@ describe('Planning Context', () => {
   let testAgentId: string
   let testManagerId: string
   let testGoalId: string
-  let mockRuntime: IAgentRuntime
 
   beforeEach(async () => {
     // Create test manager
@@ -356,15 +354,6 @@ describe('Planning Context', () => {
       }
     })
 
-    // Create mock runtime
-    mockRuntime = {
-      agentId: testAgentId,
-      character: {
-        name: 'Test Agent',
-        system: 'You are a test agent',
-        bio: 'Test agent bio'
-      }
-    } as unknown as IAgentRuntime
   })
 
   afterEach(async () => {
@@ -448,7 +437,7 @@ describe('Planning Context', () => {
     expect(context.goals.active.length).toBe(2)
     expect(context.goals.active[0]?.name).toBe('Active Goal 1')
     expect(context.goals.active[1]?.name).toBe('Active Goal 2')
-    expect(context.goals.active.every(g => g.status === 'active')).toBe(true)
+    expect(context.goals.active.every((g: { status: string }) => g.status === 'active')).toBe(true)
   })
 
   test('should include directives', async () => {
@@ -619,7 +608,6 @@ describe('Action Plan Generation', () => {
   let testAgentId: string
   let testManagerId: string
   let testGoalId: string
-  let mockRuntime: IAgentRuntime
 
   beforeEach(async () => {
     testManagerId = await generateSnowflakeId()
@@ -661,15 +649,6 @@ describe('Action Plan Generation', () => {
         updatedAt: new Date()
       }
     })
-
-    mockRuntime = {
-      agentId: testAgentId,
-      character: {
-        name: 'Test Agent',
-        system: 'You are a test agent',
-        bio: 'Test agent bio'
-      }
-    } as unknown as IAgentRuntime
   })
 
   afterEach(async () => {
@@ -715,18 +694,6 @@ describe('Action Plan Generation', () => {
       ]
     })
 
-    // Mock the LLM call to return a plan
-    const mockCallGroqDirect = mock(() => Promise.resolve(JSON.stringify({
-      reasoning: 'Test reasoning',
-      actions: [
-        { type: 'trade', priority: 10, goalId: goal1Id, reasoning: 'Trade for goal', estimatedImpact: 0.3, params: {} },
-        { type: 'post', priority: 8, goalId: goal2Id, reasoning: 'Post for goal', estimatedImpact: 0.2, params: {} }
-      ]
-    })))
-
-    // Since we can't easily mock the import, we'll test the validation logic
-    const coordinator = autonomousPlanningCoordinator as any
-    
     // Test that plan structure is correct when we manually create one
     const testPlan = {
       actions: [
@@ -750,7 +717,6 @@ describe('Action Plan Generation', () => {
       data: { agentMaxActionsPerTick: 2 }
     })
 
-    const coordinator = autonomousPlanningCoordinator as any
     const agent = await prisma.user.findUnique({
       where: { id: testAgentId },
       select: {
@@ -774,7 +740,8 @@ describe('Action Plan Generation', () => {
       estimatedCost: 3
     }
 
-    const validatedPlan = coordinator.validatePlan(testPlan, agent, null)
+    const planCoordinator = autonomousPlanningCoordinator as any
+    const validatedPlan = planCoordinator.validatePlan(testPlan, agent, null)
 
     expect(validatedPlan.totalActions).toBeLessThanOrEqual(2)
     expect(validatedPlan.actions.length).toBeLessThanOrEqual(2)
@@ -841,7 +808,6 @@ describe('Action Plan Generation', () => {
       }
     })
 
-    const coordinator = autonomousPlanningCoordinator as any
     const agent = await prisma.user.findUnique({
       where: { id: testAgentId },
       select: {
@@ -865,9 +831,10 @@ describe('Action Plan Generation', () => {
       estimatedCost: 3
     }
 
-    const validatedPlan = coordinator.validatePlan(testPlan, agent, null)
+    const filterCoordinator = autonomousPlanningCoordinator as any
+    const validatedPlan = filterCoordinator.validatePlan(testPlan, agent, null)
 
-    expect(validatedPlan.actions.every(a => a.type === 'post')).toBe(true)
+    expect(validatedPlan.actions.every((a: { type: string }) => a.type === 'post')).toBe(true)
     expect(validatedPlan.actions.length).toBe(1)
   })
 
@@ -907,7 +874,6 @@ describe('Action Plan Execution', () => {
   let testAgentId: string
   let testManagerId: string
   let testGoalId: string
-  let mockRuntime: IAgentRuntime
 
   beforeEach(async () => {
     testManagerId = await generateSnowflakeId()
@@ -949,15 +915,6 @@ describe('Action Plan Execution', () => {
         updatedAt: new Date()
       }
     })
-
-    mockRuntime = {
-      agentId: testAgentId,
-      character: {
-        name: 'Test Agent',
-        system: 'You are a test agent',
-        bio: 'Test agent bio'
-      }
-    } as unknown as IAgentRuntime
   })
 
   afterEach(async () => {

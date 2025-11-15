@@ -12,7 +12,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 // Test users will be created/found before tests

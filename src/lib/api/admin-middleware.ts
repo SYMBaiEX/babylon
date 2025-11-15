@@ -8,7 +8,7 @@ import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { AuthorizationError } from '@/lib/errors';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 /**

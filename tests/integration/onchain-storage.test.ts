@@ -57,7 +57,7 @@ describe('On-Chain Storage', () => {
       
       // Create market linked to question
       const marketId = questionId // Use same ID to link them
-      const market = await prisma.market.create({
+      await prisma.market.create({
         data: {
           id: marketId,
           question: `Test Resolved Question ${i + 1}: Will this test pass?`,

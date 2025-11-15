@@ -1,7 +1,7 @@
 
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { cachedDb } from '@/lib/cached-database-service';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';

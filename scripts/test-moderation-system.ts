@@ -4,7 +4,7 @@
  * Comprehensive integration test for the moderation system
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface TestResult {

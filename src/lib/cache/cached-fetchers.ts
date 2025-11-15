@@ -5,9 +5,9 @@
  * efficient caching at the component level.
  */
 
-import { db } from '@/lib/database-service'
+import db from '@/lib/database-service'
 import { gameService } from '@/lib/game-service'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { cacheTag, cacheLife } from './cache-polyfill'
 import { cacheMonitoring } from './cache-monitoring'
@@ -55,12 +55,12 @@ export async function getCachedPerpMarkets() {
   cacheLife({ expire: 300 })
   
   try {
-    const companies = await db.getCompanies()
+    const companies = await db().getCompanies()
     
     const markets = await Promise.all(
       companies.map(async (company) => {
         const currentPrice = company.currentPrice || company.initialPrice || 100
-        const priceHistory = await db.getPriceHistory(company.id, 1440)
+        const priceHistory = await db().getPriceHistory(company.id, 1440)
         
         let change24h = 0
         let changePercent24h = 0
@@ -209,7 +209,7 @@ export async function getCachedPredictions(userId?: string, timeframe?: string) 
   cacheLife({ expire: 120 })
   
   try {
-    const questions = await db.getActiveQuestions(timeframe)
+    const questions = await db().getActiveQuestions(timeframe)
     const marketIds = questions.map(q => String(q.id)) // Convert to string array
     
     const markets = await prisma.market.findMany({

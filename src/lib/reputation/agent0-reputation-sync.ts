@@ -6,7 +6,7 @@
  */
 
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'

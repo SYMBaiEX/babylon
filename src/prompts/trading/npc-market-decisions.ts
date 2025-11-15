@@ -19,7 +19,7 @@ export const npcMarketDecisions = definePrompt({
   temperature: 0.8,
   maxTokens: 8000,
   
-  template: `You must respond with valid XML only.
+  template: `⚠️ CRITICAL: Respond ONLY with XML. Do NOT write reasoning or explanations. Start immediately with <decisions>
 
 You are simulating the trading decisions of {{npcCount}} different traders/NPCs in a prediction market and perpetual futures platform.
 
@@ -54,34 +54,40 @@ VALUE RANGES:
 - confidence: 0.0 (uncertain) to 1.0 (very certain)
 - amount: number >= 0 (must be <= available balance, 0 if hold)
 
-OUTPUT XML (exactly {{npcCount}} decisions, one per NPC):
+OUTPUT FORMAT - Start your response with this EXACT structure (no preamble):
 
 <decisions>
   <decision>
     <npcId>string</npcId>
     <npcName>string</npcName>
     <action>open_long | open_short | buy_yes | buy_no | close_position | hold</action>
-    <marketType>perp | prediction | null (null if hold)</marketType>
-    <ticker>string (for perps) or null</ticker>
-    <marketId>number (for predictions) or null</marketId>
-    <positionId>string (if closing) or null</positionId>
-    <amount>number ($ to invest, 0 if hold)</amount>
+    <marketType>perp | prediction | null</marketType>
+    <ticker>string or null</ticker>
+    <marketId>number or null</marketId>
+    <positionId>string or null</positionId>
+    <amount>number</amount>
     <confidence>0.0 to 1.0</confidence>
-    <reasoning>Explain decision based on SPECIFIC information they saw - reference posts, events, or group chat messages</reasoning>
+    <reasoning>Brief reason based on specific information</reasoning>
   </decision>
   ... repeat for all {{npcCount}} NPCs ...
 </decisions>
 
-REMEMBER:
-- Output VALID XML with all tags properly closed
+⚠️ FORMAT REQUIREMENTS:
+- Your FIRST character must be '<' (start XML immediately)
+- Your LAST character must be '>' (end XML)
+- NO text before <decisions> tag
+- NO text after </decisions> tag
+- NO explanations like "Okay, let's see..." or "Here is the XML..."
+- NO thinking process - just output the XML directly
 - Exactly {{npcCount}} <decision> elements inside <decisions> root
-- Each NPC makes decisions independently based on THEIR information
-- Group chat members have insider info others don't  
-- Every trade decision must be justified by specific information they've seen
-- Quote or reference specific posts/messages in reasoning
-- Respect their available balance (amount cannot exceed max shown)
-- NO RANDOM DECISIONS - if no good opportunity, use "hold"
-- Personality and tier affect decision-making style
+
+DECISION RULES:
+- Each NPC decides independently based on THEIR information access
+- Respect available balance (amount <= balance shown)
+- Group chat = insider info edge
+- Relationships matter: rivals bet opposite, allies bet same
+- "hold" is valid - most NPCs should hold if no clear opportunity
+- Personality and tier affect risk-taking
 `.trim()
 });
 

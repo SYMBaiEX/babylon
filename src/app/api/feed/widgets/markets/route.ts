@@ -5,11 +5,14 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { db } from '@/lib/database-service'
+import db from '@/lib/database-service'
 import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { asUser, asPublic } from '@/lib/db/context'
 import { NextResponse } from 'next/server'
 import { getCacheOrFetch, CACHE_KEYS, DEFAULT_TTLS } from '@/lib/cache-service'
+
+// Cache config (60 seconds)
+export const revalidate = 60;
 
 export async function GET(request: NextRequest) {
   // Optional auth - markets are public but RLS still applies
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
     const formattedMarkets = await getCacheOrFetch(
       'markets-widget-v2', // v2 to invalidate old cache without price changes
       async () => {
-        const questions = await db.getActiveQuestions()
+        const questions = await db().getActiveQuestions()
 
         if (questions.length === 0) {
           return []
@@ -148,7 +151,7 @@ export async function GET(request: NextRequest) {
   }
 
   // For authenticated users, bypass cache (user-specific data)
-  const questions = await db.getActiveQuestions()
+  const questions = await db().getActiveQuestions()
 
   if (questions.length === 0) {
     return NextResponse.json({

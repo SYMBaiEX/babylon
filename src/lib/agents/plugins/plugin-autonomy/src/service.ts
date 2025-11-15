@@ -1,12 +1,11 @@
 import {
-  Service,
-  type IAgentRuntime,
-  type UUID,
   asUUID,
-  type Memory,
-  type Content,
   EventType,
-  ChannelType,
+  Service,
+  type Content,
+  type IAgentRuntime,
+  type Memory,
+  type UUID
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import { AutonomousServiceType } from './types';
@@ -84,7 +83,8 @@ export class AutonomyService extends Service {
         worldId,
         agentId: this.runtime.agentId,
         source: 'autonomy-plugin',
-        type: ChannelType.DM, // Room type - using DM for autonomous thoughts
+        // @ts-expect-error - AUTONOMOUS is a custom channel type not in the ChannelType enum
+        type: 'AUTONOMOUS',
         metadata: {
           source: 'autonomy-plugin',
           description: 'Room for autonomous agent thinking',
@@ -230,7 +230,7 @@ export class AutonomyService extends Service {
           m.entityId === agentEntity.id &&
           m.content?.text &&
           m.content?.metadata &&
-          (m.content.metadata as { isAutonomous?: boolean })?.isAutonomous === true
+          (m.content.metadata as Record<string, unknown>)?.isAutonomous === true
       )
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 
@@ -292,9 +292,9 @@ export class AutonomyService extends Service {
               text: content.text,
               thought: content.thought,
               actions: content.actions,
-              source: content.source || 'autonomous',
+              source: typeof content.source === 'string' ? content.source : 'autonomous',
               metadata: {
-                ...(content.metadata || {}),
+                ...(typeof content.metadata === 'object' && content.metadata !== null ? content.metadata : {}),
                 isAutonomous: true,
                 isInternalThought: true,
                 channelId: 'autonomous',

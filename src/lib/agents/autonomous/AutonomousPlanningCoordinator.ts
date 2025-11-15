@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
 import { callGroqDirect } from '../llm/direct-groq'
@@ -14,7 +15,22 @@ import { autonomousTradingService } from './AutonomousTradingService'
 import { autonomousPostingService } from './AutonomousPostingService'
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import type { Prisma } from '@prisma/client'
+
+/**
+ * Agent interface for planning
+ */
+interface PlanningAgent {
+  agentSystem?: string;
+  displayName: string;
+  agentDirectives?: unknown;
+  agentConstraints?: unknown;
+  agentMaxActionsPerTick?: number;
+  agentRiskTolerance?: string;
+  autonomousTrading?: boolean;
+  autonomousPosting?: boolean;
+  autonomousCommenting?: boolean;
+  autonomousDMs?: boolean;
+}
 
 /**
  * Planned action definition
@@ -137,14 +153,26 @@ export class AutonomousPlanningCoordinator {
     // Gather full planning context
     const context = await this.getPlanningContext(agentUserId)
     
+    // Convert agent to PlanningAgent (null -> undefined for optional fields)
+    const planningAgent: PlanningAgent = {
+      displayName: agent.displayName ?? 'Agent',
+      agentSystem: agent.agentSystem ?? undefined,
+      agentMaxActionsPerTick: agent.agentMaxActionsPerTick ?? undefined,
+      agentRiskTolerance: agent.agentRiskTolerance ?? undefined,
+      autonomousTrading: agent.autonomousTrading ?? undefined,
+      autonomousPosting: agent.autonomousPosting ?? undefined,
+      autonomousCommenting: agent.autonomousCommenting ?? undefined,
+      autonomousDMs: agent.autonomousDMs ?? undefined
+    }
+    
     // If no goals configured, use simplified planning
     if (context.goals.active.length === 0) {
       logger.info('No goals configured, using legacy single-action mode', undefined, 'PlanningCoordinator')
-      return this.generateSimplePlan(agent, context)
+      return this.generateSimplePlan(planningAgent, context)
     }
     
     // Build enhanced planning prompt
-    const prompt = this.buildPlanningPrompt(agent, context)
+    const prompt = this.buildPlanningPrompt(planningAgent, context)
     
     // Use LARGE model for complex multi-action planning
     const planResponse = await callGroqDirect({
@@ -159,7 +187,7 @@ export class AutonomousPlanningCoordinator {
     const plan = this.parseActionPlan(planResponse, context)
     
     // Validate against constraints
-    const validatedPlan = this.validatePlan(plan, agent, context.constraints)
+    const validatedPlan = this.validatePlan(plan, planningAgent, context.constraints)
     
     logger.info(`Generated plan with ${validatedPlan.totalActions} actions`, {
       agentId: agentUserId,
@@ -276,22 +304,7 @@ export class AutonomousPlanningCoordinator {
   /**
    * Build comprehensive planning prompt
    */
-  private buildPlanningPrompt(
-    agent: {
-      displayName: string | null
-      agentSystem: string | null
-      agentTradingStrategy: string | null
-      agentModelTier: string | null
-      agentMaxActionsPerTick: number | null
-      agentRiskTolerance: string | null
-      agentPlanningHorizon: string | null
-      autonomousTrading: boolean | null
-      autonomousPosting: boolean | null
-      autonomousCommenting: boolean | null
-      autonomousDMs: boolean | null
-    },
-    context: PlanningContext
-  ): string {
+  private buildPlanningPrompt(agent: PlanningAgent, context: PlanningContext): string {
     const goalsText = context.goals.active.length > 0
       ? context.goals.active.map((g, i) => {
           const targetInfo = g.target
@@ -452,13 +465,7 @@ Your action plan (JSON only):`
    */
   private validatePlan(
     plan: ActionPlan,
-    agent: {
-      autonomousTrading: boolean | null
-      autonomousPosting: boolean | null
-      autonomousCommenting: boolean | null
-      autonomousDMs: boolean | null
-      agentMaxActionsPerTick: number | null
-    },
+    agent: PlanningAgent,
     constraints: AgentConstraints | null
   ): ActionPlan {
     let validActions = [...plan.actions]
@@ -497,16 +504,7 @@ Your action plan (JSON only):`
   /**
    * Generate simple plan for agents without goals (legacy mode)
    */
-  private generateSimplePlan(
-    agent: {
-      autonomousTrading: boolean | null
-      autonomousPosting: boolean | null
-      autonomousCommenting: boolean | null
-      autonomousDMs: boolean | null
-      agentMaxActionsPerTick: number | null
-    },
-    context: PlanningContext
-  ): ActionPlan {
+  private generateSimplePlan(agent: PlanningAgent, context: PlanningContext): ActionPlan {
     const actions: PlannedAction[] = []
     
     // Respond to pending interactions (priority 1)
@@ -697,9 +695,7 @@ Your action plan (JSON only):`
           agentUserId,
           actionType: action.type,
           impact: action.estimatedImpact,
-          metadata: action.params 
-            ? (JSON.parse(JSON.stringify(action.params)) as Prisma.InputJsonValue)
-            : undefined
+          metadata: action.params as Prisma.InputJsonValue
         }
       })
       

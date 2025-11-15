@@ -11,3 +11,4 @@ agent-identity.json
 venv/
 .DS_Store
 
+benchmark-results/

@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server'
 import { periodicReputationSync, syncUserReputationNow } from '@/lib/reputation/agent0-reputation-sync'
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 interface SyncRequest {

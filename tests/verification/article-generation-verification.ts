@@ -9,7 +9,7 @@
  * 5. Article detail pages display fullContent correctly
  */
 
-import { prisma } from '../../src/lib/database-service'
+import { prisma } from '../../src/lib/prisma'
 
 async function verifyArticleGeneration() {
   console.log('🔍 Starting Article Generation Verification...\n')

@@ -27,7 +27,9 @@ export const recordExperienceAction: Action = {
     ],
   ],
 
-  async validate(_runtime: IAgentRuntime, message: Memory): Promise<boolean> {
+  async validate(runtime: IAgentRuntime, message: Memory): Promise<boolean> {
+    void runtime; // Runtime currently unused during validation
+
     const text = message.content.text?.toLowerCase();
     return text?.includes('remember') || text?.includes('record') || false;
   },

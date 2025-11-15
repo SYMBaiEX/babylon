@@ -24,11 +24,11 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1'
   })
 
-  // Default to openai/gpt-oss-120b for fast evaluation if WANDB not configured
+  // Default to llama-3.1-8b-instant for fast evaluation (free tier)
   // For larger tasks, use qwen3-32b
   const model = params.modelSize === 'large' 
     ? 'qwen/qwen3-32b'
-    : 'openai/gpt-oss-120b' 
+    : 'llama-3.1-8b-instant' 
 
   const result = await generateText({
     model: groq.languageModel(model),

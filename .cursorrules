@@ -1,0 +1,14 @@
+# Cursor Rules for Babylon Project
+
+## Pre-Completion Checklist
+
+**CRITICAL**: After each feature development, change, or fix, you MUST run the following commands in sequence before marking the work as done:
+
+1. `bun run typecheck` - Verify TypeScript types are correct
+2. `bun run lint` - Ensure code follows linting rules (max-warnings=0)
+3. `bun run build` - Verify the project builds successfully
+
+Only after all three commands pass without errors should you consider the work complete and inform the user that the task is done.
+
+If any of these commands fail, you must fix the issues before proceeding.
+

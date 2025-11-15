@@ -5,7 +5,7 @@
 
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 // Use Node.js runtime for full Prisma support
 export const runtime = 'nodejs'

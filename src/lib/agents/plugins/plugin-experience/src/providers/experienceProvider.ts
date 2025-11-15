@@ -1,5 +1,4 @@
-import type { Provider, IAgentRuntime, Memory, State } from '@elizaos/core';
-import { logger } from '@elizaos/core';
+import { type Provider, type IAgentRuntime, type Memory, type State, logger } from '@elizaos/core';
 import type { ExperienceService } from '../service';
 
 /**
@@ -13,8 +12,10 @@ export const experienceProvider: Provider = {
   async get(
     runtime: IAgentRuntime,
     message: Memory,
-    _state?: State
+    state?: State
   ): Promise<{ text?: string; data?: Record<string, unknown> }> {
+    void state; // State currently unused in provider lookup
+
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
     if (!experienceService) {

@@ -6,7 +6,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 export async function GET(request: NextRequest) {

@@ -6,7 +6,6 @@
 import { PerpetualsEngine } from '@/engine/PerpetualsEngine';
 import type { Organization } from '@/shared/types';
 
-import { db } from './database-service';
 import { prisma } from './prisma';
 
 let perpsEngineInstance: PerpetualsEngine | null = null;
@@ -63,7 +62,17 @@ async function initializePerpsEngine(): Promise<void> {
 
   initializing = true;
   try {
-    const organizations = (await db.getAllOrganizations()) as Organization[];
+    // Get organizations directly from prisma to avoid module initialization order issues
+    const orgs = await prisma.organization.findMany();
+    const organizations: Organization[] = orgs.map(o => ({
+      id: o.id,
+      name: o.name,
+      description: o.description,
+      type: o.type as Organization['type'],
+      canBeInvolved: o.canBeInvolved,
+      initialPrice: o.initialPrice ?? undefined,
+      currentPrice: o.currentPrice ?? undefined,
+    }));
     perpsEngineInstance.initializeMarkets(organizations);
 
     // Hydrate user positions from perpPosition table

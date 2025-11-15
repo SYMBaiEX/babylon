@@ -2,14 +2,28 @@
  * Parody Headline Generator Tests
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { prisma } from '@/lib/prisma';
-import { createParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
+import { ParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 
 describe('ParodyHeadlineGenerator', () => {
   const testFeedId = 'test-feed-parody-' + Date.now();
   const testHeadlineId = 'test-headline-parody-' + Date.now();
+  
+  // Mock LLM client that doesn't require API keys
+  // Returns XML-parsed format (nested response structure)
+  const createMockLLMClient = (): BabylonLLMClient => {
+    return {
+      generateJSON: mock(async () => ({
+        response: {
+          parodyTitle: 'AIlon Musk announces revolutionary new Tesla AI product that will change everything',
+          parodyContent: 'In a stunning move that shocked absolutely no one, AIlon Musk unveiled yet another "revolutionary" product that promises to solve all of humanity\'s problems while simultaneously creating new ones.',
+        },
+      })),
+    } as unknown as BabylonLLMClient;
+  };
 
   beforeEach(async () => {
     // Create test feed source
@@ -60,7 +74,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should generate parody from headline', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     const parody = await generator.generateParody(
       'Elon Musk announces new Tesla product',
@@ -82,7 +97,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should process headlines into parodies', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     const headlines = await prisma.rSSHeadline.findMany({
       where: { id: testHeadlineId },
@@ -103,7 +119,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should get recent parodies', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     // First create a parody
     await prisma.parodyHeadline.create({
@@ -128,7 +145,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should mark parodies as used', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     // Create a parody
     const parodyId = await generateSnowflakeId();
@@ -159,7 +177,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should generate daily summary', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     // Create multiple test headlines and parodies (each needs unique originalHeadlineId)
     const headlineIds: string[] = [];
@@ -211,7 +230,8 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   test('should handle empty headlines gracefully', async () => {
-    const generator = createParodyHeadlineGenerator();
+    const mockLLM = createMockLLMClient();
+    const generator = new ParodyHeadlineGenerator(mockLLM);
 
     const parodies = await generator.processHeadlines([]);
 

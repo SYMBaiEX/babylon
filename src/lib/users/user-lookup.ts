@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/errors'
 import { Prisma, type User } from '@prisma/client'
 

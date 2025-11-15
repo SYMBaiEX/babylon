@@ -9,23 +9,23 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { db } from './database-service';
+import db from './database-service';
 
 class GameService {
   async getRecentPosts(limit = 100, offset = 0) {
-    return await db.getRecentPosts(limit, offset);
+    return await db().getRecentPosts(limit, offset);
   }
 
   async getPostsByActor(actorId: string, limit = 100) {
-    return await db.getPostsByActor(actorId, limit);
+    return await db().getPostsByActor(actorId, limit);
   }
 
   async getCompanies() {
-    return await db.getCompanies();
+    return await db().getCompanies();
   }
 
   async getActiveQuestions() {
-    return await db.getActiveQuestions();
+    return await db().getActiveQuestions();
   }
 
   /**
@@ -33,14 +33,14 @@ class GameService {
    * Works even if engine is not running (daemon writes to database).
    */
   async getStats() {
-    return await db.getStats();
+    return await db().getStats();
   }
 
   /**
    * Get all games from database
    */
   async getAllGames() {
-    return await db.getAllGames();
+    return await db().getAllGames();
   }
 
   /**
@@ -49,7 +49,7 @@ class GameService {
    */
   async getStatus() {
     // Check game state from database
-    const gameState = await db.getGameState();
+    const gameState = await db().getGameState();
     return {
       isRunning: false,
       initialized: false,
@@ -64,8 +64,8 @@ class GameService {
     // On Vercel: Read from database instead of filesystem
     // The daemon writes posts to database, so we can query them directly
     const posts = actorId 
-      ? await db.getPostsByActor(actorId, limit)
-      : await db.getRecentPosts(limit, offset);
+      ? await db().getPostsByActor(actorId, limit)
+      : await db().getRecentPosts(limit, offset);
     
     if (!posts || posts.length === 0) {
       return null;

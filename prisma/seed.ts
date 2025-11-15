@@ -358,6 +358,108 @@ async function main() {
 
   logger.info(`Created/updated ${usersCreated} default real users for DM testing`, undefined, 'Script');
 
+  // Seed WorldFacts
+  logger.info('Seeding world facts...', undefined, 'Script');
+  
+  const worldFacts = [
+    {
+      category: 'crypto',
+      key: 'bitcoin_price',
+      label: 'Bitcoin Price',
+      value: '$45,000',
+      source: 'initial_seed',
+      priority: 10,
+    },
+    {
+      category: 'crypto',
+      key: 'ethereum_price',
+      label: 'Ethereum Price',
+      value: '$2,400',
+      source: 'initial_seed',
+      priority: 9,
+    },
+    {
+      category: 'crypto',
+      key: 'market_trend',
+      label: 'Market Trend',
+      value: 'Bullish momentum across major cryptocurrencies',
+      source: 'initial_seed',
+      priority: 8,
+    },
+    {
+      category: 'technology',
+      key: 'ai_development',
+      label: 'AI Development',
+      value: 'LLMs continue to advance with multimodal capabilities',
+      source: 'initial_seed',
+      priority: 7,
+    },
+    {
+      category: 'technology',
+      key: 'blockchain_adoption',
+      label: 'Blockchain Adoption',
+      value: 'Enterprise blockchain solutions gaining traction',
+      source: 'initial_seed',
+      priority: 6,
+    },
+    {
+      category: 'economy',
+      key: 'market_sentiment',
+      label: 'Market Sentiment',
+      value: 'Cautiously optimistic amid global uncertainty',
+      source: 'initial_seed',
+      priority: 5,
+    },
+    {
+      category: 'politics',
+      key: 'regulation_status',
+      label: 'Crypto Regulation',
+      value: 'Multiple jurisdictions working on comprehensive frameworks',
+      source: 'initial_seed',
+      priority: 4,
+    },
+    {
+      category: 'general',
+      key: 'babylon_status',
+      label: 'Babylon Game Status',
+      value: 'Live and operational',
+      source: 'initial_seed',
+      priority: 10,
+    },
+  ];
+
+  let worldFactsCreated = 0;
+  for (const fact of worldFacts) {
+    await prisma.worldFact.upsert({
+      where: {
+        category_key: {
+          category: fact.category,
+          key: fact.key,
+        },
+      },
+      update: {
+        label: fact.label,
+        value: fact.value,
+        source: fact.source,
+        priority: fact.priority,
+        lastUpdated: new Date(),
+      },
+      create: {
+        id: await generateSnowflakeId(),
+        category: fact.category,
+        key: fact.key,
+        label: fact.label,
+        value: fact.value,
+        source: fact.source,
+        priority: fact.priority,
+        lastUpdated: new Date(),
+      },
+    });
+    worldFactsCreated++;
+  }
+
+  logger.info(`Seeded ${worldFactsCreated} world facts`, undefined, 'Script');
+
   // Stats
   const stats = {
     actors: await prisma.actor.count(),
@@ -371,6 +473,7 @@ async function main() {
     userFollows: await prisma.follow.count(),
     posts: await prisma.post.count(),
     realUsers: await prisma.user.count({ where: { isActor: false } }),
+    worldFacts: await prisma.worldFact.count(),
   };
 
   logger.info('Database Summary:', {
@@ -383,6 +486,7 @@ async function main() {
     userFollows: `${stats.userFollows} (User-to-User)`,
     posts: stats.posts,
     realUsers: stats.realUsers,
+    worldFacts: stats.worldFacts,
   }, 'Script');
 
   logger.info('SEED COMPLETE', undefined, 'Script');

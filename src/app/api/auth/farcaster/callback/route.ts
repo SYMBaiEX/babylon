@@ -72,7 +72,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
 import { withErrorHandling } from '@/lib/errors/error-handler';

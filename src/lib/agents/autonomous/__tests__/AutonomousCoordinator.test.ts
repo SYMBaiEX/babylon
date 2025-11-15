@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test'
 import { autonomousCoordinator } from '../AutonomousCoordinator'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { ethers } from 'ethers'
 import type { IAgentRuntime } from '@elizaos/core'

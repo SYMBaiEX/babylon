@@ -10,7 +10,7 @@
  * Sweeps run periodically (daily) to maintain chat quality
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 
 export interface SweepDecision {
   kickChance: number;

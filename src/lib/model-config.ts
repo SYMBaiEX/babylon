@@ -12,7 +12,7 @@
  * Used for: events, questions, articles, posts, group chats
  * Priority: Quality and creativity
  */
-export const CONTENT_GENERATION_MODEL = 'moonshotai/kimi-k2-instruct-0905'; // Correct capitalization for wandb
+export const CONTENT_GENERATION_MODEL = 'qwen/qwen3-32b'; // Quality content generation
 
 /**
  * Model for background processing and operations
@@ -26,13 +26,13 @@ export const BACKGROUND_WORKER_MODEL = 'qwen/qwen3-32b';
  * Used for: comments, DMs, tag generation, evaluations
  * Priority: Low cost, fast response
  */
-export const FAST_EVAL_MODEL = 'openai/gpt-oss-120b';
+export const FAST_EVAL_MODEL = 'llama-3.1-8b-instant';
 
 /**
  * Default model for agents when WANDB is not configured
- * Groq-compatible model for reliable agent operations
+ * Free tier: Fast and efficient for agent operations
  */
-export const AGENT_DEFAULT_MODEL = 'openai/gpt-oss-120b';
+export const AGENT_DEFAULT_MODEL = 'llama-3.1-8b-instant';
 
 /**
  * Model configuration for different contexts
@@ -74,9 +74,7 @@ export function getModelForUseCase(useCase: keyof typeof MODEL_CONFIG): string {
 export function isGroqModel(model: string): boolean {
   const groqModels = [
     'llama-3.1-8b-instant',
-    'llama-3.3-70b-versatile',
     'qwen/qwen3-32b',
-    'openai/gpt-oss-120b',
   ];
   return groqModels.includes(model);
 }
@@ -88,11 +86,8 @@ export function isGroqModel(model: string): boolean {
 export function isWandbModel(model: string): boolean {
   const wandbModels = [
     'OpenPipe/Qwen3-14B-Instruct',      // Our trained model (for Eliza agents)
-    'moonshotai/Kimi-K2-Instruct-0905', // High-quality content generation (wandb capitalization)
-    'moonshotai/kimi-k2-instruct-0905', // Legacy lowercase (not actually on wandb)
-    'meta-llama/Llama-3.3-70B-Instruct',
     'meta-llama/Llama-3.1-8B-Instruct',
-    'openai/gpt-oss-120b',
+    'Qwen/Qwen2.5-32B-Instruct',
   ];
   return wandbModels.includes(model);
 }

@@ -9,7 +9,7 @@
  * 5. Shows sample outputs
  */
 
-import { prisma } from '../../src/lib/database-service'
+import { prisma } from '../../src/lib/prisma'
 import { BabylonLLMClient } from '../../src/generator/llm/openai-client'
 
 async function testArticleGeneration() {

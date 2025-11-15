@@ -5,19 +5,15 @@
  */
 
 import { describe, test, expect } from 'bun:test'
+import { getTestBaseUrl, checkServerAvailableAtLoadTime } from './test-helpers'
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const BASE_URL = getTestBaseUrl()
 // Check server availability at module load time
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available at ${BASE_URL} - Skipping API tests`)
-    console.log('   To run these tests: bun run dev (in another terminal)')
-    return false
-  }
-})()
+const serverAvailable = await checkServerAvailableAtLoadTime()
+if (!serverAvailable) {
+  console.log(`⚠️  Server not available at ${BASE_URL} - Skipping API tests`)
+  console.log('   To run these tests: bun run dev (in another terminal)')
+}
 
 describe('API Validation Integration', () => {
   describe('User Routes Validation', () => {

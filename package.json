@@ -9,7 +9,9 @@
     "dev:testnet": "DEPLOYMENT_ENV=testnet bun run scripts/pre-dev/pre-dev-testnet.ts && concurrently -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
     "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=8192' bunx next build --webpack",
     "start": "bun run scripts/validation/check-environment.ts && bunx next start",
-    "test": "bun test tests/unit/ tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts src/lib/__tests__/",
+    "test": "bun run scripts/test-with-server.ts",
+    "test:unit": "bun test tests/unit/ --preload ./tests/unit/preload.ts",
+    "test:integration": "bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts",
     "test:retry": "bun test src/lib/__tests__/prisma-retry.integration.test.ts",
     "test:a2a": "bun test src/a2a/tests/",
     "test:a2a:unit": "bun test ./src/a2a/tests/integration/points-service-integration.test.ts",
@@ -64,7 +66,8 @@
     "stress-test:a2a:normal": "bun run scripts/run-a2a-stress-test.ts normal",
     "stress-test:a2a:heavy": "bun run scripts/run-a2a-stress-test.ts heavy",
     "stress-test:a2a:rate-limit": "bun run scripts/run-a2a-stress-test.ts rate-limit",
-    "stress-test:a2a:coalition": "bun run scripts/run-a2a-stress-test.ts coalition"
+    "stress-test:a2a:coalition": "bun run scripts/run-a2a-stress-test.ts coalition",
+    "prepare": "husky"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.5",
@@ -150,7 +153,6 @@
     "recharts": "^3.4.1",
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
-    "sticky-sidebar-v2": "^1.1.1",
     "swagger-ui-react": "^5.30.2",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
@@ -183,6 +185,8 @@
     "eslint-config-next": "16.0.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "prisma": "^6.19.0",

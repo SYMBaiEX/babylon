@@ -28,7 +28,7 @@ function getBaseURL(runtime: { getSetting: (key: string) => string | undefined }
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
     model === ModelType.TEXT_SMALL
-      ? (process.env.SMALL_GROQ_MODEL ?? 'openai/gpt-oss-120b')
+      ? (process.env.SMALL_GROQ_MODEL ?? 'llama-3.1-8b-instant')
       : (process.env.LARGE_GROQ_MODEL ?? 'qwen/qwen3-32b')
   return name as TiktokenModel
 }
@@ -90,7 +90,7 @@ export const groqPlugin: Plugin = {
   description: 'Groq plugin for Babylon agents',
   config: {
     GROQ_API_KEY: process.env.GROQ_API_KEY,
-    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'openai/gpt-oss-120b',
+    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'llama-3.1-8b-instant',
     LARGE_GROQ_MODEL: process.env.LARGE_GROQ_MODEL || 'qwen/qwen3-32b',
   },
   async init() {
@@ -129,7 +129,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_SMALL_MODEL') ??
         runtime.getSetting('SMALL_MODEL') ??
-        'openai/gpt-oss-120b'
+        'llama-3.1-8b-instant'
 
       return await generateGroqText(groq, model, {
         prompt,
@@ -185,7 +185,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_SMALL_MODEL') ??
         runtime.getSetting('SMALL_MODEL') ??
-        'openai/gpt-oss-120b'
+        'llama-3.1-8b-instant'
 
       return await generateGroqObject(groq, model, params)
     },
