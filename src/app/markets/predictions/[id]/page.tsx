@@ -18,6 +18,21 @@ import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { useMarketTracking } from '@/hooks/usePostHog'
 
+interface PredictionPosition {
+  id: string
+  marketId: string
+  question: string
+  side: 'YES' | 'NO'
+  shares: number
+  avgPrice: number
+  currentPrice: number
+  currentValue: number
+  costBasis: number
+  unrealizedPnL: number
+  resolved: boolean
+  resolution?: boolean | null
+}
+
 interface PredictionMarket {
   id: number | string
   text: string
@@ -33,28 +48,8 @@ interface PredictionMarket {
   resolution?: boolean | null
   yesProbability?: number
   noProbability?: number
-  userPosition?: {
-    id: string
-    side: 'YES' | 'NO'
-    shares: number
-    avgPrice: number
-    currentPrice: number
-    currentValue: number
-    costBasis: number
-    unrealizedPnL: number
-  } | null
-}
-
-interface PredictionPosition {
-  id: string
-  marketId: string
-  question: string
-  side: 'YES' | 'NO'
-  shares: number
-  avgPrice: number
-  currentPrice: number
-  resolved: boolean
-  resolution?: boolean | null
+  userPosition?: PredictionPosition | null
+  userPositions?: PredictionPosition[]
 }
 
 export default function PredictionDetailPage() {
@@ -71,25 +66,109 @@ export default function PredictionDetailPage() {
   const [side, setSide] = useState<'yes' | 'no'>('yes')
   const [amount, setAmount] = useState('10')
   const [submitting, setSubmitting] = useState(false)
-  const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
+  const [userPositions, setUserPositions] = useState<PredictionPosition[]>([])
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const pageContainerRef = useRef<HTMLDivElement | null>(null)
 
+  const recalculatePositionMetrics = useCallback(
+    (positions: PredictionPosition[], nextYesShares: number, nextNoShares: number) => {
+      if (!positions.length || nextYesShares <= 0 || nextNoShares <= 0) {
+        return positions
+      }
+
+      return positions.map((position) => {
+        if (position.shares <= 0) {
+          return position
+        }
+
+        try {
+          const sellPreview = PredictionPricing.calculateSell(
+            nextYesShares,
+            nextNoShares,
+            position.side === 'YES' ? 'yes' : 'no',
+            position.shares
+          )
+          const currentValue = sellPreview.totalCost
+          const currentPrice = currentValue / position.shares
+          const costBasis = position.costBasis ?? position.shares * position.avgPrice
+          const unrealizedPnL = currentValue - costBasis
+
+          return {
+            ...position,
+            currentPrice,
+            currentValue,
+            costBasis,
+            unrealizedPnL,
+          }
+        } catch (error) {
+          console.warn('Failed to recalc prediction position', error)
+          return position
+        }
+      })
+    },
+    []
+  )
+
+  const effectiveShares = useMemo(() => {
+    if (!market) {
+      return null
+    }
+
+    const yes = Number(market.yesShares ?? 0)
+    const no = Number(market.noShares ?? 0)
+
+    if (yes > 0 && no > 0) {
+      return {
+        yesShares: yes,
+        noShares: no,
+        liquidity: Number(market.liquidity ?? yes + no),
+      }
+    }
+
+    const seeded = PredictionPricing.initializeMarket()
+    return {
+      yesShares: seeded.yesShares,
+      noShares: seeded.noShares,
+      liquidity: seeded.yesShares + seeded.noShares,
+    }
+  }, [market?.yesShares, market?.noShares, market?.liquidity])
+
   const historySeed = useMemo(
     () =>
-      market
+      market && effectiveShares
         ? {
-            yesShares: market.yesShares ?? 0,
-            noShares: market.noShares ?? 0,
-            liquidity: market.liquidity ?? 0,
+            yesShares: effectiveShares.yesShares,
+            noShares: effectiveShares.noShares,
+            liquidity: effectiveShares.liquidity,
           }
         : undefined,
-    [market?.yesShares, market?.noShares, market?.liquidity]
+    [market, effectiveShares]
   )
   const { history: priceHistory } = usePredictionHistory(
     marketId ?? null,
     { seed: historySeed }
   )
+  const amountNum = parseFloat(amount) || 0
+  const calculation = amountNum > 0 && effectiveShares
+    ? PredictionPricing.calculateBuy(
+        effectiveShares.yesShares,
+        effectiveShares.noShares,
+        side,
+        amountNum
+      )
+    : null
+  const expectedPayout = calculation
+    ? calculateExpectedPayout(calculation.sharesBought, calculation.avgPrice)
+    : 0
+  const expectedProfit = expectedPayout - amountNum
+  const isMarketResolved =
+    !!market &&
+    (market.status === 'resolved' ||
+      market.resolvedOutcome !== undefined ||
+      market.resolved)
+  const isMarketExpired =
+    !!market?.resolutionDate &&
+    new Date(market.resolutionDate).getTime() < Date.now()
 
   const handleTradeEvent = useCallback((event: PredictionTradeSSE) => {
     setMarket((prev) => {
@@ -105,7 +184,8 @@ export default function PredictionDetailPage() {
         noProbability: event.noPrice,
       }
     })
-  }, [])
+    setUserPositions((prev) => recalculatePositionMetrics(prev, event.yesShares, event.noShares))
+  }, [recalculatePositionMetrics])
 
   const handleResolutionEvent = useCallback((event: PredictionResolutionSSE) => {
     setMarket((prev) => {
@@ -123,7 +203,8 @@ export default function PredictionDetailPage() {
         noProbability: event.noPrice,
       }
     })
-  }, [])
+    setUserPositions((prev) => recalculatePositionMetrics(prev, event.yesShares, event.noShares))
+  }, [recalculatePositionMetrics])
 
   usePredictionMarketStream(marketId ?? null, {
     onTrade: handleTradeEvent,
@@ -152,7 +233,12 @@ export default function PredictionDetailPage() {
     }
 
     setMarket(foundMarket)
-    setUserPosition(foundMarket.userPosition as PredictionPosition | null)
+    const positions = (foundMarket.userPositions ?? []).length > 0
+      ? (foundMarket.userPositions as PredictionPosition[])
+      : foundMarket.userPosition
+        ? [foundMarket.userPosition as PredictionPosition]
+        : []
+    setUserPositions(positions)
 
     setLoading(false)
   }, [marketId, router, authenticated, user?.id, from])
@@ -168,6 +254,18 @@ export default function PredictionDetailPage() {
     }
 
     if (!market || !user) return
+
+    const isExpired =
+      market.resolutionDate &&
+      new Date(market.resolutionDate).getTime() < Date.now()
+    if (isExpired) {
+      toast.error('This market has expired.')
+      return
+    }
+    if (market.resolved) {
+      toast.error('This market is already resolved.')
+      return
+    }
 
     const amountNum = parseFloat(amount) || 0
     if (amountNum < 1) {
@@ -208,7 +306,6 @@ export default function PredictionDetailPage() {
     const data = await response.json()
     
     if (!response.ok) {
-      // Handle error response - extract message from error object
       const errorMessage = typeof data.error === 'object' 
         ? data.error.message || 'Failed to buy shares'
         : data.error || data.message || 'Failed to buy shares'
@@ -274,22 +371,10 @@ export default function PredictionDetailPage() {
 
   if (!market) return null
 
-  const amountNum = parseFloat(amount) || 0
-  const yesShares = market.yesShares || 500
-  const noShares = market.noShares || 500
-  
+  const yesShares = effectiveShares?.yesShares ?? 0
+  const noShares = effectiveShares?.noShares ?? 0
   const currentYesPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'yes')
   const currentNoPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'no')
-  
-  const calculation = amountNum > 0
-    ? PredictionPricing.calculateBuy(yesShares, noShares, side, amountNum)
-    : null
-
-  const expectedPayout = calculation
-    ? calculateExpectedPayout(calculation.sharesBought)
-    : 0
-  const expectedProfit = expectedPayout - amountNum
-
   const timeLeft = getTimeUntilResolution()
   const totalVolume = yesShares + noShares
   const totalTrades = Math.floor(totalVolume / 10) // Rough estimate
@@ -362,11 +447,11 @@ export default function PredictionDetailPage() {
       </div>
 
       {/* User Position */}
-      {userPosition && (
+      {userPositions.length > 0 && (
         <div className="mb-6">
           <h2 className="text-lg font-bold mb-3">Your Position</h2>
           <PredictionPositionsList 
-            positions={[userPosition]} 
+            positions={userPositions} 
             onPositionSold={fetchMarketData} 
           />
         </div>

@@ -26,6 +26,21 @@ import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 
+interface PredictionUserPosition {
+  id: string;
+  marketId: string;
+  question?: string;
+  side: 'YES' | 'NO';
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  currentValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
+  resolved?: boolean;
+  resolution?: boolean | null;
+}
+
 interface PredictionMarket {
   id: number | string;
   text: string;
@@ -36,16 +51,8 @@ interface PredictionMarket {
   scenario: number;
   yesShares?: number;
   noShares?: number;
-  userPosition?: {
-    id: string;
-    side: 'YES' | 'NO';
-    shares: number;
-    avgPrice: number;
-    currentPrice: number;
-    currentValue: number;
-    costBasis: number;
-    unrealizedPnL: number;
-  } | null;
+  userPosition?: PredictionUserPosition | null;
+  userPositions?: PredictionUserPosition[];
 }
 
 type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
@@ -114,7 +121,21 @@ export default function PredictionsPage() {
     );
     const predictionsData = await predictionsRes.json();
 
-    const fetchedPredictions: PredictionMarket[] = predictionsData.questions || [];
+    const fetchedAt = Date.now();
+    const fetchedPredictions: PredictionMarket[] = (predictionsData.questions || []).map(
+      (prediction: PredictionMarket) => {
+        if (
+          prediction.resolutionDate &&
+          new Date(prediction.resolutionDate).getTime() < fetchedAt
+        ) {
+          return {
+            ...prediction,
+            status: 'resolved',
+          };
+        }
+        return prediction;
+      }
+    );
     setPredictions(fetchedPredictions);
 
     const now = Date.now();
@@ -126,7 +147,7 @@ export default function PredictionsPage() {
         const yesProbability =
           totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
         if (!next[id] || next[id].length === 0) {
-          next[id] = [{ time: now, yesPrice: yesProbability }];
+          next[id] = [{ time: fetchedAt, yesPrice: yesProbability }];
         }
       });
       return next;

@@ -83,7 +83,7 @@ export function PredictionTradingModal({
     : null
 
   const expectedPayout = calculation
-    ? calculateExpectedPayout(calculation.sharesBought)
+    ? calculateExpectedPayout(calculation.sharesBought, calculation.avgPrice)
     : 0
   const expectedProfit = expectedPayout - amountNum
 
@@ -321,4 +321,3 @@ export function PredictionTradingModal({
     </>
   )
 }
-

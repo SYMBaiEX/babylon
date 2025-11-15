@@ -18,7 +18,7 @@ import { FeeService } from '@/lib/services/fee-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
 import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 /**
@@ -29,7 +29,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = IdParamSchema.parse(await context.params);
+  const { id: marketId } = PredictionMarketIdSchema.parse(await context.params);
 
   // Authentication - errors propagate to withErrorHandling
   const user = await authenticate(request);
@@ -207,10 +207,13 @@ export const POST = withErrorHandling(async (
     });
 
     // Create or update position
+    const desiredYesSide = side === 'yes'
+
     const existingPosition = await db.position.findFirst({
       where: {
         userId: user.userId,
         marketId,
+        side: desiredYesSide,
       },
     });
 
@@ -236,7 +239,7 @@ export const POST = withErrorHandling(async (
           id: await generateSnowflakeId(),
           userId: user.userId,
           marketId,
-          side: side === 'yes',
+          side: desiredYesSide,
           shares: new Prisma.Decimal(calc.sharesBought),
           avgPrice: new Prisma.Decimal(calc.avgPrice),
           updatedAt: now,

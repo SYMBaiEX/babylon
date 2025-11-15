@@ -17,7 +17,7 @@ import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
 import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
 import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
 /**
@@ -29,14 +29,14 @@ export const POST = withErrorHandling(async (
   context: { params: Promise<{ id: string }> }
 ) => {
   const user = await authenticate(request);
-  const { id: marketId } = IdParamSchema.parse(await context.params);
+  const { id: marketId } = PredictionMarketIdSchema.parse(await context.params);
 
   if (!marketId) {
     throw new BusinessLogicError('Market ID is required', 'MARKET_ID_REQUIRED');
   }
 
   const body = await request.json();
-  const { shares } = PredictionMarketSellSchema.parse(body);
+  const { shares, positionId } = PredictionMarketSellSchema.parse(body);
 
   // Execute sell with RLS
   const { grossProceeds, netProceeds, pnl, remainingShares, positionClosed, calculation, updatedMarket, sellSide } = await asUser(user, async (db) => {
@@ -122,6 +122,7 @@ export const POST = withErrorHandling(async (
       where: {
         userId: user.userId,
         marketId,
+        ...(positionId ? { id: positionId } : {}),
       },
     });
 

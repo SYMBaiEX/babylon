@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
 
 const QuerySchema = z.object({
   limit: z
@@ -16,7 +16,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = IdParamSchema.parse(await context.params);
+  const { id: marketId } = PredictionMarketIdSchema.parse(await context.params);
   const { searchParams } = new URL(request.url);
   const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
 

@@ -1568,7 +1568,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       const avgPrice = Number(position.avgPrice ?? 0);
       const costBasis = avgPrice * shares;
       const didWin = position.side === winningSide;
-      const payout = didWin ? shares : 0;
+      const payoutMultiplier = 1 + avgPrice;
+      const payout = didWin ? shares * payoutMultiplier : 0;
       const pnl = payout - costBasis;
 
       if (didWin && payout > 0) {
