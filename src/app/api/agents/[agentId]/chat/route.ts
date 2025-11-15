@@ -109,12 +109,19 @@ export const POST = withErrorHandling(async (
   const message = body.message
   const usePro = body.usePro
 
+  // Validate and block unsafe input
   const inputCheck = checkUserInput(message)
-  logger.warn('Unsafe user input blocked', { 
-    agentId,
-    reason: inputCheck.reason,
-    category: inputCheck.category
-  }, 'AgentChat')
+  if (!inputCheck.safe) {
+    logger.warn('Unsafe user input blocked', { 
+      agentId,
+      reason: inputCheck.reason,
+      category: inputCheck.category
+    }, 'AgentChat')
+    return NextResponse.json({
+      success: false,
+      error: inputCheck.reason || 'Invalid input'
+    }, { status: 400 })
+  }
 
   const user = await authenticateUser(req)
   const agent = await agentService.getAgent(agentId, user.id)
@@ -176,21 +183,37 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     maxTokens: 200
   })
 
+  // Check output safety - only regenerate if unsafe
   const outputCheck = checkAgentOutput(response)
-  logger.error('Agent generated unsafe content', {
-    agentId,
-    reason: outputCheck.reason,
-    preview: response.substring(0, 100)
-  }, 'AgentChat')
-  
-  logger.info('Attempting regeneration with safety prompt', { agentId }, 'AgentChat')
-  response = await runtime.useModel(modelType, {
-    prompt: `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.`,
-    temperature: 0.6,
-    maxTokens: 200
-  })
-  
-  checkAgentOutput(response)
+  if (!outputCheck.safe) {
+    logger.warn('Agent generated unsafe content, regenerating', {
+      agentId,
+      reason: outputCheck.reason,
+      preview: response.substring(0, 100)
+    }, 'AgentChat')
+    
+    logger.info('Attempting regeneration with safety prompt', { agentId }, 'AgentChat')
+    response = await runtime.useModel(modelType, {
+      prompt: `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.`,
+      temperature: 0.6,
+      maxTokens: 200
+    })
+    
+    // Check again after regeneration
+    const secondCheck = checkAgentOutput(response)
+    if (!secondCheck.safe) {
+      logger.error('Agent generated unsafe content after regeneration', {
+        agentId,
+        reason: secondCheck.reason
+      }, 'AgentChat')
+      // Refund points and return error
+      await agentService.depositPoints(agentId, user.id, pointsCost)
+      return NextResponse.json({
+        success: false,
+        error: 'Unable to generate safe response. Please try again.'
+      }, { status: 500 })
+    }
+  }
 
   response = response.trim().replace(/^["']|["']$/g, '')
 

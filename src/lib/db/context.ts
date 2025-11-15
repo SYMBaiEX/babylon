@@ -11,12 +11,12 @@
  *   // User-scoped operation
  *   const authUser = await authenticate(request)
  *   const positions = await asUser(authUser, async (db) => {
- *     return await db.position.findMany()
+ *     return await db().position.findMany()
  *   })
  *   
  *   // System operation (bypasses RLS)
  *   const allUsers = await asSystem(async (db) => {
- *     return await db.user.findMany()
+ *     return await db().user.findMany()
  *   })
  */
 
@@ -147,7 +147,7 @@ async function executeAsPublic<T>(
  * // Authenticated route
  * const authUser = await authenticate(request)
  * const positions = await asUser(authUser, async (db) => {
- *   return await db.position.findMany() // Only returns user's positions
+ *   return await db().position.findMany() // Only returns user's positions
  * })
  */
 export async function asUser<T>(
@@ -179,7 +179,7 @@ export async function asUser<T>(
  * @example
  * // Public route
  * const posts = await asPublic(async (db) => {
- *   return await db.post.findMany() // Returns only public posts per RLS
+ *   return await db().post.findMany() // Returns only public posts per RLS
  * })
  */
 export async function asPublic<T>(
@@ -206,7 +206,7 @@ export async function asPublic<T>(
  * @example
  * // Admin route
  * const allUsers = await asSystem(async (db) => {
- *   return await db.user.findMany() // Returns ALL users
+ *   return await db().user.findMany() // Returns ALL users
  * }, 'admin-list-all-users')
  */
 export async function asSystem<T>(

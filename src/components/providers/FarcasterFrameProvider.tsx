@@ -46,22 +46,30 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
 
     // Check if we're in a Farcaster Mini App context
     const checkMiniApp = async () => {
-      const context = await miniappSdk.context.catch(() => null)
-      if (context) {
-        setIsMiniApp(true)
-        if (context.user) {
-          setFid(context.user.fid)
-          setUsername(context.user.username)
+      try {
+        const context = await miniappSdk.context
+        if (context) {
+          setIsMiniApp(true)
+          if (context.user) {
+            setFid(context.user.fid)
+            setUsername(context.user.username)
+          }
+          logger.info('Detected Farcaster Mini App context', { 
+            fid: context.user?.fid,
+            username: context.user?.username 
+          }, 'FarcasterMiniApp')
+        } else {
+          // Not in a Mini App context, that's fine
+          logger.debug('Not in Farcaster Mini App context', {}, 'FarcasterMiniApp')
         }
-        logger.info('Detected Farcaster Mini App context', { 
-          fid: context.user?.fid,
-          username: context.user?.username 
+      } catch (error) {
+        // Not in a Mini App context or SDK not available, that's fine
+        logger.debug('Not in Farcaster Mini App context', { 
+          error: error instanceof Error ? error.message : String(error)
         }, 'FarcasterMiniApp')
-      } else {
-        // Not in a Mini App context, that's fine
-        logger.debug('Not in Farcaster Mini App context', {}, 'FarcasterMiniApp')
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
 
     checkMiniApp()
@@ -100,10 +108,14 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
       
       logger.debug('Received signature, authenticating with Privy', {}, 'FarcasterMiniApp')
       
+      // Extract only serializable data (avoid passing functions in postMessage)
+      const message = typeof result.message === 'string' ? result.message : String(result.message || '')
+      const signature = typeof result.signature === 'string' ? result.signature : String(result.signature || '')
+      
       // Send the received signature from Farcaster to Privy for authentication
       await loginToMiniApp({
-        message: result.message,
-        signature: result.signature,
+        message,
+        signature,
       })
 
       logger.info('Farcaster Mini App auto-login successful', { 

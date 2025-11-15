@@ -63,13 +63,22 @@ export class CommitmentStore {
   }
 
   /**
-   * Store commitment with encrypted salt
+   * Store commitment with encrypted salt (upsert to handle updates)
+   * Returns the stored commitment record
    */
-  static async store(commitment: StoredCommitment): Promise<void> {
+  static async store(commitment: StoredCommitment): Promise<{ id: string; questionId: string }> {
     const encryptedSalt = this.encryptSalt(commitment.salt)
 
-    await prisma.oracleCommitment.create({
-      data: {
+    const result = await prisma.oracleCommitment.upsert({
+      where: {
+        questionId: commitment.questionId
+      },
+      update: {
+        sessionId: commitment.sessionId,
+        saltEncrypted: encryptedSalt,
+        commitment: commitment.commitment
+      },
+      create: {
         id: `commitment-${commitment.questionId}-${Date.now()}`,
         questionId: commitment.questionId,
         sessionId: commitment.sessionId,
@@ -81,22 +90,51 @@ export class CommitmentStore {
 
     logger.info(
       `Stored commitment for question ${commitment.questionId}`,
-      { sessionId: commitment.sessionId },
+      { 
+        sessionId: commitment.sessionId,
+        recordId: result.id,
+        wasCreated: !result.sessionId || result.sessionId === '',
+        operation: result.id.includes(commitment.questionId) ? 'upsert' : 'unknown'
+      },
       'CommitmentStore'
     )
+
+    return result
   }
 
   /**
    * Retrieve commitment and decrypt salt
    */
   static async retrieve(questionId: string): Promise<StoredCommitment | null> {
+    logger.info(
+      `Retrieving commitment for question ${questionId}`,
+      undefined,
+      'CommitmentStore'
+    )
+
     const stored = await prisma.oracleCommitment.findUnique({
       where: { questionId }
     })
 
     if (!stored) {
+      logger.warn(
+        `No commitment found for question ${questionId}`,
+        undefined,
+        'CommitmentStore'
+      )
       return null
     }
+
+    logger.info(
+      `Found commitment for question ${questionId}`,
+      { 
+        recordId: stored.id,
+        sessionId: stored.sessionId,
+        hasCommitment: !!stored.commitment,
+        hasSalt: !!stored.saltEncrypted
+      },
+      'CommitmentStore'
+    )
 
     const salt = this.decryptSalt(stored.saltEncrypted)
 
@@ -111,13 +149,22 @@ export class CommitmentStore {
 
   /**
    * Delete commitment after reveal (cleanup)
+   * Idempotent - won't fail if commitment already deleted
    */
   static async delete(questionId: string): Promise<void> {
-    await prisma.oracleCommitment.delete({
-      where: { questionId }
-    })
-
-    logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
+    try {
+      await prisma.oracleCommitment.delete({
+        where: { questionId }
+      })
+      logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
+    } catch (error: unknown) {
+      // If record not found, that's okay (idempotent)
+      if ((error as { code?: string })?.code === 'P2025') {
+        logger.info(`Commitment already deleted for question ${questionId}`, undefined, 'CommitmentStore')
+        return
+      }
+      throw error
+    }
   }
 
   /**

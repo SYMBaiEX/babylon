@@ -24,19 +24,29 @@ import type { Trajectory } from '../types';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import type { IAgentRuntime, UUID, Logger } from '@elizaos/core';
+import { createUniqueUuid } from '@elizaos/core';
+
 describe('ART Format Validation', () => {
-  let mockRuntime: any;
+  let mockRuntime: Partial<IAgentRuntime>;
   const testTrajectoryIds: string[] = [];
 
   beforeAll(() => {
+    const mockLogger: Partial<Logger> = {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+      trace: () => {},
+      fatal: () => {},
+      success: () => {},
+      level: 'info' as const,
+    };
+    
+    const agentId = createUniqueUuid({} as IAgentRuntime, 'art-test-agent');
     mockRuntime = {
-      agentId: 'art-test-agent',
-      logger: {
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-        debug: () => {}
-      }
+      agentId: agentId as UUID,
+      logger: mockLogger as Logger
     };
   });
 
@@ -47,9 +57,15 @@ describe('ART Format Validation', () => {
       await prisma.trajectory.deleteMany({
         where: { trajectoryId: { in: testTrajectoryIds } }
       });
-      await (prisma as any).llmCallLog.deleteMany({
-        where: { trajectoryId: { in: testTrajectoryIds } }
-      });
+      // Note: llmCallLog model may not exist in all schemas
+      if ('llmCallLog' in prisma) {
+        const prismaWithLog = prisma as unknown as { llmCallLog?: { deleteMany: (args: { where: { trajectoryId: { in: string[] } } }) => Promise<unknown> } };
+        if (typeof prismaWithLog.llmCallLog?.deleteMany === 'function') {
+          await prismaWithLog.llmCallLog.deleteMany({
+            where: { trajectoryId: { in: testTrajectoryIds } }
+          });
+        }
+      }
     }
   });
 
@@ -57,8 +73,8 @@ describe('ART Format Validation', () => {
     it('should convert trajectory to OpenAI message array format', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId);
-      const stepId = logger.startStep(trajId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string);
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -92,18 +108,18 @@ describe('ART Format Validation', () => {
       expect(messages.length).toBeGreaterThan(0);
 
       // Should have system message
-      const systemMsg = messages.find(m => m.role === 'system');
+      const systemMsg = messages.find((m: { role: string; content: string }) => m.role === 'system');
       expect(systemMsg).toBeDefined();
       expect(systemMsg!.content).toContain('trading agent');
 
       // Should have user message (observation)
-      const userMsg = messages.find(m => m.role === 'user');
+      const userMsg = messages.find((m: { role: string; content: string }) => m.role === 'user');
       expect(userMsg).toBeDefined();
       expect(userMsg!.content).toContain('$1000');
       expect(userMsg!.content).toContain('BTC');
 
       // Should have assistant message (action)
-      const assistantMsg = messages.find(m => m.role === 'assistant');
+      const assistantMsg = messages.find((m: { role: string; content: string }) => m.role === 'assistant');
       expect(assistantMsg).toBeDefined();
       expect(assistantMsg!.content).toContain('buy');
 
@@ -113,10 +129,10 @@ describe('ART Format Validation', () => {
     it('should handle multi-turn conversations', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId);
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string);
 
       // Turn 1: Analyze market
-      const step1 = logger.startStep(trajId, {
+      const step1 = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -142,7 +158,7 @@ describe('ART Format Validation', () => {
       });
 
       // Turn 2: Make decision
-      const step2 = logger.startStep(trajId, {
+      const step2 = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -189,7 +205,7 @@ describe('ART Format Validation', () => {
     it('should convert to exact ART format (matches tic-tac-toe example)', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
         scenarioId: 'trading-test-1',
         metadata: {
           agentModel: 'llama-3.1-8b',
@@ -197,7 +213,7 @@ describe('ART Format Validation', () => {
         }
       });
 
-      const stepId = logger.startStep(trajId, {
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -216,7 +232,7 @@ describe('ART Format Validation', () => {
         actionType: 'BUY_SHARES'
       });
 
-      logger.completeStep(trajId, stepId, {
+      logger.completeStep(trajId!, stepId!, {
         actionType: 'BUY_SHARES',
         actionName: 'BUY_SHARES',
         parameters: { marketId: 'btc', amount: 100 },
@@ -226,7 +242,7 @@ describe('ART Format Validation', () => {
         reward: 1.5
       });
 
-      const trajectory = logger.getActiveTrajectory(trajId)!;
+      const trajectory = logger.getActiveTrajectory(trajId!)!;
       const artTraj = toARTTrajectory(trajectory);
 
       // Match ART structure from tic-tac-toe example
@@ -261,11 +277,12 @@ describe('ART Format Validation', () => {
     it('should include environment context for RULER judge', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
         metadata: {
           goalDescription: 'make profitable trades'
         }
       });
+      if (!trajId) throw new Error('Failed to start trajectory');
 
       const stepId = logger.startStep(trajId, {
         timestamp: Date.now(),
@@ -313,7 +330,7 @@ describe('ART Format Validation', () => {
     it('should include game knowledge for RULER judge', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
         metadata: {
           // Game master knowledge!
           trueProbabilities: {
@@ -330,7 +347,7 @@ describe('ART Format Validation', () => {
         }
       });
 
-      const stepId = logger.startStep(trajId, {
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -381,12 +398,13 @@ describe('ART Format Validation', () => {
       const trajectories: Trajectory[] = [];
 
       for (let i = 0; i < 4; i++) {
-        const trajId = logger.startTrajectory(mockRuntime.agentId, {
+        const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
           scenarioId,
           metadata: {
             groupIndex: i
           }
         });
+        if (!trajId) throw new Error('Failed to start trajectory');
         testTrajectoryIds.push(trajId);
 
         const stepId = logger.startStep(trajId, {
@@ -422,11 +440,12 @@ describe('ART Format Validation', () => {
         if (!traj) {
           const { prisma } = await import('@/lib/prisma');
           const fromDB = await prisma.trajectory.findUnique({ where: { trajectoryId: trajId } });
-          const steps = JSON.parse(fromDB!.stepsJson);
+          if (!fromDB) throw new Error('Trajectory not found');
+          const steps = JSON.parse(fromDB.stepsJson);
           trajectories.push({
-            ...fromDB!,
-            trajectoryId: fromDB!.trajectoryId as any,
-            agentId: fromDB!.agentId as any,
+            ...fromDB,
+            trajectoryId: fromDB.trajectoryId,
+            agentId: fromDB.agentId,
             startTime: fromDB!.startTime.getTime(),
             endTime: fromDB!.endTime.getTime(),
             steps,
@@ -455,9 +474,10 @@ describe('ART Format Validation', () => {
 
       // Create 3 trajectories with same start, different endings
       for (let i = 0; i < 3; i++) {
-        const trajId = logger.startTrajectory(mockRuntime.agentId, {
+        const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
           scenarioId: 'same-start-test'
         });
+        if (!trajId) throw new Error('Failed to start trajectory');
 
         const stepId = logger.startStep(trajId, {
           timestamp: Date.now(),
@@ -506,13 +526,14 @@ describe('ART Format Validation', () => {
 
       // Create trajectory group (N=4, like ART examples)
       for (let i = 0; i < 4; i++) {
-        const trajId = logger.startTrajectory(mockRuntime.agentId, {
+        const trajId = logger.startTrajectory(mockRuntime.agentId as string, {
           scenarioId: 'ruler-test',
           metadata: {
             groupIndex: i,
             initialBalance: 1000
           }
         });
+        if (!trajId) throw new Error('Failed to start trajectory');
 
         const stepId = logger.startStep(trajId, {
           timestamp: Date.now(),
@@ -585,7 +606,7 @@ describe('ART Format Validation', () => {
 
       const result = await exportForOpenPipeART({
         datasetName: 'art-format-test',
-        agentIds: [mockRuntime.agentId],
+        agentIds: [mockRuntime.agentId as string],
         maxTrajectories: 10
       });
 
@@ -664,8 +685,8 @@ describe('ART Format Validation', () => {
     it('should validate trajectory is ART-compatible', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId);
-      const stepId = logger.startStep(trajId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string);
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -705,8 +726,8 @@ describe('ART Format Validation', () => {
     it('should detect incompatible trajectories', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId);
-      const stepId = logger.startStep(trajId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string);
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 0,
         agentPoints: 0,
@@ -735,8 +756,8 @@ describe('ART Format Validation', () => {
     it('should validate message array structure', () => {
       const logger = new TrajectoryLoggerService();
       
-      const trajId = logger.startTrajectory(mockRuntime.agentId);
-      const stepId = logger.startStep(trajId, {
+      const trajId = logger.startTrajectory(mockRuntime.agentId as string);
+      const stepId = logger.startStep(trajId!, {
         timestamp: Date.now(),
         agentBalance: 1000,
         agentPoints: 0,
@@ -782,16 +803,16 @@ describe('ART Format Validation', () => {
       }
 
       // System message should establish identity
-      const systemMsg = messages.find(m => m.role === 'system')!;
+      const systemMsg = messages.find((m: { role: string; content: string }) => m.role === 'system')!;
       expect(systemMsg.content.length).toBeGreaterThan(20);
 
       // User message should have context
-      const userMsg = messages.find(m => m.role === 'user')!;
+      const userMsg = messages.find((m: { role: string; content: string }) => m.role === 'user')!;
       expect(userMsg.content.length).toBeGreaterThan(50);
       expect(userMsg.content).toContain('$1000');
 
       // Assistant message should have decision
-      const assistantMsg = messages.find(m => m.role === 'assistant')!;
+      const assistantMsg = messages.find((m: { role: string; content: string }) => m.role === 'assistant')!;
       expect(assistantMsg.content.length).toBeGreaterThan(20);
       expect(assistantMsg.content.toLowerCase()).toContain('buy');
 
@@ -819,7 +840,7 @@ async function createCompleteARTTrajectory(
     }
   });
 
-  const stepId = logger.startStep(trajId, {
+  const stepId = logger.startStep(trajId!, {
     timestamp: Date.now(),
     agentBalance: 1000,
     agentPoints: 500,

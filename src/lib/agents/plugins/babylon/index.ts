@@ -201,7 +201,7 @@ export const babylonPlugin: Plugin = {
  * A2A connection is REQUIRED - will throw if connection fails
  */
 export async function initializeBabylonPlugin(
-  runtime: any,
+  runtime: { a2aClient?: unknown; registerPlugin?: (plugin: unknown) => void | Promise<void> },
   config: {
     endpoint: string
     credentials: {

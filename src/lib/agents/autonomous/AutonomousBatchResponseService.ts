@@ -249,11 +249,11 @@ Example: [true, false, true, false, false, true, ...]
 
 Array:`
 
-    // Use small model (gpt-oss-120b) for batch evaluation (frequent, small operation)
+    // Use small model (llama-3.1-8b-instant) for batch evaluation (frequent, small operation)
     const decisionText = await callGroqDirect({
       prompt,
       system: agent.agentSystem || undefined,
-      modelSize: 'small',  // Fast evaluation
+      modelSize: 'small',  // Free tier: Fast and efficient
       temperature: 0.6,
       maxTokens: 500
     })
@@ -327,11 +327,11 @@ Add value to the conversation.
 
 Generate ONLY the response text, nothing else.`
 
-      // Use small model (gpt-oss-120b) for response generation (frequent operation)
+      // Use small model (llama-3.1-8b-instant) for response generation (frequent operation)
       const responseContent = await callGroqDirect({
         prompt: responsePrompt,
         system: agent.agentSystem || undefined,
-        modelSize: 'small',  // Fast response generation
+        modelSize: 'small',  // Free tier: Fast response generation
         temperature: 0.8,
         maxTokens: 100
       })

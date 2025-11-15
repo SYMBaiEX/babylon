@@ -5,14 +5,17 @@
  */
 
 import type { TrajectoryLoggerService } from './TrajectoryLoggerService';
+import type { Action } from '@elizaos/core';
+import type { Plugin } from '@elizaos/core';
+import type { JsonValue } from '@/types/common';
 
 /**
  * Wrap an action with logging
  */
 export function wrapActionWithLogging(
-  action: any,
+  action: Action,
   _logger: TrajectoryLoggerService
-): any {
+): Action {
   // Placeholder implementation
   return action;
 }
@@ -21,9 +24,9 @@ export function wrapActionWithLogging(
  * Wrap all plugin actions
  */
 export function wrapPluginActions(
-  plugin: any,
+  plugin: Plugin,
   _logger: TrajectoryLoggerService
-): any {
+): Plugin {
   // Placeholder implementation
   return plugin;
 }
@@ -32,7 +35,7 @@ export function wrapPluginActions(
  * Log LLM call from action context
  */
 export function logLLMCallFromAction(
-  _actionContext: any,
+  _actionContext: Record<string, JsonValue>,
   _logger: TrajectoryLoggerService
 ): void {
   // Placeholder implementation
@@ -42,7 +45,7 @@ export function logLLMCallFromAction(
  * Log provider access from action context
  */
 export function logProviderFromAction(
-  _actionContext: any,
+  _actionContext: Record<string, JsonValue>,
   _logger: TrajectoryLoggerService
 ): void {
   // Placeholder implementation

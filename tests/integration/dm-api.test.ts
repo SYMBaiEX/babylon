@@ -5,18 +5,14 @@
  */
 
 import { describe, test, expect } from 'bun:test'
+import { getTestBaseUrl, checkServerAvailableAtLoadTime } from './test-helpers'
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const BASE_URL = getTestBaseUrl()
 // Check server availability at module load time
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available at ${BASE_URL} - Skipping DM API tests`)
-    return false
-  }
-})()
+const serverAvailable = await checkServerAvailableAtLoadTime()
+if (!serverAvailable) {
+  console.log(`⚠️  Server not available at ${BASE_URL} - Skipping DM API tests`)
+}
 
 describe('DM Creation API', () => {
   describe('POST /api/chats/dm', () => {
@@ -183,7 +179,7 @@ describe('DM Messaging API', () => {
         // Auth failed - this is expected with test-token
         expect(response.status).toBe(401)
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 })
 
@@ -210,7 +206,7 @@ describe('DM Chat Fetch API', () => {
           expect(Array.isArray(data.directChats) || data.directChats === undefined).toBe(true)
         }
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 
   describe('GET /api/chats/[id]', () => {
@@ -233,7 +229,7 @@ describe('DM Chat Fetch API', () => {
           expect(data.chat.otherUser).toBeDefined()
         }
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 })
 

@@ -14,7 +14,16 @@ console.log('🔍 Testing Swagger Auto-Generation...\n');
 
 // Test auto-generation
 console.log('1. Testing auto-generator (swagger-jsdoc)...');
-const autoSpec = await generateAutoSpec() as any;
+interface OpenAPISpec {
+  openapi?: string;
+  swagger?: string;
+  info?: Record<string, unknown>;
+  paths?: Record<string, Record<string, unknown>>;
+  tags?: Array<{ name: string; description?: string }>;
+  [key: string]: unknown;
+}
+
+const autoSpec = await generateAutoSpec() as OpenAPISpec;
 console.log(`   ✅ Auto-generated spec successfully`);
 console.log(`   📊 Paths found: ${Object.keys(autoSpec.paths || {}).length}`);
 console.log(`   🏷️  Tags: ${(autoSpec.tags || []).map((t: { name: string }) => t.name).join(', ')}`);
@@ -24,8 +33,11 @@ const paths = Object.keys(autoSpec.paths || {});
 if (paths.length > 0) {
   console.log('\n   📍 Documented endpoints:');
   paths.forEach((path: string) => {
-    const methods = Object.keys(autoSpec.paths[path]);
-    console.log(`      ${methods.join(', ').toUpperCase()} ${path}`);
+    const pathObj = autoSpec.paths?.[path];
+    if (pathObj) {
+      const methods = Object.keys(pathObj);
+      console.log(`      ${methods.join(', ').toUpperCase()} ${path}`);
+    }
   });
 }
 
@@ -56,7 +68,7 @@ if (autoCount > 0) {
 }
 
 // Show sample endpoint
-if (autoSpec.paths['/api/health']) {
+if (autoSpec.paths && autoSpec.paths['/api/health']) {
   console.log('\n📝 Sample auto-generated endpoint (/api/health):');
   console.log(JSON.stringify(autoSpec.paths['/api/health'], null, 2));
 }

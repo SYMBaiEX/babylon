@@ -275,13 +275,13 @@ const headers = {
 **Checklist**:
 
 ```bash
-# 1. Check environment variables
+# 1. Check environment variables (BABYLON_AGENT_ID defaults to "babylon-agent-alice" locally)
 echo $BABYLON_AGENT_ID
-echo $BABYLON_AGENT_SECRET
+echo $CRON_SECRET
 
 # 2. Verify secret format
 # Should be 64 character hex string
-echo $BABYLON_AGENT_SECRET | wc -c
+echo $CRON_SECRET | wc -c
 # Should output 65 (64 + newline)
 
 # 3. Test authentication endpoint

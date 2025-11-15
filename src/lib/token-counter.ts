@@ -142,24 +142,35 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   'gpt-3.5-turbo-16k': 16385,
   
   // Current Strategy Models - INPUT CONTEXT LIMITS (output is separate!)
-  'moonshotai/kimi-k2-instruct-0905': 262144,  // 260k INPUT, 16k OUTPUT (separate)
-  'moonshotai/Kimi-K2-Instruct-0905': 262144,  // 260k INPUT, 16k OUTPUT (separate)
-  'qwen/qwen3-32b': 131072,                    // 130k INPUT, 32k OUTPUT (separate)
-  'openai/gpt-oss-120b': 131072,               // 130k INPUT, 32k OUTPUT (separate)
-  'OpenPipe/Qwen3-14B-Instruct': 131072,       // 130k INPUT, 32k OUTPUT (separate)
+  'qwen/qwen3-32b': 131072,                    // 131k INPUT, 40,960 OUTPUT (separate) - Groq
+  'OpenPipe/Qwen3-14B-Instruct': 131072,       // 131k INPUT with YaRN, 32,768 native - W&B
+  'Qwen/Qwen2.5-32B-Instruct': 131072,         // 131k INPUT, 40,960 OUTPUT (separate)
   
-  // Groq Models - INPUT CONTEXT
-  'llama-3.3-70b-versatile': 131072,  // 130k INPUT, 32k OUTPUT (separate)
-  'llama-3.1-70b-versatile': 131072,  // 130k INPUT, 32k OUTPUT (separate)
-  'llama-3.1-8b-instant': 131072,     // 130k INPUT, 130k OUTPUT (special case!)
+  // Groq Models - INPUT CONTEXT (per https://console.groq.com/docs/models)
+  // Production Models
+  'llama-3.1-8b-instant': 131072,              // 131k INPUT, 131k OUTPUT (unique - same!)
+  'llama-3.3-70b-versatile': 131072,           // 131k INPUT, 32,768 OUTPUT
+  'llama-3.1-70b-versatile': 131072,           // 131k INPUT, 32,768 OUTPUT
+  'meta-llama/llama-guard-4-12b': 131072,      // 131k INPUT, 1,024 OUTPUT
+  'openai/gpt-oss-120b': 131072,               // 131k INPUT, 65,536 OUTPUT
+  'openai/gpt-oss-20b': 131072,                // 131k INPUT, 65,536 OUTPUT
+  'whisper-large-v3': 0,                       // Audio model (no text context)
+  'whisper-large-v3-turbo': 0,                 // Audio model (no text context)
+  // Preview Models
+  'meta-llama/llama-4-maverick-17b-128e-instruct': 131072,  // 131k INPUT, 8,192 OUTPUT
+  'meta-llama/llama-4-scout-17b-16e-instruct': 131072,      // 131k INPUT, 8,192 OUTPUT
+  'moonshotai/kimi-k2-instruct-0905': 262144,  // 262k INPUT, 16,384 OUTPUT
+  'openai/gpt-oss-safeguard-20b': 131072,      // 131k INPUT, 65,536 OUTPUT
+  // Legacy
   'mixtral-8x7b-32768': 32768,
-  'gemma-7b-it': 8192,
   
-  // Anthropic (for reference)
-  'claude-3-opus': 200000,
-  'claude-3-sonnet': 200000,
-  'claude-3-haiku': 200000,
-  'claude-3-5-sonnet-20241022': 200000,
+  // Anthropic - Claude 4.5 series (200K context)
+  'claude-sonnet-4-5': 200000,
+  'claude-sonnet-4-5-20250929': 200000,
+  'claude-haiku-4-5': 200000,
+  'claude-haiku-4-5-20251001': 200000,
+  'claude-opus-4-1': 200000,
+  'claude-opus-4-1-20250805': 200000,
 };
 
 /**
@@ -175,15 +186,15 @@ export function getModelTokenLimit(model: string): number {
  * Note: Input and output are SEPARATE limits on modern models
  * @param model Model name
  * @param outputTokens Expected output tokens (unused - kept for backwards compatibility)
- * @param safetyMargin Safety margin to reserve (default: 10%)
+ * @param safetyMargin Safety margin to reserve (default: 2% - very small since input/output are separate)
  */
 export function getSafeContextLimit(
   model: string,
   _outputTokens = 8000, // Kept for API compatibility, but input/output are separate
-  safetyMargin = 0.1
+  safetyMargin = 0.02 // Reduced from 10% to 2% - input/output are separate on modern models
 ): number {
   const inputLimit = getModelTokenLimit(model);
-  // Apply safety margin to input context (reserve 10% for overhead)
+  // Apply minimal safety margin to input context (most models have separate input/output limits)
   const safeLimit = Math.floor(inputLimit * (1 - safetyMargin));
   
   return Math.max(1000, safeLimit); // Minimum 1000 tokens

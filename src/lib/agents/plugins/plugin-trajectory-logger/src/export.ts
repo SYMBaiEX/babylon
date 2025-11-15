@@ -7,7 +7,8 @@
  * NOTE: Requires trajectory schema that's not yet in main Prisma
  */
 
-import type { Trajectory as _Trajectory } from './types';
+import type { Prisma } from '@prisma/client';
+import type { Trajectory } from './types';
 
 export interface ExportOptions {
   // Dataset configuration
@@ -47,44 +48,53 @@ export async function exportToHuggingFace(
   try {
     const { prisma } = await import('@/lib/prisma');
     
-    // Build query
-    const where: any = {
-      isTrainingData: true
-    };
-    
-    if (options.startDate) {
-      where.startTime = { ...where.startTime, gte: options.startDate };
-    }
-    if (options.endDate) {
-      where.startTime = { ...where.startTime, lte: options.endDate };
-    }
-    if (options.agentIds) {
-      where.agentId = { in: options.agentIds };
-    }
-    if (options.scenarioIds) {
-      where.scenarioId = { in: options.scenarioIds };
-    }
-    if (options.minReward !== undefined) {
-      where.totalReward = { ...where.totalReward, gte: options.minReward };
-    }
-    if (options.maxReward !== undefined) {
-      where.totalReward = { ...where.totalReward, lte: options.maxReward };
-    }
-    if (options.includeJudged) {
-      where.aiJudgeReward = { not: null };
+    // Build query using proper Prisma type
+    const where = buildWhereClause(options);
+
+    interface TrajectoryRecord {
+      trajectoryId: string;
+      agentId: string;
+      episodeId: string | null;
+      scenarioId: string | null;
+      startTime: Date;
+      durationMs: number;
+      stepsJson: string;
+      metricsJson: string;
+      metadataJson: string;
+      totalReward: number;
+      finalStatus: string;
+      finalPnL: number | null;
+      aiJudgeReward: number | null;
+      aiJudgeReasoning: string | null;
     }
 
-    // Fetch trajectories
-    const trajectories = await (prisma as any).trajectories.findMany({
+    // Fetch trajectories using Prisma directly
+    const trajectories = await prisma.trajectory.findMany({
       where,
       orderBy: { startTime: 'desc' },
-      take: options.maxTrajectories || 10000
-    });
+      take: options.maxTrajectories || 10000,
+      select: {
+        trajectoryId: true,
+        agentId: true,
+        episodeId: true,
+        scenarioId: true,
+        startTime: true,
+        durationMs: true,
+        stepsJson: true,
+        metricsJson: true,
+        metadataJson: true,
+        totalReward: true,
+        finalStatus: true,
+        finalPnL: true,
+        aiJudgeReward: true,
+        aiJudgeReasoning: true,
+      }
+    }) as TrajectoryRecord[];
 
     console.log(`Exporting ${trajectories.length} trajectories...`);
 
     // Transform to training format
-    const dataset = trajectories.map((traj: any) => transformForTraining(traj));
+    const dataset = trajectories.map((traj: TrajectoryRecord) => transformForTraining(traj));
 
     // Split into train/validation/test
     const splits = splitDataset(dataset, options.splitRatio);
@@ -107,14 +117,102 @@ export async function exportToHuggingFace(
 /**
  * Transform trajectory to training format
  */
-function transformForTraining(traj: any): any {
-  const steps = JSON.parse(traj.stepsJson);
-  const metrics = JSON.parse(traj.metricsJson);
-  const metadata = JSON.parse(traj.metadataJson);
+interface TrajectoryRecord {
+  trajectoryId: string;
+  agentId: string;
+  episodeId: string | null;
+  scenarioId: string | null;
+  startTime: Date;
+  durationMs: number;
+  stepsJson: string;
+  metricsJson: string;
+  metadataJson: string;
+  totalReward: number;
+  finalStatus: string;
+  finalPnL: number | null;
+  aiJudgeReward: number | null;
+  aiJudgeReasoning: string | null;
+}
+
+interface TrajectoryStep {
+  stepNumber: number;
+  timestamp: number;
+  environmentState: Record<string, unknown>;
+  observation: Record<string, unknown>;
+  llmCalls: Array<{
+    model: string;
+    systemPrompt: string;
+    userPrompt: string;
+    response: string;
+    reasoning?: string;
+    temperature: number;
+    purpose: string;
+  }>;
+  action: {
+    actionType: string;
+    parameters: Record<string, unknown>;
+    success: boolean;
+    result?: Record<string, unknown>;
+    error?: string;
+  };
+  reward: number;
+  reasoning?: string;
+}
+
+interface TrainingTrajectory extends Record<string, unknown> {
+  trajectory_id: string;
+  agent_id: string;
+  episode_id: string | null;
+  scenario_id: string | null;
+  start_time: string;
+  duration_ms: number;
+  steps: Array<{
+    step_number: number;
+    timestamp: number;
+    environment_state: Record<string, unknown>;
+    observation: Record<string, unknown>;
+    llm_calls: Array<{
+      model: string;
+      system_prompt: string;
+      user_prompt: string;
+      response: string;
+      reasoning?: string;
+      temperature: number;
+      purpose: string;
+    }>;
+    action: {
+      type: string;
+      parameters: Record<string, unknown>;
+      success: boolean;
+      result?: Record<string, unknown>;
+      error?: string;
+    };
+    reward: number;
+    reasoning?: string;
+  }>;
+  total_reward: number;
+  final_status: string;
+  final_pnl: number | null;
+  ai_judge_reward: number | null;
+  ai_judge_reasoning: string | null;
+  metrics: {
+    episode_length: number;
+    trades_executed?: number;
+    posts_created?: number;
+    messages_handled?: number;
+    error_count?: number;
+  };
+  metadata: Record<string, unknown>;
+}
+
+function transformForTraining(traj: TrajectoryRecord): TrainingTrajectory {
+  const steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
+  const metrics = JSON.parse(traj.metricsJson) as Record<string, unknown>;
+  const metadata = JSON.parse(traj.metadataJson) as Record<string, unknown>;
   
   return {
     // Identifiers
-    trajectory_id: traj.trajectoriesId,
+    trajectory_id: traj.trajectoryId,
     agent_id: traj.agentId,
     episode_id: traj.episodeId,
     scenario_id: traj.scenarioId,
@@ -124,7 +222,7 @@ function transformForTraining(traj: any): any {
     duration_ms: traj.durationMs,
     
     // Steps (full trajectory)
-    steps: steps.map((step: any) => ({
+    steps: steps.map((step: TrajectoryStep) => ({
       step_number: step.stepNumber,
       timestamp: step.timestamp,
       
@@ -133,7 +231,7 @@ function transformForTraining(traj: any): any {
       observation: step.observation,
       
       // Agent cognition
-      llm_calls: step.llmCalls.map((call: any) => ({
+      llm_calls: step.llmCalls.map((call) => ({
         model: call.model,
         system_prompt: call.systemPrompt,
         user_prompt: call.userPrompt,
@@ -168,11 +266,11 @@ function transformForTraining(traj: any): any {
     
     // Metrics
     metrics: {
-      episode_length: metrics.episodeLength,
-      trades_executed: metrics.tradesExecuted,
-      posts_created: metrics.postsCreated,
-      messages_handled: metrics.messagesHandled,
-      error_count: metrics.errorCount
+      episode_length: (metrics.episodeLength as number) || 0,
+      trades_executed: metrics.tradesExecuted as number | undefined,
+      posts_created: metrics.postsCreated as number | undefined,
+      messages_handled: metrics.messagesHandled as number | undefined,
+      error_count: metrics.errorCount as number | undefined
     },
     
     // Metadata
@@ -183,10 +281,10 @@ function transformForTraining(traj: any): any {
 /**
  * Split dataset into train/val/test
  */
-function splitDataset(
-  data: any[],
+function splitDataset<T>(
+  data: T[],
   ratio?: { train: number; validation: number; test: number }
-): { train: any[]; validation: any[]; test: any[] } {
+): { train: T[]; validation: T[]; test: T[] } {
   const defaultRatio = { train: 0.8, validation: 0.1, test: 0.1 };
   const { train, validation, test: testRatio } = ratio || defaultRatio;
   
@@ -209,8 +307,8 @@ function splitDataset(
 /**
  * Export to JSONL format
  */
-async function exportToJSONL(
-  splits: { train: any[]; validation: any[]; test: any[] },
+async function exportToJSONL<T extends Record<string, unknown>>(
+  splits: { train: T[]; validation: T[]; test: T[] },
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
@@ -226,7 +324,7 @@ async function exportToJSONL(
       if (data.length === 0) continue;
       
       const filePath = path.join(exportDir, `${splitName}.jsonl`);
-      const lines = data.map((item: any) => JSON.stringify(item)).join('\n');
+      const lines = data.map((item: T) => JSON.stringify(item)).join('\n');
       await fs.writeFile(filePath, lines, 'utf-8');
       
       console.log(`Exported ${data.length} trajectories to ${filePath}`);
@@ -252,8 +350,8 @@ async function exportToJSONL(
 /**
  * Export to Parquet format (more efficient for large datasets)
  */
-async function exportToParquet(
-  splits: { train: any[]; validation: any[]; test: any[] },
+async function exportToParquet<T extends Record<string, unknown>>(
+  splits: { train: T[]; validation: T[]; test: T[] },
   options: ExportOptions
 ): Promise<ExportResult> {
   // This would require Apache Arrow/Parquet libraries
@@ -298,7 +396,7 @@ export async function exportGroupedByScenario(
     const { prisma } = await import('@/lib/prisma');
     
     // Get all scenarios
-    const scenarios = await (prisma as any).trajectories.findMany({
+    const scenarios = await prisma.trajectory.findMany({
       where: {
         scenarioId: { not: null },
         ...buildWhereClause(options)
@@ -320,7 +418,7 @@ export async function exportGroupedByScenario(
       if (!scenarioId) continue;
       
       // Get all trajectories for this scenario
-      const trajectories = await (prisma as any).trajectories.findMany({
+      const trajectories = await prisma.trajectory.findMany({
         where: {
           scenarioId,
           ...buildWhereClause(options)
@@ -330,10 +428,10 @@ export async function exportGroupedByScenario(
 
       if (trajectories.length < 2) continue; // Need at least 2 for comparison
 
-      const transformed = trajectories.map((traj: any) => transformForTraining(traj));
+      const transformed = trajectories.map((traj) => transformForTraining(traj));
       
       const filePath = path.join(exportDir, `scenario-${scenarioId}.jsonl`);
-      const lines = transformed.map((item: any) => JSON.stringify(item)).join('\n');
+      const lines = transformed.map((item) => JSON.stringify(item)).join('\n');
       await fs.writeFile(filePath, lines, 'utf-8');
       
       console.log(`Exported ${trajectories.length} trajectories for scenario ${scenarioId}`);
@@ -364,20 +462,20 @@ export async function exportForOpenPipeART(
     const { prisma } = await import('@/lib/prisma');
     const { toARTTrajectory } = await import('./art-format');
     
-    const trajectories = await (prisma as any).trajectories.findMany({
+    const trajectories = await prisma.trajectory.findMany({
       where: buildWhereClause(options),
       take: options.maxTrajectories,
       orderBy: { startTime: 'asc' }
     });
 
-    const artFormat = trajectories.map((traj: any) => {
+    const artFormat = trajectories.map((traj: typeof trajectories[0]) => {
       const steps = JSON.parse(traj.stepsJson);
       const metrics = JSON.parse(traj.metricsJson);
       const metadata = JSON.parse(traj.metadataJson);
       
       const trajectory = {
-        trajectoryId: traj.trajectoriesId,
-        agentId: traj.agentId,
+        trajectoryId: traj.trajectoryId,
+        agentId: traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
         scenarioId: traj.scenarioId,
         groupIndex: traj.batchId ? parseInt(traj.batchId.split('-').pop() || '0') : undefined,
         startTime: traj.startTime.getTime(),
@@ -390,7 +488,7 @@ export async function exportForOpenPipeART(
         metadata
       };
       
-      return toARTTrajectory(trajectory as any);
+      return toARTTrajectory(trajectory as Trajectory);
     });
 
     const fs = await import('node:fs/promises');
@@ -399,7 +497,7 @@ export async function exportForOpenPipeART(
     await fs.mkdir(exportDir, { recursive: true });
     
     const filePath = path.join(exportDir, 'trajectories.jsonl');
-    const lines = artFormat.map((item: any) => JSON.stringify(item)).join('\n');
+    const lines = artFormat.map((item) => JSON.stringify(item)).join('\n');
     await fs.writeFile(filePath, lines, 'utf-8');
     
     console.log(`Exported ${artFormat.length} trajectories in OpenPipe ART format`);
@@ -429,7 +527,7 @@ export async function exportGroupedForGRPO(
     const { groupTrajectories, toARTTrajectory } = await import('./art-format');
     
     // Get all scenarios
-    const scenarios = await (prisma as any).trajectories.groupBy({
+    const scenarios = await prisma.trajectory.groupBy({
       by: ['scenarioId'],
       where: buildWhereClause(options),
       _count: true
@@ -445,7 +543,7 @@ export async function exportGroupedForGRPO(
     for (const { scenarioId, _count } of scenarios) {
       if (!scenarioId || _count < 2) continue; // Need at least 2 for comparison
       
-      const trajectories = await (prisma as any).trajectories.findMany({
+      const trajectories = await prisma.trajectory.findMany({
         where: {
           scenarioId,
           ...buildWhereClause(options)
@@ -454,9 +552,9 @@ export async function exportGroupedForGRPO(
       });
 
       // Convert to trajectory objects
-      const trajObjects = trajectories.map((traj: any) => ({
-        trajectoryId: traj.trajectoriesId,
-        agentId: traj.agentId,
+      const trajObjects = trajectories.map((traj) => ({
+        trajectoryId: traj.trajectoryId,
+        agentId: traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
         scenarioId: traj.scenarioId,
         groupIndex: trajectories.indexOf(traj),
         startTime: traj.startTime.getTime(),
@@ -469,7 +567,7 @@ export async function exportGroupedForGRPO(
         metadata: JSON.parse(traj.metadataJson)
       }));
 
-      const groups = groupTrajectories(trajObjects as any);
+      const groups = groupTrajectories(trajObjects as Trajectory[]);
       
       for (const group of groups) {
         const artFormat = {
@@ -505,22 +603,34 @@ export async function exportGroupedForGRPO(
 /**
  * Helper to build Prisma where clause
  */
-function buildWhereClause(options: ExportOptions): any {
-  const where: any = {
+function buildWhereClause(options: ExportOptions): Prisma.TrajectoryWhereInput {
+  const where: Prisma.TrajectoryWhereInput = {
     isTrainingData: true
   };
   
-  if (options.startDate) {
-    where.startTime = { ...where.startTime, gte: options.startDate };
-  }
-  if (options.endDate) {
-    where.startTime = { ...where.startTime, lte: options.endDate };
+  if (options.startDate || options.endDate) {
+    where.startTime = {};
+    if (options.startDate) {
+      where.startTime.gte = options.startDate;
+    }
+    if (options.endDate) {
+      where.startTime.lte = options.endDate;
+    }
   }
   if (options.agentIds) {
     where.agentId = { in: options.agentIds };
   }
   if (options.scenarioIds) {
     where.scenarioId = { in: options.scenarioIds };
+  }
+  if (options.minReward !== undefined || options.maxReward !== undefined) {
+    where.totalReward = {};
+    if (options.minReward !== undefined) {
+      where.totalReward.gte = options.minReward;
+    }
+    if (options.maxReward !== undefined) {
+      where.totalReward.lte = options.maxReward;
+    }
   }
   if (options.includeJudged) {
     where.aiJudgeReward = { not: null };

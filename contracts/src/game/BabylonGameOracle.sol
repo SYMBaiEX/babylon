@@ -322,14 +322,39 @@ contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
         );
         
         for (uint256 i = 0; i < length; i++) {
-            this.revealBabylonGame(
-                sessionIds[i],
-                outcomes[i],
-                salts[i],
-                teeQuotes[i],
-                winnersArrays[i],
-                totalPayouts[i]
-            );
+            // Internal reveal logic (not external call to preserve msg.sender)
+            bytes32 sessionId = sessionIds[i];
+            bool outcome = outcomes[i];
+            bytes32 salt = salts[i];
+            bytes memory teeQuote = teeQuotes[i];
+            address[] calldata winners = winnersArrays[i];
+            uint256 totalPayout = totalPayouts[i];
+            
+            // Validate session exists
+            string memory questionId = sessionIdToQuestionId[sessionId];
+            if (bytes(questionId).length == 0) revert SessionNotFound(sessionId);
+            
+            // Update parent contract's game state
+            GameOutcome storage game = games[sessionId];
+            require(game.startTime > 0, "Game not found");
+            require(!game.finalized, "Already finalized");
+            
+            // Verify commitment
+            bytes32 expectedCommitment = keccak256(abi.encode(outcome, salt));
+            require(game.commitment == expectedCommitment, "Commitment mismatch");
+            
+            // Update game state
+            game.outcome = outcome;
+            game.salt = salt;
+            game.endTime = block.timestamp;
+            game.teeQuote = teeQuote;
+            _babylonWinners[sessionId] = winners;
+            game.totalPayout = totalPayout;
+            game.finalized = true;
+            
+            totalGamesRevealed++;
+            
+            emit BabylonGameRevealed(sessionId, questionId, outcome, winners.length);
         }
     }
     

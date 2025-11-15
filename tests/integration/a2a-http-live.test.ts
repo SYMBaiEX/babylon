@@ -11,8 +11,8 @@ import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { createHttpA2AClient } from '@/lib/a2a/client'
 
-const SERVER_RUNNING = process.env.TEST_LIVE_SERVER === 'true'
 const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+let SERVER_RUNNING = false
 
 describe('A2A HTTP - Live Server Tests', () => {
   let testUserId: string
@@ -20,8 +20,27 @@ describe('A2A HTTP - Live Server Tests', () => {
   let a2aClient: ReturnType<typeof createHttpA2AClient>
 
   beforeAll(async () => {
-    if (!SERVER_RUNNING) {
-      console.log('⚠️  Skipping live server tests (set TEST_LIVE_SERVER=true to enable)')
+    // Check if server is running
+    try {
+      const healthResponse = await fetch(`${BASE_URL}/api/health`, { 
+        signal: AbortSignal.timeout(1000) 
+      })
+      if (healthResponse.ok) {
+        SERVER_RUNNING = true
+      } else {
+        console.log('⚠️  Server not running - skipping live server tests')
+        console.log('   Run `bun dev` to start the server for these tests')
+        return
+      }
+    } catch (error) {
+      console.log('⚠️  Could not connect to server - skipping live server tests')
+      console.log('   Run `bun dev` to start the server for these tests')
+      return
+    }
+    
+    if (process.env.SKIP_LIVE_SERVER === 'true') {
+      console.log('⚠️  Skipping live server tests (SKIP_LIVE_SERVER=true)')
+      SERVER_RUNNING = false
       return
     }
 
@@ -60,6 +79,7 @@ describe('A2A HTTP - Live Server Tests', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     if (!SERVER_RUNNING) return
 
     // Cleanup
@@ -72,7 +92,8 @@ describe('A2A HTTP - Live Server Tests', () => {
     it('should fetch agent card', async () => {
       if (!SERVER_RUNNING) return
 
-      const response = await fetch(`${BASE_URL}/.well-known/agent-card.json`)
+      // Next.js routes this as /.well-known/agent-card (without .json extension)
+      const response = await fetch(`${BASE_URL}/.well-known/agent-card`)
       expect(response.ok).toBe(true)
 
       const card = await response.json()
@@ -162,7 +183,9 @@ describe('A2A HTTP - Live Server Tests', () => {
       const result = await a2aClient.proposeCoalition({
         name: 'Test Coalition HTTP',
         strategy: 'test-strategy',
-        targetMarket: testMarketId || 'test-market'
+        targetMarket: testMarketId || 'test-market',
+        minMembers: 2,
+        maxMembers: 10
       })
       
       expect(result).toBeDefined()
@@ -182,9 +205,11 @@ describe('A2A HTTP - Live Server Tests', () => {
 
       const result = await a2aClient.shareAnalysis({
         marketId: testMarketId,
+        analyst: 'test-agent-http',
         prediction: 0.7,
         confidence: 0.85,
         reasoning: 'HTTP test analysis',
+        dataPoints: {},
         timestamp: Date.now()
       })
       

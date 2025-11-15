@@ -34,25 +34,20 @@
 import { describe, test, expect } from 'bun:test';
 import type { Question } from '@/shared/types';
 import { QuestionManager } from '../QuestionManager';
+import { BabylonLLMClient } from '@/generator/llm/openai-client';
 
 // Mock LLM client for testing
-const mockLLM = {
-  generateJSON: async () => ({ questions: [] }),
-  client: null,
-  provider: 'openai' as const,
-  groqKey: '',
-  openaiKey: '',
-  anthropicKey: '',
-  model: 'gpt-4',
-  temperature: 0.7,
-  maxTokens: 2000,
-  generateText: async () => '',
-  generateStream: async function* () { yield ''; },
-} as unknown as typeof import('../../generator/llm/openai-client').BabylonLLMClient;
+class MockLLMClient extends BabylonLLMClient {
+  async generateJSON<T>(): Promise<T> {
+    return { questions: [] } as T;
+  }
+}
+
+const mockLLM = new MockLLMClient();
 
 describe('QuestionManager', () => {
   test('detects questions that should be resolved', () => {
-    const manager = new QuestionManager(mockLLM as any);
+    const manager = new QuestionManager(mockLLM);
     const questions: Question[] = [
       {
         id: 1,
@@ -87,7 +82,7 @@ describe('QuestionManager', () => {
   });
 
   test('calculates days until resolution correctly', () => {
-    const manager = new QuestionManager(mockLLM as any);
+    const manager = new QuestionManager(mockLLM);
     const question: Question = {
       id: 1,
       text: 'Test Question',
@@ -122,7 +117,7 @@ describe('QuestionManager', () => {
   });
 
   test('tracks question status transitions', () => {
-    const manager = new QuestionManager(mockLLM as any);
+    const manager = new QuestionManager(mockLLM);
     const question: Question = {
       id: 1,
       text: 'Test Question',
@@ -142,7 +137,7 @@ describe('QuestionManager', () => {
   });
 
   test('filters active vs resolved questions', () => {
-    const manager = new QuestionManager(mockLLM as any);
+    const manager = new QuestionManager(mockLLM);
     const questions: Question[] = [
       {
         id: 1,

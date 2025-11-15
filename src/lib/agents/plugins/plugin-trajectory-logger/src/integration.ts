@@ -5,13 +5,14 @@
  */
 
 import type { TrajectoryLoggerService } from './TrajectoryLoggerService';
+import type { JsonValue } from '@/types/common';
 
 /**
  * Start an autonomous tick
  */
 export function startAutonomousTick(
   _logger: TrajectoryLoggerService,
-  _context: any
+  _context: Record<string, JsonValue>
 ): string {
   // Placeholder implementation
   return '';
@@ -32,8 +33,8 @@ export function endAutonomousTick(
  */
 export async function loggedLLMCall(
   _logger: TrajectoryLoggerService,
-  _options: any
-): Promise<any> {
+  _options: Record<string, JsonValue>
+): Promise<Record<string, JsonValue>> {
   // Placeholder implementation
   return {};
 }
@@ -43,7 +44,7 @@ export async function loggedLLMCall(
  */
 export function logProviderAccess(
   _logger: TrajectoryLoggerService,
-  _access: any
+  _access: Record<string, JsonValue>
 ): void {
   // Placeholder implementation
 }
@@ -52,10 +53,10 @@ export function logProviderAccess(
  * Wrap function with trajectory logging
  */
 export function withTrajectoryLogging<T>(
-  fn: (...args: any[]) => T,
+  fn: (...args: unknown[]) => T,
   _logger: TrajectoryLoggerService
-): (...args: any[]) => T {
-  return (...args: any[]) => {
+): (...args: unknown[]) => T {
+  return (...args: unknown[]) => {
     // Placeholder implementation
     return fn(...args);
   };

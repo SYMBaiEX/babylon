@@ -18,27 +18,29 @@ export class BenchmarkValidator {
   /**
    * Validate a benchmark snapshot
    */
-  static validate(snapshot: any): BenchmarkValidationResult {
+  static validate(snapshot: unknown): BenchmarkValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     
     // 1. Check required top-level fields
-    if (!snapshot) {
-      errors.push('Snapshot is null or undefined');
+    if (!snapshot || typeof snapshot !== 'object') {
+      errors.push('Snapshot is null, undefined, or not an object');
       return { valid: false, errors, warnings };
     }
     
-    if (!snapshot.id) errors.push('Missing required field: id');
-    if (!snapshot.version) errors.push('Missing required field: version');
-    if (typeof snapshot.duration !== 'number') errors.push('Missing or invalid field: duration');
-    if (typeof snapshot.tickInterval !== 'number') errors.push('Missing or invalid field: tickInterval');
-    if (!snapshot.initialState) errors.push('Missing required field: initialState');
-    if (!Array.isArray(snapshot.ticks)) errors.push('Missing or invalid field: ticks (must be array)');
-    if (!snapshot.groundTruth) errors.push('Missing required field: groundTruth');
+    const snap = snapshot as Record<string, unknown>;
+    
+    if (!snap.id) errors.push('Missing required field: id');
+    if (!snap.version) errors.push('Missing required field: version');
+    if (typeof snap.duration !== 'number') errors.push('Missing or invalid field: duration');
+    if (typeof snap.tickInterval !== 'number') errors.push('Missing or invalid field: tickInterval');
+    if (!snap.initialState) errors.push('Missing required field: initialState');
+    if (!Array.isArray(snap.ticks)) errors.push('Missing or invalid field: ticks (must be array)');
+    if (!snap.groundTruth) errors.push('Missing required field: groundTruth');
     
     // 2. Validate initial state
-    if (snapshot.initialState) {
-      const state = snapshot.initialState;
+    if (snap.initialState && typeof snap.initialState === 'object') {
+      const state = snap.initialState as Record<string, unknown>;
       
       if (typeof state.tick !== 'number') errors.push('initialState.tick must be a number');
       if (state.tick !== 0) warnings.push('initialState.tick should be 0');
@@ -57,36 +59,42 @@ export class BenchmarkValidator {
     }
     
     // 3. Validate ticks
-    if (Array.isArray(snapshot.ticks)) {
-      if (snapshot.ticks.length === 0) {
+    if (Array.isArray(snap.ticks)) {
+      if (snap.ticks.length === 0) {
         warnings.push('Ticks array is empty');
       }
       
-      snapshot.ticks.forEach((tick: any, index: number) => {
-        if (typeof tick.number !== 'number') {
+      snap.ticks.forEach((tick: unknown, index: number) => {
+        if (!tick || typeof tick !== 'object') {
+          errors.push(`Tick ${index}: invalid tick object`);
+          return;
+        }
+        const tickObj = tick as Record<string, unknown>;
+        if (typeof tickObj.number !== 'number') {
           errors.push(`Tick ${index}: missing or invalid 'number' field`);
         }
         
-        if (!Array.isArray(tick.events)) {
+        if (!Array.isArray(tickObj.events)) {
           errors.push(`Tick ${index}: events must be an array`);
         }
         
-        if (!tick.state) {
+        if (!tickObj.state) {
           errors.push(`Tick ${index}: missing state`);
         }
       });
       
       // Check tick numbering is sequential
-      for (let i = 0; i < snapshot.ticks.length; i++) {
-        if (snapshot.ticks[i].number !== i) {
-          warnings.push(`Tick ${i}: number ${snapshot.ticks[i].number} doesn't match index`);
+      for (let i = 0; i < snap.ticks.length; i++) {
+        const tick = snap.ticks[i] as Record<string, unknown> | undefined;
+        if (tick && typeof tick.number === 'number' && tick.number !== i) {
+          warnings.push(`Tick ${i}: number ${tick.number} doesn't match index`);
         }
       }
     }
     
     // 4. Validate ground truth
-    if (snapshot.groundTruth) {
-      const gt = snapshot.groundTruth;
+    if (snap.groundTruth && typeof snap.groundTruth === 'object') {
+      const gt = snap.groundTruth as Record<string, unknown>;
       
       if (!gt.marketOutcomes || typeof gt.marketOutcomes !== 'object') {
         errors.push('groundTruth.marketOutcomes must be an object');
@@ -106,12 +114,14 @@ export class BenchmarkValidator {
     }
     
     // 5. Cross-validate: markets in initialState should have outcomes in groundTruth
-    if (snapshot.initialState && snapshot.groundTruth) {
-      const markets = snapshot.initialState.predictionMarkets || [];
-      const outcomes = snapshot.groundTruth.marketOutcomes || {};
+    if (snap.initialState && typeof snap.initialState === 'object' && snap.groundTruth && typeof snap.groundTruth === 'object') {
+      const initialState = snap.initialState as Record<string, unknown>;
+      const groundTruth = snap.groundTruth as Record<string, unknown>;
+      const markets = (Array.isArray(initialState.predictionMarkets) ? initialState.predictionMarkets : []) as Array<Record<string, unknown>>;
+      const outcomes = (groundTruth.marketOutcomes && typeof groundTruth.marketOutcomes === 'object' ? groundTruth.marketOutcomes : {}) as Record<string, unknown>;
       
-      markets.forEach((market: any) => {
-        if (market.id && !(market.id in outcomes)) {
+      markets.forEach((market) => {
+        if (market.id && typeof market.id === 'string' && !(market.id in outcomes)) {
           warnings.push(`Market ${market.id} in initialState but no outcome in groundTruth`);
         }
       });
@@ -133,20 +143,21 @@ export class BenchmarkValidator {
   /**
    * Quick sanity check (fast, minimal validation)
    */
-  static sanityCheck(snapshot: any): boolean {
+  static sanityCheck(snapshot: unknown): snapshot is BenchmarkGameSnapshot {
+    if (!snapshot || typeof snapshot !== 'object') return false;
+    const snap = snapshot as Record<string, unknown>;
     return !!(
-      snapshot &&
-      snapshot.id &&
-      snapshot.initialState &&
-      Array.isArray(snapshot.ticks) &&
-      snapshot.groundTruth
+      snap.id &&
+      snap.initialState &&
+      Array.isArray(snap.ticks) &&
+      snap.groundTruth
     );
   }
   
   /**
    * Validate and throw if invalid
    */
-  static validateOrThrow(snapshot: any): asserts snapshot is BenchmarkGameSnapshot {
+  static validateOrThrow(snapshot: unknown): asserts snapshot is BenchmarkGameSnapshot {
     const result = this.validate(snapshot);
     
     if (!result.valid) {

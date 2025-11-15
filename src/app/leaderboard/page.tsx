@@ -64,24 +64,22 @@ export default function LeaderboardPage() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(
-        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
-      ).catch((err: Error) => {
-        setError(err.message)
-        setLoading(false)
-        throw err
-      })
+      try {
+        const response = await fetch(
+          `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
+        )
 
-      if (!response.ok) {
-        const error = new Error('Failed to fetch leaderboard')
-        setError(error.message)
+        if (!response.ok) {
+          throw new Error('Failed to fetch leaderboard')
+        }
+
+        const data = await response.json()
+        setLeaderboardData(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch leaderboard')
+      } finally {
         setLoading(false)
-        throw error
       }
-
-      const data = await response.json()
-      setLeaderboardData(data)
-      setLoading(false)
     }
 
     fetchLeaderboard()

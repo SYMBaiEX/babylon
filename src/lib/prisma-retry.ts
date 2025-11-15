@@ -157,11 +157,19 @@ export async function withRetry<T>(
       
       // Check if error is retryable
       if (!isRetryableError(error)) {
-        logger.warn(
-          `Non-retryable error in operation`,
-          extractErrorDetails(lastError, operationName),
-          'PrismaRetry'
-        );
+        // Suppress logging for known JsonBody enum issues with $queryRaw (these are expected when using retry proxy)
+        // These errors occur when $queryRaw is used with Prisma.sql template literals through the proxy
+        // Tests should use prismaBase.$queryRawUnsafe() instead to avoid this issue
+        const isJsonBodyError = lastError.message?.includes('JsonBody') || 
+                                lastError.message?.includes('$queryRaw');
+        
+        if (!isJsonBodyError) {
+          logger.warn(
+            `Non-retryable error in operation`,
+            extractErrorDetails(lastError, operationName),
+            'PrismaRetry'
+          );
+        }
         throw error;
       }
 
@@ -208,6 +216,11 @@ export function createRetryProxy<T extends object>(
   prismaClient: T,
   defaultOptions?: RetryOptions
 ): T {
+  // Ensure we have a valid client to wrap
+  if (!prismaClient || typeof prismaClient !== 'object') {
+    throw new Error('Cannot create retry proxy: Prisma client is not initialized or invalid');
+  }
+
   // Methods that should NOT be wrapped with retry logic
   // These are low-level Prisma operations with special serialization requirements
   const EXCLUDED_METHODS = new Set([
@@ -237,20 +250,32 @@ export function createRetryProxy<T extends object>(
       
       const model = target[modelName as keyof T];
       
-      // If not a model, return as-is
-      if (!model || typeof model !== 'object') {
+      // If undefined or null, return as-is (don't proxy)
+      if (model === undefined || model === null) {
+        return model;
+      }
+      
+      // If not an object, return as-is
+      if (typeof model !== 'object') {
         return model;
       }
 
       // Return proxy for model methods
+      // Use Reflect to properly access all properties including non-enumerable ones
       return new Proxy(model as Record<string | symbol, unknown>, {
         get(modelTarget, methodName: string | symbol) {
           // Pass through Symbol properties without wrapping
           if (typeof methodName === 'symbol') {
-            return modelTarget[methodName];
+            return Reflect.get(modelTarget, methodName);
           }
           
-          const method = modelTarget[methodName];
+          // Use Reflect.get to access the method (handles both enumerable and non-enumerable properties)
+          const method = Reflect.get(modelTarget, methodName);
+          
+          // If undefined, return undefined
+          if (method === undefined) {
+            return undefined;
+          }
           
           // If not a function, return as-is
           if (typeof method !== 'function') {

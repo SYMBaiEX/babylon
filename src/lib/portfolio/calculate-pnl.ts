@@ -2,7 +2,7 @@
  * Server-side portfolio P&L calculation
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 export interface PortfolioPnLSnapshot {
   lifetimePnL: number

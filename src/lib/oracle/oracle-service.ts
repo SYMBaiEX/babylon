@@ -108,10 +108,34 @@ export class OracleService {
         createdAt: new Date()
       })
 
-      // Call contract
+      // Call contract - verify method exists
       if (!this.contract?.commitBabylonGame) {
         throw new Error('commitBabylonGame not available on contract');
       }
+      
+      // Verify contract has code at address
+      const code = await this.provider.getCode(this.config.oracleAddress)
+      if (!code || code === '0x' || code === '0x0') {
+        throw new Error(`No contract code found at address ${this.config.oracleAddress}`)
+      }
+      
+      // Encode the function call to verify it works
+      try {
+        const iface = this.contract.interface
+        const data = iface.encodeFunctionData('commitBabylonGame', [
+          questionId,
+          questionNumber,
+          question,
+          commitment,
+          category
+        ])
+        if (!data || data === '0x') {
+          throw new Error('Failed to encode function call - method may not exist in contract ABI')
+        }
+      } catch (encodeError) {
+        throw new Error(`Failed to encode commitBabylonGame call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`)
+      }
+      
       const tx = await this.contract.commitBabylonGame(
         questionId,
         questionNumber,
@@ -203,7 +227,14 @@ export class OracleService {
       // Retrieve stored commitment
       const stored = await CommitmentStore.retrieve(questionId)
       if (!stored) {
-        throw new Error(`No commitment found for question ${questionId}`)
+        const error = new Error(`No commitment found for question ${questionId}`)
+        // Log missing commitment as warning (expected business logic error)
+        logger.warn(
+          'Cannot reveal game - no commitment found',
+          { questionId },
+          'OracleService'
+        )
+        throw error
       }
 
       // Call contract
@@ -256,11 +287,15 @@ export class OracleService {
         gasUsed: receipt.gasUsed.toString()
       }
     } catch (error) {
-      logger.error(
-        'Failed to reveal game',
-        { error, questionId },
-        'OracleService'
-      )
+      // Only log as ERROR if it's not a missing commitment (which is already logged as WARN above)
+      const isMissingCommitment = error instanceof Error && error.message.includes('No commitment found')
+      if (!isMissingCommitment) {
+        logger.error(
+          'Failed to reveal game',
+          { error, questionId },
+          'OracleService'
+        )
+      }
       throw error
     }
   }
@@ -327,10 +362,34 @@ export class OracleService {
     }
 
     try {
-      // Call batch contract method
+      // Call batch contract method - verify method exists
       if (!this.contract?.batchCommitBabylonGames) {
         throw new Error('batchCommitBabylonGames not available on contract');
       }
+      
+      // Verify contract has code at address
+      const code = await this.provider.getCode(this.config.oracleAddress)
+      if (!code || code === '0x' || code === '0x0') {
+        throw new Error(`No contract code found at address ${this.config.oracleAddress}`)
+      }
+      
+      // Encode the function call to verify it works
+      try {
+        const iface = this.contract.interface
+        const data = iface.encodeFunctionData('batchCommitBabylonGames', [
+          questionIds,
+          questionNumbers,
+          questions,
+          commitments,
+          categories
+        ])
+        if (!data || data === '0x') {
+          throw new Error('Failed to encode function call - method may not exist in contract ABI')
+        }
+      } catch (encodeError) {
+        throw new Error(`Failed to encode batchCommitBabylonGames call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`)
+      }
+      
       const tx = await this.contract.batchCommitBabylonGames(
         questionIds,
         questionNumbers,
@@ -356,6 +415,14 @@ export class OracleService {
         .filter((e: ethers.LogDescription | null) => e && e.name === 'BabylonGameCommitted')
 
       // Update stored commitments and build results
+      // Debug: List all pending commitments before trying to retrieve
+      const allPending = await CommitmentStore.listPending()
+      logger.info(
+        `Found ${allPending.length} pending commitments before update`,
+        { questionIds: allPending.map(c => c.questionId).slice(0, 10) },
+        'OracleService'
+      )
+
       for (let i = 0; i < questionIds.length; i++) {
         const event = events[i]
         const sessionId = event?.args?.sessionId?.toString() || ethers.ZeroHash
@@ -366,6 +433,16 @@ export class OracleService {
             ...stored,
             sessionId
           })
+        } else {
+          logger.warn(
+            `Could not find commitment for questionId ${questionIds[i]} after batch commit`,
+            { 
+              questionId: questionIds[i],
+              allPendingCount: allPending.length,
+              searchedFor: questionIds[i]
+            },
+            'OracleService'
+          )
         }
 
         successful.push({
@@ -461,15 +538,52 @@ export class OracleService {
     }
 
     try {
-      // Call batch contract method
+      // Call batch contract method - verify method exists
       if (!this.contract?.batchRevealBabylonGames) {
         throw new Error('batchRevealBabylonGames not available on contract');
       }
+      
+      // Verify contract has code at address
+      const code = await this.provider.getCode(this.config.oracleAddress)
+      if (!code || code === '0x' || code === '0x0') {
+        throw new Error(`No contract code found at address ${this.config.oracleAddress}`)
+      }
+      
+      // Validate teeQuotes - ensure they're valid bytes
+      const validTeeQuotes = teeQuotes.map(quote => {
+        if (!quote || quote === '') {
+          return '0x' // Empty bytes
+        }
+        // Ensure it's a valid hex string
+        if (!quote.startsWith('0x')) {
+          return `0x${quote}`
+        }
+        return quote
+      })
+      
+      // Encode the function call to verify it works
+      try {
+        const iface = this.contract.interface
+        const data = iface.encodeFunctionData('batchRevealBabylonGames', [
+          sessionIds,
+          outcomes,
+          salts,
+          validTeeQuotes,
+          winnersArrays,
+          totalPayouts
+        ])
+        if (!data || data === '0x') {
+          throw new Error('Failed to encode function call - method may not exist in contract ABI')
+        }
+      } catch (encodeError) {
+        throw new Error(`Failed to encode batchRevealBabylonGames call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`)
+      }
+      
       const tx = await this.contract.batchRevealBabylonGames(
         sessionIds,
         outcomes,
         salts,
-        teeQuotes,
+        validTeeQuotes,
         winnersArrays,
         totalPayouts,
         {

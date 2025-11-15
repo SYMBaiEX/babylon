@@ -116,50 +116,57 @@ export default function PredictionsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const predictionsRes = await fetch(
-      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-    );
-    const predictionsData = await predictionsRes.json();
+    try {
+      const predictionsRes = await fetch(
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+      );
 
-    const fetchedAt = Date.now();
-    const fetchedPredictions: PredictionMarket[] = (predictionsData.questions || []).map(
-      (prediction: PredictionMarket) => {
-        if (
-          prediction.resolutionDate &&
-          new Date(prediction.resolutionDate).getTime() < fetchedAt
-        ) {
-          return {
-            ...prediction,
-            status: 'resolved',
-          };
-        }
-        return prediction;
+      if (!predictionsRes.ok) {
+        throw new Error('Failed to fetch predictions');
       }
-    );
-    setPredictions(fetchedPredictions);
 
-    setSparklineData((prev) => {
-      const next = { ...prev };
-      fetchedPredictions.forEach((prediction) => {
-        const id = prediction.id.toString();
-        const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0);
-        const yesProbability =
-          totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
-        const noProbability = 1 - yesProbability;
-        if (!next[id] || next[id].length === 0) {
-          next[id] = [{ time: fetchedAt, yesPrice: yesProbability, noPrice: noProbability }];
+      const predictionsData = await predictionsRes.json();
+
+      const fetchedAt = Date.now();
+      const fetchedPredictions: PredictionMarket[] = (predictionsData.questions || []).map(
+        (prediction: PredictionMarket) => {
+          if (
+            prediction.resolutionDate &&
+            new Date(prediction.resolutionDate).getTime() < fetchedAt
+          ) {
+            return {
+              ...prediction,
+              status: 'resolved',
+            };
+          }
+          return prediction;
         }
-      });
-      return next;
-    });
+      );
+      setPredictions(fetchedPredictions);
 
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
+      setSparklineData((prev) => {
+        const next = { ...prev };
+        fetchedPredictions.forEach((prediction) => {
+          const id = prediction.id.toString();
+          const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0);
+          const yesProbability =
+            totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
+          const noProbability = 1 - yesProbability;
+          if (!next[id] || next[id].length === 0) {
+            next[id] = [{ time: fetchedAt, yesPrice: yesProbability, noPrice: noProbability }];
+          }
+        });
+        return next;
+      });
+
+      if (isAuth && userId && refreshPositionsRef.current) {
         await refreshPositionsRef.current();
       }
+    } catch (err) {
+      console.error('Failed to fetch predictions:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
   // Store fetchData in ref

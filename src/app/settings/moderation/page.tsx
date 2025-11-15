@@ -56,61 +56,75 @@ export default function ModerationSettingsPage() {
   }, [authenticated]);
 
   const fetchBlockedUsers = async () => {
-    const response = await fetch('/api/moderation/blocks');
-    if (!response.ok) {
-      console.error('Failed to fetch blocked users');
+    try {
+      const response = await fetch('/api/moderation/blocks');
+      if (!response.ok) {
+        throw new Error('Failed to fetch blocked users');
+      }
+      
+      const data = await response.json();
+      setBlockedUsers(data.blocks || []);
+    } catch (err) {
+      console.error('Failed to fetch blocked users:', err);
       toast.error('Failed to load blocked users');
+    } finally {
       setLoading(false);
-      return;
     }
-    
-    const data = await response.json();
-    setBlockedUsers(data.blocks || []);
-    setLoading(false);
   };
 
   const fetchMutedUsers = async () => {
-    const response = await fetch('/api/moderation/mutes');
-    if (!response.ok) {
-      console.error('Failed to fetch muted users');
+    try {
+      const response = await fetch('/api/moderation/mutes');
+      if (!response.ok) {
+        throw new Error('Failed to fetch muted users');
+      }
+      
+      const data = await response.json();
+      setMutedUsers(data.mutes || []);
+    } catch (err) {
+      console.error('Failed to fetch muted users:', err);
       toast.error('Failed to load muted users');
-      return;
     }
-    
-    const data = await response.json();
-    setMutedUsers(data.mutes || []);
   };
 
   const handleUnblock = async (userId: string, displayName: string) => {
-    const response = await fetch(`/api/users/${userId}/block`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'unblock' }),
-    });
+    try {
+      const response = await fetch(`/api/users/${userId}/block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unblock' }),
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        throw new Error('Failed to unblock user');
+      }
+      
+      toast.success(`Unblocked ${displayName}`);
+      fetchBlockedUsers();
+    } catch (err) {
+      console.error('Failed to unblock user:', err);
       toast.error('Failed to unblock user');
-      return;
     }
-    
-    toast.success(`Unblocked ${displayName}`);
-    fetchBlockedUsers();
   };
 
   const handleUnmute = async (userId: string, displayName: string) => {
-    const response = await fetch(`/api/users/${userId}/mute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'unmute' }),
-    });
+    try {
+      const response = await fetch(`/api/users/${userId}/mute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unmute' }),
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        throw new Error('Failed to unmute user');
+      }
+      
+      toast.success(`Unmuted ${displayName}`);
+      fetchMutedUsers();
+    } catch (err) {
+      console.error('Failed to unmute user:', err);
       toast.error('Failed to unmute user');
-      return;
     }
-    
-    toast.success(`Unmuted ${displayName}`);
-    fetchMutedUsers();
   };
 
   const formatDate = (date: string) => {

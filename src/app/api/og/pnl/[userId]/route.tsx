@@ -5,7 +5,7 @@
 
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { calculatePortfolioPnL } from '@/lib/portfolio/calculate-pnl'
 
 // Use Node.js runtime for full Prisma support

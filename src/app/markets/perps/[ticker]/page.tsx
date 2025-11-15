@@ -110,38 +110,49 @@ export default function PerpDetailPage() {
   }, [ticker, market, trackMarketView]);
 
   const fetchMarketData = useCallback(async () => {
-    const response = await fetch('/api/markets/perps');
-    const data = await response.json();
-    const foundMarket = data.markets?.find(
-      (m: PerpMarket) => m.ticker === ticker
-    );
+    try {
+      const response = await fetch('/api/markets/perps');
+      if (!response.ok) {
+        throw new Error('Failed to fetch market data');
+      }
+      
+      const data = await response.json();
+      const foundMarket = data.markets?.find(
+        (m: PerpMarket) => m.ticker === ticker
+      );
 
-    if (!foundMarket) {
-      toast.error('Market not found');
+      if (!foundMarket) {
+        toast.error('Market not found');
+        router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
+        return;
+      }
+
+      setMarket(foundMarket);
+
+      // Generate mock price history (you'll want to replace this with real data)
+      const now = Date.now();
+      const history: PricePoint[] = [];
+      const basePrice = foundMarket.currentPrice;
+      const volatility = basePrice * 0.02; // 2% volatility
+
+      for (let i = 100; i >= 0; i--) {
+        const time = now - i * 15 * 60 * 1000; // 15 min intervals for last ~25 hours
+        const randomChange = (Math.random() - 0.5) * volatility;
+        const price =
+          basePrice +
+          randomChange +
+          ((foundMarket.change24h / 100) * (100 - i)) / 100;
+        history.push({ time, price });
+      }
+
+      setPriceHistory(history);
+    } catch (err) {
+      console.error('Failed to fetch market data:', err);
+      toast.error('Failed to load market data');
       router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    setMarket(foundMarket);
-
-    // Generate mock price history (you'll want to replace this with real data)
-    const now = Date.now();
-    const history: PricePoint[] = [];
-    const basePrice = foundMarket.currentPrice;
-    const volatility = basePrice * 0.02; // 2% volatility
-
-    for (let i = 100; i >= 0; i--) {
-      const time = now - i * 15 * 60 * 1000; // 15 min intervals for last ~25 hours
-      const randomChange = (Math.random() - 0.5) * volatility;
-      const price =
-        basePrice +
-        randomChange +
-        ((foundMarket.change24h / 100) * (100 - i)) / 100;
-      history.push({ time, price });
-    }
-
-    setPriceHistory(history);
-    setLoading(false);
   }, [ticker, router, from]);
 
   useEffect(() => {

@@ -17,9 +17,11 @@ import { logger } from '@/lib/logger';
 
 export class SimulationA2AInterface {
   private engine: SimulationEngine;
+  private agentId: string;
   
-  constructor(engine: SimulationEngine, _agentId: string) {
+  constructor(engine: SimulationEngine, agentId: string) {
     this.engine = engine;
+    this.agentId = agentId;
   }
   
   /**
@@ -77,6 +79,10 @@ export class SimulationA2AInterface {
           
         case 'a2a.getBalance':
           result = this.handleGetBalance(params);
+          break;
+          
+        case 'a2a.getPortfolio':
+          result = this.handleGetPortfolio(params);
           break;
           
         default:
@@ -148,9 +154,22 @@ export class SimulationA2AInterface {
   /**
    * Sell prediction market shares
    */
-  private async handleSellShares(_params: unknown): Promise<{ proceeds: number }> {
-    // Simplified: just close position
-    return { proceeds: 0 };
+  private async handleSellShares(params: unknown): Promise<{ proceeds: number }> {
+    const { marketId, shares } = params as { marketId: string; shares: number };
+    
+    // Simplified: calculate proceeds based on current market price
+    const state = this.engine.getGameState();
+    const market = state.predictionMarkets.find((m: { id: string }) => m.id === marketId);
+    
+    if (!market) {
+      throw new Error(`Market ${marketId} not found`);
+    }
+    
+    // Use average of yes and no prices as sell price
+    const avgPrice = (market.yesPrice + market.noPrice) / 2;
+    const proceeds = shares * avgPrice;
+    
+    return { proceeds };
   }
   
   /**
@@ -320,10 +339,102 @@ export class SimulationA2AInterface {
   }
   
   /**
+   * Get portfolio (balance, positions, P&L)
+   */
+  private handleGetPortfolio(_params: unknown): { balance: number; positions: Array<Record<string, unknown>>; pnl: number } {
+    const state = this.engine.getGameState();
+    const agent = state.agents.find((a: { id: string }) => a.id === this.agentId);
+    
+    // Calculate positions from agent's state
+    const positions: Array<Record<string, unknown>> = [];
+    
+    // Calculate P&L from agent's totalPnl
+    const pnl = (agent as { totalPnl?: number } | undefined)?.totalPnl || 0;
+    const balance = 10000 + pnl; // Starting balance + P&L
+    
+    return {
+      balance,
+      positions,
+      pnl
+    };
+  }
+  
+  /**
    * Check if connected (always true for simulation)
    */
   isConnected(): boolean {
     return true;
+  }
+  
+  // ===== Wrapper methods to match BabylonA2AClient interface =====
+  
+  /**
+   * Buy shares in prediction market
+   */
+  async buyShares(marketId: string, outcome: 'YES' | 'NO', amount: number): Promise<Record<string, unknown>> {
+    return await this.sendRequest('a2a.buyShares', { marketId, outcome, amount }) as Record<string, unknown>;
+  }
+  
+  /**
+   * Sell shares from prediction market
+   */
+  async sellShares(marketId: string, shares: number): Promise<Record<string, unknown>> {
+    const result = await this.sendRequest('a2a.sellShares', { marketId, shares }) as { proceeds: number };
+    return { proceeds: result.proceeds };
+  }
+  
+  /**
+   * Open perp position
+   */
+  async openPosition(ticker: string, side: 'long' | 'short', size: number, leverage: number): Promise<Record<string, unknown>> {
+    return await this.sendRequest('a2a.openPosition', { ticker, side, size, leverage }) as Record<string, unknown>;
+  }
+  
+  /**
+   * Close perp position
+   */
+  async closePosition(positionId: string): Promise<Record<string, unknown>> {
+    return await this.sendRequest('a2a.closePosition', { positionId }) as Record<string, unknown>;
+  }
+  
+  /**
+   * Create post
+   */
+  async createPost(content: string, type: string = 'post'): Promise<Record<string, unknown>> {
+    return await this.sendRequest('a2a.createPost', { content, type }) as Record<string, unknown>;
+  }
+  
+  /**
+   * Create comment
+   */
+  async createComment(postId: string, content: string): Promise<Record<string, unknown>> {
+    return await this.sendRequest('a2a.createComment', { postId, content }) as Record<string, unknown>;
+  }
+  
+  /**
+   * Get portfolio (balance, positions, P&L)
+   */
+  async getPortfolio(): Promise<{ balance: number; positions: Array<Record<string, unknown>>; pnl: number }> {
+    return await this.sendRequest('a2a.getPortfolio') as { balance: number; positions: Array<Record<string, unknown>>; pnl: number };
+  }
+  
+  /**
+   * Get markets
+   */
+  async getMarkets(): Promise<{ predictions: Array<Record<string, unknown>>; perps: Array<Record<string, unknown>> }> {
+    const predictions = await this.sendRequest('a2a.getPredictions', { status: 'active' }) as { predictions: Array<Record<string, unknown>> };
+    const perpetuals = await this.sendRequest('a2a.getPerpetuals', {}) as { perpetuals: Array<Record<string, unknown>> };
+    return {
+      predictions: predictions.predictions || [],
+      perps: perpetuals.perpetuals || []
+    };
+  }
+  
+  /**
+   * Get feed
+   */
+  async getFeed(limit = 20): Promise<{ posts: Array<Record<string, unknown>> }> {
+    return await this.sendRequest('a2a.getFeed', { limit, offset: 0 }) as { posts: Array<Record<string, unknown>> };
   }
 }
 

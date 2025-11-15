@@ -3,7 +3,7 @@
  * Creates test users with specific moderation metrics for e2e testing
  */
 
-import { prisma } from '../src/lib/database-service';
+import { prisma } from '../src/lib/prisma';
 import { nanoid } from 'nanoid';
 
 const TEST_USERS = [

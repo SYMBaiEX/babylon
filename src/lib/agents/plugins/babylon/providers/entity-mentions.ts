@@ -7,6 +7,8 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import type { EntityMention } from '@/types/entities'
+import { isCompanyEntity, isUserEntity, isActorEntity } from '@/types/entities'
 
 /**
  * Provider: Entity Mentions
@@ -33,11 +35,11 @@ export const entityMentionsProvider: Provider = {
       
       // Build context for each entity
       const entityContexts: string[] = []
-      const entityData: any[] = []
+      const entityData: Array<{ type: string; id: string; [key: string]: unknown }> = []
       
       for (const entity of entities) {
-        if (entity.type === 'company') {
-          const company = entity.data as any
+        if (entity.type === 'company' && isCompanyEntity(entity.data)) {
+          const company = entity.data
           
           const context = `📈 ${company.ticker || company.name}:
 • Name: ${company.name}
@@ -56,8 +58,8 @@ export const entityMentionsProvider: Provider = {
             priceChangePercentage: company.priceChangePercentage,
             volume24h: parseFloat(company.volume24h?.toString() || '0')
           })
-        } else if (entity.type === 'user') {
-          const user = entity.data as any
+        } else if (entity.type === 'user' && isUserEntity(entity.data)) {
+          const user = entity.data
           
           const context = `👤 ${user.displayName || user.username}:
 • Username: @${user.username}
@@ -72,8 +74,8 @@ export const entityMentionsProvider: Provider = {
             isAgent: user.isAgent,
             reputationPoints: user.reputationPoints
           })
-        } else if (entity.type === 'actor') {
-          const actor = entity.data as any
+        } else if (entity.type === 'actor' && isActorEntity(entity.data)) {
+          const actor = entity.data
           
           const context = `🎭 ${actor.name}:
 • Type: Actor/Character
@@ -110,8 +112,8 @@ export const entityMentionsProvider: Provider = {
 /**
  * Find entity mentions in text and look them up in database
  */
-async function findEntityMentions(text: string): Promise<Array<{ type: string; data: any }>> {
-  const results: Array<{ type: string; data: any }> = []
+async function findEntityMentions(text: string): Promise<EntityMention[]> {
+  const results: EntityMention[] = []
   
   // Extract potential entity names
   // 1. @username mentions
@@ -144,7 +146,15 @@ async function findEntityMentions(text: string): Promise<Array<{ type: string; d
       take: 10
     })
     
-    results.push(...users.map(u => ({ type: 'user', data: u })))
+    results.push(...users.filter(u => u.username).map(u => ({ 
+      type: 'user' as const, 
+      data: { 
+        ...u, 
+        username: u.username!,
+        displayName: u.displayName || null,
+        bio: u.bio || null
+      } 
+    })))
   }
   
   // Look up tickers
@@ -168,7 +178,7 @@ async function findEntityMentions(text: string): Promise<Array<{ type: string; d
       take: 10
     })
     
-    results.push(...companies.map(c => ({ type: 'company', data: c })))
+    results.push(...companies.map(c => ({ type: 'company' as const, data: c })))
   }
   
   // Look up company names
@@ -191,7 +201,7 @@ async function findEntityMentions(text: string): Promise<Array<{ type: string; d
       take: 10
     })
     
-    results.push(...companies.map(c => ({ type: 'company', data: c })))
+    results.push(...companies.map(c => ({ type: 'company' as const, data: c })))
     
     // Also check actors (people)
     const actors = await prisma.actor.findMany({
@@ -208,7 +218,7 @@ async function findEntityMentions(text: string): Promise<Array<{ type: string; d
       take: 10
     })
     
-    results.push(...actors.map(a => ({ type: 'actor', data: a })))
+    results.push(...actors.map(a => ({ type: 'actor' as const, data: a })))
   }
   
   // Deduplicate by ID

@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';

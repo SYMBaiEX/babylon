@@ -5,12 +5,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
+import type { User } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
-let testUser1: any;
-let testUser2: any;
-let testUser3: any;
+let testUser1: User;
+let testUser2: User;
+let testUser3: User;
 
 beforeAll(async () => {
   console.log('🌱 Setting up moderation actions test data...');
@@ -169,6 +170,14 @@ describe('Block User - CRUD Operations', () => {
   });
 
   it('should prevent duplicate blocks', async () => {
+    // Clean up any existing blocks first
+    await prisma.userBlock.deleteMany({
+      where: {
+        blockerId: testUser1.id,
+        blockedId: testUser3.id,
+      },
+    });
+
     // Create first block
     await prisma.userBlock.create({
       data: {
@@ -191,9 +200,10 @@ describe('Block User - CRUD Operations', () => {
       });
       // Should not reach here
       expect(true).toBe(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Should throw unique constraint error
-      expect(error.code).toBe('P2002');
+      const prismaError = error as { code?: string };
+      expect(prismaError.code).toBe('P2002');
       console.log('✅ Duplicate blocks prevented by unique constraint');
     }
 
@@ -209,6 +219,14 @@ describe('Block User - CRUD Operations', () => {
 
 describe('Mute User - CRUD Operations', () => {
   it('should successfully mute a user', async () => {
+    // Clean up any existing mute first to avoid unique constraint violations
+    await prisma.userMute.deleteMany({
+      where: {
+        muterId: testUser1.id,
+        mutedId: testUser2.id,
+      },
+    });
+
     const mute = await prisma.userMute.create({
       data: {
         id: nanoid(),
@@ -278,6 +296,14 @@ describe('Mute User - CRUD Operations', () => {
   });
 
   it('should prevent duplicate mutes', async () => {
+    // Clean up any existing mute first to avoid conflicts
+    await prisma.userMute.deleteMany({
+      where: {
+        muterId: testUser1.id,
+        mutedId: testUser3.id,
+      },
+    });
+
     // Create first mute
     await prisma.userMute.create({
       data: {
@@ -300,9 +326,10 @@ describe('Mute User - CRUD Operations', () => {
       });
       // Should not reach here
       expect(true).toBe(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Should throw unique constraint error
-      expect(error.code).toBe('P2002');
+      const prismaError = error as { code?: string };
+      expect(prismaError.code).toBe('P2002');
       console.log('✅ Duplicate mutes prevented by unique constraint');
     }
 

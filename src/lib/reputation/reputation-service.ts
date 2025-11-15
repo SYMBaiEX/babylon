@@ -5,7 +5,7 @@
  * Integrates PNL normalization, game scores, and user feedback into unified reputation.
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import {
   normalizePnL,
   calculateWinRate,

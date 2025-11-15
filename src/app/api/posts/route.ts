@@ -487,8 +487,6 @@ export const GET = withErrorHandling(async (request: Request) => {
     const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
     
     const formattedPosts = await Promise.all(posts.map(async (post) => {
-      logger.warn('Invalid post structure detected', { post }, 'GET /api/posts')
-
       const user = userMap.get(post.authorId!)
       const actor = actorMap.get(post.authorId!)
       const org = orgMap.get(post.authorId!)

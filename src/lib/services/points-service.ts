@@ -4,7 +4,7 @@
  * Centralized service for managing reputation points and rewards
  * Tracks all point transactions and ensures no duplicate awards
  */
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { POINTS, type PointsReason } from '@/lib/constants/points';

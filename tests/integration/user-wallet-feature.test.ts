@@ -5,16 +5,12 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available - Skipping tests`)
-    return false
-  }
-})()
+import { checkServerAvailableAtLoadTime } from './test-helpers'
+
+const serverAvailable = await checkServerAvailableAtLoadTime()
+if (!serverAvailable) {
+  console.log(`⚠️  Server not available - Skipping tests`)
+}
 import { A2AClient } from '@/lib/a2a/client'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -26,13 +22,15 @@ describe('User Wallet Feature', () => {
   beforeAll(async () => {
     // Create a test user with balance and positions
     testUserId = await generateSnowflakeId()
+    // Use unique wallet address to avoid constraint violations
+    const uniqueWalletAddress = `0x${Date.now().toString(16)}${Math.random().toString(16).substring(2).padEnd(38, '0')}`
     await prisma.user.create({
       data: {
         id: testUserId,
         privyId: `test_user_wallet_${Date.now()}`,
         username: `test_wallet_${Date.now()}`,
         displayName: 'Test Wallet User',
-        walletAddress: '0x' + '0'.repeat(40),
+        walletAddress: uniqueWalletAddress.substring(0, 42), // Ensure exactly 42 chars (0x + 40 hex)
         virtualBalance: 10000,
         totalDeposited: 15000,
         totalWithdrawn: 5000,
@@ -73,6 +71,7 @@ describe('User Wallet Feature', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     await prisma.position.deleteMany({ where: { userId: testUserId } })
     await prisma.perpPosition.deleteMany({ where: { userId: testUserId } })
     await prisma.market.deleteMany({ where: { question: 'Will this test pass?' } })

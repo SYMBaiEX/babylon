@@ -1,20 +1,20 @@
 import {
-  Service,
   type IAgentRuntime,
   type ServiceTypeName,
-  logger,
   type UUID,
+  logger,
   ModelType,
+  Service
 } from '@elizaos/core';
+import { v4 as uuidv4 } from 'uuid';
 import {
   type Experience,
-  type ExperienceQuery,
   type ExperienceAnalysis,
-  ExperienceType,
-  OutcomeType,
+  type ExperienceQuery,
   ExperienceServiceType,
+  ExperienceType,
+  OutcomeType
 } from './types';
-import { v4 as uuidv4 } from 'uuid';
 import { ConfidenceDecayManager } from './utils/confidenceDecay';
 import { ExperienceRelationshipManager } from './utils/experienceRelationships';
 

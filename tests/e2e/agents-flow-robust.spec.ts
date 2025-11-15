@@ -4,13 +4,13 @@
  * Tests that gracefully handle authentication requirements and server availability
  */
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const BASE_URL = process.env.BABYLON_URL || 'http://localhost:3000'
 
 test.describe('Agents Feature E2E - Robust', () => {
   // Helper function to check if server is available
-  async function isServerAvailable(page: any): Promise<boolean> {
+  async function isServerAvailable(page: Page): Promise<boolean> {
     try {
       const response = await page.goto(BASE_URL, { waitUntil: 'networkidle', timeout: 5000 })
       return response !== null && response.ok()
@@ -20,7 +20,7 @@ test.describe('Agents Feature E2E - Robust', () => {
   }
 
   // Helper function to check if authentication is required
-  async function needsAuth(page: any): Promise<boolean> {
+  async function needsAuth(page: Page): Promise<boolean> {
     await page.waitForTimeout(1000)
     const signInButton = await page.locator('button:has-text("Sign in"), button:has-text("Connect")').count()
     return signInButton > 0

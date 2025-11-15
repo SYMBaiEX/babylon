@@ -153,28 +153,38 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const [perpsRes, predictionsRes] = await Promise.all([
-      fetch('/api/markets/perps'),
-      fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-      ),
-    ]);
+    try {
+      const [perpsRes, predictionsRes] = await Promise.all([
+        fetch('/api/markets/perps'),
+        fetch(
+          `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+        ),
+      ]);
 
-    const perpsData = await perpsRes.json();
-    const predictionsData = await predictionsRes.json();
-
-    setPerpMarkets(perpsData.markets || []);
-    setPredictions(predictionsData.questions || []);
-
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
+      if (!perpsRes.ok || !predictionsRes.ok) {
+        throw new Error('Failed to fetch market data');
       }
-    }
 
-    // Trigger balance refresh after data fetch (after trades)
-    setBalanceRefreshTrigger(Date.now());
-    setLoading(false);
+      const perpsData = await perpsRes.json();
+      const predictionsData = await predictionsRes.json();
+
+      setPerpMarkets(perpsData.markets || []);
+      setPredictions(predictionsData.questions || []);
+
+      if (isAuth && userId) {
+        if (refreshPositionsRef.current) {
+          await refreshPositionsRef.current();
+        }
+      }
+
+      // Trigger balance refresh after data fetch (after trades)
+      setBalanceRefreshTrigger(Date.now());
+    } catch (err) {
+      console.error('Failed to fetch market data:', err);
+      // Keep existing data on error, just stop loading
+    } finally {
+      setLoading(false);
+    }
   }, []); // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)

@@ -13,17 +13,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-
-interface Actor {
-  [key: string]: any;
-}
-
-interface Organization {
-  [key: string]: any;
-}
+import type { ActorData, Organization } from '../src/shared/types';
 
 interface ActorsData {
-  actors: Actor[];
+  actors: ActorData[];
   organizations: Organization[];
 }
 
@@ -42,8 +35,9 @@ function removeUnusedFields() {
   // Remove unused fields from actors
   for (const actor of data.actors) {
     for (const field of UNUSED_ACTOR_FIELDS) {
-      if (actor[field] !== undefined) {
-        delete actor[field];
+      const actorRecord = actor as unknown as Record<string, unknown>;
+      if (actorRecord[field] !== undefined) {
+        delete actorRecord[field];
         removedCount++;
       }
     }
@@ -59,8 +53,9 @@ function removeUnusedFields() {
     let orgRemovedCount = 0;
     for (const org of data.organizations) {
       for (const field of UNUSED_ORG_FIELDS) {
-        if (org[field] !== undefined) {
-          delete org[field];
+        const orgRecord = org as unknown as Record<string, unknown>;
+        if (orgRecord[field] !== undefined) {
+          delete orgRecord[field];
           orgRemovedCount++;
         }
       }

@@ -103,7 +103,7 @@ Create `my-agent.json`:
     "secrets": {
       "OPENAI_API_KEY": "required",
       "BABYLON_AGENT_ID": "alpha-trader",
-      "BABYLON_AGENT_SECRET": "required"
+      "CRON_SECRET": "required"
     },
     "voice": {
       "model": "en_US-male-medium"
@@ -129,8 +129,9 @@ Create `.env` file:
 ```bash
 # Required
 OPENAI_API_KEY="sk-..."
+# BABYLON_AGENT_ID defaults to "babylon-agent-alice" locally. Override it for production agents.
 BABYLON_AGENT_ID="alpha-trader"
-BABYLON_AGENT_SECRET="generate_with_openssl_rand_hex_32"
+CRON_SECRET="generate_with_openssl_rand_hex_32"
 BABYLON_API_URL="http://localhost:3000"
 
 # Optional
@@ -138,6 +139,8 @@ BABYLON_MAX_TRADE_SIZE="200"
 BABYLON_MAX_POSITION_SIZE="1000"
 BABYLON_MIN_CONFIDENCE="0.65"
 ```
+
+> **Heads up:** If you skip `BABYLON_AGENT_ID` during local development, Babylon automatically falls back to `babylon-agent-alice` so the sample agents and tests can authenticate. Define a unique `BABYLON_AGENT_ID` for staging/production to avoid collisions.
 
 Generate agent secret:
 ```bash
@@ -513,7 +516,7 @@ Check:
 ### Authentication Failures
 
 Verify:
-- `BABYLON_AGENT_SECRET` is set correctly
+- `CRON_SECRET` is set correctly
 - API endpoint is accessible
 - Agent is registered in Babylon
 

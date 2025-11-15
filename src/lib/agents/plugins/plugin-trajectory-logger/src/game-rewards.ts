@@ -5,6 +5,7 @@
  */
 
 import type { Trajectory, TrajectoryStep } from './types';
+import type { JsonValue } from '@/types/common';
 
 /**
  * Compute trajectory reward using game knowledge
@@ -25,7 +26,7 @@ export function computeStepReward(step: TrajectoryStep): number {
 /**
  * Build game state from database
  */
-export async function buildGameStateFromDB(_trajectoryId: string): Promise<any> {
+export async function buildGameStateFromDB(_trajectoryId: string): Promise<Record<string, JsonValue>> {
   // Placeholder implementation
   return {};
 }

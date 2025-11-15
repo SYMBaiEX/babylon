@@ -95,15 +95,54 @@ describe('Group Invites Workflow', () => {
   });
 
   afterAll(async () => {
-    // Clean up
+    if (!prisma) return;
+    // Clean up invites first (they reference the group)
+    await prisma.userGroupInvite.deleteMany({
+      where: {
+        groupId: testGroupId,
+      },
+    });
+
+    // Clean up notifications
+    await prisma.notification.deleteMany({
+      where: {
+        userId: {
+          in: [testUser2Id, testUser3Id],
+        },
+        type: 'group_invite',
+      },
+    });
+
+    // Clean up chat participants
+    const chats = await prisma.chat.findMany({
+      where: { name: 'Test Trading Group' },
+      select: { id: true },
+    });
+    for (const chat of chats) {
+      await prisma.chatParticipant.deleteMany({
+        where: { chatId: chat.id },
+      });
+    }
+
+    // Clean up chats
     await prisma.chat.deleteMany({
       where: { name: 'Test Trading Group' },
     });
 
+    // Clean up group members and admins
+    await prisma.userGroupMember.deleteMany({
+      where: { groupId: testGroupId },
+    });
+    await prisma.userGroupAdmin.deleteMany({
+      where: { groupId: testGroupId },
+    });
+
+    // Clean up group
     await prisma.userGroup.deleteMany({
       where: { id: testGroupId },
     });
 
+    // Clean up users
     await prisma.user.deleteMany({
       where: {
         id: {
@@ -115,6 +154,14 @@ describe('Group Invites Workflow', () => {
 
   describe('Sending Invites', () => {
     it('should create a pending invite', async () => {
+      // Clean up any existing invite first to avoid unique constraint violation
+      await prisma.userGroupInvite.deleteMany({
+        where: {
+          groupId: testGroupId,
+          invitedUserId: testUser2Id,
+        },
+      });
+
       const inviteId = await generateSnowflakeId();
       
       const invite = await prisma.userGroupInvite.create({
@@ -274,6 +321,14 @@ describe('Group Invites Workflow', () => {
 
   describe('Declining Invites', () => {
     it('should send invite to third user', async () => {
+      // Clean up any existing invite first to avoid unique constraint violation
+      await prisma.userGroupInvite.deleteMany({
+        where: {
+          groupId: testGroupId,
+          invitedUserId: testUser3Id,
+        },
+      });
+
       const inviteId = await generateSnowflakeId();
       
       const invite = await prisma.userGroupInvite.create({

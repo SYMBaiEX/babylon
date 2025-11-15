@@ -71,24 +71,19 @@ export async function GET(_req: NextRequest) {
         wandbModels,
         recommendedModels: [
           {
-            id: 'moonshotai/kimi-k2-instruct-0905',
-            name: 'Kimi K2 Instruct',
-            description: '⭐ Best for content generation: events, articles, posts, group chats',
+            id: 'OpenPipe/Qwen3-14B-Instruct',
+            name: 'Qwen 3 14B (OpenPipe Trained)',
+            description: '⭐ Best for agents: Our custom RL-trained model',
           },
           {
-            id: 'qwen/qwen3-32b',
-            name: 'Qwen 3 32B',
-            description: '⚡ Best for background operations: market decisions, NPC trading',
+            id: 'Qwen/Qwen2.5-32B-Instruct',
+            name: 'Qwen 2.5 32B Instruct',
+            description: '⚡ Best for quality content: events, articles, posts, decisions',
           },
           {
-            id: 'openai/gpt-oss-120b',
-            name: 'GPT OSS 120B',
+            id: 'meta-llama/Llama-3.1-8B-Instruct',
+            name: 'Llama 3.1 8B Instruct',
             description: '🚀 Best for frequent operations: comments, DMs, tags, evaluations',
-          },
-          {
-            id: 'meta-llama/Llama-3.3-70B-Instruct',
-            name: 'Llama 3.3 70B Instruct',
-            description: 'Alternative: Powerful general-purpose model',
           },
         ],
       },

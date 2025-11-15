@@ -11,7 +11,7 @@
 
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service'
 

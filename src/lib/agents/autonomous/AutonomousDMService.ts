@@ -77,11 +77,11 @@ Keep it under 200 characters.
 
 Generate ONLY the response text, nothing else.`
 
-        // Use small model (gpt-oss-120b) for fast DM responses
+        // Use small model (llama-3.1-8b-instant) for fast DM responses
         const responseContent = await callGroqDirect({
           prompt,
           system: agent.agentSystem || undefined,
-          modelSize: 'small',  // Frequent operation, use fast model
+          modelSize: 'small',  // Free tier: Frequent operation, use fast model
           temperature: 0.8,
           maxTokens: 80
         })

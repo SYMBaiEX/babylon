@@ -85,9 +85,10 @@ describe('TokenCounter', () => {
   describe('getModelTokenLimit', () => {
     test('should return correct limit for known models', () => {
       expect(getModelTokenLimit('gpt-4o')).toBe(128000);
-      expect(getModelTokenLimit('llama-3.3-70b-versatile')).toBe(128000);
-      expect(getModelTokenLimit('mixtral-8x7b-32768')).toBe(32768);
-      expect(getModelTokenLimit('claude-3-opus')).toBe(200000);
+      expect(getModelTokenLimit('llama-3.1-8b-instant')).toBe(131072); // 130k in binary
+      expect(getModelTokenLimit('qwen/qwen3-32b')).toBe(131072);
+      expect(getModelTokenLimit('claude-sonnet-4-5')).toBe(200000);
+      expect(getModelTokenLimit('claude-opus-4-1')).toBe(200000);
     });
     
     test('should return default limit for unknown models', () => {
@@ -96,28 +97,29 @@ describe('TokenCounter', () => {
   });
   
   describe('getSafeContextLimit', () => {
-    test('should calculate safe limit with defaults', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+    test('should calculate safe limit with defaults (2% safety margin)', () => {
+      const model = 'qwen/qwen3-32b'; // 131072 (130k in binary)
       const safeLimit = getSafeContextLimit(model);
       
-      // 128k - 8k (output) = 120k, * 0.9 = 108k
-      expect(safeLimit).toBe(108000);
+      // 131072 * 0.98 (2% safety margin) = 128450.56 ≈ 128450
+      expect(safeLimit).toBe(128450);
     });
     
     test('should calculate safe limit with custom output tokens', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+      const model = 'qwen/qwen3-32b'; // 131072 (130k in binary)
       const safeLimit = getSafeContextLimit(model, 16000);
       
-      // 128k - 16k (output) = 112k, * 0.9 = 100.8k
-      expect(safeLimit).toBe(100800);
+      // Note: outputTokens parameter is unused (kept for backwards compatibility)
+      // 131072 * 0.98 (2% safety margin) = 128450.56 ≈ 128450
+      expect(safeLimit).toBe(128450);
     });
     
     test('should calculate safe limit with custom safety margin', () => {
-      const model = 'llama-3.3-70b-versatile'; // 128k total
+      const model = 'qwen/qwen3-32b'; // 131072 (130k in binary)
       const safeLimit = getSafeContextLimit(model, 8000, 0.2);
       
-      // 128k - 8k (output) = 120k, * 0.8 = 96k
-      expect(safeLimit).toBe(96000);
+      // 131072 * 0.8 (20% safety margin) = 104857.6 ≈ 104857
+      expect(safeLimit).toBe(104857);
     });
     
     test('should enforce minimum limit', () => {
@@ -194,16 +196,14 @@ describe('TokenCounter', () => {
     });
     
     test('should include common Groq models', () => {
-      expect(MODEL_TOKEN_LIMITS['llama-3.3-70b-versatile']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['llama-3.1-70b-versatile']).toBeDefined();
       expect(MODEL_TOKEN_LIMITS['llama-3.1-8b-instant']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['mixtral-8x7b-32768']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['qwen/qwen3-32b']).toBeDefined();
     });
     
-    test('should include common Anthropic models', () => {
-      expect(MODEL_TOKEN_LIMITS['claude-3-opus']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['claude-3-sonnet']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['claude-3-haiku']).toBeDefined();
+    test('should include Claude 4.5 models', () => {
+      expect(MODEL_TOKEN_LIMITS['claude-sonnet-4-5']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['claude-haiku-4-5']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['claude-opus-4-1']).toBeDefined();
     });
   });
 });

@@ -6,7 +6,7 @@
  * Manage goals for an agent. Only accessible by the agent's manager.
  */
 
-import type { NextRequest} from 'next/server';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/api/auth-middleware'

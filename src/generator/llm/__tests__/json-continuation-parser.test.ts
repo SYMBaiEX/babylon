@@ -12,6 +12,7 @@ import {
   mergeJsonArrays,
   parseContinuationContent,
 } from '../json-continuation-parser';
+import type { JsonValue } from '@/types/common';
 
 describe('cleanMarkdownCodeBlocks', () => {
   it('should remove markdown code fences', () => {
@@ -211,7 +212,7 @@ And here's more:
 `;
     const result = parseContinuationContent(input);
     expect(Array.isArray(result)).toBe(true);
-    expect((result as any[]).length).toBe(4);
+    expect((result as JsonValue[]).length).toBe(4);
   });
 
   it('should handle truncated array at end', () => {
@@ -219,7 +220,7 @@ And here's more:
     const result = parseContinuationContent(input);
     expect(Array.isArray(result)).toBe(true);
     // Should get at least the complete arrays
-    expect((result as any[]).length).toBeGreaterThanOrEqual(2);
+    expect((result as JsonValue[]).length).toBeGreaterThanOrEqual(2);
   });
 
   it('should handle real-world NPC decision format', () => {
@@ -239,8 +240,9 @@ And here's more:
 ]`;
     const result = parseContinuationContent(input);
     expect(Array.isArray(result)).toBe(true);
-    expect((result as any[]).length).toBe(2);
-    expect((result as any[])[0].npcId).toBe('ailon-musk');
+    expect((result as JsonValue[]).length).toBe(2);
+    const firstItem = result as Array<Record<string, JsonValue>>;
+    expect(firstItem[0]?.npcId).toBe('ailon-musk');
   });
 
   it('should handle continuation with incomplete last item', () => {
@@ -255,8 +257,9 @@ And here's more:
     expect(Array.isArray(result)).toBe(true);
     // Should get at least the complete arrays (alice + bob = 2 items minimum)
     // The incomplete charlie item won't be parsed, which is correct
-    expect((result as any[]).length).toBeGreaterThanOrEqual(1);
-    expect((result as any[])[0]).toHaveProperty('npcId', 'alice');
+    expect((result as JsonValue[]).length).toBeGreaterThanOrEqual(1);
+    const firstItem = result as Array<Record<string, JsonValue>>;
+    expect(firstItem[0]).toHaveProperty('npcId', 'alice');
   });
 
   it('should handle mixed markdown and plain JSON', () => {
@@ -271,7 +274,7 @@ And here's more:
 \`\`\``;
     const result = parseContinuationContent(input);
     expect(Array.isArray(result)).toBe(true);
-    expect((result as any[]).length).toBeGreaterThanOrEqual(2);
+    expect((result as JsonValue[]).length).toBeGreaterThanOrEqual(2);
   });
 
   it('should return null for completely unparseable content', () => {
@@ -298,7 +301,7 @@ And here's more:
     const result = parseContinuationContent(input);
     
     expect(Array.isArray(result)).toBe(true);
-    expect((result as any[]).length).toBe(55);
+    expect((result as JsonValue[]).length).toBe(55);
   });
 });
 

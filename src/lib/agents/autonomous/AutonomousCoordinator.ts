@@ -11,7 +11,7 @@
  * 4. Smart response prioritization
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
 import type { BabylonRuntime } from '../plugins/babylon/types'

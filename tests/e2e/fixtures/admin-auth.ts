@@ -3,7 +3,7 @@
  * Provides authenticated admin test contexts
  */
 
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page, type Route } from '@playwright/test'
 
 // Mock admin user data
 export const ADMIN_USER = {
@@ -40,9 +40,9 @@ export const MOCK_ADMIN_TOKEN = 'mock-admin-access-token-for-testing'
 /**
  * Set up admin authentication state in the browser
  */
-export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
+export async function setupAdminAuthState(page: Page, navigateToUrl?: string): Promise<void> {
   // Mock API routes for admin operations
-  await page.route('**/api/users/me', (route: any) => {
+  await page.route('**/api/users/me', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -52,7 +52,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/stats', (route: any) => {
+  await page.route('**/api/admin/stats', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -108,7 +108,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/users*', (route: any) => {
+  await page.route('**/api/admin/users*', (route: Route) => {
     const url = new URL(route.request().url())
     const filter = url.searchParams.get('filter')
     
@@ -189,7 +189,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/admins', (route: any) => {
+  await page.route('**/api/admin/admins', (route: Route) => {
     if (route.request().method() === 'GET') {
       route.fulfill({
         status: 200,
@@ -221,7 +221,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     }
   })
 
-  await page.route('**/api/admin/admins/*', (route: any) => {
+  await page.route('**/api/admin/admins/*', (route: Route) => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
       route.fulfill({
@@ -243,7 +243,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     }
   })
 
-  await page.route('**/api/admin/users/*/ban', (route: any) => {
+  await page.route('**/api/admin/users/*/ban', (route: Route) => {
     const body = route.request().postDataJSON()
     route.fulfill({
       status: 200,
@@ -263,7 +263,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/trades*', (route: any) => {
+  await page.route('**/api/admin/trades*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -277,7 +277,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/fees*', (route: any) => {
+  await page.route('**/api/admin/fees*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -295,7 +295,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/groups*', (route: any) => {
+  await page.route('**/api/admin/groups*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -309,7 +309,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/notifications*', (route: any) => {
+  await page.route('**/api/admin/notifications*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -323,7 +323,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/admin/registry*', (route: any) => {
+  await page.route('**/api/admin/registry*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -339,7 +339,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
   })
 
   // Mock Privy API calls
-  await page.route('**privy.io/api/**', (route: any) => {
+  await page.route('**privy.io/api/**', (route: Route) => {
     const url = route.request().url()
 
     if (url.includes('/api/v1/users/me')) {
@@ -448,11 +448,11 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
  * Extended Playwright test with admin authenticated context
  */
 type AdminAuthFixtures = {
-  adminPage: any
+  adminPage: Page
 }
 
 export const test = base.extend<AdminAuthFixtures>({
-  adminPage: async ({ page }: { page: any }, use: (page: any) => Promise<void>) => {
+  adminPage: async ({ page }, use) => {
     await setupAdminAuthState(page)
     await use(page)
   },

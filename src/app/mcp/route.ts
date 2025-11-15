@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { verifyAgentSession } from '@/lib/auth/agent-auth'
 import { verifyMessage } from 'ethers'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /mcp - Get MCP server info and available tools

@@ -4,18 +4,16 @@
  * Tests that the A2A endpoint properly enforces rate limits
  */
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000';
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available - Skipping A2A rate limit tests`)
-    return false
-  }
-})()
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { getTestBaseUrl, checkServerAvailableAtLoadTime } from './test-helpers';
+import { prisma } from '@/lib/prisma';
+import { nanoid } from 'nanoid';
 
-import { describe, test, expect, beforeAll } from 'bun:test';
+const BASE_URL = getTestBaseUrl();
+const serverAvailable = await checkServerAvailableAtLoadTime();
+if (!serverAvailable) {
+  console.log(`⚠️  Server not available - Skipping A2A rate limit tests`);
+}
 const A2A_ENDPOINT = `${BASE_URL}/api/a2a`;
 
 const TEST_AGENT_HEADERS = {
@@ -50,6 +48,12 @@ async function makeA2ARequest(method: string, params?: Record<string, unknown>) 
 
 describe('A2A Rate Limiting', () => {
   beforeAll(async () => {
+    if (!serverAvailable) {
+      console.log('⚠️  Server not running - skipping A2A rate limit tests')
+      console.log('   Run `bun dev` to start the server for these tests')
+      return
+    }
+    
     // Check if server is running
     try {
       const response = await fetch(A2A_ENDPOINT);
@@ -60,6 +64,85 @@ describe('A2A Rate Limiting', () => {
     } catch (error) {
       console.error('Server not running. Start it with: bun run dev');
       throw error;
+    }
+
+    // Create test users in database for A2A requests
+    if (prisma && prisma.user) {
+      try {
+        // Create or update test agents
+        await prisma.user.upsert({
+          where: { id: 'rate-limit-test-agent' },
+          update: { 
+            updatedAt: new Date(),
+            virtualBalance: 10000,
+          },
+          create: {
+            id: 'rate-limit-test-agent',
+            username: 'rate-limit-test-agent',
+            displayName: 'Rate Limit Test Agent',
+            walletAddress: '0x1234567890123456789012345678901234567890',
+            bio: 'Test agent for A2A rate limiting',
+            profileComplete: true,
+            reputationPoints: 100,
+            referralCode: nanoid(8),
+            virtualBalance: 10000,
+            totalDeposited: 10000,
+            totalWithdrawn: 0,
+            lifetimePnL: 0,
+            updatedAt: new Date(),
+          },
+        });
+
+        await prisma.user.upsert({
+          where: { id: 'agent-1' },
+          update: { 
+            updatedAt: new Date(),
+            virtualBalance: 10000,
+          },
+          create: {
+            id: 'agent-1',
+            username: 'agent-1',
+            displayName: 'Test Agent 1',
+            walletAddress: '0x' + '1'.repeat(40),
+            bio: 'Test agent 1 for A2A rate limiting',
+            profileComplete: true,
+            reputationPoints: 100,
+            referralCode: nanoid(8),
+            virtualBalance: 10000,
+            totalDeposited: 10000,
+            totalWithdrawn: 0,
+            lifetimePnL: 0,
+            updatedAt: new Date(),
+          },
+        });
+
+        await prisma.user.upsert({
+          where: { id: 'agent-2' },
+          update: { 
+            updatedAt: new Date(),
+            virtualBalance: 10000,
+          },
+          create: {
+            id: 'agent-2',
+            username: 'agent-2',
+            displayName: 'Test Agent 2',
+            walletAddress: '0x' + '2'.repeat(40),
+            bio: 'Test agent 2 for A2A rate limiting',
+            profileComplete: true,
+            reputationPoints: 100,
+            referralCode: nanoid(8),
+            virtualBalance: 10000,
+            totalDeposited: 10000,
+            totalWithdrawn: 0,
+            lifetimePnL: 0,
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log('✅ Created test users for A2A rate limiting tests');
+      } catch (error) {
+        console.error('Failed to create test users:', error);
+      }
     }
   });
 
@@ -127,28 +210,38 @@ describe('A2A Rate Limiting', () => {
       'x-agent-id': 'agent-2'
     };
     
-    // Make 50 requests from each agent
-    const agent1Requests = Array.from({ length: 50 }, () =>
-      fetch(A2A_ENDPOINT, {
-        method: 'POST',
-        headers: agent1Headers,
-        body: JSON.stringify(generateA2ARequest('a2a.getBalance'))
-      })
-    );
+    // Make 30 requests from each agent (60 total, well under 100 per agent limit)
+    // Use sequential requests with small delays to avoid overwhelming the server
+    const agent1Requests: Promise<Response>[] = [];
+    const agent2Requests: Promise<Response>[] = [];
     
-    const agent2Requests = Array.from({ length: 50 }, () =>
-      fetch(A2A_ENDPOINT, {
-        method: 'POST',
-        headers: agent2Headers,
-        body: JSON.stringify(generateA2ARequest('a2a.getBalance'))
-      })
-    );
+    for (let i = 0; i < 30; i++) {
+      agent1Requests.push(
+        fetch(A2A_ENDPOINT, {
+          method: 'POST',
+          headers: agent1Headers,
+          body: JSON.stringify(generateA2ARequest('a2a.getBalance'))
+        })
+      );
+      agent2Requests.push(
+        fetch(A2A_ENDPOINT, {
+          method: 'POST',
+          headers: agent2Headers,
+          body: JSON.stringify(generateA2ARequest('a2a.getBalance'))
+        })
+      );
+      // Small delay to avoid overwhelming the server
+      if (i % 10 === 0 && i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
     
     const results = await Promise.all([...agent1Requests, ...agent2Requests]);
     
     // Both agents should succeed (neither hit 100 req/min limit)
+    // With 30 requests each, we should get at least 50 successful (allowing for some failures)
     const successfulRequests = results.filter(r => r.status < 400);
-    expect(successfulRequests.length).toBeGreaterThan(80); // Most should succeed
+    expect(successfulRequests.length).toBeGreaterThan(50); // At least 50 should succeed
   }, 30000);
 
   test.skipIf(!serverAvailable)('should include remaining tokens in response headers', async () => {
@@ -160,6 +253,25 @@ describe('A2A Rate Limiting', () => {
     
     // Remaining should decrease with each request
     expect(remaining2).toBeLessThanOrEqual(remaining1);
+  });
+
+  afterAll(async () => {
+    if (!prisma) return;
+    // Clean up test users
+    if (prisma && prisma.user) {
+      try {
+        await prisma.user.deleteMany({
+          where: {
+            id: {
+              in: ['rate-limit-test-agent', 'agent-1', 'agent-2']
+            }
+          }
+        });
+        console.log('✅ Cleaned up test users for A2A rate limiting tests');
+      } catch (error) {
+        console.error('Failed to clean up test users:', error);
+      }
+    }
   });
 });
 

@@ -5,7 +5,7 @@
  * Records EVERY decision for RL training.
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { IAgentRuntime } from '@elizaos/core';
 import { trajectoryRecorder } from '../training/TrajectoryRecorder';

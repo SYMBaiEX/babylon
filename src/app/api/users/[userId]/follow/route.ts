@@ -86,7 +86,7 @@
 
 import { authenticate } from '@/lib/api/auth-middleware';
 import { cachedDb } from '@/lib/cached-database-service';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';

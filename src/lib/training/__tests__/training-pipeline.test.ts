@@ -37,7 +37,7 @@ describe('Training Automation Pipeline', () => {
       try {
         const status = await pipeline.getStatus();
         expect(status).toBeDefined();
-        expect((status as any).data).toBeDefined();
+        expect('data' in status && status.data).toBeDefined();
       } catch (error) {
         // Expected to fail if trajectory tables don't exist yet
         expect(error).toBeDefined();
@@ -66,10 +66,11 @@ describe('Training Automation Pipeline', () => {
       const pipeline = new AutomationPipeline();
       
       try {
-        const status = await (pipeline as any).getSystemStatus();
+        // Access private method for testing (type assertion needed)
+        const status = await (pipeline as unknown as { getSystemStatus: () => Promise<{ data?: unknown; training?: unknown }> }).getSystemStatus();
         expect(status).toBeDefined();
         expect(status.data).toBeDefined();
-        expect((status as any).training).toBeDefined();
+        expect(status.training).toBeDefined();
       } catch (error) {
         // Expected to fail if trajectory tables don't exist yet
         expect(error).toBeDefined();

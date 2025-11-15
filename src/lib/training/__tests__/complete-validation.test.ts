@@ -11,7 +11,9 @@ import { trajectoryRecorder } from '../TrajectoryRecorder';
 import { automationPipeline } from '../AutomationPipeline';
 
 // Mock external dependencies not yet available
-const toARTTrajectory = (traj: any) => ({ messages: [], reward: 0, metadata: {} });
+import type { TrajectoryRecord } from '../../plugin-trajectory-logger/src/types';
+import type { ARTTrajectory } from '../../plugin-trajectory-logger/src/types';
+const toARTTrajectory = (_traj: TrajectoryRecord): ARTTrajectory => ({ messages: [], reward: 0, metadata: {} });
 const exportForOpenPipeART = async () => ({ success: true });
 
 describe('Complete System Validation', () => {

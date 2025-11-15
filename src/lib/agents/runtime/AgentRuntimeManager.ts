@@ -9,6 +9,7 @@ import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/c
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { groqPlugin } from '../plugins/groq'
+import { babylonPlugin } from '../plugins/babylon'
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration'
 import { experiencePlugin } from '../plugins/plugin-experience/src'
 
@@ -131,8 +132,8 @@ export class AgentRuntimeManager {
         WANDB_API_KEY: process.env.WANDB_API_KEY || '',
         WANDB_MODEL: wandbModel || 'OpenPipe/Qwen3-14B-Instruct',
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        SMALL_GROQ_MODEL: 'openai/gpt-oss-120b',  // Fast evaluation model
-        LARGE_GROQ_MODEL: agentUser.agentModelTier === 'pro' ? 'qwen/qwen3-32b' : 'openai/gpt-oss-120b',
+        SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',  // Free tier: Fast and efficient
+        LARGE_GROQ_MODEL: agentUser.agentModelTier === 'pro' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
     }
@@ -201,7 +202,7 @@ export class AgentRuntimeManager {
     }
 
     // Enhance with Babylon plugin
-    await enhanceRuntimeWithBabylon(runtime, agentUserId)
+    await enhanceRuntimeWithBabylon(runtime, agentUserId, babylonPlugin)
 
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime)

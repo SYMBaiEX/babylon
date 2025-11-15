@@ -7,6 +7,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { Bot, ArrowLeft, MessageCircle, Activity, TrendingUp, FileText, Settings, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -186,13 +187,15 @@ export default function AgentDetailPage() {
     <PageContainer>
       <div className="p-4 max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div>
-          <Link href="/agents">
-            <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Agents
-            </button>
-          </Link>
+        <div className="mb-8">
+          <Button
+            onClick={() => router.push('/agents')}
+            variant="ghost"
+            className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back</span>
+          </Button>
         </div>
 
         {/* Agent Info Card */}
@@ -234,14 +237,15 @@ export default function AgentDetailPage() {
               </div>
             </div>
           </div>
-          <button
+          <Button
             onClick={handleDelete}
             disabled={deleting}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            variant="outline"
+            className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 hover:border-red-500/30 disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
             {deleting ? 'Deleting...' : 'Delete'}
-          </button>
+          </Button>
         </div>
 
         {/* Stats Row */}

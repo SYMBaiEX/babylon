@@ -9,7 +9,7 @@ import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { CreateCommentSchema, PostIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment, notifyMention } from '@/lib/services/notification-service';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { generateSnowflakeId } from '@/lib/snowflake';

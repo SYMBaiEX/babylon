@@ -92,7 +92,7 @@ bun install
     "secrets": {
       "OPENAI_API_KEY": "required",
       "BABYLON_AGENT_ID": "alpha-trader",
-      "BABYLON_AGENT_SECRET": "required - generate with: openssl rand -hex 32"
+      "CRON_SECRET": "required - generate with: openssl rand -hex 32"
     },
     "babylon": {
       "strategies": ["momentum", "volume-analysis"],
@@ -114,8 +114,9 @@ bun install
 ```bash
 # .env
 OPENAI_API_KEY="sk-..."
+# BABYLON_AGENT_ID defaults to "babylon-agent-alice" locally. Override it for production agents.
 BABYLON_AGENT_ID="alpha-trader"
-BABYLON_AGENT_SECRET="generate_with_openssl_rand_hex_32"
+CRON_SECRET="generate_with_openssl_rand_hex_32"
 BABYLON_API_URL="http://localhost:3000"
 
 # Trading limits (optional)
@@ -123,6 +124,8 @@ BABYLON_MAX_TRADE_SIZE="200"
 BABYLON_MAX_POSITION_SIZE="1000"
 BABYLON_MIN_CONFIDENCE="0.65"
 ```
+
+> **Tip:** Leaving `BABYLON_AGENT_ID` unset in development uses the built-in `babylon-agent-alice` ID so you can test quickly. Always set a distinctive ID before deploying shared agents.
 
 ### 3. Run Agent
 
@@ -766,7 +769,7 @@ tsx run-eliza-agent.ts --max-trade 100
 ### Authentication Fails
 
 **Check**:
-1. `BABYLON_AGENT_SECRET` is set
+1. `CRON_SECRET` is set
 2. Secret matches server configuration
 3. API endpoint is accessible
 

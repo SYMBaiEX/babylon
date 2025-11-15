@@ -3,37 +3,46 @@
  * Tests the fix for the error: "User not found: did:privy:cmhyl4q360160jm0cbhzltoyn"
  */
 
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { describe, expect, it, beforeEach, mock } from 'bun:test';
 import { NextRequest } from 'next/server';
-import { authenticate, authenticateWithDbUser } from '@/lib/api/auth-middleware';
 import { NotFoundError } from '@/lib/errors/base.errors';
 
+// Mock modules before importing the module under test
+const mockVerifyAuthToken = mock(() => Promise.resolve({ userId: 'did:privy:testuser123' }));
+const mockVerifyAgentSession = mock(() => Promise.resolve(null));
+const mockFindUnique = mock<(args?: any) => Promise<{ id: string; walletAddress: string } | null>>(() => Promise.resolve(null));
+
 // Mock Privy client
-vi.mock('@privy-io/server-auth', () => ({
-  PrivyClient: vi.fn().mockImplementation(() => ({
-    verifyAuthToken: vi.fn().mockResolvedValue({
-      userId: 'did:privy:testuser123',
-    }),
-  })),
+mock.module('@privy-io/server-auth', () => ({
+  PrivyClient: class {
+    verifyAuthToken = mockVerifyAuthToken;
+  },
 }));
 
 // Mock agent auth
-vi.mock('@/lib/auth/agent-auth', () => ({
-  verifyAgentSession: vi.fn().mockResolvedValue(null),
+mock.module('@/lib/auth/agent-auth', () => ({
+  verifyAgentSession: mockVerifyAgentSession,
 }));
 
-// Mock database
-vi.mock('@/lib/database-service', () => ({
+// Mock database (auth-middleware imports from @/lib/prisma, not database-service)
+mock.module('@/lib/prisma', () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
+      findUnique: mockFindUnique,
     },
   },
 }));
 
 describe('User Not Found Handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset all mocks
+    mockVerifyAuthToken.mockClear();
+    mockVerifyAgentSession.mockClear();
+    mockFindUnique.mockClear();
+    
+    // Set default mock implementations
+    mockVerifyAuthToken.mockImplementation(() => Promise.resolve({ userId: 'did:privy:testuser123' }));
+    mockVerifyAgentSession.mockImplementation(() => Promise.resolve(null));
     
     // Set required env vars
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-app-id';
@@ -42,8 +51,9 @@ describe('User Not Found Handling', () => {
 
   describe('authenticate()', () => {
     it('should return Privy DID when user does not exist in database', async () => {
-      const { prisma } = await import('@/lib/database-service');
-      prisma.user.findUnique = vi.fn().mockResolvedValue(null) as any;
+      mockFindUnique.mockImplementation(() => Promise.resolve(null));
+      
+      const { authenticate } = await import('@/lib/api/auth-middleware');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -60,11 +70,18 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return database user ID when user exists in database', async () => {
-      const { prisma } = await import('@/lib/database-service');
-      prisma.user.findUnique = vi.fn().mockResolvedValue({
-        id: 'db-user-123',
-        walletAddress: '0x1234567890123456789012345678901234567890',
+      // Mock findUnique to return user when queried by privyId
+      mockFindUnique.mockImplementation((args: any) => {
+        if (args?.where?.privyId === 'did:privy:testuser123') {
+          return Promise.resolve({
+            id: 'db-user-123',
+            walletAddress: '0x1234567890123456789012345678901234567890',
+          });
+        }
+        return Promise.resolve(null);
       });
+      
+      const { authenticate } = await import('@/lib/api/auth-middleware');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -84,8 +101,9 @@ describe('User Not Found Handling', () => {
 
   describe('authenticateWithDbUser()', () => {
     it('should throw error when user does not exist in database', async () => {
-      const { prisma } = await import('@/lib/database-service');
-      prisma.user.findUnique = vi.fn().mockResolvedValue(null) as any;
+      mockFindUnique.mockImplementation(() => Promise.resolve(null));
+      
+      const { authenticateWithDbUser } = await import('@/lib/api/auth-middleware');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -99,11 +117,18 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return user with dbUserId when user exists in database', async () => {
-      const { prisma } = await import('@/lib/database-service');
-      prisma.user.findUnique = vi.fn().mockResolvedValue({
-        id: 'db-user-123',
-        walletAddress: '0x1234567890123456789012345678901234567890',
+      // Mock findUnique to return user when queried by privyId
+      mockFindUnique.mockImplementation((args: any) => {
+        if (args?.where?.privyId === 'did:privy:testuser123') {
+          return Promise.resolve({
+            id: 'db-user-123',
+            walletAddress: '0x1234567890123456789012345678901234567890',
+          });
+        }
+        return Promise.resolve(null);
       });
+      
+      const { authenticateWithDbUser } = await import('@/lib/api/auth-middleware');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {

@@ -100,7 +100,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/lib/database-service';
+import db from '@/lib/database-service';
 import type { Market, Position } from '@prisma/client';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
@@ -175,7 +175,7 @@ function buildPositionSnapshot(
  * Get active prediction questions with optional user positions
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const questions = await db.getActiveQuestions();
+  const questions = await db().getActiveQuestions();
   const { searchParams } = new URL(request.url);
 
   const queryParse = MarketQuerySchema.merge(z.object({ userId: z.string().optional() })).partial().safeParse(Object.fromEntries(searchParams));

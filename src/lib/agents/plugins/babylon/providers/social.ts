@@ -6,6 +6,7 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type { A2AFeedResponse, A2ATrendingTagsResponse } from '@/types/a2a-responses'
 
 /**
  * Provider: Recent Feed
@@ -29,13 +30,13 @@ export const feedProvider: Provider = {
       offset: 0
     })
     
-    const feedData = feed as { posts?: unknown[] }
+    const feedData = feed as A2AFeedResponse
     
     return { text: `Recent Feed Posts:
 
-${feedData.posts?.map((p: any, i: number) => `${i + 1}. ${p.content}
-   By: @${p.author.username || p.author.displayName} | ${p.commentsCount} comments | ${p.reactionsCount} reactions
-   ${p.timestamp}`).join('\n\n') || 'No posts'}` }
+${feedData.posts?.map((p, i: number) => `${i + 1}. ${p.content}
+   By: @${p.author.username || p.author.displayName} | ${p.commentsCount || 0} comments | ${p.reactionsCount || 0} reactions
+   ${p.timestamp || p.createdAt || ''}`).join('\n\n') || 'No posts'}` }
   }
 }
 
@@ -60,13 +61,13 @@ export const trendingProvider: Provider = {
       limit: 10
     })
     
-    const trendingData = trending as { tags?: unknown[] }
+    const trendingData = trending as A2ATrendingTagsResponse
     
     return { text: `Trending Topics:
 
-${trendingData.tags?.map((t: any, i: number) => `${i + 1}. #${t.name} (${t.displayName || t.name})
+${trendingData.tags?.map((t, i: number) => `${i + 1}. #${t.name} (${t.displayName || t.name})
    Category: ${t.category || 'General'}
-   ${t.postCount} posts`).join('\n') || 'No trending topics'}` }
+   ${t.postCount || 0} posts`).join('\n') || 'No trending topics'}` }
   }
 }
 

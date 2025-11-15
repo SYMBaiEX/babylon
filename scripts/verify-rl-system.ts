@@ -20,26 +20,21 @@ interface TestResult {
 
 const results: TestResult[] = [];
 
-function test(name: string, fn: () => Promise<void> | void): void {
-  const promise = (async () => {
-    try {
-      await fn();
-      results.push({ name, passed: true, message: 'Passed' });
-      console.log(`  ✅ ${name}`);
-    } catch (error) {
-      results.push({ 
-        name, 
-        passed: false, 
-        message: error instanceof Error ? error.message : 'Unknown error',
-        error: error instanceof Error ? error : undefined
-      });
-      console.log(`  ❌ ${name}`);
-      console.log(`     ${error instanceof Error ? error.message : error}`);
-    }
-  })();
-  
-  // Make sure we await this
-  return promise as any;
+async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
+  try {
+    await fn();
+    results.push({ name, passed: true, message: 'Passed' });
+    console.log(`  ✅ ${name}`);
+  } catch (error) {
+    results.push({ 
+      name, 
+      passed: false, 
+      message: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error : undefined
+    });
+    console.log(`  ❌ ${name}`);
+    console.log(`     ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function verifyRLSystem() {

@@ -8,7 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { BlockUserSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';

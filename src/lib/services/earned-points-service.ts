@@ -3,7 +3,7 @@
  * Converts P&L from trading into earned points
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 

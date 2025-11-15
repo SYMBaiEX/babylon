@@ -3,7 +3,7 @@
  * Provides authenticated test contexts with mock user data
  */
 
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page, type Route } from '@playwright/test'
 
 // Declare global types for test mode flags
 declare global {
@@ -38,9 +38,9 @@ export const MOCK_ACCESS_TOKEN = 'mock-privy-access-token-for-testing'
 /**
  * Set up authentication state in the browser
  */
-export async function setupAuthState(page: any, navigateToUrl?: string) {
+export async function setupAuthState(page: Page, navigateToUrl?: string): Promise<void> {
   // Set up route interception BEFORE any navigation
-  await page.route('**/api/users/me', (route: any) => {
+  await page.route('**/api/users/me', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -50,7 +50,7 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
     })
   })
 
-  await page.route('**/api/users/*/posts*', (route: any) => {
+  await page.route('**/api/users/*/posts*', (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -63,7 +63,7 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
   })
 
   // Mock Privy API calls to return authenticated state
-  await page.route('**privy.io/api/**', (route: any) => {
+  await page.route('**privy.io/api/**', (route: Route) => {
     const url = route.request().url()
 
     // Mock the authenticated user endpoint
@@ -185,12 +185,12 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
  * Extended Playwright test with authenticated context
  */
 type AuthFixtures = {
-  authenticatedPage: any
+  authenticatedPage: Page
 }
 
 export const test = base.extend<AuthFixtures>({
   // Authenticated page fixture
-  authenticatedPage: async ({ page }: { page: any }, use: (page: any) => Promise<void>) => {
+  authenticatedPage: async ({ page }, use) => {
     await setupAuthState(page)
     await use(page)
   },

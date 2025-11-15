@@ -67,7 +67,13 @@ export const trendingTopicsProvider: Provider = {
         })
         
         // Count tag usage
-        const tagCounts = new Map<string, { tag: any; count: number }>()
+        interface TagInfo {
+          id: string;
+          name: string;
+          displayName: string | null;
+          category: string | null;
+        }
+        const tagCounts = new Map<string, { tag: TagInfo; count: number }>()
         
         for (const post of recentTags) {
           for (const postTag of post.PostTag) {

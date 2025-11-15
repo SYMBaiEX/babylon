@@ -9,7 +9,7 @@
  *   const posts = await cachedDb.getRecentPosts(100)
  */
 
-import { db } from './database-service';
+import db from './database-service';
 import {
   getCacheOrFetch,
   invalidateCache,
@@ -35,7 +35,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.getRecentPosts(limit, cursorOrOffset),
+      () => db().getRecentPosts(limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_LIST,
         ttl: DEFAULT_TTLS.POSTS_LIST,
@@ -54,7 +54,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.getPostsByActor(authorId, limit, cursorOrOffset),
+      () => db().getPostsByActor(authorId, limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_BY_ACTOR,
         ttl: DEFAULT_TTLS.POSTS_BY_ACTOR,
@@ -82,11 +82,11 @@ class CachedDatabaseService {
       async () => {
         // First, filter out test users from followedIds
         const [testUsers, testActors] = await Promise.all([
-          db.prisma.user.findMany({
+          db().prisma.user.findMany({
             where: { id: { in: followedIds }, isTest: true },
             select: { id: true },
           }),
-          db.prisma.actor.findMany({
+          db().prisma.actor.findMany({
             where: { id: { in: followedIds }, isTest: true },
             select: { id: true },
           }),
@@ -118,7 +118,7 @@ class CachedDatabaseService {
         }
         
         // Query posts from database (only from non-test users)
-        const posts = await db.prisma.post.findMany({
+        const posts = await db().prisma.post.findMany({
           where,
           orderBy: {
             timestamp: 'desc',
@@ -144,7 +144,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.user.findUnique({
+      () => db().prisma.user.findUnique({
         where: { id: userId },
       }),
       {
@@ -174,7 +174,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.user.findUnique({
+      () => db().prisma.user.findUnique({
         where: { id: userId },
         select: {
           virtualBalance: true,
@@ -199,7 +199,7 @@ class CachedDatabaseService {
     return getCacheOrFetch(
       cacheKey,
       async () => {
-        const user = await db.prisma.user.findUnique({
+        const user = await db().prisma.user.findUnique({
           where: { id: userId },
           select: {
             id: true,
@@ -219,7 +219,7 @@ class CachedDatabaseService {
         if (!user) return null;
 
         // Also count legacy actor follows
-        const legacyActorFollowCount = await db.prisma.followStatus.count({
+        const legacyActorFollowCount = await db().prisma.followStatus.count({
           where: {
             userId,
             isActive: true,
@@ -228,7 +228,7 @@ class CachedDatabaseService {
         });
 
         // Count posts
-        const postCount = await db.prisma.post.count({
+        const postCount = await db().prisma.post.count({
           where: { authorId: userId },
         });
 
@@ -256,7 +256,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.actor.findUnique({
+      () => db().prisma.actor.findUnique({
         where: { id: actorId },
       }),
       {
@@ -285,7 +285,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.organization.findUnique({
+      () => db().prisma.organization.findUnique({
         where: { id: orgId },
       }),
       {
@@ -303,7 +303,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.market.findMany({
+      () => db().prisma.market.findMany({
         where: { resolved: false },
         orderBy: { createdAt: 'desc' },
       }),
@@ -322,7 +322,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.prisma.trendingTag.findMany({
+      () => db().prisma.trendingTag.findMany({
         take: limit,
         orderBy: { rank: 'asc' },
         include: {

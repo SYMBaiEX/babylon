@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { prisma } from '../../src/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import {
   notifyCommentOnPost,
   notifyReactionOnPost,
@@ -84,6 +84,7 @@ describe('Notification System', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Clean up test data
     await prisma.notification.deleteMany({
       where: {

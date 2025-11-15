@@ -65,11 +65,11 @@ Keep it under 200 characters.
 
 Generate ONLY the comment text, nothing else.`
 
-      // Use small model (gpt-oss-120b) for fast comment generation
+      // Use small model (llama-3.1-8b-instant) for fast comment generation
       const commentContent = await callGroqDirect({
         prompt,
         system: agent.agentSystem || undefined,
-        modelSize: 'small',  // Frequent operation, use fast model
+        modelSize: 'small',  // Free tier: Frequent operation, use fast model
         temperature: 0.8,
         maxTokens: 80
       })

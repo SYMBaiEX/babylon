@@ -1,4 +1,4 @@
-import type { Experience} from '../types';
+import type { Experience } from '../types';
 import { ExperienceType } from '../types';
 import { type UUID } from '@elizaos/core';
 
@@ -49,7 +49,7 @@ export class ExperienceRelationshipManager {
         continue;
       }
 
-      if (current.type === ExperienceType.HYPOTHESIS) {
+      if (current && current.type === ExperienceType.HYPOTHESIS) {
         const chain: string[] = [current.id];
         let j = i + 1;
 
@@ -62,7 +62,7 @@ export class ExperienceRelationshipManager {
           }
 
           // Check if next experience validates or contradicts the hypothesis
-          if (next.relatedExperiences?.includes(current.id) || this.isRelated(current, next)) {
+          if (next && (next.relatedExperiences?.includes(current.id) || this.isRelated(current, next))) {
             chain.push(next.id);
 
             // If we found a validation, create a chain

@@ -1,21 +1,29 @@
-// @ts-nocheck
-
 /**
  * Example: Using the Babylon Plugin with Eliza Agents
  * 
  * This file demonstrates how to integrate the Babylon A2A plugin
  * with an Eliza agent for autonomous trading and social interactions.
+ * 
+ * NOTE: This is example code - some type assertions are used for demonstration purposes
  */
 
 import { initializeBabylonPlugin, babylonPlugin } from './index'
 import type { BabylonRuntime } from './types'
+import type {
+  A2APredictionsResponse,
+  A2ABalanceResponse,
+  A2APositionsResponse,
+  A2ATrendingTagsResponse,
+  A2AUnreadCountResponse
+} from '@/types/a2a-responses'
+// Memory and State types imported but not used in this example file
 
 /**
  * Example 1: Basic Plugin Initialization
  */
 export async function exampleBasicSetup() {
   // Assuming you have an Eliza runtime
-  const runtime: any = {} // Your Eliza runtime instance
+  const runtime: { a2aClient?: unknown; registerPlugin?: (plugin: unknown) => void | Promise<void> } = {} // Your Eliza runtime instance
   
   // Initialize the plugin with A2A connection
   const { a2aClient, plugin } = await initializeBabylonPlugin(runtime, {
@@ -50,8 +58,9 @@ export async function exampleUsingProviders(runtime: BabylonRuntime) {
   
   if (marketsProvider && portfolioProvider) {
     // Get current state
-    const markets = await marketsProvider.get(runtime, {} as any, {} as any)
-    const portfolio = await portfolioProvider.get(runtime, {} as any, {} as any)
+    // Note: These are example calls - in real usage, providers receive Memory and State from Eliza
+    const markets = await marketsProvider.get(runtime, {} as Parameters<typeof marketsProvider.get>[1], {} as Parameters<typeof marketsProvider.get>[2])
+    const portfolio = await portfolioProvider.get(runtime, {} as Parameters<typeof portfolioProvider.get>[1], {} as Parameters<typeof portfolioProvider.get>[2])
     
     console.log('Markets:', markets)
     console.log('Portfolio:', portfolio)
@@ -113,16 +122,21 @@ export async function exampleHandlingEvents(runtime: BabylonRuntime) {
   })
   
   // Listen for market updates
-  runtime.a2aClient.on('market.update', (data: any) => {
-    console.log('Market update received:', data)
-    // Agent can react to market changes
-  })
-  
-  // Listen for new messages
-  runtime.a2aClient.on('notification', (data: any) => {
-    console.log('Notification received:', data)
-    // Agent can respond to messages
-  })
+  // Note: HttpA2AClient doesn't support event listeners (it's stateless HTTP)
+  // This example assumes a WebSocket-based client would support this
+  if ('on' in runtime.a2aClient && typeof (runtime.a2aClient as { on: (event: string, callback: (data: unknown) => void) => void }).on === 'function') {
+    const a2aClient = runtime.a2aClient as { on: (event: string, callback: (data: unknown) => void) => void };
+    a2aClient.on('market.update', (data: unknown) => {
+      console.log('Market update received:', data)
+      // Agent can react to market changes
+    });
+    
+    // Listen for new messages
+    a2aClient.on('notification', (data: unknown) => {
+      console.log('Notification received:', data)
+      // Agent can respond to messages
+    })
+  }
 }
 
 /**
@@ -134,10 +148,10 @@ export async function exampleTradingStrategy(runtime: BabylonRuntime) {
   // Get active prediction markets
   const predictions = await runtime.a2aClient.sendRequest('a2a.getPredictions', {
     status: 'active'
-  })
+  }) as A2APredictionsResponse
   
   // Simple momentum strategy: buy underpriced YES shares
-  for (const market of (predictions as any)?.predictions || []) {
+  for (const market of predictions.predictions || []) {
     const yesPrice = market.yesShares / (market.yesShares + market.noShares)
     
     // If YES is trading below 40% but we think it should be higher
@@ -151,7 +165,7 @@ export async function exampleTradingStrategy(runtime: BabylonRuntime) {
           marketId: market.id,
           outcome: 'YES',
           amount: 50 // Invest $50
-        }) as any
+        }) as { shares?: number; avgPrice?: number }
         
         console.log(`Bought ${trade?.shares} YES shares at ${trade?.avgPrice}`)
         
@@ -178,34 +192,37 @@ export async function exampleSocialStrategy(runtime: BabylonRuntime) {
     limit: 5
   })
   
-  console.log('Trending topics:', (trending as any)?.tags)
+  const trendingData = trending as A2ATrendingTagsResponse
+  console.log('Trending topics:', trendingData.tags)
   
   // Get posts about trending topic
-  if ((trending as any)?.tags && (trending as any).tags.length > 0) {
-    const topTag = (trending as any).tags[0]
-    const posts = await runtime.a2aClient.sendRequest('a2a.getPostsByTag', {
-      tag: topTag.name,
-      limit: 10,
-      offset: 0
-    }) as any
-    
-    // Engage with popular posts
-    for (const post of (posts as any)?.posts || []) {
-      // Like posts with good engagement
-      if (post.reactionsCount > 5) {
-        await runtime.a2aClient.sendRequest('a2a.likePost', {
-          postId: post.id
-        })
-        console.log(`Liked post: ${post.id}`)
-      }
+  if (trendingData.tags && trendingData.tags.length > 0) {
+    const topTag = trendingData.tags[0]
+    if (topTag) {
+      const posts = await runtime.a2aClient.sendRequest('a2a.getPostsByTag', {
+        tag: topTag.name,
+        limit: 10,
+        offset: 0
+      }) as { posts?: Array<{ id: string; reactionsCount?: number; commentsCount?: number }> }
       
-      // Comment on particularly popular posts
-      if (post.commentsCount > 10) {
-        await runtime.a2aClient.sendRequest('a2a.createComment', {
-          postId: post.id,
-          content: 'Interesting perspective! What data are you basing this on?'
-        })
-        console.log(`Commented on post: ${post.id}`)
+      // Engage with popular posts
+      for (const post of posts.posts || []) {
+        // Like posts with good engagement
+        if (post.reactionsCount && post.reactionsCount > 5) {
+          await runtime.a2aClient.sendRequest('a2a.likePost', {
+            postId: post.id
+          })
+          console.log(`Liked post: ${post.id}`)
+        }
+        
+        // Comment on particularly popular posts
+        if (post.commentsCount && post.commentsCount > 10) {
+          await runtime.a2aClient.sendRequest('a2a.createComment', {
+            postId: post.id,
+            content: 'Interesting perspective! What data are you basing this on?'
+          })
+          console.log(`Commented on post: ${post.id}`)
+        }
       }
     }
   }
@@ -218,13 +235,13 @@ export async function examplePortfolioManagement(runtime: BabylonRuntime) {
   if (!runtime.a2aClient?.isConnected()) return
   
   // Get all positions
-  const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {})
+  const positions = await runtime.a2aClient.sendRequest('a2a.getPositions', {}) as A2APositionsResponse
   
-  console.log('Market positions:', (positions as any)?.marketPositions)
-  console.log('Perp positions:', (positions as any)?.perpPositions)
+  console.log('Market positions:', positions.marketPositions)
+  console.log('Perp positions:', positions.perpPositions)
   
   // Check perp positions for stop-loss
-  for (const position of (positions as any)?.perpPositions || []) {
+  for (const position of positions.perpPositions || []) {
     const pnlPercent = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100
     
     // If losing more than 20%, close position
@@ -257,8 +274,8 @@ export async function exampleCompleteAgentLoop(runtime: BabylonRuntime) {
   setInterval(async () => {
     try {
       // 1. Check portfolio
-      const balance = await runtime.a2aClient!.sendRequest('a2a.getBalance', {}) as any
-      console.log(`Current balance: $${balance?.balance}`)
+      const balance = await runtime.a2aClient!.sendRequest('a2a.getBalance', {}) as A2ABalanceResponse
+      console.log(`Current balance: $${balance.balance}`)
       
       // 2. Analyze markets
       await exampleTradingStrategy(runtime)
@@ -270,7 +287,7 @@ export async function exampleCompleteAgentLoop(runtime: BabylonRuntime) {
       await exampleSocialStrategy(runtime)
       
       // 5. Check messages
-      const unread = await runtime.a2aClient!.sendRequest('a2a.getUnreadCount', {}) as any
+      const unread = await runtime.a2aClient!.sendRequest('a2a.getUnreadCount', {}) as A2AUnreadCountResponse
       if (unread?.unreadCount > 0) {
         console.log(`You have ${unread.unreadCount} unread messages`)
         // Could implement message response logic here

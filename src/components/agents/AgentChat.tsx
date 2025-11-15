@@ -84,48 +84,62 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
     }
     setMessages(prev => [...prev, optimisticMessage])
 
-    const token = await getAccessToken()
-    if (!token) {
-      throw new Error('Authentication required')
-    }
-    
-    const res = await fetch(`/api/agents/${agent.id}/chat`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: userMessage,
-        usePro
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        throw new Error('Authentication required')
+      }
+      
+      const res = await fetch(`/api/agents/${agent.id}/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          usePro
+        })
       })
-    })
 
-    if (!res.ok) {
-      const error = await res.json() as { error: string }
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to send message' })) as { error: string }
+        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id))
+        toast.error(error.error || 'Failed to send message')
+        setSending(false)
+        return
+      }
+
+      const data = await res.json() as { messageId: string; response: string; modelUsed: string; pointsCost: number }
+
+      if (!data.response || !data.messageId) {
+        throw new Error('Invalid response from agent')
+      }
+
+      // Add assistant message
+      const assistantMessage: Message = {
+        id: data.messageId,
+        role: 'assistant',
+        content: data.response,
+        modelUsed: data.modelUsed,
+        pointsCost: data.pointsCost,
+        createdAt: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, assistantMessage])
+
+      // Update agent balance
+      onUpdate()
+      
+      toast.success(`Message sent (-${data.pointsCost} points)`)
+    } catch (error) {
+      // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id))
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message'
+      toast.error(errorMessage)
+      console.error('Chat error:', error)
+    } finally {
       setSending(false)
-      throw new Error(error.error || 'Failed to send message')
     }
-
-    const data = await res.json() as { messageId: string; response: string; modelUsed: string; pointsCost: number }
-
-    // Add assistant message
-    const assistantMessage: Message = {
-      id: data.messageId,
-      role: 'assistant',
-      content: data.response,
-      modelUsed: data.modelUsed,
-      pointsCost: data.pointsCost,
-      createdAt: new Date().toISOString()
-    }
-    setMessages(prev => [...prev, assistantMessage])
-
-    // Update agent balance
-    onUpdate()
-    
-    toast.success(`Message sent (-${data.pointsCost} points)`)
-    setSending(false)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -4,7 +4,7 @@
  * These functions use 'use cache: private' for personalized content
  * that depends on cookies, headers, or user context.
  */
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { ParticipationService } from '@/lib/services/participation-service';

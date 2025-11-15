@@ -6,214 +6,215 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { ActorsDataFile, ActorData, OrganizationData } from '../types/test-types';
 
 describe('Actors.json Data Integrity', () => {
-  let actorsData: any;
+  let actorsData: ActorsDataFile;
 
   beforeAll(() => {
     const actorsPath = path.join(process.cwd(), 'public/data/actors.json');
-    actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    actorsData = JSON.parse(fs.readFileSync(actorsPath, 'utf-8')) as ActorsDataFile;
   });
 
   describe('Actor Required Fields', () => {
     it('all actors should have id', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.id);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.id);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have name', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.name);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.name);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have realName', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.realName);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.realName);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have username', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.username);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.username);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have description', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.description);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.description);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have profileDescription', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.profileDescription);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.profileDescription);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have domain array', () => {
-      const missing = actorsData.actors.filter((a: any) => !Array.isArray(a.domain));
+      const missing = actorsData.actors.filter((a: ActorData) => !Array.isArray(a.domain));
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have personality', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.personality);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.personality);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have tier', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.tier);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.tier);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have postStyle', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.postStyle);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.postStyle);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have postExample array', () => {
-      const missing = actorsData.actors.filter((a: any) => !Array.isArray(a.postExample));
+      const missing = actorsData.actors.filter((a: ActorData) => !Array.isArray(a.postExample));
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have hasPool boolean', () => {
-      const missing = actorsData.actors.filter((a: any) => typeof a.hasPool !== 'boolean');
+      const missing = actorsData.actors.filter((a: ActorData) => typeof a.hasPool !== 'boolean');
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have physicalDescription', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.physicalDescription);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.physicalDescription);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have profileBanner', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.profileBanner);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.profileBanner);
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have originalFirstName', () => {
-      const missing = actorsData.actors.filter((a: any) => 
+      const missing = actorsData.actors.filter((a: ActorData) => 
         a.originalFirstName === undefined || a.originalFirstName === null
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have originalLastName (can be empty string)', () => {
-      const missing = actorsData.actors.filter((a: any) => 
+      const missing = actorsData.actors.filter((a: ActorData) => 
         a.originalLastName === undefined || a.originalLastName === null
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all actors should have originalHandle', () => {
-      const missing = actorsData.actors.filter((a: any) => !a.originalHandle);
+      const missing = actorsData.actors.filter((a: ActorData) => !a.originalHandle);
       expect(missing).toHaveLength(0);
     });
   });
 
   describe('Organization Required Fields', () => {
     it('all organizations should have id', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.id);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.id);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have name', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.name);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.name);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have type', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.type);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.type);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have description', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.description);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.description);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have postStyle', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.postStyle);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.postStyle);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have postExample array', () => {
-      const missing = actorsData.organizations.filter((o: any) => !Array.isArray(o.postExample));
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !Array.isArray(o.postExample));
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have initialPrice (number)', () => {
-      const missing = actorsData.organizations.filter((o: any) => typeof o.initialPrice !== 'number');
+      const missing = actorsData.organizations.filter((o: OrganizationData) => typeof o.initialPrice !== 'number');
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have originalName', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.originalName);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.originalName);
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have originalHandle', () => {
-      const missing = actorsData.organizations.filter((o: any) => !o.originalHandle);
+      const missing = actorsData.organizations.filter((o: OrganizationData) => !o.originalHandle);
       expect(missing).toHaveLength(0);
     });
   });
 
   describe('Unused Fields Removed', () => {
     it('no actors should have "nickname" field', () => {
-      const withNickname = actorsData.actors.filter((a: any) => 'nickname' in a);
+      const withNickname = actorsData.actors.filter((a) => 'nickname' in (a as unknown as Record<string, unknown>));
       expect(withNickname).toHaveLength(0);
     });
 
     it('no actors should have "aliases" field', () => {
-      const withAliases = actorsData.actors.filter((a: any) => 'aliases' in a);
+      const withAliases = actorsData.actors.filter((a) => 'aliases' in (a as unknown as Record<string, unknown>));
       expect(withAliases).toHaveLength(0);
     });
 
     it('no actors should have "quirks" field', () => {
-      const withQuirks = actorsData.actors.filter((a: any) => 'quirks' in a);
+      const withQuirks = actorsData.actors.filter((a) => 'quirks' in (a as unknown as Record<string, unknown>));
       expect(withQuirks).toHaveLength(0);
     });
 
     it('no actors should have "canPostFeed" field', () => {
-      const withCanPostFeed = actorsData.actors.filter((a: any) => 'canPostFeed' in a);
+      const withCanPostFeed = actorsData.actors.filter((a) => 'canPostFeed' in (a as unknown as Record<string, unknown>));
       expect(withCanPostFeed).toHaveLength(0);
     });
 
     it('no actors should have "canPostGroups" field', () => {
-      const withCanPostGroups = actorsData.actors.filter((a: any) => 'canPostGroups' in a);
+      const withCanPostGroups = actorsData.actors.filter((a) => 'canPostGroups' in (a as unknown as Record<string, unknown>));
       expect(withCanPostGroups).toHaveLength(0);
     });
   });
 
   describe('Name Parody Validation', () => {
     it('all actor names should be different from realName', () => {
-      const notParodied = actorsData.actors.filter((a: any) => a.name === a.realName);
+      const notParodied = actorsData.actors.filter((a: ActorData) => a.name === a.realName);
       expect(notParodied).toHaveLength(0);
     });
 
     it('actor names should contain AI variations', () => {
       const aiPatterns = /AI|ai/;
-      const withAI = actorsData.actors.filter((a: any) => aiPatterns.test(a.name));
+      const withAI = actorsData.actors.filter((a: ActorData) => aiPatterns.test(a.name));
       // Most should have AI in the name
       expect(withAI.length).toBeGreaterThan(actorsData.actors.length * 0.8);
     });
 
     it('organization names should be parodied', () => {
-      const notParodied = actorsData.organizations.filter((o: any) => o.name === o.originalName);
+      const notParodied = actorsData.organizations.filter((o: OrganizationData) => o.name === o.originalName);
       expect(notParodied).toHaveLength(0);
     });
   });
 
   describe('Data Consistency', () => {
     it('all actor IDs should be unique', () => {
-      const ids = actorsData.actors.map((a: any) => a.id);
+      const ids = actorsData.actors.map((a: ActorData) => a.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(ids.length);
     });
 
     it('all organization IDs should be unique', () => {
-      const ids = actorsData.organizations.map((o: any) => o.id);
+      const ids = actorsData.organizations.map((o: OrganizationData) => o.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(ids.length);
     });
 
     it('actor affiliations should reference valid organization IDs', () => {
-      const orgIds = new Set(actorsData.organizations.map((o: any) => o.id));
+      const orgIds = new Set(actorsData.organizations.map((o: OrganizationData) => o.id));
       
       for (const actor of actorsData.actors) {
         if (actor.affiliations && Array.isArray(actor.affiliations)) {

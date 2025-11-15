@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import type { Prisma } from '@prisma/client'
 

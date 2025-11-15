@@ -9,7 +9,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import { db } from '@/lib/database-service';
+import db from '@/lib/database-service';
 
 const prisma = new PrismaClient();
 
@@ -19,7 +19,7 @@ async function testWorldEventValidation() {
   try {
     // Test 1: Valid values should work
     console.log('Test 1: Creating event with valid INT4 values...');
-    const validEvent = await db.createEvent({
+    const validEvent = await db().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with valid values',
@@ -42,7 +42,7 @@ async function testWorldEventValidation() {
     console.log('  Would overflow?', bigNumber > 2147483647);
 
     try {
-      const invalidEvent = await db.createEvent({
+      const invalidEvent = await db().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid relatedQuestion',
@@ -66,7 +66,7 @@ async function testWorldEventValidation() {
     // Test 3: Large dayNumber should be filtered out
     console.log('\nTest 3: Attempting to create event with overflow dayNumber...');
     try {
-      const invalidDayEvent = await db.createEvent({
+      const invalidDayEvent = await db().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid dayNumber',
@@ -89,7 +89,7 @@ async function testWorldEventValidation() {
 
     // Test 4: Edge case - exactly INT4 max
     console.log('\nTest 4: Creating event with INT4 maximum value...');
-    const maxInt4Event = await db.createEvent({
+    const maxInt4Event = await db().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with INT4 max',

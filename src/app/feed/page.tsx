@@ -1,8 +1,8 @@
 'use client'
 
+import { ArticleCard } from '@/components/articles/ArticleCard'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { PostCard } from '@/components/posts/PostCard'
-import { ArticleCard } from '@/components/articles/ArticleCard'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -17,11 +17,11 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { cn } from '@/lib/utils'
 import type { FeedPost } from '@/shared/types'
 import { useAuthStore } from '@/stores/authStore'
-import { useGameStore } from '@/stores/gameStore'
 import { useFeedStore } from '@/stores/feedStore'
+import { useGameStore } from '@/stores/gameStore'
 import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const PAGE_SIZE = 20
 
@@ -102,13 +102,19 @@ function FeedPageContent() {
 
   useEffect(() => {
     const loadActorNames = async () => {
-      const response = await fetch('/data/actors.json')
-      const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
-      const nameMap = new Map<string, string>()
-      data.actors?.forEach((actor) => {
-        nameMap.set(actor.id, actor.name)
-      })
-      setActorNames(nameMap)
+      try {
+        const response = await fetch('/data/actors.json')
+        if (!response.ok) return
+        const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
+        const nameMap = new Map<string, string>()
+        data.actors?.forEach((actor) => {
+          nameMap.set(actor.id, actor.name)
+        })
+        setActorNames(nameMap)
+      } catch (err) {
+        console.error('Failed to load actor names:', err)
+        // Fail silently - actor names are optional
+      }
     }
     loadActorNames()
   }, [])
@@ -196,6 +202,13 @@ function FeedPageContent() {
 
       // Update hasMore based on API response
       setHasMore(hasMoreFromAPI && newPosts.length > 0)
+    } catch (err) {
+      console.error('Failed to fetch latest posts:', err)
+      if (append) setHasMore(false)
+      if (!skipLoadingState) {
+        if (append) setLoadingMore(false)
+        else setLoading(false)
+      }
     } finally {
       // Always reset loading states in finally block
       if (append) {
@@ -284,25 +297,35 @@ function FeedPageContent() {
 
       setLoadingFollowing(true)
       
-      const token = await getAccessToken()
+      try {
+        const token = await getAccessToken()
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch(
+          `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+          { headers }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch following posts')
+        }
+
+        const data = await response.json()
+        setFollowingPosts(data.posts as FeedPost[])
+      } catch (err) {
+        console.error('Failed to fetch following posts:', err)
+        // Keep existing posts on error
+      } finally {
+        setLoadingFollowing(false)
       }
-
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(
-        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}`,
-        { headers }
-      )
-
-      const data = await response.json()
-      setFollowingPosts(data.posts as FeedPost[])
-      setLoadingFollowing(false)
     }
 
     fetchFollowingPosts()

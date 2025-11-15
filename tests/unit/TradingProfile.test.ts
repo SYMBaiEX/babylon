@@ -4,6 +4,7 @@
  */
 
 import { describe, test, expect, mock } from 'bun:test'
+import type { PositionsResponse, PartialPositionsResponse } from '../types/test-types'
 
 // Skip only if explicitly requested or if database is not available
 // Note: Component tests may require Next.js runtime which might not be bundled in some environments
@@ -71,7 +72,7 @@ describe('TradingProfile Utility Functions', () => {
   })
 
   describe('formatCurrency', () => {
-    function formatCurrency(value: number) {
+    function formatCurrency(value: number): string {
       if (!Number.isFinite(value)) return '$0.00'
       const abs = Math.abs(value)
       if (abs >= 1000000) return `$${(value / 1000000).toFixed(2)}M`
@@ -110,7 +111,7 @@ describe('TradingProfile Utility Functions', () => {
   })
 
   describe('calculateCurrentPrice', () => {
-    function calculateCurrentPrice(market: { yesShares: number; noShares: number }) {
+    function calculateCurrentPrice(market: { yesShares: number; noShares: number }): number {
       const yesShares = toNumber(market.yesShares)
       const noShares = toNumber(market.noShares)
       const totalShares = yesShares + noShares
@@ -139,7 +140,7 @@ describe('TradingProfile Utility Functions', () => {
 
   describe('P&L Calculations', () => {
     test('should calculate perp P&L correctly', () => {
-      const positions = [
+      const positions: Array<{ unrealizedPnL: number }> = [
         { unrealizedPnL: 100 },
         { unrealizedPnL: -50 },
         { unrealizedPnL: 25 },
@@ -150,7 +151,7 @@ describe('TradingProfile Utility Functions', () => {
     })
 
     test('should calculate prediction P&L correctly', () => {
-      const positions = [
+      const positions: Array<{ unrealizedPnL: number }> = [
         { unrealizedPnL: 15.50 },
         { unrealizedPnL: -5.25 },
         { unrealizedPnL: 2.75 },
@@ -185,13 +186,13 @@ describe('TradingProfile Utility Functions', () => {
 describe('TradingProfile Data Handling', () => {
   describe('API Response Validation', () => {
     test('should handle missing user profile', () => {
-      const profileData = { user: null }
+      const profileData: { user: null } = { user: null }
       expect(profileData.user).toBeNull()
       // Component should throw error: "User profile not found"
     })
 
     test('should validate positions response structure', () => {
-      const validResponse = {
+      const validResponse: PositionsResponse = {
         perpetuals: {
           positions: [{ id: '1', ticker: 'BTC', side: 'long', unrealizedPnL: 100 }],
           stats: { totalPositions: 1, totalPnL: 100, totalFunding: 0 }
@@ -207,7 +208,7 @@ describe('TradingProfile Data Handling', () => {
     })
 
     test('should handle empty positions', () => {
-      const emptyResponse = {
+      const emptyResponse: PositionsResponse = {
         perpetuals: { positions: [], stats: { totalPositions: 0, totalPnL: 0, totalFunding: 0 } },
         predictions: { positions: [], stats: { totalPositions: 0 } }
       }
@@ -217,10 +218,10 @@ describe('TradingProfile Data Handling', () => {
     })
 
     test('should handle malformed response', () => {
-      const malformed = { perpetuals: null, predictions: undefined }
+      const malformed: PartialPositionsResponse = { perpetuals: null, predictions: undefined }
       
-      const perpPos = (malformed.perpetuals as any)?.positions || []
-      const predPos = (malformed.predictions as any)?.positions || []
+      const perpPos = malformed.perpetuals?.positions || []
+      const predPos = malformed.predictions?.positions || []
       
       expect(perpPos).toHaveLength(0)
       expect(predPos).toHaveLength(0)

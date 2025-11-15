@@ -94,16 +94,16 @@ export const experienceEvaluator: Evaluator = {
 
   async handler(
     runtime: IAgentRuntime,
-    message: Memory,
+    _message: Memory,
     state?: State,
-    options?: Record<string, unknown>,
-    callback?: HandlerCallback,
-    responses?: Memory[]
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback,
+    _responses?: Memory[]
   ): Promise<void> {
-    void message; // Message currently unused within evaluator handler
-    void options; // Options reserved for future evaluator configuration
-    void callback; // Callback not required for evaluator flow
-    void responses; // Responses not utilized in current evaluator logic
+    void _message; // Message currently unused within evaluator handler
+    void _options; // Options reserved for future evaluator configuration
+    void _callback; // Callback not required for evaluator flow
+    void _responses; // Responses not utilized in current evaluator logic
 
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 

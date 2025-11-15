@@ -73,6 +73,7 @@ describe('NPC Perpetual Trading Fees', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Cleanup (don't delete organization as it's from seed data)
     await prisma.nPCTrade.deleteMany({ where: { poolId: testPoolId } });
     await prisma.poolPosition.deleteMany({ where: { poolId: testPoolId } });

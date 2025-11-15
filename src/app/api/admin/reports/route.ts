@@ -6,7 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { GetReportsSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 

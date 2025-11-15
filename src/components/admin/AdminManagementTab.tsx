@@ -44,7 +44,16 @@ export function AdminManagementTab() {
   const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    fetchAdmins()
+    const loadAdmins = async () => {
+      try {
+        await fetchAdmins()
+      } catch (err) {
+        console.error('Failed to load admins:', err)
+        setLoading(false)
+        setRefreshing(false)
+      }
+    }
+    loadAdmins()
   }, [])
 
   const fetchAdmins = async (showRefreshing = false) => {
@@ -64,22 +73,28 @@ export function AdminManagementTab() {
     }
 
     setLoadingUsers(true)
-    const params = new URLSearchParams({
-      search: query,
-      limit: '10',
-      filter: 'users', // Only real users, not actors
-    })
-    const response = await fetch(`/api/admin/users?${params}`)
-    if (!response.ok) throw new Error('Failed to search users')
-    const data = await response.json()
-    
-    // Filter out users who are already admins
-    const adminIds = new Set(admins.map(a => a.id))
-    const nonAdminUsers = (data.users || [])
-      .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
-    
-    setAvailableUsers(nonAdminUsers)
-    setLoadingUsers(false)
+    try {
+      const params = new URLSearchParams({
+        search: query,
+        limit: '10',
+        filter: 'users', // Only real users, not actors
+      })
+      const response = await fetch(`/api/admin/users?${params}`)
+      if (!response.ok) throw new Error('Failed to search users')
+      const data = await response.json()
+      
+      // Filter out users who are already admins
+      const adminIds = new Set(admins.map(a => a.id))
+      const nonAdminUsers = (data.users || [])
+        .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
+      
+      setAvailableUsers(nonAdminUsers)
+    } catch (err) {
+      console.error('Failed to search users:', err)
+      setAvailableUsers([])
+    } finally {
+      setLoadingUsers(false)
+    }
   }
 
   const handleAddAdmin = async (userId: string) => {

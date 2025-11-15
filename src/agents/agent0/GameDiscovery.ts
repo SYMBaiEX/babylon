@@ -8,7 +8,7 @@
 import { SubgraphClient } from './SubgraphClient'
 import { IPFSPublisher } from './IPFSPublisher'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const GameConfigValueSchema = z.object({

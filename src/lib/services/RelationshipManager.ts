@@ -8,7 +8,7 @@
  * - Related actor selection for events and content
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import type { Actor, ActorRelationship, ActorTier, RELATIONSHIP_TYPES } from '@/shared/types';
 import type { Prisma } from '@prisma/client';
 

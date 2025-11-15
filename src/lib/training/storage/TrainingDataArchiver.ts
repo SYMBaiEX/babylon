@@ -40,7 +40,16 @@ export class TrainingDataArchiver {
       logger.info('Archiving training data', { windowId: options.windowId });
 
       const prefix = `${this.blobPrefix}${options.windowId}/`;
-      const urls: any = {};
+      interface BlobUrls {
+        trajectories: string;
+        groups?: string;
+        rulerScores?: string;
+        metadata: string;
+      }
+      const urls: BlobUrls = {
+        trajectories: '',
+        metadata: ''
+      };
       let totalSize = 0;
 
       // Upload trajectories
@@ -50,7 +59,7 @@ export class TrainingDataArchiver {
         addRandomSuffix: false
       });
       urls.trajectories = trajBlob.url;
-      totalSize += (trajBlob as any).size || 0;
+      totalSize += trajData.length;
 
       // Upload groups if provided
       if (options.groupsPath) {
@@ -60,7 +69,7 @@ export class TrainingDataArchiver {
           addRandomSuffix: false
         });
         urls.groups = groupsBlob.url;
-        totalSize += (groupsBlob as any).size || 0;
+        totalSize += groupsData.length;
       }
 
       // Upload RULER scores if provided
@@ -71,17 +80,18 @@ export class TrainingDataArchiver {
           addRandomSuffix: false
         });
         urls.rulerScores = scoresBlob.url;
-        totalSize += (scoresBlob as any).size || 0;
+        totalSize += scoresData.length;
       }
 
       // Upload metadata
+      const metadataJson = JSON.stringify(options.metadata || {}, null, 2);
       const metadataBlob = await put(
         `${prefix}metadata.json`,
-        JSON.stringify(options.metadata || {}, null, 2),
+        metadataJson,
         { access: 'public', addRandomSuffix: false }
       );
       urls.metadata = metadataBlob.url;
-      totalSize += (metadataBlob as any).size || 0;
+      totalSize += Buffer.byteLength(metadataJson, 'utf8');
 
       logger.info('Training data archived', {
         windowId: options.windowId,
@@ -119,7 +129,13 @@ export class TrainingDataArchiver {
         return null;
       }
 
-      const result: any = {};
+      interface WindowDataResult {
+        trajectories?: string;
+        groups?: string;
+        rulerScores?: Record<string, unknown>;
+        metadata?: Record<string, unknown>;
+      }
+      const result: WindowDataResult = {};
 
       for (const blob of blobs) {
         const response = await fetch(blob.url);
@@ -136,7 +152,17 @@ export class TrainingDataArchiver {
         }
       }
 
-      return result;
+      // Ensure required fields are present
+      if (!result.trajectories || !result.metadata) {
+        return null;
+      }
+
+      return {
+        trajectories: result.trajectories,
+        groups: result.groups,
+        rulerScores: result.rulerScores,
+        metadata: result.metadata
+      };
 
     } catch (error) {
       logger.error('Failed to retrieve archived data', error);

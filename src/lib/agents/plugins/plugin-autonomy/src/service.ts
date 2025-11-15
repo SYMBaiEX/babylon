@@ -1,11 +1,11 @@
 import {
-  Service,
-  type IAgentRuntime,
-  type UUID,
   asUUID,
-  type Memory,
-  type Content,
   EventType,
+  Service,
+  type Content,
+  type IAgentRuntime,
+  type Memory,
+  type UUID
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import { AutonomousServiceType } from './types';
@@ -88,6 +88,7 @@ export class AutonomyService extends Service {
         metadata: {
           source: 'autonomy-plugin',
           description: 'Room for autonomous agent thinking',
+          type: 'AUTONOMOUS',
         },
       });
     }

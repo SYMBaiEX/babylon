@@ -4,7 +4,7 @@
  * Helper functions to filter content based on user blocks and mutes
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Get list of user IDs that the current user has blocked

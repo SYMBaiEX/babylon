@@ -8,6 +8,7 @@
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
+import type { A2AChatsResponse, A2AUnreadCountResponse, A2ANotificationsResponse } from '@/types/a2a-responses'
 
 /**
  * Provider: Unread Messages
@@ -34,17 +35,17 @@ export const messagesProvider: Provider = {
       babylonRuntime.a2aClient.sendRequest('a2a.getUnreadCount', {})
     ])
     
-    const chatsData = chats as { chats?: unknown[] }
-    const unreadData = unreadCount as { unreadCount?: number }
+    const chatsData = chats as A2AChatsResponse
+    const unreadData = unreadCount as A2AUnreadCountResponse
     
     return { text: `Your Messages:
 
 Unread Count: ${unreadData.unreadCount || 0}
 
 Recent Chats (${chatsData.chats?.length || 0}):
-${chatsData.chats?.slice(0, 10).map((c: any) => `- ${c.name || (c.isGroup ? 'Group Chat' : 'Direct Message')} (${c.participants} participants)
+${chatsData.chats?.slice(0, 10).map((c) => `- ${c.name || (c.isGroup ? 'Group Chat' : 'Direct Message')} (${c.participants} participants)
   Last: ${c.lastMessage?.content?.substring(0, 50) || 'No messages'}...
-  ${c.updatedAt}`).join('\n') || 'No chats'}` }
+  ${c.updatedAt || ''}`).join('\n') || 'No chats'}` }
   }
 }
 
@@ -72,14 +73,14 @@ export const notificationsProvider: Provider = {
       limit: 10
     })
     
-    const notifData = notifications as { notifications?: unknown[]; unreadCount?: number }
+    const notifData = notifications as A2ANotificationsResponse
     
     return { text: `Your Notifications:
 
 Unread: ${notifData.unreadCount || 0}
 
 Recent Notifications (${notifData.notifications?.length || 0}):
-${notifData.notifications?.map((n: any) => `${n.read ? '✓' : '•'} ${n.type}: ${n.message}
+${notifData.notifications?.map((n) => `${n.read ? '✓' : '•'} ${n.type}: ${n.message}
   ${n.createdAt}`).join('\n') || 'No notifications'}` }
   }
 }

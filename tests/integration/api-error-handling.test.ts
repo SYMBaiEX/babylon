@@ -6,16 +6,13 @@
 
 import { describe, test, expect } from 'bun:test'
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available - Skipping API error handling tests`)
-    return false
-  }
-})()
+import { getTestBaseUrl, checkServerAvailableAtLoadTime } from './test-helpers'
+
+const BASE_URL = getTestBaseUrl()
+const serverAvailable = await checkServerAvailableAtLoadTime()
+if (!serverAvailable) {
+  console.log(`⚠️  Server not available - Skipping API error handling tests`)
+}
 
 describe('API Error Handling Integration', () => {
   describe('Authentication Errors', () => {

@@ -82,19 +82,24 @@ jobs:
       - name: Setup Prisma and Database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
           # Generate Prisma client first
           echo "🔧 Generating Prisma client..."
           bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
+
           # Force reset and apply migrations
           echo "🗄️ Resetting database and applying migrations..."
-          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
+          bunx prisma migrate reset --force --skip-generate --skip-seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+          # Verify tables exist
+          echo "🔍 Verifying database tables..."
+          bunx prisma db execute --stdin <<< 'SELECT tablename FROM pg_tables WHERE schemaname = '\''public'\'' LIMIT 5;' 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+
           # Run seed to ensure test data is loaded
           echo "🌱 Seeding database..."
           bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
+
           echo "✅ Database setup complete"
 
       - name: Build for tests
@@ -110,8 +115,13 @@ jobs:
       - name: Run Unit Tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379
-        run: bun test tests/unit/ --coverage
+          NODE_ENV: test
+        run: |
+          echo "🧪 Running unit tests with database connection..."
+          echo "📊 Database URL configured: ${DATABASE_URL:0:30}..."
+          bun test tests/unit/ --coverage
         continue-on-error: false
 
       - name: Start Next.js dev server
@@ -139,8 +149,10 @@ jobs:
       - name: Run Integration Tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379
           TEST_API_URL: http://localhost:3000
+          NODE_ENV: test
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
         continue-on-error: false
 

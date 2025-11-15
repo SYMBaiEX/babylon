@@ -36,6 +36,21 @@ export default function SettingsPage() {
     const tab = searchParams?.get('tab');
     return tab || 'profile';
   });
+
+  // Sync tab changes with URL
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    router.replace(`/settings?tab=${tabId}`, { scroll: false });
+  };
+
+  // Sync tab when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams, activeTab]);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -123,50 +138,51 @@ export default function SettingsPage() {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          displayName: trimmedDisplayName,
-          username: trimmedUsername,
-          bio: trimmedBio,
-        }),
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            displayName: trimmedDisplayName,
+            username: trimmedUsername,
+            bio: trimmedBio,
+          }),
+        }
+      )
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const message = payload?.error || 'Unable to save your changes.'
+        setErrorMessage(message)
+        logger.error('Failed to save profile settings', { error: message }, 'SettingsPage')
+        return
       }
-    ).catch((error: Error) => {
-      const message = error.message;
-      setErrorMessage(message);
-      logger.error('Failed to save profile settings', { error }, 'SettingsPage');
-      setSaving(false);
-      throw error;
-    });
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message = payload?.error || 'Unable to save your changes.';
-      setErrorMessage(message);
-      setSaving(false);
-      throw new Error(message);
+      if (payload.user) {
+        setUser({
+          ...user,
+          username: payload.user.username,
+          displayName: payload.user.displayName,
+          bio: payload.user.bio,
+          usernameChangedAt: payload.user.usernameChangedAt,
+          referralCode: payload.user.referralCode,
+          onChainRegistered:
+            payload.user.onChainRegistered ?? user.onChainRegistered,
+        })
+      }
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      await refresh().catch(() => undefined)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save profile settings'
+      setErrorMessage(message)
+      logger.error('Failed to save profile settings', { error }, 'SettingsPage')
+    } finally {
+      setSaving(false)
     }
-
-    if (payload.user) {
-      setUser({
-        ...user,
-        username: payload.user.username,
-        displayName: payload.user.displayName,
-        bio: payload.user.bio,
-        usernameChangedAt: payload.user.usernameChangedAt,
-        referralCode: payload.user.referralCode,
-        onChainRegistered:
-          payload.user.onChainRegistered ?? user.onChainRegistered,
-      });
-    }
-
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-    await refresh().catch(() => undefined);
-    setSaving(false);
   };
 
   if (!ready) {
@@ -246,7 +262,7 @@ export default function SettingsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 border-b-2 transition-all whitespace-nowrap',
                   activeTab === tab.id

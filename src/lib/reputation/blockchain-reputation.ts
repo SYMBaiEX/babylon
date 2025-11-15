@@ -8,7 +8,7 @@
 import { createPublicClient, http, type Address, type WalletClient } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 // Contract addresses (should be from environment in production)

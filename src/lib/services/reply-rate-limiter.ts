@@ -7,7 +7,7 @@
  * - Just right: allows reply and tracks timing
  */
 
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RateLimitResult {

@@ -5,10 +5,11 @@
 
 import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test'
 import { autonomousCoordinator } from '../AutonomousCoordinator'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { ethers } from 'ethers'
 import type { IAgentRuntime } from '@elizaos/core'
+import { ModelType } from '@elizaos/core'
 
 describe('Autonomous Coordinator', () => {
   let testAgentId: string
@@ -44,7 +45,7 @@ describe('Autonomous Coordinator', () => {
     // Create mock runtime
     mockRuntime = {
       agentId: testAgentId,
-      useModel: mock(async (_modelType: any, params: any) => {
+      useModel: mock(async (_modelType: typeof ModelType, params: { prompt: string; [key: string]: unknown }) => {
         // Return mock responses
         if (params.prompt.includes('decide if you should')) {
           return '[false, false, false]' // Don't respond to batch
@@ -56,9 +57,10 @@ describe('Autonomous Coordinator', () => {
       }),
       character: {
         name: 'Test Agent',
-        system: 'You are a test agent'
+        system: 'You are a test agent',
+        bio: 'Test agent bio'
       }
-    } as any
+    } as unknown as IAgentRuntime
   })
 
   afterAll(async () => {
@@ -120,7 +122,7 @@ describe('Autonomous Coordinator', () => {
         isConnected: () => true,
         sendRequest: mock(async () => ({ predictions: [], engagements: 0 }))
       }
-    } as any
+    } as Partial<IAgentRuntime> as IAgentRuntime
 
     const resultA2A = await autonomousCoordinator.executeAutonomousTick(testAgentId, runtimeWithA2A)
     expect(resultA2A.method).toBe('a2a')

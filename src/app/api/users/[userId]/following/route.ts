@@ -7,7 +7,7 @@ import {
   optionalAuth,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserFollowersQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';

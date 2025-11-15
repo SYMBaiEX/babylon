@@ -169,8 +169,9 @@ async function main() {
     // Test imports
     await execAsync('cd python && source venv/bin/activate && python -c "from src.training.babylon_trainer import BabylonTrainer; print(\'✅ Python imports work!\')"');
     console.log('✅ Python training system ready');
-  } catch (error: any) {
-    console.log('❌ Python training system error:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log('❌ Python training system error:', errorMessage);
     if (!FORCE_MODE) {
       await prisma.$disconnect();
       return;
@@ -213,10 +214,15 @@ async function main() {
       
       console.log('\n✅ Training completed successfully!');
       
-    } catch (error: any) {
-      console.log('\n❌ Training failed:', error.message);
-      if (error.stdout) console.log('Output:', error.stdout);
-      if (error.stderr) console.log('Error:', error.stderr);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log('\n❌ Training failed:', errorMessage);
+      if (error && typeof error === 'object' && 'stdout' in error) {
+        console.log('Output:', error.stdout);
+      }
+      if (error && typeof error === 'object' && 'stderr' in error) {
+        console.log('Error:', error.stderr);
+      }
     }
   } else {
     // 7. Show next steps

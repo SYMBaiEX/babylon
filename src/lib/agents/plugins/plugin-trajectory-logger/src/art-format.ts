@@ -168,27 +168,53 @@ export function toARTTrajectory(trajectory: Trajectory): ARTTrajectory {
       // Performance metrics for RULER
       metrics: trajectory.metrics
     },
-    metrics: trajectory.metrics
+    metrics: filterNumericMetrics(trajectory.metrics)
   };
+}
+
+/**
+ * Filter metrics to only include numeric values
+ * Converts trajectory.metrics (which may have unknown values) to Record<string, number>
+ */
+function filterNumericMetrics(metrics: Trajectory['metrics']): Record<string, number> {
+  const numericMetrics: Record<string, number> = {};
+  
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === 'number' && !isNaN(value)) {
+      numericMetrics[key] = value;
+    }
+  }
+  
+  return numericMetrics;
 }
 
 /**
  * Extract game knowledge from trajectory metadata
  */
-function extractGameKnowledge(trajectory: Trajectory): Record<string, any> {
-  const knowledge: Record<string, any> = {};
+function extractGameKnowledge(trajectory: Trajectory): {
+  trueProbabilities?: Record<string, number>;
+  actualOutcomes?: Record<string, unknown>;
+  hiddenVariables?: Record<string, unknown>;
+  gameEvents?: unknown[];
+} {
+  const knowledge: {
+    trueProbabilities?: Record<string, number>;
+    actualOutcomes?: Record<string, unknown>;
+    hiddenVariables?: Record<string, unknown>;
+    gameEvents?: unknown[];
+  } = {};
   
   // Extract from metadata if available
   if (trajectory.metadata.trueProbabilities) {
-    knowledge.trueProbabilities = trajectory.metadata.trueProbabilities;
+    knowledge.trueProbabilities = trajectory.metadata.trueProbabilities as Record<string, number>;
   }
   
   if (trajectory.metadata.futureOutcomes) {
-    knowledge.actualOutcomes = trajectory.metadata.futureOutcomes;
+    knowledge.actualOutcomes = trajectory.metadata.futureOutcomes as Record<string, unknown>;
   }
   
   if (trajectory.metadata.hiddenVariables) {
-    knowledge.hiddenVariables = trajectory.metadata.hiddenVariables;
+    knowledge.hiddenVariables = trajectory.metadata.hiddenVariables as Record<string, unknown>;
   }
   
   // Extract from steps (game events)
@@ -283,7 +309,7 @@ export function removeSharedPrefix(
 export function prepareForRULER(group: TrajectoryGroup): {
   sharedPrefix: ChatMessage[];
   suffixes: ChatMessage[][];
-  metadata: Record<string, any>[];
+  metadata: ARTTrajectory['metadata'][];
 } {
   const artTrajs = group.trajectories.map(t => toARTTrajectory(t));
   const sharedPrefix = group.sharedPrefix || extractSharedPrefix(group.trajectories);

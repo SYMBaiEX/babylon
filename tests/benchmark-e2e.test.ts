@@ -9,6 +9,24 @@ import { BenchmarkDataGenerator, type BenchmarkConfig } from '@/lib/benchmark/Be
 import { SimulationEngine, type SimulationConfig } from '@/lib/benchmark/SimulationEngine';
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 
+interface PredictionsResponse {
+  predictions?: Array<{
+    id: string;
+    yesPrice: number;
+    noPrice?: number;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+interface PerpetualsResponse {
+  perpetuals?: Array<{
+    ticker: string;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
 // Mock agent that makes simple decisions
 class MockAgent {
   private a2aClient: SimulationA2AInterface;
@@ -21,12 +39,12 @@ class MockAgent {
   async executeTick(): Promise<void> {
     try {
       // Get market data
-      const predictions = await this.a2aClient.sendRequest('a2a.getPredictions') as any;
+      const predictions = await this.a2aClient.sendRequest('a2a.getPredictions') as PredictionsResponse;
       
       // Simple strategy: buy YES on first market if price < 0.6
       if (predictions.predictions && predictions.predictions.length > 0) {
         const market = predictions.predictions[0];
-        if (market.yesPrice < 0.6) {
+        if (market && market.yesPrice < 0.6) {
           await this.a2aClient.sendRequest('a2a.buyShares', {
             marketId: market.id,
             outcome: 'YES',
@@ -152,17 +170,19 @@ describe('Benchmark System E2E', () => {
     engine.initialize();
     
     // Take one action we know the outcome of
-    const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as any;
+    const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as PredictionsResponse;
     if (predictions.predictions && predictions.predictions.length > 0) {
       const market = predictions.predictions[0];
-      const groundTruthOutcome = snapshot.groundTruth.marketOutcomes[market.id];
-      
-      // Buy the correct outcome
-      await a2aInterface.sendRequest('a2a.buyShares', {
-        marketId: market.id,
-        outcome: groundTruthOutcome ? 'YES' : 'NO',
-        amount: 100,
-      });
+      if (market) {
+        const groundTruthOutcome = snapshot.groundTruth.marketOutcomes[market.id];
+        
+        // Buy the correct outcome
+        await a2aInterface.sendRequest('a2a.buyShares', {
+          marketId: market.id,
+          outcome: groundTruthOutcome ? 'YES' : 'NO',
+          amount: 100,
+        });
+      }
     }
     
     // Run through all ticks
@@ -252,17 +272,17 @@ describe('Benchmark System E2E', () => {
     engine.initialize();
     
     // Take different types of actions
-    const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as any;
+    const predictions = await a2aInterface.sendRequest('a2a.getPredictions') as PredictionsResponse;
     if (predictions.predictions && predictions.predictions.length > 0) {
       await a2aInterface.sendRequest('a2a.buyShares', {
-        marketId: predictions.predictions[0].id,
+        marketId: predictions.predictions[0]!.id,
         outcome: 'YES',
         amount: 50,
       });
     }
     
-    const perpetuals = await a2aInterface.sendRequest('a2a.getPerpetuals') as any;
-    if (perpetuals.perpetuals && perpetuals.perpetuals.length > 0) {
+    const perpetuals = await a2aInterface.sendRequest('a2a.getPerpetuals') as PerpetualsResponse;
+    if (perpetuals.perpetuals && perpetuals.perpetuals.length > 0 && perpetuals.perpetuals[0]) {
       await a2aInterface.sendRequest('a2a.openPosition', {
         ticker: perpetuals.perpetuals[0].ticker,
         side: 'LONG',

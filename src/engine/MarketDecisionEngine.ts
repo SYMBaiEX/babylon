@@ -165,12 +165,33 @@ export class MarketDecisionEngine {
     // Use qwen3-32b for background trading operations - fast and reliable on Groq
     const model = options.model || 'qwen/qwen3-32b';
     
-    // Set output token limits based on model:
+    // Set output token limits based on model and provider:
     // Note: Input and output are SEPARATE limits on modern models
-    // - Kimi models: 260k INPUT (separate from 16k OUTPUT)
-    // - qwen3-32b: 130k INPUT (separate from 32k OUTPUT)
+    // Per https://console.groq.com/docs/models:
+    // - Kimi models: 262k INPUT (separate from 16,384 OUTPUT)
+    // - qwen3-32b: 131k INPUT (separate from 40,960 OUTPUT)
+    // - llama-3.1-8b: 131k INPUT (separate from 131k OUTPUT - unique!)
+    // - llama-3.3-70b: 131k INPUT (separate from 32,768 OUTPUT)
+    // - OpenAI models: 128k INPUT but only 16k OUTPUT (combined limit enforced)
     const isKimiModel = model.toLowerCase().includes('kimi');
-    const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+    const isOpenAIModel = model.toLowerCase().includes('gpt') || llm.getProvider() === 'openai';
+    const isLlama8B = model.includes('llama-3.1-8b');
+    
+    // Set appropriate output limits based on model
+    let defaultMaxOutput = 32000; // Default for most models
+    if (isKimiModel) {
+      defaultMaxOutput = 16000; // Kimi: 16,384 max output
+    } else if (model.includes('qwen3-32b')) {
+      defaultMaxOutput = 40000; // qwen3-32b: 40,960 max output (use 40k to be safe)
+    } else if (isLlama8B) {
+      defaultMaxOutput = 131000; // llama-3.1-8b: 131k max output (unique - same as input!)
+    }
+    if (isOpenAIModel) {
+      // OpenAI models: max 16k output tokens, but be conservative to avoid combined limit errors
+      // If prompt is large, reduce output tokens accordingly
+      defaultMaxOutput = 8000; // Conservative limit for OpenAI to avoid "reduce length" errors
+    }
+    
     const maxOutputTokens = options.maxOutputTokens || defaultMaxOutput;
     
     this.tokenConfig = {
@@ -182,8 +203,10 @@ export class MarketDecisionEngine {
     
     logger.info('MarketDecisionEngine initialized', {
       model,
+      provider: llm.getProvider(),
       maxContextTokens: this.tokenConfig.maxContextTokens,
       maxOutputTokens,
+      isOpenAIModel,
     }, 'MarketDecisionEngine');
   }
   
@@ -243,7 +266,15 @@ export class MarketDecisionEngine {
     const npcs = Array.from(contexts.values());
     
     // Calculate how many NPCs we can process per batch
-    const maxNPCsPerBatch = Math.max(1, Math.floor(this.tokenConfig.maxContextTokens / this.tokenConfig.tokensPerNPC));
+    // For OpenAI models, be more conservative due to combined input+output limits
+    const isOpenAIModel = this.tokenConfig.model.toLowerCase().includes('gpt') || this.llm.getProvider() === 'openai';
+    let maxNPCsPerBatch = Math.max(1, Math.floor(this.tokenConfig.maxContextTokens / this.tokenConfig.tokensPerNPC));
+    
+    // Reduce batch size for OpenAI models to account for combined input+output limits
+    if (isOpenAIModel) {
+      // Reserve more tokens for output by reducing batch size
+      maxNPCsPerBatch = Math.max(1, Math.floor(maxNPCsPerBatch * 0.5)); // 50% reduction for safety
+    }
     
     logger.info('Token budget allocation', {
       maxContextTokens: this.tokenConfig.maxContextTokens,
@@ -251,6 +282,8 @@ export class MarketDecisionEngine {
       maxNPCsPerBatch,
       totalNPCs: npcs.length,
       batchesNeeded: Math.ceil(npcs.length / maxNPCsPerBatch),
+      isOpenAIModel,
+      provider: this.llm.getProvider(),
     }, 'MarketDecisionEngine');
     
     // Process NPCs in batches if needed
@@ -362,16 +395,112 @@ export class MarketDecisionEngine {
     }
     
     // Use XML format for more robust parsing (handles truncation better than JSON)
-    const rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] }>(
-      prompt,
-      undefined,
-      { 
-        temperature: 0.8, 
-        maxTokens: this.tokenConfig.maxOutputTokens,
-        model: this.tokenConfig.model,
-        format: 'xml', // Use XML for robustness
+    // Handle OpenAI's combined input+output token limit errors by retrying with reduced output tokens
+    let rawResponse: TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] } | null = null;
+    let maxOutputTokens = this.tokenConfig.maxOutputTokens;
+    let retryCount = 0;
+    const maxRetries = 3; // Increased from 2 to 3 for better reliability
+    
+    while (retryCount <= maxRetries) {
+      try {
+        rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] }>(
+          prompt,
+          undefined,
+          { 
+            temperature: 0.7, // Reduced from 0.8 for more deterministic output
+            maxTokens: maxOutputTokens,
+            model: this.tokenConfig.model,
+            format: 'xml', // Use XML for robustness
+          }
+        );
+        
+        // Validate response is not a string (which indicates LLM ignored format)
+        if (typeof rawResponse === 'string') {
+          logger.warn('LLM returned string instead of structured data, retrying with stricter prompt', {
+            attempt: retryCount + 1,
+            preview: (rawResponse as string).substring(0, 200)
+          }, 'MarketDecisionEngine');
+          
+          if (retryCount < maxRetries) {
+            retryCount++;
+            continue; // Retry
+          }
+          
+          // Last retry - try to salvage by extracting XML/JSON from the string
+          logger.error('LLM consistently ignoring format instructions, attempting to extract data', {
+            attempts: retryCount + 1
+          }, 'MarketDecisionEngine');
+        }
+        
+        break; // Success, exit retry loop
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Check if this is the "reduce length" error from OpenAI
+        if (errorMessage.includes('reduce the length') || errorMessage.includes('400')) {
+          if (retryCount < maxRetries) {
+            // Reduce output tokens by 50% and retry
+            maxOutputTokens = Math.max(2000, Math.floor(maxOutputTokens * 0.5));
+            retryCount++;
+            
+            logger.warn('Token limit error, retrying with reduced output tokens', {
+              attempt: retryCount,
+              newMaxOutputTokens: maxOutputTokens,
+              promptTokens,
+              originalMaxOutputTokens: this.tokenConfig.maxOutputTokens,
+            }, 'MarketDecisionEngine');
+            
+            continue; // Retry with reduced tokens
+          } else {
+            // If we've exhausted retries, try processing in smaller batches
+            logger.error('Token limit error persists after retries, falling back to smaller batch', {
+              error: errorMessage,
+              promptTokens,
+              maxOutputTokens,
+            }, 'MarketDecisionEngine');
+            
+            // Fallback: process NPCs individually if batch fails
+            if (contexts.length > 1) {
+              logger.info('Falling back to individual NPC processing', {
+                npcCount: contexts.length,
+              }, 'MarketDecisionEngine');
+              
+              const individualDecisions: TradingDecision[] = [];
+              for (const context of contexts) {
+                try {
+                  const singleDecisions = await this.generateDecisionsForContexts([context]);
+                  individualDecisions.push(...singleDecisions);
+                } catch (individualError) {
+                  logger.warn('Failed to generate decision for individual NPC', {
+                    npcId: context.npcId,
+                    error: individualError instanceof Error ? individualError.message : String(individualError),
+                  }, 'MarketDecisionEngine');
+                }
+              }
+              return individualDecisions;
+            }
+            
+            // If single NPC also fails, return empty array
+            logger.error('Failed to generate decisions even for single NPC', {
+              error: errorMessage,
+            }, 'MarketDecisionEngine');
+            return [];
+          }
+        } else {
+          // Not a token limit error, rethrow
+          throw error;
+        }
       }
-    );
+    }
+    
+    // TypeScript guard: ensure rawResponse was assigned
+    if (rawResponse === null) {
+      logger.error('Failed to generate response after all retries', {
+        npcCount: contexts.length,
+        promptTokens,
+      }, 'MarketDecisionEngine');
+      return [];
+    }
     
     // Extract decisions array - handle XML structure: <decisions><decision>...</decision></decisions>
     let response: TradingDecision[];
@@ -395,8 +524,21 @@ export class MarketDecisionEngine {
         logger.debug('Extracted decisions from XML', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');
-      } else if ('decision' in rawResponse && Array.isArray(rawResponse.decision)) {
-        response = rawResponse.decision;
+      } else if ('decision' in rawResponse) {
+        // Handle both array and single decision object
+        const decisionData = rawResponse.decision;
+        if (Array.isArray(decisionData)) {
+          response = decisionData;
+        } else if (decisionData && typeof decisionData === 'object') {
+          // Single decision object - wrap in array
+          response = [decisionData as TradingDecision];
+          logger.debug('Wrapped single decision in array', {
+            npcId: (decisionData as Record<string, unknown>).npcId
+          }, 'MarketDecisionEngine');
+        } else {
+          logger.error('Invalid decision structure', { decisionData }, 'MarketDecisionEngine');
+          return [];
+        }
         logger.debug('Extracted decisions from flat XML structure', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');

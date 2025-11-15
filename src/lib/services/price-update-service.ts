@@ -1,4 +1,4 @@
-import { db } from '@/lib/database-service';
+import db from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
@@ -98,7 +98,7 @@ export class PriceUpdateService {
         data: { currentPrice: update.newPrice },
       });
 
-      await db.recordPriceUpdate(
+      await db().recordPriceUpdate(
         organization.id,
         update.newPrice,
         change,

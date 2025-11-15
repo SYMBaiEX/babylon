@@ -73,11 +73,12 @@ async function main() {
         profileImageUrl: profileImageUrl,
         updatedAt: new Date(),
       },
-    }).catch((error: { code?: string }) => {
+    }).catch((error: unknown) => {
       // Skip if actor already exists (P2002 = unique constraint violation)
-      if (error.code !== 'P2002') {
-        throw error;
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        return; // Skip duplicate
       }
+      throw error;
     });
   }
   
@@ -110,11 +111,12 @@ async function main() {
         imageUrl: imageUrl,
         updatedAt: new Date(),
       },
-    }).catch((error: { code?: string }) => {
+    }).catch((error: unknown) => {
       // Skip if organization already exists (P2002 = unique constraint violation)
-      if (error.code !== 'P2002') {
-        throw error;
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        return; // Skip duplicate
       }
+      throw error;
     });
     orgCount++;
   }
@@ -214,8 +216,10 @@ async function main() {
         actorId: actor.id,
         capital: capitalAllocation.initialPoolBalance,
       }, 'Script');
-    } catch (error: any) {
-      if (error.code !== 'P2002') {
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        // Pool already exists - handled below
+      } else {
         throw error;
       }
       

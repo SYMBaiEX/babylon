@@ -5,7 +5,7 @@
  */
 
 import { verifyAgentSession } from '@/lib/auth/agent-auth';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 // import { logger } from '@/lib/logger';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
@@ -100,22 +100,30 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
     };
   }
 
-  const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
+  // Try Privy authentication
+  try {
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
 
-  const dbUser = await prisma.user.findUnique({
-    where: { privyId: claims.userId },
-    select: { id: true, walletAddress: true },
-  });
+    const dbUser = await prisma.user.findUnique({
+      where: { privyId: claims.userId },
+      select: { id: true, walletAddress: true },
+    });
 
-  return {
-    userId: dbUser?.id ?? claims.userId,
-    dbUserId: dbUser?.id,
-    privyId: claims.userId,
-    walletAddress: dbUser?.walletAddress ?? undefined,
-    email: undefined,
-    isAgent: false,
-  };
+    return {
+      userId: dbUser?.id ?? claims.userId,
+      dbUserId: dbUser?.id,
+      privyId: claims.userId,
+      walletAddress: dbUser?.walletAddress ?? undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  } catch {
+    // Privy token verification failed - convert to AuthenticationError
+    const authError = new Error('Invalid or expired authentication token') as AuthenticationError;
+    authError.code = 'AUTH_FAILED';
+    throw authError;
+  }
 }
 
 /**
@@ -160,22 +168,28 @@ export async function optionalAuth(request: NextRequest): Promise<AuthenticatedU
     };
   }
 
-  const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
+  // Try Privy authentication - return null on failure (optional auth)
+  try {
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
 
-  const dbUser = await prisma.user.findUnique({
-    where: { privyId: claims.userId },
-    select: { id: true, walletAddress: true },
-  });
+    const dbUser = await prisma.user.findUnique({
+      where: { privyId: claims.userId },
+      select: { id: true, walletAddress: true },
+    });
 
-  return {
-    userId: dbUser?.id ?? claims.userId,
-    dbUserId: dbUser?.id,
-    privyId: claims.userId,
-    walletAddress: dbUser?.walletAddress ?? undefined,
-    email: undefined,
-    isAgent: false,
-  };
+    return {
+      userId: dbUser?.id ?? claims.userId,
+      dbUserId: dbUser?.id,
+      privyId: claims.userId,
+      walletAddress: dbUser?.walletAddress ?? undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  } catch {
+    // Token verification failed - return null for optional auth
+    return null;
+  }
 }
 
 /**
@@ -199,15 +213,21 @@ export async function optionalAuthFromHeaders(headers: Headers): Promise<Authent
     };
   }
 
-  const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
+  // Try Privy authentication - return null on failure (optional auth)
+  try {
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
 
-  return {
-    userId: claims.userId,
-    walletAddress: undefined,
-    email: undefined,
-    isAgent: false,
-  };
+    return {
+      userId: claims.userId,
+      walletAddress: undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  } catch {
+    // Token verification failed - return null for optional auth
+    return null;
+  }
 }
 
 /**

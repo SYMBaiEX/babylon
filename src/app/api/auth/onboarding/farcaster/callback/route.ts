@@ -6,7 +6,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 

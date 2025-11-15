@@ -10,9 +10,6 @@ export * from './client'
 // Message Router (used by API routes)
 export { MessageRouter } from './message-router'
 
-// Services
-export { getAnalysisService, AnalysisService } from './services/analysis-service'
-
 // Blockchain
 export { RegistryClient } from './blockchain/registry-client'
 

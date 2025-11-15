@@ -11,7 +11,7 @@
  * - Last activity timestamp
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 
 export interface ParticipationStats {

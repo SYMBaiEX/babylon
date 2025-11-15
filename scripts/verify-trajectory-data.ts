@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import type { TrajectoryStep } from '@/lib/agents/plugins/plugin-trajectory-logger/src/types';
 
 interface VerificationResult {
   overall: 'PASS' | 'FAIL' | 'WARN';
@@ -16,7 +17,7 @@ interface VerificationResult {
     name: string;
     status: 'PASS' | 'FAIL' | 'WARN';
     message: string;
-    details?: any;
+    details?: Record<string, unknown>;
   }[];
 }
 
@@ -58,7 +59,7 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
     for (const traj of trajectories) {
       if (!traj) continue;
       
-      const steps = JSON.parse(traj.stepsJson);
+      const steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
       const checkPrefix = `[${traj.trajectoryId.substring(0, 8)}]`;
 
       // Check 1: Has steps
@@ -79,7 +80,7 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
       });
 
       // Check 2: LLM calls
-      const llmCallsTotal = steps.reduce((sum: number, s: any) => sum + (s.llmCalls?.length || 0), 0);
+      const llmCallsTotal = steps.reduce((sum: number, s: TrajectoryStep) => sum + (s.llmCalls?.length || 0), 0);
       if (llmCallsTotal === 0) {
         result.checks.push({
           name: `${checkPrefix} LLM Calls`,
@@ -121,7 +122,7 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
       }
 
       // Check 3: Provider accesses
-      const providerTotal = steps.reduce((sum: number, s: any) => sum + (s.providerAccesses?.length || 0), 0);
+      const providerTotal = steps.reduce((sum: number, s: TrajectoryStep) => sum + (s.providerAccesses?.length || 0), 0);
       if (providerTotal === 0) {
         result.checks.push({
           name: `${checkPrefix} Provider Access`,
@@ -138,7 +139,7 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
       }
 
       // Check 4: Actions
-      const actionsWithResults = steps.filter((s: any) => s.action?.result || s.action?.error).length;
+      const actionsWithResults = steps.filter((s: TrajectoryStep) => s.action?.result || s.action?.error).length;
       if (actionsWithResults < steps.length) {
         result.checks.push({
           name: `${checkPrefix} Action Results`,
@@ -155,7 +156,7 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
       }
 
       // Check 5: Environment state
-      const stepsWithEnv = steps.filter((s: any) => s.environmentState).length;
+      const stepsWithEnv = steps.filter((s: TrajectoryStep) => s.environmentState).length;
       if (stepsWithEnv < steps.length) {
         result.checks.push({
           name: `${checkPrefix} Environment State`,

@@ -355,7 +355,7 @@ MODE=single python -m src.training.babylon_trainer
 ## 📖 Related Documentation
 
 - **Game Setup**: [START_HERE.md](START_HERE.md)
-- **Agent System**: [examples/autonomous-babylon-agent/](examples/autonomous-babylon-agent/)
+- **Agent System**: [examples/babylon-typescript-agent/](examples/babylon-typescript-agent/)
 - **RL Training**: [python/README.md](python/README.md)
 - **Architecture**: [TYPESCRIPT_INTEGRATION_MMO.md](TYPESCRIPT_INTEGRATION_MMO.md)
 

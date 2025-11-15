@@ -62,17 +62,6 @@ export const A2A_METHODS = {
   GET_FOLLOWERS: { method: 'a2a.getFollowers', params: {} },
   GET_FOLLOWING: { method: 'a2a.getFollowing', params: {} },
   
-  // Coalitions
-  PROPOSE_COALITION: { method: 'a2a.proposeCoalition', params: { name: 'Test Coalition', description: 'Test' } },
-  JOIN_COALITION: { method: 'a2a.joinCoalition', params: { coalitionId: 'test-coalition-1' } },
-  COALITION_MESSAGE: { method: 'a2a.coalitionMessage', params: { coalitionId: 'test-coalition-1', message: 'Hello' } },
-  LEAVE_COALITION: { method: 'a2a.leaveCoalition', params: { coalitionId: 'test-coalition-1' } },
-  
-  // Analysis & Insights
-  SHARE_ANALYSIS: { method: 'a2a.shareAnalysis', params: { marketId: '1', analysis: 'Bullish' } },
-  REQUEST_ANALYSIS: { method: 'a2a.requestAnalysis', params: { marketId: '1' } },
-  GET_ANALYSES: { method: 'a2a.getAnalyses', params: {} },
-  
   // Payments (x402)
   PAYMENT_REQUEST: { method: 'a2a.paymentRequest', params: { amount: 100, description: 'Test payment' } },
   PAYMENT_RECEIPT: { method: 'a2a.paymentReceipt', params: { transactionId: 'test-tx-1' } },
@@ -156,8 +145,7 @@ export const A2A_NORMAL_SCENARIO: LoadTestConfig = {
     generateA2AEndpoint(A2A_METHODS.GET_CHATS, 0.05),
     generateA2AEndpoint(A2A_METHODS.GET_NOTIFICATIONS, 0.05),
     // Some writes
-    generateA2AEndpoint(A2A_METHODS.CREATE_POST, 0.03),
-    generateA2AEndpoint(A2A_METHODS.SHARE_ANALYSIS, 0.02),
+    generateA2AEndpoint(A2A_METHODS.CREATE_POST, 0.05),
   ]
 };
 
@@ -219,26 +207,6 @@ export const A2A_RATE_LIMIT_STRESS: LoadTestConfig = {
 };
 
 /**
- * Multi-agent coalition stress test
- * Simulates multiple agents collaborating
- */
-export const A2A_COALITION_STRESS: LoadTestConfig = {
-  concurrentUsers: 50,
-  durationSeconds: 180,
-  rampUpSeconds: 20,
-  thinkTimeMs: 500,
-  endpoints: [
-    // Coalition operations
-    generateA2AEndpoint(A2A_METHODS.PROPOSE_COALITION, 0.10, 'agent-1'),
-    generateA2AEndpoint(A2A_METHODS.JOIN_COALITION, 0.15, 'agent-2'),
-    generateA2AEndpoint(A2A_METHODS.COALITION_MESSAGE, 0.30, 'agent-1'),
-    generateA2AEndpoint(A2A_METHODS.SHARE_ANALYSIS, 0.25, 'agent-3'),
-    generateA2AEndpoint(A2A_METHODS.REQUEST_ANALYSIS, 0.10, 'agent-2'),
-    generateA2AEndpoint(A2A_METHODS.GET_ANALYSES, 0.10, 'agent-1'),
-  ]
-};
-
-/**
  * All A2A test scenarios
  */
 export const A2A_TEST_SCENARIOS = {
@@ -246,6 +214,5 @@ export const A2A_TEST_SCENARIOS = {
   NORMAL: A2A_NORMAL_SCENARIO,
   HEAVY: A2A_HEAVY_SCENARIO,
   RATE_LIMIT: A2A_RATE_LIMIT_STRESS,
-  COALITION: A2A_COALITION_STRESS,
 } as const;
 

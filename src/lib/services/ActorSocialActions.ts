@@ -5,7 +5,7 @@
  * based on interaction history and social relationships.
  */
 
-import { db } from '@/lib/database-service';
+import db from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { GroupChatInvite } from './group-chat-invite';
@@ -34,12 +34,12 @@ export class ActorSocialActions {
     const actions: SocialAction[] = [];
 
     // Get all actors
-    const actors = await db.prisma.actor.findMany({
+    const actors = await db().prisma.actor.findMany({
       take: 50, // Limit to prevent overload
     });
 
     // Get all active users with interactions
-    const usersWithInteractions = await db.prisma.userInteraction.findMany({
+    const usersWithInteractions = await db().prisma.userInteraction.findMany({
       where: {
         timestamp: {
           gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
@@ -87,7 +87,7 @@ export class ActorSocialActions {
         }
 
         // Check if user is already in a chat with this actor
-        const existingMembership = await db.prisma.groupChatMembership.findFirst({
+        const existingMembership = await db().prisma.groupChatMembership.findFirst({
           where: {
             userId,
             npcAdminId: actor.id,
@@ -96,7 +96,7 @@ export class ActorSocialActions {
         });
 
         // Check if there's already a DM chat between this actor and user
-        const existingDMChat = userId && actor.id ? await db.prisma.chat.findFirst({
+        const existingDMChat = userId && actor.id ? await db().prisma.chat.findFirst({
           where: {
             isGroup: false,
             ChatParticipant: {
@@ -136,7 +136,7 @@ export class ActorSocialActions {
           
           // Look for existing game chats where this actor might be admin
           // Group chats are stored with kebab-case names, so we search by name pattern
-          const existingChat = await db.prisma.chat.findFirst({
+          const existingChat = await db().prisma.chat.findFirst({
             where: {
               isGroup: true,
               gameId: 'continuous',
@@ -215,7 +215,7 @@ export class ActorSocialActions {
     // Create or get DM chat
     const chatId = `dm-${actorId}-${userId}`;
     
-    const chat = await db.prisma.chat.upsert({
+    const chat = await db().prisma.chat.upsert({
       where: { id: chatId },
       update: {},
       create: {
@@ -232,7 +232,7 @@ export class ActorSocialActions {
     }
 
     // Add participants
-    await db.prisma.chatParticipant.upsert({
+    await db().prisma.chatParticipant.upsert({
       where: {
         chatId_userId: {
           chatId,
@@ -247,7 +247,7 @@ export class ActorSocialActions {
       },
     });
 
-    await db.prisma.chatParticipant.upsert({
+    await db().prisma.chatParticipant.upsert({
       where: {
         chatId_userId: {
           chatId,
@@ -265,7 +265,7 @@ export class ActorSocialActions {
     if(!messageContent) throw new Error('Message content is required');
     
     // Create initial message from actor
-    await db.prisma.message.create({
+    await db().prisma.message.create({
       data: {
         id: await generateSnowflakeId(),
         chatId,

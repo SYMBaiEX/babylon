@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from './fixtures/admin-auth'
+import type { Route } from '@playwright/test'
 
 test.describe('Admin Panel - Access Control', () => {
   test('should allow admin users to access admin panel', async ({ adminPage }) => {
@@ -512,7 +513,7 @@ test.describe('Admin Panel - Responsive Design', () => {
 test.describe('Admin Panel - Error Handling', () => {
   test('should handle API errors gracefully', async ({ adminPage }) => {
     // Override route to return error
-    await adminPage.route('**/api/admin/stats', (route: any) => {
+    await adminPage.route('**/api/admin/stats', (route: Route) => {
       route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -538,7 +539,7 @@ test.describe('Admin Panel - Error Handling', () => {
 
   test('should handle slow API responses', async ({ adminPage }) => {
     // Override route with delay
-    await adminPage.route('**/api/admin/users*', async (route: any) => {
+    await adminPage.route('**/api/admin/users*', async (route: Route) => {
       await new Promise(resolve => setTimeout(resolve, 2000))
       route.fulfill({
         status: 200,

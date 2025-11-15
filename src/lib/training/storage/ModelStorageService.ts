@@ -22,6 +22,8 @@ export interface ModelVersion {
     accuracy?: number;
     avgReward?: number;
     wandbRunId?: string;
+    baseModel?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -34,7 +36,7 @@ export class ModelStorageService {
   async uploadModel(options: {
     version: string;
     modelPath: string;
-    metadata?: Record<string, unknown>;
+    metadata?: ModelVersion['metadata'];
   }): Promise<ModelVersion> {
     try {
       logger.info('Uploading model to Vercel Blob', {
@@ -73,17 +75,16 @@ export class ModelStorageService {
       });
 
       // Save to database
-      const prismaExt = prisma as any;
-      await prismaExt.trainedModel.create({
+      await prisma.trainedModel.create({
         data: {
           id: `model-${Date.now()}`,
           modelId: `babylon-agent-${options.version}`,
           version: options.version,
           baseModel: (options.metadata?.baseModel as string) || 'OpenPipe/Qwen3-14B-Instruct',
           storagePath: blob.url,
-          wandbRunId: options.metadata?.wandbRunId as string,
-          accuracy: options.metadata?.accuracy as number,
-          avgReward: options.metadata?.avgReward as number,
+          wandbRunId: options.metadata?.wandbRunId as string | undefined,
+          accuracy: options.metadata?.accuracy as number | undefined,
+          avgReward: options.metadata?.avgReward as number | undefined,
           status: 'ready',
           agentsUsing: 0
         }
@@ -109,12 +110,12 @@ export class ModelStorageService {
    */
   async downloadModel(version: string): Promise<{
     modelData: Buffer;
-    metadata: Record<string, unknown>;
+    metadata: ModelVersion['metadata'];
   }> {
     try {
-      const prismaExt = prisma as any;
-      const model = await prismaExt.trainedModel.findFirst({
-        where: { version }
+      const model = await prisma.trainedModel.findFirst({
+        where: { version },
+        select: { storagePath: true }
       });
 
       if (!model) {
@@ -128,7 +129,7 @@ export class ModelStorageService {
       // Download metadata
       const metadataUrl = model.storagePath.replace(/\/[^/]+$/, '/metadata.json');
       const metadataResponse = await fetch(metadataUrl);
-      const metadata = await metadataResponse.json();
+      const metadata = await metadataResponse.json() as ModelVersion['metadata'];
 
       return {
         modelData,
@@ -151,7 +152,19 @@ export class ModelStorageService {
       });
 
       // Group by version
-      const versions = new Map<string, any>();
+      interface BlobInfo {
+        url: string;
+        pathname: string;
+        size: number;
+        uploadedAt: string | Date;
+      }
+      
+      interface VersionData {
+        version: string;
+        blobs: BlobInfo[];
+      }
+      
+      const versions = new Map<string, VersionData>();
 
       for (const blob of blobs) {
         const parts = blob.pathname.split('/');
@@ -164,25 +177,32 @@ export class ModelStorageService {
             blobs: []
           });
         }
-        versions.get(version).blobs.push(blob);
+        // Convert uploadedAt to string if it's a Date
+        const blobInfo: BlobInfo = {
+          ...blob,
+          uploadedAt: blob.uploadedAt instanceof Date 
+            ? blob.uploadedAt.toISOString() 
+            : blob.uploadedAt
+        };
+        versions.get(version)!.blobs.push(blobInfo);
       }
 
       // Get metadata for each version
       const models: ModelVersion[] = [];
 
       for (const [version, data] of versions) {
-        const modelBlob = data.blobs.find((b: any) => 
+        const modelBlob = data.blobs.find((b: BlobInfo) => 
           b.pathname.endsWith('.safetensors') || b.pathname.endsWith('.bin')
         );
 
         if (modelBlob) {
           // Try to get metadata
-          let metadata = {};
+          let metadata: ModelVersion['metadata'] = {};
           try {
-            const metadataBlob = data.blobs.find((b: any) => b.pathname.endsWith('metadata.json'));
+            const metadataBlob = data.blobs.find((b: BlobInfo) => b.pathname.endsWith('metadata.json'));
             if (metadataBlob) {
               const response = await fetch(metadataBlob.url);
-              metadata = await response.json();
+              metadata = await response.json() as ModelVersion['metadata'];
             }
           } catch {
             // No metadata, use defaults
@@ -190,10 +210,12 @@ export class ModelStorageService {
 
           models.push({
             version,
-            baseModel: (metadata as any).baseModel || 'unknown',
+            baseModel: metadata.baseModel || 'unknown',
             blobUrl: modelBlob.url,
             size: modelBlob.size,
-            uploadedAt: new Date(modelBlob.uploadedAt),
+            uploadedAt: modelBlob.uploadedAt instanceof Date 
+              ? modelBlob.uploadedAt 
+              : new Date(modelBlob.uploadedAt),
             metadata
           });
         }
@@ -223,8 +245,7 @@ export class ModelStorageService {
       }
 
       // Update database
-      const prismaExt = prisma as any;
-      await prismaExt.trainedModel.updateMany({
+      await prisma.trainedModel.updateMany({
         where: { version },
         data: {
           status: 'archived',

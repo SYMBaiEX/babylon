@@ -20,20 +20,48 @@ export interface XMLParseResult {
 }
 
 /**
- * Extract XML from text that may contain prose
+ * Extract XML from text that may contain prose/reasoning
+ * Handles cases where LLM outputs reasoning text before/after XML
  */
 export function extractXMLFromText(content: string): string {
   const cleaned = content.trim();
   
-  // If it already starts with XML, return as-is
+  // Try to find the main XML document (starts with < and ends with >)
+  // Look for patterns like <decisions>...</decisions> or <response>...</response>
+  const xmlPattern = /<(decisions|response|result|data|output)[\s>][\s\S]*?<\/\1>/i;
+  const xmlMatch = cleaned.match(xmlPattern);
+  if (xmlMatch) {
+    return xmlMatch[0];
+  }
+  
+  // Fallback: Try to find ANY XML block (more permissive, non-greedy)
+  const anyXmlMatch = cleaned.match(/<([\w-]+)[\s>][\s\S]*?<\/\1>/);
+  if (anyXmlMatch) {
+    return anyXmlMatch[0];
+  }
+  
+  // If starts with XML but no closing tag found, try to extract up to last >
   if (cleaned.startsWith('<')) {
+    const endIndex = cleaned.lastIndexOf('>');
+    if (endIndex !== -1) {
+      return cleaned.substring(0, endIndex + 1);
+    }
     return cleaned;
   }
   
-  // Try to find XML in the text
-  const xmlMatch = cleaned.match(/<[\s\S]*>/);
-  if (xmlMatch) {
-    return xmlMatch[0];
+  // Last resort: Extract everything between first < and matching >
+  const startIndex = cleaned.indexOf('<');
+  if (startIndex !== -1) {
+    // Find the root tag name
+    const tagMatch = cleaned.substring(startIndex).match(/<([\w-]+)[\s>]/);
+    if (tagMatch && tagMatch[1]) {
+      const tagName = tagMatch[1];
+      const closingTag = `</${tagName}>`;
+      const endIndex = cleaned.indexOf(closingTag, startIndex);
+      if (endIndex !== -1) {
+        return cleaned.substring(startIndex, endIndex + closingTag.length);
+      }
+    }
   }
   
   return cleaned;

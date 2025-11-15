@@ -5,9 +5,9 @@
  * Handles posts, questions, organizations, stock prices, events, actors.
  * 
  * Usage:
- *   import { db } from '@/lib/database-service'
- *   await db.createPost({...})
- *   const posts = await db.getRecentPosts(100)
+ *   import db from '@/lib/database-service'
+ *   await db().createPost({...})
+ *   const posts = await db().getRecentPosts(100)
  */
 
 import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
@@ -18,8 +18,10 @@ import { storeTagsForPost } from './services/tag-storage-service';
 import { generateSnowflakeId } from './snowflake';
 
 class DatabaseService {
-  // Expose prisma for direct queries
-  public prisma = prisma;
+  // Expose prisma for direct queries - use getter to avoid issues if prisma isn't initialized
+  get prisma() {
+    return prisma;
+  }
   /**
    * Initialize game state in database
    */
@@ -867,8 +869,16 @@ class DatabaseService {
   }
 }
 
-// Singleton instance
-export const db = new DatabaseService();
+// Singleton instance - ensure it's always available
+let dbInstance: DatabaseService | null = null;
 
-// Export prisma for direct access (for API routes that need it)
-export { prisma } from './prisma';
+export function getDbInstance(): DatabaseService {
+  if (!dbInstance) {
+    dbInstance = new DatabaseService();
+  }
+  return dbInstance;
+}
+
+export default getDbInstance;
+
+// Note: Import prisma directly from '@/lib/prisma' to avoid circular dependencies

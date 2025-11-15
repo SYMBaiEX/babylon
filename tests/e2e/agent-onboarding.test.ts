@@ -13,7 +13,7 @@ import { HDNodeWallet, Mnemonic } from 'ethers'
 
 const API_BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
 const TEST_MNEMONIC = 'test test test test test test test test test test test junk'
-const TEST_AGENT_SECRET = process.env.BABYLON_AGENT_SECRET || 'test-agent-secret-e2e'
+const TEST_AGENT_SECRET = process.env.CRON_SECRET || 'test-agent-secret-e2e'
 
 test.describe('Agent Onboarding E2E', () => {
   let testWallet: HDNodeWallet

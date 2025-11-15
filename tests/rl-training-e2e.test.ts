@@ -8,15 +8,38 @@
  * 4. Verifies window grouping works
  */
 
-// @ts-nocheck - E2E test with mocked dependencies
-
 import { describe, test, expect, afterAll, beforeAll } from 'bun:test';
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
 import { prisma } from '@/lib/prisma';
+import type { TestPrismaClient } from './shared/types';
+
+interface TrajectoryStep {
+  action?: {
+    type?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface Trajectory {
+  steps?: TrajectoryStep[];
+  totalReward?: number;
+  windowId?: string;
+  [key: string]: unknown;
+}
+
+interface ARTTrajectory {
+  messages: Array<{ role: string; content: string }>;
+  reward: number;
+  metadata: { windowId: string; [key: string]: unknown };
+}
 
 // Mock the ART format conversion since eliza plugin isn't available yet
-const toARTTrajectory = (traj: any) => ({
-  messages: traj.steps?.map((s: any) => ({ role: 'user', content: s.action?.type || 'unknown' })) || [],
+const toARTTrajectory = (traj: Trajectory): ARTTrajectory => ({
+  messages: traj.steps?.map((s: TrajectoryStep) => ({ 
+    role: 'user', 
+    content: s.action?.type || 'unknown' 
+  })) || [],
   reward: traj.totalReward || 0,
   metadata: { windowId: traj.windowId || 'unknown' }
 });
@@ -52,14 +75,16 @@ describe('RL Training E2E Integration', () => {
   afterAll(async () => {
     // Cleanup test data
     try {
-      const prismaExt = prisma as any;
-      await prismaExt.trajectory?.deleteMany({
-        where: {
-          trajectoryId: {
-            in: testTrajectoryIds
+      const prismaExt = prisma as TestPrismaClient;
+      if (prismaExt.trajectory) {
+        await prismaExt.trajectory.deleteMany({
+          where: {
+            trajectoryId: {
+              in: testTrajectoryIds
+            }
           }
-        }
-      });
+        });
+      }
       
       // Clean up test agents
       await prisma.user.deleteMany({
@@ -116,10 +141,10 @@ describe('RL Training E2E Integration', () => {
     });
 
     // Verify in database
-    const prismaExt = prisma as any;
-    const saved = await prismaExt.trajectory.findUnique({
+    const prismaExt = prisma as TestPrismaClient;
+    const saved = prismaExt.trajectory ? await prismaExt.trajectory.findUnique({
       where: { trajectoryId }
-    });
+    }) : null;
 
     expect(saved).toBeDefined();
     expect(saved!.windowId).toBe(windowId);
@@ -174,17 +199,17 @@ describe('RL Training E2E Integration', () => {
     );
 
     // Verify all in same window
-    const prismaExt = prisma as any;
-    const trajectories = await prismaExt.trajectory.findMany({
+    const prismaExt = prisma as TestPrismaClient;
+    const trajectories = prismaExt.trajectory ? await prismaExt.trajectory.findMany({
       where: {
         windowId,
         trajectoryId: { in: agents }
       }
-    });
+    }) : [];
 
     expect(trajectories).toHaveLength(5);
-    expect(new Set(trajectories.map(t => t.windowId)).size).toBe(1);
-    expect(new Set(trajectories.map(t => t.scenarioId)).size).toBe(1);
+    expect(new Set(trajectories.map((t: typeof trajectories[0]) => t.windowId)).size).toBe(1);
+    expect(new Set(trajectories.map((t: typeof trajectories[0]) => t.scenarioId)).size).toBe(1);
   });
 
   test('ART format conversion', async () => {
@@ -228,23 +253,36 @@ describe('RL Training E2E Integration', () => {
     });
 
     // Read from database
-    const prismaExt = prisma as any;
-    const saved = await prismaExt.trajectory.findUnique({
+    const prismaExt = prisma as TestPrismaClient;
+    const saved = prismaExt.trajectory ? await prismaExt.trajectory.findUnique({
       where: { trajectoryId }
-    });
+    }) : null;
 
     expect(saved).toBeDefined();
 
+    if (!saved) {
+      throw new Error('Trajectory not found');
+    }
+
     // Parse and convert to ART format
-    const trajectory = {
-      ...saved!,
-      steps: JSON.parse(saved!.stepsJson),
-      metrics: JSON.parse(saved!.metricsJson),
-      metadata: JSON.parse(saved!.metadataJson),
-      rewardComponents: JSON.parse(saved!.rewardComponentsJson)
+    interface SavedTrajectory {
+      stepsJson: string;
+      metricsJson: string;
+      metadataJson: string;
+      rewardComponentsJson: string;
+      totalReward?: number;
+      windowId?: string;
+      [key: string]: unknown;
+    }
+
+    const savedTraj = saved as unknown as SavedTrajectory;
+    const trajectory: Trajectory = {
+      steps: JSON.parse(savedTraj.stepsJson) as TrajectoryStep[],
+      totalReward: savedTraj.totalReward,
+      windowId: savedTraj.windowId,
     };
 
-    const artTraj = toARTTrajectory(trajectory as any);
+    const artTraj = toARTTrajectory(trajectory);
 
     // Verify ART format
     expect(artTraj.messages).toBeDefined();
@@ -259,19 +297,19 @@ describe('RL Training E2E Integration', () => {
     const windowId = new Date().toISOString().slice(0, 13) + ":00";
     
     // Get all trajectories in this window
-    const prismaExt = prisma as any;
-    const trajectories = await prismaExt.trajectory.findMany({
+    const prismaExt = prisma as TestPrismaClient;
+    const trajectories = prismaExt.trajectory ? await prismaExt.trajectory.findMany({
       where: { windowId },
       take: 10
-    });
+    }) : [];
 
     // All should have same window and scenario ID
     if (trajectories.length > 0) {
       const firstWindow = trajectories[0]!.windowId;
       const firstScenario = trajectories[0]!.scenarioId;
       
-      expect(trajectories.every(t => t.windowId === firstWindow)).toBe(true);
-      expect(trajectories.every(t => t.scenarioId === firstScenario)).toBe(true);
+      expect(trajectories.every((t: typeof trajectories[0]) => t.windowId === firstWindow)).toBe(true);
+      expect(trajectories.every((t: typeof trajectories[0]) => t.scenarioId === firstScenario)).toBe(true);
     }
   });
 });

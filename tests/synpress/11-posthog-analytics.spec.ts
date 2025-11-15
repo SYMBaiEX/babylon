@@ -10,28 +10,31 @@
  */
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import type { WindowWithPostHog, PostHogEvent } from '../types/test-types';
 // import { setupPrivyAuth, checkPrivyAuth } from './helpers/privy-auth'; // Unused
 
 const mockPostHogCapture = async (page: Page) => {
   // Mock PostHog to capture events for testing
   await page.addInitScript(() => {
-    (window as Window & { __postHogEvents?: Array<{ event: string; properties?: Record<string, unknown> }> }).__postHogEvents = [];
+    const win = window as WindowWithPostHog;
+    win.__postHogEvents = [];
     
     // Override PostHog capture method if it exists
-    const originalPostHog = (window as Window & { posthog?: typeof import('posthog-js').default }).posthog;
+    const originalPostHog = win.posthog;
     if (originalPostHog) {
       const originalCapture = originalPostHog.capture;
-      originalPostHog.capture = function(event: string, properties?: Record<string, unknown>) {
-        (window as Window & { __postHogEvents?: Array<{ event: string; properties?: Record<string, unknown> }> }).__postHogEvents?.push({ event, properties });
+      originalPostHog.capture = function(event: string, properties?: Record<string, string | number | boolean | null | undefined>) {
+        win.__postHogEvents?.push({ event, properties });
         return originalCapture.call(this, event, properties);
       };
     }
   });
 };
 
-const getCapturedEvents = async (page: Page): Promise<Array<{ event: string; properties?: Record<string, unknown> }>> => {
+const getCapturedEvents = async (page: Page): Promise<PostHogEvent[]> => {
   return await page.evaluate(() => {
-    return (window as Window & { __postHogEvents?: Array<{ event: string; properties?: Record<string, unknown> }> }).__postHogEvents || [];
+    const win = window as WindowWithPostHog;
+    return win.__postHogEvents || [];
   });
 };
 
@@ -69,8 +72,8 @@ test.describe('PostHog Analytics Integration', () => {
 
     // In development, should see initialization message
     const hasInitMessage = await page.evaluate(() => {
-      return typeof window !== 'undefined' && 
-             (window as Window & { posthog?: unknown }).posthog !== undefined;
+      const win = window as WindowWithPostHog;
+      return typeof window !== 'undefined' && win.posthog !== undefined;
     });
 
     expect(hasInitMessage).toBe(true);
@@ -82,7 +85,8 @@ test.describe('PostHog Analytics Integration', () => {
 
     // Clear previous events
     await page.evaluate(() => {
-      (window as Window & { __postHogEvents?: unknown[] }).__postHogEvents = [];
+      const win = window as WindowWithPostHog;
+      win.__postHogEvents = [];
     });
 
     // Navigate to feed page
@@ -106,7 +110,8 @@ test.describe('PostHog Analytics Integration', () => {
 
     // Check if PostHog identify was called
     const hasPostHog = await page.evaluate(() => {
-      return typeof (window as Window & { posthog?: unknown }).posthog !== 'undefined';
+      const win = window as WindowWithPostHog;
+      return typeof win.posthog !== 'undefined';
     });
 
     expect(hasPostHog).toBe(true);
@@ -122,7 +127,8 @@ test.describe('PostHog Analytics Integration', () => {
     // If any tracked buttons exist, clicking should trigger events
     if (trackedButtons > 0) {
       await page.evaluate(() => {
-        (window as Window & { __postHogEvents?: unknown[] }).__postHogEvents = [];
+        const win = window as WindowWithPostHog;
+        win.__postHogEvents = [];
       });
 
       await page.locator('[data-ph-capture]').first().click();
@@ -138,13 +144,14 @@ test.describe('PostHog Analytics Integration', () => {
     await page.goto('/');
     await page.waitForTimeout(1000);
 
-    const privacySettings = await page.evaluate(() => {
-      const ph = (window as Window & { posthog?: { config?: { respect_dnt?: boolean; capture_exceptions?: boolean } } }).posthog;
+    const privacySettings = await page.evaluate((): { respectDNT: boolean; captureExceptions: boolean } | null => {
+      const win = window as WindowWithPostHog;
+      const ph = win.posthog;
       if (!ph || !ph.config) return null;
       
       return {
-        respectDNT: ph.config.respect_dnt,
-        captureExceptions: ph.config.capture_exceptions,
+        respectDNT: ph.config.respect_dnt ?? false,
+        captureExceptions: ph.config.capture_exceptions ?? false,
       };
     });
 

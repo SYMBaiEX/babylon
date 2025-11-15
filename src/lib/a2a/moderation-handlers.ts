@@ -6,7 +6,7 @@
 
 import type { JsonRpcRequest, JsonRpcResponse } from '@/types/a2a';
 import { ErrorCode } from '@/types/a2a';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';

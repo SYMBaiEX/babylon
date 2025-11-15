@@ -19,6 +19,16 @@ const options: Options = {
 };
 
 /**
+ * OpenAPI specification type
+ */
+interface OpenAPISpec {
+  openapi?: string;
+  swagger?: string;
+  info?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
  * Generate OpenAPI specification automatically from JSDoc comments
  * 
  * @description Scans all API route files for @openapi tags and generates
@@ -37,7 +47,19 @@ const options: Options = {
  */
 export async function generateAutoSpec() {
   try {
-    return swaggerJsdoc(options);
+    const spec: OpenAPISpec = swaggerJsdoc(options) as OpenAPISpec;
+    
+    // Ensure openapi version field is present (required by Swagger UI)
+    if (!spec.openapi && !spec.swagger) {
+      spec.openapi = swaggerDefinition.openapi || '3.0.0';
+    }
+    
+    // Ensure all required OpenAPI fields are present
+    if (!spec.info) {
+      spec.info = swaggerDefinition.info;
+    }
+    
+    return spec;
   } catch (error) {
     console.error('Error generating OpenAPI spec:', error);
     

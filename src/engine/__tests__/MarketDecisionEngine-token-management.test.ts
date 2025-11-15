@@ -49,21 +49,42 @@ import { MarketContextService } from '@/lib/services/market-context-service';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { NPCMarketContext } from '@/types/market-context';
 
+interface JSONSchema {
+  required?: string[];
+  properties?: Record<string, {
+    type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    description?: string;
+    items?: unknown;
+    properties?: Record<string, unknown>;
+  }>;
+}
+
+interface GenerateJSONOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  format?: 'xml' | 'json';
+}
+
 // Mock LLM client for testing - doesn't require API keys
 class MockLLMClient {
-  private mockResponses: any[] = [];
+  private mockResponses: unknown[] = [];
   private callCount = 0;
 
   constructor() {
     // No super() call - this is a standalone mock that doesn't extend BabylonLLMClient
   }
 
-  setMockResponse(response: any) {
+  getProvider(): string {
+    return 'groq';
+  }
+
+  setMockResponse<T>(response: T): void {
     this.mockResponses.push(response);
   }
 
-  async generateJSON<T>(_prompt: string, _schema?: any, _options?: any): Promise<T> {
-    const response = this.mockResponses[this.callCount] || [];
+  async generateJSON<T>(_prompt: string, _schema?: JSONSchema, _options?: GenerateJSONOptions): Promise<T> {
+    const response = this.mockResponses[this.callCount] ?? ([] as unknown);
     this.callCount++;
     return response as T;
   }
@@ -164,8 +185,8 @@ describe('MarketDecisionEngine - Token Management', () => {
       expect(engine).toBeDefined();
     });
 
-    test('should use stable llama-3.1 by default', () => {
-      // The default model should be llama-3.1-70b-versatile
+    test('should use qwen/qwen3-32b by default', () => {
+      // The default model should be qwen/qwen3-32b
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       expect(engine).toBeDefined();
     });
@@ -200,14 +221,15 @@ describe('MarketDecisionEngine - Token Management', () => {
     });
 
     test('should split large NPC count into multiple batches', async () => {
-      // Create 300 NPCs (should require ~2 batches with 400 tokens per NPC)
-      const npcs = Array.from({ length: 300 }, (_, i) => 
+      // Create 400 NPCs (should require 2 batches with 128k context and 400 tokens per NPC)
+      // Max NPCs per batch: 128450 / 400 = 321, so 400 NPCs = 2 batches
+      const npcs = Array.from({ length: 400 }, (_, i) => 
         createMockNPC(`npc-${i}`, `NPC ${i}`)
       );
       mockContext.setMockNPCs(npcs);
 
       // Mock responses for each batch
-      const batch1 = npcs.slice(0, 270).map(npc => ({
+      const batch1 = npcs.slice(0, 321).map(npc => ({
         npcId: npc.npcId,
         npcName: npc.npcName,
         action: 'hold' as const,
@@ -217,7 +239,7 @@ describe('MarketDecisionEngine - Token Management', () => {
         reasoning: 'Holding',
         timestamp: new Date().toISOString(),
       }));
-      const batch2 = npcs.slice(270).map(npc => ({
+      const batch2 = npcs.slice(321).map(npc => ({
         npcId: npc.npcId,
         npcName: npc.npcName,
         action: 'hold' as const,
@@ -234,8 +256,8 @@ describe('MarketDecisionEngine - Token Management', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       const decisions = await engine.generateBatchDecisions();
 
-      expect(decisions.length).toBe(300);
-      expect(mockLLMInstance.getCallCount()).toBeGreaterThan(1); // Multiple batches
+      expect(decisions.length).toBe(400);
+      expect(mockLLMInstance.getCallCount()).toBe(2); // Should be exactly 2 batches
     });
   });
 
@@ -288,7 +310,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       expect(decisions[0]?.action).toBe('hold');
     });
 
-    test('should handle wrapped response format with "decision" key (singular)', async () => {
+    test('should handle wrapped response format with "decision" key (array)', async () => {
       const npcs = [createMockNPC('npc1', 'NPC 1')];
       mockContext.setMockNPCs(npcs);
 
@@ -303,6 +325,32 @@ describe('MarketDecisionEngine - Token Management', () => {
           reasoning: 'Holding',
           timestamp: new Date().toISOString(),
         }]
+      };
+      mockLLMInstance.setMockResponse(mockResponse);
+
+      const engine = new MarketDecisionEngine(mockLLM, mockContext);
+      const decisions = await engine.generateBatchDecisions();
+
+      expect(decisions.length).toBe(1);
+      expect(decisions[0]?.action).toBe('hold');
+    });
+
+    test('should handle wrapped response format with "decision" key (single object)', async () => {
+      const npcs = [createMockNPC('npc1', 'NPC 1')];
+      mockContext.setMockNPCs(npcs);
+
+      // LLM returns single decision object (not array) - happens with 1 NPC
+      const mockResponse = {
+        decision: {
+          npcId: 'npc1',
+          npcName: 'NPC 1',
+          action: 'hold' as const,
+          marketType: null,
+          amount: 0,
+          confidence: 1,
+          reasoning: 'Holding',
+          timestamp: new Date().toISOString(),
+        }
       };
       mockLLMInstance.setMockResponse(mockResponse);
 
@@ -517,25 +565,24 @@ describe('MarketDecisionEngine - Token Management', () => {
   });
 
   describe('Model Configuration', () => {
-    test('should use llama-3.1-70b-versatile by default', () => {
+    test('should use qwen/qwen3-32b by default', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       expect(engine).toBeDefined();
-      // Default model should have 128k token limit
+      // Default model should have 130k token limit
     });
 
     test('should accept custom model with different token limit', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext, {
-        model: 'claude-3-opus', // 200k context
+        model: 'claude-sonnet-4-5', // 200k context
         maxOutputTokens: 8000,
       });
       expect(engine).toBeDefined();
     });
 
     test('should calculate safe context limit correctly', () => {
-      // llama-3.1-70b-versatile: 128k total
-      // - 8k output = 120k available
-      // * 0.9 safety = 108k safe limit
-      // / 400 per NPC = ~270 NPCs per batch
+      // qwen/qwen3-32b: 130k input context
+      // * 0.9 safety = 117k safe limit
+      // / 400 per NPC = ~292 NPCs per batch
       
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       expect(engine).toBeDefined();

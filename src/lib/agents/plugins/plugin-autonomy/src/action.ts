@@ -95,12 +95,12 @@ export const sendToAdminAction: Action = {
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State,
-    options?: { [key: string]: unknown },
+    _state?: State,
+    _options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    void state; // State is currently unused but preserved for future compatibility
-    void options; // Options currently unused but retained for API parity
+    void _state; // State is currently unused but preserved for future compatibility
+    void _options; // Options currently unused but retained for API parity
 
     // Double-check we're in autonomous context
     const autonomyService = runtime.getService('autonomy');

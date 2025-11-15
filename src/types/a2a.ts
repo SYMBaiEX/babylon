@@ -137,17 +137,6 @@ export enum A2AMethod {
   // Organizations
   GET_ORGANIZATIONS = 'a2a.getOrganizations',
 
-  // Coalition & Coordination
-  PROPOSE_COALITION = 'a2a.proposeCoalition',
-  JOIN_COALITION = 'a2a.joinCoalition',
-  COALITION_MESSAGE = 'a2a.coalitionMessage',
-  LEAVE_COALITION = 'a2a.leaveCoalition',
-
-  // Information Sharing
-  SHARE_ANALYSIS = 'a2a.shareAnalysis',
-  REQUEST_ANALYSIS = 'a2a.requestAnalysis',
-  GET_ANALYSES = 'a2a.getAnalyses',
-
   // Moderation
   BLOCK_USER = 'moderation.blockUser',
   UNBLOCK_USER = 'moderation.unblockUser',
@@ -242,58 +231,6 @@ export interface MarketSubscription {
   marketId: string
   agentId: string
   subscribedAt: number
-}
-
-// Coalition Types
-export interface Coalition {
-  id: string
-  name: string
-  members: string[] // Agent IDs
-  strategy: string
-  targetMarket: string
-  createdAt: number
-  active: boolean
-}
-
-export interface CoalitionProposal {
-  coalitionId: string
-  name?: string // Optional coalition name
-  proposer: string
-  targetMarket: string
-  strategy: string
-  minMembers: number
-  maxMembers: number
-  expiresAt: number
-}
-
-export interface CoalitionMessage {
-  coalitionId: string
-  from: string
-  messageType: 'analysis' | 'vote' | 'action' | 'coordination'
-  content: JsonValue
-  timestamp: number
-}
-
-// Analysis Sharing Types
-export const MarketAnalysisSchema = z.object({
-  marketId: z.string(),
-  analyst: z.string(),
-  prediction: z.number().min(0).max(1),
-  confidence: z.number().min(0).max(1),
-  reasoning: z.string(),
-  dataPoints: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-  timestamp: z.number(),
-  signature: z.string().optional(),
-});
-export type MarketAnalysis = z.infer<typeof MarketAnalysisSchema>;
-
-export interface AnalysisRequest {
-  requestId: string
-  marketId: string
-  requester: string
-  paymentOffer?: string // x402 payment amount
-  deadline: number
-  timestamp: number
 }
 
 // x402 Micropayment Types
@@ -424,8 +361,5 @@ export enum A2AEventType {
   AGENT_CONNECTED = 'agent.connected',
   AGENT_DISCONNECTED = 'agent.disconnected',
   MARKET_UPDATE = 'market.update',
-  COALITION_INVITE = 'coalition.invite',
-  COALITION_MESSAGE = 'coalition.message',
-  PAYMENT_RECEIVED = 'payment.received',
-  ANALYSIS_RECEIVED = 'analysis.received'
+  PAYMENT_RECEIVED = 'payment.received'
 }

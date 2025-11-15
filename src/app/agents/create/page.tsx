@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { PageContainer } from '@/components/shared/PageContainer'
-import { Bot, ArrowLeft, Sparkles, Dices } from 'lucide-react'
-import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
+import { ArrowLeft, Bot, Brain, Coins, Dices, Loader2, Plus, Sparkles, TrendingUp, User, Wallet, Zap } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 const STORAGE_KEY = 'babylon_agent_draft'
@@ -63,46 +64,44 @@ export default function CreateAgentPage() {
   const handleGenerateField = async (field: string) => {
     setGeneratingField(field)
     
-    const response = await fetch('/api/agents/generate-field', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fieldName: field,
-        currentValue: formData[field as keyof typeof formData],
-        context: {
-          name: formData.name,
-          description: formData.description,
-          system: formData.system,
-          personality: formData.personality,
-          tradingStrategy: formData.tradingStrategy,
+    try {
+      const response = await fetch('/api/agents/generate-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
-    }).catch((error: Error) => {
+        body: JSON.stringify({
+          fieldName: field,
+          currentValue: formData[field as keyof typeof formData],
+          context: {
+            name: formData.name,
+            description: formData.description,
+            system: formData.system,
+            personality: formData.personality,
+            tradingStrategy: formData.tradingStrategy,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate field')
+      }
+
+      const result = await response.json()
+      
+      if (field === 'bio') {
+        updateField('bio', result.value.split('|').map((s: string) => s.trim()))
+      } else {
+        updateField(field, result.value)
+      }
+
+      toast.success(`Generated ${field}!`)
+    } catch (error) {
       console.error('Error generating field:', error)
-      toast.error(error.message)
+      toast.error(error instanceof Error ? error.message : 'Failed to generate field')
+    } finally {
       setGeneratingField(null)
-      throw error
-    })
-
-    if (!response.ok) {
-      const error = new Error('Failed to generate field')
-      toast.error(error.message)
-      setGeneratingField(null)
-      throw error
     }
-
-    const result = await response.json()
-    
-    if (field === 'bio') {
-      updateField('bio', result.value.split('|').map((s: string) => s.trim()))
-    } else {
-      updateField(field, result.value)
-    }
-
-    toast.success(`Generated ${field}!`)
-    setGeneratingField(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,46 +119,46 @@ export default function CreateAgentPage() {
 
     setLoading(true)
     
-    const token = await getAccessToken()
-    
-    if (!token) {
-      toast.error('Authentication required')
-      setLoading(false)
-      return
-    }
-    
-    const res = await fetch('/api/agents', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...formData,
-        bio: formData.bio.filter(b => b.trim())
+    try {
+      const token = await getAccessToken()
+      
+      if (!token) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          bio: formData.bio.filter(b => b.trim())
+        })
       })
-    }).catch((error: Error) => {
-      toast.error(error.message)
-      setLoading(false)
-      throw error
-    })
 
-    if (!res.ok) {
-      const error = await res.json()
-      const errorMsg = error.error || 'Failed to create agent'
-      toast.error(errorMsg)
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        const errorMsg = error.error || 'Failed to create agent'
+        toast.error(errorMsg)
+        return
+      }
+
+      const data = await res.json() as { agent: { id: string } }
+      
+      // Clear draft
+      localStorage.removeItem(STORAGE_KEY)
+      
+      toast.success('Agent created successfully!')
+      router.push(`/agents/${data.agent.id}`)
+    } catch (error) {
+      console.error('Failed to create agent:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to create agent')
+    } finally {
       setLoading(false)
-      throw new Error(errorMsg)
     }
-
-    const data = await res.json() as { agent: { id: string } }
-    
-    // Clear draft
-    localStorage.removeItem(STORAGE_KEY)
-    
-    toast.success('Agent created successfully!')
-    setLoading(false)
-    router.push(`/agents/${data.agent.id}`)
   }
 
   if (!ready || !authenticated) {
@@ -182,16 +181,21 @@ export default function CreateAgentPage() {
 
   return (
     <PageContainer>
-      <div className="p-4 max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto pb-24">
         {/* Header */}
-        <div>
-          <Link href="/agents">
-            <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Agents
-            </button>
-          </Link>
-          <h1 className="text-3xl font-bold mb-2">Create New Agent</h1>
+        <div className="mb-8">
+          <Button
+            onClick={() => router.push('/agents')}
+            variant="ghost"
+            className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back</span>
+          </Button>
+          <div className="flex items-center gap-3 mb-2">
+            <Bot className="w-8 h-8 text-[#0066FF]" />
+            <h1 className="text-3xl font-bold">Create New Agent</h1>
+          </div>
           <p className="text-muted-foreground">
             Build your AI agent with powerful automation tools
           </p>
@@ -199,21 +203,26 @@ export default function CreateAgentPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info Card */}
-          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
-            <h2 className="text-xl font-semibold">Basic Information</h2>
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <User className="w-5 h-5 text-[#0066FF]" />
+              Basic Information
+            </h2>
             
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>Name <span className="text-red-500">*</span></span>
-                <button
+                <Button
                   type="button"
                   onClick={handleRandomName}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1"
                   title="Random name"
                 >
                   <Dices className="w-3 h-3" />
                   Random
-                </button>
+                </Button>
               </label>
               <Input
                 value={formData.name}
@@ -226,15 +235,17 @@ export default function CreateAgentPage() {
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>Description</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleGenerateField('description')}
                   disabled={generatingField === 'description'}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1 disabled:opacity-50"
                 >
                   {generatingField === 'description' ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       Generating...
                     </>
                   ) : (
@@ -243,7 +254,7 @@ export default function CreateAgentPage() {
                       Generate
                     </>
                   )}
-                </button>
+                </Button>
               </label>
               <Textarea
                 value={formData.description}
@@ -265,21 +276,26 @@ export default function CreateAgentPage() {
           </div>
 
           {/* Personality Card */}
-          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
-            <h2 className="text-xl font-semibold">Personality & Character</h2>
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Brain className="w-5 h-5 text-[#0066FF]" />
+              Personality & Character
+            </h2>
 
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>System Prompt <span className="text-red-500">*</span></span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleGenerateField('system')}
                   disabled={generatingField === 'system'}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1 disabled:opacity-50"
                 >
                   {generatingField === 'system' ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       Generating...
                     </>
                   ) : (
@@ -288,7 +304,7 @@ export default function CreateAgentPage() {
                       Generate
                     </>
                   )}
-                </button>
+                </Button>
               </label>
               <Textarea
                 value={formData.system}
@@ -304,15 +320,17 @@ export default function CreateAgentPage() {
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>Bio Points</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleGenerateField('bio')}
                   disabled={generatingField === 'bio'}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1 disabled:opacity-50"
                 >
                   {generatingField === 'bio' ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       Generating...
                     </>
                   ) : (
@@ -321,7 +339,7 @@ export default function CreateAgentPage() {
                       Generate
                     </>
                   )}
-                </button>
+                </Button>
               </label>
               {formData.bio.map((bio, idx) => (
                 <Input
@@ -336,27 +354,31 @@ export default function CreateAgentPage() {
                   className="mb-2"
                 />
               ))}
-              <button
+              <Button
                 type="button"
                 onClick={() => updateField('bio', [...formData.bio, ''])}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-muted hover:bg-muted/80"
+                variant="outline"
+                className="flex items-center gap-2"
               >
+                <Plus className="w-4 h-4" />
                 Add Bio Point
-              </button>
+              </Button>
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>Personality</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleGenerateField('personality')}
                   disabled={generatingField === 'personality'}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1 disabled:opacity-50"
                 >
                   {generatingField === 'personality' ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       Generating...
                     </>
                   ) : (
@@ -365,7 +387,7 @@ export default function CreateAgentPage() {
                       Generate
                     </>
                   )}
-                </button>
+                </Button>
               </label>
               <Textarea
                 value={formData.personality}
@@ -377,21 +399,26 @@ export default function CreateAgentPage() {
           </div>
 
           {/* Trading Strategy Card */}
-          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
-            <h2 className="text-xl font-semibold">Trading Configuration</h2>
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-[#0066FF]" />
+              Trading Configuration
+            </h2>
 
             <div>
               <label className="block text-sm font-medium mb-2 flex items-center justify-between">
                 <span>Trading Strategy</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleGenerateField('tradingStrategy')}
                   disabled={generatingField === 'tradingStrategy'}
-                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] h-auto p-1 disabled:opacity-50"
                 >
                   {generatingField === 'tradingStrategy' ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       Generating...
                     </>
                   ) : (
@@ -400,7 +427,7 @@ export default function CreateAgentPage() {
                       Generate
                     </>
                   )}
-                </button>
+                </Button>
               </label>
               <Textarea
                 value={formData.tradingStrategy}
@@ -414,44 +441,63 @@ export default function CreateAgentPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Model Tier</label>
-              <div className="flex gap-4">
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[#0066FF]" />
+                Model Tier
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => updateField('modelTier', 'free')}
-                  className={`flex-1 p-4 border rounded-lg transition-colors ${
+                  className={cn(
+                    'flex flex-col items-start gap-2 p-4 border rounded-lg transition-all text-left',
+                    'hover:border-[#0066FF]/50 hover:bg-[#0066FF]/5',
                     formData.modelTier === 'free'
                       ? 'border-[#0066FF] bg-[#0066FF]/10'
-                      : 'border-border hover:border-[#0066FF]/50'
-                  }`}
+                      : 'border-border bg-muted/30'
+                  )}
                 >
-                  <div className="font-medium">Free (Groq 8B)</div>
-                  <div className="text-sm text-muted-foreground">1 point per message</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#0066FF]" />
+                    <span className="font-medium">Free</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Groq 8B • 1 point per message</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => updateField('modelTier', 'pro')}
-                  className={`flex-1 p-4 border rounded-lg transition-colors ${
+                  className={cn(
+                    'flex flex-col items-start gap-2 p-4 border rounded-lg transition-all text-left',
+                    'hover:border-[#0066FF]/50 hover:bg-[#0066FF]/5',
                     formData.modelTier === 'pro'
                       ? 'border-[#0066FF] bg-[#0066FF]/10'
-                      : 'border-border hover:border-[#0066FF]/50'
-                  }`}
+                      : 'border-border bg-muted/30'
+                  )}
                 >
-                  <div className="font-medium">Pro (Groq 70B)</div>
-                  <div className="text-sm text-muted-foreground">1 point per message</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#0066FF]" />
+                    <span className="font-medium">Pro</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Groq 70B • 1 point per message</div>
                 </button>
               </div>
             </div>
           </div>
 
           {/* Initial Deposit Card */}
-          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
-            <h2 className="text-xl font-semibold">Initial Deposit</h2>
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Coins className="w-5 h-5 text-[#0066FF]" />
+              Initial Deposit
+            </h2>
 
-            <div className="bg-muted/50 p-4 rounded-lg mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Your Balance</span>
-                <span className="font-semibold">{totalPoints} points</span>
+            <div className="bg-muted/50 p-4 rounded-lg border border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Your Balance</span>
+                </div>
+                <span className="font-semibold text-lg">{totalPoints.toLocaleString()} pts</span>
               </div>
             </div>
 
@@ -495,23 +541,35 @@ export default function CreateAgentPage() {
           </div>
 
           {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || formData.initialDeposit > totalPoints}
-            className="w-full px-6 py-4 rounded-lg font-medium transition-all bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Creating Agent...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Create Agent
-              </>
+          <div className="pt-6 border-t border-border">
+            <Button
+              type="submit"
+              disabled={loading || formData.initialDeposit > totalPoints}
+              className={cn(
+                'w-full flex items-center justify-center gap-2',
+                'bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'px-6 py-3 rounded-lg font-medium transition-all'
+              )}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Creating Agent...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Create Agent</span>
+                </>
+              )}
+            </Button>
+            {formData.initialDeposit > totalPoints && (
+              <p className="text-sm text-red-500 mt-2 text-center">
+                Insufficient balance. You have {totalPoints} points but need {formData.initialDeposit} points.
+              </p>
             )}
-          </button>
+          </div>
         </form>
       </div>
     </PageContainer>

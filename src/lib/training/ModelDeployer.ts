@@ -33,7 +33,45 @@ export class ModelDeployer {
         strategy: options.strategy
       });
 
-      const prismaExt = prisma as any;
+      interface PrismaTrainedModel {
+        id: string;
+        modelId: string;
+        version: string;
+        storagePath: string;
+        baseModel: string;
+        createdAt: Date;
+      }
+
+      interface PrismaModelDeployment {
+        id: string;
+        modelId: string;
+        agentId: string;
+        deployedAt: Date;
+        isActive: boolean;
+        performanceMetrics: Record<string, unknown> | null;
+      }
+
+      const prismaExt = prisma as unknown as {
+        trainedModel: {
+          findFirst: (args: { where: { version: string } }) => Promise<PrismaTrainedModel | null>;
+          update: (args: {
+            where: { modelId: string };
+            data: { status: string; deployedAt: Date; agentsUsing: number };
+          }) => Promise<PrismaTrainedModel>;
+        };
+        modelDeployment?: {
+          create: (args: {
+            data: {
+              id: string;
+              modelId: string;
+              agentId: string;
+              deployedAt: Date;
+              isActive: boolean;
+              performanceMetrics: Record<string, unknown>;
+            };
+          }) => Promise<PrismaModelDeployment>;
+        };
+      };
 
       // Get model
       const model = await prismaExt.trainedModel.findFirst({
@@ -52,17 +90,22 @@ export class ModelDeployer {
       // Create deployment records
       const deploymentId = `deploy-${Date.now()}`;
       
-      for (const agent of targetAgents) {
-        await prismaExt.modelDeployment.create({
-          data: {
-            id: `deployment-${agent.id}-${Date.now()}`,
-            modelId: model.modelId,
-            agentId: agent.id,
-            deployedAt: new Date(),
-            isActive: true,
-            performanceMetrics: {}
-          }
-        });
+      // Only create deployment records if modelDeployment table exists
+      if (prismaExt.modelDeployment) {
+        for (const agent of targetAgents) {
+          await prismaExt.modelDeployment.create({
+            data: {
+              id: `deployment-${agent.id}-${Date.now()}`,
+              modelId: model.modelId,
+              agentId: agent.id,
+              deployedAt: new Date(),
+              isActive: true,
+              performanceMetrics: {}
+            }
+          });
+        }
+      } else {
+        logger.warn('ModelDeployment table not available, skipping deployment records');
       }
 
       // Update model status
@@ -137,9 +180,39 @@ export class ModelDeployer {
         to: targetVersion
       });
 
-      const prismaExt = prisma as any;
+      interface PrismaModelDeployment {
+        id: string;
+        modelId: string;
+        agentId: string;
+        isActive: boolean;
+        deployedAt: Date;
+        undeployedAt: Date | null;
+      }
+
+      const prismaExt = prisma as unknown as {
+        modelDeployment?: {
+          findMany: (args: {
+            where: {
+              model: { version: string };
+              isActive: boolean;
+            };
+          }) => Promise<PrismaModelDeployment[]>;
+          update: (args: {
+            where: { id: string };
+            data: { isActive: boolean; undeployedAt: Date };
+          }) => Promise<PrismaModelDeployment>;
+        };
+      };
 
       // Get all agents using current version
+      if (!prismaExt.modelDeployment) {
+        logger.warn('ModelDeployment table not available, skipping rollback');
+        return await this.deploy({
+          modelVersion: targetVersion,
+          strategy: 'immediate'
+        });
+      }
+
       const deployments = await prismaExt.modelDeployment.findMany({
         where: {
           model: {
@@ -186,12 +259,36 @@ export class ModelDeployer {
     agentsFailed: number;
     performance: Record<string, number>;
   } | null> {
-    const prismaExt = prisma as any;
+    interface PrismaModelDeployment {
+      id: string;
+      agentId: string;
+      isActive: boolean;
+      deployedAt: Date;
+    }
+
+    const prismaExt = prisma as unknown as {
+      modelDeployment?: {
+        findMany: (args: {
+          where: {
+            id: { contains: string };
+          };
+        }) => Promise<PrismaModelDeployment[]>;
+      };
+    };
+
+    if (!prismaExt.modelDeployment) {
+      return null;
+    }
+
+    const timestampPart = deploymentId.split('-')[1];
+    if (!timestampPart) {
+      return null;
+    }
 
     const deployments = await prismaExt.modelDeployment.findMany({
       where: {
         id: {
-          contains: deploymentId.split('-')[1] // Match timestamp
+          contains: timestampPart // Match timestamp
         }
       }
     });

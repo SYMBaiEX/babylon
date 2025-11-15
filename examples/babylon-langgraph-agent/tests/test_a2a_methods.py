@@ -14,7 +14,7 @@ from eth_account import Account
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from agent_clean import (
+from agent import (
     BabylonA2AClient,
     A2AError,
     ValidationError,

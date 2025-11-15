@@ -86,6 +86,7 @@
  * ```
  */
 import { EventEmitter } from 'events';
+import type { PerpPosition as PrismaPerpPosition } from '@prisma/client';
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -873,31 +874,48 @@ export class PerpetualsEngine extends EventEmitter {
         const position = this.positions.get(positionId);
         if (!position) return null;
 
-        return prisma.perpPosition.update({
-          where: { id: positionId },
-          data: {
-            currentPrice: position.currentPrice,
-            unrealizedPnL: position.unrealizedPnL,
-            unrealizedPnLPercent: position.unrealizedPnLPercent,
-            fundingPaid: position.fundingPaid,
-            lastUpdated: new Date(position.lastUpdated),
-          },
-        });
+        return prisma.perpPosition
+          .update({
+            where: { id: positionId },
+            data: {
+              currentPrice: position.currentPrice,
+              unrealizedPnL: position.unrealizedPnL,
+              unrealizedPnLPercent: position.unrealizedPnLPercent,
+              fundingPaid: position.fundingPaid,
+              lastUpdated: new Date(position.lastUpdated),
+            },
+          })
+          .catch((error: unknown) => {
+            // Handle case where position doesn't exist in database
+            // This can happen if position was deleted or never persisted
+            if ((error as { code?: string })?.code === 'P2025') {
+              // Position doesn't exist - remove from memory
+              this.positions.delete(positionId);
+              logger.debug(
+                `Position ${positionId} not found in database, removed from memory`,
+                undefined,
+                'PerpetualsEngine'
+              );
+              return null;
+            }
+            // Re-throw other errors
+            throw error;
+          });
       })
       .filter(
-        (update): update is ReturnType<typeof prisma.perpPosition.update> =>
-          Boolean(update)
+        (update): update is Promise<PrismaPerpPosition | null> => Boolean(update)
       );
 
     if (updates.length === 0) {
       return;
     }
 
-    await Promise.all(updates);
+    const results = await Promise.allSettled(updates);
+    const successful = results.filter((r) => r.status === 'fulfilled' && r.value !== null).length;
 
-    if (updates.length > 0) {
+    if (successful > 0) {
       logger.debug(
-        `Synced ${updates.length} positions to database`,
+        `Synced ${successful} positions to database`,
         undefined,
         'PerpetualsEngine'
       );

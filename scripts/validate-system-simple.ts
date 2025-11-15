@@ -7,6 +7,8 @@
 import { prisma } from '../src/lib/prisma';
 import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
 import { toARTTrajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
+import type { Trajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/types';
+import type { UUID } from '@elizaos/core';
 
 async function main() {
   console.log('\n🔍 TRAJECTORY SYSTEM VALIDATION\n');
@@ -105,7 +107,30 @@ async function main() {
       console.log(`  ✅ Saved to database`);
 
       // Verify it's there
-      const saved = await (prisma as any).trajectory.findUnique({
+      interface TrajectoryRecord {
+        trajectoryId: string;
+        episodeLength: number;
+        totalReward: number;
+        windowId: string | null;
+        stepsJson: string;
+        rewardComponentsJson: string;
+        metricsJson: string;
+        metadataJson: string;
+        startTime: Date;
+        endTime: Date;
+      }
+
+      const prismaExt = prisma as unknown as {
+        trajectory: {
+          findUnique: (args: { where: { trajectoryId: string } }) => Promise<TrajectoryRecord | null>;
+          delete: (args: { where: { trajectoryId: string } }) => Promise<TrajectoryRecord>;
+        };
+        llmCallLog: {
+          deleteMany: (args: { where: { trajectoryId: string } }) => Promise<{ count: number }>;
+        };
+      };
+
+      const saved = await prismaExt.trajectory.findUnique({
         where: { trajectoryId: trajId }
       });
 
@@ -116,16 +141,19 @@ async function main() {
         console.log(`     - Window: ${saved.windowId}`);
 
         // Test ART conversion
-        const steps = JSON.parse(saved.stepsJson);
+        const steps = JSON.parse(saved.stepsJson) as Trajectory['steps'];
         const artTraj = toARTTrajectory({
-          ...saved,
-          steps,
-          rewardComponents: JSON.parse(saved.rewardComponentsJson),
-          metrics: JSON.parse(saved.metricsJson),
-          metadata: JSON.parse(saved.metadataJson),
+          trajectoryId: saved.trajectoryId as UUID,
+          agentId: testAgentId as UUID,
           startTime: saved.startTime.getTime(),
-          endTime: saved.endTime.getTime()
-        } as any);
+          endTime: saved.endTime.getTime(),
+          durationMs: saved.endTime.getTime() - saved.startTime.getTime(),
+          steps,
+          totalReward: saved.totalReward,
+          rewardComponents: JSON.parse(saved.rewardComponentsJson) as Trajectory['rewardComponents'],
+          metrics: JSON.parse(saved.metricsJson) as Trajectory['metrics'],
+          metadata: JSON.parse(saved.metadataJson) as Trajectory['metadata']
+        });
 
         console.log(`\n  ✅ Converted to ART format:`);
         console.log(`     - Messages: ${artTraj.messages.length}`);
@@ -136,8 +164,8 @@ async function main() {
         });
 
         // Cleanup
-        await (prisma as any).llMCallLog.deleteMany({ where: { trajectoryId: trajId } });
-        await (prisma as any).trajectory.delete({ where: { trajectoryId: trajId } });
+        await prismaExt.llmCallLog.deleteMany({ where: { trajectoryId: trajId } });
+        await prismaExt.trajectory.delete({ where: { trajectoryId: trajId } });
         console.log(`\n  🧹 Cleaned up test data`);
       }
     } else {

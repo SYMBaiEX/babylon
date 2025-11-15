@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   const systemPrompt = `You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-3-5-sonnet',
     max_tokens: 300,
     temperature: 0.8,
     system: systemPrompt,

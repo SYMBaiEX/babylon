@@ -60,7 +60,7 @@
  * ```
  * 
  * @see {@link /lib/auth/agent-auth} Agent authentication implementation
- * @see {@link /examples/autonomous-babylon-agent} Example agent usage
+ * @see {@link /examples/babylon-typescript-agent} Example agent usage
  */
 
 import type { NextRequest } from 'next/server';

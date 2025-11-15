@@ -9,7 +9,7 @@
 import { createPublicClient, createWalletClient, http, parseEther, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { REPUTATION_SYSTEM_ABI } from '../web3/abis'
 
