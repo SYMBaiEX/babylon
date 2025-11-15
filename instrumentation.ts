@@ -9,24 +9,32 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+const sentryDisabled =
+  process.env.DISABLE_SENTRY === 'true' ||
+  process.env.NEXT_PUBLIC_DISABLE_SENTRY === 'true'
+
 export async function register() {
   // Skip instrumentation during build phase
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     return
   }
   
+  if (sentryDisabled && process.env.NODE_ENV === 'development') {
+    console.info('[Sentry] Disabled via DISABLE_SENTRY flag')
+  }
+  
   // Initialize Sentry for server-side (Node.js runtime)
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
+  if (!sentryDisabled && process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config')
   }
   
   // Temporarily disabled to prevent blocking dev server
   // Re-enable when agent0-sdk is properly installed
-  // Use dynamic import to avoid loading Node.js-specific code in Edge Runtime
-  // This prevents static analyzer warnings about process.argv and other Node.js APIs
-  if (false && process.env.NEXT_RUNTIME === 'nodejs') {
-    // Register Babylon game (will skip if already registered or disabled)
-    // Dynamic import ensures babylon-registry-init.ts (and prisma.ts) are only loaded in Node.js runtime
+  if (
+    !sentryDisabled &&
+    false &&
+    process.env.NEXT_RUNTIME === 'nodejs'
+  ) {
     const { registerBabylonGame } = await import('./src/lib/babylon-registry-init')
     await registerBabylonGame().catch((error: Error) => {
       // Don't fail startup if registration fails
@@ -41,4 +49,3 @@ export async function register() {
 
 // Export request error handler for Next.js App Router
 export const onRequestError = Sentry.captureRequestError
-
