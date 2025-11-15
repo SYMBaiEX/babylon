@@ -178,78 +178,96 @@ export class TrajectoryRecorder {
     // Auto-generate window ID if not provided
     const windowId = options.windowId || getCurrentWindowId();
     
-    // Save to database
-    await prisma.trajectory.create({
-      data: {
-        id: await generateSnowflakeId(),
-        trajectoryId,
-        agentId: traj.agentId,
-        startTime: new Date(traj.startTime),
-        endTime: new Date(endTime),
-        durationMs,
-        scenarioId: traj.scenarioId || windowId,
-        episodeId: traj.scenarioId ? `${traj.scenarioId}-${Date.now()}` : undefined,
-        windowId,
-        windowHours: 1,
-        
-        // JSON data
-        stepsJson: JSON.stringify(traj.steps),
-        rewardComponentsJson: JSON.stringify({ environmentReward: totalReward }),
-        metricsJson: JSON.stringify({
+    // Save to database with error handling
+    try {
+      await prisma.trajectory.create({
+        data: {
+          id: await generateSnowflakeId(),
+          trajectoryId,
+          agentId: traj.agentId,
+          startTime: new Date(traj.startTime),
+          endTime: new Date(endTime),
+          durationMs,
+          scenarioId: traj.scenarioId || windowId,
+          episodeId: traj.scenarioId ? `${traj.scenarioId}-${Date.now()}` : undefined,
+          windowId,
+          windowHours: 1,
+          
+          // JSON data
+          stepsJson: JSON.stringify(traj.steps),
+          rewardComponentsJson: JSON.stringify({ environmentReward: totalReward }),
+          metricsJson: JSON.stringify({
+            episodeLength: traj.steps.length,
+            finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
+            finalBalance: options.finalBalance,
+            finalPnL: options.finalPnL,
+            tradesExecuted,
+            postsCreated,
+            errorCount
+          }),
+          metadataJson: JSON.stringify({
+            isTrainingData: true,
+            gameKnowledge: options.gameKnowledge || {}
+          }),
+          
+          // Quick access
+          totalReward,
           episodeLength: traj.steps.length,
           finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
           finalBalance: options.finalBalance,
           finalPnL: options.finalPnL,
           tradesExecuted,
           postsCreated,
-          errorCount
-        }),
-        metadataJson: JSON.stringify({
           isTrainingData: true,
-          gameKnowledge: options.gameKnowledge || {}
-        }),
-        
-        // Quick access
-        totalReward,
-        episodeLength: traj.steps.length,
-        finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
-        finalBalance: options.finalBalance,
-        finalPnL: options.finalPnL,
-        tradesExecuted,
-        postsCreated,
-        isTrainingData: true,
-        isEvaluation: false,
-        usedInTraining: false
-      }
-    });
+          isEvaluation: false,
+          usedInTraining: false
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to save trajectory to database', {
+        trajectoryId,
+        agentId: traj.agentId,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: (error as { code?: string })?.code
+      });
+      throw error; // Re-throw to let caller handle
+    }
 
     // Save LLM calls separately for analysis
-    for (const step of traj.steps) {
-      for (const llmCall of step.llmCalls) {
-        await prisma.llmCallLog.create({
-          data: {
-            id: await generateSnowflakeId(),
-            trajectoryId,
-            stepId: `${trajectoryId}-step-${step.stepNumber}`,
-            callId: `${trajectoryId}-call-${step.stepNumber}-${step.llmCalls.indexOf(llmCall)}`,
-            timestamp: new Date(step.timestamp),
-            latencyMs: llmCall.latencyMs,
-            model: llmCall.model,
-            purpose: llmCall.purpose,
-            actionType: llmCall.actionType,
-            systemPrompt: llmCall.systemPrompt,
-            userPrompt: llmCall.userPrompt,
-            messagesJson: JSON.stringify([
-              { role: 'system', content: llmCall.systemPrompt },
-              { role: 'user', content: llmCall.userPrompt }
-            ]),
-            response: llmCall.response,
-            reasoning: llmCall.reasoning,
-            temperature: llmCall.temperature,
-            maxTokens: llmCall.maxTokens
-          }
-        });
+    try {
+      for (const step of traj.steps) {
+        for (const llmCall of step.llmCalls) {
+          await prisma.llmCallLog.create({
+            data: {
+              id: await generateSnowflakeId(),
+              trajectoryId,
+              stepId: `${trajectoryId}-step-${step.stepNumber}`,
+              callId: `${trajectoryId}-call-${step.stepNumber}-${step.llmCalls.indexOf(llmCall)}`,
+              timestamp: new Date(step.timestamp),
+              latencyMs: llmCall.latencyMs,
+              model: llmCall.model,
+              purpose: llmCall.purpose,
+              actionType: llmCall.actionType,
+              systemPrompt: llmCall.systemPrompt,
+              userPrompt: llmCall.userPrompt,
+              messagesJson: JSON.stringify([
+                { role: 'system', content: llmCall.systemPrompt },
+                { role: 'user', content: llmCall.userPrompt }
+              ]),
+              response: llmCall.response,
+              reasoning: llmCall.reasoning,
+              temperature: llmCall.temperature,
+              maxTokens: llmCall.maxTokens
+            }
+          });
+        }
       }
+    } catch (error) {
+      // Log but don't fail - trajectory is already saved
+      logger.warn('Failed to save some LLM call logs', {
+        trajectoryId,
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
 
     this.activeTrajectories.delete(trajectoryId);

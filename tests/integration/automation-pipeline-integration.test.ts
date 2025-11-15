@@ -289,7 +289,7 @@ describe('AutomationPipeline - Integration Tests', () => {
 
       // Wait longer to ensure database writes are committed (trajectories are async)
       // Increased timeout for concurrent test runs
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Verify all trajectories were saved using the local array to avoid race conditions
       // Retry query multiple times in case of timing issues
@@ -323,16 +323,10 @@ describe('AutomationPipeline - Integration Tests', () => {
         console.log(`   Note: Trajectories may not save under heavy concurrent test load. Run tests in isolation for full coverage.`);
       }
 
-      // Under heavy concurrent load (900+ tests), trajectory recording may be overwhelmed
-      // Tests pass individually, so accept either success or graceful degradation
-      if (saved.length === 0) {
-        console.log('⏭️  Trajectory recording overwhelmed by concurrent load - test passes conditionally');
-        expect(true).toBe(true); // Pass
-      } else {
-        expect(saved.length).toBeGreaterThanOrEqual(1);
-        expect(saved.every(t => t.windowId === windowId)).toBe(true);
-        expect(saved.every(t => t.scenarioId === windowId)).toBe(true);
-      }
+      // Verify all trajectories were saved
+      expect(saved.length).toBeGreaterThanOrEqual(5);
+      expect(saved.every(t => t.windowId === windowId)).toBe(true);
+      expect(saved.every(t => t.scenarioId === windowId)).toBe(true);
       
       // Add to cleanup list only after successful verification
       testTrajectoryMap.set('should create and store test trajectories', [...trajectoryIds]);
@@ -415,9 +409,9 @@ describe('AutomationPipeline - Integration Tests', () => {
         });
       }
 
-      // Wait a bit to ensure database writes are committed
+      // Wait for database writes to be committed
       // Increased timeout for concurrent test runs
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Mark as training data (use local trajectoryIds array)
       // Note: Trajectories are already created with isTrainingData: true, but we ensure they're marked correctly
@@ -435,10 +429,7 @@ describe('AutomationPipeline - Integration Tests', () => {
       });
 
       // Wait again to ensure updates are committed
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Wait for trajectories to be saved
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Verify trajectories exist before checking readiness
       // Retry query in case of timing issues
@@ -469,14 +460,8 @@ describe('AutomationPipeline - Integration Tests', () => {
         console.log(`   Note: Trajectories may not save under heavy concurrent test load. Run tests in isolation for full coverage.`);
       }
       
-      // Under heavy concurrent load, trajectory recording may be overwhelmed
-      if (verifyCount === 0) {
-        console.log('⏭️  Trajectory recording overwhelmed by concurrent load - test passes conditionally');
-        expect(true).toBe(true); // Pass
-        return;
-      }
-      
-      expect(verifyCount).toBeGreaterThanOrEqual(1);
+      // Verify all trajectories were created and marked as training data
+      expect(verifyCount).toBeGreaterThanOrEqual(10);
 
       // Check readiness
       const readiness = await pipeline.checkTrainingReadiness();
@@ -529,12 +514,13 @@ describe('AutomationPipeline - Integration Tests', () => {
       const version1 = await pipeline['getNextModelVersion']();
       expect(version1).toMatch(/^v\d+\.\d+\.\d+$/);
 
-      // Create a mock model in database
+      // Create a mock model in database with unique modelId
       try {
+        const uniqueModelId = `test-model-${Date.now()}-${Math.random().toString(36).substring(7)}`;
         const model = await prisma.trainedModel.create({
           data: {
-            id: `test-model-${Date.now()}`,
-            modelId: 'test-model',
+            id: `${uniqueModelId}-id`,
+            modelId: uniqueModelId,
             version: version1,
             baseModel: 'OpenPipe/Qwen3-14B-Instruct',
             storagePath: '/tmp/test',
@@ -646,15 +632,12 @@ describe('AutomationPipeline - Integration Tests', () => {
 
       console.log(`✅ Created ${trajectoryIds.length} trajectories`);
 
-      // Wait a bit to ensure database writes are committed
+      // Wait for database writes to be committed
       // Increased timeout for concurrent test runs
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Step 2: Verify storage
       console.log('📦 Step 2: Verifying storage...');
-      
-      // Wait for trajectories to be saved
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Retry query in case of timing issues
       let stored = await prisma.trajectory.findMany({
@@ -686,15 +669,8 @@ describe('AutomationPipeline - Integration Tests', () => {
         console.log(`   Note: Trajectories may not save under heavy concurrent test load. Run tests in isolation for full coverage.`);
       }
 
-      // Under heavy concurrent load, trajectory recording may be overwhelmed
-      if (stored.length === 0) {
-        console.log('⏭️  Trajectory recording overwhelmed by concurrent load - test passes conditionally');
-        console.log('\n✅ E2E Data Flow Test Complete (conditional pass under load)!\n');
-        expect(true).toBe(true); // Pass
-        return;
-      }
-
-      expect(stored.length).toBeGreaterThanOrEqual(1);
+      // Verify all trajectories were stored
+      expect(stored.length).toBe(trajectoryIds.length);
       console.log(`✅ Verified ${stored.length} trajectories in database`);
 
       // Step 3: Mark as training data
@@ -714,7 +690,7 @@ describe('AutomationPipeline - Integration Tests', () => {
 
       // Wait to ensure updates are committed
       // Increased timeout for concurrent test runs
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       console.log('✅ Marked as training data');
 

@@ -8,9 +8,8 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import type { HttpA2AClient } from '@/lib/a2a/client'
 import { createHttpA2AClient } from '@/lib/a2a/client'
-import { babylonPlugin } from './index'
 import type { BabylonRuntime } from './types'
-import type { AgentRuntime } from '@elizaos/core'
+import type { AgentRuntime, Plugin } from '@elizaos/core'
 
 /**
  * Initialize A2A client for an agent
@@ -90,7 +89,8 @@ export async function initializeAgentA2AClient(
  */
 export async function enhanceRuntimeWithBabylon(
   runtime: AgentRuntime,
-  agentUserId: string
+  agentUserId: string,
+  plugin: Plugin
 ): Promise<void> {
   const babylonRuntime = runtime as BabylonRuntime
 
@@ -101,9 +101,9 @@ export async function enhanceRuntimeWithBabylon(
     
     logger.info('✅ Babylon plugin registered with A2A protocol', { 
       agentUserId,
-      pluginName: babylonPlugin.name,
-      providersCount: babylonPlugin.providers?.length || 0,
-      actionsCount: babylonPlugin.actions?.length || 0,
+      pluginName: plugin.name,
+      providersCount: plugin.providers?.length || 0,
+      actionsCount: plugin.actions?.length || 0,
       a2aConnected: true
     })
   } catch (error) {
@@ -115,7 +115,7 @@ export async function enhanceRuntimeWithBabylon(
   }
   
   // Always register plugin (works with or without A2A)
-  runtime.registerPlugin(babylonPlugin)
+  runtime.registerPlugin(plugin)
   
   logger.info('Babylon plugin registered', { 
     agentUserId,
