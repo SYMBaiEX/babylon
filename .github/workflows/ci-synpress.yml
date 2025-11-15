@@ -22,16 +22,19 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
+          # Increase PostgreSQL limits for large migrations with 76 tables
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --shm-size=1gb
         ports:
           - 5432:5432
 
@@ -75,20 +78,10 @@ jobs:
       - name: Setup Prisma and Database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Generate Prisma client first
-          echo "🔧 Generating Prisma client..."
-          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Force reset and apply migrations
-          echo "🗄️ Resetting database and applying migrations..."
-          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Run seed to ensure test data is loaded
-          echo "🌱 Seeding database..."
-          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          echo "✅ Database setup complete"
+          # Use the setup script for consistent database initialization
+          bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
 
       - name: Build production
         env:
