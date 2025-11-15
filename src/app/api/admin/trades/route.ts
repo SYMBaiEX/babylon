@@ -309,7 +309,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
   } else if (tradeData.type === 'npc') {
-    // Verify NPC actor exists
+    // Verify NPC actor exists (NPCTrade references Actor table per schema)
     const actor = await prisma.actor.findUnique({
       where: { id: tradeData.npcActorId },
       select: { id: true },

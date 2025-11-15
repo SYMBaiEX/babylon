@@ -5,12 +5,12 @@
  * Transactions execute on Base Sepolia blockchain
  */
 
-import { useCallback, useState } from 'react'
-import type { Address } from 'viem'
-import { encodeFunctionData, pad } from 'viem'
-import { useSmartWallet } from '@/hooks/useSmartWallet'
 import { CHAIN } from '@/constants/chains'
+import { useSmartWallet } from '@/hooks/useSmartWallet'
+import { getContractAddresses } from '@/lib/deployment/addresses'
 import { logger } from '@/lib/logger'
+import { useCallback, useState } from 'react'
+import { encodeFunctionData, pad } from 'viem'
 
 /**
  * Convert market ID (Snowflake ID string) to bytes32
@@ -23,8 +23,8 @@ function marketIdToBytes32(marketId: string): `0x${string}` {
   return pad(hexValue, { size: 32 })
 }
 
-// Diamond address on Base Sepolia
-const DIAMOND_ADDRESS = '0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990' as Address
+// Get contract addresses for current network (localnet or testnet/mainnet)
+const { diamond: DIAMOND_ADDRESS, network: NETWORK } = getContractAddresses()
 
 // Prediction Market Facet ABI
 const PREDICTION_MARKET_ABI = [
@@ -94,6 +94,8 @@ export function useOnChainBetting() {
         const marketIdBytes32 = marketIdToBytes32(marketId)
 
         logger.info('Buying shares on-chain', {
+          network: NETWORK,
+          diamond: DIAMOND_ADDRESS,
           marketId,
           marketIdBytes32,
           outcome,

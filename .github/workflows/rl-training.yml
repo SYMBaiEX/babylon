@@ -1,0 +1,243 @@
+name: Babylon RL Training
+
+# Trigger options:
+# 1. Via repository_dispatch (from Vercel cron)
+# 2. On schedule (backup/fallback)
+# 3. Manual workflow_dispatch (testing)
+on:
+  repository_dispatch:
+    types: [trigger-training]
+  
+  schedule:
+    # Daily at 2 AM UTC (backup in case Vercel cron fails)
+    - cron: '0 2 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      batch_id:
+        description: 'Training batch ID (optional)'
+        required: false
+        type: string
+      window_id:
+        description: 'Window ID to train (optional, auto-detected if not provided)'
+        required: false
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+  WANDB_PROJECT: 'babylon-rl'
+
+jobs:
+  train:
+    name: Train RL Model
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'python/requirements.txt'
+      
+      - name: Install dependencies
+        working-directory: python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+      
+      - name: Verify installation
+        run: |
+          python --version
+          pip list | grep -E "(art|wandb|asyncpg)"
+      
+      - name: Check training readiness
+        id: readiness
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -c "
+          import asyncio
+          import asyncpg
+          import json
+          import os
+          from datetime import datetime
+          
+          async def check():
+              pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+              
+              # Count unscored trajectories
+              unscored = await pool.fetchval('''
+                  SELECT COUNT(*) FROM trajectories 
+                  WHERE \"isTrainingData\" = true 
+                  AND \"usedInTraining\" = false
+                  AND \"aiJudgeReward\" IS NOT NULL
+              ''')
+              
+              print(f'Trajectories ready: {unscored}')
+              
+              # Check if we have enough
+              min_required = 100  # Lowered for testing
+              ready = unscored >= min_required
+              
+              print(f'::set-output name=ready::{str(ready).lower()}')
+              print(f'::set-output name=count::{unscored}')
+              
+              await pool.close()
+          
+          asyncio.run(check())
+          "
+      
+      - name: Get batch info
+        id: batch
+        env:
+          BATCH_ID: ${{ github.event.client_payload.batch_id || inputs.batch_id || '' }}
+          WINDOW_ID: ${{ github.event.client_payload.window_id || inputs.window_id || '' }}
+        run: |
+          # Use provided batch_id or generate one
+          if [ -n "$BATCH_ID" ]; then
+            echo "batch_id=$BATCH_ID" >> $GITHUB_OUTPUT
+          else
+            echo "batch_id=batch-$(date +%s)" >> $GITHUB_OUTPUT
+          fi
+          
+          # Use provided window_id or generate current hour window
+          if [ -n "$WINDOW_ID" ]; then
+            echo "window_id=$WINDOW_ID" >> $GITHUB_OUTPUT
+          else
+            # Format: YYYY-MM-DDTHH:00
+            WINDOW=$(date -u +"%Y-%m-%dT%H:00")
+            echo "window_id=$WINDOW" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "source=github_actions" >> $GITHUB_OUTPUT
+      
+      - name: Update batch status to training
+        if: steps.readiness.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BATCH_ID: ${{ steps.batch.outputs.batch_id }}
+        run: |
+          python -c "
+          import asyncio
+          import asyncpg
+          import os
+          from datetime import datetime
+          
+          async def update():
+              pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+              batch_id = os.getenv('BATCH_ID')
+              
+              # Update or create batch record
+              await pool.execute('''
+                  INSERT INTO training_batches (
+                      \"batchId\", id, status, \"startedAt\", \"createdAt\"
+                  ) VALUES (
+                      \$1, \$1, 'training', NOW(), NOW()
+                  )
+                  ON CONFLICT (\"batchId\") 
+                  DO UPDATE SET status = 'training', \"startedAt\" = NOW()
+              ''', batch_id)
+              
+              print(f'✅ Batch {batch_id} status: training')
+              await pool.close()
+          
+          asyncio.run(update())
+          "
+      
+      - name: Run RL Training
+        if: steps.readiness.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_PROJECT: ${{ env.WANDB_PROJECT }}
+          BATCH_ID: ${{ steps.batch.outputs.batch_id }}
+          WINDOW_ID: ${{ steps.batch.outputs.window_id }}
+          MODE: single
+        working-directory: python
+        run: |
+          echo "🚀 Starting training for window: $WINDOW_ID"
+          echo "Batch ID: $BATCH_ID"
+          echo "Trajectories available: ${{ steps.readiness.outputs.count }}"
+          
+          # Run trainer
+          python src/training/babylon_trainer.py
+      
+      - name: Update batch status to completed
+        if: success() && steps.readiness.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BATCH_ID: ${{ steps.batch.outputs.batch_id }}
+        run: |
+          python -c "
+          import asyncio
+          import asyncpg
+          import os
+          
+          async def update():
+              pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+              batch_id = os.getenv('BATCH_ID')
+              
+              await pool.execute('''
+                  UPDATE training_batches 
+                  SET status = 'completed', \"completedAt\" = NOW()
+                  WHERE \"batchId\" = \$1
+              ''', batch_id)
+              
+              print(f'✅ Batch {batch_id} completed')
+              await pool.close()
+          
+          asyncio.run(update())
+          "
+      
+      - name: Update batch status to failed
+        if: failure() && steps.readiness.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BATCH_ID: ${{ steps.batch.outputs.batch_id }}
+        run: |
+          python -c "
+          import asyncio
+          import asyncpg
+          import os
+          
+          async def update():
+              pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+              batch_id = os.getenv('BATCH_ID')
+              
+              await pool.execute('''
+                  UPDATE training_batches 
+                  SET status = 'failed', error = 'GitHub Actions workflow failed'
+                  WHERE \"batchId\" = \$1
+              ''', batch_id)
+              
+              print(f'❌ Batch {batch_id} failed')
+              await pool.close()
+          
+          asyncio.run(update())
+          "
+      
+      - name: Upload training logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-logs-${{ steps.batch.outputs.batch_id }}
+          path: |
+            python/logs/
+            python/*.log
+          retention-days: 7
+      
+      - name: Report status
+        if: always()
+        run: |
+          echo "Training Status: ${{ job.status }}"
+          echo "Batch ID: ${{ steps.batch.outputs.batch_id }}"
+          echo "Window ID: ${{ steps.batch.outputs.window_id }}"
+          echo "Ready: ${{ steps.readiness.outputs.ready }}"
+          echo "Trajectories: ${{ steps.readiness.outputs.count }}"
+

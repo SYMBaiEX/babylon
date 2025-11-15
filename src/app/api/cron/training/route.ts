@@ -46,71 +46,7 @@ export async function GET() {
 
     logger.info('System ready - triggering training', readiness.stats, 'TrainingCron');
 
-    // 2. Trigger training
-    // For Vercel deployment, we can't run long training processes
-    // Two options:
-    
-    // Option A: Trigger external training worker (Railway/Render/etc)
-    const trainingWorkerUrl = process.env.TRAINING_WORKER_URL;
-    
-    if (trainingWorkerUrl) {
-      logger.info('Triggering external training worker', { url: trainingWorkerUrl }, 'TrainingCron');
-      
-      const result = await automationPipeline.triggerTraining();
-      
-      if (!result.success) {
-        return NextResponse.json({
-          success: false,
-          triggered: false,
-          error: result.error
-        }, { status: 400 });
-      }
-      
-      // Call external worker
-      try {
-        const workerResponse = await fetch(`${trainingWorkerUrl}/train`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.TRAINING_WORKER_SECRET || ''}`
-          },
-          body: JSON.stringify({
-            batchId: result.jobId,
-            source: 'vercel-cron'
-          })
-        });
-        
-        if (!workerResponse.ok) {
-          throw new Error(`Worker returned ${workerResponse.status}`);
-        }
-        
-        const workerData = await workerResponse.json();
-        
-        logger.info('Training worker accepted job', {
-          batchId: result.jobId,
-          workerResponse: workerData
-        }, 'TrainingCron');
-        
-        return NextResponse.json({
-          success: true,
-          triggered: true,
-          method: 'external_worker',
-          batchId: result.jobId,
-          workerStatus: workerData
-        });
-        
-      } catch (workerError) {
-        logger.error('Failed to trigger external worker', workerError, 'TrainingCron');
-        
-        return NextResponse.json({
-          success: false,
-          triggered: false,
-          error: `Worker error: ${workerError instanceof Error ? workerError.message : String(workerError)}`
-        }, { status: 500 });
-      }
-    }
-    
-    // Option B: Trigger GitHub Actions workflow
+    // 2. Trigger training via GitHub Actions
     const githubToken = process.env.GITHUB_TOKEN;
     const githubRepo = process.env.GITHUB_REPO; // format: "owner/repo"
     
@@ -174,24 +110,8 @@ export async function GET() {
       }
     }
     
-    // Option C: Local spawn (development only - will timeout on Vercel)
-    if (process.env.NODE_ENV === 'development' || process.env.ALLOW_LOCAL_TRAINING === 'true') {
-      logger.warn('Using local training spawn (development only)', undefined, 'TrainingCron');
-      
-      const result = await automationPipeline.triggerTraining();
-      
-      return NextResponse.json({
-        success: result.success,
-        triggered: result.success,
-        method: 'local_spawn',
-        batchId: result.jobId,
-        warning: 'Local spawn may timeout on Vercel - use external worker for production'
-      });
-    }
-    
-    // No training method configured
-    logger.error('No training method configured', {
-      hasWorkerUrl: !!trainingWorkerUrl,
+    // No GitHub Actions configured
+    logger.error('GitHub Actions not configured', {
       hasGithubToken: !!githubToken,
       hasGithubRepo: !!githubRepo
     }, 'TrainingCron');
@@ -199,11 +119,11 @@ export async function GET() {
     return NextResponse.json({
       success: false,
       triggered: false,
-      error: 'No training method configured. Set TRAINING_WORKER_URL or GITHUB_TOKEN/GITHUB_REPO',
-      configuration: {
-        trainingWorkerUrl: !!trainingWorkerUrl,
-        githubActions: !!(githubToken && githubRepo),
-        localSpawn: process.env.NODE_ENV !== 'production'
+      error: 'GitHub Actions not configured. Set GITHUB_TOKEN and GITHUB_REPO environment variables.',
+      help: {
+        githubToken: 'Create a fine-grained token with workflow permissions',
+        githubRepo: 'Format: "owner/repo" (e.g., "shawwalters/babylon")',
+        documentation: 'See .github/workflows/rl-training.yml'
       }
     }, { status: 500 });
 

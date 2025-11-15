@@ -5,13 +5,14 @@
  * Uses PredictionMarketFacet through Diamond proxy
  */
 
-import { baseSepolia } from 'viem/chains'
 import { createPublicClient, createWalletClient, http, type Address, type WalletClient } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { logger } from '@/lib/logger'
+import { getContractAddresses, getRpcUrl } from '@/lib/deployment/addresses'
+import { CHAIN } from '@/constants/chains'
 
-// Base Sepolia deployment addresses
-const DIAMOND_ADDRESS = '0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990' as Address
+// Get contract addresses for current network
+const { diamond: DIAMOND_ADDRESS } = getContractAddresses()
 
 // Prediction Market Facet ABI (minimal for buy/sell)
 const PREDICTION_MARKET_ABI = [
@@ -92,10 +93,10 @@ export class OnChainPredictionMarketService {
   private rpcUrl: string
 
   constructor(rpcUrl?: string) {
-    this.rpcUrl = rpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'
+    this.rpcUrl = rpcUrl || getRpcUrl()
     
     this.publicClient = createPublicClient({
-      chain: baseSepolia,
+      chain: CHAIN,
       transport: http(this.rpcUrl)
     })
   }
@@ -142,7 +143,7 @@ export class OnChainPredictionMarketService {
       abi: PREDICTION_MARKET_ABI,
       functionName: 'buyShares',
       args: [marketId as `0x${string}`, outcomeIndex, BigInt(Math.floor(numShares * 1e18))],
-      chain: baseSepolia,
+      chain: CHAIN,
       account: userWalletClient.account
     })
 
@@ -186,7 +187,7 @@ export class OnChainPredictionMarketService {
       abi: PREDICTION_MARKET_ABI,
       functionName: 'sellShares',
       args: [marketId as `0x${string}`, outcomeIndex, BigInt(Math.floor(numShares * 1e18))],
-      chain: baseSepolia,
+      chain: CHAIN,
       account: userWalletClient.account
     })
 
@@ -245,8 +246,8 @@ export class OnChainPredictionMarketService {
     
     return createWalletClient({
       account,
-      chain: baseSepolia,
-      transport: http(rpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org')
+      chain: CHAIN,
+      transport: http(rpcUrl || getRpcUrl())
     })
   }
 }

@@ -17,6 +17,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { ExternalLink, TrendingUp, TrendingDown, Clock, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { getContractAddresses } from '@/lib/deployment/addresses';
+import { CHAIN, CHAIN_ID } from '@/constants/chains';
 
 interface Question {
   id: number | string;
@@ -49,6 +51,15 @@ export default function OnChainBettingPage() {
   const [selectedMarket, setSelectedMarket] = useState<Question | null>(null);
   const [betAmount, setBetAmount] = useState('');
   const [betSide, setBetSide] = useState<'YES' | 'NO'>('YES');
+  
+  // Get network info
+  const { network, diamond } = getContractAddresses();
+  const isLocal = CHAIN_ID === CHAIN_ID.LOCALNET;
+  const explorerUrl = isLocal 
+    ? null // No explorer for localnet
+    : CHAIN_ID === 84532
+      ? 'https://sepolia.basescan.org'
+      : 'https://basescan.org';
 
   useEffect(() => {
     async function fetchData() {
@@ -94,11 +105,11 @@ export default function OnChainBettingPage() {
       );
 
       toast.success('Bet placed on-chain!', {
-        description: `View on explorer`,
-        action: {
+        description: isLocal ? `TX: ${result.txHash.slice(0, 10)}...` : 'View on explorer',
+        action: explorerUrl ? {
           label: 'View TX',
-          onClick: () => window.open(`https://sepolia.basescan.org/tx/${result.txHash}`, '_blank')
-        }
+          onClick: () => window.open(`${explorerUrl}/tx/${result.txHash}`, '_blank')
+        } : undefined
       });
 
       // Verify with backend
@@ -190,19 +201,26 @@ export default function OnChainBettingPage() {
           </button>
           <h1 className="text-2xl md:text-3xl font-bold mb-2">On-Chain Betting</h1>
           <p className="text-muted-foreground">
-            Bet with real Base Sepolia ETH • All transactions on blockchain
+            {isLocal 
+              ? `Local Anvil (Chain ID: ${CHAIN_ID}) • Testing mode`
+              : `Base Sepolia ETH • All transactions on blockchain`}
           </p>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Network: {network} • Diamond: {diamond.slice(0, 10)}...{diamond.slice(-6)}
+          </div>
           <div className="mt-2 flex items-center gap-2 text-sm">
             <Wallet className="w-4 h-4 text-green-600" />
             <span className="text-green-600 font-medium">Connected: {smartWalletAddress?.slice(0, 6)}...{smartWalletAddress?.slice(-4)}</span>
-            <a
-              href={`https://sepolia.basescan.org/address/${smartWalletAddress}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#0066FF] hover:underline flex items-center gap-1"
-            >
-              View Wallet <ExternalLink className="w-3 h-3" />
-            </a>
+            {explorerUrl && (
+              <a
+                href={`${explorerUrl}/address/${smartWalletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#0066FF] hover:underline flex items-center gap-1"
+              >
+                View Wallet <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
           </div>
         </div>
 
