@@ -13,11 +13,14 @@ concurrency:
 env:
   NODE_ENV: test
   CI: true
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+  DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+  REDIS_URL: redis://localhost:6379
 
 jobs:
   test-unit-integration:
     name: Unit & Integration Tests
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     services:
@@ -34,6 +37,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+
       redis:
         image: redis:7-alpine
         options: >-
@@ -47,20 +51,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      # Use composite action for Bun setup + dependency caching
+      - name: Setup Bun and Dependencies
+        uses: ./.github/actions/setup-bun-deps
+
+      # Use composite action for database setup
+      - name: Setup Database
+        uses: ./.github/actions/setup-database
         with:
-          bun-version: latest
+          database-url: ${{ env.DATABASE_URL }}
 
-      - name: Install dependencies
-        run: bun install
+      # Cache Next.js build
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{ hashFiles('next.config.mjs', 'tailwind.config.ts') }}-${{ hashFiles('src/**/*', 'prisma/schema.prisma') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{ hashFiles('next.config.mjs', 'tailwind.config.ts') }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-
+            ${{ runner.os }}-nextjs-
 
-      - name: Setup test environment
+      - name: Build for tests
+        run: bun run build
         env:
-          # Use CI test database directly
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          # Pass secrets with correct names (not _VAR suffix)
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          SKIP_ENV_VALIDATION: true
+
+      # Use composite action for test environment setup
+      - name: Setup test environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          database-url: ${{ env.DATABASE_URL }}
+          redis-url: ${{ env.REDIS_URL }}
+        env:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
           PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
@@ -76,50 +100,27 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
           WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
-          REDIS_URL: redis://localhost:6379
-        run: bash scripts/ci/prepare-env.sh
 
-      - name: Setup Prisma and Database
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      # Additional database setup after env files
+      - name: Push schema and regenerate client
         run: |
-          # Generate Prisma client first
-          echo "🔧 Generating Prisma client..."
-          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Force reset and apply migrations
-          echo "🗄️ Resetting database and applying migrations..."
-          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Run seed to ensure test data is loaded
-          echo "🌱 Seeding database..."
-          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          echo "✅ Database setup complete"
+          # Push schema to test database
+          echo "📊 Pushing database schema..."
+          bunx prisma db push --skip-generate --accept-data-loss
 
-      - name: Build for tests
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          SKIP_ENV_VALIDATION: true
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-        run: |
-          echo "🏗️ Building project for tests..."
-          bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          echo "✅ Build complete"
+          # Generate Prisma client with the schema
+          echo "🔄 Generating Prisma client..."
+          bunx prisma generate
+
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️  Could not list tables"
 
       - name: Run Unit Tests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
         run: bun test tests/unit/ --coverage
         continue-on-error: false
 
       - name: Start Next.js dev server
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
-          PORT: 3000
         run: |
           echo "🚀 Starting Next.js dev server for integration tests..."
           SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
@@ -135,11 +136,12 @@ jobs:
           }
           echo ""
           echo "✅ Next.js dev server is ready"
+        env:
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          PORT: 3000
 
       - name: Run Integration Tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
           TEST_API_URL: http://localhost:3000
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
         continue-on-error: false
@@ -158,4 +160,13 @@ jobs:
             tail -50 /tmp/next-server.log
           fi
 
-
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-integration-test-results
+          path: |
+            coverage/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

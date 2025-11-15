@@ -1,0 +1,36 @@
+name: 'Setup Database'
+description: 'Setup PostgreSQL, Prisma client, and seed test data'
+inputs:
+  database-url:
+    description: 'PostgreSQL connection URL'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Prisma Client
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: ${{ runner.os }}-prisma-${{ hashFiles('prisma/schema.prisma') }}
+        restore-keys: |
+          ${{ runner.os }}-prisma-
+
+    - name: Setup Prisma and Database
+      shell: bash
+      env:
+        DATABASE_URL: ${{ inputs.database-url }}
+      run: |
+        # Generate Prisma client first
+        echo "🔧 Generating Prisma client..."
+        bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+        # Force reset and apply migrations
+        echo "🗄️ Resetting database and applying migrations..."
+        bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+        # Run seed to ensure test data is loaded
+        echo "🌱 Seeding database..."
+        bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+        echo "✅ Database setup complete"

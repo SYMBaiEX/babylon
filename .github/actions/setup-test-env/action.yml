@@ -1,0 +1,34 @@
+name: 'Setup Test Environment'
+description: 'Setup environment variables and prepare test environment files'
+inputs:
+  database-url:
+    description: 'Database URL'
+    required: true
+  redis-url:
+    description: 'Redis URL (optional)'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare environment files
+      shell: bash
+      env:
+        DATABASE_URL: ${{ inputs.database-url }}
+        DIRECT_DATABASE_URL: ${{ inputs.database-url }}
+        REDIS_URL: ${{ inputs.redis-url }}
+      run: bash scripts/ci/prepare-env.sh
+
+    - name: Wait for PostgreSQL
+      shell: bash
+      run: |
+        echo "⏳ Waiting for PostgreSQL to be ready..."
+        timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+
+    - name: Wait for Redis (if configured)
+      if: ${{ inputs.redis-url != '' }}
+      shell: bash
+      run: |
+        echo "⏳ Waiting for Redis to be ready..."
+        python3 scripts/ci/wait_for_redis.py --host localhost --port 6379 --timeout 30 --interval 1
