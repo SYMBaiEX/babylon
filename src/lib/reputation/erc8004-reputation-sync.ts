@@ -172,7 +172,12 @@ export async function syncUserReputationToERC8004(
 
     try {
       // Check if Agent0 SDK is configured for feedback submission
-      const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || process.env.BABYLON_AGENT0_PRIVATE_KEY
+      // Use default test key for localnet (first Anvil account)
+      const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
+                                 process.env.BABYLON_AGENT0_PRIVATE_KEY ||
+                                 (process.env.AGENT0_NETWORK === 'localnet' 
+                                   ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+                                   : undefined)
       
       if (!feedbackPrivateKey) {
         logger.debug('Agent0 feedback private key not configured, skipping on-chain submission', {

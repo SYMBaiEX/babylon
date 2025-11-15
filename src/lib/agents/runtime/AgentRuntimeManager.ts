@@ -178,6 +178,11 @@ export class AgentRuntimeManager {
         reason: useWandb ? 'W&B model not available' : 'W&B disabled',
       }, 'AgentRuntimeManager');
     }
+    
+    // Store model version on runtime for trajectory logging
+    if (modelVersion) {
+      (runtime as unknown as { currentModelVersion?: string }).currentModelVersion = modelVersion;
+    }
 
     // Build character from agent user config
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick

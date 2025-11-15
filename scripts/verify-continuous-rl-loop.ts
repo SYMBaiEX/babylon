@@ -551,9 +551,9 @@ class ContinuousRLLoopVerifier {
       console.log('⚠️  Some checks failed - review details above\n');
     }
     
-    // Cleanup
+    // Cleanup - don't block on errors
     console.log('🧹 Cleaning up test agents...');
-    for (const agentId of this.testAgentIds) {
+    const cleanupPromises = this.testAgentIds.map(async (agentId) => {
       try {
         await prisma.user.delete({ where: { id: agentId } }).catch(() => {
           // Ignore errors
@@ -561,7 +561,14 @@ class ContinuousRLLoopVerifier {
       } catch {
         // Ignore
       }
-    }
+    });
+    
+    // Don't wait for cleanup to complete - just fire and forget
+    Promise.all(cleanupPromises).catch(() => {
+      // Ignore cleanup errors
+    });
+    
+    console.log('✅ Cleanup initiated\n');
   }
 }
 
@@ -572,8 +579,17 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
-  console.error('Verification failed:', error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    // Give cleanup a moment, then exit
+    setTimeout(() => {
+      prisma.$disconnect().catch(() => {});
+      process.exit(0);
+    }, 1000);
+  })
+  .catch((error) => {
+    console.error('Verification failed:', error);
+    prisma.$disconnect().catch(() => {});
+    process.exit(1);
+  });
 

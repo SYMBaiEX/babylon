@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { ExternalLink, TrendingUp, TrendingDown, Clock, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { getContractAddresses } from '@/lib/deployment/addresses';
-import { CHAIN, CHAIN_ID } from '@/constants/chains';
+import { CHAIN_ID } from '@/constants/chains';
 
 interface Question {
   id: number | string;
@@ -53,11 +53,11 @@ export default function OnChainBettingPage() {
   const [betSide, setBetSide] = useState<'YES' | 'NO'>('YES');
   
   // Get network info
-  const { network, diamond } = getContractAddresses();
-  const isLocal = CHAIN_ID === CHAIN_ID.LOCALNET;
+  const { network, diamond, chainId } = getContractAddresses();
+  const isLocal = chainId === 31337;
   const explorerUrl = isLocal 
     ? null // No explorer for localnet
-    : CHAIN_ID === 84532
+    : chainId === 84532
       ? 'https://sepolia.basescan.org'
       : 'https://basescan.org';
 

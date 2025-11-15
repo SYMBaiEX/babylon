@@ -1,27 +1,28 @@
 name: Babylon RL Training
 
 # Trigger options:
-# 1. Via repository_dispatch (from Vercel cron)
-# 2. On schedule (backup/fallback)
-# 3. Manual workflow_dispatch (testing)
+# 1. On schedule (daily training)
+# 2. Manual workflow_dispatch (testing/debugging)
 on:
-  repository_dispatch:
-    types: [trigger-training]
-  
   schedule:
-    # Daily at 2 AM UTC (backup in case Vercel cron fails)
+    # Daily at 2 AM UTC
     - cron: '0 2 * * *'
   
   workflow_dispatch:
     inputs:
       batch_id:
-        description: 'Training batch ID (optional)'
+        description: 'Training batch ID (optional, auto-generated if not provided)'
         required: false
         type: string
       window_id:
         description: 'Window ID to train (optional, auto-detected if not provided)'
         required: false
         type: string
+      force:
+        description: 'Force training even if not ready (for testing)'
+        required: false
+        type: boolean
+        default: false
 
 env:
   PYTHON_VERSION: '3.11'
@@ -96,8 +97,9 @@ jobs:
       - name: Get batch info
         id: batch
         env:
-          BATCH_ID: ${{ github.event.client_payload.batch_id || inputs.batch_id || '' }}
-          WINDOW_ID: ${{ github.event.client_payload.window_id || inputs.window_id || '' }}
+          BATCH_ID: ${{ inputs.batch_id || '' }}
+          WINDOW_ID: ${{ inputs.window_id || '' }}
+          FORCE: ${{ inputs.force || 'false' }}
         run: |
           # Use provided batch_id or generate one
           if [ -n "$BATCH_ID" ]; then
@@ -115,10 +117,19 @@ jobs:
             echo "window_id=$WINDOW" >> $GITHUB_OUTPUT
           fi
           
-          echo "source=github_actions" >> $GITHUB_OUTPUT
+          echo "force=$FORCE" >> $GITHUB_OUTPUT
+          echo "source=github_cron" >> $GITHUB_OUTPUT
+      
+      - name: Skip if not ready (unless forced)
+        if: steps.readiness.outputs.ready != 'true' && steps.batch.outputs.force != 'true'
+        run: |
+          echo "⏭️  Not ready for training and force=false"
+          echo "Trajectories: ${{ steps.readiness.outputs.count }}"
+          echo "Required: 100"
+          exit 0
       
       - name: Update batch status to training
-        if: steps.readiness.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BATCH_ID: ${{ steps.batch.outputs.batch_id }}
@@ -151,7 +162,7 @@ jobs:
           "
       
       - name: Run RL Training
-        if: steps.readiness.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
@@ -169,7 +180,7 @@ jobs:
           python src/training/babylon_trainer.py
       
       - name: Update batch status to completed
-        if: success() && steps.readiness.outputs.ready == 'true'
+        if: success() && (steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true')
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BATCH_ID: ${{ steps.batch.outputs.batch_id }}
@@ -196,7 +207,7 @@ jobs:
           "
       
       - name: Update batch status to failed
-        if: failure() && steps.readiness.outputs.ready == 'true'
+        if: failure() && (steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true')
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BATCH_ID: ${{ steps.batch.outputs.batch_id }}

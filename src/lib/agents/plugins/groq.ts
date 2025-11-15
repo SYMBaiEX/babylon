@@ -231,14 +231,23 @@ export const groqPlugin: Plugin = {
       const isWandbModel = wandbEnabled && wandbApiKey && wandbModel;
       const modelSource = isWandbModel ? 'wandb' : 'groq';
       const logger = (await import('@/lib/logger')).logger;
-      logger.debug('LLM call model selection', {
-        model,
-        modelSource,
-        isWandbModel,
-        wandbModel: wandbModel || 'none',
-        groqModel: !isWandbModel ? model : 'none',
-        modelVersion
-      }, 'GroqPlugin')
+      
+      // Always log at INFO level for W&B model usage verification
+      if (isWandbModel) {
+        logger.info('Using W&B RL model for inference', {
+          model,
+          modelSource: 'wandb',
+          modelVersion,
+          baseURL,
+          wandbModel,
+        }, 'GroqPlugin');
+      } else {
+        logger.debug('Using Groq model for inference', {
+          model,
+          modelSource: 'groq',
+          groqModel: model,
+        }, 'GroqPlugin');
+      }
 
       return await generateGroqText(groq, model, {
         prompt,

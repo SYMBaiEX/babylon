@@ -1,15 +1,15 @@
 /**
- * Training Trigger Cron
+ * Training Status Cron
  * 
  * Runs daily to:
  * 1. Check if system is ready to train
- * 2. Trigger training if ready
- * 3. Monitor training job status
+ * 2. Report readiness status  
+ * 3. Log training metrics
  * 
  * Triggered by Vercel Cron: 0 0 * * * (daily at midnight)
  * 
- * IMPORTANT: This triggers training but doesn't run it
- * Training runs on separate worker (Railway/GitHub Actions/CoreWeave)
+ * NOTE: Training is triggered by GitHub Actions cron (2 AM UTC daily)
+ * This endpoint just monitors readiness and reports status
  */
 
 import { NextResponse } from 'next/server';
@@ -17,118 +17,55 @@ import { automationPipeline } from '@/lib/training/AutomationPipeline';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 60; // 1 minute
 
 /**
- * Daily training trigger
+ * Daily training status check and reporting
  */
 export async function GET() {
   try {
-    logger.info('Starting daily training trigger', undefined, 'TrainingCron');
+    logger.info('Checking training system status', undefined, 'TrainingStatusCron');
 
-    // 1. Check readiness
+    // 1. Check if ready to train
     const readiness = await automationPipeline.checkTrainingReadiness();
     
-    if (!readiness.ready) {
-      logger.info('System not ready to train', { 
+    // 2. Get overall system status
+    const status = await automationPipeline.getStatus();
+    
+    // 3. Log readiness status
+    if (readiness.ready) {
+      logger.info('✅ System ready for training', {
+        trajectories: readiness.stats.totalTrajectories,
+        scenarioGroups: readiness.stats.scenarioGroups,
+        dataQuality: readiness.stats.dataQuality
+      }, 'TrainingStatusCron');
+    } else {
+      logger.info('⏳ System not ready for training', {
         reason: readiness.reason,
         stats: readiness.stats
-      }, 'TrainingCron');
-      
-      return NextResponse.json({
-        success: true,
-        triggered: false,
-        reason: readiness.reason,
-        stats: readiness.stats,
-        nextCheck: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      });
-    }
-
-    logger.info('System ready - triggering training', readiness.stats, 'TrainingCron');
-
-    // 2. Trigger training via GitHub Actions
-    const githubToken = process.env.GITHUB_TOKEN;
-    const githubRepo = process.env.GITHUB_REPO; // format: "owner/repo"
-    
-    if (githubToken && githubRepo) {
-      logger.info('Triggering GitHub Actions workflow', { repo: githubRepo }, 'TrainingCron');
-      
-      const result = await automationPipeline.triggerTraining();
-      
-      if (!result.success) {
-        return NextResponse.json({
-          success: false,
-          triggered: false,
-          error: result.error
-        }, { status: 400 });
-      }
-      
-      try {
-        const githubResponse = await fetch(
-          `https://api.github.com/repos/${githubRepo}/dispatches`,
-          {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/vnd.github.v3+json',
-              'Authorization': `Bearer ${githubToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              event_type: 'trigger-training',
-              client_payload: {
-                batchId: result.jobId,
-                source: 'vercel-cron',
-                timestamp: new Date().toISOString()
-              }
-            })
-          }
-        );
-        
-        if (!githubResponse.ok) {
-          throw new Error(`GitHub API returned ${githubResponse.status}`);
-        }
-        
-        logger.info('GitHub Actions workflow dispatched', {
-          batchId: result.jobId
-        }, 'TrainingCron');
-        
-        return NextResponse.json({
-          success: true,
-          triggered: true,
-          method: 'github_actions',
-          batchId: result.jobId
-        });
-        
-      } catch (githubError) {
-        logger.error('Failed to trigger GitHub Actions', githubError, 'TrainingCron');
-        
-        return NextResponse.json({
-          success: false,
-          triggered: false,
-          error: `GitHub Actions error: ${githubError instanceof Error ? githubError.message : String(githubError)}`
-        }, { status: 500 });
-      }
+      }, 'TrainingStatusCron');
     }
     
-    // No GitHub Actions configured
-    logger.error('GitHub Actions not configured', {
-      hasGithubToken: !!githubToken,
-      hasGithubRepo: !!githubRepo
-    }, 'TrainingCron');
-    
+    // 4. Log recent activity
+    logger.info('Training system metrics', {
+      dataCollection: status.dataCollection,
+      latestModel: status.models.latest,
+      deployedModels: status.models.deployed,
+      lastTraining: status.training.lastCompleted
+    }, 'TrainingStatusCron');
+
     return NextResponse.json({
-      success: false,
-      triggered: false,
-      error: 'GitHub Actions not configured. Set GITHUB_TOKEN and GITHUB_REPO environment variables.',
-      help: {
-        githubToken: 'Create a fine-grained token with workflow permissions',
-        githubRepo: 'Format: "owner/repo" (e.g., "shawwalters/babylon")',
-        documentation: 'See .github/workflows/rl-training.yml'
-      }
-    }, { status: 500 });
+      success: true,
+      timestamp: new Date().toISOString(),
+      readiness,
+      status,
+      message: readiness.ready 
+        ? '✅ Ready for training - will run via GitHub Actions at 2 AM UTC'
+        : `⏳ Not ready: ${readiness.reason}`
+    });
 
   } catch (error) {
-    logger.error('Training trigger failed', error, 'TrainingCron');
+    logger.error('Training status check failed', error, 'TrainingStatusCron');
     
     return NextResponse.json({
       success: false,

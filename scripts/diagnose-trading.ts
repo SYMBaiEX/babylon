@@ -39,29 +39,26 @@ async function main() {
   
   logger.info('', undefined, 'Diagnostic');
   
-  // 2. Check NPCs with trading enabled
-  const tradingNPCs = await prisma.actor.findMany({
+  // 2. Check NPCs (actors)
+  const tradingNPCs = await prisma.user.findMany({
     where: {
       isActor: true,
-      npcTradingEnabled: true,
     },
     select: {
       id: true,
-      name: true,
-      tradingBalance: true,
+      displayName: true,
     },
   });
   
-  logger.info(`NPCs with trading enabled: ${tradingNPCs.length}`, undefined, 'Diagnostic');
+  logger.info(`NPCs (actors): ${tradingNPCs.length}`, undefined, 'Diagnostic');
   
   if (tradingNPCs.length === 0) {
-    logger.error('❌ No NPCs have trading enabled - no trades will be generated', undefined, 'Diagnostic');
-    logger.info('To fix: Enable trading for NPCs in admin panel or database', undefined, 'Diagnostic');
+    logger.error('❌ No NPCs found - no trades will be generated', undefined, 'Diagnostic');
+    logger.info('To fix: Create NPC actors in database', undefined, 'Diagnostic');
   } else {
-    logger.info(`✅ ${tradingNPCs.length} NPCs ready to trade`, undefined, 'Diagnostic');
+    logger.info(`✅ ${tradingNPCs.length} NPCs available`, undefined, 'Diagnostic');
     logger.info('Sample NPCs:', tradingNPCs.slice(0, 5).map(n => ({
-      name: n.name,
-      balance: n.tradingBalance,
+      name: n.displayName,
     })), 'Diagnostic');
   }
   
@@ -70,14 +67,7 @@ async function main() {
   // 3. Check recent trades
   const recentTrades = await prisma.nPCTrade.findMany({
     take: 10,
-    orderBy: { timestamp: 'desc' },
-    include: {
-      NPCActor: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    orderBy: { executedAt: 'desc' },
   });
   
   logger.info(`Total NPC trades in database: Checking...`, undefined, 'Diagnostic');
@@ -89,10 +79,10 @@ async function main() {
   } else {
     logger.info(`✅ ${totalTrades} NPC trades in database`, undefined, 'Diagnostic');
     logger.info('Recent trades:', recentTrades.slice(0, 3).map(t => ({
-      npc: t.NPCActor?.name,
+      npcActorId: t.npcActorId,
       action: t.action,
       amount: t.amount,
-      timestamp: t.timestamp,
+      executedAt: t.executedAt,
     })), 'Diagnostic');
   }
   

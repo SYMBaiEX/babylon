@@ -34,11 +34,18 @@ export class Agent0FeedbackService {
   private chainId: number = 84532
   
   constructor() {
+    // Use default test key for localnet (first Anvil account)
+    const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
+                               process.env.BABYLON_AGENT0_PRIVATE_KEY ||
+                               (process.env.AGENT0_NETWORK === 'localnet' 
+                                 ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+                                 : undefined)
+    
     // Initialize SDK with signer for feedback submission
     this.sdk = new SDK({
       chainId: this.chainId,
       rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      signer: process.env.AGENT0_FEEDBACK_PRIVATE_KEY || process.env.BABYLON_AGENT0_PRIVATE_KEY,
+      signer: feedbackPrivateKey || '',
       ipfs: 'pinata',
       pinataJwt: process.env.PINATA_JWT
     })
