@@ -6,7 +6,8 @@
  * Implements all Babylon features as official A2A Skills.
  */
 
-import { A2AClient, type AgentCard, type Message, type Task, type TextPart, type DataPart, type SendMessageResponse } from '@a2a-js/sdk'
+import { A2AClient } from '@a2a-js/sdk/client'
+import type { AgentCard, Message, Task, TextPart, DataPart, SendMessageResponse } from '@a2a-js/sdk'
 import type { JsonValue } from '../../../src/types/a2a'
 
 export interface BabylonA2AClientConfig {
@@ -29,7 +30,8 @@ export interface BabylonA2AClientConfig {
  * All operations are sent as Messages with Parts (TextPart, DataPart).
  */
 export class BabylonA2AClient {
-  private client: A2AClient
+  private client?: A2AClient
+  private clientPromise?: Promise<A2AClient>
   private config: BabylonA2AClientConfig
   private agentCard: AgentCard | null = null
   public agentId: string | null = null
@@ -37,20 +39,35 @@ export class BabylonA2AClient {
   constructor(config: BabylonA2AClientConfig) {
     this.config = config
     this.agentId = `agent-${config.tokenId}-${config.address.slice(0, 8)}`
+  }
+  
+  /**
+   * Get or initialize the A2A client (lazy initialization)
+   */
+  private async getClient(): Promise<A2AClient> {
+    if (this.client) {
+      return this.client
+    }
     
-    // Initialize client - will fetch agent card from .well-known/agent-card.json
-    const agentCardUrl = `${config.baseUrl}/.well-known/agent-card.json`
-    this.client = new A2AClient(agentCardUrl, {
-      fetchImpl: async (url: string | URL | Request, init?: RequestInit) => {
-        // Add authentication headers
-        const headers = new Headers(init?.headers)
-        headers.set('x-agent-id', this.agentId)
-        headers.set('x-agent-address', this.config.address)
-        headers.set('x-agent-token-id', this.config.tokenId.toString())
-        headers.set('x-babylon-api-key', this.config.apiKey)
-        return fetch(url, { ...init, headers })
-      }
-    })
+    if (!this.clientPromise) {
+      const agentCardUrl = `${this.config.baseUrl}/.well-known/agent-card`
+      this.clientPromise = A2AClient.fromCardUrl(agentCardUrl, {
+        fetchImpl: async (url: string | URL | Request, init?: RequestInit) => {
+          // Add authentication headers
+          const headers = new Headers(init?.headers)
+          headers.set('x-agent-id', this.agentId!)
+          headers.set('x-agent-address', this.config.address)
+          headers.set('x-agent-token-id', this.config.tokenId.toString())
+          if (this.config.apiKey) {
+            headers.set('x-babylon-api-key', this.config.apiKey)
+          }
+          return fetch(url, { ...init, headers })
+        }
+      })
+    }
+    
+    this.client = await this.clientPromise
+    return this.client
   }
 
   /**
@@ -58,26 +75,11 @@ export class BabylonA2AClient {
    */
   async connect(): Promise<void> {
     try {
-      // Fetch agent card to verify connection
-      const client = await A2AClient.fromCardUrl(
-        `${this.config.baseUrl}/.well-known/agent-card.json`,
-        {
-          fetchImpl: async (url: string | URL | Request, init?: RequestInit) => {
-            const headers = new Headers(init?.headers)
-            headers.set('x-agent-id', this.agentId)
-            headers.set('x-agent-address', this.config.address)
-            headers.set('x-agent-token-id', this.config.tokenId.toString())
-            headers.set('x-babylon-api-key', this.config.apiKey)
-            return fetch(url, { ...init, headers })
-          }
-        }
-      )
-      
-      // Update client reference
-      this.client = client
+      // Initialize client
+      const client = await this.getClient()
       
       // Get agent card
-      this.agentCard = await client['agentCardPromise'] || null
+      this.agentCard = await (client as unknown as { agentCardPromise?: Promise<AgentCard> }).agentCardPromise || null
 
       // Verify connection by sending a test message
       await this.sendMessage('ping', { operation: 'stats.system', params: {} })
@@ -122,9 +124,10 @@ export class BabylonA2AClient {
       contextId: this.agentId || undefined
     }
 
-    const response = await this.client.sendMessage({ message })
+    const client = await this.getClient()
+    const response = await client.sendMessage({ message })
 
-    if (this.client.isErrorResponse(response)) {
+    if (client.isErrorResponse(response)) {
       throw new Error(`A2A Error [${response.error.code}]: ${response.error.message}`)
     }
 
@@ -151,9 +154,10 @@ export class BabylonA2AClient {
    * Get task status
    */
   async getTask(taskId: string): Promise<Task> {
-    const response = await this.client.getTask({ taskId })
+    const client = await this.getClient()
+    const response = await client.getTask({ taskId })
 
-    if (this.client.isErrorResponse(response)) {
+    if (client.isErrorResponse(response)) {
       throw new Error(`A2A Error [${response.error.code}]: ${response.error.message}`)
     }
 

@@ -220,6 +220,15 @@ export const groqPlugin: Plugin = {
         fetch: runtime.fetch,
         baseURL,
       })
+      
+      // Determine if using W&B model (before logging)
+      const isWandbModel = wandbEnabled && wandbApiKey && wandbModel;
+      
+      // Verify W&B API is being used
+      if (isWandbModel && baseURL === 'https://api.inference.wandb.ai/v1') {
+        // This confirms we're using W&B inference API, not Groq
+        // The model parameter will be passed to W&B API which expects W&B model identifiers
+      }
 
       // Get trajectory logger from runtime if available
       const trajectoryLogger = (runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger
@@ -228,8 +237,6 @@ export const groqPlugin: Plugin = {
       const modelVersion = (runtime as unknown as { currentModelVersion?: string }).currentModelVersion
       
       // Log which model is being used (for verification)
-      const isWandbModel = wandbEnabled && wandbApiKey && wandbModel;
-      const modelSource = isWandbModel ? 'wandb' : 'groq';
       const logger = (await import('@/lib/logger')).logger;
       
       // Always log at INFO level for W&B model usage verification

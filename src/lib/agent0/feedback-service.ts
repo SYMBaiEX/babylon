@@ -41,13 +41,20 @@ export class Agent0FeedbackService {
                                  ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
                                  : undefined)
     
+    // Use 'node' IPFS provider for localnet, 'pinata' for production
+    const isLocalnet = process.env.AGENT0_NETWORK === 'localnet'
+    const ipfsProvider: 'node' | 'filecoinPin' | 'pinata' = 
+      (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') || 
+      (isLocalnet ? 'node' : 'pinata')
+    
     // Initialize SDK with signer for feedback submission
     this.sdk = new SDK({
       chainId: this.chainId,
       rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
       signer: feedbackPrivateKey || '',
-      ipfs: 'pinata',
-      pinataJwt: process.env.PINATA_JWT
+      ipfs: ipfsProvider,
+      pinataJwt: process.env.PINATA_JWT,
+      ipfsNodeUrl: isLocalnet ? 'https://ipfs.io' : undefined
     })
   }
   

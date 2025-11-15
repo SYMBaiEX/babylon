@@ -1,12 +1,16 @@
 name: Babylon RL Training
 
 # Trigger options:
-# 1. On schedule (daily training)
-# 2. Manual workflow_dispatch (testing/debugging)
+# 1. On schedule (daily training at 2 AM UTC)
+# 2. Via repository_dispatch (from debug endpoint)
+# 3. Manual workflow_dispatch (testing from GitHub UI)
 on:
   schedule:
     # Daily at 2 AM UTC
     - cron: '0 2 * * *'
+  
+  repository_dispatch:
+    types: [trigger-training]
   
   workflow_dispatch:
     inputs:
@@ -27,6 +31,11 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   WANDB_PROJECT: 'babylon-rl'
+
+# Prevent concurrent training runs
+concurrency:
+  group: training-pipeline
+  cancel-in-progress: false  # Wait for current run to finish
 
 jobs:
   train:
@@ -67,29 +76,53 @@ jobs:
           import asyncpg
           import json
           import os
+          import sys
           from datetime import datetime
           
           async def check():
-              pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
-              
-              # Count unscored trajectories
-              unscored = await pool.fetchval('''
-                  SELECT COUNT(*) FROM trajectories 
-                  WHERE \"isTrainingData\" = true 
-                  AND \"usedInTraining\" = false
-                  AND \"aiJudgeReward\" IS NOT NULL
-              ''')
-              
-              print(f'Trajectories ready: {unscored}')
-              
-              # Check if we have enough
-              min_required = 100  # Lowered for testing
-              ready = unscored >= min_required
-              
-              print(f'::set-output name=ready::{str(ready).lower()}')
-              print(f'::set-output name=count::{unscored}')
-              
-              await pool.close()
+              try:
+                  # Connect to database with timeout
+                  pool = await asyncpg.create_pool(
+                      os.getenv('DATABASE_URL'),
+                      min_size=1,
+                      max_size=2,
+                      timeout=30
+                  )
+                  
+                  # Count scored trajectories ready for training
+                  count = await pool.fetchval('''
+                      SELECT COUNT(*) FROM trajectories 
+                      WHERE \"isTrainingData\" = true 
+                      AND \"usedInTraining\" = false
+                      AND \"aiJudgeReward\" IS NOT NULL
+                      AND \"stepsJson\" IS NOT NULL
+                      AND \"stepsJson\"::text != 'null'
+                      AND \"stepsJson\"::text != '[]'
+                  ''')
+                  
+                  print(f'✅ Database connected')
+                  print(f'📊 Trajectories ready for training: {count}')
+                  
+                  # Check if we have enough (lowered for testing)
+                  min_required = 100
+                  ready = count >= min_required
+                  
+                  if ready:
+                      print(f'✅ READY: {count} >= {min_required}')
+                  else:
+                      print(f'⏳ NOT READY: {count} < {min_required} (need {min_required - count} more)')
+                  
+                  # Set outputs for next steps
+                  print(f'::set-output name=ready::{str(ready).lower()}')
+                  print(f'::set-output name=count::{count}')
+                  
+                  await pool.close()
+                  
+              except Exception as e:
+                  print(f'❌ Error checking readiness: {e}', file=sys.stderr)
+                  print(f'::set-output name=ready::false')
+                  print(f'::set-output name=count::0')
+                  sys.exit(1)
           
           asyncio.run(check())
           "
@@ -97,27 +130,42 @@ jobs:
       - name: Get batch info
         id: batch
         env:
-          BATCH_ID: ${{ inputs.batch_id || '' }}
-          WINDOW_ID: ${{ inputs.window_id || '' }}
-          FORCE: ${{ inputs.force || 'false' }}
+          # From workflow_dispatch inputs:
+          BATCH_ID_INPUT: ${{ inputs.batch_id || '' }}
+          WINDOW_ID_INPUT: ${{ inputs.window_id || '' }}
+          FORCE_INPUT: ${{ inputs.force || 'false' }}
+          # From repository_dispatch payload:
+          BATCH_ID_PAYLOAD: ${{ github.event.client_payload.batch_id || '' }}
+          WINDOW_ID_PAYLOAD: ${{ github.event.client_payload.window_id || '' }}
+          FORCE_PAYLOAD: ${{ github.event.client_payload.force || 'false' }}
         run: |
-          # Use provided batch_id or generate one
-          if [ -n "$BATCH_ID" ]; then
-            echo "batch_id=$BATCH_ID" >> $GITHUB_OUTPUT
+          # Determine batch_id (prefer dispatch payload over input)
+          if [ -n "$BATCH_ID_PAYLOAD" ]; then
+            echo "batch_id=$BATCH_ID_PAYLOAD" >> $GITHUB_OUTPUT
+          elif [ -n "$BATCH_ID_INPUT" ]; then
+            echo "batch_id=$BATCH_ID_INPUT" >> $GITHUB_OUTPUT
           else
             echo "batch_id=batch-$(date +%s)" >> $GITHUB_OUTPUT
           fi
           
-          # Use provided window_id or generate current hour window
-          if [ -n "$WINDOW_ID" ]; then
-            echo "window_id=$WINDOW_ID" >> $GITHUB_OUTPUT
+          # Determine window_id
+          if [ -n "$WINDOW_ID_PAYLOAD" ]; then
+            echo "window_id=$WINDOW_ID_PAYLOAD" >> $GITHUB_OUTPUT
+          elif [ -n "$WINDOW_ID_INPUT" ]; then
+            echo "window_id=$WINDOW_ID_INPUT" >> $GITHUB_OUTPUT
           else
             # Format: YYYY-MM-DDTHH:00
             WINDOW=$(date -u +"%Y-%m-%dT%H:00")
             echo "window_id=$WINDOW" >> $GITHUB_OUTPUT
           fi
           
-          echo "force=$FORCE" >> $GITHUB_OUTPUT
+          # Determine force flag
+          if [ "$FORCE_PAYLOAD" = "true" ] || [ "$FORCE_INPUT" = "true" ]; then
+            echo "force=true" >> $GITHUB_OUTPUT
+          else
+            echo "force=false" >> $GITHUB_OUTPUT
+          fi
+          
           echo "source=github_cron" >> $GITHUB_OUTPUT
       
       - name: Skip if not ready (unless forced)

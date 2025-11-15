@@ -79,10 +79,17 @@ class WandbModelUsageVerifier {
         },
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isDbError = errorMessage.includes('Authentication failed') || 
+                       errorMessage.includes('database') ||
+                       errorMessage.includes('connection');
+      
       return {
         step: 'Trained Model Exists',
         passed: false,
-        details: `Error checking database: ${error instanceof Error ? error.message : String(error)}`,
+        details: isDbError 
+          ? 'Database connection failed. Please ensure database is running and DATABASE_URL is set correctly.'
+          : `Error checking database: ${errorMessage}`,
       };
     }
   }
@@ -359,19 +366,31 @@ class WandbModelUsageVerifier {
       console.log(`     Inference Count (24h): ${stats.inferenceCount}\n`);
       
       if (!stats.isTrainedModel) {
-        return {
-          step: 'Model Usage Statistics',
-          passed: false,
-          details: `Agent is not using trained model. Using: ${stats.modelUsed} (source: ${stats.modelSource})`,
-          evidence: stats,
-        };
+      return {
+        step: 'Model Usage Statistics',
+        passed: false,
+        details: `Agent is not using trained model. Using: ${stats.modelUsed} (source: ${stats.modelSource})`,
+        evidence: {
+          modelUsed: stats.modelUsed,
+          modelSource: stats.modelSource,
+          isTrainedModel: stats.isTrainedModel,
+          modelVersion: stats.modelVersion,
+          inferenceCount: stats.inferenceCount,
+        },
+      };
       }
       
       return {
         step: 'Model Usage Statistics',
         passed: true,
         details: `Agent is using trained W&B model: ${stats.modelUsed} (v${stats.modelVersion})`,
-        evidence: stats,
+        evidence: {
+          modelUsed: stats.modelUsed,
+          modelSource: stats.modelSource,
+          isTrainedModel: stats.isTrainedModel,
+          modelVersion: stats.modelVersion,
+          inferenceCount: stats.inferenceCount,
+        },
       };
     } catch (error) {
       return {
@@ -396,6 +415,8 @@ class WandbModelUsageVerifier {
     if (!step1.passed) {
       console.log('❌ Cannot continue - no trained model found\n');
       this.printSummary();
+      await prisma.$disconnect().catch(() => {});
+      process.exit(step1.details.includes('Database connection failed') ? 1 : 0);
       return;
     }
     
@@ -480,8 +501,14 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
-  console.error('Verification failed:', error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    prisma.$disconnect().catch(() => {});
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Verification failed:', error);
+    prisma.$disconnect().catch(() => {});
+    process.exit(1);
+  });
 

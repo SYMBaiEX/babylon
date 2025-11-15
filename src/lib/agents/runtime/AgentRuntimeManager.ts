@@ -178,11 +178,6 @@ export class AgentRuntimeManager {
         reason: useWandb ? 'W&B model not available' : 'W&B disabled',
       }, 'AgentRuntimeManager');
     }
-    
-    // Store model version on runtime for trajectory logging
-    if (modelVersion) {
-      (runtime as unknown as { currentModelVersion?: string }).currentModelVersion = modelVersion;
-    }
 
     // Build character from agent user config
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
@@ -249,9 +244,11 @@ export class AgentRuntimeManager {
 
     const runtime = new AgentRuntime(runtimeConfig)
 
-    // Store model version on runtime for LLM call logging
-    ;(runtime as unknown as { currentModelVersion?: string; currentModel?: string }).currentModelVersion = modelVersion
-    ;(runtime as unknown as { currentModelVersion?: string; currentModel?: string }).currentModel = wandbModel || (useWandb ? 'wandb' : 'groq')
+    // Store model version on runtime for LLM call logging (after runtime is created)
+    if (modelVersion) {
+      (runtime as unknown as { currentModelVersion?: string }).currentModelVersion = modelVersion;
+    }
+    (runtime as unknown as { currentModel?: string }).currentModel = wandbModel || (useWandb ? 'wandb' : 'groq')
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {

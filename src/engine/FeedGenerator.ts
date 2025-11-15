@@ -766,7 +766,37 @@ Trending system not initialized yet.
         { temperature: 0.9, maxTokens: 5000 }
       );
 
-      const posts = Array.isArray(response.posts) ? response.posts : [];
+      // Debug: Log raw response structure on first attempt
+      if (attempt === 0) {
+        logger.info('Media batch raw response structure', {
+          hasResponse: !!response,
+          hasPosts: 'posts' in response,
+          postsType: response.posts ? typeof response.posts : 'undefined',
+          isArray: Array.isArray(response.posts),
+          sampleKeys: response ? Object.keys(response).slice(0, 5) : [],
+        }, 'FeedGenerator');
+      }
+
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
+      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.posts)) {
+        posts = response.posts;
+      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
+        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).post;
+        posts = Array.isArray(nested) ? nested : [nested];
+      } else if (response.posts) {
+        // Debug: Log what we got
+        logger.warn('Unexpected posts structure', {
+          type: typeof response.posts,
+          keys: Object.keys(response.posts),
+          firstItem: posts[0],
+        }, 'FeedGenerator');
+      } else {
+        logger.warn('Response has no posts field', {
+          responseKeys: Object.keys(response),
+        }, 'FeedGenerator');
+      }
+      
       const validPosts = posts
         .filter(p => {
           const content = p.post || p.tweet;
@@ -774,9 +804,9 @@ Trending system not initialized yet.
         })
         .map(p => ({
           post: p.post || p.tweet!,
-          sentiment: p.sentiment,
-          clueStrength: p.clueStrength,
-          pointsToward: p.pointsToward,
+          sentiment: p.sentiment ?? 0,
+          clueStrength: p.clueStrength ?? 0.5,
+          pointsToward: p.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(mediaEntities.length * 0.5);
       
@@ -785,7 +815,7 @@ Trending system not initialized yet.
         return validPosts.slice(0, mediaEntities.length);
       }
 
-      logger.warn(`Invalid media batch (attempt ${attempt + 1}/${maxRetries}). Expected ${mediaEntities.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: mediaEntities.length, got: validPosts.length, minRequired }, 'FeedGenerator');
+      logger.warn(`Invalid media batch (attempt ${attempt + 1}/${maxRetries}). Expected ${mediaEntities.length}, got ${validPosts.length} valid (need ${minRequired}+). Posts array length: ${posts.length}`, { attempt: attempt + 1, maxRetries, expected: mediaEntities.length, got: validPosts.length, minRequired, postsReceived: posts.length }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -872,7 +902,15 @@ Trending system not initialized yet.
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const reactions = Array.isArray(response.reactions) ? response.reactions : [];
+      // Handle XML nested structure: { reactions: [...] } or { reactions: { reaction: [...] } }
+      let reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.reactions)) {
+        reactions = response.reactions;
+      } else if (response.reactions && typeof response.reactions === 'object' && 'reaction' in response.reactions) {
+        const nested = (response.reactions as { reaction: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).reaction;
+        reactions = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validReactions = reactions
         .filter(r => {
           const content = r.post || r.tweet;
@@ -880,9 +918,9 @@ Trending system not initialized yet.
         })
         .map(r => ({
           post: r.post || r.tweet!,
-          sentiment: r.sentiment,
-          clueStrength: r.clueStrength,
-          pointsToward: r.pointsToward,
+          sentiment: r.sentiment ?? 0,
+          clueStrength: r.clueStrength ?? 0.5,
+          pointsToward: r.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(actors.length * 0.5);
       
@@ -968,7 +1006,15 @@ Trending system not initialized yet.
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const commentary = Array.isArray(response.commentary) ? response.commentary : [];
+      // Handle XML nested structure: { commentary: [...] } or { commentary: { comment: [...] } }
+      let commentary: CommentaryPost[] = [];
+      if (Array.isArray(response.commentary)) {
+        commentary = response.commentary;
+      } else if (response.commentary && typeof response.commentary === 'object' && 'comment' in response.commentary) {
+        const nested = (response.commentary as { comment: CommentaryPost[] | CommentaryPost }).comment;
+        commentary = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validCommentary = commentary
         .filter((c): c is CommentaryPost => {
           if (typeof c !== 'object' || c === null) return false;
@@ -977,9 +1023,9 @@ Trending system not initialized yet.
         })
         .map((c: CommentaryPost) => ({
           post: c.post || c.tweet!,
-          sentiment: c.sentiment || 0,
-          clueStrength: c.clueStrength || 0,
-          pointsToward: c.pointsToward || null,
+          sentiment: c.sentiment ?? 0,
+          clueStrength: c.clueStrength ?? 0.5,
+          pointsToward: c.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(commentators.length * 0.5);
       
@@ -1054,11 +1100,17 @@ Trending system not initialized yet.
         { temperature: 1.1, maxTokens: 5000 }
       );
 
-      // Handle both response formats with proper type narrowing
+      // Handle multiple response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
-      if ('conspiracy' in rawResponse && Array.isArray(rawResponse.conspiracy)) {
-        // Format 1: Direct array
-        conspiracy = rawResponse.conspiracy;
+      if ('conspiracy' in rawResponse && rawResponse.conspiracy) {
+        if (Array.isArray(rawResponse.conspiracy)) {
+          // Format 1: Direct array
+          conspiracy = rawResponse.conspiracy;
+        } else if (typeof rawResponse.conspiracy === 'object' && 'post' in rawResponse.conspiracy) {
+          // Format 3: XML nested structure { conspiracy: { post: [...] } }
+          const nested = (rawResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
+          conspiracy = Array.isArray(nested) ? nested : [nested];
+        }
       } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
         // Format 2: Wrapped in data array
         conspiracy = rawResponse.data.flatMap((d) => {
@@ -1073,9 +1125,9 @@ Trending system not initialized yet.
         })
         .map((c: ConspiracyPost) => ({
           post: c.post || c.tweet!,
-          sentiment: c.sentiment || 0,
-          clueStrength: c.clueStrength || 0,
-          pointsToward: c.pointsToward || null,
+          sentiment: c.sentiment ?? 0,
+          clueStrength: c.clueStrength ?? 0.5,
+          pointsToward: c.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(conspiracists.length * 0.5);
       
@@ -1877,7 +1929,15 @@ Respond with JSON: {"reply": "your reply here"}`;
         { temperature: 1.1, maxTokens: 5000 }
       );
 
-      const posts = Array.isArray(response.posts) ? response.posts : [];
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
+      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.posts)) {
+        posts = response.posts;
+      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
+        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).post;
+        posts = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validPosts = posts
         .filter(p => {
           const content = p.post || p.tweet;
@@ -1885,9 +1945,9 @@ Respond with JSON: {"reply": "your reply here"}`;
         })
         .map(p => ({
           post: p.post || p.tweet!,
-          sentiment: p.sentiment,
-          clueStrength: p.clueStrength,
-          pointsToward: p.pointsToward,
+          sentiment: p.sentiment ?? 0,
+          clueStrength: p.clueStrength ?? 0.05,
+          pointsToward: p.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(actors.length * 0.5);
       
@@ -1999,7 +2059,15 @@ Respond with JSON: {"reply": "your reply here"}`;
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const replies = Array.isArray(response.replies) ? response.replies : [];
+      // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } }
+      let replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.replies)) {
+        replies = response.replies;
+      } else if (response.replies && typeof response.replies === 'object' && 'reply' in response.replies) {
+        const nested = (response.replies as { reply: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).reply;
+        replies = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validReplies = replies
         .filter(r => {
           const content = r.post || r.tweet;
@@ -2007,9 +2075,9 @@ Respond with JSON: {"reply": "your reply here"}`;
         })
         .map(r => ({
           post: r.post || r.tweet!,
-          sentiment: r.sentiment,
-          clueStrength: r.clueStrength,
-          pointsToward: r.pointsToward,
+          sentiment: r.sentiment ?? 0,
+          clueStrength: r.clueStrength ?? 0.3,
+          pointsToward: r.pointsToward ?? null,
         }));
       const minRequired = Math.ceil(actors.length * 0.5);
       
