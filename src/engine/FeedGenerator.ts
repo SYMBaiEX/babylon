@@ -1133,11 +1133,12 @@ Trending system not initialized yet.
 
       const validConspiracy = conspiracy
         .filter((c): c is ConspiracyPost => {
-          const content = c.post || c.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
         .map((c: ConspiracyPost) => ({
-          post: c.post || c.tweet!,
+          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,
@@ -1953,11 +1954,12 @@ Respond with JSON: {"reply": "your reply here"}`;
       
       const validPosts = posts
         .filter(p => {
-          const content = p.post || p.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = p.post || p.tweet || (p as unknown as { content?: string }).content;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
         .map(p => ({
-          post: p.post || p.tweet!,
+          post: p.post || p.tweet || (p as unknown as { content?: string }).content!,
           sentiment: p.sentiment ?? 0,
           clueStrength: p.clueStrength ?? 0.05,
           pointsToward: p.pointsToward ?? null,

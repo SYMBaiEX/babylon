@@ -7,18 +7,17 @@
  * Transactions execute on blockchain via smart wallet
  */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useAuth } from '@/hooks/useAuth';
 import { useOnChainBetting } from '@/hooks/useOnChainBetting';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { ExternalLink, TrendingUp, TrendingDown, Clock, Wallet } from 'lucide-react';
-import { toast } from 'sonner';
 import { getContractAddresses } from '@/lib/deployment/addresses';
-import { CHAIN_ID } from '@/constants/chains';
+import { cn } from '@/lib/utils';
+import { Clock, ExternalLink, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Question {
   id: number | string;
