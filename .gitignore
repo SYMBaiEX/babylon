@@ -16,7 +16,6 @@ next-env.d.ts
 .serena/
 cache/*
 broadcast/
-/data/
 bun.lock
 plugin-babylon/.eliza/
 claudedocs/
@@ -24,8 +23,6 @@ package-lock.json
 test-results/
 
 # Uploaded user files - keep directory structure but ignore actual files
-/public/uploads/**/*
-!/public/uploads/**/.gitkeep
 .eliza/
 games/babylon
 games/
