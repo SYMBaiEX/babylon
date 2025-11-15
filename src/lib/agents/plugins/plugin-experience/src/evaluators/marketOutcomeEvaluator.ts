@@ -108,18 +108,23 @@ export const marketOutcomeEvaluator: Evaluator = {
           gameId: questionNumber.toString(),
           deletedAt: null,
         },
-        include: {
-          author: {
-            select: {
-              displayName: true,
-              isActor: true,
-            },
-          },
+        select: {
+          id: true,
+          content: true,
+          authorId: true,
         },
         take: 500,
       });
 
-      const npcPosts = posts.filter(p => p.author?.isActor);
+      // Fetch author details separately
+      const authorIds = [...new Set(posts.map(p => p.authorId))];
+      const authors = await prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, displayName: true, isActor: true },
+      });
+      const authorMap = new Map(authors.map(a => [a.id, a]));
+
+      const npcPosts = posts.filter(p => authorMap.get(p.authorId)?.isActor);
       
       // Get current trust scores
       // Note: messageManager API not available in this context
@@ -129,7 +134,8 @@ export const marketOutcomeEvaluator: Evaluator = {
       let npcUpdated = 0;
 
       for (const post of npcPosts) {
-        const npcName = post.author?.displayName || 'Unknown';
+        const author = authorMap.get(post.authorId);
+        const npcName = author?.displayName || 'Unknown';
         const predicted = extractPredictionFromContent(post.content);
         
         if (!predicted) continue;

@@ -7,10 +7,21 @@
 
 import { useCallback, useState } from 'react'
 import type { Address } from 'viem'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData, pad } from 'viem'
 import { useSmartWallet } from '@/hooks/useSmartWallet'
 import { CHAIN } from '@/constants/chains'
 import { logger } from '@/lib/logger'
+
+/**
+ * Convert market ID (Snowflake ID string) to bytes32
+ * Preserves the numeric value by converting to hex and padding
+ */
+function marketIdToBytes32(marketId: string): `0x${string}` {
+  // Convert string number to BigInt, then to hex, then pad to 32 bytes
+  const bigintValue = BigInt(marketId)
+  const hexValue = `0x${bigintValue.toString(16)}` as `0x${string}`
+  return pad(hexValue, { size: 32 })
+}
 
 // Diamond address on Base Sepolia
 const DIAMOND_ADDRESS = '0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990' as Address
@@ -78,9 +89,13 @@ export function useOnChainBetting() {
       try {
         const outcomeIndex = outcome === 'YES' ? 1 : 0
         const sharesBigInt = BigInt(Math.floor(numShares * 1e18))
+        
+        // Convert Snowflake ID to bytes32
+        const marketIdBytes32 = marketIdToBytes32(marketId)
 
         logger.info('Buying shares on-chain', {
           marketId,
+          marketIdBytes32,
           outcome,
           numShares,
           outcomeIndex
@@ -90,7 +105,7 @@ export function useOnChainBetting() {
         const data = encodeFunctionData({
           abi: PREDICTION_MARKET_ABI,
           functionName: 'buyShares',
-          args: [marketId as `0x${string}`, outcomeIndex, sharesBigInt]
+          args: [marketIdBytes32, outcomeIndex, sharesBigInt]
         })
 
         // Send transaction via smart wallet
@@ -137,9 +152,13 @@ export function useOnChainBetting() {
       try {
         const outcomeIndex = outcome === 'YES' ? 1 : 0
         const sharesBigInt = BigInt(Math.floor(numShares * 1e18))
+        
+        // Convert Snowflake ID to bytes32
+        const marketIdBytes32 = marketIdToBytes32(marketId)
 
         logger.info('Selling shares on-chain', {
           marketId,
+          marketIdBytes32,
           outcome,
           numShares
         })
@@ -148,7 +167,7 @@ export function useOnChainBetting() {
         const data = encodeFunctionData({
           abi: PREDICTION_MARKET_ABI,
           functionName: 'sellShares',
-          args: [marketId as `0x${string}`, outcomeIndex, sharesBigInt]
+          args: [marketIdBytes32, outcomeIndex, sharesBigInt]
         })
 
         // Send transaction via smart wallet

@@ -1,123 +1,219 @@
 /**
- * Training Cron Endpoint
- *
- * Invoked by Vercel Cron to trigger the automated training pipeline.
- * Supports optional `force=true` and `batchSize` query parameters for
- * manual overrides.
+ * Training Trigger Cron
+ * 
+ * Runs daily to:
+ * 1. Check if system is ready to train
+ * 2. Trigger training if ready
+ * 3. Monitor training job status
+ * 
+ * Triggered by Vercel Cron: 0 0 * * * (daily at midnight)
+ * 
+ * IMPORTANT: This triggers training but doesn't run it
+ * Training runs on separate worker (Railway/GitHub Actions/CoreWeave)
  */
 
 import { NextResponse } from 'next/server';
 import { automationPipeline } from '@/lib/training/AutomationPipeline';
 import { logger } from '@/lib/logger';
-import type { TrainingTriggerResult, AutomationStatus } from '@/lib/training/types';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 300; // 5 minutes
 
-const CRON_SECRET_HEADER = 'authorization';
-
-const TRAINING_NOT_READY_STATUS = 202;
-
-interface TriggerOptions {
-  force: boolean;
-  batchSize?: number;
-}
-
-function authorize(request: Request): NextResponse | null {
-  const token = request.headers.get(CRON_SECRET_HEADER);
-  if (token === `Bearer ${process.env.CRON_SECRET}`) {
-    return null;
-  }
-
-  return NextResponse.json(
-    { success: false, error: 'Unauthorized' },
-    { status: 401 }
-  );
-}
-
-function parseTriggerOptions(request: Request): TriggerOptions | NextResponse {
-  const url = new URL(request.url);
-  const force = url.searchParams.get('force') === 'true';
-  const batchSizeParam = url.searchParams.get('batchSize');
-
-  if (batchSizeParam === null || batchSizeParam === '') {
-    return { force };
-  }
-
-  const batchSize = Number(batchSizeParam);
-
-  if (!Number.isFinite(batchSize) || batchSize <= 0) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid batchSize parameter' },
-      { status: 400 }
-    );
-  }
-
-  return { force, batchSize };
-}
-
-function buildResponse(
-  result: TrainingTriggerResult,
-  statusSnapshot: AutomationStatus | null
-): NextResponse {
-  if (!result.success) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: result.error ?? 'Training not triggered',
-        status: statusSnapshot,
-      },
-      { status: TRAINING_NOT_READY_STATUS }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    jobId: result.jobId ?? null,
-    status: statusSnapshot,
-  });
-}
-
-export async function GET(request: Request): Promise<NextResponse> {
-  const authError = authorize(request);
-  if (authError) {
-    return authError;
-  }
-
-  const optionsOrResponse = parseTriggerOptions(request);
-  if (optionsOrResponse instanceof NextResponse) {
-    return optionsOrResponse;
-  }
-
-  const { force, batchSize } = optionsOrResponse;
-
+/**
+ * Daily training trigger
+ */
+export async function GET() {
   try {
-    logger.info('🧠 Training cron triggered', { force, batchSize });
+    logger.info('Starting daily training trigger', undefined, 'TrainingCron');
 
-    const triggerResult = await automationPipeline.triggerTraining({
-      force,
-      batchSize,
-    });
-
-    if (triggerResult.success) {
-      logger.info('✅ Training job queued', { jobId: triggerResult.jobId });
-    } else {
-      logger.info('ℹ️ Training not started', { reason: triggerResult.error });
+    // 1. Check readiness
+    const readiness = await automationPipeline.checkTrainingReadiness();
+    
+    if (!readiness.ready) {
+      logger.info('System not ready to train', { 
+        reason: readiness.reason,
+        stats: readiness.stats
+      }, 'TrainingCron');
+      
+      return NextResponse.json({
+        success: true,
+        triggered: false,
+        reason: readiness.reason,
+        stats: readiness.stats,
+        nextCheck: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
     }
 
-    const statusSnapshot = await automationPipeline.getStatus();
+    logger.info('System ready - triggering training', readiness.stats, 'TrainingCron');
 
-    return buildResponse(triggerResult, statusSnapshot);
+    // 2. Trigger training
+    // For Vercel deployment, we can't run long training processes
+    // Two options:
+    
+    // Option A: Trigger external training worker (Railway/Render/etc)
+    const trainingWorkerUrl = process.env.TRAINING_WORKER_URL;
+    
+    if (trainingWorkerUrl) {
+      logger.info('Triggering external training worker', { url: trainingWorkerUrl }, 'TrainingCron');
+      
+      const result = await automationPipeline.triggerTraining();
+      
+      if (!result.success) {
+        return NextResponse.json({
+          success: false,
+          triggered: false,
+          error: result.error
+        }, { status: 400 });
+      }
+      
+      // Call external worker
+      try {
+        const workerResponse = await fetch(`${trainingWorkerUrl}/train`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.TRAINING_WORKER_SECRET || ''}`
+          },
+          body: JSON.stringify({
+            batchId: result.jobId,
+            source: 'vercel-cron'
+          })
+        });
+        
+        if (!workerResponse.ok) {
+          throw new Error(`Worker returned ${workerResponse.status}`);
+        }
+        
+        const workerData = await workerResponse.json();
+        
+        logger.info('Training worker accepted job', {
+          batchId: result.jobId,
+          workerResponse: workerData
+        }, 'TrainingCron');
+        
+        return NextResponse.json({
+          success: true,
+          triggered: true,
+          method: 'external_worker',
+          batchId: result.jobId,
+          workerStatus: workerData
+        });
+        
+      } catch (workerError) {
+        logger.error('Failed to trigger external worker', workerError, 'TrainingCron');
+        
+        return NextResponse.json({
+          success: false,
+          triggered: false,
+          error: `Worker error: ${workerError instanceof Error ? workerError.message : String(workerError)}`
+        }, { status: 500 });
+      }
+    }
+    
+    // Option B: Trigger GitHub Actions workflow
+    const githubToken = process.env.GITHUB_TOKEN;
+    const githubRepo = process.env.GITHUB_REPO; // format: "owner/repo"
+    
+    if (githubToken && githubRepo) {
+      logger.info('Triggering GitHub Actions workflow', { repo: githubRepo }, 'TrainingCron');
+      
+      const result = await automationPipeline.triggerTraining();
+      
+      if (!result.success) {
+        return NextResponse.json({
+          success: false,
+          triggered: false,
+          error: result.error
+        }, { status: 400 });
+      }
+      
+      try {
+        const githubResponse = await fetch(
+          `https://api.github.com/repos/${githubRepo}/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/vnd.github.v3+json',
+              'Authorization': `Bearer ${githubToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              event_type: 'trigger-training',
+              client_payload: {
+                batchId: result.jobId,
+                source: 'vercel-cron',
+                timestamp: new Date().toISOString()
+              }
+            })
+          }
+        );
+        
+        if (!githubResponse.ok) {
+          throw new Error(`GitHub API returned ${githubResponse.status}`);
+        }
+        
+        logger.info('GitHub Actions workflow dispatched', {
+          batchId: result.jobId
+        }, 'TrainingCron');
+        
+        return NextResponse.json({
+          success: true,
+          triggered: true,
+          method: 'github_actions',
+          batchId: result.jobId
+        });
+        
+      } catch (githubError) {
+        logger.error('Failed to trigger GitHub Actions', githubError, 'TrainingCron');
+        
+        return NextResponse.json({
+          success: false,
+          triggered: false,
+          error: `GitHub Actions error: ${githubError instanceof Error ? githubError.message : String(githubError)}`
+        }, { status: 500 });
+      }
+    }
+    
+    // Option C: Local spawn (development only - will timeout on Vercel)
+    if (process.env.NODE_ENV === 'development' || process.env.ALLOW_LOCAL_TRAINING === 'true') {
+      logger.warn('Using local training spawn (development only)', undefined, 'TrainingCron');
+      
+      const result = await automationPipeline.triggerTraining();
+      
+      return NextResponse.json({
+        success: result.success,
+        triggered: result.success,
+        method: 'local_spawn',
+        batchId: result.jobId,
+        warning: 'Local spawn may timeout on Vercel - use external worker for production'
+      });
+    }
+    
+    // No training method configured
+    logger.error('No training method configured', {
+      hasWorkerUrl: !!trainingWorkerUrl,
+      hasGithubToken: !!githubToken,
+      hasGithubRepo: !!githubRepo
+    }, 'TrainingCron');
+    
+    return NextResponse.json({
+      success: false,
+      triggered: false,
+      error: 'No training method configured. Set TRAINING_WORKER_URL or GITHUB_TOKEN/GITHUB_REPO',
+      configuration: {
+        trainingWorkerUrl: !!trainingWorkerUrl,
+        githubActions: !!(githubToken && githubRepo),
+        localSpawn: process.env.NODE_ENV !== 'production'
+      }
+    }, { status: 500 });
+
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown training error';
-
-    logger.error('❌ Training cron failed', { error: message });
-
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Training trigger failed', error, 'TrainingCron');
+    
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }
-
