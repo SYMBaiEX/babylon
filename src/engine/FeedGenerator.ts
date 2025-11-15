@@ -2085,11 +2085,12 @@ Respond with JSON: {"reply": "your reply here"}`;
       
       const validReplies = replies
         .filter(r => {
-          const content = r.post || r.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
         .map(r => ({
-          post: r.post || r.tweet!,
+          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
           sentiment: r.sentiment ?? 0,
           clueStrength: r.clueStrength ?? 0.3,
           pointsToward: r.pointsToward ?? null,
