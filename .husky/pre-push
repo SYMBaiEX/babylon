@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
 echo "Running pre-push checks..."
 
@@ -18,7 +17,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run unit and integration tests (only if DATABASE_URL is set)
-if [ -n "$DATABASE_URL" ] || [ -n "$PRISMA_DATABASE_URL" ]; then
+if [ -n "$DATABASE_URL" -o -n "$PRISMA_DATABASE_URL" ]; then
   echo "Running tests (DATABASE_URL detected)..."
   bun run test
   if [ $? -ne 0 ]; then

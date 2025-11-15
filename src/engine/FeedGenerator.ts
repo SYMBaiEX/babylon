@@ -797,13 +797,24 @@ Trending system not initialized yet.
         }, 'FeedGenerator');
       }
       
+      // Debug: Log what posts look like
+      if (attempt === 0 && posts.length > 0) {
+        logger.info('Sample post structure', {
+          postKeys: Object.keys(posts[0] || {}),
+          hasPost: 'post' in (posts[0] || {}),
+          hasTweet: 'tweet' in (posts[0] || {}),
+          postValue: typeof (posts[0] as Record<string, unknown>)?.post,
+        }, 'FeedGenerator');
+      }
+      
       const validPosts = posts
         .filter(p => {
-          const content = p.post || p.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = p.post || p.tweet || (p as unknown as { content?: string }).content;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
         .map(p => ({
-          post: p.post || p.tweet!,
+          post: p.post || p.tweet || (p as unknown as { content?: string }).content!,
           sentiment: p.sentiment ?? 0,
           clueStrength: p.clueStrength ?? 0.5,
           pointsToward: p.pointsToward ?? null,
@@ -913,11 +924,12 @@ Trending system not initialized yet.
       
       const validReactions = reactions
         .filter(r => {
-          const content = r.post || r.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
         .map(r => ({
-          post: r.post || r.tweet!,
+          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
           sentiment: r.sentiment ?? 0,
           clueStrength: r.clueStrength ?? 0.5,
           pointsToward: r.pointsToward ?? null,
@@ -1018,11 +1030,12 @@ Trending system not initialized yet.
       const validCommentary = commentary
         .filter((c): c is CommentaryPost => {
           if (typeof c !== 'object' || c === null) return false;
-          const content = c.post || c.tweet;
+          // Handle various content field names: post, tweet, or content
+          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
         .map((c: CommentaryPost) => ({
-          post: c.post || c.tweet!,
+          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,

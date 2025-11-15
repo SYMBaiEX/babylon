@@ -202,7 +202,7 @@ export default function OnChainBettingPage() {
           <h1 className="text-2xl md:text-3xl font-bold mb-2">On-Chain Betting</h1>
           <p className="text-muted-foreground">
             {isLocal 
-              ? `Local Anvil (Chain ID: ${CHAIN_ID}) • Testing mode`
+              ? `Local Anvil (Chain ID: ${chainId}) • Testing mode`
               : `Base Sepolia ETH • All transactions on blockchain`}
           </p>
           <div className="mt-1 text-xs text-muted-foreground">
