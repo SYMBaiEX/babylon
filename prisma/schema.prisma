@@ -453,11 +453,28 @@ model Market {
   onChainResolved         Boolean    @default(false)
   oracleAddress           String?
   Position                Position[]
+  PredictionPriceHistory  PredictionPriceHistory[]
 
   @@index([createdAt(sort: Desc)])
   @@index([gameId, dayNumber])
   @@index([onChainMarketId])
   @@index([resolved, endDate])
+}
+
+model PredictionPriceHistory {
+  id           String   @id
+  marketId     String
+  yesPrice     Float
+  noPrice      Float
+  yesShares    Decimal  @db.Decimal(24, 8)
+  noShares     Decimal  @db.Decimal(24, 8)
+  liquidity    Decimal  @db.Decimal(24, 8)
+  eventType    String
+  source       String
+  createdAt    DateTime @default(now())
+  Market       Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt(sort: Desc)])
 }
 
 model Message {

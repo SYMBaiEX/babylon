@@ -151,12 +151,29 @@ function ChartTooltipContent({
 }) {
   const { config } = useChart();
 
+  const filteredPayload = React.useMemo(() => {
+    if (!payload?.length) return [];
+
+    const seen = new Set<string>();
+    return payload.filter((item) => {
+      if (item?.value === undefined || item?.value === null) {
+        return false;
+      }
+      const key = `${item?.dataKey ?? item?.name ?? 'value'}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }, [payload]);
+
   const tooltipLabel = React.useMemo(() => {
-    if (hideLabel || !payload?.length) {
+    if (hideLabel || filteredPayload.length === 0) {
       return null;
     }
 
-    const [item] = payload;
+    const [item] = filteredPayload;
     const key = `${labelKey || item?.dataKey || item?.name || "value"}`;
     const itemConfig = getPayloadConfigFromPayload(config, item, key);
     const value =
@@ -167,7 +184,7 @@ function ChartTooltipContent({
     if (labelFormatter) {
       return (
         <div className={cn("font-medium", labelClassName)}>
-          {labelFormatter(value, payload)}
+          {labelFormatter(value, payload ?? [])}
         </div>
       );
     }
@@ -187,11 +204,11 @@ function ChartTooltipContent({
     labelKey,
   ]);
 
-  if (!active || !payload?.length) {
+  if (!active || filteredPayload.length === 0) {
     return null;
   }
 
-  const nestLabel = payload.length === 1 && indicator !== "dot";
+  const nestLabel = (payload?.length ?? 0) === 1 && indicator !== "dot";
 
   return (
     <div
@@ -202,7 +219,7 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item, index) => {
+        {filteredPayload.map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
           const indicatorColor = color || item.payload?.fill || item.color;
@@ -298,7 +315,9 @@ function ChartLegendContent({
 }) {
   const { config } = useChart();
 
-  if (!payload?.length) {
+  const safePayload = payload ?? [];
+
+  if (safePayload.length === 0) {
     return null;
   }
 
@@ -310,7 +329,7 @@ function ChartLegendContent({
         className
       )}
     >
-      {payload.map((item) => {
+        {safePayload.map((item) => {
         const key = `${nameKey || item.dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
 
@@ -386,4 +405,3 @@ export {
   ChartLegendContent,
   ChartStyle,
 };
-

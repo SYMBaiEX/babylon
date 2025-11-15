@@ -7,7 +7,7 @@
  * - Validates sufficient funds
  * - Calculates PnL
  */
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 
 import { cachedDb } from '@/lib/cached-database-service';
 // import { logger } from '@/lib/logger';
@@ -35,6 +35,47 @@ export interface TransactionHistoryItem {
 
 export class WalletService {
   private static readonly STARTING_BALANCE = 1000; // $1,000 USD
+
+  private static async applyBalanceChange(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    delta: number,
+    type: string,
+    description: string,
+    relatedId?: string
+  ): Promise<void> {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { virtualBalance: true },
+    });
+
+    if (!user) {
+      throw new Error(`User not found: ${userId}`);
+    }
+
+    const currentBalance = Number(user.virtualBalance);
+    const newBalance = currentBalance + delta;
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        virtualBalance: newBalance,
+      },
+    });
+
+    await tx.balanceTransaction.create({
+      data: {
+        id: await generateSnowflakeId(),
+        userId,
+        type,
+        amount: delta,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        relatedId: relatedId || null,
+        description,
+      },
+    });
+  }
 
   /**
    * Get user's current balance
@@ -89,40 +130,18 @@ export class WalletService {
     amount: number,
     type: string,
     description: string,
-    relatedId?: string
+    relatedId?: string,
+    tx?: Prisma.TransactionClient
   ): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const delta = -amount;
 
-    if (!user) {
-      throw new Error(`User not found: ${userId}`);
+    if (tx) {
+      await this.applyBalanceChange(tx, userId, delta, type, description, relatedId);
+    } else {
+      await prisma.$transaction(async (transaction) => {
+        await this.applyBalanceChange(transaction, userId, delta, type, description, relatedId);
+      });
     }
-
-    const currentBalance = Number(user.virtualBalance);
-    const newBalance = currentBalance - amount;
-
-    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          virtualBalance: newBalance,
-        },
-      });
-
-      await tx.balanceTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId,
-          type,
-          amount: -amount,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
-          relatedId,
-          description,
-        },
-      });
-    });
 
     await cachedDb.invalidateUserCache(userId);
   }
@@ -135,40 +154,16 @@ export class WalletService {
     amount: number,
     type: string,
     description: string,
-    relatedId?: string
+    relatedId?: string,
+    tx?: Prisma.TransactionClient
   ): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new Error(`User not found: ${userId}`);
+    if (tx) {
+      await this.applyBalanceChange(tx, userId, amount, type, description, relatedId);
+    } else {
+      await prisma.$transaction(async (transaction) => {
+        await this.applyBalanceChange(transaction, userId, amount, type, description, relatedId);
+      });
     }
-
-    const currentBalance = Number(user.virtualBalance);
-    const newBalance = currentBalance + amount;
-
-    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          virtualBalance: newBalance,
-        },
-      });
-
-      await tx.balanceTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId,
-          type,
-          amount: amount,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
-          relatedId,
-          description,
-        },
-      });
-    });
 
     await cachedDb.invalidateUserCache(userId);
   }

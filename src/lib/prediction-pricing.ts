@@ -169,9 +169,9 @@ export class PredictionPricing {
   /**
    * Calculate expected payout if position wins
    */
-  static calculateExpectedPayout(shares: number): number {
-    // Each share pays $1 if wins, $0 if loses
-    return shares * 1.0;
+  static calculateExpectedPayout(shares: number, avgPrice: number): number {
+    // Liquidity shares pay their stake plus principal when the market resolves in their favor
+    return shares * (1 + avgPrice);
   }
 
   static initializeMarket(initialLiquidity = 1000) {
@@ -247,7 +247,6 @@ export class PredictionPricing {
 /**
  * Standalone helper function for expected payout calculation
  */
-export function calculateExpectedPayout(shares: number): number {
-  return PredictionPricing.calculateExpectedPayout(shares);
+export function calculateExpectedPayout(shares: number, avgPrice: number): number {
+  return PredictionPricing.calculateExpectedPayout(shares, avgPrice);
 }
-

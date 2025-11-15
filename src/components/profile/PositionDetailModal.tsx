@@ -269,7 +269,7 @@ export function PositionDetailModal({
 
   const predictionCalc = getPredictionCalculation();
   const expectedPayout = predictionCalc
-    ? calculateExpectedPayout(predictionCalc.sharesBought)
+    ? calculateExpectedPayout(predictionCalc.sharesBought, predictionCalc.avgPrice)
     : 0;
   const expectedProfit = expectedPayout - (parseFloat(amount) || 0);
 

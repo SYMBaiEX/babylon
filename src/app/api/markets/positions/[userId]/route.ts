@@ -12,6 +12,7 @@ import {
   UserIdParamSchema,
   UserPositionsQuerySchema,
 } from '@/lib/validation/schemas';
+import { PredictionPricing } from '@/lib/prediction-pricing';
 
 /**
  * GET /api/markets/positions/[userId]
@@ -148,16 +149,33 @@ export const GET = withErrorHandling(
           const yesShares = Number(p.Market.yesShares);
           const noShares = Number(p.Market.noShares);
           const totalShares = yesShares + noShares;
-          const fallbackPrice = 0.5;
-          const yesPrice =
-            totalShares > 0 ? yesShares / totalShares : fallbackPrice;
-          const noPrice =
-            totalShares > 0 ? noShares / totalShares : fallbackPrice;
           const shares = Number(p.shares);
           const avgPrice = Number(p.avgPrice);
-          const currentPrice = p.side ? yesPrice : noPrice;
+          const sideKey = p.side ? 'yes' : 'no';
           const costBasis = shares * avgPrice;
-          const currentValue = shares * currentPrice;
+
+          let currentValue = costBasis;
+          let currentUnitPrice = shares > 0 ? avgPrice : 0;
+
+          if (shares > 0 && yesShares > 0 && noShares > 0) {
+            try {
+              const sellPreview = PredictionPricing.calculateSell(
+                yesShares,
+                noShares,
+                sideKey,
+                shares
+              );
+              currentValue = sellPreview.totalCost;
+              currentUnitPrice = sellPreview.totalCost / shares;
+            } catch (error) {
+              logger.warn('Failed to compute prediction MTM value', { error, marketId: p.marketId }, 'GET /api/markets/positions/[userId]');
+            }
+          }
+
+          const currentProbability = totalShares > 0
+            ? PredictionPricing.getCurrentPrice(yesShares, noShares, sideKey)
+            : 0.5;
+
           const unrealizedPnL = currentValue - costBasis;
 
           return {
@@ -167,7 +185,8 @@ export const GET = withErrorHandling(
             side: p.side ? 'YES' : 'NO',
             shares,
             avgPrice,
-            currentPrice,
+            currentPrice: currentUnitPrice,
+            currentProbability,
             currentValue,
             costBasis,
             unrealizedPnL,
