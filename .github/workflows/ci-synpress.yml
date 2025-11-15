@@ -110,7 +110,7 @@ jobs:
 
           echo "⏳ Waiting for server to be ready..."
           timeout 360 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
-            echo "❌ Server failed to respond within 120s. Logs:"
+            echo "❌ Server failed to respond within 360s. Logs:"
             if [ -f /tmp/prod-server.log ]; then
               tail -n 200 /tmp/prod-server.log
             else
@@ -136,7 +136,11 @@ jobs:
           WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          CI: true
+          NODE_ENV: test
 
       - name: Stop production server
         if: always()

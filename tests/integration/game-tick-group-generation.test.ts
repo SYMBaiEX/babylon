@@ -292,7 +292,7 @@ describe('Game Tick Group Generation', () => {
         results.totalUsersKicked +
         results.totalInvitesSent
       ).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000); // Increased timeout to 30s for 10 ticks with LLM calls and DB operations
   });
 });
 

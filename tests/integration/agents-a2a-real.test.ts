@@ -16,25 +16,24 @@ describe('Agents A2A - Real Server Integration', () => {
   let serverAvailable = false
 
   beforeAll(async () => {
-    // Check if server is running
+    // Check if server is running (for server-dependent tests)
     try {
       const healthResponse = await fetch(`${BASE_URL}/api/health`, { 
         signal: AbortSignal.timeout(1000) 
       })
       if (healthResponse.ok) {
         serverAvailable = true
+        console.log('✅ Server available - running full test suite')
       } else {
-        console.log('⚠️  Server not running - skipping A2A real server tests')
-        console.log('   Run `bun dev` to start the server for these tests')
-        return
+        console.log('⚠️  Server not running - skipping server-dependent tests')
+        console.log('   Run `bun dev` to start the server for full test coverage')
       }
     } catch (error) {
-      console.log('⚠️  Could not connect to server - skipping A2A real server tests')
-      console.log('   Run `bun dev` to start the server for these tests')
-      return
+      console.log('⚠️  Server not available - skipping server-dependent tests')
+      console.log('   Run `bun dev` to start the server for full test coverage')
     }
     
-    // Create test manager user
+    // Always create test users (needed for database tests even without server)
     testManagerUserId = await generateSnowflakeId()
     await prisma.user.create({
       data: {
@@ -302,11 +301,6 @@ describe('Agents A2A - Real Server Integration', () => {
 
   describe('Autonomous Features Flags', () => {
     it('should have all 5 autonomous control flags', async () => {
-      if (!serverAvailable) {
-        console.log('⏭️  Skipping - server not available')
-        return
-      }
-      
       const agent = await prisma.user.findUnique({
         where: { id: testAgentUserId }
       })
@@ -346,11 +340,6 @@ describe('Agents A2A - Real Server Integration', () => {
 
   describe('Cleanup', () => {
     it('should cleanup test data', async () => {
-      if (!serverAvailable) {
-        console.log('⏭️  Skipping - server not available')
-        return
-      }
-      
       if (testAgentUserId) {
         await prisma.user.delete({ where: { id: testAgentUserId } }).catch(() => {})
       }

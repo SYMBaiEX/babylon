@@ -59,8 +59,12 @@ export async function fillInput(page: Page, selector: string, value: string): Pr
  * Check if an element is visible
  */
 export async function isVisible(page: Page, selector: string, timeout = 5000): Promise<boolean> {
-  await page.waitForSelector(selector, { state: 'visible', timeout })
-  return true
+  try {
+    await page.waitForSelector(selector, { state: 'visible', timeout })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**

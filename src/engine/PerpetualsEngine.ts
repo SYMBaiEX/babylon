@@ -86,6 +86,7 @@
  * ```
  */
 import { EventEmitter } from 'events';
+import type { PerpPosition as PrismaPerpPosition } from '@prisma/client';
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -902,7 +903,7 @@ export class PerpetualsEngine extends EventEmitter {
           });
       })
       .filter(
-        (update): update is Promise<any> => Boolean(update)
+        (update): update is Promise<PrismaPerpPosition | null> => Boolean(update)
       );
 
     if (updates.length === 0) {

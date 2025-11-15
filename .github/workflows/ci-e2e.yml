@@ -110,7 +110,7 @@ jobs:
 
           echo "⏳ Waiting for server to be ready..."
           timeout 360 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
-            echo "❌ Server failed to respond within 120s. Logs:"
+            echo "❌ Server failed to respond within 360s. Logs:"
             if [ -f /tmp/prod-server.log ]; then
               tail -n 200 /tmp/prod-server.log
             else
