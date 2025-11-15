@@ -51,12 +51,43 @@ mock.module('@/lib/prisma', () => {
         findMany: mock(() => Promise.resolve([])),
         findFirst: mock(() => Promise.resolve(null)),
         count: mock(() => Promise.resolve(0)),
-        create: mock(() => Promise.resolve({ id: 'mock-id', createdAt: new Date(), updatedAt: new Date() })),
-        createMany: mock(() => Promise.resolve({ count: 0 })),
-        update: mock(() => Promise.resolve({ id: 'mock-id', updatedAt: new Date() })),
-        updateMany: mock(() => Promise.resolve({ count: 0 })),
-        upsert: mock(() => Promise.resolve({ id: 'mock-id', updatedAt: new Date() })),
-        delete: mock(() => Promise.resolve({ id: 'mock-id' })),
+        create: mock((args: any) => {
+          // Return the data that was passed in, with defaults for required fields
+          const data = args?.data || {}
+          return Promise.resolve({
+            id: data.id || 'mock-id',
+            createdAt: data.createdAt || new Date(),
+            updatedAt: data.updatedAt || new Date(),
+            ...data
+          })
+        }),
+        createMany: mock((args: any) => {
+          const count = args?.data?.length || 0
+          return Promise.resolve({ count })
+        }),
+        update: mock((args: any) => {
+          const data = args?.data || {}
+          return Promise.resolve({
+            id: args?.where?.id || 'mock-id',
+            updatedAt: new Date(),
+            ...data
+          })
+        }),
+        updateMany: mock((args: any) => {
+          return Promise.resolve({ count: args?.data ? 1 : 0 })
+        }),
+        upsert: mock((args: any) => {
+          const data = args?.create || args?.update || {}
+          return Promise.resolve({
+            id: args?.where?.id || 'mock-id',
+            createdAt: data.createdAt || new Date(),
+            updatedAt: new Date(),
+            ...data
+          })
+        }),
+        delete: mock((args: any) => {
+          return Promise.resolve({ id: args?.where?.id || 'mock-id' })
+        }),
         deleteMany: mock(() => Promise.resolve({ count: 0 })),
         aggregate: mock(() => Promise.resolve({
           _count: 0,

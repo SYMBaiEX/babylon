@@ -5,16 +5,16 @@
  * Considers goals, constraints, and opportunities to generate comprehensive action plans.
  */
 
-import { prisma } from '@/lib/prisma'
-import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
-import type { IAgentRuntime } from '@elizaos/core'
-import { callGroqDirect } from '../llm/direct-groq'
-import type { AgentGoal, AgentConstraints, AgentDirective } from '../types/goals'
-import { autonomousTradingService } from './AutonomousTradingService'
-import { autonomousPostingService } from './AutonomousPostingService'
-import { autonomousBatchResponseService } from './AutonomousBatchResponseService'
+import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import type { IAgentRuntime } from '@elizaos/core'
+import type { Prisma } from '@prisma/client'
+import { callGroqDirect } from '../llm/direct-groq'
+import type { AgentConstraints, AgentDirective, AgentGoal } from '../types/goals'
+import { autonomousBatchResponseService } from './AutonomousBatchResponseService'
+import { autonomousPostingService } from './AutonomousPostingService'
+import { autonomousTradingService } from './AutonomousTradingService'
 
 /**
  * Agent interface for planning

@@ -10,7 +10,7 @@ import { NotFoundError } from '@/lib/errors/base.errors';
 // Mock modules before importing the module under test
 const mockVerifyAuthToken = mock(() => Promise.resolve({ userId: 'did:privy:testuser123' }));
 const mockVerifyAgentSession = mock(() => Promise.resolve(null));
-const mockFindUnique = mock<() => Promise<{ id: string; walletAddress: string } | null>>(() => Promise.resolve(null));
+const mockFindUnique = mock<(args?: any) => Promise<{ id: string; walletAddress: string } | null>>(() => Promise.resolve(null));
 
 // Mock Privy client
 mock.module('@privy-io/server-auth', () => ({
@@ -24,8 +24,8 @@ mock.module('@/lib/auth/agent-auth', () => ({
   verifyAgentSession: mockVerifyAgentSession,
 }));
 
-// Mock database
-mock.module('@/lib/database-service', () => ({
+// Mock database (auth-middleware imports from @/lib/prisma, not database-service)
+mock.module('@/lib/prisma', () => ({
   prisma: {
     user: {
       findUnique: mockFindUnique,
@@ -70,10 +70,16 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return database user ID when user exists in database', async () => {
-      mockFindUnique.mockImplementation(() => Promise.resolve({
-        id: 'db-user-123',
-        walletAddress: '0x1234567890123456789012345678901234567890',
-      }));
+      // Mock findUnique to return user when queried by privyId
+      mockFindUnique.mockImplementation((args: any) => {
+        if (args?.where?.privyId === 'did:privy:testuser123') {
+          return Promise.resolve({
+            id: 'db-user-123',
+            walletAddress: '0x1234567890123456789012345678901234567890',
+          });
+        }
+        return Promise.resolve(null);
+      });
       
       const { authenticate } = await import('@/lib/api/auth-middleware');
 
@@ -111,10 +117,16 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return user with dbUserId when user exists in database', async () => {
-      mockFindUnique.mockImplementation(() => Promise.resolve({
-        id: 'db-user-123',
-        walletAddress: '0x1234567890123456789012345678901234567890',
-      }));
+      // Mock findUnique to return user when queried by privyId
+      mockFindUnique.mockImplementation((args: any) => {
+        if (args?.where?.privyId === 'did:privy:testuser123') {
+          return Promise.resolve({
+            id: 'db-user-123',
+            walletAddress: '0x1234567890123456789012345678901234567890',
+          });
+        }
+        return Promise.resolve(null);
+      });
       
       const { authenticateWithDbUser } = await import('@/lib/api/auth-middleware');
 

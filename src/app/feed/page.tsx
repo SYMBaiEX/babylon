@@ -1,8 +1,8 @@
 'use client'
 
+import { ArticleCard } from '@/components/articles/ArticleCard'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { PostCard } from '@/components/posts/PostCard'
-import { ArticleCard } from '@/components/articles/ArticleCard'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -17,11 +17,11 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { cn } from '@/lib/utils'
 import type { FeedPost } from '@/shared/types'
 import { useAuthStore } from '@/stores/authStore'
-import { useGameStore } from '@/stores/gameStore'
 import { useFeedStore } from '@/stores/feedStore'
+import { useGameStore } from '@/stores/gameStore'
 import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const PAGE_SIZE = 20
 

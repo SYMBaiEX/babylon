@@ -65,8 +65,14 @@ function createMockPrismaClient() {
     'notification', 'fact', 'factCategoryBlacklist',
     'factResponse', 'topicCategory', 'stickerPackCollectionInfo',
     'leaderboardResults', 'onChainUserMapping', 'automationTask',
-    'automationLog', 'automationCampaign', 'notification',
-    'feedback', 'reputationLog', 'achievements'
+    'automationLog', 'automationCampaign',
+    'feedback', 'reputationLog', 'achievements',
+    // Agent-related models
+    'agentGoal', 'agentGoalAction', 'agentMessage', 'agentLog',
+    'agentPointsTransaction', 'agentPerformanceMetrics',
+    // Trajectory and training models
+    'trajectory', 'trainingBatch', 'trainedModel', 'llmCallLog',
+    'rewardJudgment'
   ]
 
   const mockClient: any = {
