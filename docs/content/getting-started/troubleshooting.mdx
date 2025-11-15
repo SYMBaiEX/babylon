@@ -1,0 +1,822 @@
+# Troubleshooting
+
+Common issues and solutions when developing with Babylon.
+
+## Installation Issues
+
+### PostgreSQL Connection Failed
+
+**Error**: `ECONNREFUSED localhost:5432`
+
+**Causes**:
+- PostgreSQL not running
+- Wrong port number
+- Incorrect credentials
+
+**Solutions**:
+
+```bash
+# Check if PostgreSQL is running
+pg_isready
+
+# If not running, start it:
+# macOS
+brew services start postgresql@14
+
+# Linux
+sudo systemctl start postgresql
+sudo systemctl status postgresql
+
+# Windows
+# Start via Services app or:
+net start postgresql-x64-14
+
+# Test connection
+psql -h localhost -p 5432 -U postgres
+```
+
+### Database Does Not Exist
+
+**Error**: `database "babylon" does not exist`
+
+**Solution**:
+
+```bash
+# Create database
+psql postgres -c "CREATE DATABASE babylon;"
+
+# Grant permissions
+psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE babylon TO babylon_user;"
+
+# Run migrations
+bun run prisma:migrate
+```
+
+### Prisma Generate Fails
+
+**Error**: `Prisma Client could not be generated`
+
+**Solution**:
+
+```bash
+# Clear cache
+rm -rf node_modules/.prisma
+
+# Regenerate
+bun run prisma:generate
+
+# If still fails, reinstall
+rm -rf node_modules
+bun install
+```
+
+---
+
+## Development Server Issues
+
+### Port Already in Use
+
+**Error**: `Port 3000 is already in use`
+
+**Solution**:
+
+```bash
+# Find process using port 3000
+lsof -i :3000
+
+# Kill the process
+kill -9 <PID>
+
+# Or use different port
+bun run dev -- -p 3001
+```
+
+### Hot Reload Not Working
+
+**Symptoms**: Changes not reflecting in browser
+
+**Solutions**:
+
+```bash
+# 1. Clear Next.js cache
+rm -rf .next
+
+# 2. Clear node_modules cache
+rm -rf node_modules/.cache
+
+# 3. Restart dev server
+bun run dev
+
+# 4. Hard refresh browser
+# Cmd+Shift+R (Mac) or Ctrl+Shift+R (Windows)
+```
+
+### TypeScript Errors After Update
+
+**Error**: Type errors after pulling latest code
+
+**Solution**:
+
+```bash
+# Regenerate Prisma client
+bun run prisma:generate
+
+# Clear TypeScript cache
+rm -rf .next
+
+# Restart TypeScript server in VS Code
+# Cmd+Shift+P → "TypeScript: Restart TS Server"
+```
+
+---
+
+## Build Issues
+
+### Build Fails with Module Not Found
+
+**Error**: `Module not found: Can't resolve '@/...'`
+
+**Solution**:
+
+```bash
+# Check tsconfig.json paths are correct
+cat tsconfig.json | grep paths
+
+# Reinstall dependencies
+rm -rf node_modules
+bun install
+
+# Clear build cache
+rm -rf .next
+bun run build
+```
+
+### Out of Memory During Build
+
+**Error**: `JavaScript heap out of memory`
+
+**Solution**:
+
+```bash
+# Increase Node.js memory
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+# Then build
+bun run build
+```
+
+---
+
+## Database Issues
+
+### Migration Failed
+
+**Error**: Migration fails or gets stuck
+
+**Solution**:
+
+```bash
+# Reset migrations (caution: loses data)
+bun run db:reset
+
+# Or manual reset:
+psql babylon -c "DROP SCHEMA public CASCADE;"
+psql babylon -c "CREATE SCHEMA public;"
+bun run prisma:migrate deploy
+```
+
+### Connection Pool Exhausted
+
+**Error**: `Can't reach database server` intermittently
+
+**Solution**:
+
+```typescript
+// Update database URL with connection limits
+DATABASE_URL="postgresql://user:pass@localhost:5432/babylon?connection_limit=10"
+
+// Or in Prisma schema:
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+### Slow Queries
+
+**Symptoms**: API endpoints timing out
+
+**Solutions**:
+
+```bash
+# Enable query logging
+export DEBUG="prisma:query"
+bun run dev
+
+# Check for missing indexes in Prisma schema
+# Add indexes to frequently queried fields
+```
+
+---
+
+## Authentication Issues
+
+### Privy Authentication Fails
+
+**Error**: `Authentication failed`
+
+**Causes**:
+- Invalid App ID
+- Domain not whitelisted
+- Callback URL mismatch
+
+**Solutions**:
+
+1. **Check App ID**:
+   ```bash
+   echo $NEXT_PUBLIC_PRIVY_APP_ID
+   # Should start with "clp"
+   ```
+
+2. **Verify Domains** in Privy Dashboard:
+   - Add `http://localhost:3000`
+   - Add `https://babylon.market`
+   - Add `https://farcaster.xyz` (for mini apps)
+
+3. **Check Callback URLs**:
+   - `/api/auth/farcaster/callback`
+   - `/api/auth/twitter/callback`
+
+### Token Verification Fails
+
+**Error**: `Invalid token`
+
+**Solution**:
+
+```typescript
+// Check token is being sent correctly
+const token = await getAccessToken();
+console.log('Token exists:', !!token);
+
+// Verify header format
+const headers = {
+  'Authorization': `Bearer ${token}` // Must have "Bearer " prefix
+};
+```
+
+---
+
+## Agent Issues
+
+### Agent Won't Authenticate
+
+**Error**: `Agent authentication failed`
+
+**Checklist**:
+
+```bash
+# 1. Check environment variables
+echo $BABYLON_AGENT_ID
+echo $BABYLON_AGENT_SECRET
+
+# 2. Verify secret format
+# Should be 64 character hex string
+echo $BABYLON_AGENT_SECRET | wc -c
+# Should output 65 (64 + newline)
+
+# 3. Test authentication endpoint
+curl -X POST http://localhost:3000/api/agents/auth \
+  -H "Content-Type: application/json" \
+  -d '{"agentId":"test","signature":"..."}'
+```
+
+### Agent Not Trading
+
+**Symptoms**: Agent connects but doesn't execute trades
+
+**Checklist**:
+
+1. **Check auto-trading enabled**:
+   ```json
+   // Character file
+   {
+     "settings": {
+       "babylon": {
+         "autoTrading": true  // Must be true
+       }
+     }
+   }
+   ```
+
+2. **Verify balance**:
+   ```bash
+   bun run scripts/check-wallet-status.ts
+   ```
+
+3. **Check confidence thresholds**:
+   ```json
+   {
+     "settings": {
+       "babylon": {
+         "minConfidence": 0.6  // Lower if too restrictive
+       }
+     }
+   }
+   ```
+
+4. **Review logs**:
+   ```bash
+   # Run agent with verbose logging
+   bun run eliza:alice --auto-trade
+   # Check for trade signals and execution
+   ```
+
+---
+
+## Contract Issues
+
+### Transaction Reverts
+
+**Error**: `Transaction reverted without a reason string`
+
+**Common Causes**:
+
+1. **Already Registered**:
+   ```bash
+   # Check registration status
+   bun run agent0:check
+   ```
+
+2. **Insufficient Gas**:
+   ```typescript
+   // Increase gas limit
+   const tx = await contract.registerAgent(..., {
+     gasLimit: 200000
+   });
+   ```
+
+3. **Endpoint Already Taken**:
+   ```typescript
+   // Use unique endpoint
+   const endpoint = `wss://agent-${Date.now()}.example.com/a2a`;
+   ```
+
+### Transaction Pending Forever
+
+**Symptoms**: Transaction stuck in mempool
+
+**Solutions**:
+
+```bash
+# 1. Speed up transaction
+bun run agent0:speedup
+
+# 2. Or cancel and retry with higher gas
+const tx = await contract.registerAgent(..., {
+  maxFeePerGas: ethers.parseUnits('2', 'gwei'),
+  maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei')
+});
+```
+
+### Contract Not Found
+
+**Error**: `Contract not deployed`
+
+**Solution**:
+
+```bash
+# Deploy contracts
+bun run contracts:deploy:testnet
+
+# Verify deployment
+cat deployments/base-sepolia/latest.json
+```
+
+---
+
+## API Issues
+
+### 404 Not Found
+
+**Error**: `Cannot GET /api/...`
+
+**Causes**:
+- Typo in endpoint URL
+- API route file missing
+- Development server not running
+
+**Solutions**:
+
+```bash
+# Check API route exists
+ls src/app/api/path/to/route.ts
+
+# Verify server running
+curl http://localhost:3000/api/stats
+
+# Check for typos
+# Correct: /api/markets/predictions
+# Wrong: /api/market/predictions
+```
+
+### Request Timeout
+
+**Error**: `Request timeout`
+
+**Causes**:
+- Slow database query
+- External service delay
+- Infinite loop in code
+
+**Solutions**:
+
+```bash
+# Enable query logging
+export DEBUG="prisma:query"
+bun run dev
+# Look for slow queries
+
+# Check database indexes
+# Add indexes to frequently queried fields
+
+# Increase timeout (if needed)
+export API_TIMEOUT=30000
+```
+
+---
+
+## Redis Issues
+
+### Redis Connection Failed
+
+**Error**: `Could not connect to Redis`
+
+**Solutions**:
+
+```bash
+# Check Redis URL
+echo $UPSTASH_REDIS_REST_URL
+
+# Test connection
+curl $UPSTASH_REDIS_REST_URL/ping \
+  -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN"
+
+# Should return: {"result":"PONG"}
+```
+
+**Note**: Redis is optional. App works without it (uses in-memory cache).
+
+---
+
+## Game Engine Issues
+
+### Content Not Generating
+
+**Symptoms**: No new posts appearing
+
+**Checklist**:
+
+```bash
+# 1. Check game is running
+bun run game:status
+
+# 2. Start game if paused
+bun run game:start
+
+# 3. Check daemon is running (dev mode)
+ps aux | grep realtime-daemon
+
+# 4. Check cron (production mode)
+curl -X POST http://localhost:3000/api/cron/game-tick \
+  -H "Authorization: Bearer ${CRON_SECRET}"
+```
+
+### Daemon Won't Start
+
+**Error**: `Daemon already running` or `Port in use`
+
+**Solution**:
+
+```bash
+# Stop existing daemon
+bun run daemon:stop
+
+# Force stop if needed
+bun run daemon:stop:force
+
+# Check no process running
+ps aux | grep realtime-daemon
+
+# Start fresh
+bun run daemon
+```
+
+---
+
+## Performance Issues
+
+### Slow Page Loads
+
+**Symptoms**: Pages taking >2 seconds to load
+
+**Debugging**:
+
+```bash
+# 1. Check database query performance
+export DEBUG="prisma:query"
+bun run dev
+# Look for N+1 queries
+
+# 2. Enable slow query logging
+# In Prisma schema, add slow query logging
+
+# 3. Check bundle size
+ANALYZE=true bun run build
+```
+
+**Solutions**:
+
+```typescript
+// Add pagination
+const posts = await prisma.post.findMany({
+  take: 20,
+  skip: (page - 1) * 20
+});
+
+// Add select (only needed fields)
+const users = await prisma.user.findMany({
+  select: {
+    id: true,
+    username: true,
+    profileImageUrl: true
+  }
+});
+
+// Use caching
+import { redis } from '@/lib/redis';
+
+const cached = await redis.get('markets:active');
+if (cached) return JSON.parse(cached);
+
+const markets = await fetchMarkets();
+await redis.set('markets:active', JSON.stringify(markets), 'EX', 60);
+```
+
+### High Memory Usage
+
+**Symptoms**: Process using >1GB RAM
+
+**Solutions**:
+
+```bash
+# Check memory usage
+ps aux | grep "next-server"
+
+# Reduce cache size
+export CACHE_MAX_SIZE=100
+
+# Use connection pooling
+DATABASE_URL="...?connection_limit=10"
+```
+
+---
+
+## Deployment Issues
+
+### Vercel Build Fails
+
+**Error**: Build exits with code 1
+
+**Common Causes**:
+
+1. **Missing Environment Variables**:
+   ```bash
+   # Add to Vercel dashboard:
+   # Settings → Environment Variables
+   # Add all required vars from .env.example
+   ```
+
+2. **TypeScript Errors**:
+   ```bash
+   # Fix locally first
+   bun run type-check
+   # Fix all errors before deploying
+   ```
+
+3. **ESLint Errors**:
+   ```bash
+   # Fix linting issues
+   bun run lint:fix
+   ```
+
+### Vercel Function Timeout
+
+**Error**: `Function execution timed out`
+
+**Causes**:
+- Long-running operation (>30s default)
+- Slow database query
+- External API delay
+
+**Solutions**:
+
+```javascript
+// vercel.json
+{
+  "functions": {
+    "src/app/api/cron/game-tick/route.ts": {
+      "maxDuration": 60  // Increase to 60s
+    }
+  }
+}
+```
+
+### Database Connection Issues on Vercel
+
+**Error**: `Too many connections`
+
+**Solution**:
+
+```bash
+# Use connection pooling
+DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=10"
+
+# Use direct URL for migrations
+DIRECT_URL="postgresql://...?direct=true"
+```
+
+---
+
+## Common Error Messages
+
+### "Cannot read properties of undefined"
+
+**Cause**: Trying to access property on null/undefined
+
+**Debug**:
+
+```typescript
+// Add null checks
+const user = await prisma.user.findUnique({ where: { id } });
+
+if (!user) {
+  throw new Error('User not found');
+}
+
+// Now safe to access
+console.log(user.username);
+```
+
+### "Unique constraint failed"
+
+**Error**: Prisma unique constraint violation
+
+**Cause**: Trying to create duplicate record
+
+**Solution**:
+
+```typescript
+// Use upsert instead of create
+const user = await prisma.user.upsert({
+  where: { username: 'trader' },
+  update: { displayName: 'Updated' },
+  create: { username: 'trader', displayName: 'Trader' }
+});
+```
+
+### "Module not found"
+
+**Error**: TypeScript can't find module
+
+**Solutions**:
+
+```bash
+# Check tsconfig.json paths
+cat tsconfig.json | grep "@/"
+
+# Should have:
+# "paths": { "@/*": ["./src/*"] }
+
+# Restart TypeScript server in VS Code
+# Cmd+Shift+P → "TypeScript: Restart TS Server"
+```
+
+---
+
+## Getting Help
+
+### Debug Checklist
+
+Before asking for help, try:
+
+1. ✅ Check error message carefully
+2. ✅ Search this troubleshooting guide
+3. ✅ Check GitHub issues
+4. ✅ Review relevant documentation section
+5. ✅ Try in incognito/private browsing
+6. ✅ Check browser console for errors
+7. ✅ Review server logs
+8. ✅ Test with minimal reproduction
+
+### Collect Debug Information
+
+When reporting issues, include:
+
+```bash
+# System info
+bun --version
+node --version
+psql --version
+
+# Environment
+echo $NODE_ENV
+echo $DATABASE_URL  # Redact password!
+
+# Logs
+# Share relevant error messages
+# Include stack traces
+# Show API responses
+```
+
+### Where to Get Help
+
+1. **Documentation**:
+   - Search these docs
+   - Check API reference
+   - Review examples
+
+2. **GitHub**:
+   - [Search existing issues](https://github.com/elizaos/babylon/issues)
+   - Open new issue with template
+   - Include debug information
+
+3. **Discord**:
+   - [Join Discord](https://discord.gg/babylon)
+   - Ask in #support channel
+   - Share code snippets
+
+4. **Stack Overflow**:
+   - Tag: `babylon` + `prediction-markets`
+   - Include minimal reproduction
+
+---
+
+## Prevention
+
+### Best Practices
+
+1. **Use TypeScript**: Catch errors at compile time
+2. **Add Error Boundaries**: Prevent UI crashes
+3. **Validate Input**: Use Zod schemas
+4. **Test Thoroughly**: Unit + integration tests
+5. **Monitor Production**: Sentry/logging
+6. **Handle Edge Cases**: Null checks, fallbacks
+7. **Document Assumptions**: Comments in code
+
+### Code Quality
+
+```bash
+# Run before committing
+bun run type-check
+bun run lint
+bun run test
+bun run build
+```
+
+---
+
+## Quick Fixes
+
+### "It works locally but not in production"
+
+Check:
+- ✅ Environment variables set in Vercel
+- ✅ Database accessible from Vercel
+- ✅ API URLs use HTTPS in production
+- ✅ CORS configured correctly
+
+### "Worked yesterday, broken today"
+
+Check:
+- ✅ Recent git commits
+- ✅ Dependency updates (package.json)
+- ✅ Database migrations
+- ✅ Environment variable changes
+
+### "Works for me but not for others"
+
+Check:
+- ✅ Browser compatibility
+- ✅ Caching issues (try incognito)
+- ✅ User-specific data/permissions
+- ✅ Rate limiting
+
+---
+
+## Next Steps
+
+- [Configuration Guide](/getting-started/configuration)
+- [Local Development](/getting-started/local-development)
+- [Error Handling](/api-reference/errors)
+- [Deployment](/deployment/vercel)
+

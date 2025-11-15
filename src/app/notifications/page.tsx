@@ -291,7 +291,7 @@ export default function NotificationsPage() {
             <Bell className="w-16 h-16 text-muted-foreground mb-4 opacity-50" />
             <h2 className="text-xl font-semibold mb-2">No notifications yet</h2>
             <p className="text-muted-foreground text-center px-4">
-              When you get comments, reactions, follows, or mentions, they'll show up here.
+              When you get comments, reactions, follows, or mentions, they&apos;ll show up here.
             </p>
           </div>
         ) : (

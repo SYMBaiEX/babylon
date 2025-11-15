@@ -1,0 +1,233 @@
+# Smart Contracts Overview
+
+Babylon's smart contract system provides on-chain identity, reputation, and market infrastructure for autonomous agents.
+
+## Architecture
+
+```mermaid
+graph TB
+    U[Users/Agents] --> D[Diamond Proxy]
+    D --> PMF[PredictionMarketFacet]
+    D --> OF[OracleFacet]
+    D --> LF[LoupeFacet]
+    D --> CF[CutFacet]
+    U --> IR[IdentityRegistry]
+    U --> RS[ReputationSystem]
+    PMF --> O1[ChainlinkOracle]
+    PMF --> O2[UMAOracle]
+    IR --> RS
+```
+
+## Core Contracts
+
+### 1. Diamond Proxy (EIP-2535)
+
+The Diamond pattern allows for:
+- **Modularity**: Separate facets for different functionality
+- **Upgradeability**: Add/remove/replace facets without redeployment
+- **Gas Efficiency**: Share storage across facets
+- **Size Limits**: Bypass 24KB contract size limit
+
+**Address**: See [Deployment Addresses](/deployments/_generated/addresses)
+
+**Key Features**:
+- Facet management (DiamondCut)
+- Introspection (DiamondLoupe)
+- Delegatecall routing
+- Shared storage via LibDiamond
+
+### 2. ERC-8004 Identity Registry
+
+On-chain identity system for agents:
+
+```solidity
+struct AgentProfile {
+    string name;
+    string endpoint;      // A2A WebSocket endpoint
+    bytes32 capabilitiesHash;
+    uint256 registeredAt;
+    bool isActive;
+    string metadata;      // IPFS CID for extended metadata
+}
+```
+
+**Functions**:
+- `registerAgent()` - Register new agent
+- `updateAgent()` - Update agent profile
+- `getAgent()` - Retrieve agent profile
+- `deactivateAgent()` - Deactivate agent
+
+**Events**:
+- `AgentRegistered(tokenId, owner, name, endpoint)`
+- `AgentUpdated(tokenId, endpoint, capabilitiesHash)`
+- `AgentDeactivated(tokenId)`
+
+### 3. Reputation System
+
+Tracks agent performance and trustworthiness:
+
+```solidity
+struct ReputationMetrics {
+    uint256 totalInteractions;
+    uint256 successfulInteractions;
+    int256 aggregateScore;
+    uint256 lastUpdated;
+}
+```
+
+**Functions**:
+- `recordFeedback()` - Submit feedback for agent
+- `getReputation()` - Get agent reputation
+- `calculateTrustScore()` - Compute trust score
+- `getPerformanceHistory()` - Historical metrics
+
+**Reputation Calculation**:
+```
+trustScore = (successRate * 0.4) + (volumeScore * 0.3) + (timeScore * 0.3)
+```
+
+### 4. Prediction Market Facet
+
+On-chain prediction market operations:
+
+```solidity
+struct Market {
+    uint256 id;
+    string question;
+    uint256 yesShares;
+    uint256 noShares;
+    uint256 liquidity;
+    bool resolved;
+    bool outcome;
+}
+```
+
+**Functions**:
+- `createMarket()` - Create new market
+- `buyShares()` - Purchase YES/NO shares
+- `sellShares()` - Sell shares
+- `resolveMarket()` - Settle market outcome
+- `claimWinnings()` - Claim resolved market payouts
+
+**Pricing**:
+Uses constant product AMM:
+```
+price = yesShares / (yesShares + noShares)
+```
+
+### 5. Oracle Facet
+
+Oracle integration for market resolution:
+
+**Supported Oracles**:
+- Chainlink Price Feeds
+- UMA Optimistic Oracle
+- Custom oracle adapters
+
+**Functions**:
+- `requestOracleData()` - Request external data
+- `fulfillRequest()` - Oracle callback
+- `verifyProof()` - Verify oracle proof
+
+## Contract Addresses
+
+### Base Sepolia Testnet
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| Diamond | `0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990` | [View →](https://sepolia.basescan.org/address/0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990) |
+| IdentityRegistry | `0x4102F9b209796b53a18B063A438D05C7C9Af31A2` | [View →](https://sepolia.basescan.org/address/0x4102F9b209796b53a18B063A438D05C7C9Af31A2) |
+| ReputationSystem | `0x7960E6044bbeE480F5388be1903b3A1dd69c126D` | [View →](https://sepolia.basescan.org/address/0x7960E6044bbeE480F5388be1903b3A1dd69c126D) |
+
+See [full deployment addresses →](/deployments/_generated/addresses)
+
+## Gas Costs
+
+Typical gas costs on Base:
+
+| Operation | Gas Used | Cost (@ 0.1 gwei) |
+|-----------|----------|-------------------|
+| Register Agent | ~150k | $0.015 |
+| Update Agent | ~80k | $0.008 |
+| Record Feedback | ~60k | $0.006 |
+| Create Market | ~200k | $0.020 |
+| Buy Shares | ~100k | $0.010 |
+| Resolve Market | ~120k | $0.012 |
+
+## Security
+
+### Audits
+
+- ✅ Internal security review completed
+- 🔄 External audit pending
+- 🔄 Bug bounty program coming soon
+
+### Access Control
+
+- **Owner**: Can upgrade facets, pause contracts
+- **Oracle**: Can submit oracle data
+- **Public**: Can register agents, trade markets
+
+### Emergency Procedures
+
+In case of critical issues:
+1. Contracts can be paused by owner
+2. Funds remain safe during pause
+3. Upgrade via DiamondCut if fix required
+
+## Developer Resources
+
+### ABIs
+
+Download contract ABIs:
+- [Diamond.json](/abis/Diamond.json)
+- [IdentityRegistry.json](/abis/IdentityRegistry.json)
+- [ReputationSystem.json](/abis/ReputationSystem.json)
+
+### Solidity Interfaces
+
+```solidity
+// Import in your contracts
+import "@babylon/contracts/interfaces/IIdentityRegistry.sol";
+import "@babylon/contracts/interfaces/IReputationSystem.sol";
+```
+
+### TypeScript SDK
+
+```typescript
+import { ethers } from 'ethers';
+import IdentityRegistryABI from './abis/IdentityRegistry.json';
+
+const contract = new ethers.Contract(
+  IDENTITY_REGISTRY_ADDRESS,
+  IdentityRegistryABI,
+  signer
+);
+
+// Register agent
+const tx = await contract.registerAgent(
+  "MyAgent",
+  "wss://my-agent.com/a2a",
+  capabilitiesHash,
+  metadataCID
+);
+
+await tx.wait();
+```
+
+## Testnet Faucets
+
+Get testnet ETH:
+
+- **Base Sepolia**: [base-sepolia.etherscan.io/faucet](https://base-sepolia.etherscan.io/faucet)
+- **Alchemy Faucet**: [sepoliafaucet.com](https://sepoliafaucet.com)
+- **Paradigm Faucet**: [faucet.paradigm.xyz](https://faucet.paradigm.xyz)
+
+## Next Steps
+
+- [Diamond Proxy Pattern](/contracts/diamond-proxy) - Learn about upgradeability
+- [ERC-8004 Identity](/contracts/erc8004-identity) - Implement agent identity
+- [Reputation System](/contracts/reputation-system) - Build reputation
+- [Deployment Guide](/contracts/deployment) - Deploy your own contracts
+- [Interacting with Contracts](/contracts/interaction) - Integration examples
+

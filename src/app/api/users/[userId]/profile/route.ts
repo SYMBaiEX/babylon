@@ -1,6 +1,115 @@
 /**
- * API Route: /api/users/[userId]/profile
- * Methods: GET (get user profile)
+ * User Profile API Route
+ * 
+ * @description Retrieves comprehensive user profile information including stats, social connections, and account details
+ * 
+ * @route GET /api/users/[userId]/profile
+ * @access Public (no authentication required)
+ * 
+ * @swagger
+ * /api/users/{userId}/profile:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get user profile
+ *     description: Retrieves comprehensive profile information for a specific user including stats, social connections, and account details
+ *     operationId: getUserProfile
+ *     parameters:
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID, username, or wallet address
+ *         example: "user_123abc"
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: Unique user identifier
+ *                     username:
+ *                       type: string
+ *                       description: Username
+ *                     displayName:
+ *                       type: string
+ *                       description: Display name
+ *                     bio:
+ *                       type: string
+ *                       nullable: true
+ *                       description: User biography
+ *                     profileImageUrl:
+ *                       type: string
+ *                       nullable: true
+ *                       description: Profile image URL
+ *                     coverImageUrl:
+ *                       type: string
+ *                       nullable: true
+ *                       description: Cover image URL
+ *                     walletAddress:
+ *                       type: string
+ *                       nullable: true
+ *                       description: Blockchain wallet address
+ *                     virtualBalance:
+ *                       type: number
+ *                       description: Virtual balance in game currency
+ *                     lifetimePnL:
+ *                       type: number
+ *                       description: Lifetime profit and loss
+ *                     reputationPoints:
+ *                       type: integer
+ *                       description: Reputation points earned
+ *                     isActor:
+ *                       type: boolean
+ *                       description: Whether this is an NPC actor
+ *                     profileComplete:
+ *                       type: boolean
+ *                       description: Whether profile setup is complete
+ *                     onChainRegistered:
+ *                       type: boolean
+ *                       description: Whether registered on blockchain
+ *                     hasFarcaster:
+ *                       type: boolean
+ *                       description: Whether Farcaster is linked
+ *                     hasTwitter:
+ *                       type: boolean
+ *                       description: Whether Twitter is linked
+ *                     stats:
+ *                       type: object
+ *                       description: User statistics
+ *                       properties:
+ *                         positions:
+ *                           type: integer
+ *                           description: Number of open positions
+ *                         comments:
+ *                           type: integer
+ *                           description: Total comments made
+ *                         reactions:
+ *                           type: integer
+ *                           description: Total reactions given
+ *                         followers:
+ *                           type: integer
+ *                           description: Number of followers
+ *                         following:
+ *                           type: integer
+ *                           description: Number of users/actors following
+ *                         posts:
+ *                           type: integer
+ *                           description: Total posts created
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 
 import type { NextRequest } from 'next/server';
@@ -12,8 +121,39 @@ import { logger } from '@/lib/logger';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
- * GET /api/users/[userId]/profile
- * Get user profile information
+ * GET Handler for User Profile
+ * 
+ * @description Retrieves comprehensive user profile information including stats and social connections
+ * 
+ * @param {NextRequest} request - Next.js request object
+ * @param {Object} context - Route context containing dynamic parameters
+ * @param {Promise<{userId: string}>} context.params - Dynamic route parameters
+ * 
+ * @returns {Promise<NextResponse>} User profile data with stats
+ * 
+ * @throws {NotFoundError} When user is not found
+ * @throws {ValidationError} When userId parameter is invalid
+ * 
+ * @example
+ * ```typescript
+ * // Request
+ * GET /api/users/johndoe/profile
+ * 
+ * // Response
+ * {
+ *   "user": {
+ *     "id": "user_123",
+ *     "username": "johndoe",
+ *     "displayName": "John Doe",
+ *     "virtualBalance": 10000,
+ *     "stats": {
+ *       "followers": 150,
+ *       "following": 75,
+ *       "posts": 42
+ *     }
+ *   }
+ * }
+ * ```
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,

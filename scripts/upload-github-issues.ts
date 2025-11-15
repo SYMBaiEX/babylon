@@ -13,6 +13,7 @@ import { readFileSync } from 'fs';
 import { parse } from 'csv-parse/sync';
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { logger } from '../src/lib/logger';
 
 interface CSVRow {
   Title: string;
@@ -57,15 +58,15 @@ async function createGitHubIssue(issue: GitHubIssue): Promise<number | null> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Failed to create issue "${issue.title}":`, response.status, errorText);
+      logger.error(`Failed to create issue "${issue.title}"`, { status: response.status, error: errorText });
       return null;
     }
 
     const data = await response.json();
-    console.log(`✅ Created issue #${data.number}: ${issue.title}`);
+    logger.info(`✅ Created issue #${data.number}: ${issue.title}`);
     return data.number;
   } catch (error) {
-    console.error(`Error creating issue "${issue.title}":`, error);
+    logger.error(`Error creating issue "${issue.title}"`, { error });
     return null;
   }
 }
@@ -162,16 +163,16 @@ async function main() {
   const csvPath = process.argv[2] || '/Users/janbrezina/Library/CloudStorage/GoogleDrive-0x.puncar@gmail.com/My Drive/github-issues-import.csv';
   
   if (!process.env.GITHUB_TOKEN) {
-    console.error('❌ Error: GITHUB_TOKEN environment variable is required');
-    console.log('\nUsage:');
-    console.log('  GITHUB_TOKEN=your_token bun run scripts/upload-github-issues.ts [csv-path]');
-    console.log('\nOr add GITHUB_TOKEN to .env.local');
+    logger.error('❌ Error: GITHUB_TOKEN environment variable is required');
+    logger.info('\nUsage:');
+    logger.info('  GITHUB_TOKEN=your_token bun run scripts/upload-github-issues.ts [csv-path]');
+    logger.info('\nOr add GITHUB_TOKEN to .env.local');
     process.exit(1);
   }
 
-  console.log(`📖 Reading CSV from: ${csvPath}`);
+  logger.info(`📖 Reading CSV from: ${csvPath}`);
   const rows = parseCSV(csvPath);
-  console.log(`📋 Found ${rows.length} issues to upload\n`);
+  logger.info(`📋 Found ${rows.length} issues to upload\n`);
 
   let successCount = 0;
   let failCount = 0;
@@ -181,7 +182,7 @@ async function main() {
     const row = rows[i];
     
     if (!row.Title || !row.Title.trim()) {
-      console.log(`⏭️  Skipping row ${i + 1}: No title`);
+      logger.info(`⏭️  Skipping row ${i + 1}: No title`);
       continue;
     }
 
@@ -196,7 +197,7 @@ async function main() {
       issue.assignees = assignees;
     }
 
-    console.log(`\n📝 Creating issue ${i + 1}/${rows.length}: ${issue.title}`);
+    logger.info(`\n📝 Creating issue ${i + 1}/${rows.length}: ${issue.title}`);
     
     const issueNumber = await createGitHubIssue(issue);
     
@@ -214,18 +215,18 @@ async function main() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log(`✅ Successfully created: ${successCount} issues`);
-  console.log(`❌ Failed: ${failCount} issues`);
-  console.log('='.repeat(60));
+  logger.info('\n' + '='.repeat(60));
+  logger.info(`✅ Successfully created: ${successCount} issues`);
+  logger.info(`❌ Failed: ${failCount} issues`);
+  logger.info('='.repeat(60));
 
   if (createdIssues.length > 0) {
-    console.log('\n📋 Created issues:');
+    logger.info('\n📋 Created issues:');
     createdIssues.forEach(issue => {
-      console.log(`  #${issue.number}: ${issue.title}`);
+      logger.info(`  #${issue.number}: ${issue.title}`);
     });
   }
 }
 
-main().catch(console.error);
+main().catch((error) => logger.error('Script failed', { error }));
 

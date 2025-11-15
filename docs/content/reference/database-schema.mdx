@@ -1,0 +1,742 @@
+# Database Schema
+
+Complete reference for Babylon's PostgreSQL database schema.
+
+## Overview
+
+Babylon uses **PostgreSQL** with **Prisma ORM** for type-safe database access.
+
+**Total Models**: 30+  
+**Relationships**: Complex graph with many-to-many  
+**Special Features**: Snowflake IDs, Row-Level Security, Soft deletes
+
+## Core Models
+
+### User
+
+Represents both real players and NPCs.
+
+```prisma
+model User {
+  id              String   @id @default(uuid())
+  privyId         String   @unique
+  walletAddress   String?  @unique
+  username        String?  @unique
+  displayName     String?
+  bio             String?
+  profileImageUrl String?
+  coverImageUrl   String?
+  isActor         Boolean  @default(false)  // true = NPC
+  
+  // Virtual wallet
+  virtualBalance  Decimal  @default(1000)
+  totalDeposited  Decimal  @default(1000)
+  lifetimePnL     Decimal  @default(0)
+  
+  // On-chain identity
+  onChainRegistered   Boolean  @default(false)
+  nftTokenId          Int?     @unique
+  agent0TokenId       Int?
+  
+  // Reputation
+  reputationPoints    Int      @default(1000)
+  
+  // Relationships
+  comments        Comment[]
+  reactions       Reaction[]
+  positions       Position[]
+  followedBy      Follow[]     @relation("following")
+  following       Follow[]     @relation("follower")
+  
+  @@index([walletAddress])
+  @@index([username])
+  @@index([isActor])
+  @@index([reputationPoints(sort: Desc)])
+}
+```
+
+**Key Fields**:
+- `isActor`: Distinguishes NPCs from real users
+- `virtualBalance`: In-game currency
+- `nftTokenId`: ERC-8004 token ID
+- `reputationPoints`: Leaderboard ranking
+
+### Post
+
+Social media posts and articles.
+
+```prisma
+model Post {
+  id          String   @id // Snowflake ID
+  type        String   @default("post") // "post" | "article"
+  content     String
+  fullContent String?  @db.Text // For articles
+  
+  // Article fields
+  articleTitle String?
+  biasScore    Float?   // -1 to 1
+  sentiment    String?
+  category     String?
+  
+  authorId    String
+  timestamp   DateTime @default(now())
+  
+  comments    Comment[]
+  reactions   Reaction[]
+  shares      Share[]
+  postTags    PostTag[]
+  
+  @@index([authorId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@index([type, timestamp(sort: Desc)])
+}
+```
+
+**Note**: Uses **Snowflake IDs** for distributed generation:
+- 64-bit numeric IDs
+- Sortable by creation time
+- Unique across distributed systems
+- Generated in application layer
+
+### Market
+
+Prediction market for binary questions.
+
+```prisma
+model Market {
+  id          String   @id @default(uuid())
+  question    String
+  description String?
+  yesShares   Decimal  @default(0)
+  noShares    Decimal  @default(0)
+  liquidity   Decimal
+  resolved    Boolean  @default(false)
+  resolution  Boolean? // true = YES won
+  endDate     DateTime
+  
+  positions Position[]
+  
+  @@index([resolved, endDate])
+  @@index([createdAt(sort: Desc)])
+}
+```
+
+**Pricing**: Constant Product AMM
+```
+yesPrice = yesShares / (yesShares + noShares)
+noPrice = noShares / (yesShares + noShares)
+```
+
+### Position
+
+User position in a prediction market.
+
+```prisma
+model Position {
+  id        String   @id @default(uuid())
+  userId    String
+  marketId  String
+  side      Boolean  // true = YES, false = NO
+  shares    Decimal
+  avgPrice  Decimal
+  
+  user   User   @relation(fields: [userId])
+  market Market @relation(fields: [marketId])
+  
+  @@index([userId, marketId])
+}
+```
+
+### PerpPosition
+
+Perpetual futures position with leverage.
+
+```prisma
+model PerpPosition {
+  id                   String   @id @default(uuid())
+  userId               String
+  ticker               String
+  side                 String   // 'long' | 'short'
+  entryPrice           Float
+  currentPrice         Float
+  size                 Float
+  leverage             Int      // 1-100x
+  liquidationPrice     Float
+  unrealizedPnL        Float
+  fundingPaid          Float    @default(0)
+  openedAt             DateTime @default(now())
+  closedAt             DateTime?
+  realizedPnL          Float?
+  
+  @@index([userId, closedAt])
+  @@index([ticker])
+}
+```
+
+**Liquidation Formula**:
+```
+Long: liquidationPrice = entryPrice * (1 - 1/leverage)
+Short: liquidationPrice = entryPrice * (1 + 1/leverage)
+```
+
+## Social Models
+
+### Comment
+
+```prisma
+model Comment {
+  id              String   @id @default(uuid())
+  content         String
+  postId          String
+  authorId        String
+  parentCommentId String?  // For threaded replies
+  
+  post    Post     @relation(fields: [postId])
+  author  User     @relation(fields: [authorId])
+  replies Comment[] @relation("CommentReplies")
+  
+  @@index([postId, createdAt(sort: Desc)])
+}
+```
+
+### Reaction
+
+```prisma
+model Reaction {
+  id        String   @id @default(uuid())
+  postId    String?
+  commentId String?
+  userId    String
+  type      String   @default("like")
+  
+  post    Post?    @relation(fields: [postId])
+  comment Comment? @relation(fields: [commentId])
+  user    User     @relation(fields: [userId])
+  
+  @@unique([postId, userId, type])
+  @@unique([commentId, userId, type])
+}
+```
+
+### Follow
+
+```prisma
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  
+  follower  User @relation("follower", fields: [followerId])
+  following User @relation("following", fields: [followingId])
+  
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+```
+
+## Trading Models
+
+### Pool
+
+NPC-managed trading pool.
+
+```prisma
+model Pool {
+  id                  String   @id @default(uuid())
+  npcActorId          String
+  name                String
+  totalValue          Decimal  @default(0)
+  totalDeposits       Decimal  @default(0)
+  lifetimePnL         Decimal  @default(0)
+  performanceFeeRate  Float    @default(0.05)
+  isActive            Boolean  @default(true)
+  
+  npcActor  Actor         @relation(fields: [npcActorId])
+  deposits  PoolDeposit[]
+  positions PoolPosition[]
+  trades    NPCTrade[]
+  
+  @@index([npcActorId])
+  @@index([isActive])
+}
+```
+
+### NPCTrade
+
+All NPC trades for transparency.
+
+```prisma
+model NPCTrade {
+  id          String   @id @default(uuid())
+  npcActorId  String
+  poolId      String?
+  marketType  String   // 'perp' | 'prediction'
+  ticker      String?
+  marketId    String?
+  action      String   // 'buy' | 'sell' | 'open_long' | ...
+  amount      Float
+  price       Float
+  sentiment   Float?   // -1 to 1
+  reason      String?
+  executedAt  DateTime @default(now())
+  
+  @@index([npcActorId, executedAt(sort: Desc)])
+}
+```
+
+## Game Models
+
+### Question
+
+Prediction market questions.
+
+```prisma
+model Question {
+  id             String   @id @default(uuid())
+  questionNumber Int      // Sequential
+  text           String
+  outcome        Boolean  // Predetermined outcome
+  resolutionDate DateTime
+  status         String   @default("active")
+  resolvedOutcome Boolean?
+  
+  @@index([status, resolutionDate])
+  @@index([questionNumber])
+}
+```
+
+### Actor
+
+NPC actors with personalities.
+
+```prisma
+model Actor {
+  id              String   @id // From actors.json
+  name            String
+  description     String?
+  personality     String?
+  tier            String?  // S_TIER, A_TIER, etc.
+  tradingBalance  Decimal  @default(10000)
+  reputationPoints Int     @default(10000)
+  
+  pools      Pool[]
+  npcTrades  NPCTrade[]
+  
+  @@index([tier])
+  @@index([reputationPoints(sort: Desc)])
+}
+```
+
+### Organization
+
+Companies for perpetual futures.
+
+```prisma
+model Organization {
+  id           String   @id
+  name         String
+  type         String   // 'company' | 'media' | 'government'
+  initialPrice Float?
+  currentPrice Float?
+  
+  stockPrices StockPrice[]
+  
+  @@index([type])
+  @@index([currentPrice])
+}
+```
+
+## Reputation & Feedback
+
+### Feedback
+
+Ratings between users and agents.
+
+```prisma
+model Feedback {
+  id              String   @id @default(uuid())
+  fromUserId      String?
+  toUserId        String?
+  score           Int      // 0-100
+  rating          Int?     // 1-5 stars
+  comment         String?
+  category        String?
+  interactionType String   // "user_to_agent" | ...
+  onChainTxHash   String?
+  
+  @@index([toUserId, interactionType])
+  @@index([score(sort: Desc)])
+}
+```
+
+### AgentPerformanceMetrics
+
+Aggregated performance data.
+
+```prisma
+model AgentPerformanceMetrics {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  
+  // Game performance
+  gamesPlayed           Int      @default(0)
+  averageGameScore      Float    @default(0)
+  
+  // Trading performance
+  normalizedPnL         Float    @default(0.5)
+  totalTrades           Int      @default(0)
+  winRate               Float    @default(0)
+  
+  // Reputation
+  reputationScore       Float    @default(50)
+  trustLevel            String   @default("UNRATED")
+  
+  @@index([reputationScore(sort: Desc)])
+}
+```
+
+## Relationships
+
+### Many-to-Many Examples
+
+**User Follows** (User ↔ User):
+```prisma
+model Follow {
+  followerId  String
+  followingId String
+  
+  follower  User @relation("follower", fields: [followerId])
+  following User @relation("following", fields: [followingId])
+  
+  @@unique([followerId, followingId])
+}
+```
+
+**Post Tags** (Post ↔ Tag):
+```prisma
+model PostTag {
+  postId String
+  tagId  String
+  
+  post Post @relation(fields: [postId])
+  tag  Tag  @relation(fields: [tagId])
+  
+  @@unique([postId, tagId])
+}
+```
+
+## Indexes
+
+### Performance-Critical Indexes
+
+```sql
+-- Feed queries
+CREATE INDEX idx_posts_timestamp_desc ON "Post"("timestamp" DESC);
+CREATE INDEX idx_posts_author_time ON "Post"("authorId", "timestamp" DESC);
+
+-- Market queries
+CREATE INDEX idx_markets_resolved_end ON "Market"("resolved", "endDate");
+CREATE INDEX idx_positions_user_market ON "Position"("userId", "marketId");
+
+-- Social queries
+CREATE INDEX idx_follows_follower ON "Follow"("followerId");
+CREATE INDEX idx_follows_following ON "Follow"("followingId");
+
+-- Leaderboard
+CREATE INDEX idx_users_reputation_desc ON "User"("reputationPoints" DESC);
+CREATE INDEX idx_actors_reputation_desc ON "Actor"("reputationPoints" DESC);
+```
+
+## Migrations
+
+### Creating Migrations
+
+```bash
+# Create migration
+bunprisma migrate dev --name add_new_field
+
+# Migration file created in prisma/migrations/
+```
+
+### Applying Migrations
+
+```bash
+# Development
+bun run prisma:migrate
+
+# Production (Vercel)
+# Runs automatically via postinstall
+bun run prisma migrate deploy
+```
+
+### Rolling Back
+
+```bash
+# Reset database (caution: loses data)
+bun run db:reset
+
+# Or manual rollback
+psql babylon < prisma/migrations/[previous]/migration.sql
+```
+
+## Constraints
+
+### Unique Constraints
+
+```prisma
+// Single field
+@@unique([email])
+
+// Composite
+@@unique([userId, marketId])
+```
+
+### Check Constraints
+
+Enforced in application logic:
+- `virtualBalance >= 0`
+- `leverage >= 1 && leverage <= 100`
+- `yesShares >= 0 && noShares >= 0`
+
+## Common Queries
+
+### Get User with Positions
+
+```typescript
+const user = await prisma.user.findUnique({
+  where: { id: userId },
+  include: {
+    positions: {
+      include: {
+        market: true
+      }
+    }
+  }
+});
+```
+
+### Get Feed with Authors
+
+```typescript
+const posts = await prisma.post.findMany({
+  take: 20,
+  orderBy: { timestamp: 'desc' },
+  include: {
+    author: {
+      select: {
+        username: true,
+        displayName: true,
+        profileImageUrl: true
+      }
+    },
+    reactions: {
+      where: { userId }
+    }
+  }
+});
+```
+
+### Get Leaderboard
+
+```typescript
+const leaderboard = await prisma.user.findMany({
+  where: { isActor: false },
+  orderBy: { reputationPoints: 'desc' },
+  take: 100,
+  select: {
+    id: true,
+    username: true,
+    displayName: true,
+    profileImageUrl: true,
+    reputationPoints: true,
+    lifetimePnL: true
+  }
+});
+```
+
+## Connection Pooling
+
+### Configuration
+
+```env
+# Development (no pooling needed)
+DATABASE_URL="postgresql://user:pass@localhost:5432/babylon"
+
+# Production (use pooling)
+DATABASE_URL="postgresql://user:pass@host:5432/babylon?pgbouncer=true&connection_limit=10"
+DIRECT_URL="postgresql://user:pass@host:5432/babylon"
+```
+
+### Pool Size
+
+```typescript
+// Prisma automatically manages connections
+// Configure in Prisma schema:
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Or programmatically:
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  },
+  log: ['query', 'error'],
+});
+```
+
+## Row-Level Security
+
+### RLS Pattern
+
+```typescript
+import { asUser, asPublic } from '@/lib/db/context';
+
+// Execute query as specific user
+const data = await asUser(authenticatedUser, async (db) => {
+  return await db.position.findMany({
+    where: { userId: authenticatedUser.userId }
+  });
+});
+
+// Public query
+const data = await asPublic(async (db) => {
+  return await db.market.findMany({
+    where: { resolved: false }
+  });
+});
+```
+
+**Benefits**:
+- Prevents unauthorized data access
+- Enforced at database level
+- Automatic filtering
+- Type-safe
+
+## Performance Tips
+
+### Use Select
+
+```typescript
+// ❌ Fetches all fields
+const users = await prisma.user.findMany();
+
+// ✅ Fetch only needed fields
+const users = await prisma.user.findMany({
+  select: {
+    id: true,
+    username: true,
+    profileImageUrl: true
+  }
+});
+```
+
+### Pagination
+
+```typescript
+// Cursor-based (better for large datasets)
+const posts = await prisma.post.findMany({
+  take: 20,
+  skip: 1,
+  cursor: {
+    id: lastPostId
+  },
+  orderBy: { timestamp: 'desc' }
+});
+
+// Offset-based (simpler)
+const posts = await prisma.post.findMany({
+  take: 20,
+  skip: (page - 1) * 20,
+  orderBy: { timestamp: 'desc' }
+});
+```
+
+### Batch Operations
+
+```typescript
+// ❌ Multiple queries
+for (const user of users) {
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { reputationPoints: { increment: 10 } }
+  });
+}
+
+// ✅ Single query
+await prisma.user.updateMany({
+  where: {
+    id: { in: userIds }
+  },
+  data: {
+    reputationPoints: { increment: 10 }
+  }
+});
+```
+
+## Transactions
+
+### Atomic Operations
+
+```typescript
+await prisma.$transaction(async (tx) => {
+  // Deduct from user balance
+  await tx.user.update({
+    where: { id: userId },
+    data: { virtualBalance: { decrement: amount } }
+  });
+  
+  // Create position
+  await tx.position.create({
+    data: {
+      userId,
+      marketId,
+      shares,
+      avgPrice
+    }
+  });
+  
+  // Log transaction
+  await tx.balanceTransaction.create({
+    data: {
+      userId,
+      type: 'pred_buy',
+      amount: -amount
+    }
+  });
+});
+```
+
+## Backup & Recovery
+
+### Backup
+
+```bash
+# Create backup
+pg_dump babylon > backup-$(date +%Y%m%d).sql
+
+# Or via Prisma
+bunx prisma db pull
+# Creates schema from database
+```
+
+### Restore
+
+```bash
+# Restore from backup
+psql babylon < backup-20241111.sql
+
+# Or reset and migrate
+bun run db:reset
+```
+
+## Next Steps
+
+- [Architecture](/reference/architecture)
+- [API Reference](/api-reference/introduction)
+- [Local Development](/getting-started/local-development)
+

@@ -14,6 +14,7 @@ import { GroupChatInvite } from '@/lib/services/group-chat-invite'
 import { broadcastChatMessage } from '@/lib/sse/event-broadcaster'
 import { logger } from '@/lib/logger'
 import { ChatMessageCreateSchema } from '@/lib/validation/schemas'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 /**
  * POST /api/chats/[id]/message
@@ -256,6 +257,16 @@ export const POST = withErrorHandling(async (
     chatType: isDMChat ? 'dm' : (isGameChat ? 'game' : 'group'),
     qualityScore: qualityResult.score 
   }, 'POST /api/chats/[id]/message')
+
+  // Track message sent event
+  trackServerEvent(user.userId, 'message_sent', {
+    chatId,
+    messageLength: content.length,
+    chatType: isDMChat ? 'dm' : (isGameChat ? 'game' : 'group'),
+    qualityScore: qualityResult.score,
+  }).catch((error) => {
+    logger.warn('Failed to track message_sent event', { error });
+  });
 
   return successResponse(
     {

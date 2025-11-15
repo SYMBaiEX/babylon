@@ -17,6 +17,7 @@ import { UpdateUserSchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 import { confirmOnchainProfileUpdate } from '@/lib/onboarding/onchain-service';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/users/[userId]/update-profile
@@ -116,7 +117,9 @@ export const POST = withErrorHandling(async (
     }
   }
 
-  const requiresOnchainUpdate = [
+  // Only require on-chain update if user is already registered on-chain
+  // This allows initial profile setup before on-chain registration
+  const hasProfileChanges = [
     normalizedUsername !== undefined && normalizedUsername !== (currentUser.username ?? ''),
     normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser.displayName ?? ''),
     normalizedBio !== undefined && normalizedBio !== (currentUser.bio ?? ''),
@@ -124,19 +127,14 @@ export const POST = withErrorHandling(async (
     normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== (currentUser.coverImageUrl ?? ''),
   ].some(Boolean);
 
+  const requiresOnchainUpdate = hasProfileChanges && currentUser.onChainRegistered && currentUser.nftTokenId;
+
   let onchainMetadata: Record<string, unknown> | null = null;
   if (requiresOnchainUpdate) {
     if (!currentUser.walletAddress) {
       throw new BusinessLogicError(
         'Wallet address required to update on-chain profile',
         'WALLET_REQUIRED'
-      );
-    }
-
-    if (!currentUser.onChainRegistered || !currentUser.nftTokenId) {
-      throw new BusinessLogicError(
-        'Complete on-chain registration before updating your profile',
-        'ONCHAIN_UPDATE_UNAVAILABLE'
       );
     }
 
@@ -245,6 +243,21 @@ export const POST = withErrorHandling(async (
     { userId: canonicalUserId, pointsAwarded: pointsAwarded.length, onchainConfirmed: requiresOnchainUpdate },
     'POST /api/users/[userId]/update-profile'
   );
+
+  // Track profile updated event
+  const fieldsUpdated = Object.keys(parsedBody).filter(key => parsedBody[key as keyof typeof parsedBody] !== undefined);
+  trackServerEvent(canonicalUserId, 'profile_updated', {
+    fieldsUpdated,
+    hasNewProfileImage: normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== currentUser.profileImageUrl,
+    hasNewCoverImage: normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== currentUser.coverImageUrl,
+    hasNewBio: normalizedBio !== undefined && normalizedBio !== currentUser.bio,
+    usernameChanged: isUsernameChanging,
+    profileComplete: updatedUser.profileComplete,
+    pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),
+    onchainUpdate: requiresOnchainUpdate,
+  }).catch((error) => {
+    logger.warn('Failed to track profile_updated event', { error });
+  });
 
   return successResponse({
     user: updatedUser,

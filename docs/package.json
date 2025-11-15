@@ -1,0 +1,49 @@
+{
+  "name": "babylon-docs",
+  "version": "1.0.0",
+  "description": "Documentation for Babylon prediction market platform",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
+    "start": "next start",
+    "lint": "eslint .",
+    "generate:api-docs": "tsx scripts/generate-api-docs.ts",
+    "generate:tsdoc": "typedoc",
+    "generate:deployment-docs": "tsx scripts/generate-deployment-docs.ts",
+    "generate:contract-abis": "tsx scripts/generate-contract-abis.ts",
+    "generate:all": "bun run generate:api-docs && bun run generate:tsdoc && bun run generate:deployment-docs && bun run generate:contract-abis"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "autoprefixer": "^10.4.22",
+    "next": "15.1.0",
+    "nextra": "^4.6.0",
+    "nextra-theme-docs": "^4.6.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "15.1.0",
+    "eslint-plugin-react-hooks": "^6.0.0",
+    "pagefind": "^1.4.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-react": "^5.30.2",
+    "tsx": "^4.20.6",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^5.9.3",
+    "zod-validation-error": "^5.0.0"
+  },
+  "overrides": {
+    "zod-validation-error": "^5.0.0"
+  }
+}

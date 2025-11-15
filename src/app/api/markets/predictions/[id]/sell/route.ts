@@ -15,6 +15,7 @@ import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
+import { trackServerEvent } from '@/lib/posthog/server';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position
@@ -215,6 +216,22 @@ export const POST = withErrorHandling(async (
     fee: feeResult.feeCharged,
     pnl
   }, 'POST /api/markets/predictions/[id]/sell');
+
+  // Track prediction sell event
+  trackServerEvent(user.userId, 'prediction_sold', {
+    marketId,
+    sharesSold: shares,
+    grossProceeds,
+    netProceeds,
+    pnl,
+    pnlPercent: pnl > 0 ? (pnl / (grossProceeds - pnl)) * 100 : 0,
+    priceImpact: calculation.priceImpact,
+    feeCharged: feeResult.feeCharged,
+    positionClosed,
+    remainingShares,
+  }).catch((error) => {
+    logger.warn('Failed to track prediction_sold event', { error });
+  });
 
   return successResponse({
     sharesSold: shares,

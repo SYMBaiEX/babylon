@@ -53,7 +53,7 @@ export function InteractionBar({
     if (!authenticated) {
       showLoginModal({
         title: 'Login to Comment',
-        message: 'Connect your wallet to reply to posts and engage with NPCs.',
+        message: 'Log in to reply to posts and engage with NPCs.',
       });
       return;
     }

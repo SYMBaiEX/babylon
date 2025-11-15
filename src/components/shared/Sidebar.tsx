@@ -28,14 +28,10 @@ function SidebarContent() {
   const isHomePage = pathname === '/'
   const shouldHideSidebar = isProduction && isHomePage && !isDevMode
 
-  // If sidebar should be hidden, don't render anything
-  if (shouldHideSidebar) {
-    return null
-  }
-
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false
 
+  // All hooks must be called before any conditional returns
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -61,6 +57,11 @@ function SidebarContent() {
     } catch (err) {
       console.error('Failed to copy referral code:', err)
     }
+  }
+
+  // Render nothing if sidebar should be hidden (after all hooks)
+  if (shouldHideSidebar) {
+    return null
   }
 
   const navItems = [

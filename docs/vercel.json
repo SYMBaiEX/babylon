@@ -1,0 +1,13 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "bun install && bun run build",
+  "installCommand": "bun install",
+  "regions": ["iad1"],
+  "git": {
+    "deploymentEnabled": true
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+

@@ -1,6 +1,87 @@
 /**
- * API Route: /api/users/[userId]/follow
- * Methods: POST (follow), DELETE (unfollow), GET (check status)
+ * User Follow/Unfollow API Route
+ * 
+ * @description Manage user following relationships for both users and NPC actors
+ * 
+ * @route POST /api/users/[userId]/follow - Follow a user or actor
+ * @route DELETE /api/users/[userId]/follow - Unfollow a user or actor
+ * @route GET /api/users/[userId]/follow - Check follow status
+ * @access Private (requires authentication)
+ * 
+ * @swagger
+ * /api/users/{userId}/follow:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Follow user or actor
+ *     description: Follow a user or NPC actor. Creates a follow relationship and sends notification.
+ *     operationId: followUser
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID or actor ID to follow
+ *     responses:
+ *       201:
+ *         description: Successfully followed
+ *       400:
+ *         description: Already following or self-follow attempt
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User or actor not found
+ *   delete:
+ *     tags:
+ *       - Users
+ *     summary: Unfollow user or actor
+ *     description: Remove a follow relationship with a user or actor
+ *     operationId: unfollowUser
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID or actor ID to unfollow
+ *     responses:
+ *       200:
+ *         description: Successfully unfollowed
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Follow relationship not found
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Check follow status
+ *     description: Check if authenticated user is following the specified user or actor
+ *     operationId: checkFollowStatus
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID or actor ID to check
+ *     responses:
+ *       200:
+ *         description: Follow status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isFollowing:
+ *                   type: boolean
+ *                   description: Whether user is following the target
  */
 
 import type { NextRequest } from 'next/server';
@@ -12,9 +93,18 @@ import { authenticate } from '@/lib/api/auth-middleware';
 import { notifyFollow } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
+import { trackServerEvent } from '@/lib/posthog/server';
+
 /**
- * POST /api/users/[userId]/follow
- * Follow a user or actor
+ * POST Handler - Follow User or Actor
+ * 
+ * @description Creates a follow relationship between authenticated user and target user/actor
+ * 
+ * @param {NextRequest} request - Next.js request object
+ * @param {Object} context - Route context
+ * @returns {Promise<NextResponse>} Follow relationship data
+ * @throws {BusinessLogicError} When trying to follow self or already following
+ * @throws {NotFoundError} When target user/actor not found
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
@@ -82,6 +172,15 @@ export const POST = withErrorHandling(async (
     await notifyFollow(targetId, user.userId);
 
     logger.info('User followed successfully', { userId: user.userId, targetId }, 'POST /api/users/[userId]/follow');
+
+    // Track user followed event
+    trackServerEvent(user.userId, 'user_followed', {
+      targetUserId: targetId,
+      targetType: 'user',
+      targetUsername: follow.following.username,
+    }).catch((error) => {
+      logger.warn('Failed to track user_followed event', { error });
+    });
 
     return successResponse(
       {
@@ -168,6 +267,16 @@ export const POST = withErrorHandling(async (
 
     logger.info('Actor followed successfully', { userId: user.userId, npcId: targetId }, 'POST /api/users/[userId]/follow');
 
+    // Track actor followed event
+    trackServerEvent(user.userId, 'user_followed', {
+      targetUserId: targetId,
+      targetType: 'actor',
+      actorName: follow.actor.name,
+      actorTier: follow.actor.tier,
+    }).catch((error) => {
+      logger.warn('Failed to track user_followed event', { error });
+    });
+
     return successResponse(
       {
         id: follow.id,
@@ -217,6 +326,14 @@ export const DELETE = withErrorHandling(async (
     });
 
     logger.info('User unfollowed successfully', { userId: user.userId, targetId }, 'DELETE /api/users/[userId]/follow');
+
+    // Track user unfollowed event
+    trackServerEvent(user.userId, 'user_unfollowed', {
+      targetUserId: targetId,
+      targetType: 'user',
+    }).catch((error) => {
+      logger.warn('Failed to track user_unfollowed event', { error });
+    });
 
     return successResponse({
       message: 'Unfollowed successfully',
@@ -270,6 +387,14 @@ export const DELETE = withErrorHandling(async (
     });
 
     logger.info('Actor unfollowed successfully', { userId: user.userId, npcId: targetId }, 'DELETE /api/users/[userId]/follow');
+
+    // Track actor unfollowed event
+    trackServerEvent(user.userId, 'user_unfollowed', {
+      targetUserId: targetId,
+      targetType: 'actor',
+    }).catch((error) => {
+      logger.warn('Failed to track user_unfollowed event', { error });
+    });
 
     return successResponse({
       message: 'Unfollowed successfully',

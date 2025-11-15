@@ -197,7 +197,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
                   <Shield className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    You'll be redirected to Twitter to authorize access. We'll verify your account ownership.
+                    You&apos;ll be redirected to Twitter to authorize access. We&apos;ll verify your account ownership.
                   </p>
                 </div>
                 <button

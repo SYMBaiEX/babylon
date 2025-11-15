@@ -27,7 +27,7 @@ import {
   Users,
   Wallet
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 interface ReferredUser {
   id: string
@@ -81,42 +81,48 @@ export default function RewardsPage() {
   const [showLinkSocialModal, setShowLinkSocialModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
 
+  const fetchReferralData = useCallback(async () => {
+    if (!user?.id || !authenticated) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
+        console.error('Failed to get access token from window.__privyAccessToken')
+        setError('Authentication required')
+        setLoading(false)
+        return
+      }
+
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch referral data')
+      }
+
+      const data = await response.json()
+      setReferralData(data)
+      setLoading(false)
+    } catch (error) {
+      console.error('Failed to fetch referral data:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load referral data')
+      setLoading(false)
+    }
+  }, [user?.id, authenticated])
+
   useEffect(() => {
     if (ready && authenticated && user?.id) {
       fetchReferralData()
     } else if (ready && !authenticated) {
       setLoading(false)
     }
-  }, [user, ready, authenticated])
-
-  const fetchReferralData = async () => {
-    if (!user?.id || !authenticated) return
-
-    setLoading(true)
-    setError(null)
-
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    if (!token) {
-      console.error('Failed to get access token from window.__privyAccessToken')
-      setError('Authentication required')
-      setLoading(false)
-      return
-    }
-
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch referral data')
-    }
-
-    const data = await response.json()
-    setReferralData(data)
-    setLoading(false)
-  }
+  }, [user?.id, ready, authenticated, fetchReferralData])
 
   const handleCopyUrl = async () => {
     if (!referralData?.referralUrl) return
@@ -215,7 +221,7 @@ export default function RewardsPage() {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center max-w-md">
             <Award className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-bold text-foreground mb-2">Connect Your Wallet</h2>
+            <h2 className="text-xl font-bold text-foreground mb-2">log in</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to earn rewards and track your progress
             </p>

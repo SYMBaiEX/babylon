@@ -121,7 +121,7 @@ export function ShareVerificationModal({
 
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
             <p className="text-xs text-muted-foreground">
-              <strong>Tip:</strong> After posting, copy the URL from your browser's address bar or use the "Copy link" option on your post.
+              <strong>Tip:</strong> After posting, copy the URL from your browser&apos;s address bar or use the &quot;Copy link&quot; option on your post.
             </p>
           </div>
 

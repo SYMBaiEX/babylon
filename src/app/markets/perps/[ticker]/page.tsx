@@ -10,6 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { useMarketTracking } from '@/hooks/usePostHog'
 
 interface PerpMarket {
   ticker: string
@@ -41,6 +42,7 @@ export default function PerpDetailPage() {
   const router = useRouter()
   const { user, authenticated, login } = useAuth()
   const ticker = params.ticker as string
+  const { trackMarketView } = useMarketTracking()
 
   const [market, setMarket] = useState<PerpMarket | null>(null)
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([])
@@ -50,6 +52,13 @@ export default function PerpDetailPage() {
   const [leverage, setLeverage] = useState(10)
   const [submitting, setSubmitting] = useState(false)
   const [userPositions, setUserPositions] = useState<PerpPosition[]>([])
+
+  // Track market view
+  useEffect(() => {
+    if (ticker && market) {
+      trackMarketView(ticker, 'perp')
+    }
+  }, [ticker, market, trackMarketView])
 
   const fetchMarketData = useCallback(async () => {
     const response = await fetch('/api/markets/perps')

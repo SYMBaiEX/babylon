@@ -13,6 +13,7 @@ import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/posts/[id]/like
@@ -98,6 +99,15 @@ export const POST = withErrorHandling(async (
 
   logger.info('Post liked successfully', { postId, userId: canonicalUserId, likeCount }, 'POST /api/posts/[id]/like');
 
+  // Track post liked event
+  trackServerEvent(canonicalUserId, 'post_liked', {
+    postId,
+    authorId: post.authorId,
+    likeCount,
+  }).catch((error) => {
+    logger.warn('Failed to track post_liked event', { error });
+  });
+
   return successResponse({
     data: {
       likeCount,
@@ -162,6 +172,14 @@ export const DELETE = withErrorHandling(async (
     });
 
   logger.info('Post unliked successfully', { postId, userId: canonicalUserId, likeCount }, 'DELETE /api/posts/[id]/like');
+
+  // Track post unliked event
+  trackServerEvent(canonicalUserId, 'post_unliked', {
+    postId,
+    likeCount,
+  }).catch((error) => {
+    logger.warn('Failed to track post_unliked event', { error });
+  });
 
   return successResponse({
     data: {

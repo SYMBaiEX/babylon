@@ -47,7 +47,7 @@ function FeedAuthBannerContent() {
               Join the conversation.
             </h3>
             <p className="text-sm opacity-90">
-              You're still early!
+              You&apos;re still early!
             </p>
           </div>
           <div className="flex items-center gap-3">

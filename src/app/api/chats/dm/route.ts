@@ -10,6 +10,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { DMChatCreateSchema } from '@/lib/validation/schemas';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/chats/dm
@@ -129,6 +130,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 
   logger.info('DM chat created or retrieved successfully', { chatId: chat.chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
+
+  // Track DM created/opened event
+  trackServerEvent(user.userId, 'dm_opened', {
+    chatId: chat.chat.id,
+    recipientId: targetUserId,
+    isNewChat: !chat.chat.participants || chat.chat.participants.length === 0,
+  }).catch((error) => {
+    logger.warn('Failed to track dm_opened event', { error });
+  });
 
   return successResponse({
     chat: {

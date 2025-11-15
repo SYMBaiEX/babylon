@@ -17,6 +17,16 @@ function HomePageContent() {
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
+    // Check if force coming soon mode is enabled via URL parameter (?comingsoon=true)
+    const forceComingSoon = searchParams.get('comingsoon') === 'true'
+    
+    // If force coming soon is enabled, show coming soon page
+    if (forceComingSoon) {
+      setShouldShowApp(false)
+      setIsChecking(false)
+      return
+    }
+
     // Check if we're on localhost
     const isLocalhost =
       typeof window !== 'undefined' &&
@@ -41,7 +51,7 @@ function HomePageContent() {
       if (!authenticated) {
         showLoginModal({
           title: 'Welcome to Babylon',
-          message: 'Connect your wallet to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
+          message: 'Log in to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
         })
       }
 

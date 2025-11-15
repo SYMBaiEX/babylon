@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../src/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 async function populateManual() {
   console.log('🏷️  Manually populating trending system...\n')
@@ -98,21 +99,24 @@ async function populateManual() {
     const now = new Date()
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
+    // Convert dates to ISO strings for Prisma Accelerate compatibility
+    const weekAgoStr = weekAgo.toISOString()
+
     // Get tag counts
     const tagCounts = await prisma.$queryRaw<Array<{
       tagId: string
       count: bigint
-    }>>`
+    }>>(Prisma.sql`
       SELECT 
         "tagId",
         COUNT(*) as count
       FROM "PostTag" pt
       INNER JOIN "Post" p ON p.id = pt."postId"
-      WHERE p.timestamp >= ${weekAgo}
+      WHERE p.timestamp >= ${weekAgoStr}::timestamp
       GROUP BY "tagId"
       ORDER BY count DESC
       LIMIT 10
-    `
+    `)
 
     // Create trending entries
     for (let i = 0; i < tagCounts.length; i++) {

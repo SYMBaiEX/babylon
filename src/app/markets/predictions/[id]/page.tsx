@@ -10,6 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { useMarketTracking } from '@/hooks/usePostHog'
 
 interface PredictionMarket {
   id: number | string
@@ -57,6 +58,7 @@ export default function PredictionDetailPage() {
   const router = useRouter()
   const { user, authenticated, login } = useAuth()
   const marketId = params.id as string
+  const { trackMarketView } = useMarketTracking()
 
   const [market, setMarket] = useState<PredictionMarket | null>(null)
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([])
@@ -65,6 +67,13 @@ export default function PredictionDetailPage() {
   const [amount, setAmount] = useState('10')
   const [submitting, setSubmitting] = useState(false)
   const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
+
+  // Track market view
+  useEffect(() => {
+    if (marketId && market) {
+      trackMarketView(marketId, 'prediction')
+    }
+  }, [marketId, market, trackMarketView])
 
   const fetchMarketData = useCallback(async () => {
     const userId = authenticated && user?.id ? `?userId=${user.id}` : ''
@@ -304,10 +313,10 @@ export default function PredictionDetailPage() {
               <div className="flex-1">
                 <h3 className="font-medium mb-2">How it works</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Buy YES shares if you think this will happen, NO shares if you think it won't.
+                  Buy YES shares if you think this will happen, NO shares if you think it won&apos;t.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  If you're right, you'll receive $1 per share. The current price reflects the market's probability.
+                  If you&apos;re right, you&apos;ll receive $1 per share. The current price reflects the market&apos;s probability.
                 </p>
               </div>
             </div>

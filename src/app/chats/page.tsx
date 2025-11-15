@@ -130,96 +130,8 @@ export default function ChatsPage() {
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   
-  // Check for chat ID in URL query params
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const chatParam = params.get('chat')
-      const newDMParam = params.get('newDM')
-      
-      if (chatParam && chatParam !== selectedChatId) {
-        setSelectedChatId(chatParam)
-        
-        // If this is a new DM, load the target user info
-        if (newDMParam && chatParam.startsWith('dm-')) {
-          loadNewDMChat(chatParam, newDMParam)
-        }
-        
-        // Clean up URL
-        window.history.replaceState({}, '', '/chats')
-      }
-    }
-  }, [selectedChatId])
-  
-  // Load user's chats from database
-  useEffect(() => {
-    if (authenticated || isDebugMode) {
-      loadChats()
-    }
-  }, [authenticated, isDebugMode])
-
-  // Load selected chat details from database
-  useEffect(() => {
-    if (selectedChatId) {
-      loadChatDetails(selectedChatId)
-    }
-  }, [selectedChatId])
-
-  // Update chatDetails with realtime messages
-  useEffect(() => {
-    if (chatDetails && realtimeMessages.length > 0) {
-      setChatDetails(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          messages: realtimeMessages
-        }
-      })
-    }
-  }, [realtimeMessages, chatDetails?.chat?.id])
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatDetails?.messages])
-
-  const handleLeaveChat = async () => {
-    if (!selectedChatId) return
-    setIsLeavingChat(true)
-    setLeaveChatError(null)
-
-    const accessToken = await getAccessToken()
-    if (!accessToken) {
-      setLeaveChatError('Authentication failed. Please try again.')
-      setIsLeavingChat(false)
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/chats/${selectedChatId}/participants/me`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to leave chat')
-      }
-
-      setLeaveConfirmOpen(false)
-      setSelectedChatId(null)
-      await loadChats() // Refresh the chat list
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.'
-      setLeaveChatError(errorMessage)
-    } finally {
-      setIsLeavingChat(false)
-    }
-  }
-
-  const loadChats = async () => {
+  // Function declarations (before useEffects that use them)
+  const loadChats = useCallback(async () => {
     setLoading(true)
     
     if (isDebugMode) {
@@ -257,9 +169,9 @@ export default function ChatsPage() {
     
     setAllChats(combined)
     setLoading(false)
-  }
+  }, [getAccessToken, isDebugMode])
 
-  const loadNewDMChat = async (chatId: string, targetUserId: string) => {
+  const loadNewDMChat = useCallback(async (chatId: string, targetUserId: string) => {
     setLoadingChat(true)
     
     try {
@@ -339,9 +251,9 @@ export default function ChatsPage() {
     } finally {
       setLoadingChat(false)
     }
-  }
+  }, [getAccessToken, user])
 
-  const loadChatDetails = async (chatId: string) => {
+  const loadChatDetails = useCallback(async (chatId: string) => {
     setLoadingChat(true)
     
     if (isDebugMode) {
@@ -391,6 +303,95 @@ export default function ChatsPage() {
       participants: data.participants || [],
     })
     setLoadingChat(false)
+  }, [getAccessToken, isDebugMode])
+  
+  // Check for chat ID in URL query params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const chatParam = params.get('chat')
+      const newDMParam = params.get('newDM')
+      
+      if (chatParam && chatParam !== selectedChatId) {
+        setSelectedChatId(chatParam)
+        
+        // If this is a new DM, load the target user info
+        if (newDMParam && chatParam.startsWith('dm-')) {
+          loadNewDMChat(chatParam, newDMParam)
+        }
+        
+        // Clean up URL
+        window.history.replaceState({}, '', '/chats')
+      }
+    }
+  }, [selectedChatId, loadNewDMChat])
+  
+  // Load user's chats from database
+  useEffect(() => {
+    if (authenticated || isDebugMode) {
+      loadChats()
+    }
+  }, [authenticated, isDebugMode, loadChats])
+
+  // Load selected chat details from database
+  useEffect(() => {
+    if (selectedChatId) {
+      loadChatDetails(selectedChatId)
+    }
+  }, [selectedChatId, loadChatDetails])
+
+  // Update chatDetails with realtime messages
+  useEffect(() => {
+    if (chatDetails && realtimeMessages.length > 0) {
+      setChatDetails(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          messages: realtimeMessages
+        }
+      })
+    }
+  }, [realtimeMessages, chatDetails])
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatDetails?.messages])
+
+  const handleLeaveChat = async () => {
+    if (!selectedChatId) return
+    setIsLeavingChat(true)
+    setLeaveChatError(null)
+
+    const accessToken = await getAccessToken()
+    if (!accessToken) {
+      setLeaveChatError('Authentication failed. Please try again.')
+      setIsLeavingChat(false)
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/chats/${selectedChatId}/participants/me`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to leave chat')
+      }
+
+      setLeaveConfirmOpen(false)
+      setSelectedChatId(null)
+      await loadChats() // Refresh the chat list
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.'
+      setLeaveChatError(errorMessage)
+    } finally {
+      setIsLeavingChat(false)
+    }
   }
 
   const sendMessage = async () => {
@@ -617,7 +618,7 @@ export default function ChatsPage() {
                       </p>
                       {!searchQuery && activeFilter === 'dms' && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          Visit a user's profile to start a DM
+                          Visit a user&apos;s profile to start a DM
                         </p>
                       )}
                     </div>
@@ -905,7 +906,7 @@ export default function ChatsPage() {
                     ) : (
                       <div className="p-4 bg-background border-t border-border">
                         <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-3">Connect your wallet to send messages</p>
+                          <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                           <LoginButton />
                         </div>
                       </div>
@@ -1046,7 +1047,7 @@ export default function ChatsPage() {
                       </p>
                       {!searchQuery && activeFilter === 'dms' && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          Visit a user's profile to start a DM
+                          Visit a user&apos;s profile to start a DM
                         </p>
                       )}
                     </div>
@@ -1327,7 +1328,7 @@ export default function ChatsPage() {
                   ) : (
                     <div className="p-4 bg-background border-t border-border">
                       <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-3">Connect your wallet to send messages</p>
+                        <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                         <LoginButton />
                       </div>
                     </div>

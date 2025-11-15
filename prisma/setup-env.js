@@ -30,9 +30,9 @@ if (process.env.PRISMA_DATABASE_URL && !process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// Verify DIRECT_DATABASE_URL for migrations
-if (!process.env.DIRECT_DATABASE_URL) {
-  console.warn('⚠ WARNING: DIRECT_DATABASE_URL is not set');
+// Verify DATABASE_URL for migrations
+if (!process.env.DATABASE_URL) {
+  console.warn('⚠ WARNING: DATABASE_URL is not set');
   console.warn('  This is required for migrations and Prisma Studio');
   console.warn('  Set it to your direct PostgreSQL connection string');
   console.warn('');

@@ -1,30 +1,32 @@
 'use client'
 
-import { LoginButton } from '@/components/auth/LoginButton'
+import { PostCard } from '@/components/posts/PostCard'
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { OnChainBadge } from '@/components/profile/OnChainBadge'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
+import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
+import { cn } from '@/lib/utils'
+import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
-import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
-import { OnChainBadge } from '@/components/profile/OnChainBadge'
-import { PostCard } from '@/components/posts/PostCard'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
-import { 
-  AlertCircle, 
-  Calendar, 
-  Check, 
-  User, 
-  Trophy, 
-  Camera, 
-  X as XIcon,
+import { ReputationCard } from '@/components/reputation/ReputationCard'
+import {
+  AlertCircle,
+  Calendar,
+  Camera,
+  Check,
   ExternalLink,
   Eye,
   EyeOff,
-  Wallet
+  Trophy,
+  User,
+  Wallet,
+  X as XIcon
 } from 'lucide-react'
-import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { useEffect, useRef, useState } from 'react'
 
 interface ProfileFormData {
   username: string
@@ -50,9 +52,10 @@ interface EditModalState {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, smartWalletAddress, smartWalletReady } = useAuth()
   const { user, setUser } = useAuthStore()
   const router = useRouter()
+  const { updateAgentProfile } = useUpdateAgentProfileTx()
   
   const [formData, setFormData] = useState<ProfileFormData>({
     username: '',
@@ -326,6 +329,44 @@ export default function ProfilePage() {
         updatedData.coverImageUrl = uploadData.url
       }
 
+      // Remove empty strings from updatedData (API expects valid URLs or undefined)
+      Object.keys(updatedData).forEach(key => {
+        if (updatedData[key as keyof ProfileFormData] === '') {
+          delete updatedData[key as keyof ProfileFormData]
+        }
+      })
+
+      // If user is registered on-chain, perform on-chain profile update first
+      let onchainTxHash: string | undefined
+      if (user.onChainRegistered && user.nftTokenId) {
+        if (!smartWalletReady || !smartWalletAddress) {
+          throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET)
+        }
+
+        const trimmedDisplayName = (updatedData.displayName ?? '').trim()
+        const trimmedUsername = (updatedData.username ?? '').trim()
+        const trimmedBio = (updatedData.bio ?? '').trim()
+
+        const endpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`
+        const metadata = {
+          name:
+            trimmedDisplayName ||
+            trimmedUsername ||
+            user.displayName ||
+            user.username ||
+            'Babylon User',
+          username: trimmedUsername || null,
+          bio: trimmedBio || null,
+          profileImageUrl: updatedData.profileImageUrl || user.profileImageUrl || null,
+          coverImageUrl: updatedData.coverImageUrl || user.coverImageUrl || null,
+        }
+
+        onchainTxHash = await updateAgentProfile({
+          endpoint,
+          metadata,
+        })
+      }
+
       // Update profile
       const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
         method: 'POST',
@@ -333,10 +374,16 @@ export default function ProfilePage() {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify({
+          ...updatedData,
+          ...(onchainTxHash && { onchainTxHash }),
+        }),
       })
 
-      if (!updateResponse.ok) throw new Error('Failed to update profile')
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({}))
+        throw new Error(errorData?.error?.message || 'Failed to update profile')
+      }
       const data = await updateResponse.json()
 
       setFormData({
@@ -427,21 +474,6 @@ export default function ProfilePage() {
     <PageContainer noPadding className="flex flex-col">
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
-        {ready && !authenticated && (
-          <div className="bg-muted/50 border-b border-border p-4">
-            <div className="max-w-[600px] mx-auto">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
-                  <p className="text-xs text-muted-foreground">
-                    View and edit your profile
-                  </p>
-                </div>
-                <LoginButton />
-              </div>
-            </div>
-          </div>
-        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -482,7 +514,7 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={openEditModal}
-                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px]"
+                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px] z-1"
                     >
                       Edit Profile
                     </button>
@@ -639,6 +671,13 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Reputation Card */}
+            {user && (
+              <div className="max-w-[600px] mx-auto px-4 py-6">
+                <ReputationCard userId={user.id} />
+              </div>
+            )}
 
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
@@ -986,7 +1025,7 @@ export default function ProfilePage() {
           <div className="max-w-[600px] mx-auto p-4">
             <div className="text-center text-muted-foreground py-12">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Please connect your wallet to view your profile.</p>
+              <p>Please log in to view your profile.</p>
             </div>
           </div>
         )}

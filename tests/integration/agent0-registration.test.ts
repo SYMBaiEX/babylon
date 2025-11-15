@@ -45,14 +45,13 @@ describe('Agent0 Registration Integration', () => {
         select: {
           id: true,
           agent0MetadataCID: true,
-          agent0LastSync: true,
-          mcpEndpoint: true,
-          a2aEndpoint: true
+          agent0TokenId: true,
+          agent0RegisteredAt: true
         }
       })
       
       // Should not throw - fields exist
-      expect(user).toBeDefined() || expect(user).toBeNull()
+      expect(user !== undefined).toBe(true)
     } catch (error) {
       if (error instanceof Error && error.message.includes('Unknown arg')) {
         throw new Error('Agent0 fields not found in User model. Run migration first.')

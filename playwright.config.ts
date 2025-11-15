@@ -21,8 +21,7 @@ export default defineConfig({
   
   /* Reporter to use */
   reporter: [
-    ['html'],
-    ['list'],
+    ['list'], // Console output only, no blocking HTML report
   ],
   
   /* Shared settings for all the projects below */

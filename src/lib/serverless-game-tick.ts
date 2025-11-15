@@ -17,7 +17,7 @@ import { logger } from './logger';
 import { prisma } from './prisma';
 import { MarketContextService } from './services/market-context-service';
 import { TradeExecutionService } from './services/trade-execution-service';
-import { calculateTrendingIfNeeded } from './services/trending-calculation-service';
+import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { generateSnowflakeId } from './snowflake';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import type { ActorTier, WorldEvent } from '@/shared/types';
@@ -31,6 +31,12 @@ export interface GameTickResult {
   questionsCreated: number;
   widgetCachesUpdated: number;
   trendingCalculated: boolean;
+  reputationSynced: boolean;
+  reputationSyncStats?: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
 }
 
 /**
@@ -59,9 +65,13 @@ export async function executeGameTick(): Promise<GameTickResult> {
     questionsCreated: 0,
     widgetCachesUpdated: 0,
     trendingCalculated: false,
+    reputationSynced: false,
   };
 
   try {
+    // Bootstrap initial content if this is a fresh setup
+    await bootstrapContentIfNeeded(timestamp);
+
     // Initialize LLM client with error handling
     const llmClient = (() => {
       try {
@@ -90,7 +100,32 @@ export async function executeGameTick(): Promise<GameTickResult> {
       'GameTick'
     );
 
-    const questionsToResolve = activeQuestions.filter((q) => {
+    // Generate initial questions FIRST if this is the first tick
+    if (activeQuestions.length === 0 && llmClient && Date.now() < deadline) {
+      logger.info('First tick detected - generating initial questions', {}, 'GameTick');
+      try {
+        const questionsGenerated = await generateNewQuestions(
+          5, // Generate 5 initial questions
+          llmClient,
+          deadline
+        );
+        result.questionsCreated = questionsGenerated;
+        
+        // Reload active questions after generation
+        const newActiveQuestions = await prisma.question.findMany({
+          where: { status: 'active' },
+        });
+        activeQuestions.length = 0;
+        activeQuestions.push(...newActiveQuestions);
+        
+        logger.info(`Initial questions created: ${questionsGenerated}`, { count: questionsGenerated }, 'GameTick');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to generate initial questions', { error: errorMessage }, 'GameTick');
+      }
+    }
+
+    const questionsToResolve = activeQuestions.filter((q: { resolutionDate: Date | null }) => {
       if (!q.resolutionDate) return false;
       const resolutionDate = new Date(q.resolutionDate);
       return resolutionDate <= timestamp;
@@ -106,7 +141,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
 
         await prisma.question.updateMany({
           where: {
-            id: { in: questionsToResolve.map((q) => q.id) },
+            id: { in: questionsToResolve.map((q: typeof questionsToResolve[number]) => q.id) },
           },
           data: { status: 'resolved' },
         });
@@ -305,8 +340,12 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     // Calculate trending tags if needed (checks 30-minute interval internally)
+    // Force calculation on first tick if we just generated baseline posts
+    const forceCalculation = result.postsCreated > 0 && result.articlesCreated > 0;
     try {
-      const trendingCalculated = await calculateTrendingIfNeeded();
+      const trendingCalculated = forceCalculation 
+        ? await forceTrendingCalculation()
+        : await calculateTrendingIfNeeded();
       result.trendingCalculated = trendingCalculated;
       if (trendingCalculated) {
         logger.info('Trending tags recalculated', {}, 'GameTick');
@@ -315,6 +354,25 @@ export async function executeGameTick(): Promise<GameTickResult> {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to calculate trending tags', { error: errorMessage }, 'GameTick');
       // Don't fail the entire tick if trending calculation fails
+    }
+
+    // Sync reputation if needed (checks 3-hour interval internally)
+    try {
+      const { periodicReputationSyncIfNeeded } = await import('./reputation/agent0-reputation-sync');
+      const syncResult = await periodicReputationSyncIfNeeded();
+      result.reputationSynced = syncResult.synced;
+      if (syncResult.synced && syncResult.total !== undefined) {
+        result.reputationSyncStats = {
+          total: syncResult.total,
+          successful: syncResult.successful || 0,
+          failed: syncResult.failed || 0,
+        };
+        logger.info('Reputation sync completed', result.reputationSyncStats, 'GameTick');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to sync reputation', { error: errorMessage }, 'GameTick');
+      // Don't fail the entire tick if reputation sync fails
     }
 
     const durationMs = Date.now() - startedAt;
@@ -333,6 +391,228 @@ export async function executeGameTick(): Promise<GameTickResult> {
 }
 
 /**
+ * Bootstrap content on first game tick
+ * Ensures trending and news are initialized automatically
+ */
+async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
+  // Check if we need to bootstrap
+  const trendingCount = await prisma.trendingTag.count();
+  const newsCount = await prisma.post.count({ where: { type: 'article' } });
+  
+  const MIN_TRENDING = 5;
+  const MIN_NEWS = 5;
+  
+  // If we have enough of both, nothing to do
+  if (trendingCount >= MIN_TRENDING && newsCount >= MIN_NEWS) {
+    return;
+  }
+  
+  logger.info('Bootstrapping initial content...', {
+    currentTrending: trendingCount,
+    currentNews: newsCount,
+    needTrending: trendingCount < MIN_TRENDING,
+    needNews: newsCount < MIN_NEWS,
+  }, 'GameTick');
+  
+  // Bootstrap news articles if needed
+  if (newsCount < MIN_NEWS) {
+    await bootstrapNewsArticles(timestamp, MIN_NEWS - newsCount);
+  }
+  
+  // Bootstrap trending if needed (requires posts and tags)
+  if (trendingCount < MIN_TRENDING) {
+    await bootstrapTrending();
+  }
+  
+  logger.info('Bootstrap complete', {
+    trendingCount: await prisma.trendingTag.count(),
+    newsCount: await prisma.post.count({ where: { type: 'article' } }),
+  }, 'GameTick');
+}
+
+/**
+ * Create initial news articles
+ */
+async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<void> {
+  logger.info(`Creating ${count} initial news articles...`, undefined, 'GameTick');
+  
+  // Get media organizations
+  const newsOrgs = await prisma.organization.findMany({
+    where: { type: 'media' },
+    take: 5,
+  });
+  
+  if (newsOrgs.length === 0) {
+    logger.warn('No media organizations found, skipping news bootstrap', undefined, 'GameTick');
+    return;
+  }
+  
+  // Sample news topics (realistic, varied)
+  const sampleArticles = [
+    {
+      title: 'Markets Show Mixed Signals Amid Economic Uncertainty',
+      summary: 'Investors navigate volatile conditions as key indicators point to divergent trends across major sectors and asset classes.',
+      category: 'Finance',
+      sentiment: 'neutral',
+      biasScore: 0.0,
+    },
+    {
+      title: 'Tech Industry Faces New Regulatory Scrutiny',
+      summary: 'Government agencies announce enhanced oversight measures targeting major technology companies and their market practices.',
+      category: 'Tech',
+      sentiment: 'negative',
+      biasScore: -0.3,
+    },
+    {
+      title: 'Innovation in Clean Energy Accelerates',
+      summary: 'Breakthrough developments in renewable energy technology promise significant advances toward sustainability goals.',
+      category: 'Tech',
+      sentiment: 'positive',
+      biasScore: 0.5,
+    },
+    {
+      title: 'Global Markets Digest Policy Changes',
+      summary: 'Financial markets adjust to new policy frameworks as central banks signal potential shifts in monetary strategy.',
+      category: 'Finance',
+      sentiment: 'neutral',
+      biasScore: 0.1,
+    },
+    {
+      title: 'Corporate Investment Trends Shift',
+      summary: 'Major corporations redirect capital allocation strategies in response to evolving market dynamics and opportunities.',
+      category: 'Finance',
+      sentiment: 'neutral',
+      biasScore: 0.0,
+    },
+    {
+      title: 'Technology Adoption Reaches New Milestone',
+      summary: 'Enterprise software and cloud services see record adoption rates as digital transformation accelerates across industries.',
+      category: 'Tech',
+      sentiment: 'positive',
+      biasScore: 0.4,
+    },
+    {
+      title: 'Economic Indicators Point to Continued Growth',
+      summary: 'Latest data releases suggest sustained expansion despite headwinds from global trade tensions and policy uncertainty.',
+      category: 'Finance',
+      sentiment: 'positive',
+      biasScore: 0.3,
+    },
+    {
+      title: 'Industry Leaders Navigate Changing Landscape',
+      summary: 'Executives across sectors adapt strategies to address emerging challenges and capitalize on new market opportunities.',
+      category: 'Business',
+      sentiment: 'neutral',
+      biasScore: 0.0,
+    },
+  ];
+  
+  // Create articles spread over last 24 hours
+  for (let i = 0; i < count && i < sampleArticles.length; i++) {
+    const article = sampleArticles[i];
+    if (!article) continue;
+    
+    const org = newsOrgs[i % newsOrgs.length];
+    if (!org) continue;
+    
+    const hoursAgo = Math.floor((i / count) * 24);
+    const articleTimestamp = new Date(timestamp.getTime() - hoursAgo * 60 * 60 * 1000);
+    
+    await db.createPostWithAllFields({
+      id: generateSnowflakeId(),
+      type: 'article',
+      content: article.summary,
+      articleTitle: article.title,
+      category: article.category,
+      sentiment: article.sentiment,
+      biasScore: article.biasScore,
+      authorId: org.id,
+      gameId: 'continuous',
+      dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+      timestamp: articleTimestamp,
+    });
+  }
+  
+  logger.info(`Created ${count} initial news articles`, undefined, 'GameTick');
+}
+
+/**
+ * Bootstrap trending tags
+ */
+async function bootstrapTrending(): Promise<void> {
+  logger.info('Bootstrapping trending tags...', undefined, 'GameTick');
+  
+  // Check if we have enough posts and tags
+  const postCount = await prisma.post.count();
+  const taggedPostCount = await prisma.post.count({
+    where: { postTags: { some: {} } },
+  });
+  
+  logger.info('Post/tag status for trending', {
+    totalPosts: postCount,
+    taggedPosts: taggedPostCount,
+    taggedPercentage: postCount > 0 ? Math.round((taggedPostCount / postCount) * 100) : 0,
+  }, 'GameTick');
+  
+  // If we have tagged posts, calculate trending
+  if (taggedPostCount >= 10) {
+    await calculateTrendingTags();
+    logger.info('Calculated trending from existing posts', undefined, 'GameTick');
+    return;
+  }
+  
+  // If we have posts but they're not tagged, tag them first
+  if (postCount >= 10 && taggedPostCount < 10) {
+    logger.info('Posts exist but not tagged, waiting for auto-tagging...', undefined, 'GameTick');
+    logger.info('Trending will be calculated once posts are tagged', undefined, 'GameTick');
+    return;
+  }
+  
+  // If we have very few posts, create sample tags and trending
+  logger.info('Creating sample trending data...', undefined, 'GameTick');
+  
+  const sampleTags = [
+    { name: 'markets', displayName: 'Markets', category: 'Finance' },
+    { name: 'tech', displayName: 'Tech', category: 'Tech' },
+    { name: 'ai', displayName: 'AI', category: 'Tech' },
+    { name: 'finance', displayName: 'Finance', category: 'Finance' },
+    { name: 'innovation', displayName: 'Innovation', category: 'Tech' },
+  ];
+  
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  for (let i = 0; i < sampleTags.length; i++) {
+    const tagData = sampleTags[i];
+    if (!tagData) continue;
+    
+    // Create tag
+    const tag = await prisma.tag.upsert({
+      where: { name: tagData.name },
+      update: {},
+      create: tagData,
+    });
+    
+    // Create trending entry
+    const score = (sampleTags.length - i) * 10 + Math.random() * 5;
+    
+    await prisma.trendingTag.create({
+      data: {
+        tagId: tag.id,
+        score,
+        postCount: Math.floor(Math.random() * 10) + 5,
+        rank: i + 1,
+        windowStart: weekAgo,
+        windowEnd: now,
+        relatedContext: null,
+      },
+    });
+  }
+  
+  logger.info(`Created ${sampleTags.length} sample trending tags`, undefined, 'GameTick');
+}
+
+/**
  * Generate mixed posts from both NPCs and organizations
  * This ensures posts are interleaved rather than chunked by type
  */
@@ -342,11 +622,14 @@ async function generateMixedPosts(
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<{ posts: number; articles: number }> {
-  if (questions.length === 0) return { posts: 0, articles: 0 };
-
   const postsToGenerate = 8; // Mix of NPC posts and org articles
   let postsCreated = 0;
   let articlesCreated = 0;
+  
+  if (questions.length === 0) {
+    logger.warn('No questions available for post generation', {}, 'GameTick');
+    return { posts: 0, articles: 0 };
+  }
 
   // Get actors (NPCs) and organizations in parallel
   const [actors, organizations] = await Promise.all([
@@ -374,13 +657,13 @@ async function generateMixedPosts(
   }
 
   const creators: ContentCreator[] = [
-    ...actors.map(actor => ({ 
+    ...actors.map((actor: typeof actors[number]) => ({ 
       id: actor.id, 
       name: actor.name, 
       type: 'actor' as const,
       data: actor 
     })),
-    ...organizations.map(org => ({ 
+    ...organizations.map((org: typeof organizations[number]) => ({ 
       id: org.id, 
       name: org.name || 'Unknown Org', 
       type: 'organization' as const,
@@ -409,16 +692,21 @@ async function generateMixedPosts(
       break;
     }
 
-    const question = questions[i];
-    const actor = actors[i % actors.length];
-
-    // Defensive checks for question and actor validity
-    if (!question || !actor || !actor.name) {
+    const question = questions[i % questions.length]; // Use modulo to cycle through questions
+    
+    // Defensive check for question validity
+    if (!question || !question.text) {
       logger.warn(
-        'Missing question or actor data',
+        'Missing question data',
         { questionIndex: i },
         'GameTick'
       );
+      continue;
+    }
+
+    const creator = creators[i];
+    if (!creator) {
+      logger.warn('Missing creator data', { creatorIndex: i }, 'GameTick');
       continue;
     }
 
@@ -427,9 +715,6 @@ async function generateMixedPosts(
       const slotOffset = i * timeSlotMs;
       const randomJitter = Math.random() * timeSlotMs * 0.8; // 80% of slot for randomness
       const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-
-      const creator = creators[i];
-      if (!creator) continue;
       if (creator.type === 'actor') {
         // Generate NPC post
         const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
@@ -510,7 +795,7 @@ Return your response as JSON in this exact format:
     } catch (error) {
       logger.error(
         'Failed to generate post',
-        { error, questionIndex: i, actorId: actor.id, questionId: question.id },
+        { error, questionIndex: i, creatorId: creator?.id, creatorName: creator?.name, questionId: question?.id },
         'GameTick'
       );
       // Continue with next post instead of failing entire batch
@@ -525,6 +810,88 @@ Return your response as JSON in this exact format:
   }, 'GameTick');
 
   return { posts: postsCreated, articles: articlesCreated };
+}
+
+/**
+ * Generate baseline articles on first tick (when no events exist yet)
+ * Creates general news coverage to seed the Latest News panel
+ */
+async function generateBaselineArticles(
+  newsOrgs: Array<{ id: string; name: string | null; description: string | null }>,
+  timestamp: Date,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
+  let articlesCreated = 0;
+  
+  const baselineTopics = [
+    { topic: "the current state of prediction markets", category: "finance" },
+    { topic: "upcoming trends in tech and politics", category: "tech" },
+    { topic: "volatility in crypto markets", category: "finance" },
+    { topic: "major developments to watch this week", category: "business" },
+    { topic: "the state of global markets", category: "finance" },
+  ];
+  
+  // Calculate timestamp spread
+  const tickDurationMs = 60000; // 1 minute
+  const timeSlotMs = tickDurationMs / newsOrgs.length;
+  
+  for (let i = 0; i < Math.min(5, newsOrgs.length); i++) {
+    if (Date.now() > deadlineMs) break;
+    
+    const org = newsOrgs[i];
+    if (!org || !org.name) continue;
+    
+    const topicData = baselineTopics[i % baselineTopics.length];
+    if (!topicData) continue;
+    
+    try {
+      const slotOffset = i * timeSlotMs;
+      const randomJitter = Math.random() * timeSlotMs * 0.8;
+      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
+      
+      const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
+
+Your article should include:
+- A compelling headline (max 100 chars)
+- A 2-3 sentence summary for the article listing (max 200 chars)
+- Be professional and informative
+- Match the tone of a ${org.description || 'news organization'}
+
+Return your response as JSON in this exact format:
+{
+  "title": "compelling headline here",
+  "summary": "2-3 sentence summary here"
+}`;
+      
+      const response = await llm.generateJSON<{ title: string; summary: string }>(
+        prompt,
+        { properties: { title: { type: 'string' }, summary: { type: 'string' } }, required: ['title', 'summary'] },
+        { temperature: 0.7, maxTokens: 400 }
+      );
+      
+      if (!response.title || !response.summary) continue;
+      
+      await db.createPostWithAllFields({
+        id: generateSnowflakeId(),
+        type: 'article',
+        content: response.summary,
+        articleTitle: response.title,
+        category: topicData.category,
+        authorId: org.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: timestampWithOffset,
+      });
+      articlesCreated++;
+      logger.debug('Created baseline article', { org: org.name, topic: topicData.topic }, 'GameTick');
+    } catch (error) {
+      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
+    }
+  }
+  
+  logger.info('Baseline article generation complete', { articlesCreated }, 'GameTick');
+  return articlesCreated;
 }
 
 /**
@@ -546,7 +913,21 @@ async function generateArticles(
     take: 10,
   });
 
-  if (recentEvents.length === 0) return 0;
+  // If no recent events, generate baseline articles about general topics
+  if (recentEvents.length === 0) {
+    logger.info('No recent events - generating baseline articles', {}, 'GameTick');
+    const newsOrgs = await prisma.organization.findMany({
+      where: { type: 'media' },
+      take: 5,
+    });
+    
+    if (newsOrgs.length === 0) {
+      logger.warn('No news organizations found for baseline articles', {}, 'GameTick');
+      return 0;
+    }
+    
+    return await generateBaselineArticles(newsOrgs, timestamp, llm, deadlineMs);
+  }
 
   // Get news organizations (media type)
   const newsOrgs = await prisma.organization.findMany({
@@ -597,7 +978,7 @@ async function generateArticles(
         day: event.dayNumber || 0,
       };
 
-      const organizations = newsOrgs.map((org) => ({
+      const organizations = newsOrgs.map((org: typeof newsOrgs[number]) => ({
         id: org.id,
         name: org.name || 'Unknown Organization',
         description: org.description || '',
@@ -608,8 +989,8 @@ async function generateArticles(
       }));
 
       const actorList = actors
-        .filter((a) => a && a.id && a.name) // Filter out invalid actors
-        .map((a) => ({
+        .filter((a: typeof actors[number]) => a && a.id && a.name) // Filter out invalid actors
+        .map((a: typeof actors[number]) => ({
           id: a.id,
           name: a.name,
           description: a.description || '',
@@ -939,8 +1320,8 @@ async function updateWidgetCaches(): Promise<number> {
 
     const perpMarketsWithStats = await Promise.all(
       companies
-        .filter((company) => company && company.id && company.name) // Filter out invalid companies
-        .map(async (company) => {
+        .filter((company: typeof companies[number]) => company && company.id && company.name) // Filter out invalid companies
+        .map(async (company: typeof companies[number]) => {
           try {
             const currentPrice =
               company.currentPrice || company.initialPrice || 100;
@@ -986,7 +1367,8 @@ async function updateWidgetCaches(): Promise<number> {
 
     const topPerpGainers = perpMarketsWithStats
       .sort(
-        (a, b) => Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h)
+        (a: typeof perpMarketsWithStats[number], b: typeof perpMarketsWithStats[number]) => 
+          Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h)
       )
       .slice(0, 3);
 
@@ -1002,8 +1384,8 @@ async function updateWidgetCaches(): Promise<number> {
     });
 
     const poolsWithReturn = pools
-      .filter((pool) => pool && pool.id && pool.name) // Filter out invalid pools
-      .map((pool) => {
+      .filter((pool: typeof pools[number]) => pool && pool.id && pool.name) // Filter out invalid pools
+      .map((pool: typeof pools[number]) => {
         const totalDeposits = parseFloat(pool.totalDeposits.toString());
         const totalValue = parseFloat(pool.totalValue.toString());
         const totalReturn =
@@ -1039,7 +1421,9 @@ async function updateWidgetCaches(): Promise<number> {
       });
 
     const topPoolGainers = poolsWithReturn
-      .sort((a, b) => b.totalReturn - a.totalReturn)
+      .sort((a: typeof poolsWithReturn[number], b: typeof poolsWithReturn[number]) => 
+        b.totalReturn - a.totalReturn
+      )
       .slice(0, 3);
 
     // 3. Get top 3 questions by time-weighted volume
@@ -1057,7 +1441,7 @@ async function updateWidgetCaches(): Promise<number> {
       },
     });
 
-    const marketsWithTimeWeightedVolume = activeMarkets.map((market) => {
+    const marketsWithTimeWeightedVolume = activeMarkets.map((market: typeof activeMarkets[number]) => {
       const yesShares = market.yesShares ? Number(market.yesShares) : 0;
       const noShares = market.noShares ? Number(market.noShares) : 0;
       const totalShares = yesShares + noShares;
@@ -1084,7 +1468,9 @@ async function updateWidgetCaches(): Promise<number> {
     });
 
     const topVolumeQuestions = marketsWithTimeWeightedVolume
-      .sort((a, b) => b.timeWeightedScore - a.timeWeightedScore)
+      .sort((a: typeof marketsWithTimeWeightedVolume[number], b: typeof marketsWithTimeWeightedVolume[number]) => 
+        b.timeWeightedScore - a.timeWeightedScore
+      )
       .slice(0, 3);
 
     // Update cache
@@ -1118,5 +1504,29 @@ async function updateWidgetCaches(): Promise<number> {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error('Failed to update widget caches', { error: errorMessage }, 'GameTick');
     return 0;
+  }
+}
+
+/**
+ * Force trending calculation (for first tick with baseline posts)
+ * Waits a few seconds for tags to be generated from posts, then calculates trending
+ */
+async function forceTrendingCalculation(): Promise<boolean> {
+  try {
+    logger.info('Forcing trending calculation (first tick)', {}, 'GameTick');
+    
+    // Wait 3 seconds for tag generation to complete (tags are generated async)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Import and call trending calculation directly
+    const { calculateTrendingTags } = await import('./services/trending-calculation-service');
+    await calculateTrendingTags();
+    
+    logger.info('Forced trending calculation complete', {}, 'GameTick');
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to force trending calculation', { error: errorMessage }, 'GameTick');
+    return false;
   }
 }

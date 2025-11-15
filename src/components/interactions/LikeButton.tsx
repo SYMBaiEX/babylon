@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { LikeButtonProps } from '@/types/interactions';
 import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { useSocialTracking } from '@/hooks/usePostHog';
 
 // Reaction configuration type
 type ReactionConfig = {
@@ -85,6 +86,7 @@ export function LikeButton({
   const longPressStartTime = useRef<number>(0);
 
   const { toggleLike, toggleCommentLike, postInteractions, commentInteractions, loadingStates } = useInteractionStore();
+  const { trackPostLike } = useSocialTracking();
 
   // Get state from store instead of local state
   const storeData = targetType === 'post' 
@@ -109,8 +111,13 @@ export function LikeButton({
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 300);
 
+    const willBeLiked = !isLiked;
     if (targetType === 'post') {
       await toggleLike(targetId);
+      // Track like action (client-side for instant feedback)
+      if (willBeLiked) {
+        trackPostLike(targetId, true);
+      }
     } else {
       await toggleCommentLike(targetId);
     }

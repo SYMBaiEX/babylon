@@ -27,11 +27,11 @@ export async function GET(_request: NextRequest) {
 
   // Test database connection
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await prisma.$queryRawUnsafe('SELECT 1');
     checks.databaseConnection = '✅ Connected';
     
     // Get database info
-    const result = await prisma.$queryRaw<Array<{ version: string | null }>>`SELECT version()`;
+    const result = await prisma.$queryRawUnsafe<Array<{ version: string | null }>>('SELECT version()');
     const rawVersion = result?.[0]?.version ?? null;
     if (rawVersion) {
       const extracted = rawVersion.split(' ')[0];

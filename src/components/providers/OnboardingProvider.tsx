@@ -2,40 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  useIdentityToken,
-  useSendTransaction,
-} from '@privy-io/react-auth';
-import { type Address, encodeFunctionData, parseAbi } from 'viem';
+import { useIdentityToken } from '@privy-io/react-auth';
 
 import {
-  OnboardingModal,
   type ImportedProfileData,
+  OnboardingModal,
 } from '@/components/onboarding/OnboardingModal';
+
 import { apiFetch } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
-import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
 import {
-  isEmbeddedPrivyWallet,
   WALLET_ERROR_MESSAGES,
   getWalletErrorMessage,
 } from '@/lib/wallet-utils';
 
 import { useAuth } from '@/hooks/useAuth';
+import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
 
-import { CHAIN_ID } from '@/constants/chains';
-import { useAuthStore, type User as StoreUser } from '@/stores/authStore';
-import {
-  clearReferralCode,
-  getReferralCode,
-} from './ReferralCaptureProvider';
+import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
+
+import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
 type OnboardingStage = 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
-
-const CAPABILITIES_HASH =
-  '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
-const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
 
 function extractErrorMessage(error: unknown): string {
   if (!error) return 'Unknown error';
@@ -50,46 +39,6 @@ function extractErrorMessage(error: unknown): string {
   return 'Unknown error';
 }
 
-async function requestClientRegistrationTx(
-  walletAddress: string,
-  profile: OnboardingProfilePayload,
-  sendTransaction: ReturnType<typeof useSendTransaction>['sendTransaction']
-): Promise<string> {
-  const registryAddress =
-    process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA;
-  if (!registryAddress) {
-    throw new Error('Identity registry contract address is not configured.');
-  }
-
-  const agentEndpoint = `https://babylon.game/agent/${walletAddress.toLowerCase()}`;
-  const metadataUri = JSON.stringify({
-    name: profile.displayName ?? profile.username,
-    bio: profile.bio ?? '',
-    type: 'user',
-    registered: new Date().toISOString(),
-  });
-
-  const data = encodeFunctionData({
-    abi: identityRegistryAbi,
-    functionName: 'registerAgent',
-    args: [profile.username, agentEndpoint, CAPABILITIES_HASH, metadataUri],
-  });
-
-  const txRequest = {
-    to: registryAddress as Address,
-    data,
-    value: '0x0' as `0x${string}`,
-    chainId: CHAIN_ID,
-  };
-
-  const { hash } = await sendTransaction(txRequest, {
-    sponsor: true,
-    address: walletAddress as `0x${string}`,
-  });
-
-  return hash;
-}
-
 export function OnboardingProvider({
   children,
 }: {
@@ -98,19 +47,16 @@ export function OnboardingProvider({
   const {
     authenticated,
     user,
-    wallet,
     needsOnboarding,
     needsOnchain,
     loadingProfile,
     refresh,
   } = useAuth();
+
   const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore();
   const { identityToken } = useIdentityToken();
-  const { sendTransaction: privySendTransaction } = useSendTransaction();
-  const embeddedWallet = useMemo(
-    () => (wallet && isEmbeddedPrivyWallet(wallet) ? wallet : null),
-    [wallet]
-  );
+  const { registerAgent, smartWalletAddress, smartWalletReady } =
+    useRegisterAgentTx();
 
   const [stage, setStage] = useState<OnboardingStage>('SOCIAL_IMPORT');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -275,20 +221,24 @@ export function OnboardingProvider({
   const submitOnchain = useCallback(
     async (profile: OnboardingProfilePayload, referralCode: string | null) => {
       // Defensive check: skip if user is already fully registered
-      if (user?.onChainRegistered && user?.nftTokenId && user?.profileComplete) {
+      if (
+        user?.onChainRegistered &&
+        user?.nftTokenId &&
+        user?.profileComplete
+      ) {
         logger.info(
           'User already fully registered, skipping onchain submission',
           { userId: user.id, nftTokenId: user.nftTokenId },
           'OnboardingProvider'
-        )
-        setNeedsOnboarding(false)
-        setNeedsOnchain(false)
-        setStage('COMPLETED')
-        return
+        );
+        setNeedsOnboarding(false);
+        setNeedsOnchain(false);
+        setStage('COMPLETED');
+        return;
       }
 
       const body = {
-        walletAddress: embeddedWallet?.address ?? wallet?.address ?? null,
+        walletAddress: smartWalletAddress ?? null,
         referralCode: referralCode ?? undefined,
       };
 
@@ -350,34 +300,45 @@ export function OnboardingProvider({
       };
 
       const completeWithClient = async () => {
-        if (!embeddedWallet?.address) {
+        if (!smartWalletReady || !smartWalletAddress) {
           throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
         }
-        
-        // Warn if user is connected with external wallet
-        if (wallet && !isEmbeddedPrivyWallet(wallet)) {
-          logger.warn(
-            'User has external wallet connected, but embedded wallet required for gas sponsorship',
-            { externalWallet: wallet.address, embeddedWallet: embeddedWallet.address },
-            'OnboardingProvider'
-          );
-        }
-        
+
         logger.info(
           'Attempting client-signed on-chain registration',
-          { address: embeddedWallet.address },
+          { address: smartWalletAddress },
           'OnboardingProvider'
         );
-        const txHash = await requestClientRegistrationTx(
-          embeddedWallet.address,
-          profile,
-          privySendTransaction
-        );
-        logger.info(
-          'Client-submitted on-chain registration transaction',
-          { txHash },
-          'OnboardingProvider'
-        );
+
+        // Check if wallet is already registered before submitting transaction
+        // If already registered, the server will handle syncing the state
+        let txHash: string | undefined;
+        try {
+          txHash = await registerAgent(profile);
+          logger.info(
+            'Client-submitted on-chain registration transaction',
+            { txHash },
+            'OnboardingProvider'
+          );
+        } catch (txError: unknown) {
+          const errorMessage = String(
+            txError instanceof Error ? txError.message : txError
+          ).toLowerCase();
+          // If the error is "already registered", don't throw - let the server handle it
+          if (errorMessage.includes('already registered')) {
+            logger.info(
+              'Wallet already registered on-chain, syncing with server',
+              { address: smartWalletAddress },
+              'OnboardingProvider'
+            );
+            // Call the endpoint without a txHash - server will detect existing registration
+            const data = await callEndpoint(body);
+            return data;
+          }
+          // For other errors, re-throw
+          throw txError;
+        }
+        
         const data = await callEndpoint({
           ...body,
           txHash,
@@ -388,29 +349,6 @@ export function OnboardingProvider({
         const response = await completeWithClient();
         applyResponse(response);
       } catch (rawError) {
-        const message = extractErrorMessage(rawError);
-        if (
-          (message.includes('SERVER_SIGNER_UNSUPPORTED') ||
-            message.includes('Server wallet not configured')) &&
-          embeddedWallet?.address &&
-          !user?.isActor
-        ) {
-          try {
-            const clientResponse = await completeWithClient();
-            applyResponse(clientResponse);
-            return;
-          } catch (clientFallbackError) {
-            const fallbackMessage = getWalletErrorMessage(clientFallbackError);
-            setError(fallbackMessage);
-            logger.error(
-              'Client fallback failed after server signer unsupported',
-              { error: clientFallbackError },
-              'OnboardingProvider'
-            );
-            return;
-          }
-        }
-
         // Use wallet-aware error message
         const userFriendlyMessage = getWalletErrorMessage(rawError);
         setError(userFriendlyMessage);
@@ -422,13 +360,14 @@ export function OnboardingProvider({
       }
     },
     [
-      embeddedWallet,
+      smartWalletReady,
       refresh,
+      registerAgent,
       setNeedsOnboarding,
       setNeedsOnchain,
       setUser,
+      smartWalletAddress,
       user,
-      wallet,
     ]
   );
 
@@ -472,7 +411,8 @@ export function OnboardingProvider({
         if (data.user) {
           setUser({
             id: data.user.id,
-            walletAddress: data.user.walletAddress ?? wallet?.address,
+            walletAddress:
+              data.user.walletAddress ?? smartWalletAddress ?? undefined,
             displayName: data.user.displayName ?? payload.displayName,
             email: user?.email,
             username: data.user.username ?? payload.username,
@@ -518,11 +458,11 @@ export function OnboardingProvider({
     [
       submitOnchain,
       user,
-      wallet,
       setUser,
       setNeedsOnboarding,
       setNeedsOnchain,
       identityToken,
+      smartWalletAddress,
     ]
   );
 

@@ -20,7 +20,7 @@ import {
   UserPlus,
   Users
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 interface ReferredUser {
   id: string
@@ -64,7 +64,7 @@ export default function ReferralsPage() {
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
 
-  const fetchReferralData = async () => {
+  const fetchReferralData = useCallback(async () => {
     if (!user?.id || !authenticated) return
 
     setLoading(true)
@@ -97,7 +97,7 @@ export default function ReferralsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id, authenticated, getAccessToken])
 
   useEffect(() => {
     if (ready && authenticated && user?.id) {
@@ -105,7 +105,7 @@ export default function ReferralsPage() {
     } else if (ready && !authenticated) {
       setLoading(false)
     }
-  }, [user, ready, authenticated])
+  }, [user?.id, ready, authenticated, fetchReferralData])
 
   const handleCopyCode = async () => {
     if (!referralData?.user.referralCode) return
@@ -129,7 +129,7 @@ export default function ReferralsPage() {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center max-w-md">
             <Gift className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-bold text-foreground mb-2">Connect Your Wallet</h2>
+            <h2 className="text-xl font-bold text-foreground mb-2">log in</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to get your unique referral code and start inviting friends
             </p>
@@ -541,7 +541,7 @@ export default function ReferralsPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="w-2 h-2 bg-[#0066FF] rounded-full mt-1.5 flex-shrink-0"></span>
-                      <span><strong className="text-[#0066FF]">Auto-follow</strong> - they'll automatically follow you</span>
+                      <span><strong className="text-[#0066FF]">Auto-follow</strong> - they&apos;ll automatically follow you</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></span>
@@ -662,7 +662,7 @@ export default function ReferralsPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
-                    <span>Share interesting markets or trades you've made</span>
+                    <span>Share interesting markets or trades you&apos;ve made</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>

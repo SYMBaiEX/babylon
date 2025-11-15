@@ -15,6 +15,7 @@ import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * Safely convert a date value to ISO string
@@ -50,6 +51,7 @@ export async function GET(request: Request) {
     const actorId = searchParams.get('actorId') || undefined;
     const following = searchParams.get('following') === 'true';
     const userId = searchParams.get('userId') || undefined; // For following feed, need userId
+    const type = searchParams.get('type') || undefined; // Filter by post type (article, post, etc.)
 
     // If following feed is requested, filter by followed users/actors
     if (following && userId) {
@@ -173,9 +175,19 @@ export async function GET(request: Request) {
     // Get posts from database with caching
     let posts;
     
-    logger.info('Fetching posts from database (with cache)', { limit, offset, actorId, hasActorId: !!actorId }, 'GET /api/posts');
+    logger.info('Fetching posts from database (with cache)', { limit, offset, actorId, type, hasActorId: !!actorId, hasType: !!type }, 'GET /api/posts');
     
-    if (actorId) {
+    if (type) {
+      // Filter by type (e.g., 'article')
+      logger.info('Filtering posts by type', { type, limit, offset }, 'GET /api/posts');
+      posts = await prisma.post.findMany({
+        where: { type },
+        orderBy: { timestamp: 'desc' },
+        take: limit,
+        skip: offset,
+      });
+      logger.info('Fetched posts by type', { type, count: posts.length }, 'GET /api/posts');
+    } else if (actorId) {
       // Get posts by specific actor (cached)
       posts = await cachedDb.getPostsByActor(actorId, limit);
       logger.info('Fetched posts by actor (cached)', { actorId, count: posts.length }, 'GET /api/posts');
@@ -444,6 +456,15 @@ export async function POST(request: NextRequest) {
       logger.error('Failed to broadcast post to SSE:', error, 'POST /api/posts');
       // Don't fail the request if SSE broadcast fails
     }
+
+    // Track post creation with PostHog
+    trackServerEvent(canonicalUserId, 'post_created', {
+      postId: post.id,
+      contentLength: content.trim().length,
+      hasUsername: Boolean(canonicalUser.username),
+    }).catch((trackError) => {
+      logger.warn('Failed to track post creation with PostHog', { error: trackError });
+    });
 
     return successResponse({
       success: true,

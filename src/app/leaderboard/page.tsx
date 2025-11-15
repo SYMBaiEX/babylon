@@ -14,8 +14,13 @@ interface LeaderboardUser {
   username: string | null
   displayName: string | null
   profileImageUrl: string | null
-  reputationPoints: number
+  allPoints: number // New: total points
+  invitePoints: number // New: points from referrals
+  earnedPoints: number // New: points from trading P&L
+  bonusPoints: number // New: bonus points from email/wallet
   referralCount: number
+  balance: number
+  lifetimePnL: number
   createdAt: Date
   rank: number
   isActor?: boolean
@@ -137,6 +142,7 @@ export default function LeaderboardPage() {
                   <Link
                     key={player.id}
                     href={profileUrl}
+                    data-testid={player.isActor ? 'npc-entry' : 'leaderboard-entry'}
                     className={`block p-4 transition-colors ${
                       isCurrentUser
                         ? 'bg-[#0066FF]/20 border-l-4'
@@ -187,9 +193,9 @@ export default function LeaderboardPage() {
                         <div className="flex items-center gap-3">
                           <div>
                             <div className="text-lg font-bold text-foreground">
-                              {player.reputationPoints.toLocaleString()}
+                              {player.allPoints?.toLocaleString() || 0}
                             </div>
-                            <div className="text-xs text-muted-foreground">points</div>
+                            <div className="text-xs text-muted-foreground">All Points</div>
                           </div>
                           <div className="flex-shrink-0">
                             <RankBadge rank={player.rank} size="md" showLabel={false} />
@@ -198,10 +204,29 @@ export default function LeaderboardPage() {
                       </div>
                     </div>
 
-                    {/* Additional Info for Top 10 */}
-                    {player.rank <= 10 && player.referralCount > 0 && (
-                      <div className="mt-2 ml-16 text-xs text-muted-foreground">
-                        {player.referralCount} referral{player.referralCount !== 1 ? 's' : ''}
+                    {/* Points Breakdown - Show for all users */}
+                    {!player.isActor && (player.invitePoints > 0 || player.earnedPoints !== 0 || player.bonusPoints > 0) && (
+                      <div className="mt-2 ml-16 flex gap-4 text-xs">
+                        {player.invitePoints > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Invite:</span>
+                            <span className="font-semibold text-primary">{player.invitePoints}</span>
+                          </div>
+                        )}
+                        {player.earnedPoints !== 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Earned:</span>
+                            <span className={`font-semibold ${player.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {player.earnedPoints > 0 ? '+' : ''}{player.earnedPoints}
+                            </span>
+                          </div>
+                        )}
+                        {player.bonusPoints > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Bonus:</span>
+                            <span className="font-semibold text-yellow-500">{player.bonusPoints}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </Link>
@@ -345,7 +370,7 @@ export default function LeaderboardPage() {
                             </p>
                           )}
                           <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
-                            <span>{player.reputationPoints.toLocaleString()} pts</span>
+                            <span>{player.allPoints?.toLocaleString() || 0} pts</span>
                             {player.rank <= 3 && (
                               <RankBadge rank={player.rank} />
                             )}

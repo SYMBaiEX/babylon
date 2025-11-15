@@ -9,6 +9,7 @@ import { authenticate } from '@/lib/api/auth-middleware'
 import { X402Manager } from '@/a2a/payments/x402-manager'
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 // Initialize x402 manager
 const x402Manager = new X402Manager({
@@ -117,6 +118,17 @@ export async function POST(req: NextRequest) {
       },
       'PointsPurchase'
     )
+
+    // Track points purchase completed
+    trackServerEvent(userId, 'points_purchase_completed', {
+      amountUSD,
+      pointsAwarded: result.pointsAwarded,
+      newTotal: result.newTotal,
+      requestId,
+      txHash,
+    }).catch((error) => {
+      logger.warn('Failed to track points_purchase_completed event', { error });
+    });
 
     return NextResponse.json({
       success: true,

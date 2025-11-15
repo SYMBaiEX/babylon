@@ -32,6 +32,9 @@ const userSelect = {
   hasTwitter: true,
   farcasterUsername: true,
   twitterUsername: true,
+  showTwitterPublic: true,
+  showFarcasterPublic: true,
+  showWalletPublic: true,
   createdAt: true,
   updatedAt: true,
 } as const
@@ -89,6 +92,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     hasTwitter: dbUser.hasTwitter,
     farcasterUsername: dbUser.farcasterUsername,
     twitterUsername: dbUser.twitterUsername,
+    showTwitterPublic: dbUser.showTwitterPublic,
+    showFarcasterPublic: dbUser.showFarcasterPublic,
+    showWalletPublic: dbUser.showWalletPublic,
     createdAt: dbUser.createdAt.toISOString(),
     updatedAt: dbUser.updatedAt.toISOString(),
   }

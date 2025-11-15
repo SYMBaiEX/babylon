@@ -179,7 +179,7 @@ export default function GamePage() {
               The continuous game engine runs in real-time, generating 10-20 posts per minute and updating markets automatically.
             </p>
             <p>
-              Posts appear in the <span className="text-foreground font-medium">Home</span> feed as they're generated.
+              Posts appear in the <span className="text-foreground font-medium">Home</span> feed as they&apos;re generated.
               Prediction markets update in the <span className="text-foreground font-medium">Markets</span> tab.
             </p>
             <p className="text-xs mt-4 p-3 bg-muted rounded-lg">

@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { EarnedPointsService } from '@/lib/services/earned-points-service';
 
 export interface BalanceInfo {
   balance: number;
@@ -191,9 +192,9 @@ export class WalletService {
   }
 
   /**
-   * Record PnL (update lifetime PnL)
+   * Record PnL (update lifetime PnL and earned points)
    */
-  static async recordPnL(userId: string, pnl: number): Promise<void> {
+  static async recordPnL(userId: string, pnl: number, tradeType?: string, relatedId?: string): Promise<void> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -209,6 +210,16 @@ export class WalletService {
       data: {
         lifetimePnL: new Prisma.Decimal(newLifetimePnL),
       },
+    });
+
+    // Award earned points based on P&L (async, non-blocking)
+    EarnedPointsService.awardEarnedPointsForPnL(
+      userId, 
+      pnl, 
+      tradeType || 'unknown',
+      relatedId
+    ).catch((error) => {
+      logger.error('Failed to award earned points for P&L', { userId, pnl, error }, 'WalletService');
     });
   }
 

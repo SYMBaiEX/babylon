@@ -12,15 +12,14 @@ prisma/migrations/
 .vscode/
 .idea/
 .serena/
-cache/
+cache/*
 broadcast/
 data/
-docs/
 bun.lock
 plugin-babylon/.eliza/
-cache/
 claudedocs/
 package-lock.json
+test-results/
 
 # Uploaded user files - keep directory structure but ignore actual files
 /public/uploads/**/*

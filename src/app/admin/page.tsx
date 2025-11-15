@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -20,11 +20,7 @@ export default function AdminDashboard() {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    checkAdminAccess()
-  }, [authenticated, user])
-
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!authenticated) {
       router.push('/')
       return
@@ -45,7 +41,11 @@ export default function AdminDashboard() {
       setIsAuthorized(false)
       setLoading(false)
     }
-  }
+  }, [authenticated, router, user])
+
+  useEffect(() => {
+    checkAdminAccess()
+  }, [checkAdminAccess])
 
   if (loading) {
     return (
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col items-center justify-center h-full">
           <Shield className="w-16 h-16 text-muted-foreground mb-4" />
           <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground">You don't have permission to access the admin dashboard.</p>
+          <p className="text-muted-foreground">You don&apos;t have permission to access the admin dashboard.</p>
         </div>
       </PageContainer>
     )

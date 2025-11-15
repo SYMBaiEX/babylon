@@ -16,6 +16,7 @@ import { UserIdParamSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 // Link social schema (extending the one in schemas/game.ts)
 const LinkSocialRequestSchema = z.object({
@@ -130,6 +131,17 @@ export const POST = withErrorHandling(async (
     { userId: canonicalUserId, platform, username, address, alreadyLinked },
     'POST /api/users/[userId]/link-social'
   );
+
+  // Track social account linked event
+  trackServerEvent(canonicalUserId, 'social_account_linked', {
+    platform,
+    username: username || undefined,
+    address: address || undefined,
+    wasAlreadyLinked: alreadyLinked,
+    pointsAwarded: pointsResult?.pointsAwarded || 0,
+  }).catch((error) => {
+    logger.warn('Failed to track social_account_linked event', { error });
+  });
 
   return successResponse({
     platform,

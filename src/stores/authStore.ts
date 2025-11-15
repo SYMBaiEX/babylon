@@ -32,6 +32,13 @@ export interface User {
   bannerLastShown?: string
   bannerDismissCount?: number
   usernameChangedAt?: string | null
+  // Legal and compliance
+  tosAccepted?: boolean
+  tosAcceptedAt?: string | null
+  tosAcceptedVersion?: string | null
+  privacyPolicyAccepted?: boolean
+  privacyPolicyAcceptedAt?: string | null
+  privacyPolicyAcceptedVersion?: string | null
   stats?: {
     positions?: number
     comments?: number

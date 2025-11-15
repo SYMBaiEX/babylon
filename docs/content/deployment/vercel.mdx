@@ -1,0 +1,383 @@
+# Deploy to Vercel
+
+Complete guide to deploying Babylon to Vercel with Upstash Redis and Neon PostgreSQL.
+
+## Prerequisites
+
+Before deploying, ensure you have:
+
+- Vercel account ([vercel.com](https://vercel.com))
+- GitHub repository with Babylon code
+- Neon account for PostgreSQL ([neon.tech](https://neon.tech))
+- Upstash account for Redis ([upstash.com](https://upstash.com))
+- Privy account ([privy.io](https://privy.io))
+
+## Step 1: Database Setup (Neon)
+
+### Create PostgreSQL Database
+
+1. **Sign up** at [neon.tech](https://neon.tech)
+2. **Create a new project**
+   - Name: `babylon-production`
+   - Region: Choose closest to your users
+3. **Copy connection strings**:
+   - Pooled connection (for API routes)
+   - Direct connection (for migrations)
+
+Example URLs:
+```
+# Pooled connection (use for DATABASE_URL)
+postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/babylon?sslmode=require
+
+# Direct connection (use for migrations)
+postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/babylon?sslmode=require&direct=true
+```
+
+### Run Migrations
+
+From your local machine:
+
+```bash
+# Set DATABASE_URL to Neon direct connection
+export DATABASE_URL="postgresql://..."
+
+# Run migrations
+bun run prisma:migrate deploy
+
+# Seed initial data
+bun run prisma:seed
+```
+
+## Step 2: Redis Setup (Upstash)
+
+### Create Redis Database
+
+1. **Sign up** at [upstash.com](https://upstash.com)
+2. **Create new database**
+   - Name: `babylon-production`
+   - Region: Same as your Vercel deployment
+   - Type: Regional (or Global for multi-region)
+3. **Copy credentials**:
+   - REST URL
+   - REST Token
+
+Example:
+```
+UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AabBcc...
+```
+
+## Step 3: Vercel Deployment
+
+### Connect Repository
+
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Import your GitHub repository
+3. Configure project:
+   - **Framework Preset**: Next.js
+   - **Root Directory**: `./` (or leave empty)
+   - **Build Command**: `bun run build`
+   - **Install Command**: `bun install`
+
+### Environment Variables
+
+Add these in Vercel dashboard under **Settings → Environment Variables**:
+
+#### Required Variables
+
+```bash
+# Database (Neon)
+DATABASE_URL="postgresql://user:pass@host/babylon?sslmode=require&pgbouncer=true"
+DIRECT_DATABASE_URL="postgresql://user:pass@host/babylon?sslmode=require"
+
+# Redis (Upstash)
+UPSTASH_REDIS_REST_URL="https://xxx.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your_token"
+
+# Privy Authentication
+NEXT_PUBLIC_PRIVY_APP_ID="clp..."
+PRIVY_APP_SECRET="your_secret"
+
+# AI Provider
+OPENAI_API_KEY="sk-..."
+# OR
+GROQ_API_KEY="gsk_..."
+
+# Cron Secret (generate with: openssl rand -hex 32)
+CRON_SECRET="your_random_secret"
+
+# App URL
+NEXT_PUBLIC_API_URL="https://babylon.market"
+```
+
+#### Optional but Recommended
+
+```bash
+# Storage (Vercel Blob)
+BLOB_READ_WRITE_TOKEN="vercel_blob_token"
+
+# Blockchain
+BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
+BASE_RPC_URL="https://mainnet.base.org"
+
+# Social Auth
+TWITTER_CLIENT_ID="your_client_id"
+TWITTER_CLIENT_SECRET="your_client_secret"
+FARCASTER_CLIENT_ID="your_client_id"
+FARCASTER_CLIENT_SECRET="your_client_secret"
+```
+
+### Deploy
+
+Click **Deploy** and wait for the build to complete (usually 2-3 minutes).
+
+## Step 4: Vercel Integrations
+
+### Add Neon Integration
+
+1. Go to **Integrations** in Vercel dashboard
+2. Search for "Neon"
+3. Click **Add Integration**
+4. Follow prompts to connect your Neon database
+5. This will automatically set `DATABASE_URL` for all environments
+
+### Add Upstash Integration
+
+1. Go to **Integrations** in Vercel dashboard
+2. Search for "Upstash"
+3. Click **Add Integration**
+4. Follow prompts to connect your Upstash database
+5. This will automatically set Redis environment variables
+
+### Benefits of Integrations
+
+- Automatic environment variable management
+- Zero-downtime database migrations
+- Connection pooling optimization
+- Monitoring and alerts
+
+## Step 5: Configure Domains
+
+### Custom Domain
+
+1. Go to **Settings → Domains**
+2. Add your custom domain (e.g., `babylon.market`)
+3. Add DNS records as instructed by Vercel
+4. Wait for DNS propagation (5-60 minutes)
+
+### Update Privy
+
+After domain is configured:
+
+1. Go to [dashboard.privy.io](https://dashboard.privy.io)
+2. Add your production domain to allowed domains
+3. Update callback URLs
+
+## Step 6: Cron Jobs
+
+Vercel automatically configures cron jobs from `vercel.json`:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/game-tick",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/reputation/sync",
+      "schedule": "0 */3 * * *"
+    }
+  ]
+}
+```
+
+### Verify Cron Setup
+
+Check cron logs in Vercel dashboard:
+1. Go to **Deployment**
+2. Click **Functions**
+3. View cron execution logs
+
+## Step 7: Monitoring
+
+### Enable Vercel Analytics
+
+1. Go to **Analytics** tab
+2. Enable Web Analytics
+3. Enable Speed Insights
+
+### Setup Error Tracking
+
+Add Sentry or similar:
+
+```bash
+# Install Sentry
+bun add @sentry/nextjs
+
+# Configure in next.config.mjs
+```
+
+### Database Monitoring
+
+Neon provides built-in monitoring:
+- Go to your Neon project
+- View **Monitoring** tab
+- Check query performance and connection pools
+
+## Performance Optimization
+
+### Edge Caching
+
+Configure in `next.config.mjs`:
+
+```javascript
+export default {
+  // Enable edge caching for static assets
+  images: {
+    domains: ['babylon.market'],
+  },
+  // Configure headers for caching
+  async headers() {
+    return [
+      {
+        source: '/api/markets/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 's-maxage=60, stale-while-revalidate',
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+### Connection Pooling
+
+Ensure Prisma uses connection pooling:
+
+```env
+DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=10"
+```
+
+### Redis Caching
+
+Cache frequently accessed data:
+
+```typescript
+import { redis } from '@/lib/redis';
+
+// Cache for 5 minutes
+await redis.set('markets:active', JSON.stringify(markets), 'EX', 300);
+```
+
+## Troubleshooting
+
+### Build Failures
+
+**Issue**: `Module not found` errors
+
+**Solution**: Ensure all dependencies are in `package.json`:
+```bash
+bun install --production
+```
+
+**Issue**: `Prisma Client not generated`
+
+**Solution**: Add to `package.json`:
+```json
+{
+  "scripts": {
+    "postinstall": "prisma generate"
+  }
+}
+```
+
+### Database Connection Errors
+
+**Issue**: `P1001: Can't reach database server`
+
+**Solution**: Check these:
+1. Verify `DATABASE_URL` is correct
+2. Ensure database is not suspended (Neon free tier)
+3. Check IP allowlist in Neon dashboard
+
+### Redis Connection Errors
+
+**Issue**: `ECONNREFUSED` or timeout
+
+**Solution**:
+1. Verify `UPSTASH_REDIS_REST_URL` and token
+2. Check Upstash dashboard for database status
+3. Ensure using REST API (not Redis protocol)
+
+### Cron Jobs Not Running
+
+**Issue**: Cron endpoint returns 401
+
+**Solution**: Verify `CRON_SECRET` matches in:
+1. Vercel environment variables
+2. Your cron endpoint authorization check
+
+## Multi-Region Deployment
+
+For global low-latency:
+
+### 1. Enable Edge Functions
+
+```typescript
+// app/api/route.ts
+export const runtime = 'edge';
+```
+
+### 2. Use Upstash Global
+
+Upgrade Upstash to Global plan for multi-region replication.
+
+### 3. Read Replicas
+
+Configure Neon read replicas:
+```env
+DATABASE_URL="postgresql://primary..."
+DIRECT_DATABASE_URL="postgresql://direct..."
+REPLICA_URL="postgresql://replica..."
+```
+
+## Cost Optimization
+
+### Neon
+
+- **Free Tier**: 0.5 GB storage, 10k rows
+- **Scale**: Start at $19/month
+- Tip: Use autoscaling to reduce costs
+
+### Upstash
+
+- **Free Tier**: 10k commands/day
+- **Scale**: Pay per request
+- Tip: Set TTL on cached data
+
+### Vercel
+
+- **Hobby**: Free for personal projects
+- **Pro**: $20/month for production
+- Tip: Optimize function execution time
+
+## Next Steps
+
+- [Configure Environment Variables](/deployment/environment)
+- [Setup Monitoring](/deployment/monitoring)
+- [Deploy Smart Contracts](/deployment/contracts)
+- [Troubleshooting Guide](/deployment/troubleshooting)
+
+## Support
+
+Having issues deploying?
+
+- Check [Vercel Status](https://vercel-status.com)
+- Review [Build Logs](https://vercel.com/docs/deployments/logs)
+- Join our [Discord](https://discord.gg/babylon)
+- Open a [GitHub Issue](https://github.com/elizaos/babylon/issues)
+
