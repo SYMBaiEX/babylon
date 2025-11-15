@@ -15,7 +15,7 @@ export interface AgentConfig {
   character: Character
   
   // Runtime config
-  modelTier: 'free' | 'pro'
+  modelTier: 'lite' | 'standard' | 'pro'
   autonomousEnabled: boolean
   isActive: boolean
   
@@ -88,12 +88,13 @@ export interface CreateAgentParams {
   name: string
   description?: string
   profileImageUrl?: string
+  coverImageUrl?: string
   system: string
   bio?: string[]
   personality?: string
   tradingStrategy?: string
   initialDeposit?: number
-  modelTier?: 'free' | 'pro'
+  modelTier?: 'lite' | 'standard' | 'pro'
 }
 
 export interface ChatRequest {

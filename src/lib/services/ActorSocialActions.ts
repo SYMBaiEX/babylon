@@ -61,10 +61,13 @@ export class ActorSocialActions {
       if (!interactionMap.has(key)) {
         interactionMap.set(key, []);
       }
-      interactionMap.get(key)!.push({
-        userId: interaction.userId,
-        qualityScore: interaction.qualityScore,
-      });
+      const interactions = interactionMap.get(key);
+      if (interactions) {
+        interactions.push({
+          userId: interaction.userId,
+          qualityScore: interaction.qualityScore,
+        });
+      }
     }
 
     // Process each actor-user pair

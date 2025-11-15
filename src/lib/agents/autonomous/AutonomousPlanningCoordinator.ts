@@ -15,6 +15,8 @@ import type { AgentConstraints, AgentDirective, AgentGoal } from '../types/goals
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService'
 import { autonomousPostingService } from './AutonomousPostingService'
 import { autonomousTradingService } from './AutonomousTradingService'
+import { autonomousCommentingService } from './AutonomousCommentingService'
+import { autonomousDMService } from './AutonomousDMService'
 
 /**
  * Agent interface for planning
@@ -630,8 +632,8 @@ Your action plan (JSON only):`
     try {
       switch (action.type) {
         case 'trade':
-          const trades = await autonomousTradingService.executeTrades(agentUserId, runtime)
-          return { success: trades > 0, data: { trades } }
+          const tradeResult = await autonomousTradingService.executeTrades(agentUserId, runtime)
+          return { success: tradeResult.tradesExecuted > 0, data: { trades: tradeResult.tradesExecuted } }
         
         case 'post':
           const postId = await autonomousPostingService.createAgentPost(agentUserId, runtime)
@@ -642,9 +644,12 @@ Your action plan (JSON only):`
           return { success: responses > 0, data: { responses } }
         
         case 'comment':
+          const commentId = await autonomousCommentingService.createAgentComment(agentUserId, runtime)
+          return { success: !!commentId, data: { commentId } }
+        
         case 'message':
-          // These would be implemented similar to above
-          return { success: false, error: 'Not implemented yet' }
+          const dmResponses = await autonomousDMService.respondToDMs(agentUserId, runtime)
+          return { success: dmResponses > 0, data: { responses: dmResponses } }
         
         default:
           return { success: false, error: `Unknown action type: ${action.type}` }

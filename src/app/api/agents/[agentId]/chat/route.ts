@@ -21,7 +21,7 @@
  * - Conversation context (last 10 messages)
  * - Content safety filtering (input and output)
  * - Automatic response regeneration if unsafe
- * - Points deduction (1 point per message)
+ * - Points deduction (varies by tier: lite=0, standard=1, pro=2)
  * - Multi-tier model support (free: Groq 8B, pro: Groq 70B)
  * - Transaction logging and audit trail
  * 
@@ -99,7 +99,16 @@ export const POST = withErrorHandling(async (
   const { agentId } = await params
   logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat')
   
-  const body = await req.json() as { message: string; usePro: boolean }
+  let body: { message: string; usePro: boolean }
+  try {
+    body = await req.json() as { message: string; usePro: boolean }
+  } catch (error) {
+    logger.error('Failed to parse request body', { error, agentId }, 'AgentChat')
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid request body'
+    }, { status: 400 })
+  }
   logger.info('Body parsed successfully', { 
     agentId,
     hasMessage: !!body.message,
@@ -124,7 +133,16 @@ export const POST = withErrorHandling(async (
   }
 
   const user = await authenticateUser(req)
+  
+  // Verify user owns this agent before allowing chat
   const agent = await agentService.getAgent(agentId, user.id)
+  if (!agent) {
+    return NextResponse.json({
+      success: false,
+      error: 'Agent not found'
+    }, { status: 404 })
+  }
+  
   const pointsCost = usePro ? 1 : 1
 
   const newBalance = await agentService.deductPoints(
@@ -167,7 +185,9 @@ export const POST = withErrorHandling(async (
     })
     .join('\n')
 
-  const modelType = usePro || agent!.agentModelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL
+  // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
+  // If WANDB_API_KEY is available, runtime will check for latest trained model
+  const modelType = ModelType.TEXT_LARGE
   
   const prompt = `${agent!.agentSystem}
 

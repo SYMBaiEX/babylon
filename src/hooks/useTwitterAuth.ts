@@ -4,6 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { logger } from '@/lib/logger'
 
 interface TwitterAuthStatus {
   connected: boolean
@@ -44,9 +45,15 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
     })
 
     if (response.ok) {
-      const data = await response.json() as TwitterAuthStatus
-      setAuthStatus(data)
-      setError(null)
+      try {
+        const data = await response.json() as TwitterAuthStatus
+        setAuthStatus(data)
+        setError(null)
+      } catch (error) {
+        logger.error('Failed to parse Twitter auth status response', { error }, 'useTwitterAuth')
+        setAuthStatus(null)
+        setError('Failed to parse response')
+      }
     } else {
       setAuthStatus(null)
     }

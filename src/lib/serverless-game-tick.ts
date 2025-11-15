@@ -1039,7 +1039,7 @@ async function generateArticles(
     id: string;
     eventType: string;
     description: string;
-    actors: unknown;
+    actors: string[] | null;
     relatedQuestion: number | null;
     visibility: string;
     dayNumber: number | null;
@@ -1585,8 +1585,9 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       const avgPrice = Number(position.avgPrice ?? 0);
       const costBasis = avgPrice * shares;
       const didWin = position.side === winningSide;
-      const payoutMultiplier = 1 + avgPrice;
-      const payout = didWin ? shares * payoutMultiplier : 0;
+      // In prediction markets, each winning share pays exactly 1 unit
+      // The market "odds" are reflected in purchase price, not payout
+      const payout = didWin ? shares : 0;
       const pnl = payout - costBasis;
 
       if (didWin && payout > 0) {
@@ -1689,7 +1690,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         outcome: winningSide,
       });
     } else {
-      logger.warn(
+      logger.debug(
         'Skipping reputation update due to missing configuration',
         { marketId: market.id },
         'GameTick'

@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 // Validation schemas
 const BlockUserParamsSchema = z.object({
@@ -327,15 +328,70 @@ export async function handleMuteUser(
       };
     }
 
-    // Create mute
-    const mute = await prisma.userMute.create({
-      data: {
-        id: await generateSnowflakeId(),
-        muterId: agentId,
-        mutedId: params.userId,
-        reason: params.reason || null,
-      },
-    });
+    // Create mute - handle race condition where mute might be created concurrently
+    let mute;
+    try {
+      mute = await prisma.userMute.create({
+        data: {
+          id: await generateSnowflakeId(),
+          muterId: agentId,
+          mutedId: params.userId,
+          reason: params.reason || null,
+        },
+      });
+    } catch (error: unknown) {
+      // Handle unique constraint violation (race condition)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = error.meta?.target as string[] | undefined;
+        if (target?.includes('muterId') && target?.includes('mutedId')) {
+          // Race condition: mute was created by another concurrent request
+          // Fetch the existing mute and return success
+          const raceConditionMute = await prisma.userMute.findUnique({
+            where: {
+              muterId_mutedId: {
+                muterId: agentId,
+                mutedId: params.userId,
+              },
+            },
+          });
+          
+          if (raceConditionMute) {
+            logger.debug('User mute race condition handled', {
+              agentId,
+              mutedId: params.userId,
+              muteId: raceConditionMute.id,
+            }, 'A2A Moderation');
+            
+            return {
+              jsonrpc: '2.0',
+              result: {
+                success: true,
+                message: 'User muted successfully',
+                mute: {
+                  id: raceConditionMute.id,
+                  muterId: raceConditionMute.muterId,
+                  mutedId: raceConditionMute.mutedId,
+                  reason: raceConditionMute.reason,
+                  createdAt: raceConditionMute.createdAt.toISOString(),
+                },
+              },
+              id: request.id,
+            };
+          }
+        }
+        // If we can't find the mute, return error
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: ErrorCode.INVALID_PARAMS,
+            message: 'User is already muted',
+          },
+          id: request.id,
+        };
+      }
+      // Re-throw other errors to be caught by outer catch
+      throw error;
+    }
 
     return {
       jsonrpc: '2.0',

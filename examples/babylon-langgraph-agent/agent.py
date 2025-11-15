@@ -47,7 +47,7 @@ class ValidationError(Exception):
 # ==================== HTTP A2A Client ====================
 
 class BabylonA2AClient:
-    """HTTP client for Babylon A2A protocol (recommended mode)"""
+    """HTTP client for Babylon A2A protocol - Complete implementation of all ~60 methods"""
     
     def __init__(self, http_url: str, address: str, token_id: int, chain_id: int = 11155111):
         self.http_url = http_url
@@ -92,6 +92,243 @@ class BabylonA2AClient:
             )
             
         return result['result']
+    
+    # ===== Trading Methods =====
+    
+    async def get_predictions(self, user_id: Optional[str] = None, status: Optional[str] = None) -> Dict:
+        """Get all prediction markets"""
+        return await self.call('a2a.getPredictions', {'userId': user_id, 'status': status} if user_id or status else {})
+    
+    async def get_perpetuals(self) -> Dict:
+        """Get all perpetual markets"""
+        return await self.call('a2a.getPerpetuals', {})
+    
+    async def sell_shares(self, position_id: str, shares: float) -> Dict:
+        """Sell prediction market shares"""
+        return await self.call('a2a.sellShares', {'positionId': position_id, 'shares': shares})
+    
+    async def open_position(self, ticker: str, side: str, amount: float, leverage: int) -> Dict:
+        """Open perpetual position"""
+        return await self.call('a2a.openPosition', {'ticker': ticker, 'side': side, 'amount': amount, 'leverage': leverage})
+    
+    async def close_position(self, position_id: str) -> Dict:
+        """Close perpetual position"""
+        return await self.call('a2a.closePosition', {'positionId': position_id})
+    
+    async def get_trades(self, limit: Optional[int] = None, market_id: Optional[str] = None) -> Dict:
+        """Get recent trades"""
+        params = {}
+        if limit: params['limit'] = limit
+        if market_id: params['marketId'] = market_id
+        return await self.call('a2a.getTrades', params)
+    
+    async def get_trade_history(self, user_id: str, limit: Optional[int] = None) -> Dict:
+        """Get trade history for user"""
+        params = {'userId': user_id}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getTradeHistory', params)
+    
+    # ===== Social Methods =====
+    
+    async def get_post(self, post_id: str) -> Dict:
+        """Get single post"""
+        return await self.call('a2a.getPost', {'postId': post_id})
+    
+    async def delete_post(self, post_id: str) -> Dict:
+        """Delete own post"""
+        return await self.call('a2a.deletePost', {'postId': post_id})
+    
+    async def like_post(self, post_id: str) -> Dict:
+        """Like a post"""
+        return await self.call('a2a.likePost', {'postId': post_id})
+    
+    async def unlike_post(self, post_id: str) -> Dict:
+        """Unlike a post"""
+        return await self.call('a2a.unlikePost', {'postId': post_id})
+    
+    async def share_post(self, post_id: str, comment: Optional[str] = None) -> Dict:
+        """Share/repost a post"""
+        params = {'postId': post_id}
+        if comment: params['comment'] = comment
+        return await self.call('a2a.sharePost', params)
+    
+    async def get_comments(self, post_id: str, limit: Optional[int] = None) -> Dict:
+        """Get comments on a post"""
+        params = {'postId': post_id}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getComments', params)
+    
+    async def create_comment(self, post_id: str, content: str) -> Dict:
+        """Create comment on a post"""
+        return await self.call('a2a.createComment', {'postId': post_id, 'content': content})
+    
+    async def delete_comment(self, comment_id: str) -> Dict:
+        """Delete own comment"""
+        return await self.call('a2a.deleteComment', {'commentId': comment_id})
+    
+    async def like_comment(self, comment_id: str) -> Dict:
+        """Like a comment"""
+        return await self.call('a2a.likeComment', {'commentId': comment_id})
+    
+    # ===== User Management =====
+    
+    async def get_user_profile(self, user_id: str) -> Dict:
+        """Get user profile"""
+        return await self.call('a2a.getUserProfile', {'userId': user_id})
+    
+    async def update_profile(self, display_name: Optional[str] = None, bio: Optional[str] = None, 
+                            username: Optional[str] = None, profile_image_url: Optional[str] = None) -> Dict:
+        """Update own profile"""
+        params = {}
+        if display_name: params['displayName'] = display_name
+        if bio: params['bio'] = bio
+        if username: params['username'] = username
+        if profile_image_url: params['profileImageUrl'] = profile_image_url
+        return await self.call('a2a.updateProfile', params)
+    
+    async def follow_user(self, user_id: str) -> Dict:
+        """Follow a user"""
+        return await self.call('a2a.followUser', {'userId': user_id})
+    
+    async def unfollow_user(self, user_id: str) -> Dict:
+        """Unfollow a user"""
+        return await self.call('a2a.unfollowUser', {'userId': user_id})
+    
+    async def get_followers(self, user_id: str, limit: Optional[int] = None) -> Dict:
+        """Get user's followers"""
+        params = {'userId': user_id}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getFollowers', params)
+    
+    async def get_following(self, user_id: str, limit: Optional[int] = None) -> Dict:
+        """Get who user follows"""
+        params = {'userId': user_id}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getFollowing', params)
+    
+    async def search_users(self, query: str, limit: Optional[int] = None) -> Dict:
+        """Search for users"""
+        params = {'query': query}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.searchUsers', params)
+    
+    # ===== Messaging =====
+    
+    async def get_chats(self, filter_type: Optional[str] = None) -> Dict:
+        """Get user's chats"""
+        params = {}
+        if filter_type: params['filter'] = filter_type
+        return await self.call('a2a.getChats', params)
+    
+    async def get_chat_messages(self, chat_id: str, limit: Optional[int] = None, offset: Optional[int] = None) -> Dict:
+        """Get messages from a chat"""
+        params = {'chatId': chat_id}
+        if limit: params['limit'] = limit
+        if offset: params['offset'] = offset
+        return await self.call('a2a.getChatMessages', params)
+    
+    async def send_message(self, chat_id: str, content: str) -> Dict:
+        """Send message to chat"""
+        return await self.call('a2a.sendMessage', {'chatId': chat_id, 'content': content})
+    
+    async def create_group(self, name: str, member_ids: list, description: Optional[str] = None) -> Dict:
+        """Create group chat"""
+        params = {'name': name, 'memberIds': member_ids}
+        if description: params['description'] = description
+        return await self.call('a2a.createGroup', params)
+    
+    async def leave_chat(self, chat_id: str) -> Dict:
+        """Leave a chat"""
+        return await self.call('a2a.leaveChat', {'chatId': chat_id})
+    
+    async def get_unread_count(self) -> Dict:
+        """Get unread message count"""
+        return await self.call('a2a.getUnreadCount', {})
+    
+    # ===== Notifications =====
+    
+    async def get_notifications(self, limit: Optional[int] = None) -> Dict:
+        """Get notifications"""
+        params = {}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getNotifications', params)
+    
+    async def mark_notifications_read(self, notification_ids: list) -> Dict:
+        """Mark notifications as read"""
+        return await self.call('a2a.markNotificationsRead', {'notificationIds': notification_ids})
+    
+    async def get_group_invites(self) -> Dict:
+        """Get group chat invites"""
+        return await self.call('a2a.getGroupInvites', {})
+    
+    async def accept_group_invite(self, invite_id: str) -> Dict:
+        """Accept group invite"""
+        return await self.call('a2a.acceptGroupInvite', {'inviteId': invite_id})
+    
+    async def decline_group_invite(self, invite_id: str) -> Dict:
+        """Decline group invite"""
+        return await self.call('a2a.declineGroupInvite', {'inviteId': invite_id})
+    
+    # ===== Stats & Discovery =====
+    
+    async def get_leaderboard(self, page: Optional[int] = None, page_size: Optional[int] = None,
+                             points_type: Optional[str] = None, min_points: Optional[int] = None) -> Dict:
+        """Get leaderboard"""
+        params = {}
+        if page: params['page'] = page
+        if page_size: params['pageSize'] = page_size
+        if points_type: params['pointsType'] = points_type
+        if min_points: params['minPoints'] = min_points
+        return await self.call('a2a.getLeaderboard', params)
+    
+    async def get_user_stats(self, user_id: str) -> Dict:
+        """Get user statistics"""
+        return await self.call('a2a.getUserStats', {'userId': user_id})
+    
+    async def get_system_stats(self) -> Dict:
+        """Get system statistics"""
+        return await self.call('a2a.getSystemStats', {})
+    
+    async def get_referrals(self) -> Dict:
+        """Get user's referrals"""
+        return await self.call('a2a.getReferrals', {})
+    
+    async def get_referral_stats(self) -> Dict:
+        """Get referral statistics"""
+        return await self.call('a2a.getReferralStats', {})
+    
+    async def get_referral_code(self) -> Dict:
+        """Get referral code/URL"""
+        return await self.call('a2a.getReferralCode', {})
+    
+    async def get_reputation(self, user_id: Optional[str] = None) -> Dict:
+        """Get reputation score"""
+        params = {}
+        if user_id: params['userId'] = user_id
+        return await self.call('a2a.getReputation', params)
+    
+    async def get_reputation_breakdown(self, user_id: str) -> Dict:
+        """Get detailed reputation breakdown"""
+        return await self.call('a2a.getReputationBreakdown', {'userId': user_id})
+    
+    async def get_trending_tags(self, limit: Optional[int] = None) -> Dict:
+        """Get trending tags"""
+        params = {}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getTrendingTags', params)
+    
+    async def get_posts_by_tag(self, tag: str, limit: Optional[int] = None, offset: Optional[int] = None) -> Dict:
+        """Get posts by tag"""
+        params = {'tag': tag}
+        if limit: params['limit'] = limit
+        if offset: params['offset'] = offset
+        return await self.call('a2a.getPostsByTag', params)
+    
+    async def get_organizations(self, limit: Optional[int] = None) -> Dict:
+        """Get organizations"""
+        params = {}
+        if limit: params['limit'] = limit
+        return await self.call('a2a.getOrganizations', params)
     
     async def close(self):
         """Close HTTP client"""

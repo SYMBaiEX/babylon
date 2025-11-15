@@ -82,12 +82,17 @@ import { RateLimiter } from '@/lib/a2a/utils/rate-limiter'
 import { logger } from '@/lib/logger'
 import type { JsonRpcRequest, JsonRpcResponse, AgentConnection } from '@/types/a2a'
 import { ErrorCode } from '@/types/a2a'
+import { DefaultRequestHandler, InMemoryTaskStore, DefaultExecutionEventBusManager, JsonRpcTransportHandler } from '@a2a-js/sdk/server'
+import { BabylonExecutor } from '@/lib/a2a/official/babylon-executor'
+import { babylonAgentCard } from '@/lib/a2a/official/babylon-agent-card'
 
 export const dynamic = 'force-dynamic'
 
 // Create a singleton message router and rate limiter
 let messageRouter: MessageRouter | null = null
 let rateLimiter: RateLimiter | null = null
+let officialRequestHandler: DefaultRequestHandler | null = null
+let jsonRpcHandler: JsonRpcTransportHandler | null = null
 
 function getMessageRouter(): MessageRouter {
   if (!messageRouter) {
@@ -115,10 +120,29 @@ function getRateLimiter(): RateLimiter {
   return rateLimiter
 }
 
+function getJsonRpcHandler(): JsonRpcTransportHandler {
+  if (!jsonRpcHandler) {
+    if (!officialRequestHandler) {
+      const taskStore = new InMemoryTaskStore()
+      const executor = new BabylonExecutor()
+      const eventBusManager = new DefaultExecutionEventBusManager()
+      
+      officialRequestHandler = new DefaultRequestHandler(
+        babylonAgentCard,
+        taskStore,
+        executor,
+        eventBusManager
+      )
+    }
+    jsonRpcHandler = new JsonRpcTransportHandler(officialRequestHandler)
+  }
+  return jsonRpcHandler
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json() as JsonRpcRequest
   
-  const agentId = req.headers.get('x-agent-id')!
+  const agentId = req.headers.get('x-agent-id') || req.headers.get('x-agent-address') || 'anonymous'
   
   // Check rate limit before processing
   const limiter = getRateLimiter()
@@ -155,12 +179,93 @@ export async function POST(req: NextRequest) {
       }
     })
   }
+
+  logger.info('A2A Request received', {
+    method: body.method,
+    agentId,
+    id: body.id
+  })
+
+  // Handle official A2A methods (message/send, tasks/get, etc.)
+  // Check if this is an official A2A method
+  const officialMethods = ['message/send', 'message/stream', 'tasks/get', 'tasks/cancel', 
+                           'tasks/pushNotificationConfig/set', 'tasks/pushNotificationConfig/get',
+                           'tasks/pushNotificationConfig/list', 'tasks/pushNotificationConfig/delete',
+                           'tasks/resubscribe', 'agent/getAuthenticatedExtendedCard']
   
+  if (officialMethods.includes(body.method)) {
+    try {
+      const jsonRpcHandler = getJsonRpcHandler()
+      
+      // For message/send, ensure contextId is set to agentId
+      // The executor will use contextId as the agentId for executing actions
+      if (body.method === 'message/send' && body.params && typeof body.params === 'object' && !Array.isArray(body.params)) {
+        const params = body.params as Record<string, unknown>
+        if (params.message && typeof params.message === 'object' && params.message !== null) {
+          const message = params.message as Record<string, unknown>
+          // Set contextId to agentId so executor can use it
+          if (!message.contextId) {
+            message.contextId = agentId
+          }
+        }
+      }
+      
+      // Use JsonRpcTransportHandler.handle which routes to appropriate handler
+      const response = await jsonRpcHandler.handle(body)
+      
+      // Handle streaming responses (AsyncGenerator)
+      if (response && typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function') {
+        // For streaming, we need to set up SSE
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              for await (const chunk of response as AsyncGenerator<Record<string, unknown>>) {
+                const data = `data: ${JSON.stringify(chunk)}\n\n`
+                controller.enqueue(new TextEncoder().encode(data))
+              }
+              controller.close()
+            } catch (error) {
+              controller.error(error)
+            }
+          }
+        })
+        
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
+        })
+      }
+      
+      // Regular JSON response
+      return NextResponse.json(response, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '100',
+          'X-RateLimit-Remaining': limiter.getTokens(agentId).toString()
+        }
+      })
+    } catch (error) {
+      logger.error('Official A2A handler error', { error, method: body.method, agentId })
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        error: {
+          code: ErrorCode.INTERNAL_ERROR,
+          message: error instanceof Error ? error.message : 'Internal error'
+        }
+      }, { status: 500 })
+    }
+  }
+  
+  // Handle legacy custom methods (backward compatibility)
   const connection: AgentConnection = {
     authenticated: true,
     agentId,
-    address: req.headers.get('x-agent-address')!,
-    tokenId: parseInt(req.headers.get('x-agent-token-id')!),
+    address: req.headers.get('x-agent-address') || '',
+    tokenId: parseInt(req.headers.get('x-agent-token-id') || '0'),
     capabilities: {
       strategies: [],
       markets: [],
@@ -170,12 +275,6 @@ export async function POST(req: NextRequest) {
     connectedAt: Date.now(),
     lastActivity: Date.now()
   }
-
-  logger.info('A2A Request received', {
-    method: body.method,
-    agentId,
-    id: body.id
-  })
 
   const router = getMessageRouter()
   const response: JsonRpcResponse = await router.route(agentId, body, connection)

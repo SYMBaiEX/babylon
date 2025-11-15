@@ -112,13 +112,12 @@ test.describe('Trading Profile Dashboard', () => {
     expect(data.pagination).toBeDefined()
   })
 
-  test('should reject invalid leaderboard pageSize', async () => {
+  test('should clamp leaderboard pageSize to 100', async () => {
     const response = await fetch(`http://localhost:3000/api/leaderboard?page=1&pageSize=1000`)
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(200) // Should accept and clamp pageSize > 100
     
     const data = await response.json()
-    expect(data.error).toBeDefined()
-    expect(data.error.message).toContain('Validation failed')
+    expect(data.pagination.pageSize).toBe(100) // Should be clamped to 100
   })
 })
 

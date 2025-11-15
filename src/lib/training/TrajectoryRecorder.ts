@@ -257,7 +257,10 @@ export class TrajectoryRecorder {
               response: llmCall.response,
               reasoning: llmCall.reasoning,
               temperature: llmCall.temperature,
-              maxTokens: llmCall.maxTokens
+              maxTokens: llmCall.maxTokens,
+              metadata: JSON.stringify({
+                modelVersion: llmCall.modelVersion // Store model version in metadata
+              })
             }
           });
         }

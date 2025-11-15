@@ -8,6 +8,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { keccak256, encodePacked } from 'viem';
 import { PRICE_STORAGE_FACET_ABI } from '@/lib/web3/abis';
+import type { JsonValue } from '@/types/common';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -16,7 +17,7 @@ export interface PriceUpdateInput {
   newPrice: number;
   source: PriceUpdateSource;
   reason?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
 }
 
 export interface AppliedPriceUpdate {
@@ -27,7 +28,7 @@ export interface AppliedPriceUpdate {
   changePercent: number;
   source: PriceUpdateSource;
   reason?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
   timestamp: string;
 }
 
@@ -127,7 +128,7 @@ export class PriceUpdateService {
 
       broadcastToChannel('markets', {
         type: 'price_update',
-        updates: appliedUpdates,
+        updates: appliedUpdates as unknown as JsonValue,
       });
 
       logger.info(

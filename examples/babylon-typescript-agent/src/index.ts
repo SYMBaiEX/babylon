@@ -12,11 +12,11 @@
 import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
 
-import { registerAgent } from './registration.js'
-import { BabylonA2AClient } from './a2a-client.js'
-import { AgentMemory } from './memory.js'
-import { AgentDecisionMaker, type PredictionMarket, type PerpMarket, type FeedPost } from './decision.js'
-import { executeAction } from './actions.js'
+import { registerAgent } from './registration'
+import { BabylonA2AClient } from './a2a-client'
+import { AgentMemory } from './memory'
+import { AgentDecisionMaker, type PredictionMarket, type PerpMarket, type FeedPost } from './decision'
+import { executeAction } from './actions'
 import fs from 'fs'
 
 const LOG_FILE = './logs/agent.log'
@@ -48,7 +48,7 @@ async function main() {
     // Phase 2: Connect to Babylon A2A
     log('🔌 Phase 2: Connecting to Babylon A2A...')
     const a2aClient = new BabylonA2AClient({
-      apiUrl: process.env.BABYLON_API_URL || 'http://localhost:3000/api/a2a',
+      baseUrl: process.env.BABYLON_API_URL?.replace('/api/a2a', '') || 'http://localhost:3000',
       address: agentIdentity.address,
       tokenId: agentIdentity.tokenId,
       privateKey: process.env.AGENT0_PRIVATE_KEY!
@@ -56,7 +56,7 @@ async function main() {
 
   await a2aClient.connect()
   log(`✅ Connected to Babylon A2A`)
-  log(`   Session: ${a2aClient.sessionToken!.substring(0, 16)}...`)
+  log(`   Agent ID: ${a2aClient.agentId}`)
 
     // Phase 3: Initialize Memory & Decision Maker
     log('🧠 Phase 3: Initializing Memory & Decision System...')
@@ -88,7 +88,7 @@ async function main() {
         
         const portfolio = await a2aClient.getPortfolio()
         const markets = await a2aClient.getMarkets()
-        const feed = await a2aClient.getFeed(10)
+        const feed = await a2aClient.getFeed({ limit: 10 })
         const recentMemory = memory.getRecent(5)
 
         log(`   Balance: $${portfolio.balance}`)
@@ -102,9 +102,9 @@ async function main() {
         log('🤔 Making decision...')
         
         const decision = await decisionMaker.decide({
-          portfolio,
-          markets,
-          feed,
+          portfolio: portfolio as unknown as { balance: number; positions: Array<{ id: string; ticker: string; side: 'long' | 'short'; size: number; leverage: number; entryPrice: number; currentPrice: number; pnl: number; unrealizedPnL: number }>; pnl: number },
+          markets: markets as unknown as { predictions: Array<{ question: string; yesShares: number; noShares: number }>; perps: Array<{ name: string; ticker: string; currentPrice: number }> },
+          feed: feed as unknown as { posts: Array<{ content: string }> },
           memory: recentMemory
         })
 

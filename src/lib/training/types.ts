@@ -37,6 +37,7 @@ export interface ProviderAccess {
 
 export interface LLMCall {
   model: string;
+  modelVersion?: string; // Trained model version if using RL model
   systemPrompt: string;
   userPrompt: string;
   response: string;

@@ -120,7 +120,7 @@ export async function GET(_req: NextRequest) {
         profileImageUrl: agent.profileImageUrl || null,
         creatorId: agent.managedBy || 'system',
         creatorName: agent.managedBy ? creatorMap.get(agent.managedBy) || null : 'System',
-        modelTier: agent.agentModelTier || 'free',
+        modelTier: agent.agentModelTier || 'lite',
         pointsBalance: agent.agentPointsBalance || 0,
         
         // Autonomous status

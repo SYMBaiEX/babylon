@@ -4,13 +4,13 @@
  */
 
 import type { IAgentRuntime } from '@elizaos/core'
-import type { HttpA2AClient } from '@/lib/a2a/client'
+import type { BabylonA2AClientWrapper } from './integration-official-sdk-complete'
 
 /**
  * Extended runtime with A2A client (Official SDK)
  */
 export interface BabylonRuntime extends IAgentRuntime {
-  a2aClient?: HttpA2AClient
+  a2aClient?: BabylonA2AClientWrapper
 }
 
 /**

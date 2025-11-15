@@ -226,6 +226,40 @@ describe('User Groups', () => {
   });
 
   it('should remove member from group', async () => {
+    // Clean up any existing membership first to avoid conflicts
+    await prisma.userGroupMember.deleteMany({
+      where: {
+        groupId: testGroupId,
+        userId: testUser3Id,
+      },
+    });
+
+    // Wait a bit to ensure cleanup is committed
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Verify cleanup worked
+    const existing = await prisma.userGroupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId: testGroupId,
+          userId: testUser3Id,
+        },
+      },
+    });
+
+    if (existing) {
+      // Force delete if still exists
+      await prisma.userGroupMember.delete({
+        where: {
+          groupId_userId: {
+            groupId: testGroupId,
+            userId: testUser3Id,
+          },
+        },
+      });
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
     // Ensure the member exists first (idempotent - add if doesn't exist)
     await prisma.userGroupMember.upsert({
       where: {
@@ -286,6 +320,36 @@ describe('User Groups', () => {
   });
 
   it('should prevent duplicate members', async () => {
+    // Ensure testUser2Id is a member first
+    await prisma.userGroupMember.upsert({
+      where: {
+        groupId_userId: {
+          groupId: testGroupId,
+          userId: testUser2Id,
+        },
+      },
+      create: {
+        id: await generateSnowflakeId(),
+        groupId: testGroupId,
+        userId: testUser2Id,
+        addedBy: testUser1Id,
+      },
+      update: {},
+    });
+
+    // Verify member exists
+    const existing = await prisma.userGroupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId: testGroupId,
+          userId: testUser2Id,
+        },
+      },
+    });
+
+    expect(existing).toBeDefined();
+
+    // Now try to create duplicate - should fail
     await expect(
       prisma.userGroupMember.create({
         data: {

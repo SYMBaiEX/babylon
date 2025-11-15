@@ -97,6 +97,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -214,7 +215,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       } else {
         // Fallback: try to convert to Date then to ISO string
         try {
-          createdAtISO = new Date(n.createdAt).toISOString();
+          const dateValue = n.createdAt as string | number | Date
+          createdAtISO = new Date(dateValue).toISOString();
         } catch {
           createdAtISO = new Date().toISOString();
         }
@@ -248,7 +250,16 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
   // Parse and validate request body
-  const body = await request.json();
+  let body: { notificationIds?: string[]; markAllAsRead?: boolean }
+  try {
+    body = await request.json() as { notificationIds?: string[]; markAllAsRead?: boolean }
+  } catch (error) {
+    logger.error('Failed to parse request body', { error }, 'PATCH /api/notifications')
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid request body'
+    }, { status: 400 })
+  }
   const { notificationIds, markAllAsRead } = MarkNotificationsReadSchema.parse(body);
 
   await asUser(authUser, async (db) => {

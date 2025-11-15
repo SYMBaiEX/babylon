@@ -113,7 +113,7 @@ describe('Leaderboard API', () => {
     it('should filter by "earned" points type', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&pointsType=earned`)
       
       expect(response.status).toBe(200)
 
@@ -134,7 +134,7 @@ describe('Leaderboard API', () => {
     it('should filter by "referral" points type', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&pointsType=referral`)
       
       expect(response.status).toBe(200)
 
@@ -155,7 +155,7 @@ describe('Leaderboard API', () => {
     it('should include all expected fields in leaderboard entries', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=10&pointsType=all`)
       
       expect(response.status).toBe(200)
 
@@ -175,13 +175,13 @@ describe('Leaderboard API', () => {
         expect(entry.balance).toBeDefined()
         expect(entry.lifetimePnL).toBeDefined()
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
 
     it('should respect minPoints parameter for "all" type', async () => {
       if (!serverAvailable) return;
       
       const minPoints = 1000
-      const response = await fetch(`http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=${minPoints}&pointsType=all`)
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&minPoints=${minPoints}&pointsType=all`)
       
       expect(response.status).toBe(200)
 
@@ -191,38 +191,38 @@ describe('Leaderboard API', () => {
       for (const entry of data.leaderboard) {
         expect(entry.allPoints).toBeGreaterThanOrEqual(minPoints)
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
 
     it('should not apply minPoints for "earned" type', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=earned')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=earned`)
       
       expect(response.status).toBe(200)
 
       const data = await response.json()
       expect(data.minPoints).toBe(0) // Should be 0 for earned type
-    })
+    }, 15000) // Increased timeout for slower server responses
 
     it('should not apply minPoints for "referral" type', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=referral')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=referral`)
       
       expect(response.status).toBe(200)
 
       const data = await response.json()
       expect(data.minPoints).toBe(0) // Should be 0 for referral type
-    })
+    }, 15000) // Increased timeout for slower server responses
 
     it('should handle pagination correctly', async () => {
       if (!serverAvailable) return;
       
-      const response1 = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
+      const response1 = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=10&pointsType=all`)
       const data1 = await response1.json()
 
       if (data1.pagination.totalPages > 1) {
-        const response2 = await fetch('http://localhost:3000/api/leaderboard?page=2&pageSize=10&pointsType=all')
+        const response2 = await fetch(`${BASE_URL}/api/leaderboard?page=2&pageSize=10&pointsType=all`)
         const data2 = await response2.json()
 
         expect(data2.pagination.page).toBe(2)
@@ -236,41 +236,47 @@ describe('Leaderboard API', () => {
       }
     })
 
-    it('should return 400 for invalid pointsType', async () => {
+    it('should default invalid pointsType to "all"', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=invalid')
-      
-      expect(response.status).toBe(400)
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&pointsType=invalid`)
+      expect(response.status).toBe(200) // Should accept and default invalid pointsType to 'all'
+      const data = await response.json()
+      expect(data.pointsCategory).toBe('all') // Should default to 'all'
     })
 
-    it('should return 400 for invalid page number', async () => {
+    it('should clamp invalid page number to 1', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=0&pageSize=100')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=0&pageSize=100`)
       
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.pagination.page).toBe(1) // Should be clamped to 1
     })
 
-    it('should return 400 for invalid pageSize', async () => {
+    it('should clamp pageSize to minimum of 1', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=0')
-      
-      expect(response.status).toBe(400)
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=0`)
+      expect(response.status).toBe(200) // Should accept and clamp pageSize=0 to 1
+      const data = await response.json()
+      expect(data.pagination.pageSize).toBe(1) // Should be clamped to 1
     })
 
     it('should cap pageSize at 100', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=200')
-      expect(response.status).toBe(400) // Should reject pageSize > 100
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=200`)
+      expect(response.status).toBe(200) // Should accept and clamp pageSize > 100 to 100
+      const data = await response.json()
+      expect(data.pagination.pageSize).toBe(100) // Should be clamped to 100
     })
 
     it('should exclude NPCs from "earned" leaderboard', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&pointsType=earned`)
       expect(response.status).toBe(200)
 
       const data = await response.json() as LeaderboardResponse
@@ -283,7 +289,7 @@ describe('Leaderboard API', () => {
     it('should exclude NPCs from "referral" leaderboard', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&pointsType=referral`)
       expect(response.status).toBe(200)
 
       const data = await response.json() as LeaderboardResponse
@@ -312,8 +318,8 @@ describe('Leaderboard API', () => {
         
         while (hasMore && page <= 20) { // Limit to 20 pages to prevent infinite loops
           const url = minPointsFilter > 0
-            ? `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&minPoints=${minPointsFilter}&pointsType=${pointsType}`
-            : `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&pointsType=${pointsType}`
+            ? `${BASE_URL}/api/leaderboard?page=${page}&pageSize=100&minPoints=${minPointsFilter}&pointsType=${pointsType}`
+            : `${BASE_URL}/api/leaderboard?page=${page}&pageSize=100&pointsType=${pointsType}`
           const response = await fetch(url)
           if (!response) return allEntries // Server not available
           

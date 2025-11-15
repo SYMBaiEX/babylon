@@ -18,6 +18,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { generateWorldContext } from '@/lib/prompts/world-context';
 import { validateNoRealNames, validateNoHashtags, validateNoEmojis } from '@/lib/prompts/validate-output';
+import { Prisma } from '@prisma/client';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -854,29 +855,45 @@ Return your response as XML in this exact format:
           select: { name: true },
         });
 
-        // Create the invitation
-        await prisma.userGroupInvite.create({
-          data: {
-            id: await generateSnowflakeId(),
-            groupId: group.id,
-            invitedUserId: selectedCandidate.user.id,
-            invitedBy: invitingNpc.id,
-            status: 'pending',
-            message: `Join our group chat "${group.name}"!`,
-            invitedAt: new Date(),
-          },
-        });
-
-        usersInvited++;
-        logger.info(`User invited to NPC group (reply guy score)`, {
-          userId: selectedCandidate.user.id,
-          userName: selectedCandidate.user.displayName,
-          chatId: group.id,
-          chatName: group.name,
-          invitedBy: npcData?.name,
-          replyGuyScore: selectedCandidate.score,
-          breakdown: selectedCandidate.breakdown,
-        }, 'NPCGroupDynamicsService');
+        // Create the invitation - handle unique constraint (user may already be invited)
+        try {
+          await prisma.userGroupInvite.create({
+            data: {
+              id: await generateSnowflakeId(),
+              groupId: group.id,
+              invitedUserId: selectedCandidate.user.id,
+              invitedBy: invitingNpc.id,
+              status: 'pending',
+              message: `Join our group chat "${group.name}"!`,
+              invitedAt: new Date(),
+            },
+          });
+          usersInvited++;
+          logger.info(`User invited to NPC group (reply guy score)`, {
+            userId: selectedCandidate.user.id,
+            userName: selectedCandidate.user.displayName,
+            chatId: group.id,
+            chatName: group.name,
+            invitedBy: npcData?.name,
+            replyGuyScore: selectedCandidate.score,
+            breakdown: selectedCandidate.breakdown,
+          }, 'NPCGroupDynamicsService');
+        } catch (error: unknown) {
+          // Handle unique constraint violation - user already has an invite
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            const target = error.meta?.target as string[] | undefined
+            if (target?.includes('groupId') && target?.includes('invitedUserId')) {
+              // User already has an invite, skip silently (this is expected in NPC dynamics)
+              logger.debug(`User already has invite, skipping`, {
+                userId: selectedCandidate.user.id,
+                groupId: group.id,
+              }, 'NPCGroupDynamicsService');
+              continue;
+            }
+          }
+          // Re-throw other errors
+          throw error;
+        }
       }
 
     return usersInvited;

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw, Bot, Play, Pause, AlertCircle, CheckCircle, Activity, Clock, User, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface RunningAgent {
   id: string
@@ -79,7 +80,7 @@ export function AgentsTab() {
       setStats(result.data.stats)
       setLoading(false)
     } catch (error) {
-      console.error('Failed to load agents:', error)
+      logger.error('Failed to load agents', { error }, 'AgentsTab')
       toast.error('Failed to load agents')
       setLoading(false)
     }

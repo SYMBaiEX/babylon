@@ -181,6 +181,15 @@ describe('Group Invites Workflow', () => {
     });
 
     it('should create a notification for the invitee', async () => {
+      // Clean up any existing notifications first to ensure test isolation
+      await prisma.notification.deleteMany({
+        where: {
+          userId: testUser2Id,
+          type: 'group_invite',
+          groupId: testGroupId,
+        },
+      });
+
       const notificationId = await generateSnowflakeId();
       
       const notification = await prisma.notification.create({
@@ -202,6 +211,26 @@ describe('Group Invites Workflow', () => {
     });
 
     it('should prevent duplicate pending invites', async () => {
+      // Ensure there's exactly one pending invite for this test
+      await prisma.userGroupInvite.deleteMany({
+        where: {
+          groupId: testGroupId,
+          invitedUserId: testUser2Id,
+        },
+      });
+
+      // Create the first invite
+      const firstInviteId = await generateSnowflakeId();
+      await prisma.userGroupInvite.create({
+        data: {
+          id: firstInviteId,
+          groupId: testGroupId,
+          invitedUserId: testUser2Id,
+          invitedBy: testUser1Id,
+          status: 'pending',
+        },
+      });
+
       const existingInvite = await prisma.userGroupInvite.findUnique({
         where: {
           groupId_invitedUserId: {

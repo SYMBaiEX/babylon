@@ -13,6 +13,7 @@ import type { AgentCapabilities } from '@/types/a2a'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
+import type { JsonValue } from '@/types/common'
 
 // Use Base Sepolia for contract deployments (chain ID: 84532)
 export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -748,7 +749,7 @@ export interface ConfirmOnchainProfileUpdateResult {
   tokenId: number
   endpoint: string
   capabilitiesHash: `0x${string}`
-  metadata: Record<string, unknown> | null
+  metadata: Record<string, JsonValue> | null
 }
 
 export async function confirmOnchainProfileUpdate({
@@ -850,10 +851,10 @@ export async function confirmOnchainProfileUpdate({
   capabilitiesHash = profile[2] as `0x${string}`
   const rawMetadata = profile[5] as string
 
-  let metadata: Record<string, unknown> | null = null
+  let metadata: Record<string, JsonValue> | null = null
   if (typeof rawMetadata === 'string' && rawMetadata.trim().length > 0) {
     try {
-      metadata = JSON.parse(rawMetadata) as Record<string, unknown>
+      metadata = JSON.parse(rawMetadata) as Record<string, JsonValue>
     } catch (error) {
       logger.warn(
         'Failed to parse on-chain metadata JSON during profile update confirmation',

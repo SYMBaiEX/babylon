@@ -101,6 +101,14 @@ afterAll(async () => {
 
 describe('Block User - CRUD Operations', () => {
   it('should successfully block a user', async () => {
+    // Clean up any existing block first to ensure test isolation
+    await prisma.userBlock.deleteMany({
+      where: {
+        blockerId: testUser1.id,
+        blockedId: testUser2.id,
+      },
+    });
+
     const block = await prisma.userBlock.create({
       data: {
         id: nanoid(),
@@ -150,13 +158,35 @@ describe('Block User - CRUD Operations', () => {
   });
 
   it('should unblock a user', async () => {
-    await prisma.userBlock.deleteMany({
+    // Ensure a block exists first (from previous test)
+    // Use upsert to avoid unique constraint errors if it already exists
+    await prisma.userBlock.upsert({
+      where: {
+        blockerId_blockedId: {
+          blockerId: testUser1.id,
+          blockedId: testUser2.id,
+        },
+      },
+      update: {},
+      create: {
+        id: nanoid(),
+        blockerId: testUser1.id,
+        blockedId: testUser2.id,
+        reason: 'Test block for unblock test',
+      },
+    });
+
+    // Now delete it
+    const deleted = await prisma.userBlock.deleteMany({
       where: {
         blockerId: testUser1.id,
         blockedId: testUser2.id,
       },
     });
 
+    expect(deleted.count).toBe(1);
+
+    // Verify it's gone
     const block = await prisma.userBlock.findFirst({
       where: {
         blockerId: testUser1.id,
@@ -170,7 +200,7 @@ describe('Block User - CRUD Operations', () => {
   });
 
   it('should prevent duplicate blocks', async () => {
-    // Clean up any existing blocks first
+    // Clean up any existing blocks first to ensure test isolation
     await prisma.userBlock.deleteMany({
       where: {
         blockerId: testUser1.id,
@@ -276,13 +306,35 @@ describe('Mute User - CRUD Operations', () => {
   });
 
   it('should unmute a user', async () => {
-    await prisma.userMute.deleteMany({
+    // Ensure a mute exists first (from previous test)
+    // Use upsert to avoid unique constraint errors if it already exists
+    await prisma.userMute.upsert({
+      where: {
+        muterId_mutedId: {
+          muterId: testUser1.id,
+          mutedId: testUser2.id,
+        },
+      },
+      update: {},
+      create: {
+        id: nanoid(),
+        muterId: testUser1.id,
+        mutedId: testUser2.id,
+        reason: 'Test mute for unmute test',
+      },
+    });
+
+    // Now delete it
+    const deleted = await prisma.userMute.deleteMany({
       where: {
         muterId: testUser1.id,
         mutedId: testUser2.id,
       },
     });
 
+    expect(deleted.count).toBe(1);
+
+    // Verify it's gone
     const mute = await prisma.userMute.findFirst({
       where: {
         muterId: testUser1.id,

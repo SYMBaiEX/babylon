@@ -10,7 +10,7 @@
  * - Cache invalidation
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
@@ -20,62 +20,45 @@ describe('Follow System API Integration Tests', () => {
   let testActor: { id: string; name: string }
 
   beforeAll(async () => {
-    // Find test users
-    const users = await prisma.user.findMany({
-      where: {
-        isActor: false,
-        isBanned: false,
-        username: { not: null },
+    // Always create fresh test users to avoid conflicts
+    // This ensures users exist and are not deleted by other tests
+    testUser1 = await prisma.user.create({
+      data: {
+        id: await generateSnowflakeId(),
+        privyId: `test-follow-user-1-${Date.now()}`,
+        username: `followtest1_${Date.now()}`,
+        displayName: 'Follow Test User 1',
+        walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
+        isTest: true,
+        updatedAt: new Date(),
       },
       select: {
         id: true,
         username: true,
         privyId: true,
       },
-      take: 2,
     })
 
-    if (users.length < 2) {
-      // Create test users if needed
-      testUser1 = await prisma.user.create({
-        data: {
-          id: await generateSnowflakeId(),
-          privyId: `test-follow-user-1-${Date.now()}`,
-          username: `followtest1_${Date.now()}`,
-          displayName: 'Follow Test User 1',
-          walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
-          isTest: true,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          username: true,
-          privyId: true,
-        },
-      })
+    testUser2 = await prisma.user.create({
+      data: {
+        id: await generateSnowflakeId(),
+        privyId: `test-follow-user-2-${Date.now()}`,
+        username: `followtest2_${Date.now()}`,
+        displayName: 'Follow Test User 2',
+        walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
+        isTest: true,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        username: true,
+        privyId: true,
+      },
+    })
 
-      testUser2 = await prisma.user.create({
-        data: {
-          id: await generateSnowflakeId(),
-          privyId: `test-follow-user-2-${Date.now()}`,
-          username: `followtest2_${Date.now()}`,
-          displayName: 'Follow Test User 2',
-          walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
-          isTest: true,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          username: true,
-          privyId: true,
-        },
-      })
-    } else {
-      if (!users[0] || !users[1]) {
-        throw new Error('Test users not found')
-      }
-      testUser1 = users[0]
-      testUser2 = users[1]
+    // Verify users were created
+    if (!testUser1 || !testUser2) {
+      throw new Error('Failed to create test users')
     }
 
     // Find or create test actor
@@ -115,42 +98,92 @@ describe('Follow System API Integration Tests', () => {
 
   afterAll(async () => {
     if (!prisma) return;
+    
     // Clean up test follows
-    await prisma.follow.deleteMany({
-      where: {
-        OR: [
-          { followerId: testUser1.id },
-          { followerId: testUser2.id },
-          { followingId: testUser1.id },
-          { followingId: testUser2.id },
-        ],
-      },
-    })
+    if (testUser1?.id && testUser2?.id) {
+      await prisma.follow.deleteMany({
+        where: {
+          OR: [
+            { followerId: testUser1.id },
+            { followerId: testUser2.id },
+            { followingId: testUser1.id },
+            { followingId: testUser2.id },
+          ],
+        },
+      }).catch(() => {
+        // Ignore errors during cleanup
+      })
 
-    await prisma.userActorFollow.deleteMany({
-      where: {
-        userId: { in: [testUser1.id, testUser2.id] },
-      },
-    })
+      await prisma.userActorFollow.deleteMany({
+        where: {
+          userId: { in: [testUser1.id, testUser2.id] },
+        },
+      }).catch(() => {
+        // Ignore errors during cleanup
+      })
+
+      // Clean up test users
+      await prisma.user.deleteMany({
+        where: {
+          id: { in: [testUser1.id, testUser2.id] },
+        },
+      }).catch(() => {
+        // Ignore errors during cleanup
+      })
+    }
   })
 
   describe('User-to-User Follow', () => {
-    it('should create follow relationship', async () => {
-      // Clean up any existing follows
+    beforeEach(async () => {
+      // Clean up any existing follows before each test
       await prisma.follow.deleteMany({
         where: {
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
       })
+      // Wait to ensure cleanup is committed
+      await new Promise(resolve => setTimeout(resolve, 50))
+    })
 
-      // Create follow
-      const follow = await prisma.follow.create({
-        data: {
+    it('should create follow relationship', async () => {
+      // Verify cleanup worked (beforeEach already cleaned up)
+      const existing = await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+      })
+
+      if (existing) {
+        // Force delete if still exists (shouldn't happen, but be safe)
+        await prisma.follow.delete({
+          where: {
+            followerId_followingId: {
+              followerId: testUser1.id,
+              followingId: testUser2.id,
+            },
+          },
+        })
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+
+      // Use upsert to handle any race conditions
+      const follow = await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
+        update: {},
         include: {
           User_Follow_followerIdToUser: {
             select: {
@@ -187,14 +220,21 @@ describe('Follow System API Integration Tests', () => {
         },
       })
 
-      // If follow doesn't exist, create it first
+      // If follow doesn't exist, create it first using upsert
       if (!existingFollow) {
-        await prisma.follow.create({
-          data: {
+        await prisma.follow.upsert({
+          where: {
+            followerId_followingId: {
+              followerId: testUser1.id,
+              followingId: testUser2.id,
+            },
+          },
+          create: {
             id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
+          update: {},
         })
       }
 
@@ -223,7 +263,57 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should update follower counts after follow', async () => {
-      // Get counts
+      // Clean up any existing follows first to ensure clean state
+      await prisma.follow.deleteMany({
+        where: {
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+      })
+      
+      // Get initial counts
+      const initialUser1 = await prisma.user.findUnique({
+        where: { id: testUser1.id },
+        select: {
+          _count: {
+            select: {
+              Follow_Follow_followerIdToUser: true,
+            },
+          },
+        },
+      })
+
+      const initialUser2 = await prisma.user.findUnique({
+        where: { id: testUser2.id },
+        select: {
+          _count: {
+            select: {
+              Follow_Follow_followingIdToUser: true,
+            },
+          },
+        },
+      })
+
+      const initialFollowingCount = initialUser1!._count.Follow_Follow_followerIdToUser
+      const initialFollowersCount = initialUser2!._count.Follow_Follow_followingIdToUser
+
+      // Create follow
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
+          id: await generateSnowflakeId(),
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+        update: {},
+      })
+      
+      // Get updated counts
       const user1 = await prisma.user.findUnique({
         where: { id: testUser1.id },
         select: {
@@ -246,14 +336,50 @@ describe('Follow System API Integration Tests', () => {
         },
       })
 
-      expect(user1!._count.Follow_Follow_followerIdToUser).toBeGreaterThan(0)
-      expect(user2!._count.Follow_Follow_followingIdToUser).toBeGreaterThan(0)
+      expect(user1!._count.Follow_Follow_followerIdToUser).toBe(initialFollowingCount + 1)
+      expect(user2!._count.Follow_Follow_followingIdToUser).toBe(initialFollowersCount + 1)
 
       console.log(`✅ User 1 following: ${user1!._count.Follow_Follow_followerIdToUser}`)
       console.log(`✅ User 2 followers: ${user2!._count.Follow_Follow_followingIdToUser}`)
     })
 
     it('should check follow status correctly', async () => {
+      // Clean up any existing follows first to ensure clean state
+      await prisma.follow.deleteMany({
+        where: {
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+      })
+
+      // Verify no follow exists initially
+      const beforeFollow = await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+      })
+      expect(beforeFollow).toBeNull()
+
+      // Create follow
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
+          id: await generateSnowflakeId(),
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+        update: {},
+      })
+      
+      // Verify follow exists
       const isFollowing = await prisma.follow.findUnique({
         where: {
           followerId_followingId: {
@@ -264,6 +390,8 @@ describe('Follow System API Integration Tests', () => {
       })
 
       expect(isFollowing).toBeTruthy()
+      expect(isFollowing!.followerId).toBe(testUser1.id)
+      expect(isFollowing!.followingId).toBe(testUser2.id)
 
       console.log('✅ Follow status check passed')
     })
@@ -293,13 +421,28 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should update counts after unfollow', async () => {
-      // Create follow first
-      await prisma.follow.create({
-        data: {
+      // Clean up any existing follows first
+      await prisma.follow.deleteMany({
+        where: {
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+      })
+
+      // Create follow first using upsert to avoid conflicts
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
+        update: {},
       })
 
       // Get initial counts
@@ -364,19 +507,20 @@ describe('Follow System API Integration Tests', () => {
   })
 
   describe('User-to-NPC Follow', () => {
-    it('should create user-actor follow relationship', async () => {
-      // Clean up any existing follows - ensure it completes
+    beforeEach(async () => {
+      // Clean up any existing user-actor follows before each test
       await prisma.userActorFollow.deleteMany({
         where: {
           userId: testUser1.id,
           actorId: testActor.id,
         },
       })
+      // Wait to ensure cleanup is committed
+      await new Promise(resolve => setTimeout(resolve, 50))
+    })
 
-      // Wait a bit to ensure cleanup is committed
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Verify cleanup worked
+    it('should create user-actor follow relationship', async () => {
+      // Verify cleanup worked (beforeEach already cleaned up)
       const existing = await prisma.userActorFollow.findUnique({
         where: {
           userId_actorId: {
@@ -387,7 +531,7 @@ describe('Follow System API Integration Tests', () => {
       })
 
       if (existing) {
-        // Force delete if still exists
+        // Force delete if still exists (shouldn't happen, but be safe)
         await prisma.userActorFollow.delete({
           where: {
             userId_actorId: {
@@ -397,7 +541,7 @@ describe('Follow System API Integration Tests', () => {
           },
         })
         // Wait again after delete
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 50))
       }
 
       // Create follow using upsert to handle any race conditions
@@ -478,6 +622,50 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should update user following count after actor follow', async () => {
+      // Clean up any existing follows first to ensure clean state
+      await prisma.userActorFollow.deleteMany({
+        where: {
+          userId: testUser1.id,
+          actorId: testActor.id,
+        },
+      })
+
+      // Get initial count
+      const initialFollowCount = await prisma.userActorFollow.count({
+        where: {
+          userId: testUser1.id,
+        },
+      })
+
+      // Create follow
+      await prisma.userActorFollow.upsert({
+        where: {
+          userId_actorId: {
+            userId: testUser1.id,
+            actorId: testActor.id,
+          },
+        },
+        create: {
+          id: await generateSnowflakeId(),
+          userId: testUser1.id,
+          actorId: testActor.id,
+        },
+        update: {},
+      })
+      
+      // Wait a bit to ensure the record is committed
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Use direct count query instead of _count relation to avoid potential caching issues
+      const followCount = await prisma.userActorFollow.count({
+        where: {
+          userId: testUser1.id,
+        },
+      })
+
+      expect(followCount).toBe(initialFollowCount + 1)
+
+      // Also verify using _count relation for consistency
       const user = await prisma.user.findUnique({
         where: { id: testUser1.id },
         select: {
@@ -490,8 +678,9 @@ describe('Follow System API Integration Tests', () => {
       })
 
       expect(user!._count.UserActorFollow).toBeGreaterThan(0)
+      expect(user!._count.UserActorFollow).toBe(followCount)
 
-      console.log(`✅ User actor follows: ${user!._count.UserActorFollow}`)
+      console.log(`✅ User actor follows: ${followCount} (direct count) / ${user!._count.UserActorFollow} (_count relation)`)
     })
 
     it('should delete user-actor follow relationship', async () => {
@@ -521,13 +710,36 @@ describe('Follow System API Integration Tests', () => {
 
   describe('Follow Lists', () => {
     it('should retrieve followers list', async () => {
-      // Create some follows
-      await prisma.follow.create({
-        data: {
+      // Verify users exist before creating follow
+      const user1Exists = await prisma.user.findUnique({ where: { id: testUser1.id } })
+      const user2Exists = await prisma.user.findUnique({ where: { id: testUser2.id } })
+      
+      if (!user1Exists || !user2Exists) {
+        throw new Error(`Test users not found. User1: ${!!user1Exists}, User2: ${!!user2Exists}`)
+      }
+
+      // Clean up any existing follows first
+      await prisma.follow.deleteMany({
+        where: {
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+      })
+
+      // Create some follows using upsert to avoid duplicates
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
+        update: {},
       })
 
       // Get followers
@@ -552,6 +764,34 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should retrieve following list', async () => {
+      // Ensure follow exists before querying
+      const existingFollow = await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+      })
+
+      if (!existingFollow) {
+        // Create follow if it doesn't exist
+        await prisma.follow.upsert({
+          where: {
+            followerId_followingId: {
+              followerId: testUser1.id,
+              followingId: testUser2.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+          update: {},
+        })
+      }
+
       // Get following
       const following = await prisma.follow.findMany({
         where: { followerId: testUser1.id },
@@ -574,6 +814,17 @@ describe('Follow System API Integration Tests', () => {
     })
 
     it('should retrieve user actor follows list', async () => {
+      // Verify user and actor exist before creating follow
+      const userExists = await prisma.user.findUnique({ where: { id: testUser1.id } })
+      const actorExists = await prisma.actor.findUnique({ where: { id: testActor.id } })
+      
+      if (!userExists) {
+        throw new Error(`Test user not found: ${testUser1.id}`)
+      }
+      if (!actorExists) {
+        throw new Error(`Test actor not found: ${testActor.id}`)
+      }
+
       // Clean up any existing follows first
       await prisma.userActorFollow.deleteMany({
         where: {
@@ -678,13 +929,23 @@ describe('Follow System API Integration Tests', () => {
         },
       })
       
-      // Ensure User 1 is following User 2
-      await prisma.follow.create({
-        data: {
+      // Wait to ensure cleanup is committed
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      // Ensure User 1 is following User 2 using upsert to avoid conflicts
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: testUser1.id,
+            followingId: testUser2.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
+        update: {},
       })
 
       // Get User 2 profile

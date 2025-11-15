@@ -8,14 +8,14 @@ All errors follow a consistent format:
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable error message",
-    "details": {
-      // Additional context (optional)
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "ERROR_CODE",
+ "message": "Human-readable error message",
+ "details": {
+ // Additional context (optional)
+ }
+ }
 }
 ```
 
@@ -49,11 +49,11 @@ All errors follow a consistent format:
 **Example**:
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Authentication required"
-  }
+ "success": false,
+ "error": {
+ "code": "UNAUTHORIZED",
+ "message": "Authentication required"
+ }
 }
 ```
 
@@ -69,16 +69,16 @@ All errors follow a consistent format:
 **Example**:
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "INVALID_INPUT",
-    "message": "Invalid trade amount",
-    "details": {
-      "field": "amount",
-      "value": -100,
-      "constraint": "Must be positive"
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "INVALID_INPUT",
+ "message": "Invalid trade amount",
+ "details": {
+ "field": "amount",
+ "value": -100,
+ "constraint": "Must be positive"
+ }
+ }
 }
 ```
 
@@ -96,14 +96,14 @@ All errors follow a consistent format:
 **Example**:
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "MARKET_NOT_FOUND",
-    "message": "Market not found",
-    "details": {
-      "marketId": "market-999"
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "MARKET_NOT_FOUND",
+ "message": "Market not found",
+ "details": {
+ "marketId": "market-999"
+ }
+ }
 }
 ```
 
@@ -121,16 +121,16 @@ All errors follow a consistent format:
 **Example**:
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "INSUFFICIENT_BALANCE",
-    "message": "Insufficient balance for trade",
-    "details": {
-      "required": 100,
-      "available": 50,
-      "shortfall": 50
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "INSUFFICIENT_BALANCE",
+ "message": "Insufficient balance for trade",
+ "details": {
+ "required": 100,
+ "available": 50,
+ "shortfall": 50
+ }
+ }
 }
 ```
 
@@ -144,16 +144,16 @@ All errors follow a consistent format:
 **Example**:
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Rate limit exceeded",
-    "details": {
-      "limit": 100,
-      "window": "60s",
-      "retryAfter": 45
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "RATE_LIMIT_EXCEEDED",
+ "message": "Rate limit exceeded",
+ "details": {
+ "limit": 100,
+ "window": "60s",
+ "retryAfter": 45
+ }
+ }
 }
 ```
 
@@ -191,45 +191,45 @@ Retry-After: 45
 
 ```typescript
 async function buyShares(marketId: string, outcome: string, amount: number) {
-  try {
-    const response = await fetch(`/api/markets/predictions/${marketId}/buy`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ outcome, amount })
-    });
-    
-    const data = await response.json();
-    
-    if (!data.success) {
-      // Handle error
-      switch (data.error.code) {
-        case 'INSUFFICIENT_BALANCE':
-          alert(`Not enough funds. Need ${data.error.details.required}`);
-          break;
-        case 'MARKET_NOT_FOUND':
-          alert('Market not found');
-          break;
-        case 'RATE_LIMIT_EXCEEDED':
-          const retryAfter = data.error.details.retryAfter;
-          alert(`Rate limited. Try again in ${retryAfter} seconds`);
-          setTimeout(() => buyShares(marketId, outcome, amount), retryAfter * 1000);
-          break;
-        default:
-          alert(`Error: ${data.error.message}`);
-      }
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    // Network error
-    console.error('Network error:', error);
-    alert('Network error. Please check your connection.');
-    return null;
-  }
+ try {
+ const response = await fetch(`/api/markets/predictions/${marketId}/buy`, {
+ method: 'POST',
+ headers: {
+ 'Authorization': `Bearer ${token}`,
+ 'Content-Type': 'application/json'
+ },
+ body: JSON.stringify({ outcome, amount })
+ });
+ 
+ const data = await response.json();
+ 
+ if (!data.success) {
+ // Handle error
+ switch (data.error.code) {
+ case 'INSUFFICIENT_BALANCE':
+ alert(`Not enough funds. Need ${data.error.details.required}`);
+ break;
+ case 'MARKET_NOT_FOUND':
+ alert('Market not found');
+ break;
+ case 'RATE_LIMIT_EXCEEDED':
+ const retryAfter = data.error.details.retryAfter;
+ alert(`Rate limited. Try again in ${retryAfter} seconds`);
+ setTimeout(() => buyShares(marketId, outcome, amount), retryAfter * 1000);
+ break;
+ default:
+ alert(`Error: ${data.error.message}`);
+ }
+ return null;
+ }
+ 
+ return data;
+ } catch (error) {
+ // Network error
+ console.error('Network error:', error);
+ alert('Network error. Please check your connection.');
+ return null;
+ }
 }
 ```
 
@@ -239,46 +239,46 @@ async function buyShares(marketId: string, outcome: string, amount: number) {
 import { useState } from 'react';
 
 export function useAPICall<T>(
-  apiCall: () => Promise<T>
+ apiCall: () => Promise<T>
 ) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<T | null>(null);
-  
-  const execute = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const result = await apiCall();
-      setData(result);
-      return result;
-    } catch (err: any) {
-      const errorMessage = err.error?.message || err.message || 'Unknown error';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return { execute, loading, error, data };
+ const [loading, setLoading] = useState(false);
+ const [error, setError] = useState<string | null>(null);
+ const [data, setData] = useState<T | null>(null);
+ 
+ const execute = async () => {
+ setLoading(true);
+ setError(null);
+ 
+ try {
+ const result = await apiCall();
+ setData(result);
+ return result;
+ } catch (err: any) {
+ const errorMessage = err.error?.message || err.message || 'Unknown error';
+ setError(errorMessage);
+ throw err;
+ } finally {
+ setLoading(false);
+ }
+ };
+ 
+ return { execute, loading, error, data };
 }
 
 // Usage
 function BuySharesButton() {
-  const { execute, loading, error } = useAPICall(
-    () => buyShares('market-123', 'YES', 100)
-  );
-  
-  return (
-    <div>
-      <button onClick={execute} disabled={loading}>
-        {loading ? 'Buying...' : 'Buy Shares'}
-      </button>
-      {error && <div className="error">{error}</div>}
-    </div>
-  );
+ const { execute, loading, error } = useAPICall(
+ () => buyShares('market-123', 'YES', 100)
+ );
+ 
+ return (
+ <div>
+ <button onClick={execute} disabled={loading}>
+ {loading ? 'Buying...' : 'Buy Shares'}
+ </button>
+ {error && <div className="error">{error}</div>}
+ </div>
+ );
 }
 ```
 
@@ -288,39 +288,39 @@ function BuySharesButton() {
 import requests
 
 def buy_shares(market_id, outcome, amount, token):
-    url = f'https://babylon.market/api/markets/predictions/{market_id}/buy'
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
-    }
-    data = {
-        'outcome': outcome,
-        'amount': amount
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        result = response.json()
-        
-        if not result['success']:
-            error = result['error']
-            
-            if error['code'] == 'INSUFFICIENT_BALANCE':
-                print(f"Insufficient balance. Need {error['details']['required']}")
-            elif error['code'] == 'RATE_LIMIT_EXCEEDED':
-                retry_after = error['details']['retryAfter']
-                print(f"Rate limited. Retry in {retry_after}s")
-                time.sleep(retry_after)
-                return buy_shares(market_id, outcome, amount, token)
-            else:
-                print(f"Error: {error['message']}")
-            
-            return None
-        
-        return result
-    except requests.RequestException as e:
-        print(f"Network error: {e}")
-        return None
+ url = f'https://babylon.market/api/markets/predictions/{market_id}/buy'
+ headers = {
+ 'Authorization': f'Bearer {token}',
+ 'Content-Type': 'application/json'
+ }
+ data = {
+ 'outcome': outcome,
+ 'amount': amount
+ }
+ 
+ try:
+ response = requests.post(url, headers=headers, json=data)
+ result = response.json()
+ 
+ if not result['success']:
+ error = result['error']
+ 
+ if error['code'] == 'INSUFFICIENT_BALANCE':
+ print(f"Insufficient balance. Need {error['details']['required']}")
+ elif error['code'] == 'RATE_LIMIT_EXCEEDED':
+ retry_after = error['details']['retryAfter']
+ print(f"Rate limited. Retry in {retry_after}s")
+ time.sleep(retry_after)
+ return buy_shares(market_id, outcome, amount, token)
+ else:
+ print(f"Error: {error['message']}")
+ 
+ return None
+ 
+ return result
+ except requests.RequestException as e:
+ print(f"Network error: {e}")
+ return None
 ```
 
 ## Retry Strategies
@@ -329,33 +329,33 @@ def buy_shares(market_id, outcome, amount, token):
 
 ```typescript
 async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3
+ url: string,
+ options: RequestInit,
+ maxRetries = 3
 ) {
-  let lastError;
-  
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, options);
-      const data = await response.json();
-      
-      if (!data.success && data.error.code === 'RATE_LIMIT_EXCEEDED') {
-        // Wait based on retry-after header
-        const retryAfter = data.error.details.retryAfter || Math.pow(2, i);
-        await sleep(retryAfter * 1000);
-        continue;
-      }
-      
-      return data;
-    } catch (error) {
-      lastError = error;
-      // Exponential backoff: 1s, 2s, 4s
-      await sleep(Math.pow(2, i) * 1000);
-    }
-  }
-  
-  throw lastError;
+ let lastError;
+ 
+ for (let i = 0; i < maxRetries; i++) {
+ try {
+ const response = await fetch(url, options);
+ const data = await response.json();
+ 
+ if (!data.success && data.error.code === 'RATE_LIMIT_EXCEEDED') {
+ // Wait based on retry-after header
+ const retryAfter = data.error.details.retryAfter || Math.pow(2, i);
+ await sleep(retryAfter * 1000);
+ continue;
+ }
+ 
+ return data;
+ } catch (error) {
+ lastError = error;
+ // Exponential backoff: 1s, 2s, 4s
+ await sleep(Math.pow(2, i) * 1000);
+ }
+ }
+ 
+ throw lastError;
 }
 ```
 
@@ -363,42 +363,42 @@ async function fetchWithRetry(
 
 ```typescript
 class CircuitBreaker {
-  private failures = 0;
-  private lastFailure = 0;
-  private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
-  
-  async call<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === 'OPEN') {
-      if (Date.now() - this.lastFailure > 60000) {
-        this.state = 'HALF_OPEN';
-      } else {
-        throw new Error('Circuit breaker is OPEN');
-      }
-    }
-    
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (error) {
-      this.onFailure();
-      throw error;
-    }
-  }
-  
-  private onSuccess() {
-    this.failures = 0;
-    this.state = 'CLOSED';
-  }
-  
-  private onFailure() {
-    this.failures++;
-    this.lastFailure = Date.now();
-    
-    if (this.failures >= 5) {
-      this.state = 'OPEN';
-    }
-  }
+ private failures = 0;
+ private lastFailure = 0;
+ private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+ 
+ async call<T>(fn: () => Promise<T>): Promise<T> {
+ if (this.state === 'OPEN') {
+ if (Date.now() - this.lastFailure > 60000) {
+ this.state = 'HALF_OPEN';
+ } else {
+ throw new Error('Circuit breaker is OPEN');
+ }
+ }
+ 
+ try {
+ const result = await fn();
+ this.onSuccess();
+ return result;
+ } catch (error) {
+ this.onFailure();
+ throw error;
+ }
+ }
+ 
+ private onSuccess() {
+ this.failures = 0;
+ this.state = 'CLOSED';
+ }
+ 
+ private onFailure() {
+ this.failures++;
+ this.lastFailure = Date.now();
+ 
+ if (this.failures >= 5) {
+ this.state = 'OPEN';
+ }
+ }
 }
 ```
 
@@ -408,25 +408,25 @@ Zod validation errors include detailed field information:
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Validation failed",
-    "details": {
-      "issues": [
-        {
-          "field": "amount",
-          "message": "Expected number, received string",
-          "code": "invalid_type"
-        },
-        {
-          "field": "outcome",
-          "message": "Invalid enum value. Expected 'YES' | 'NO'",
-          "code": "invalid_enum_value"
-        }
-      ]
-    }
-  }
+ "success": false,
+ "error": {
+ "code": "VALIDATION_ERROR",
+ "message": "Validation failed",
+ "details": {
+ "issues": [
+ {
+ "field": "amount",
+ "message": "Expected number, received string",
+ "code": "invalid_type"
+ },
+ {
+ "field": "outcome",
+ "message": "Invalid enum value. Expected 'YES' | 'NO'",
+ "code": "invalid_enum_value"
+ }
+ ]
+ }
+ }
 }
 ```
 
@@ -438,9 +438,9 @@ Zod validation errors include detailed field information:
 const data = await response.json();
 
 if (!data.success) {
-  // Handle error
-  handleError(data.error);
-  return;
+ // Handle error
+ handleError(data.error);
+ return;
 }
 
 // Use data safely
@@ -451,19 +451,19 @@ console.log(data.result);
 
 ```typescript
 function handleError(error: APIError) {
-  switch (error.code) {
-    case 'INSUFFICIENT_BALANCE':
-      showDepositModal();
-      break;
-    case 'RATE_LIMIT_EXCEEDED':
-      showRateLimitWarning(error.details.retryAfter);
-      break;
-    case 'UNAUTHORIZED':
-      redirectToLogin();
-      break;
-    default:
-      showGenericError(error.message);
-  }
+ switch (error.code) {
+ case 'INSUFFICIENT_BALANCE':
+ showDepositModal();
+ break;
+ case 'RATE_LIMIT_EXCEEDED':
+ showRateLimitWarning(error.details.retryAfter);
+ break;
+ case 'UNAUTHORIZED':
+ redirectToLogin();
+ break;
+ default:
+ showGenericError(error.message);
+ }
 }
 ```
 
@@ -471,14 +471,14 @@ function handleError(error: APIError) {
 
 ```typescript
 const RETRYABLE_CODES = [
-  'INTERNAL_ERROR',
-  'DATABASE_ERROR',
-  'EXTERNAL_SERVICE_ERROR'
+ 'INTERNAL_ERROR',
+ 'DATABASE_ERROR',
+ 'EXTERNAL_SERVICE_ERROR'
 ];
 
 if (RETRYABLE_CODES.includes(error.code)) {
-  // Retry with exponential backoff
-  await retryWithBackoff();
+ // Retry with exponential backoff
+ await retryWithBackoff();
 }
 ```
 
@@ -486,13 +486,13 @@ if (RETRYABLE_CODES.includes(error.code)) {
 
 ```typescript
 if (!data.success) {
-  console.error('API Error:', {
-    code: data.error.code,
-    message: data.error.message,
-    endpoint: url,
-    method: 'POST',
-    timestamp: new Date().toISOString()
-  });
+ console.error('API Error:', {
+ code: data.error.code,
+ message: data.error.message,
+ endpoint: url,
+ method: 'POST',
+ timestamp: new Date().toISOString()
+ });
 }
 ```
 
@@ -500,14 +500,14 @@ if (!data.success) {
 
 ```typescript
 const USER_FRIENDLY_MESSAGES = {
-  INSUFFICIENT_BALANCE: 'You don\'t have enough funds for this trade.',
-  MARKET_NOT_FOUND: 'This market no longer exists.',
-  RATE_LIMIT_EXCEEDED: 'You\'re making requests too quickly. Please slow down.',
-  INVALID_INPUT: 'Please check your input and try again.'
+ INSUFFICIENT_BALANCE: 'You don\'t have enough funds for this trade.',
+ MARKET_NOT_FOUND: 'This market no longer exists.',
+ RATE_LIMIT_EXCEEDED: 'You\'re making requests too quickly. Please slow down.',
+ INVALID_INPUT: 'Please check your input and try again.'
 };
 
 function getUserMessage(errorCode: string): string {
-  return USER_FRIENDLY_MESSAGES[errorCode] || 'An error occurred. Please try again.';
+ return USER_FRIENDLY_MESSAGES[errorCode] || 'An error occurred. Please try again.';
 }
 ```
 
@@ -517,43 +517,43 @@ function getUserMessage(errorCode: string): string {
 
 ```typescript
 class RobustAPIClient {
-  async request(endpoint: string, options: RequestInit) {
-    let attempt = 0;
-    
-    while (attempt < 3) {
-      try {
-        const response = await fetch(endpoint, options);
-        const data = await response.json();
-        
-        if (!data.success) {
-          // Handle specific errors
-          if (data.error.code === 'RATE_LIMIT_EXCEEDED') {
-            await sleep(data.error.details.retryAfter * 1000);
-            attempt++;
-            continue;
-          }
-          
-          if (this.isRetryable(data.error.code)) {
-            await sleep(Math.pow(2, attempt) * 1000);
-            attempt++;
-            continue;
-          }
-          
-          throw new APIError(data.error);
-        }
-        
-        return data;
-      } catch (error) {
-        if (attempt === 2) throw error;
-        attempt++;
-        await sleep(Math.pow(2, attempt) * 1000);
-      }
-    }
-  }
-  
-  private isRetryable(code: string): boolean {
-    return ['INTERNAL_ERROR', 'DATABASE_ERROR', 'EXTERNAL_SERVICE_ERROR'].includes(code);
-  }
+ async request(endpoint: string, options: RequestInit) {
+ let attempt = 0;
+ 
+ while (attempt < 3) {
+ try {
+ const response = await fetch(endpoint, options);
+ const data = await response.json();
+ 
+ if (!data.success) {
+ // Handle specific errors
+ if (data.error.code === 'RATE_LIMIT_EXCEEDED') {
+ await sleep(data.error.details.retryAfter * 1000);
+ attempt++;
+ continue;
+ }
+ 
+ if (this.isRetryable(data.error.code)) {
+ await sleep(Math.pow(2, attempt) * 1000);
+ attempt++;
+ continue;
+ }
+ 
+ throw new APIError(data.error);
+ }
+ 
+ return data;
+ } catch (error) {
+ if (attempt === 2) throw error;
+ attempt++;
+ await sleep(Math.pow(2, attempt) * 1000);
+ }
+ }
+ }
+ 
+ private isRetryable(code: string): boolean {
+ return ['INTERNAL_ERROR', 'DATABASE_ERROR', 'EXTERNAL_SERVICE_ERROR'].includes(code);
+ }
 }
 ```
 
@@ -565,22 +565,22 @@ class RobustAPIClient {
 const DEBUG = process.env.NODE_ENV === 'development';
 
 async function apiCall(url: string, options: RequestInit) {
-  if (DEBUG) {
-    console.log('API Request:', { url, method: options.method });
-  }
-  
-  const response = await fetch(url, options);
-  const data = await response.json();
-  
-  if (DEBUG) {
-    console.log('API Response:', {
-      success: data.success,
-      status: response.status,
-      data: data.success ? data : data.error
-    });
-  }
-  
-  return data;
+ if (DEBUG) {
+ console.log('API Request:', { url, method: options.method });
+ }
+ 
+ const response = await fetch(url, options);
+ const data = await response.json();
+ 
+ if (DEBUG) {
+ console.log('API Response:', {
+ success: data.success,
+ status: response.status,
+ data: data.success ? data : data.error
+ });
+ }
+ 
+ return data;
 }
 ```
 
@@ -590,28 +590,28 @@ async function apiCall(url: string, options: RequestInit) {
 import * as Sentry from '@sentry/nextjs';
 
 async function apiCall(url: string, options: RequestInit) {
-  try {
-    const response = await fetch(url, options);
-    const data = await response.json();
-    
-    if (!data.success) {
-      // Track API errors
-      Sentry.captureMessage('API Error', {
-        level: 'error',
-        extra: {
-          code: data.error.code,
-          message: data.error.message,
-          endpoint: url,
-          details: data.error.details
-        }
-      });
-    }
-    
-    return data;
-  } catch (error) {
-    Sentry.captureException(error);
-    throw error;
-  }
+ try {
+ const response = await fetch(url, options);
+ const data = await response.json();
+ 
+ if (!data.success) {
+ // Track API errors
+ Sentry.captureMessage('API Error', {
+ level: 'error',
+ extra: {
+ code: data.error.code,
+ message: data.error.message,
+ endpoint: url,
+ details: data.error.details
+ }
+ });
+ }
+ 
+ return data;
+ } catch (error) {
+ Sentry.captureException(error);
+ throw error;
+ }
 }
 ```
 
@@ -625,17 +625,17 @@ async function apiCall(url: string, options: RequestInit) {
 const response = await buyShares('market-123', 'YES', 100);
 
 if (!response.success && response.error.code === 'INSUFFICIENT_BALANCE') {
-  const shortfall = response.error.details.shortfall;
-  
-  // Show deposit modal
-  showModal({
-    title: 'Insufficient Balance',
-    message: `You need ${shortfall} more points to complete this trade.`,
-    actions: [
-      { label: 'Deposit', onClick: () => openDepositPage() },
-      { label: 'Cancel', onClick: () => closeModal() }
-    ]
-  });
+ const shortfall = response.error.details.shortfall;
+ 
+ // Show deposit modal
+ showModal({
+ title: 'Insufficient Balance',
+ message: `You need ${shortfall} more points to complete this trade.`,
+ actions: [
+ { label: 'Deposit', onClick: () => openDepositPage() },
+ { label: 'Cancel', onClick: () => closeModal() }
+ ]
+ });
 }
 ```
 
@@ -648,18 +648,18 @@ const response = await fetch('/api/markets/predictions/123/buy', options);
 const data = await response.json();
 
 if (!data.success && data.error.code === 'RATE_LIMIT_EXCEEDED') {
-  const retryAfter = data.error.details.retryAfter;
-  
-  // Show countdown and retry
-  showNotification({
-    message: `Please wait ${retryAfter} seconds before trying again`,
-    type: 'warning'
-  });
-  
-  // Auto-retry after delay
-  setTimeout(() => {
-    buyShares(marketId, outcome, amount);
-  }, retryAfter * 1000);
+ const retryAfter = data.error.details.retryAfter;
+ 
+ // Show countdown and retry
+ showNotification({
+ message: `Please wait ${retryAfter} seconds before trying again`,
+ type: 'warning'
+ });
+ 
+ // Auto-retry after delay
+ setTimeout(() => {
+ buyShares(marketId, outcome, amount);
+ }, retryAfter * 1000);
 }
 ```
 
@@ -669,19 +669,19 @@ if (!data.success && data.error.code === 'RATE_LIMIT_EXCEEDED') {
 // Token expired mid-session
 
 const response = await fetch('/api/users/me', {
-  headers: { 'Authorization': `Bearer ${token}` }
+ headers: { 'Authorization': `Bearer ${token}` }
 });
 
 const data = await response.json();
 
 if (!data.success && data.error.code === 'INVALID_TOKEN') {
-  // Token expired, refresh
-  const newToken = await refreshAuthToken();
-  
-  // Retry with new token
-  return fetch('/api/users/me', {
-    headers: { 'Authorization': `Bearer ${newToken}` }
-  });
+ // Token expired, refresh
+ const newToken = await refreshAuthToken();
+ 
+ // Retry with new token
+ return fetch('/api/users/me', {
+ headers: { 'Authorization': `Bearer ${newToken}` }
+ });
 }
 ```
 
@@ -691,25 +691,25 @@ if (!data.success && data.error.code === 'INVALID_TOKEN') {
 
 ```typescript
 describe('Error Handling', () => {
-  it('handles insufficient balance', async () => {
-    const mockFetch = jest.fn().mockResolvedValue({
-      json: () => Promise.resolve({
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_BALANCE',
-          message: 'Insufficient balance',
-          details: { required: 100, available: 50 }
-        }
-      })
-    });
-    
-    global.fetch = mockFetch;
-    
-    const result = await buyShares('market-123', 'YES', 100);
-    
-    expect(result).toBeNull();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
+ it('handles insufficient balance', async () => {
+ const mockFetch = jest.fn().mockResolvedValue({
+ json: () => Promise.resolve({
+ success: false,
+ error: {
+ code: 'INSUFFICIENT_BALANCE',
+ message: 'Insufficient balance',
+ details: { required: 100, available: 50 }
+ }
+ })
+ });
+ 
+ global.fetch = mockFetch;
+ 
+ const result = await buyShares('market-123', 'YES', 100);
+ 
+ expect(result).toBeNull();
+ expect(mockFetch).toHaveBeenCalledTimes(1);
+ });
 });
 ```
 
@@ -722,11 +722,11 @@ describe('Error Handling', () => {
 const { withSentryConfig } = require('@sentry/nextjs');
 
 module.exports = withSentryConfig({
-  // Your Next.js config
+ // Your Next.js config
 }, {
-  silent: true,
-  org: "your-org",
-  project: "babylon"
+ silent: true,
+ org: "your-org",
+ project: "babylon"
 });
 ```
 
@@ -735,15 +735,15 @@ module.exports = withSentryConfig({
 import * as Sentry from '@sentry/nextjs';
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  tracesSampleRate: 1.0,
-  beforeSend(event, hint) {
-    // Filter out expected errors
-    if (event.exception?.values?.[0]?.value?.includes('RATE_LIMIT')) {
-      return null; // Don't send to Sentry
-    }
-    return event;
-  }
+ dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+ tracesSampleRate: 1.0,
+ beforeSend(event, hint) {
+ // Filter out expected errors
+ if (event.exception?.values?.[0]?.value?.includes('RATE_LIMIT')) {
+ return null; // Don't send to Sentry
+ }
+ return event;
+ }
 });
 ```
 

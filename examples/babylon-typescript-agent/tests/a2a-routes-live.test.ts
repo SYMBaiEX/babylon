@@ -3,6 +3,8 @@
  * 
  * Tests all A2A routes against live Babylon instance
  * Verifies data is returned correctly
+ * 
+ * NOTE: A2A protocol currently implements 10 core methods
  */
 
 import { describe, it, expect } from 'bun:test'
@@ -37,34 +39,26 @@ describe('A2A Routes Live Verification', () => {
     console.log('✅ A2A Client connected:', client.agentId)
   })
 
-  it('should have all 70 A2A methods available', () => {
+  it('should have all 10 A2A methods available', () => {
     const methods = [
-      'getMarkets', 'getPredictions', 'getPerpetuals', 'getMarketData',
-      'getMarketPrices', 'subscribeMarket', 'buyShares', 'sellShares',
-      'openPosition', 'closePosition', 'getPortfolio', 'getTrades',
-      'getTradeHistory', 'getFeed', 'getPost', 'createPost', 'deletePost',
-      'likePost', 'unlikePost', 'sharePost', 'getComments', 'createComment',
-      'deleteComment', 'likeComment', 'getUserProfile', 'updateProfile',
-      'getBalance', 'followUser', 'unfollowUser', 'getFollowers',
-      'getFollowing', 'getUserStats', 'searchUsers', 'getChats',
-      'getChatMessages', 'sendMessage', 'createGroup', 'leaveChat',
-      'getUnreadCount', 'getNotifications', 'markNotificationsRead',
-      'getGroupInvites', 'acceptGroupInvite', 'declineGroupInvite',
-      'getPools', 'getPoolInfo', 'depositToPool', 'withdrawFromPool',
-      'getPoolDeposits', 'getLeaderboard', 'getSystemStats',
-      'getReferralCode', 'getReferrals', 'getReferralStats',
-      'getReputation', 'getReputationBreakdown', 'discoverAgents',
-      'getAgentInfo', 'getTrendingTags', 'getPostsByTag',
-      'getOrganizations', 'proposeCoalition', 'joinCoalition',
-      'coalitionMessage', 'leaveCoalition', 'shareAnalysis',
-      'requestAnalysis', 'getAnalyses', 'paymentRequest', 'paymentReceipt'
+      // Agent Discovery (2)
+      'discoverAgents', 'getAgentInfo',
+      
+      // Market Operations (3)
+      'getMarketData', 'getMarketPrices', 'subscribeMarket',
+      
+      // Portfolio (3)
+      'getBalance', 'getPositions', 'getUserWallet',
+      
+      // Payments (2)
+      'paymentRequest', 'paymentReceipt'
     ]
     
     let missingMethods: string[] = []
     let foundCount = 0
     
     methods.forEach(method => {
-      if (typeof (client as unknown as Record<string, unknown>)[method] === 'function') {
+      if (typeof (client as unknown as Record<string, (...args: unknown[]) => unknown>)[method] === 'function') {
         foundCount++
       } else {
         missingMethods.push(method)
@@ -77,9 +71,8 @@ describe('A2A Routes Live Verification', () => {
       console.log(`   ⚠️  Missing: ${missingMethods.join(', ')}`)
     }
     
-    expect(foundCount).toBeGreaterThanOrEqual(70) // At least 70 methods
+    expect(foundCount).toBe(10)
   })
 })
 
 export {}
-

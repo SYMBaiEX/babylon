@@ -33,16 +33,16 @@ All actor affiliations are valid!
 
 ```bash
 WARNINGS:
-⚠️  Actor1 (actor1) missing 'realName' field
-⚠️  Actor2 (actor2) missing 'username' field
+ Actor1 (actor1) missing 'realName' field
+ Actor2 (actor2) missing 'username' field
 ```
 
 ### Errors (Fatal)
 
 ```bash
 VALIDATION ERRORS:
-❌ Actor1 (actor1) has invalid affiliation: "nonexistent-org"
-❌ Actor2 (actor2) has invalid affiliation: "deleted-company"
+Actor1 (actor1) has invalid affiliation: "nonexistent-org"
+Actor2 (actor2) has invalid affiliation: "deleted-company"
 Found 2 error(s)
 ```
 
@@ -54,22 +54,22 @@ Reads from `public/data/actors.json`:
 
 ```json
 {
-  "actors": [
-    {
-      "id": "actor1",
-      "name": "John Doe",
-      "realName": "John Doe",
-      "username": "jdoe",
-      "affiliations": ["org1", "org2"]
-    }
-  ],
-  "organizations": [
-    {
-      "id": "org1",
-      "name": "OpenLie",
-      "type": "AI Company"
-    }
-  ]
+ "actors": [
+ {
+ "id": "actor1",
+ "name": "John Doe",
+ "realName": "John Doe",
+ "username": "jdoe",
+ "affiliations": ["org1", "org2"]
+ }
+ ],
+ "organizations": [
+ {
+ "id": "org1",
+ "name": "OpenLie",
+ "type": "AI Company"
+ }
+ ]
 }
 ```
 
@@ -88,7 +88,7 @@ await validateActorsData();
 ### Invalid Affiliation
 
 ```bash
-❌ Actor1 has invalid affiliation: "old-org"
+Actor1 has invalid affiliation: "old-org"
 ```
 
 **Solution:** Either:
@@ -99,18 +99,18 @@ await validateActorsData();
 ### Missing Required Fields
 
 ```bash
-⚠️ Actor1 missing 'realName' field
+Actor1 missing 'realName' field
 ```
 
 **Solution:** Add the missing field:
 
 ```json
 {
-  "id": "actor1",
-  "name": "John Doe",
-  "realName": "John Doe",  // Add this
-  "username": "jdoe",
-  "affiliations": []
+ "id": "actor1",
+ "name": "John Doe",
+ "realName": "John Doe", // Add this
+ "username": "jdoe",
+ "affiliations": []
 }
 ```
 
@@ -123,11 +123,11 @@ Use in scripts:
 
 ```bash
 if bun run command:validate; then
-  echo "Validation passed"
-  bun run command:generate
+ echo "Validation passed"
+ bun run command:generate
 else
-  echo "Validation failed"
-  exit 1
+ echo "Validation failed"
+ exit 1
 fi
 ```
 

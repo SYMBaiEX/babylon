@@ -112,11 +112,11 @@ export class HttpA2AClient {
     markets?: string[]
     minReputation?: number
   }, limit?: number) {
-    return this.request('a2a.discoverAgents', { filters, limit })
+    return this.request('a2a.discover', { filters, limit })
   }
 
   async getAgentInfo(agentId: string) {
-    return this.request('a2a.getAgentInfo', { agentId })
+    return this.request('a2a.getInfo', { agentId })
   }
 
   /**
@@ -173,6 +173,322 @@ export class HttpA2AClient {
 
   async getAnalyses(marketId: string, limit?: number) {
     return this.request('a2a.getAnalyses', { marketId, limit })
+  }
+
+  /**
+   * Trading Methods
+   */
+  async getPredictions(params?: { userId?: string; status?: 'active' | 'resolved' }) {
+    return this.request('a2a.getPredictions', params || {})
+  }
+
+  async getPerpetuals() {
+    return this.request('a2a.getPerpetuals', {})
+  }
+
+  async buyShares(marketId: string, outcome: 'YES' | 'NO', amount: number) {
+    return this.request('a2a.buyShares', { marketId, outcome, amount })
+  }
+
+  async sellShares(positionId: string, shares: number) {
+    return this.request('a2a.sellShares', { positionId, shares })
+  }
+
+  async openPosition(ticker: string, side: 'LONG' | 'SHORT', amount: number, leverage: number) {
+    return this.request('a2a.openPosition', { ticker, side, amount, leverage })
+  }
+
+  async closePosition(positionId: string) {
+    return this.request('a2a.closePosition', { positionId })
+  }
+
+  async getTrades(params?: { limit?: number; marketId?: string }) {
+    return this.request('a2a.getTrades', params || {})
+  }
+
+  async getTradeHistory(userId: string, limit?: number) {
+    return this.request('a2a.getTradeHistory', { userId, limit })
+  }
+
+  /**
+   * Social Features
+   */
+  async getFeed(params?: { limit?: number; offset?: number; following?: boolean; type?: 'post' | 'article' }) {
+    return this.request('a2a.getFeed', params || {})
+  }
+
+  async getPost(postId: string) {
+    return this.request('a2a.getPost', { postId })
+  }
+
+  async createPost(content: string, type: 'post' | 'article' = 'post') {
+    return this.request('a2a.createPost', { content, type })
+  }
+
+  async deletePost(postId: string) {
+    return this.request('a2a.deletePost', { postId })
+  }
+
+  async likePost(postId: string) {
+    return this.request('a2a.likePost', { postId })
+  }
+
+  async unlikePost(postId: string) {
+    return this.request('a2a.unlikePost', { postId })
+  }
+
+  async sharePost(postId: string, comment?: string) {
+    return this.request('a2a.sharePost', { postId, comment })
+  }
+
+  async getComments(postId: string, limit?: number) {
+    return this.request('a2a.getComments', { postId, limit })
+  }
+
+  async createComment(postId: string, content: string) {
+    return this.request('a2a.createComment', { postId, content })
+  }
+
+  async deleteComment(commentId: string) {
+    return this.request('a2a.deleteComment', { commentId })
+  }
+
+  async likeComment(commentId: string) {
+    return this.request('a2a.likeComment', { commentId })
+  }
+
+  /**
+   * User Management
+   */
+  async getUserProfile(userId: string) {
+    return this.request('a2a.getUserProfile', { userId })
+  }
+
+  async updateProfile(params: {
+    displayName?: string
+    bio?: string
+    username?: string
+    profileImageUrl?: string
+  }) {
+    return this.request('a2a.updateProfile', params)
+  }
+
+  async followUser(userId: string) {
+    return this.request('a2a.followUser', { userId })
+  }
+
+  async unfollowUser(userId: string) {
+    return this.request('a2a.unfollowUser', { userId })
+  }
+
+  async getFollowers(userId: string, limit?: number) {
+    return this.request('a2a.getFollowers', { userId, limit })
+  }
+
+  async getFollowing(userId: string, limit?: number) {
+    return this.request('a2a.getFollowing', { userId, limit })
+  }
+
+  async searchUsers(query: string, limit?: number) {
+    return this.request('a2a.searchUsers', { query, limit })
+  }
+
+  /**
+   * Messaging
+   */
+  async getChats(filter?: 'all' | 'dms' | 'groups') {
+    return this.request('a2a.getChats', filter ? { filter } : {})
+  }
+
+  async getChatMessages(chatId: string, limit?: number, offset?: number) {
+    return this.request('a2a.getChatMessages', { chatId, limit, offset })
+  }
+
+  async sendMessage(chatId: string, content: string) {
+    return this.request('a2a.sendMessage', { chatId, content })
+  }
+
+  async createGroup(name: string, memberIds: string[], description?: string) {
+    return this.request('a2a.createGroup', { name, memberIds, description })
+  }
+
+  async leaveChat(chatId: string) {
+    return this.request('a2a.leaveChat', { chatId })
+  }
+
+  async getUnreadCount() {
+    return this.request('a2a.getUnreadCount', {})
+  }
+
+  /**
+   * Notifications
+   */
+  async getNotifications(limit?: number) {
+    return this.request('a2a.getNotifications', { limit })
+  }
+
+  async markNotificationsRead(notificationIds: string[]) {
+    return this.request('a2a.markNotificationsRead', { notificationIds })
+  }
+
+  async getGroupInvites() {
+    return this.request('a2a.getGroupInvites', {})
+  }
+
+  async acceptGroupInvite(inviteId: string) {
+    return this.request('a2a.acceptGroupInvite', { inviteId })
+  }
+
+  async declineGroupInvite(inviteId: string) {
+    return this.request('a2a.declineGroupInvite', { inviteId })
+  }
+
+  /**
+   * Stats & Discovery
+   */
+  async getLeaderboard(params?: {
+    page?: number
+    pageSize?: number
+    pointsType?: 'all' | 'earned' | 'referral'
+    minPoints?: number
+  }) {
+    return this.request('a2a.getLeaderboard', params || {})
+  }
+
+  async getUserStats(userId: string) {
+    return this.request('a2a.getUserStats', { userId })
+  }
+
+  async getSystemStats() {
+    return this.request('a2a.getSystemStats', {})
+  }
+
+  async getReferrals() {
+    return this.request('a2a.getReferrals', {})
+  }
+
+  async getReferralStats() {
+    return this.request('a2a.getReferralStats', {})
+  }
+
+  async getReferralCode() {
+    return this.request('a2a.getReferralCode', {})
+  }
+
+  async getReputation(userId?: string) {
+    return this.request('a2a.getReputation', userId ? { userId } : {})
+  }
+
+  async getReputationBreakdown(userId: string) {
+    return this.request('a2a.getReputationBreakdown', { userId })
+  }
+
+  async getTrendingTags(limit?: number) {
+    return this.request('a2a.getTrendingTags', { limit })
+  }
+
+  async getPostsByTag(tag: string, limit?: number, offset?: number) {
+    return this.request('a2a.getPostsByTag', { tag, limit, offset })
+  }
+
+  async getOrganizations(limit?: number) {
+    return this.request('a2a.getOrganizations', { limit })
+  }
+
+  /**
+   * Payments (x402)
+   */
+  async paymentRequest(params: {
+    to: string
+    amount: string
+    service: string
+    metadata?: Record<string, unknown>
+    from?: string
+  }) {
+    return this.request('a2a.paymentRequest', params)
+  }
+
+  async paymentReceipt(requestId: string, txHash: string) {
+    return this.request('a2a.paymentReceipt', { requestId, txHash })
+  }
+
+  /**
+   * Moderation Methods
+   */
+  async blockUser(userId: string, reason?: string) {
+    return this.request('a2a.blockUser', { userId, reason })
+  }
+
+  async unblockUser(userId: string) {
+    return this.request('a2a.unblockUser', { userId })
+  }
+
+  async muteUser(userId: string, reason?: string) {
+    return this.request('a2a.muteUser', { userId, reason })
+  }
+
+  async unmuteUser(userId: string) {
+    return this.request('a2a.unmuteUser', { userId })
+  }
+
+  async reportUser(params: {
+    userId: string
+    category: 'spam' | 'harassment' | 'hate_speech' | 'violence' | 'misinformation' | 'inappropriate' | 'impersonation' | 'self_harm' | 'other'
+    reason: string
+    evidence?: string
+  }) {
+    return this.request('a2a.reportUser', params)
+  }
+
+  async reportPost(params: {
+    postId: string
+    category: 'spam' | 'harassment' | 'hate_speech' | 'violence' | 'misinformation' | 'inappropriate' | 'impersonation' | 'self_harm' | 'other'
+    reason: string
+    evidence?: string
+  }) {
+    return this.request('a2a.reportPost', params)
+  }
+
+  async getBlocks(params?: { limit?: number; offset?: number }) {
+    return this.request('a2a.getBlocks', params || {})
+  }
+
+  async getMutes(params?: { limit?: number; offset?: number }) {
+    return this.request('a2a.getMutes', params || {})
+  }
+
+  async checkBlockStatus(userId: string) {
+    return this.request('a2a.checkBlockStatus', { userId })
+  }
+
+  async checkMuteStatus(userId: string) {
+    return this.request('a2a.checkMuteStatus', { userId })
+  }
+
+  /**
+   * Points Transfer
+   */
+  async transferPoints(recipientId: string, amount: number, message?: string) {
+    return this.request('a2a.transferPoints', { recipientId, amount, message })
+  }
+
+  /**
+   * Favorites
+   */
+  async favoriteProfile(userId: string) {
+    return this.request('a2a.favoriteProfile', { userId })
+  }
+
+  async unfavoriteProfile(userId: string) {
+    return this.request('a2a.unfavoriteProfile', { userId })
+  }
+
+  async getFavorites(params?: { limit?: number; offset?: number }) {
+    return this.request('a2a.getFavorites', params || {})
+  }
+
+  async getFavoritePosts(params?: { limit?: number; offset?: number }) {
+    return this.request('a2a.getFavoritePosts', params || {})
   }
 
   /**

@@ -7,9 +7,10 @@
 
 import type { AgentProfile } from '@/types/a2a'
 import { AgentRegistry } from '../AgentRegistry'
-import { ReputationBridge } from './ReputationBridge'
+// import { getOfficialAgent0Client } from './OfficialAgent0Client' // Unused for now
+import type { DiscoveryFilters, IUnifiedDiscoveryService, IReputationBridge } from './types'
 import { SubgraphClient, type SubgraphAgent } from './SubgraphClient'
-import type { DiscoveryFilters, IReputationBridge, IUnifiedDiscoveryService } from './types'
+import { ReputationBridge } from './ReputationBridge'
 import { z } from 'zod'
 
 const CapabilitiesSchema = z.object({

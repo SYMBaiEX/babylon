@@ -28,7 +28,7 @@ interface PrivyUser {
 
 interface PrivyCreateUserParams {
   create_embedded_wallet: boolean;
-  linked_accounts: unknown[];
+  linked_accounts: Array<Record<string, unknown>>;
 }
 
 interface PrivySignTransactionParams {

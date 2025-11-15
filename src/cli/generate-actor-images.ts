@@ -554,7 +554,14 @@ async function main() {
   // Load actors database
   const actorsPath = join(process.cwd(), "public", "data", "actors.json");
   const actorsData = await readFile(actorsPath, "utf-8");
-  const actorsDb = ActorsDatabaseSchema.parse(JSON.parse(actorsData));
+  let parsedActors: unknown
+  try {
+    parsedActors = JSON.parse(actorsData)
+  } catch (error) {
+    logger.error('Failed to parse actors JSON', { error, filePath: actorsPath }, 'generate-actor-images')
+    throw new Error(`Invalid JSON in ${actorsPath}`)
+  }
+  const actorsDb = ActorsDatabaseSchema.parse(parsedActors);
 
   const actorsImagesDir = join(process.cwd(), "public", "images", "actors");
   const actorsBannersDir = join(process.cwd(), "public", "images", "actor-banners");

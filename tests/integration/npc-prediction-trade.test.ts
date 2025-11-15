@@ -80,6 +80,10 @@ async function cleanupTestData(poolId: string, actorId: string, marketId: string
   await prisma.nPCTrade.deleteMany({ where: { poolId } });
   await prisma.pool.deleteMany({ where: { id: poolId } });
   await prisma.actor.deleteMany({ where: { id: actorId } });
+  // Clean up price history before deleting market (even though cascade should handle it)
+  await prisma.predictionPriceHistory.deleteMany({ where: { marketId } }).catch(() => {
+    // Ignore if table doesn't exist
+  });
   await prisma.market.deleteMany({ where: { id: marketId } });
 }
 

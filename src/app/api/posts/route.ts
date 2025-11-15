@@ -106,7 +106,8 @@ import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
-import type { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server'
+import type { JsonValue } from '@/types/common';
 import { NextResponse } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
@@ -321,7 +322,7 @@ export const GET = withErrorHandling(async (request: Request) => {
         const shareMap = new Map(shareRecords.map(s => [s.userId, s.postId]));
 
         // Build repost metadata lookup
-        const repostMetadataMap = new Map<string, Record<string, unknown>>();
+        const repostMetadataMap = new Map<string, Record<string, JsonValue>>();
         for (const [postId, repostData] of repostDataMap.entries()) {
           if (!repostData) continue; // Skip null entries
           
@@ -660,7 +661,16 @@ export const GET = withErrorHandling(async (request: Request) => {
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request)
 
-  const body = await request.json()
+  let body: { content: string }
+  try {
+    body = await request.json() as { content: string }
+  } catch (error) {
+    logger.error('Failed to parse request body', { error }, 'POST /api/posts')
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid request body'
+    }, { status: 400 })
+  }
   const { content } = body
 
   checkRateLimitAndDuplicates(

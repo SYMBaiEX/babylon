@@ -97,7 +97,14 @@ const ActorsDataSchema = z.object({
  */
 function validateActors(): void {
   const actorsPath = join(process.cwd(), 'public', 'data', 'actors.json');
-  const data = ActorsDataSchema.parse(JSON.parse(readFileSync(actorsPath, 'utf-8')));
+  let parsedData: unknown
+  try {
+    parsedData = JSON.parse(readFileSync(actorsPath, 'utf-8'))
+  } catch (error) {
+    logger.error('Failed to parse actors JSON', { error, filePath: actorsPath }, 'validate-actors')
+    throw new Error(`Invalid JSON in ${actorsPath}`)
+  }
+  const data = ActorsDataSchema.parse(parsedData);
 
   const { actors, organizations } = data;
   

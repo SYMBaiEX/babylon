@@ -10,10 +10,7 @@ import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 import type {
   A2ABalanceResponse,
-  A2APositionsResponse,
-  A2APredictionsResponse,
-  A2AFeedResponse,
-  A2AUnreadCountResponse
+  A2APositionsResponse
 } from '@/types/a2a-responses'
 
 /**
@@ -31,26 +28,22 @@ export const dashboardProvider: Provider = {
     
     // A2A is REQUIRED
     if (!babylonRuntime.a2aClient?.isConnected()) {
-      logger.error('A2A client not connected - dashboard provider requires A2A protocol', { 
-        agentId: runtime.agentId 
-      })
+      logger.error('A2A client not connected - dashboard provider requires A2A protocol', undefined, runtime.agentId)
       return { text: 'ERROR: A2A client not connected. Cannot load dashboard. Please ensure A2A server is running.' }
     }
     
-    // Fetch all dashboard data via A2A protocol
-    const [balance, positions, predictions, feed, unreadCount] = await Promise.all([
+    // Fetch dashboard data via A2A protocol (only implemented methods)
+    const [balance, positions] = await Promise.all([
       babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
-      babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId }),
-      babylonRuntime.a2aClient.sendRequest('a2a.getPredictions', { status: 'active' }),
-      babylonRuntime.a2aClient.sendRequest('a2a.getFeed', { limit: 5, offset: 0 }),
-      babylonRuntime.a2aClient.sendRequest('a2a.getUnreadCount', {})
+      babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId })
     ])
     
-    const balanceData = balance as A2ABalanceResponse
-    const positionsData = positions as A2APositionsResponse
-    const predictionsData = predictions as A2APredictionsResponse
-    const feedData = feed as A2AFeedResponse
-    const unreadData = unreadCount as A2AUnreadCountResponse
+    // NOTE: These A2A methods are NOT currently implemented:
+    // - getPredictions, getFeed, getUnreadCount
+    // Use REST API instead
+    
+    const balanceData = balance as unknown as A2ABalanceResponse
+    const positionsData = positions as unknown as A2APositionsResponse
     
     const totalPositions = (positionsData.marketPositions?.length || 0) + (positionsData.perpPositions?.length || 0)
     
@@ -61,26 +54,16 @@ Balance: $${balanceData.balance || 0}
 Points: ${balanceData.reputationPoints || 0} pts
 Open Positions: ${totalPositions}
 
-📈 ACTIVE MARKETS (Top 3)
-${predictionsData.predictions?.slice(0, 3).map((m, i: number) => {
-  const total = m.yesShares + m.noShares
-  const yesPrice = total > 0 ? (m.yesShares / total * 100).toFixed(1) : '50.0'
-  return `${i + 1}. ${m.question}
-   YES: ${yesPrice}% | Liquidity: $${m.liquidity}`
-}).join('\n') || 'No active markets'}
+ℹ️ NOTE: For markets, social feed, and messages, use REST API endpoints:
+- GET /api/markets/predictions
+- GET /api/feed
+- GET /api/chats
+- GET /api/notifications
 
-📱 SOCIAL FEED (Recent)
-${feedData.posts?.slice(0, 3).map((p, i: number) => 
-  `${i + 1}. @${p.author?.username || 'user'}: ${p.content?.substring(0, 60)}...`
-).join('\n') || 'No recent posts'}
-
-📬 PENDING
-Unread Messages: ${unreadData.unreadCount || 0}
 
 💡 OPPORTUNITIES
 - ${totalPositions > 0 ? 'Monitor open positions' : 'Consider opening positions'}
-- ${feedData.posts && feedData.posts.length > 0 ? 'Engage with recent posts' : 'Create new post'}
-- ${unreadData.unreadCount && unreadData.unreadCount > 0 ? 'Respond to messages' : 'All messages read'}`
+- Check REST API for markets, feed, and messages`
 
     return { text: result }
   }

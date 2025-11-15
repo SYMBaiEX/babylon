@@ -32,6 +32,7 @@ import {
   PaymentRequestParamsSchema,
   PaymentReceiptParamsSchema,
 } from './validation'
+import * as handlers from './handlers'
 
 // Typed parameter interfaces for each method
 // Note: These types are inferred from schemas but kept for potential future use
@@ -88,20 +89,32 @@ export class MessageRouter {
     }
 
     switch (request.method) {
+      // Agent Discovery
       case A2AMethod.DISCOVER_AGENTS:
+      case 'a2a.discover':
         return await this.handleDiscover(agentId, request)
       case A2AMethod.GET_AGENT_INFO:
+      case 'a2a.getInfo':
         return await this.handleGetAgentInfo(agentId, request)
+      
+      // Market Data
       case A2AMethod.GET_MARKET_DATA:
+      case 'a2a.getMarketData':
         return await this.handleGetMarketData(agentId, request)
       case A2AMethod.GET_MARKET_PRICES:
+      case 'a2a.getMarketPrices':
         return await this.handleGetMarketPrices(agentId, request)
+      case A2AMethod.GET_PREDICTIONS:
+      case 'a2a.getPredictions':
+        return await handlers.handleGetPredictions(agentId, request)
+      case A2AMethod.GET_PERPETUALS:
+      case 'a2a.getPerpetuals':
+        return await handlers.handleGetPerpetuals(agentId, request)
       case A2AMethod.SUBSCRIBE_MARKET:
+      case 'a2a.subscribeMarket':
         return await this.handleSubscribeMarket(agentId, request)
-      case A2AMethod.PAYMENT_REQUEST:
-        return await this.handlePaymentRequest(agentId, request)
-      case A2AMethod.PAYMENT_RECEIPT:
-        return await this.handlePaymentReceipt(agentId, request)
+      
+      // Portfolio
       case A2AMethod.GET_BALANCE:
       case 'a2a.getBalance':
         return await this.handleGetBalance(agentId, request)
@@ -111,6 +124,218 @@ export class MessageRouter {
       case A2AMethod.GET_USER_WALLET:
       case 'a2a.getUserWallet':
         return await this.handleGetUserWallet(agentId, request)
+      
+      // Trading Actions
+      case A2AMethod.BUY_SHARES:
+      case 'a2a.buyShares':
+        return await handlers.handleBuyShares(agentId, request)
+      case A2AMethod.SELL_SHARES:
+      case 'a2a.sellShares':
+        return await handlers.handleSellShares(agentId, request)
+      case A2AMethod.OPEN_POSITION:
+      case 'a2a.openPosition':
+        return await handlers.handleOpenPosition(agentId, request)
+      case A2AMethod.CLOSE_POSITION:
+      case 'a2a.closePosition':
+        return await handlers.handleClosePosition(agentId, request)
+      
+      // Trade History
+      case A2AMethod.GET_TRADES:
+      case 'a2a.getTrades':
+        return await handlers.handleGetTrades(agentId, request)
+      case A2AMethod.GET_TRADE_HISTORY:
+      case 'a2a.getTradeHistory':
+        return await handlers.handleGetTradeHistory(agentId, request)
+      
+      // Social Features
+      case A2AMethod.GET_FEED:
+      case 'a2a.getFeed':
+        return await handlers.handleGetFeed(agentId, request)
+      case A2AMethod.GET_POST:
+      case 'a2a.getPost':
+        return await handlers.handleGetPost(agentId, request)
+      case A2AMethod.CREATE_POST:
+      case 'a2a.createPost':
+        return await handlers.handleCreatePost(agentId, request)
+      case A2AMethod.DELETE_POST:
+      case 'a2a.deletePost':
+        return await handlers.handleDeletePost(agentId, request)
+      case A2AMethod.LIKE_POST:
+      case 'a2a.likePost':
+        return await handlers.handleLikePost(agentId, request)
+      case A2AMethod.UNLIKE_POST:
+      case 'a2a.unlikePost':
+        return await handlers.handleUnlikePost(agentId, request)
+      case A2AMethod.SHARE_POST:
+      case 'a2a.sharePost':
+        return await handlers.handleSharePost(agentId, request)
+      case A2AMethod.GET_COMMENTS:
+      case 'a2a.getComments':
+        return await handlers.handleGetComments(agentId, request)
+      case A2AMethod.CREATE_COMMENT:
+      case 'a2a.createComment':
+        return await handlers.handleCreateComment(agentId, request)
+      case A2AMethod.DELETE_COMMENT:
+      case 'a2a.deleteComment':
+        return await handlers.handleDeleteComment(agentId, request)
+      case A2AMethod.LIKE_COMMENT:
+      case 'a2a.likeComment':
+        return await handlers.handleLikeComment(agentId, request)
+      
+      // User Management
+      case A2AMethod.GET_USER_PROFILE:
+      case 'a2a.getUserProfile':
+        return await handlers.handleGetUserProfile(agentId, request)
+      case A2AMethod.UPDATE_PROFILE:
+      case 'a2a.updateProfile':
+        return await handlers.handleUpdateProfile(agentId, request)
+      case A2AMethod.FOLLOW_USER:
+      case 'a2a.followUser':
+        return await handlers.handleFollowUser(agentId, request)
+      case A2AMethod.UNFOLLOW_USER:
+      case 'a2a.unfollowUser':
+        return await handlers.handleUnfollowUser(agentId, request)
+      case A2AMethod.GET_FOLLOWERS:
+      case 'a2a.getFollowers':
+        return await handlers.handleGetFollowers(agentId, request)
+      case A2AMethod.GET_FOLLOWING:
+      case 'a2a.getFollowing':
+        return await handlers.handleGetFollowing(agentId, request)
+      case A2AMethod.SEARCH_USERS:
+      case 'a2a.searchUsers':
+        return await handlers.handleSearchUsers(agentId, request)
+      
+      // Messaging
+      case A2AMethod.GET_CHATS:
+      case 'a2a.getChats':
+        return await handlers.handleGetChats(agentId, request)
+      case A2AMethod.GET_CHAT_MESSAGES:
+      case 'a2a.getChatMessages':
+        return await handlers.handleGetChatMessages(agentId, request)
+      case A2AMethod.SEND_MESSAGE:
+      case 'a2a.sendMessage':
+        return await handlers.handleSendMessage(agentId, request)
+      case A2AMethod.CREATE_GROUP:
+      case 'a2a.createGroup':
+        return await handlers.handleCreateGroup(agentId, request)
+      case A2AMethod.LEAVE_CHAT:
+      case 'a2a.leaveChat':
+        return await handlers.handleLeaveChat(agentId, request)
+      case A2AMethod.GET_UNREAD_COUNT:
+      case 'a2a.getUnreadCount':
+        return await handlers.handleGetUnreadCount(agentId, request)
+      
+      // Notifications
+      case A2AMethod.GET_NOTIFICATIONS:
+      case 'a2a.getNotifications':
+        return await handlers.handleGetNotifications(agentId, request)
+      case A2AMethod.MARK_NOTIFICATIONS_READ:
+      case 'a2a.markNotificationsRead':
+        return await handlers.handleMarkNotificationsRead(agentId, request)
+      case A2AMethod.GET_GROUP_INVITES:
+      case 'a2a.getGroupInvites':
+        return await handlers.handleGetGroupInvites(agentId, request)
+      case A2AMethod.ACCEPT_GROUP_INVITE:
+      case 'a2a.acceptGroupInvite':
+        return await handlers.handleAcceptGroupInvite(agentId, request)
+      case A2AMethod.DECLINE_GROUP_INVITE:
+      case 'a2a.declineGroupInvite':
+        return await handlers.handleDeclineGroupInvite(agentId, request)
+      
+      // Stats & Leaderboard
+      case A2AMethod.GET_LEADERBOARD:
+      case 'a2a.getLeaderboard':
+        return await handlers.handleGetLeaderboard(agentId, request)
+      case A2AMethod.GET_USER_STATS:
+      case 'a2a.getUserStats':
+        return await handlers.handleGetUserStats(agentId, request)
+      case A2AMethod.GET_SYSTEM_STATS:
+      case 'a2a.getSystemStats':
+        return await handlers.handleGetSystemStats(agentId, request)
+      case A2AMethod.GET_REFERRALS:
+      case 'a2a.getReferrals':
+        return await handlers.handleGetReferrals(agentId, request)
+      case A2AMethod.GET_REFERRAL_STATS:
+      case 'a2a.getReferralStats':
+        return await handlers.handleGetReferralStats(agentId, request)
+      case A2AMethod.GET_REFERRAL_CODE:
+      case 'a2a.getReferralCode':
+        return await handlers.handleGetReferralCode(agentId, request)
+      case A2AMethod.GET_REPUTATION:
+      case 'a2a.getReputation':
+        return await handlers.handleGetReputation(agentId, request)
+      case A2AMethod.GET_REPUTATION_BREAKDOWN:
+      case 'a2a.getReputationBreakdown':
+        return await handlers.handleGetReputationBreakdown(agentId, request)
+      case A2AMethod.GET_TRENDING_TAGS:
+      case 'a2a.getTrendingTags':
+        return await handlers.handleGetTrendingTags(agentId, request)
+      case A2AMethod.GET_POSTS_BY_TAG:
+      case 'a2a.getPostsByTag':
+        return await handlers.handleGetPostsByTag(agentId, request)
+      case A2AMethod.GET_ORGANIZATIONS:
+      case 'a2a.getOrganizations':
+        return await handlers.handleGetOrganizations(agentId, request)
+      
+      // Payments
+      case A2AMethod.PAYMENT_REQUEST:
+      case 'a2a.paymentRequest':
+        return await this.handlePaymentRequest(agentId, request)
+      case A2AMethod.PAYMENT_RECEIPT:
+      case 'a2a.paymentReceipt':
+        return await this.handlePaymentReceipt(agentId, request)
+      
+      // Moderation
+      case A2AMethod.BLOCK_USER:
+      case 'a2a.blockUser':
+        return await handlers.handleBlockUser(agentId, request)
+      case A2AMethod.UNBLOCK_USER:
+      case 'a2a.unblockUser':
+        return await handlers.handleUnblockUser(agentId, request)
+      case A2AMethod.MUTE_USER:
+      case 'a2a.muteUser':
+        return await handlers.handleMuteUser(agentId, request)
+      case A2AMethod.UNMUTE_USER:
+      case 'a2a.unmuteUser':
+        return await handlers.handleUnmuteUser(agentId, request)
+      case A2AMethod.REPORT_USER:
+      case 'a2a.reportUser':
+        return await handlers.handleReportUser(agentId, request)
+      case A2AMethod.REPORT_POST:
+      case 'a2a.reportPost':
+        return await handlers.handleReportPost(agentId, request)
+      case A2AMethod.GET_BLOCKS:
+      case 'a2a.getBlocks':
+        return await handlers.handleGetBlocks(agentId, request)
+      case A2AMethod.GET_MUTES:
+      case 'a2a.getMutes':
+        return await handlers.handleGetMutes(agentId, request)
+      case A2AMethod.CHECK_BLOCK_STATUS:
+      case 'a2a.checkBlockStatus':
+        return await handlers.handleCheckBlockStatus(agentId, request)
+      case A2AMethod.CHECK_MUTE_STATUS:
+      case 'a2a.checkMuteStatus':
+        return await handlers.handleCheckMuteStatus(agentId, request)
+      
+      // Points Transfer
+      case A2AMethod.TRANSFER_POINTS:
+      case 'a2a.transferPoints':
+        return await handlers.handleTransferPoints(agentId, request)
+      
+      // Favorites
+      case A2AMethod.FAVORITE_PROFILE:
+      case 'a2a.favoriteProfile':
+        return await handlers.handleFavoriteProfile(agentId, request)
+      case A2AMethod.UNFAVORITE_PROFILE:
+      case 'a2a.unfavoriteProfile':
+        return await handlers.handleUnfavoriteProfile(agentId, request)
+      case A2AMethod.GET_FAVORITES:
+      case 'a2a.getFavorites':
+        return await handlers.handleGetFavorites(agentId, request)
+      case A2AMethod.GET_FAVORITE_POSTS:
+      case 'a2a.getFavoritePosts':
+        return await handlers.handleGetFavoritePosts(agentId, request)
+      
       default:
         return this.errorResponse(
           request.id,

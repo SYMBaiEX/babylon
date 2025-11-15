@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Save } from 'lucide-react'
+import { Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 
 interface AgentSettingsProps {
   agent: {
@@ -31,15 +33,17 @@ interface AgentSettingsProps {
 }
 
 export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
+  const router = useRouter()
   const { getAccessToken } = useAuth()
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [formData, setFormData] = useState({
     name: agent.name,
     description: agent.description || '',
     profileImageUrl: agent.profileImageUrl || '',
-    system: agent.system,
+    system: agent.system, // Already parsed to exclude trading strategy by API
     bio: Array.isArray(agent.bio) ? agent.bio.filter((b) => b).join('\n') : '',
-    personality: agent.personality || '',
+    personality: agent.personality || (Array.isArray(agent.bio) ? agent.bio.filter((b) => b).join('\n') : ''),
     tradingStrategy: agent.tradingStrategy || '',
     modelTier: agent.modelTier,
     isActive: agent.isActive,
@@ -52,32 +56,82 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
   const handleSave = async () => {
     setSaving(true)
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        toast.error('Authentication required')
+        setSaving(false)
+        return
+      }
+      
+      const res = await fetch(`/api/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          bio: formData.personality.trim() ? [formData.personality.trim()] : [], // Single array entry with entire personality
+          // Append trading strategy to system prompt
+          system: formData.tradingStrategy.trim()
+            ? `${formData.system}\n\nTrading Strategy: ${formData.tradingStrategy}`
+            : formData.system
+        })
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to update agent' })) as { error?: string }
+        toast.error(error.error || 'Failed to update agent')
+        setSaving(false)
+        return
+      }
+
+      toast.success('Agent updated successfully')
+      onUpdate()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update agent'
+      toast.error(errorMessage)
+      logger.error('Save error', { error }, 'AgentSettings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${agent.name}? This cannot be undone.`)) {
+      return
+    }
+
+    setDeleting(true)
     const token = await getAccessToken()
+    
     if (!token) {
-      throw new Error('Authentication required')
+      toast.error('Authentication required')
+      setDeleting(false)
+      return
     }
     
     const res = await fetch(`/api/agents/${agent.id}`, {
-      method: 'PUT',
+      method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...formData,
-        bio: formData.bio.split('\n').filter(b => b.trim())
-      })
+        'Authorization': `Bearer ${token}`
+      }
+    }).catch(() => {
+      toast.error('Failed to delete agent')
+      setDeleting(false)
+      throw new Error('Failed to delete agent')
     })
 
-    if (!res.ok) {
+    if (res.ok) {
+      toast.success('Agent deleted successfully')
+      router.push('/agents')
+    } else {
       const error = await res.json()
-      setSaving(false)
-      throw new Error(error.error || 'Failed to update agent')
+      toast.error(error.error || 'Failed to delete agent')
     }
-
-    toast.success('Agent updated successfully')
-    onUpdate()
-    setSaving(false)
+    
+    setDeleting(false)
   }
 
   return (
@@ -121,7 +175,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">System Prompt</label>
+            <label className="block text-sm font-medium mb-2">Important Directions</label>
             <Textarea
               value={formData.system}
               onChange={(e) => setFormData({ ...formData, system: e.target.value })}
@@ -131,22 +185,12 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Bio (one per line)</label>
-            <Textarea
-              value={formData.bio}
-              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              placeholder="Expert trader\nData-driven\nStrategic thinker"
-              rows={4}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Personality Description</label>
+            <label className="block text-sm font-medium mb-2">Personality (maps to bio array)</label>
             <Textarea
               value={formData.personality}
               onChange={(e) => setFormData({ ...formData, personality: e.target.value })}
-              placeholder="Describe personality traits..."
-              rows={3}
+              placeholder="One personality trait per line..."
+              rows={4}
             />
           </div>
 
@@ -158,6 +202,9 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               placeholder="Describe trading approach..."
               rows={4}
             />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              This will be appended to the system prompt.
+            </p>
           </div>
         </div>
       </div>
@@ -266,6 +313,23 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
         >
           <Save className="w-4 h-4" />
           {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="p-6 rounded-lg bg-red-500/5 backdrop-blur border border-red-500/20">
+        <h3 className="text-lg font-semibold mb-2 text-red-400">Danger Zone</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Once you delete an agent, there is no going back. Please be certain.
+        </p>
+        
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="px-6 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/30 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <Trash2 className="w-4 h-4" />
+          {deleting ? 'Deleting...' : 'Delete Agent'}
         </button>
       </div>
     </div>

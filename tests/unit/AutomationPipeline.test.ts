@@ -109,8 +109,8 @@ describe('AutomationPipeline - Unit Tests', () => {
       const defaultPipeline = new AutomationPipeline();
       const status = defaultPipeline['config'];
       
-      expect(status.minTrajectoriesForTraining).toBe(100);
-      expect(status.minGroupSize).toBe(4);
+      expect(status.minTrajectoriesForTraining).toBe(1000);
+      expect(status.minGroupSize).toBe(10);
       expect(status.dataQualityThreshold).toBe(0.95);
       expect(status.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
     });

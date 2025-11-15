@@ -79,7 +79,6 @@ export enum A2AMethod {
   GET_USER_PROFILE = 'a2a.getUserProfile',
   UPDATE_PROFILE = 'a2a.updateProfile',
   GET_BALANCE = 'a2a.getBalance',
-  GET_USER_POSITIONS = 'a2a.getUserPositions',
   GET_USER_WALLET = 'a2a.getUserWallet',
   FOLLOW_USER = 'a2a.followUser',
   UNFOLLOW_USER = 'a2a.unfollowUser',
@@ -87,19 +86,9 @@ export enum A2AMethod {
   GET_FOLLOWING = 'a2a.getFollowing',
   SEARCH_USERS = 'a2a.searchUsers',
 
-  // Pools
-  GET_POOLS = 'a2a.getPools',
-  GET_POOL_INFO = 'a2a.getPoolInfo',
-  DEPOSIT_TO_POOL = 'a2a.depositToPool',
-  WITHDRAW_FROM_POOL = 'a2a.withdrawFromPool',
-  GET_POOL_DEPOSITS = 'a2a.getPoolDeposits',
-
   // Trades
   GET_TRADES = 'a2a.getTrades',
   GET_TRADE_HISTORY = 'a2a.getTradeHistory',
-  GET_PREDICTION_TRADES = 'a2a.getPredictionTrades',
-  GET_PERP_TRADES = 'a2a.getPerpTrades',
-  GET_ASSET_TRADES = 'a2a.getAssetTrades',
 
   // Chats & Messaging
   GET_CHATS = 'a2a.getChats',
@@ -137,21 +126,30 @@ export enum A2AMethod {
   // Organizations
   GET_ORGANIZATIONS = 'a2a.getOrganizations',
 
-  // Moderation
-  BLOCK_USER = 'moderation.blockUser',
-  UNBLOCK_USER = 'moderation.unblockUser',
-  MUTE_USER = 'moderation.muteUser',
-  UNMUTE_USER = 'moderation.unmuteUser',
-  REPORT_USER = 'moderation.reportUser',
-  REPORT_POST = 'moderation.reportPost',
-  GET_BLOCKS = 'moderation.getBlocks',
-  GET_MUTES = 'moderation.getMutes',
-  CHECK_BLOCK_STATUS = 'moderation.checkBlockStatus',
-  CHECK_MUTE_STATUS = 'moderation.checkMuteStatus',
-
   // x402 Micropayments
   PAYMENT_REQUEST = 'a2a.paymentRequest',
-  PAYMENT_RECEIPT = 'a2a.paymentReceipt'
+  PAYMENT_RECEIPT = 'a2a.paymentReceipt',
+
+  // Moderation
+  BLOCK_USER = 'a2a.blockUser',
+  UNBLOCK_USER = 'a2a.unblockUser',
+  MUTE_USER = 'a2a.muteUser',
+  UNMUTE_USER = 'a2a.unmuteUser',
+  REPORT_USER = 'a2a.reportUser',
+  REPORT_POST = 'a2a.reportPost',
+  GET_BLOCKS = 'a2a.getBlocks',
+  GET_MUTES = 'a2a.getMutes',
+  CHECK_BLOCK_STATUS = 'a2a.checkBlockStatus',
+  CHECK_MUTE_STATUS = 'a2a.checkMuteStatus',
+
+  // Points Transfer
+  TRANSFER_POINTS = 'a2a.transferPoints',
+
+  // Favorites
+  FAVORITE_PROFILE = 'a2a.favoriteProfile',
+  UNFAVORITE_PROFILE = 'a2a.unfavoriteProfile',
+  GET_FAVORITES = 'a2a.getFavorites',
+  GET_FAVORITE_POSTS = 'a2a.getFavoritePosts'
 }
 
 // Agent Connection Types
@@ -307,6 +305,7 @@ export enum ErrorCode {
   AGENT_NOT_FOUND = -32002,
   MARKET_NOT_FOUND = -32003,
   COALITION_NOT_FOUND = -32004,
+  FORBIDDEN = -32009,
   PAYMENT_FAILED = -32005,
   RATE_LIMIT_EXCEEDED = -32006,
   INVALID_SIGNATURE = -32007,

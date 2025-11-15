@@ -245,7 +245,12 @@ export async function validateRequestBody<T extends z.ZodType>(
   schema: T
 ): Promise<z.infer<T>> {
   try {
-    const body = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      throw new BadRequestError('Invalid JSON in request body', 'INVALID_JSON')
+    }
     return schema.parse(body)
   } catch (error) {
     if (error instanceof z.ZodError) {
