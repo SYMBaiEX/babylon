@@ -1,0 +1,10 @@
+{
+  "actor1Id": "kash-paitel",
+  "actor2Id": "raichel-maddow",
+  "relationshipType": "industry-leader-follower",
+  "strength": 0.3,
+  "sentiment": -0.2,
+  "history": "Kash PAItel is established leader, RAIchel Maddow follows their work",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": true
+}

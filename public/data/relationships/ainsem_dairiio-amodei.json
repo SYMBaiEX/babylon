@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ainsem",
+  "actor2Id": "dairiio-amodei",
+  "relationshipType": "competitors",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.3366890172525168,
+  "history": "Competing in ai and crypto",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

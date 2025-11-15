@@ -1,0 +1,10 @@
+{
+  "actor1Id": "chamaith-palihapitiya",
+  "actor2Id": "pete-hegsaith",
+  "relationshipType": "acquaintances",
+  "strength": 0.4,
+  "sentiment": -0.09999999999999998,
+  "history": "Professional relationship in vc",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

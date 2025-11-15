@@ -1,0 +1,10 @@
+{
+  "actor1Id": "jim-craimer",
+  "actor2Id": "trump-terminal",
+  "relationshipType": "industry-leader-follower",
+  "strength": 0.2,
+  "sentiment": -0.3,
+  "history": "Trump Terminal is established leader, Jim CrAImer follows their work",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": false
+}

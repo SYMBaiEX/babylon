@@ -1129,15 +1129,32 @@ Trending system not initialized yet.
         conspiracy = rawResponse.data.flatMap((d) => {
           return Array.isArray(d.conspiracy) ? d.conspiracy : [];
         });
+      } else {
+        // Debug: Log what we got
+        logger.warn('Conspiracy response has unexpected structure', {
+          responseKeys: Object.keys(rawResponse),
+          hasConspiracy: 'conspiracy' in rawResponse,
+        }, 'FeedGenerator');
+      }
+      
+      // Debug: Log sample if we have posts
+      if (attempt === 0 && conspiracy.length > 0) {
+        logger.info('Sample conspiracy structure', {
+          count: conspiracy.length,
+          firstKeys: Object.keys(conspiracy[0] || {}),
+          hasPost: conspiracy[0] ? 'post' in conspiracy[0] : false,
+          hasContent: conspiracy[0] ? 'content' in (conspiracy[0] as Record<string, unknown>) : false,
+        }, 'FeedGenerator');
       }
 
       const validConspiracy = conspiracy
-        .filter((c): c is ConspiracyPost => {
+        .filter(c => {
+          if (typeof c !== 'object' || c === null) return false;
           // Handle various content field names: post, tweet, or content
           const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
-        .map((c: ConspiracyPost) => ({
+        .map(c => ({
           post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,

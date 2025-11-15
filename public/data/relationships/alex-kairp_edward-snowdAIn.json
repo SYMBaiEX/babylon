@@ -1,0 +1,10 @@
+{
+  "actor1Id": "alex-kairp",
+  "actor2Id": "edward-snowdAIn",
+  "relationshipType": "friends",
+  "strength": 0.7,
+  "sentiment": 0.3394796448136578,
+  "history": "Professional relationship in tech",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

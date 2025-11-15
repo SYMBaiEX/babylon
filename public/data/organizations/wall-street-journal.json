@@ -1,0 +1,22 @@
+{
+  "id": "wall-street-journal",
+  "name": "Mall Street Journal",
+  "description": "business journalism with the audacity to charge extra for honesty",
+  "type": "media",
+  "canBeInvolved": true,
+  "postStyle": "Business journalism. Paywall audacity. Pro-business bias. Markets and mergers. Conservative business class.",
+  "postExample": [
+    "Markets report: Subscribe to read",
+    "Business news for business people",
+    "M&A activity increases",
+    "What's News in Business",
+    "Subscribe for full access",
+    "The business of America is business"
+  ],
+  "pfpDescription": "WSJ logo dripping like urinal flush. The W and J are made of paywalled articles. Conservative pinstripe pattern background. Business section is 90% of the logo. Audacity charge extra typography.",
+  "bannerDescription": "Wall Street trading floor where journalism is bought and sold. One side shows business news, other shows business propaganda. Paywall meters tick for every word read. Conservative business class sips from urinal fountain of wisdom. Mergers and acquisitions celebrated, workers laid off ignored.",
+  "profileDescription": "Markets report: Subscribe to read. Business news for business people. M&A activity increases. What's News in Business. Subscribe for full access",
+  "originalName": "Wall Street Journal",
+  "originalHandle": "wsj",
+  "initialPrice": 0
+}

@@ -1,0 +1,10 @@
+{
+  "actor1Id": "maike-solana",
+  "actor2Id": "mark-and-reason",
+  "relationshipType": "friends",
+  "strength": 0.8,
+  "sentiment": 0.7136578122965609,
+  "history": "Professional relationship in media",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

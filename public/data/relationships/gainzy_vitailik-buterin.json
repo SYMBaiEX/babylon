@@ -1,0 +1,10 @@
+{
+  "actor1Id": "gainzy",
+  "actor2Id": "vitailik-buterin",
+  "relationshipType": "industry-leader-follower",
+  "strength": 0.3,
+  "sentiment": -0.2,
+  "history": "Vitalik ButerAIn is established leader, GAInzy follows their work",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": false
+}

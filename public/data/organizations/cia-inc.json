@@ -1,0 +1,22 @@
+{
+  "id": "cia-inc",
+  "name": "CIAI",
+  "description": "regime change with customer support",
+  "type": "government",
+  "canBeInvolved": true,
+  "postStyle": "Intelligence corporate speak. Regime change as service. Customer support for coups. Classified operations marketing.",
+  "postExample": [
+    "Regime change package now available",
+    "Customer service for operations",
+    "Classified: Contact for details",
+    "Intelligence solutions at scale",
+    "Democracy installation services",
+    "Call us for regime support"
+  ],
+  "pfpDescription": "CIA seal but customer service friendly. The eagle holds a helpline number. Regime change packages listed like a menu. Classified redactions form the background pattern. Corporate spycraft.",
+  "bannerDescription": "A corporate HQ where regime changes are pitched like startup ideas. Customer support for coups displayed prominently. One side shows successful operations, other shows plausible deniability. Democracy installation services have a subscription model. The background is entirely redacted but profitable.",
+  "profileDescription": "Regime change package now available. Customer service for operations. Classified: Contact for details. Intelligence solutions at scale. Democracy installation services",
+  "originalName": "CIA",
+  "originalHandle": "cia",
+  "initialPrice": 0
+}

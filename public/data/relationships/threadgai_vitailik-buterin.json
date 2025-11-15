@@ -1,0 +1,10 @@
+{
+  "actor1Id": "threadgai",
+  "actor2Id": "vitailik-buterin",
+  "relationshipType": "influencer-fan",
+  "strength": 0.3,
+  "sentiment": -0.2,
+  "history": "Professional relationship in crypto",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": true
+}

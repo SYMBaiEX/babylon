@@ -1,0 +1,10 @@
+{
+  "actor1Id": "jim-craimer",
+  "actor2Id": "tim-AIcook",
+  "relationshipType": "rivals",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.3739286840831632,
+  "history": "Competing in finance and tech",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

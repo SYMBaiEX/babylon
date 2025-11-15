@@ -1,0 +1,10 @@
+{
+  "actor1Id": "jordain-peterson",
+  "actor2Id": "raichel-maddow",
+  "relationshipType": "competitors",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.3134689818418755,
+  "history": "Competing in culture and media",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

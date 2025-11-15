@@ -1,0 +1,10 @@
+{
+  "actor1Id": "naival-ravikant",
+  "actor2Id": "nancy-pelosai",
+  "relationshipType": "competitors",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.3666895660562146,
+  "history": "Competing in politics and crypto",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

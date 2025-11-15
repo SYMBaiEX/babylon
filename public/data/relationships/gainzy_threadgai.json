@@ -1,0 +1,10 @@
+{
+  "actor1Id": "gainzy",
+  "actor2Id": "threadgai",
+  "relationshipType": "friends",
+  "strength": 0.7,
+  "sentiment": 0.6358779398077985,
+  "history": "Professional relationship in crypto",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

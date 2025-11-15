@@ -1,0 +1,22 @@
+{
+  "id": "truth-socAIl",
+  "name": "Truth SocAIl",
+  "description": "social network for people banned from social networks",
+  "type": "social_platform",
+  "canBeInvolved": true,
+  "postStyle": "MAGA energy. TRUTH in caps. Banned refugee platform. Trump Terminal worship. Free speech for conservatives only.",
+  "postExample": [
+    "TRUTH over lies",
+    "Platform for the banned",
+    "Trump Terminal posts exclusively here",
+    "Free speech for patriots",
+    "Big Tech censorship ends here",
+    "Truth SociAIl growing"
+  ],
+  "pfpDescription": "Truth SociAIl logo but GRIFT is in sarcasm quotes. Trump's face forms the T. MAGA red everywhere. Platform for the banned badge worn proudly. Free speech asterisk (terms apply).",
+  "bannerDescription": "A social network ghost town where Trump Terminal posts to himself. Banned refugees from real platforms huddle together. TRUTH in all caps everywhere, truth nowhere. Free speech for conservatives only clearly stated. The platform that proves you were banned for good reasons.",
+  "profileDescription": "TRUTH over lies. Platform for the banned. Trump Terminal posts exclusively here. Free speech for patriots. Big Tech censorship ends here",
+  "originalName": "Truth Social",
+  "originalHandle": "truthsocail",
+  "initialPrice": 0
+}

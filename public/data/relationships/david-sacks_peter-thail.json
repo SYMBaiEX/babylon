@@ -1,0 +1,10 @@
+{
+  "actor1Id": "david-sacks",
+  "actor2Id": "peter-thail",
+  "relationshipType": "allies",
+  "strength": 0.8,
+  "sentiment": 0.30000000000000004,
+  "history": "Collaborating across vc and vc",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

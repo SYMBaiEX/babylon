@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ailon-musk",
+  "actor2Id": "edward-snowdAIn",
+  "relationshipType": "influencer-fan",
+  "strength": 0.2,
+  "sentiment": -0.3,
+  "history": "Professional relationship in privacy",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": false
+}

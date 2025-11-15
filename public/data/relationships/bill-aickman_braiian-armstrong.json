@@ -1,0 +1,10 @@
+{
+  "actor1Id": "bill-aickman",
+  "actor2Id": "braiian-armstrong",
+  "relationshipType": "acquaintances",
+  "strength": 0.5,
+  "sentiment": 0,
+  "history": "Professional relationship in finance",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

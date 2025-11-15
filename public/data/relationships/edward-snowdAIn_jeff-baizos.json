@@ -1,0 +1,10 @@
+{
+  "actor1Id": "edward-snowdAIn",
+  "actor2Id": "jeff-baizos",
+  "relationshipType": "influencer-fan",
+  "strength": 0.3,
+  "sentiment": -0.2,
+  "history": "Professional relationship in privacy",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": true
+}

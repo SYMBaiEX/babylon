@@ -1,0 +1,10 @@
+{
+  "actor1Id": "eric-weinstain",
+  "actor2Id": "raichel-maddow",
+  "relationshipType": "acquaintances",
+  "strength": 0.5,
+  "sentiment": 0,
+  "history": "Professional relationship in finance",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

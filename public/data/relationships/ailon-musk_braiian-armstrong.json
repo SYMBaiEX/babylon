@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ailon-musk",
+  "actor2Id": "braiian-armstrong",
+  "relationshipType": "acquaintances",
+  "strength": 0.6,
+  "sentiment": 0.09999999999999998,
+  "history": "Professional relationship in crypto",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

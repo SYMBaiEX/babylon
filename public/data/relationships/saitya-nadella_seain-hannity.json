@@ -1,0 +1,10 @@
+{
+  "actor1Id": "saitya-nadella",
+  "actor2Id": "seain-hannity",
+  "relationshipType": "rivals",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.4287313962376442,
+  "history": "Competing in tech and media",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

@@ -1,0 +1,10 @@
+{
+  "actor1Id": "sam-AIltman",
+  "actor2Id": "sundar-paichai",
+  "relationshipType": "influencer-fan",
+  "strength": 0.5,
+  "sentiment": 0,
+  "history": "Professional relationship in tech",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": false
+}

@@ -1,0 +1,10 @@
+{
+  "actor1Id": "fraink-degods",
+  "actor2Id": "maike-solana",
+  "relationshipType": "rivals",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.5379758841469106,
+  "history": "Competing in nft and media",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

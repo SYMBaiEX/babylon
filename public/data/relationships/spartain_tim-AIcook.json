@@ -1,0 +1,10 @@
+{
+  "actor1Id": "spartain",
+  "actor2Id": "tim-AIcook",
+  "relationshipType": "rivals",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.6483609778401574,
+  "history": "Competing in crypto and tech",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

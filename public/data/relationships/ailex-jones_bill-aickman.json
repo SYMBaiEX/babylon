@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ailex-jones",
+  "actor2Id": "bill-aickman",
+  "relationshipType": "rivals",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.48091608664994523,
+  "history": "Competing in finance and conspiracy",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

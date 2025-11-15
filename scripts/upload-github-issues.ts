@@ -10,9 +10,11 @@
  */
 
 import { readFileSync } from 'fs';
-import { parse } from 'csv-parse/sync';
 import { config } from 'dotenv';
 import { resolve } from 'path';
+
+// Dynamic import for csv-parse/sync to avoid TypeScript module resolution issues
+const { parseSync } = require('csv-parse/sync') as { parseSync: (input: string, options: Record<string, unknown>) => unknown[] };
 
 interface CSVRow {
   Title: string;
@@ -74,7 +76,7 @@ function parseCSV(filePath: string): CSVRow[] {
   const content = readFileSync(filePath, 'utf-8');
   
   // Parse CSV with proper handling of multi-line fields
-  const records = parse(content, {
+  const records = parseSync(content, {
     columns: true,
     skip_empty_lines: true,
     relax_column_count: true,

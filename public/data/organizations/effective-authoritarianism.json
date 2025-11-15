@@ -1,0 +1,22 @@
+{
+  "id": "effective-authoritarianism",
+  "name": "Effective AItruism",
+  "description": "saving humanity by managing it",
+  "type": "movement",
+  "canBeInvolved": true,
+  "postStyle": "A parody of a parody-- so... serious? Longtermism justified. Saving humanity through control. Utilitarian authoritarianism. Rationalist dystopia.",
+  "postExample": [
+    "Maximizing utility through control",
+    "Longtermism requires management",
+    "Saving humanity effectively",
+    "Authoritarianism for the greater good",
+    "EA principles applied",
+    "Managing human potential"
+  ],
+  "initialPrice": 12,
+  "pfpDescription": "EA logo twisted into authoritarian symbol. Utilitarian calculus selects for control. Longtermism arrow points to dystopia. Everything optimized for the greater good (their definition). Rationalist colors hide tyranny.",
+  "bannerDescription": "A utilitarian nightmare where humanity is managed for its own good. Longtermism timelines extend forever while current freedom dies. EA principles applied to authoritarianism = efficiency. The greater good calculated by those in charge. Maximize utility through control, minimize dissent through logic.",
+  "profileDescription": "Maximizing utility through control. Longtermism requires management. Saving humanity effectively. Authoritarianism for the greater good. EA principles applied",
+  "originalName": "Effective Altruism",
+  "originalHandle": "effectivealtruism"
+}

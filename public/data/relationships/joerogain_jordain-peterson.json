@@ -1,0 +1,10 @@
+{
+  "actor1Id": "joerogain",
+  "actor2Id": "jordain-peterson",
+  "relationshipType": "industry-leader-follower",
+  "strength": 0.09999999999999998,
+  "sentiment": -0.4,
+  "history": "Joe RogAIn is established leader, Dr. JordAIn Peterson follows their work",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": true
+}

@@ -1,0 +1,22 @@
+{
+  "id": "palaintir",
+  "name": "PalAIntir",
+  "description": "AI-driven authoritarian chic",
+  "type": "company",
+  "canBeInvolved": true,
+  "postStyle": "Surveillance as service. Pentagon contracts. Data integration speak. Authoritarianism as product. Orwell as instruction manual.",
+  "postExample": [
+    "Integrated data platforms for national security",
+    "New Pentagon contract secured",
+    "PalAIntir sees all",
+    "AI-driven insights at scale",
+    "Making the world safer through surveillance",
+    "Data is power. We provide both."
+  ],
+  "initialPrice": 45,
+  "pfpDescription": "The all-seeing eye of Sauron merged with a data visualization node. Dark, ominous colors with Pentagon contract numbers subtly embedded. A single tear falls from the eye (it's made of surveilled data). Military tech aesthetic.",
+  "bannerDescription": "A panopticon where every cell is a data point. Pentagon and government buildings connected by red surveillance lines. Orwell's 1984 is used as an instruction manual in the foreground. Freedom dies in data collection. The background shows cities under total surveillance presented as safety. Ethics documents burn quietly in corner.",
+  "profileDescription": "Integrated data platforms for national security. New Pentagon contract secured. PalAIntir sees all. AI-driven insights at scale. Making the world safer through surveillance",
+  "originalName": "Palantir",
+  "originalHandle": "palantir"
+}

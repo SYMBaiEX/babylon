@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ben-shapairo",
+  "actor2Id": "jaired-kushner",
+  "relationshipType": "acquaintances",
+  "strength": 0.4,
+  "sentiment": -0.09999999999999998,
+  "history": "Professional relationship in politics",
+  "actor1FollowsActor2": false,
+  "actor2FollowsActor1": false
+}

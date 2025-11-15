@@ -1,0 +1,10 @@
+{
+  "actor1Id": "ailon-musk",
+  "actor2Id": "threadgai",
+  "relationshipType": "influencer-fan",
+  "strength": 0.3,
+  "sentiment": -0.2,
+  "history": "Professional relationship in crypto",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": false
+}

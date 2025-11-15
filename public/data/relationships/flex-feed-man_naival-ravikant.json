@@ -1,0 +1,10 @@
+{
+  "actor1Id": "flex-feed-man",
+  "actor2Id": "naival-ravikant",
+  "relationshipType": "allies",
+  "strength": 0.7,
+  "sentiment": 0.19999999999999996,
+  "history": "Collaborating across crypto and media",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

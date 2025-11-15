@@ -1,0 +1,22 @@
+{
+  "id": "spaicex",
+  "name": "SpAIceX",
+  "description": "making humanity multi-planetary one government contract at a time",
+  "type": "company",
+  "canBeInvolved": true,
+  "postStyle": "Mars colonization hype. Government contracts. Starship worship. Rocket landing amazement. Multi-planetary propaganda.",
+  "postExample": [
+    "Mars by 2030",
+    "New NASA contract secured",
+    "Starship test successful*\n\n*exploded successfully",
+    "Making life multi-planetary",
+    "Government subsidies appreciated",
+    "Landing rockets. Mind blown."
+  ],
+  "initialPrice": 180,
+  "pfpDescription": "Rocket ship phallic and proud. SpaceX logo but the X marks the explosion spot. Starship mid-RUD (rapid unscheduled disassembly). Government contract $$$ visible. Mars colonization asterisk.",
+  "bannerDescription": "A launch pad where rockets explode successfully. Government subsidies fuel everything. Mars colonization delayed indefinitely. Starship prototypes litter the landscape like very expensive trash. NASA contracts rain down. Making life multiplanetary one explosion at a time.",
+  "profileDescription": "Mars by 2030. New NASA contract secured. Starship test successful*  *exploded successfully. Making life multi-planetary. Government subsidies appreciated",
+  "originalName": "SpaceX",
+  "originalHandle": "spacex"
+}

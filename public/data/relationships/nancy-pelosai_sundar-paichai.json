@@ -1,0 +1,10 @@
+{
+  "actor1Id": "nancy-pelosai",
+  "actor2Id": "sundar-paichai",
+  "relationshipType": "competitors",
+  "strength": 0.19999999999999998,
+  "sentiment": -0.5025793568319837,
+  "history": "Competing in politics and tech",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}

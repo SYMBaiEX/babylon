@@ -1,0 +1,10 @@
+{
+  "actor1Id": "chamaith-palihapitiya",
+  "actor2Id": "maike-solana",
+  "relationshipType": "allies",
+  "strength": 0.7,
+  "sentiment": 0.19999999999999996,
+  "history": "Collaborating across vc and media",
+  "actor1FollowsActor2": true,
+  "actor2FollowsActor1": true
+}
