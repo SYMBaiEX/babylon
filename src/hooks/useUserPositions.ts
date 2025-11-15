@@ -12,6 +12,9 @@ export interface UserPredictionPosition {
   shares: number;
   avgPrice: number;
   currentPrice: number;
+  currentValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
   resolved: boolean;
   resolution: boolean | null;
 }
@@ -56,6 +59,10 @@ interface ApiPredictionPositionPayload {
   shares: NumericLike;
   avgPrice: NumericLike;
   currentPrice: NumericLike;
+  currentValue?: NumericLike;
+  costBasis?: NumericLike;
+  unrealizedPnL?: NumericLike;
+  currentProbability?: NumericLike;
   resolved?: boolean;
   resolution?: boolean | null;
 }
@@ -142,6 +149,9 @@ export function useUserPositions(
           shares: Number(pos.shares),
           avgPrice: Number(pos.avgPrice),
           currentPrice: Number(pos.currentPrice),
+          currentValue: Number(pos.currentValue ?? 0),
+          costBasis: Number(pos.costBasis ?? Number(pos.shares) * Number(pos.avgPrice)),
+          unrealizedPnL: Number(pos.unrealizedPnL ?? 0),
           resolved: Boolean(pos.resolved),
           resolution: pos.resolution ?? null,
         })

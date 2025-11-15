@@ -5,6 +5,7 @@ import { ArrowUpDown, Clock, TrendingDown, TrendingUp, User as UserIcon } from '
 import Link from 'next/link';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
+import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 
 const PAGE_SIZE = 50;
 const POLL_INTERVAL = 10000; // 10 seconds
@@ -97,6 +98,7 @@ export function AssetTradesFeed({
   const [offset, setOffset] = useState(0);
   const [isAtTop, setIsAtTop] = useState(true);
   const [shouldPoll, setShouldPoll] = useState(true);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -232,6 +234,30 @@ export function AssetTradesFeed({
     return () => observer.disconnect();
   }, [offset, hasMore, loadingMore, fetchTrades]);
 
+  useEffect(() => {
+    if (isAtTop && needsRefresh) {
+      setNeedsRefresh(false);
+      void refreshTrades();
+    }
+  }, [isAtTop, needsRefresh, refreshTrades]);
+
+  usePredictionMarketStream(marketType === 'prediction' ? assetId : null, {
+    onTrade: () => {
+      if (isAtTop) {
+        void refreshTrades();
+      } else {
+        setNeedsRefresh(true);
+      }
+    },
+    onResolution: () => {
+      if (isAtTop) {
+        void refreshTrades();
+      } else {
+        setNeedsRefresh(true);
+      }
+    },
+  });
+
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return new Intl.NumberFormat('en-US', {
@@ -288,6 +314,18 @@ export function AssetTradesFeed({
 
   return (
     <div className="space-y-3">
+      {needsRefresh && !isAtTop && (
+        <button
+          type="button"
+          onClick={() => {
+            setNeedsRefresh(false);
+            void refreshTrades();
+          }}
+          className="w-full px-3 py-2 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+        >
+          New trades available — tap to refresh
+        </button>
+      )}
       {trades.map((trade) => (
         <TradeCard key={trade.id} trade={trade} formatCurrency={formatCurrency} formatTime={formatTime} />
       ))}
@@ -513,4 +551,3 @@ function BalanceTradeContent({ trade, formatCurrency }: { trade: BalanceTrade; f
     </div>
   );
 }
-

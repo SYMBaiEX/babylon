@@ -302,6 +302,14 @@ export const IdParamSchema = z.object({
 });
 
 /**
+ * Prediction markets accept both snowflake IDs and UUIDs.
+ * TODO: consider migrating prediction markets to snowflake IDs for consistency.
+ */
+export const PredictionMarketIdSchema = z.object({
+  id: z.string().min(1),
+});
+
+/**
  * Generic success response schema
  * Uses z.unknown() for data to allow any JSON-serializable value while maintaining type safety
  */

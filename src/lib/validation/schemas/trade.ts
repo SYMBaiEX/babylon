@@ -260,7 +260,8 @@ export const PredictionMarketTradeSchema = z.object({
 export const PredictionMarketSellSchema = z.object({
   shares: z.number()
     .positive({ message: 'Shares must be positive' })
-    .min(0.01, { message: 'Minimum shares to sell is 0.01' })
+    .min(0.01, { message: 'Minimum shares to sell is 0.01' }),
+  positionId: SnowflakeIdSchema.optional(),
 });
 
 /**

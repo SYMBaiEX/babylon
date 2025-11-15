@@ -4,6 +4,7 @@
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { asUser } from '@/lib/db/context';
 import { BusinessLogicError, InsufficientFundsError, NotFoundError } from '@/lib/errors';
@@ -11,11 +12,13 @@ import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { PredictionPricing } from '@/lib/prediction-pricing';
+import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
+import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
 import { FeeService } from '@/lib/services/fee-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
 import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 /**
@@ -26,7 +29,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = IdParamSchema.parse(await context.params);
+  const { id: marketId } = PredictionMarketIdSchema.parse(await context.params);
 
   // Authentication - errors propagate to withErrorHandling
   const user = await authenticate(request);
@@ -57,7 +60,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Execute trade with RLS
-  const { position, calculation } = await asUser(user, async (db) => {
+  const { position, calculation, market: updatedMarket } = await asUser(user, async (db) => {
     // Get or create market from question
     logger.info('Step 4: Looking up market/question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
     
@@ -204,10 +207,13 @@ export const POST = withErrorHandling(async (
     });
 
     // Create or update position
+    const desiredYesSide = side === 'yes'
+
     const existingPosition = await db.position.findFirst({
       where: {
         userId: user.userId,
         marketId,
+        side: desiredYesSide,
       },
     });
 
@@ -233,7 +239,7 @@ export const POST = withErrorHandling(async (
           id: await generateSnowflakeId(),
           userId: user.userId,
           marketId,
-          side: side === 'yes',
+          side: desiredYesSide,
           shares: new Prisma.Decimal(calc.sharesBought),
           avgPrice: new Prisma.Decimal(calc.avgPrice),
           updatedAt: now,
@@ -283,6 +289,43 @@ export const POST = withErrorHandling(async (
     logger.warn('Failed to track prediction_bought event', { error });
   });
 
+  await PredictionPriceHistoryService.recordSnapshot({
+    marketId,
+    yesPrice: calculation.newYesPrice,
+    noPrice: calculation.newNoPrice,
+    yesShares: calculation.newYesShares,
+    noShares: calculation.newNoShares,
+    liquidity: Number(updatedMarket.liquidity ?? 0),
+    eventType: 'trade',
+    source: 'user_trade',
+  }).catch((error) => {
+    logger.warn('Failed to record price history for prediction buy', { error, marketId }, 'POST /api/markets/predictions/[id]/buy');
+  });
+
+  await invalidateAfterPredictionTrade(marketId).catch((error) => {
+    logger.warn('Failed to invalidate prediction trades cache after buy', { error, marketId }, 'POST /api/markets/predictions/[id]/buy');
+  });
+
+  PredictionMarketEventService.emitTradeUpdate({
+    marketId,
+    yesPrice: calculation.newYesPrice,
+    noPrice: calculation.newNoPrice,
+    yesShares: Number(updatedMarket.yesShares),
+    noShares: Number(updatedMarket.noShares),
+    liquidity: Number(updatedMarket.liquidity ?? 0),
+    trade: {
+      actorType: 'user',
+      actorId: user.userId,
+      action: 'buy',
+      side,
+      shares: calculation.sharesBought,
+      amount,
+      price: calculation.avgPrice,
+      source: 'user_trade',
+      timestamp: new Date().toISOString(),
+    },
+  });
+
   return successResponse(
     {
       position: {
@@ -307,4 +350,3 @@ export const POST = withErrorHandling(async (
     201
   );
 });
-

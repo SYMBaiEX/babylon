@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, BarChart3, DollarSign } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { TrendingUp, TrendingDown, BarChart3, DollarSign, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream'
 
 interface PerpMarket {
   ticker: string
@@ -34,14 +35,34 @@ interface MarketOverview {
   marketsDown: number
 }
 
+interface PredictionStat {
+  yesShares: number
+  noShares: number
+  resolved: boolean
+}
+
+interface PredictionQuestionSummary {
+  id: string | number
+  yesShares?: number | null
+  noShares?: number | null
+  status?: string | null
+}
+
 export function MarketOverviewPanel() {
   const [overview, setOverview] = useState<MarketOverview | null>(null)
+  const [predictionStats, setPredictionStats] = useState<Record<string, PredictionStat>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchOverview = async () => {
-      const response = await fetch('/api/markets/perps')
-      const data = await response.json()
+      const [perpsResponse, predictionsResponse] = await Promise.all([
+        fetch('/api/markets/perps'),
+        fetch('/api/markets/predictions'),
+      ])
+
+      const data = await perpsResponse.json()
+      const predictionsData = await predictionsResponse.json()
+
       if (data.markets && Array.isArray(data.markets)) {
         const markets = data.markets as PerpMarket[]
         const totalVolume = markets.reduce((sum: number, m: PerpMarket) => sum + (m.volume24h || 0), 0)
@@ -61,6 +82,18 @@ export function MarketOverviewPanel() {
           marketsDown,
         })
       }
+
+      if (predictionsData.questions && Array.isArray(predictionsData.questions)) {
+        const stats: Record<string, PredictionStat> = {}
+        ;(predictionsData.questions as PredictionQuestionSummary[]).forEach((question) => {
+          stats[question.id.toString()] = {
+            yesShares: Number(question.yesShares ?? 0),
+            noShares: Number(question.noShares ?? 0),
+            resolved: question.status === 'resolved',
+          }
+        })
+        setPredictionStats(stats)
+      }
       setLoading(false)
     }
 
@@ -68,6 +101,43 @@ export function MarketOverviewPanel() {
     const interval = setInterval(fetchOverview, 30000) // Refresh every 30 seconds
     return () => clearInterval(interval)
   }, [])
+
+  usePredictionMarketsSubscription({
+    onTrade: (event) => {
+      setPredictionStats((prev) => ({
+        ...prev,
+        [event.marketId]: {
+          yesShares: event.yesShares,
+          noShares: event.noShares,
+          resolved: false,
+        },
+      }))
+    },
+    onResolution: (event) => {
+      setPredictionStats((prev) => ({
+        ...prev,
+        [event.marketId]: {
+          yesShares: event.yesShares,
+          noShares: event.noShares,
+          resolved: true,
+        },
+      }))
+    },
+  })
+
+  const predictionOverview = useMemo(() => {
+    const entries = Object.values(predictionStats)
+    const active = entries.filter((entry) => !entry.resolved)
+    const totalVolume = active.reduce(
+      (sum, entry) => sum + entry.yesShares + entry.noShares,
+      0
+    )
+
+    return {
+      activeCount: active.length,
+      totalVolume,
+    }
+  }, [predictionStats])
 
   const formatVolume = (v: number) => {
     if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`
@@ -135,6 +205,25 @@ export function MarketOverviewPanel() {
               </div>
             </div>
           </div>
+
+          <div className="pt-3 border-t border-border space-y-2">
+            <div className="flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5 text-[#0066FF]" />
+              <span className="text-sm font-semibold text-foreground">Prediction Markets</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Active</span>
+              <span className="text-sm font-semibold text-foreground">
+                {predictionOverview.activeCount}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Total Volume</span>
+              <span className="text-sm font-semibold text-foreground">
+                {predictionOverview.totalVolume.toFixed(0)} shares
+              </span>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="text-sm text-muted-foreground flex-1">No data available</div>
@@ -142,4 +231,3 @@ export function MarketOverviewPanel() {
     </div>
   )
 }
-

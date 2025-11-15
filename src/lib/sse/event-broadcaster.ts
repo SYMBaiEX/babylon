@@ -12,6 +12,10 @@ import { logger } from '@/lib/logger';
 import { isRedisAvailable, safePoll, safePublish } from '@/lib/redis';
 import { EventEmitter } from 'events';
 
+const textEncoder = new TextEncoder();
+
+const encodePayload = (payload: string) => textEncoder.encode(payload);
+
 // Type definitions
 export type Channel = 'feed' | 'markets' | 'breaking-news' | 'upcoming-events' | string;
 
@@ -55,7 +59,7 @@ class InMemoryBroadcaster extends EventEmitter {
 
         try {
           client.controller.enqueue(
-            `event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`
+            encodePayload(`event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`)
           );
         } catch (error) {
           // Controller is closed, remove client
@@ -112,12 +116,12 @@ class InMemoryBroadcaster extends EventEmitter {
 
       try {
         client.controller.enqueue(
-          `event: message\ndata: ${JSON.stringify({
+          encodePayload(`event: message\ndata: ${JSON.stringify({
             channel,
             type,
             data,
             timestamp
-          })}\n\n`
+          })}\n\n`)
         );
         client.lastPing = Date.now();
         sentCount++;
@@ -209,7 +213,7 @@ class ServerlessBroadcaster extends EventEmitter {
 
         try {
           client.controller.enqueue(
-            `event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`
+            encodePayload(`event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`)
           );
         } catch (error) {
           // Controller is closed, remove client
@@ -323,12 +327,12 @@ class ServerlessBroadcaster extends EventEmitter {
 
       try {
         client.controller.enqueue(
-          `event: message\ndata: ${JSON.stringify({
+          encodePayload(`event: message\ndata: ${JSON.stringify({
             channel,
             type,
             data,
             timestamp
-          })}\n\n`
+          })}\n\n`)
         );
         client.lastPing = Date.now();
         sentCount++;
@@ -461,4 +465,3 @@ export function broadcastChatMessage(
     message
   });
 }
-

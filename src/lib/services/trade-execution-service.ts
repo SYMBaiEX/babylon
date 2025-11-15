@@ -4,12 +4,16 @@
  * Executes LLM-generated trading decisions for NPCs.
  * Creates positions, updates balances, records trades.
  */
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
+import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
 import { FeeService } from '@/lib/services/fee-service';
+import { PredictionPricing } from '@/lib/prediction-pricing';
 
 import type {
   ExecutedTrade,
@@ -326,20 +330,32 @@ export class TradeExecutionService {
       throw new Error(`Market not found: ${decision.marketId}`);
     }
 
-    const yesShares = parseFloat(market.yesShares.toString());
-    const noShares = parseFloat(market.noShares.toString());
-    const totalShares = yesShares + noShares;
+    if (market.resolved) {
+      throw new Error(`Market already resolved: ${decision.marketId}`);
+    }
 
-    const yesPrice = totalShares > 0 ? (yesShares / totalShares) * 100 : 50;
-    const noPrice = totalShares > 0 ? (noShares / totalShares) * 100 : 50;
+    if (new Date() > market.endDate) {
+      throw new Error(`Market expired: ${decision.marketId}`);
+    }
 
     const side = decision.action === 'buy_yes' ? 'YES' : 'NO';
-    const entryPrice = side === 'YES' ? yesPrice : noPrice;
+    const sideLabel: 'yes' | 'no' = side === 'YES' ? 'yes' : 'no';
 
-    // Calculate trading fee (0.1% on trade amount)
-    const shares = decision.amount; // Direct 1:1
-    const feeCalc = FeeService.calculateFee(decision.amount);
-    const totalCost = decision.amount + feeCalc.feeAmount;
+    const calculation = PredictionPricing.calculateBuyWithFees(
+      Number(market.yesShares),
+      Number(market.noShares),
+      side === 'YES' ? 'yes' : 'no',
+      decision.amount
+    );
+
+    if (calculation.netAmount <= 0) {
+      throw new Error('Trade amount too low after fees');
+    }
+
+    const totalWithFee = calculation.totalWithFee ?? decision.amount;
+    const entryPrice = calculation.avgPrice * 100;
+    const postTradePrice =
+      (side === 'YES' ? calculation.newYesPrice : calculation.newNoPrice) * 100;
 
     // Execute in transaction
     const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -348,9 +364,9 @@ export class TradeExecutionService {
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
 
       const availableBalance = parseFloat(pool.availableBalance.toString());
-      if (availableBalance < totalCost) {
+      if (availableBalance < totalWithFee) {
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${totalCost} (amount: ${decision.amount}, fee: ${feeCalc.feeAmount})`
+          `Insufficient pool balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
         );
       }
 
@@ -358,20 +374,24 @@ export class TradeExecutionService {
       await tx.pool.update({
         where: { id: poolId },
         data: {
-          availableBalance: { decrement: totalCost },
-          totalFeesCollected: { increment: feeCalc.feeAmount },
+          availableBalance: { decrement: totalWithFee },
+          totalFeesCollected: { increment: calculation.fee },
         },
       });
 
-      // Update market shares
+      // Update market shares with CPMM output
       await tx.market.update({
         where: { id: decision.marketId!.toString() },
         data: {
-          [side === 'YES' ? 'yesShares' : 'noShares']: {
-            increment: shares,
+          yesShares: new Prisma.Decimal(calculation.newYesShares),
+          noShares: new Prisma.Decimal(calculation.newNoShares),
+          liquidity: {
+            increment: new Prisma.Decimal(calculation.netAmount),
           },
         },
       });
+
+      const now = new Date();
 
       // Create position
       const pos = await tx.poolPosition.create({
@@ -382,11 +402,12 @@ export class TradeExecutionService {
           marketId: decision.marketId!.toString(),
           side,
           entryPrice,
-          currentPrice: entryPrice,
-          size: decision.amount,
-          shares,
+          currentPrice: postTradePrice,
+          size: calculation.netAmount,
+          shares: calculation.sharesBought,
           unrealizedPnL: 0,
-          updatedAt: new Date(),
+          openedAt: now,
+          updatedAt: now,
         },
       });
 
@@ -400,7 +421,7 @@ export class TradeExecutionService {
           marketId: decision.marketId!.toString(),
           action: decision.action,
           side,
-          amount: decision.amount,
+          amount: totalWithFee,
           price: entryPrice,
           sentiment: decision.confidence * (side === 'YES' ? 1 : -1),
           reason: decision.reasoning,
@@ -408,6 +429,45 @@ export class TradeExecutionService {
       });
 
       return pos;
+    });
+
+    const liquidityAfter = Number(market.liquidity ?? 0) + calculation.netAmount;
+
+    await PredictionPriceHistoryService.recordSnapshot({
+      marketId: decision.marketId!.toString(),
+      yesPrice: calculation.newYesPrice,
+      noPrice: calculation.newNoPrice,
+      yesShares: calculation.newYesShares,
+      noShares: calculation.newNoShares,
+      liquidity: liquidityAfter,
+      eventType: 'trade',
+      source: 'npc_trade',
+    }).catch((error) => {
+      logger.warn('Failed to record price history for NPC buy', { error, marketId: decision.marketId }, 'TradeExecutionService');
+    });
+
+    await invalidateAfterPredictionTrade(decision.marketId).catch((error) => {
+      logger.warn('Failed to invalidate cache after NPC prediction buy', { error, marketId: decision.marketId }, 'TradeExecutionService');
+    });
+
+    PredictionMarketEventService.emitTradeUpdate({
+      marketId: decision.marketId!.toString(),
+      yesPrice: calculation.newYesPrice,
+      noPrice: calculation.newNoPrice,
+      yesShares: calculation.newYesShares,
+      noShares: calculation.newNoShares,
+      liquidity: liquidityAfter,
+      trade: {
+        actorType: 'npc',
+        actorId: decision.npcId,
+        action: 'buy',
+        side: sideLabel,
+        shares: calculation.sharesBought,
+        amount: calculation.netAmount,
+        price: entryPrice,
+        source: 'npc_trade',
+        timestamp: new Date().toISOString(),
+      },
     });
 
     return {
@@ -418,9 +478,9 @@ export class TradeExecutionService {
       marketId: decision.marketId,
       action: decision.action,
       side,
-      amount: decision.amount,
-      size: decision.amount,
-      shares,
+      amount: totalWithFee,
+      size: calculation.netAmount,
+      shares: calculation.sharesBought,
       executionPrice: entryPrice,
       confidence: decision.confidence,
       reasoning: decision.reasoning,
@@ -450,6 +510,160 @@ export class TradeExecutionService {
 
     if (position.closedAt) {
       throw new Error(`Position already closed: ${decision.positionId}`);
+    }
+
+    const now = new Date();
+
+    if (position.marketType === 'prediction') {
+      if (!position.marketId) {
+        throw new Error(`Prediction position missing marketId: ${position.id}`);
+      }
+
+      const shares = position.shares ?? 0;
+      if (shares <= 0) {
+        throw new Error(`Prediction position has no shares to close: ${position.id}`);
+      }
+
+      const side = position.side === 'YES' || position.side === 'NO' ? position.side : null;
+      if (!side) {
+        throw new Error(`Invalid prediction position side: ${position.side}`);
+      }
+
+      const market = await prisma.market.findUnique({
+        where: { id: position.marketId },
+      });
+
+      if (!market) {
+        throw new Error(`Market not found: ${position.marketId}`);
+      }
+
+      const calculation = PredictionPricing.calculateSellWithFees(
+        Number(market.yesShares),
+        Number(market.noShares),
+        side === 'YES' ? 'yes' : 'no',
+        shares
+      );
+
+      const grossProceeds = calculation.totalCost;
+      const netProceeds = calculation.netProceeds ?? calculation.netAmount;
+
+      if (netProceeds <= 0) {
+        throw new Error(`Calculated net proceeds must be positive (position ${position.id})`);
+      }
+
+      const exitPrice = calculation.avgPrice * 100;
+      const postTradePrice =
+        (side === 'YES' ? calculation.newYesPrice : calculation.newNoPrice) * 100;
+      const realizedPnL = netProceeds - position.size;
+      const liquidityAfter = Math.max(
+        0,
+        Number(market.liquidity ?? 0) - grossProceeds
+      );
+      const sideLabel: 'yes' | 'no' = side === 'YES' ? 'yes' : 'no';
+
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.poolPosition.update({
+          where: { id: position.id },
+          data: {
+            closedAt: now,
+            currentPrice: postTradePrice,
+            unrealizedPnL: 0,
+            realizedPnL,
+            updatedAt: now,
+          },
+        });
+
+        await tx.market.update({
+          where: { id: position.marketId! },
+          data: {
+            yesShares: new Prisma.Decimal(calculation.newYesShares),
+            noShares: new Prisma.Decimal(calculation.newNoShares),
+            liquidity: {
+              decrement: new Prisma.Decimal(grossProceeds),
+            },
+          },
+        });
+
+        await tx.pool.update({
+          where: { id: poolId },
+          data: {
+            availableBalance: { increment: netProceeds },
+            lifetimePnL: { increment: realizedPnL },
+            totalFeesCollected: { increment: calculation.fee },
+          },
+        });
+
+        await tx.nPCTrade.create({
+          data: {
+            id: await generateSnowflakeId(),
+            npcActorId: decision.npcId,
+            poolId,
+            marketType: 'prediction',
+            marketId: position.marketId,
+            action: 'close',
+            side,
+            amount: netProceeds,
+            price: exitPrice,
+            sentiment: 0,
+            reason: decision.reasoning,
+          },
+        });
+      });
+
+      await PredictionPriceHistoryService.recordSnapshot({
+        marketId: position.marketId,
+        yesPrice: calculation.newYesPrice,
+        noPrice: calculation.newNoPrice,
+        yesShares: calculation.newYesShares,
+        noShares: calculation.newNoShares,
+        liquidity: liquidityAfter,
+        eventType: 'trade',
+        source: 'npc_trade',
+      }).catch((error) => {
+        logger.warn('Failed to record price history for NPC close', { error, marketId: position.marketId }, 'TradeExecutionService');
+      });
+
+      await invalidateAfterPredictionTrade(position.marketId).catch((error) => {
+        logger.warn('Failed to invalidate cache after NPC prediction close', { error, marketId: position.marketId }, 'TradeExecutionService');
+      });
+
+      PredictionMarketEventService.emitTradeUpdate({
+        marketId: position.marketId,
+        yesPrice: calculation.newYesPrice,
+        noPrice: calculation.newNoPrice,
+        yesShares: calculation.newYesShares,
+        noShares: calculation.newNoShares,
+        liquidity: liquidityAfter,
+        trade: {
+          actorType: 'npc',
+          actorId: decision.npcId,
+          action: 'sell',
+          side: sideLabel,
+          shares,
+          amount: netProceeds,
+          price: calculation.avgPrice,
+          source: 'npc_trade',
+          timestamp: now.toISOString(),
+        },
+      });
+
+      return {
+        npcId: decision.npcId,
+        npcName: decision.npcName,
+        poolId,
+        marketType: 'prediction',
+        marketId: position.marketId ?? undefined,
+        action: 'close_position',
+        side,
+        amount: netProceeds,
+        size: position.size,
+        shares: position.shares ?? undefined,
+        executionPrice: exitPrice,
+        confidence: decision.confidence,
+        reasoning: decision.reasoning,
+        positionId: position.id,
+        timestamp: now.toISOString(),
+      };
     }
 
     // Get current price
@@ -504,11 +718,11 @@ export class TradeExecutionService {
       await tx.poolPosition.update({
         where: { id: decision.positionId! },
         data: {
-          closedAt: new Date(),
+          closedAt: now,
           currentPrice,
           unrealizedPnL: 0,
           realizedPnL,
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
 

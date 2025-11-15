@@ -50,6 +50,21 @@ interface PerpMarket {
   minOrderSize: number;
 }
 
+interface PredictionUserPosition {
+  id: string;
+  marketId: string;
+  question?: string;
+  side: 'YES' | 'NO';
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  currentValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
+  resolved?: boolean;
+  resolution?: boolean | null;
+}
+
 interface PredictionMarket {
   id: number | string;
   text: string;
@@ -60,16 +75,8 @@ interface PredictionMarket {
   scenario: number;
   yesShares?: number;
   noShares?: number;
-  userPosition?: {
-    id: string;
-    side: 'YES' | 'NO';
-    shares: number;
-    avgPrice: number;
-    currentPrice: number;
-    currentValue: number;
-    costBasis: number;
-    unrealizedPnL: number;
-  } | null;
+  userPosition?: PredictionUserPosition | null;
+  userPositions?: PredictionUserPosition[];
 }
 
 type MarketTab = 'dashboard' | 'futures' | 'predictions';
@@ -1031,8 +1038,10 @@ export default function MarketsPage() {
         {/* Widget Sidebar */}
         <MarketsWidgetSidebar
           onMarketClick={(market) => {
-            // Navigate with dashboard source tracking
             router.push(`/markets/perps/${market.ticker}?from=dashboard`);
+          }}
+          onPredictionClick={(marketId) => {
+            router.push(`/markets/predictions/${marketId}?from=dashboard`);
           }}
         />
       </div>

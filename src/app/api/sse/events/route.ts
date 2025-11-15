@@ -156,10 +156,34 @@ export async function GET(request: NextRequest) {
   const clientId = await generateSnowflakeId()
   
   let pingIntervalId: NodeJS.Timeout | null = null
-  // const isStreamClosed = false
+  let streamClosed = false
+  let controllerRef: ReadableStreamDefaultController | null = null
+  let broadcasterRef: ReturnType<typeof getEventBroadcaster> | null = null
+
+  const cleanup = (reason: string) => {
+    if (streamClosed) return
+    streamClosed = true
+    if (pingIntervalId) {
+      clearInterval(pingIntervalId)
+      pingIntervalId = null
+    }
+    if (broadcasterRef) {
+      broadcasterRef.removeClient(clientId)
+    }
+    try {
+      controllerRef?.close()
+    } catch {
+      // ignore
+    }
+    logger.info(`SSE client disconnected (${reason})`, { clientId, userId: user.userId }, 'SSE')
+  }
 
   const stream = new ReadableStream({
     start: async (controller) => {
+      controllerRef = controller
+      const broadcaster = getEventBroadcaster()
+      broadcasterRef = broadcaster
+
       const client: SSEClient = {
         id: clientId,
         userId: user.userId,
@@ -168,48 +192,44 @@ export async function GET(request: NextRequest) {
         lastPing: Date.now()
       }
 
-      const broadcaster = getEventBroadcaster()
       broadcaster.addClient(client)
 
       for (const channel of channels) {
         broadcaster.subscribeToChannel(clientId, channel)
       }
 
-      controller.enqueue(
-        encoder.encode(`event: connected\ndata: ${JSON.stringify({ 
-          clientId, 
-          channels: Array.from(client.channels),
-          timestamp: Date.now() 
-        })}\n\n`)
-      )
+      const send = (payload: string) => {
+        try {
+          controller.enqueue(encoder.encode(payload))
+          return true
+        } catch (error) {
+          logger.warn('Failed to enqueue SSE payload', { clientId, error }, 'SSE')
+          cleanup('enqueue_error')
+          return false
+        }
+      }
 
-      logger.warn(`Failed to send connected event, controller closed: ${clientId}`, { clientId }, 'SSE')
-      broadcaster.removeClient(clientId)
+      if (!send(`event: connected\ndata: ${JSON.stringify({ 
+        clientId, 
+        channels: Array.from(client.channels),
+        timestamp: Date.now() 
+      })}\n\n`)) {
+        return
+      }
 
       pingIntervalId = setInterval(() => {
-        if (pingIntervalId) clearInterval(pingIntervalId)
-
-        controller.enqueue(
-          encoder.encode(`:ping ${Date.now()}\n\n`)
-        )
-
-        if (pingIntervalId) clearInterval(pingIntervalId)
-        broadcaster.removeClient(clientId)
-        logger.debug(`Failed to send ping, controller closed: ${clientId}`, { clientId }, 'SSE')
+        if (!send(`:ping ${Date.now()}\n\n`)) {
+          logger.debug('Ping failed, closing SSE client', { clientId }, 'SSE')
+        }
       }, 15000)
 
-      request.signal.addEventListener('abort', () => {
-        if (pingIntervalId) clearInterval(pingIntervalId)
-        broadcaster.removeClient(clientId)
-        logger.info(`SSE client disconnected (abort signal): ${clientId}`, { clientId, userId: user.userId }, 'SSE')
-      })
+      request.signal.addEventListener('abort', () => cleanup('abort'))
+
+      logger.info(`SSE client connected: ${clientId}`, { clientId, userId: user.userId, channels }, 'SSE')
     },
     
     cancel() {
-      if (pingIntervalId) clearInterval(pingIntervalId)
-      const broadcaster = getEventBroadcaster()
-      broadcaster.removeClient(clientId)
-      logger.info(`SSE client disconnected (cancel): ${clientId}`, { clientId }, 'SSE')
+      cleanup('cancel')
     }
   })
 

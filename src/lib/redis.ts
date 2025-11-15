@@ -34,10 +34,17 @@ let redisClient: RedisClient = null
 let redisType: 'upstash' | 'standard' | null = null
 let isClosing = false
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
+const isTestEnv = process.env.NODE_ENV === 'test'
 
 // Skip Redis initialization during build time to avoid connection issues
-if (isBuildTime) {
-  logger.info('Build time detected - skipping Redis initialization', undefined, 'Redis')
+if (isBuildTime || isTestEnv) {
+  logger.info(
+    isTestEnv
+      ? 'Test environment detected - skipping Redis initialization'
+      : 'Build time detected - skipping Redis initialization',
+    undefined,
+    'Redis'
+  )
 } else if (hasUpstashConfig()) {
   redisClient = new UpstashRedis({
     url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,

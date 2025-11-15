@@ -17,12 +17,29 @@ import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModa
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
 
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
+import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
+
+interface PredictionUserPosition {
+  id: string;
+  marketId: string;
+  question?: string;
+  side: 'YES' | 'NO';
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  currentValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
+  resolved?: boolean;
+  resolution?: boolean | null;
+}
 
 interface PredictionMarket {
   id: number | string;
@@ -34,16 +51,8 @@ interface PredictionMarket {
   scenario: number;
   yesShares?: number;
   noShares?: number;
-  userPosition?: {
-    id: string;
-    side: 'YES' | 'NO';
-    shares: number;
-    avgPrice: number;
-    currentPrice: number;
-    currentValue: number;
-    costBasis: number;
-    unrealizedPnL: number;
-  } | null;
+  userPosition?: PredictionUserPosition | null;
+  userPositions?: PredictionUserPosition[];
 }
 
 type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
@@ -60,6 +69,7 @@ export default function PredictionsPage() {
   // Data
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sparklineData, setSparklineData] = useState<Record<string, Array<{ time: number; yesPrice: number; noPrice: number }>>>({});
 
   const {
     data: _portfolioPnL,
@@ -110,23 +120,50 @@ export default function PredictionsPage() {
       const predictionsRes = await fetch(
         `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
       );
-      
+
       if (!predictionsRes.ok) {
         throw new Error('Failed to fetch predictions');
       }
 
       const predictionsData = await predictionsRes.json();
 
-      setPredictions(predictionsData.questions || []);
-
-      if (isAuth && userId) {
-        if (refreshPositionsRef.current) {
-          await refreshPositionsRef.current();
+      const fetchedAt = Date.now();
+      const fetchedPredictions: PredictionMarket[] = (predictionsData.questions || []).map(
+        (prediction: PredictionMarket) => {
+          if (
+            prediction.resolutionDate &&
+            new Date(prediction.resolutionDate).getTime() < fetchedAt
+          ) {
+            return {
+              ...prediction,
+              status: 'resolved',
+            };
+          }
+          return prediction;
         }
+      );
+      setPredictions(fetchedPredictions);
+
+      setSparklineData((prev) => {
+        const next = { ...prev };
+        fetchedPredictions.forEach((prediction) => {
+          const id = prediction.id.toString();
+          const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0);
+          const yesProbability =
+            totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
+          const noProbability = 1 - yesProbability;
+          if (!next[id] || next[id].length === 0) {
+            next[id] = [{ time: fetchedAt, yesPrice: yesProbability, noPrice: noProbability }];
+          }
+        });
+        return next;
+      });
+
+      if (isAuth && userId && refreshPositionsRef.current) {
+        await refreshPositionsRef.current();
       }
     } catch (err) {
       console.error('Failed to fetch predictions:', err);
-      // Keep existing predictions on error
     } finally {
       setLoading(false);
     }
@@ -141,6 +178,56 @@ export default function PredictionsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const appendSparklinePoint = useCallback((marketId: string, yesPrice: number, noPrice: number) => {
+    setSparklineData((prev) => {
+      const existing = prev[marketId] ?? [];
+      const nextPoints = [...existing, { time: Date.now(), yesPrice, noPrice }];
+      while (nextPoints.length > 20) {
+        nextPoints.shift();
+      }
+      return {
+        ...prev,
+        [marketId]: nextPoints,
+      };
+    });
+  }, []);
+
+  usePredictionMarketsSubscription({
+    onTrade: (event) => {
+      setPredictions((prev) =>
+        prev.map((market) => {
+          if (market.id.toString() !== event.marketId) return market;
+          return {
+            ...market,
+            yesShares: event.yesShares,
+            noShares: event.noShares,
+            status: 'active',
+            resolvedOutcome: undefined,
+          };
+        })
+      );
+      const totalShares = event.yesShares + event.noShares;
+      const yesProbability =
+        totalShares > 0 ? event.yesPrice : 0.5;
+      appendSparklinePoint(event.marketId, yesProbability, 1 - yesProbability);
+    },
+    onResolution: (event) => {
+      setPredictions((prev) =>
+        prev.map((market) => {
+          if (market.id.toString() !== event.marketId) return market;
+          return {
+            ...market,
+            yesShares: event.yesShares,
+            noShares: event.noShares,
+            status: 'resolved',
+            resolvedOutcome: event.winningSide === 'yes',
+          };
+        })
+      );
+      appendSparklinePoint(event.marketId, event.yesPrice, event.noPrice);
+    },
+  });
 
   const filteredPredictions = predictions.filter(
     (p) =>
@@ -435,18 +522,25 @@ export default function PredictionsPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <ArrowUpDown className="w-3 h-3" />
-                        {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+              {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+            </div>
+          </div>
+                    <div className="flex gap-2 items-center">
+                      <PredictionSparkline
+                        data={sparklineData[prediction.id.toString()] ?? []}
+                        width={80}
+                        height={28}
+                      />
+                      <div className="flex flex-col text-right">
+                        <span className="text-green-600 font-medium">
+                          {yesPrice}% YES
+                        </span>
+                        <span className="text-red-600 font-medium text-xs text-muted-foreground">
+                          {noPrice}% NO
+                        </span>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <div className="text-green-600 font-medium">
-                        {yesPrice}% YES
-                      </div>
-                      <div className="text-red-600 font-medium">
-                        {noPrice}% NO
-                      </div>
-                    </div>
-                  </div>
+          </div>
                   {hasPosition && prediction.userPosition && (
                     <div className="flex items-center gap-2 text-xs">
                       <span
@@ -540,4 +634,3 @@ export default function PredictionsPage() {
     </PageContainer>
   );
 }
-

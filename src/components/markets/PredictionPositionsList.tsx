@@ -14,6 +14,9 @@ interface PredictionPosition {
   shares: number
   avgPrice: number
   currentPrice: number
+  currentValue: number
+  costBasis: number
+  unrealizedPnL: number
   resolved: boolean
   resolution?: boolean | null
 }
@@ -58,6 +61,7 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
       },
       body: JSON.stringify({
         shares: position.shares,
+        positionId: position.id,
       }),
     })
 
@@ -98,10 +102,10 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
   return (
     <div className="space-y-3">
       {positions.map((position) => {
-        const currentValue = position.shares * position.currentPrice
-        const costBasis = position.shares * position.avgPrice
-        const unrealizedPnL = currentValue - costBasis
-        const pnlPercent = (unrealizedPnL / costBasis) * 100
+        const currentValue = position.currentValue ?? position.shares * position.currentPrice
+        const costBasis = position.costBasis ?? position.shares * position.avgPrice
+        const unrealizedPnL = position.unrealizedPnL ?? currentValue - costBasis
+        const pnlPercent = costBasis !== 0 ? (unrealizedPnL / costBasis) * 100 : 0
         const isSelling = sellingId === position.id
 
         return (
@@ -199,4 +203,3 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
     </div>
   )
 }
-

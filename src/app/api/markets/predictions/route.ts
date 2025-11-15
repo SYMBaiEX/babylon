@@ -101,12 +101,74 @@
 
 import type { NextRequest } from 'next/server';
 import db from '@/lib/database-service';
+import type { Market, Position } from '@prisma/client';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { MarketQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
+import { PredictionPricing } from '@/lib/prediction-pricing';
+
+const FALLBACK_PROBABILITY = 0.5;
+
+type PositionWithMarket = Position & { Market?: Market | null };
+
+function buildPositionSnapshot(
+  p: PositionWithMarket,
+  market?: Market | null
+) {
+  const yesShares = market ? Number(market.yesShares) : 0;
+  const noShares = market ? Number(market.noShares) : 0;
+  const totalShares = yesShares + noShares;
+  const shares = Number(p.shares);
+  const avgPrice = Number(p.avgPrice);
+  const costBasis = shares * avgPrice;
+  const sideKey = p.side ? 'yes' : 'no';
+
+  let currentValue = costBasis;
+  let currentUnitPrice = shares > 0 ? avgPrice : 0;
+
+  if (shares > 0 && yesShares > 0 && noShares > 0) {
+    try {
+      const sellPreview = PredictionPricing.calculateSell(
+        yesShares,
+        noShares,
+        sideKey,
+        shares
+      );
+      currentValue = sellPreview.totalCost;
+      currentUnitPrice = sellPreview.totalCost / shares;
+    } catch (error) {
+      logger.warn('Failed to compute prediction MTM value', { error, marketId: p.marketId });
+    }
+  }
+
+  const currentProbability = totalShares > 0
+    ? PredictionPricing.getCurrentPrice(yesShares, noShares, sideKey)
+    : FALLBACK_PROBABILITY;
+
+  const unrealizedPnL = currentValue - costBasis;
+  const payoutMultiplier = 1 + avgPrice;
+  const maxPayout = shares * payoutMultiplier;
+
+  return {
+    id: p.id,
+    marketId: p.marketId,
+    question: market?.question ?? '',
+    side: p.side ? 'YES' : 'NO',
+    shares,
+    avgPrice,
+    currentPrice: currentUnitPrice,
+    currentProbability,
+    currentValue,
+    costBasis,
+    unrealizedPnL,
+    maxPayout,
+    resolved: market?.resolved ?? false,
+    resolution: market?.resolution ?? null,
+  };
+}
 
 /**
  * GET /api/markets/predictions
@@ -155,20 +217,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // Create map of marketId -> position data
       positions.forEach(p => {
         const market = p.Market;
-        const totalShares = Number(market.yesShares) + Number(market.noShares);
-        const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
-        const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
-
-        positionsMap.set(p.marketId, {
-          id: p.id,
-          side: p.side ? 'YES' : 'NO',
-          shares: Number(p.shares),
-          avgPrice: Number(p.avgPrice),
-          currentPrice: p.side ? currentYesPrice : currentNoPrice,
-          currentValue: Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice),
-          costBasis: Number(p.shares) * Number(p.avgPrice),
-          unrealizedPnL: (Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice)) - (Number(p.shares) * Number(p.avgPrice)),
-        });
+        const snapshot = buildPositionSnapshot(p, market);
+        const existingPositions = positionsMap.get(p.marketId) ?? [];
+        positionsMap.set(p.marketId, [...existingPositions, snapshot]);
       });
     }
 
@@ -200,20 +251,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         // Create map of marketId -> position data
         positions.forEach(p => {
           const market = p.Market;
-          const totalShares = Number(market.yesShares) + Number(market.noShares);
-          const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
-          const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
-
-          positionsMap.set(p.marketId, {
-            id: p.id,
-            side: p.side ? 'YES' : 'NO',
-            shares: Number(p.shares),
-            avgPrice: Number(p.avgPrice),
-            currentPrice: p.side ? currentYesPrice : currentNoPrice,
-            currentValue: Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice),
-            costBasis: Number(p.shares) * Number(p.avgPrice),
-            unrealizedPnL: (Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice)) - (Number(p.shares) * Number(p.avgPrice)),
-          });
+          const snapshot = buildPositionSnapshot(p, market);
+          const existingPositions = positionsMap.get(p.marketId) ?? [];
+          positionsMap.set(p.marketId, [...existingPositions, snapshot]);
         });
       }
 
@@ -223,7 +263,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const questionsData = questions.map(q => {
     const marketId = String(q.id);
     const market = markets.get(marketId);
-    const userPosition = userPositionsMap.get(marketId);
+    const userPositions = userPositionsMap.get(marketId) ?? [];
+    const primaryPosition = userPositions[0] ?? null;
 
     return {
       id: q.id, // Use actual question ID (string), not questionNumber
@@ -237,7 +278,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       yesShares: market ? Number(market.yesShares) : 0,
       noShares: market ? Number(market.noShares) : 0,
       // Include user position if exists
-      userPosition: userPosition || null,
+      userPosition: primaryPosition,
+      userPositions,
     };
   });
 
