@@ -10,6 +10,7 @@ import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
 import { TradesFeed } from '@/components/trades/TradesFeed'
+import { SendPointsModal } from '@/components/points/SendPointsModal'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { extractUsername, isUsername } from '@/lib/profile-utils'
@@ -19,7 +20,7 @@ import { POST_TYPES } from '@/shared/constants'
 import type { Actor, FeedPost, Organization } from '@/shared/types'
 import { useGameStore } from '@/stores/gameStore'
 import type { ProfileInfo } from '@/types/profiles'
-import { ArrowLeft, MessageCircle, Search } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Search, Coins } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -73,6 +74,7 @@ export default function ActorProfilePage() {
   const [actorInfo, setActorInfo] = useState<ProfileInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [isCreatingDM, setIsCreatingDM] = useState(false)
+  const [sendPointsModalOpen, setSendPointsModalOpen] = useState(false)
   const [apiPosts, setApiPosts] = useState<Array<{
     id: string
     content: string
@@ -593,16 +595,25 @@ export default function ActorProfilePage() {
               <div className="flex items-center gap-2 pt-3">
                 {authenticated && user && user.id !== actorInfo.id && (
                   <>
-                    {/* Only show message button for users, not actors/NPCs */}
+                    {/* Only show message and pay buttons for users, not actors/NPCs */}
                     {actorInfo.isUser && actorInfo.type === 'user' && (
-                      <button 
-                        onClick={handleMessageClick}
-                        disabled={isCreatingDM}
-                        className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Send message"
-                      >
-                        <MessageCircle className="w-5 h-5" />
-                      </button>
+                      <>
+                        <button 
+                          onClick={handleMessageClick}
+                          disabled={isCreatingDM}
+                          className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Send message"
+                        >
+                          <MessageCircle className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={() => setSendPointsModalOpen(true)}
+                          className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors"
+                          title="Send points"
+                        >
+                          <Coins className="w-5 h-5" />
+                        </button>
+                      </>
                     )}
                     <FollowButton
                       userId={actorInfo.id}
@@ -885,16 +896,25 @@ export default function ActorProfilePage() {
                 <div className="flex items-center gap-2 pt-3">
                   {authenticated && user && user.id !== actorInfo.id && (
                     <>
-                      {/* Only show message button for users, not actors/NPCs */}
+                      {/* Only show message and pay buttons for users, not actors/NPCs */}
                       {actorInfo.isUser && actorInfo.type === 'user' && (
-                        <button 
-                          onClick={handleMessageClick}
-                          disabled={isCreatingDM}
-                          className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Send message"
-                        >
-                          <MessageCircle className="w-5 h-5" />
-                        </button>
+                        <>
+                          <button 
+                            onClick={handleMessageClick}
+                            disabled={isCreatingDM}
+                            className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Send message"
+                          >
+                            <MessageCircle className="w-5 h-5" />
+                          </button>
+                          <button 
+                            onClick={() => setSendPointsModalOpen(true)}
+                            className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors"
+                            title="Send points"
+                          >
+                            <Coins className="w-5 h-5" />
+                          </button>
+                        </>
                       )}
                       <FollowButton
                         userId={actorInfo.id}
@@ -1065,6 +1085,21 @@ export default function ActorProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Send Points Modal */}
+      {actorInfo && actorInfo.isUser && actorInfo.type === 'user' && (
+        <SendPointsModal
+          isOpen={sendPointsModalOpen}
+          onClose={() => setSendPointsModalOpen(false)}
+          recipientId={actorInfo.id}
+          recipientName={actorInfo.name ?? actorInfo.username ?? ''}
+          recipientUsername={actorInfo.username}
+          onSuccess={() => {
+            // Optionally refresh profile data after successful transfer
+            loadActorInfo()
+          }}
+        />
+      )}
     </PageContainer>
   )
 }

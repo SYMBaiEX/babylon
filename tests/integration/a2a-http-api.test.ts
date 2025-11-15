@@ -8,8 +8,23 @@
 import { describe, it, expect, beforeAll } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { getTestBaseUrl, isServerAvailable } from './test-helpers'
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const BASE_URL = getTestBaseUrl()
+
+// Helper to add timeout to fetch requests
+const fetchWithTimeout = (url: string, options: RequestInit = {}, timeoutMs = 5000) => {
+  return fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(timeoutMs)
+  }).catch((err) => {
+    if (err.name === 'TimeoutError' || err.message.includes('timed out')) {
+      console.log(`⚠️  Request timed out after ${timeoutMs}ms: ${url}`)
+      throw new Error(`Request timed out: ${err.message}`)
+    }
+    throw err
+  })
+}
 
 describe('A2A HTTP API Integration', () => {
   let testUserId: string
@@ -17,20 +32,10 @@ describe('A2A HTTP API Integration', () => {
   let serverAvailable = false
 
   beforeAll(async () => {
-    // Check if server is running
-    try {
-      const healthResponse = await fetch(`${BASE_URL}/api/health`, { 
-        signal: AbortSignal.timeout(1000) 
-      })
-      if (healthResponse.ok) {
-        serverAvailable = true
-      } else {
-        console.log('⚠️  Server health check failed - skipping A2A HTTP tests')
-        console.log('   Run `bun dev` to start the server for these tests')
-        return
-      }
-    } catch (error) {
-      console.log('⚠️  Could not connect to server - skipping A2A HTTP tests')
+    // Check if server is running using shared helper
+    serverAvailable = await isServerAvailable(BASE_URL, 3000)
+    if (!serverAvailable) {
+      console.log('⚠️  Server not available - skipping A2A HTTP tests')
       console.log('   Run `bun dev` to start the server for these tests')
       return
     }
@@ -79,7 +84,7 @@ describe('A2A HTTP API Integration', () => {
       }
       
       // Next.js routes this as /. well-known/agent-card (without .json extension)
-      const response = await fetch(`${BASE_URL}/.well-known/agent-card`)
+      const response = await fetchWithTimeout(`${BASE_URL}/.well-known/agent-card`)
       
       expect(response.ok).toBe(true)
       expect(response.headers.get('content-type')).toContain('application/json')
@@ -105,7 +110,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +140,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,7 +166,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +199,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,7 +233,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +265,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,7 +297,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,14 +324,14 @@ describe('A2A HTTP API Integration', () => {
     })
   })
 
-  describe('Coalition Methods', () => {
-    it('a2a.proposeCoalition should create coalition', async () => {
+  describe('Agent Discovery Methods', () => {
+    it('a2a.discover should find agents', async () => {
       if (!serverAvailable) {
         console.log('⏭️  Skipping - server not available')
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -334,13 +339,12 @@ describe('A2A HTTP API Integration', () => {
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          method: 'a2a.proposeCoalition',
+          method: 'a2a.discover',
           params: {
-            name: 'Test Coalition',
-            strategy: 'momentum',
-            targetMarket: testMarketId
+            filters: {},
+            limit: 10
           },
-          id: 7
+          id: 12
         })
       })
 
@@ -350,20 +354,55 @@ describe('A2A HTTP API Integration', () => {
         console.log('   Error:', result.error.message)
       } else {
         expect(result.result).toBeDefined()
-        expect(result.result.coalitionId).toBeDefined()
-        console.log('✅ proposeCoalition works')
+        expect(Array.isArray(result.result.agents)).toBe(true)
+        expect(typeof result.result.total).toBe('number')
+        console.log('✅ discover works, found:', result.result.total, 'agents')
+      }
+    })
+
+    it('a2a.getInfo should return agent profile', async () => {
+      if (!serverAvailable) {
+        console.log('⏭️  Skipping - server not available')
+        return
+      }
+      
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Agent-Id': 'test-agent'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'a2a.getInfo',
+          params: {
+            agentId: 'test-agent'
+          },
+          id: 13
+        })
+      })
+
+      const result = await response.json()
+      
+      // This may return an error if agent doesn't exist, which is ok
+      if (result.result) {
+        expect(result.result.agentId).toBeDefined()
+        console.log('✅ getInfo works')
+      } else if (result.error) {
+        expect(result.error.code).toBe(-32002) // Agent not found
+        console.log('✅ getInfo returns proper error for unknown agent')
       }
     })
   })
 
-  describe('Analysis Sharing Methods', () => {
-    it('a2a.shareAnalysis should store analysis', async () => {
+  describe('Market Subscription Methods', () => {
+    it('a2a.subscribeMarket should subscribe to market', async () => {
       if (!serverAvailable) {
         console.log('⏭️  Skipping - server not available')
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -371,17 +410,11 @@ describe('A2A HTTP API Integration', () => {
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          method: 'a2a.shareAnalysis',
+          method: 'a2a.subscribeMarket',
           params: {
-            marketId: testMarketId,
-            analyst: 'test-agent',
-            prediction: 0.65,
-            confidence: 0.8,
-            reasoning: 'Test analysis',
-            dataPoints: {},
-            timestamp: Date.now()
+            marketId: testMarketId
           },
-          id: 8
+          id: 14
         })
       })
 
@@ -391,19 +424,65 @@ describe('A2A HTTP API Integration', () => {
         console.log('   Error:', result.error.message)
       } else {
         expect(result.result).toBeDefined()
-        expect(result.result.shared).toBe(true)
-        expect(result.result.analysisId).toBeDefined()
-        console.log('✅ shareAnalysis works')
+        expect(result.result.subscribed).toBe(true)
+        expect(result.result.marketId).toBe(testMarketId)
+        console.log('✅ subscribeMarket works')
+      }
+    })
+  })
+
+  describe('Payment Methods (x402)', () => {
+    it('a2a.paymentRequest should create payment request', async () => {
+      if (!serverAvailable) {
+        console.log('⏭️  Skipping - server not available')
+        return
+      }
+      
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Agent-Id': 'test-agent'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'a2a.paymentRequest',
+          params: {
+            from: 'test-agent',
+            to: 'test-recipient',
+            amount: 100,
+            service: 'analysis',
+            metadata: { marketId: testMarketId }
+          },
+          id: 22
+        })
+      })
+
+      const result = await response.json()
+      
+      // x402 may not be enabled, which is fine
+      if (result.error) {
+        if (result.error.code === -32601) {
+          // Method not found - x402 not enabled
+          console.log('✅ paymentRequest returns proper error when x402 disabled')
+        } else {
+          console.log('   Error:', result.error.message)
+        }
+      } else {
+        expect(result.result).toBeDefined()
+        expect(result.result.requestId).toBeDefined()
+        expect(typeof result.result.amount).toBe('number')
+        console.log('✅ paymentRequest works')
       }
     })
 
-    it('a2a.getAnalyses should retrieve analyses', async () => {
+    it('a2a.paymentReceipt should verify payment', async () => {
       if (!serverAvailable) {
         console.log('⏭️  Skipping - server not available')
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -411,23 +490,32 @@ describe('A2A HTTP API Integration', () => {
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          method: 'a2a.getAnalyses',
+          method: 'a2a.paymentReceipt',
           params: {
-            marketId: testMarketId,
-            limit: 10
+            requestId: 'test-request-id',
+            txHash: '0x1234567890abcdef'
           },
-          id: 9
+          id: 23
         })
       })
 
       const result = await response.json()
       
+      // x402 may not be enabled or payment not found, which is expected
       if (result.error) {
-        console.log('   Error:', result.error.message)
+        if (result.error.code === -32601) {
+          // Method not found - x402 not enabled
+          console.log('✅ paymentReceipt returns proper error when x402 disabled')
+        } else if (result.error.code === -32007) {
+          // Payment not found - expected for test data
+          console.log('✅ paymentReceipt validates payment request exists')
+        } else {
+          console.log('   Error:', result.error.message)
+        }
       } else {
         expect(result.result).toBeDefined()
-        expect(Array.isArray(result.result.analyses)).toBe(true)
-        console.log('✅ getAnalyses works, found:', result.result.analyses.length)
+        expect(typeof result.result.verified).toBe('boolean')
+        console.log('✅ paymentReceipt works')
       }
     })
   })
@@ -439,7 +527,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -466,7 +554,7 @@ describe('A2A HTTP API Integration', () => {
         return
       }
       
-      const response = await fetch(`${BASE_URL}/api/a2a`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/a2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

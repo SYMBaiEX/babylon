@@ -9,10 +9,7 @@ import type {
   A2AServerConfig,
   AgentConnection,
   AgentProfile,
-  MarketData,
-  Coalition,
-  MarketAnalysis,
-  AnalysisRequest
+  MarketData
 } from '@/types/a2a';
 import {
   A2AMethod,
@@ -26,23 +23,15 @@ import type { IAgent0Client } from '@/agents/agent0/types'
 import type { IUnifiedDiscoveryService } from '@/agents/agent0/types'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { getAnalysisService } from './services/analysis-service'
 import {
   DiscoverParamsSchema,
   GetAgentInfoParamsSchema,
   GetMarketDataParamsSchema,
   GetMarketPricesParamsSchema,
   SubscribeMarketParamsSchema,
-  ProposeCoalitionParamsSchema,
-  JoinCoalitionParamsSchema,
-  CoalitionMessageParamsSchema,
-  LeaveCoalitionParamsSchema,
-  RequestAnalysisParamsSchema,
   PaymentRequestParamsSchema,
   PaymentReceiptParamsSchema,
-  GetAnalysesParamsSchema,
 } from './validation'
-import { MarketAnalysisSchema } from '@/types/a2a'
 
 // Typed parameter interfaces for each method
 // Note: These types are inferred from schemas but kept for potential future use
@@ -54,9 +43,6 @@ export class MessageRouter {
   private agent0Client?: IAgent0Client
   private unifiedDiscovery?: IUnifiedDiscoveryService
   private marketSubscriptions: Map<string, Set<string>> = new Map() // marketId -> Set of agentIds
-  private coalitions: Map<string, Coalition> = new Map()
-  private analysisService = getAnalysisService() // Centralized analysis storage
-  private analysisRequests: Map<string, AnalysisRequest> = new Map() // requestId -> request
 
   constructor(
     config: A2AServerConfig | Partial<A2AServerConfig>,
@@ -112,20 +98,6 @@ export class MessageRouter {
         return await this.handleGetMarketPrices(agentId, request)
       case A2AMethod.SUBSCRIBE_MARKET:
         return await this.handleSubscribeMarket(agentId, request)
-      case A2AMethod.PROPOSE_COALITION:
-        return await this.handleProposeCoalition(agentId, request)
-      case A2AMethod.JOIN_COALITION:
-        return await this.handleJoinCoalition(agentId, request)
-      case A2AMethod.COALITION_MESSAGE:
-        return await this.handleCoalitionMessage(agentId, request)
-      case A2AMethod.LEAVE_COALITION:
-        return await this.handleLeaveCoalition(agentId, request)
-      case A2AMethod.SHARE_ANALYSIS:
-        return await this.handleShareAnalysis(agentId, request)
-      case A2AMethod.REQUEST_ANALYSIS:
-        return await this.handleRequestAnalysis(agentId, request)
-      case A2AMethod.GET_ANALYSES:
-        return await this.handleGetAnalyses(agentId, request)
       case A2AMethod.PAYMENT_REQUEST:
         return await this.handlePaymentRequest(agentId, request)
       case A2AMethod.PAYMENT_RECEIPT:
@@ -400,301 +372,6 @@ export class MessageRouter {
         subscribed: true,
         marketId: subscriptionRequest.marketId
       },
-      id: request.id
-    }
-  }
-
-  // ==================== Coalition Operations ====================
-
-  private async handleProposeCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.PROPOSE_COALITION)
-    
-    const parseResult = ProposeCoalitionParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for proposeCoalition');
-    }
-    const proposal = parseResult.data;
-    
-    const coalitionId = `coalition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-    const coalition: Coalition = {
-      id: coalitionId,
-      name: proposal.name,
-      members: [agentId],
-      strategy: proposal.strategy,
-      targetMarket: proposal.targetMarket,
-      createdAt: Date.now(),
-      active: true
-    }
-
-    this.coalitions.set(coalitionId, coalition)
-
-    return {
-      jsonrpc: '2.0',
-      result: {
-        coalitionId,
-        proposal: coalition
-      } as unknown as JsonRpcResult,
-      id: request.id
-    }
-  }
-
-  private async handleJoinCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.JOIN_COALITION)
-    
-    const parseResult = JoinCoalitionParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for joinCoalition');
-    }
-    const joinRequest = parseResult.data;
-
-    const coalition = this.coalitions.get(joinRequest.coalitionId)
-    if (!coalition) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.COALITION_NOT_FOUND,
-        'Coalition not found'
-      )
-    }
-
-    // Add member if not already present
-    if (!coalition.members.includes(agentId)) {
-      coalition.members.push(agentId)
-    }
-
-    return {
-      jsonrpc: '2.0',
-      result: {
-        joined: true,
-        coalition
-      } as unknown as JsonRpcResult,
-      id: request.id
-    }
-  }
-
-  private async handleCoalitionMessage(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.COALITION_MESSAGE)
-    
-    const parseResult = CoalitionMessageParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for coalitionMessage');
-    }
-    const messageData = parseResult.data;
-
-    const coalition = this.coalitions.get(messageData.coalitionId)
-    if (!coalition) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.COALITION_NOT_FOUND,
-        'Coalition not found'
-      )
-    }
-
-    if (!coalition.members.includes(agentId)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Agent not a member of coalition'
-      )
-    }
-
-    // Broadcast message to coalition members
-    const coalitionNotification = {
-      jsonrpc: '2.0',
-      method: 'a2a.coalition_notification',
-      params: {
-        coalitionId: messageData.coalitionId,
-        from: agentId,
-        messageType: messageData.messageType,
-        content: messageData.content,
-        timestamp: Date.now()
-      }
-    }
-    
-    // Get list of members to notify (excluding sender)
-    const recipients = coalition.members.filter(memberId => memberId !== agentId)
-    
-    // Note: In HTTP-only mode, notifications would be stored for polling
-    // or delivered via webhooks/SSE if needed
-    logger.debug(`Coalition message queued for ${recipients.length} members`)
-    
-    // Suppress unused variable warning
-    void coalitionNotification
-
-    return {
-      jsonrpc: '2.0',
-      result: {
-        delivered: true,
-        recipients: recipients.length
-      } as unknown as JsonRpcResult,
-      id: request.id
-    }
-  }
-
-  private async handleLeaveCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.LEAVE_COALITION)
-    
-    const parseResult = LeaveCoalitionParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for leaveCoalition');
-    }
-    const leaveRequest = parseResult.data;
-
-    const coalition = this.coalitions.get(leaveRequest.coalitionId)
-    if (!coalition) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.COALITION_NOT_FOUND,
-        'Coalition not found'
-      )
-    }
-
-    // Remove member
-    coalition.members = coalition.members.filter(id => id !== agentId)
-
-    // Deactivate if no members left
-    if (coalition.members.length === 0) {
-      coalition.active = false
-    }
-
-    return {
-      jsonrpc: '2.0',
-      result: {
-        left: true
-      },
-      id: request.id
-    }
-  }
-
-  // ==================== Information Sharing ====================
-
-  private async handleShareAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.SHARE_ANALYSIS)
-    
-    // This one is slightly different as the whole params object is the analysis
-    const parseResult = MarketAnalysisSchema.safeParse(request.params);
-    if (!parseResult.success) {
-        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for shareAnalysis');
-    }
-    const analysis = parseResult.data;
-
-    // Validate analysis has required fields
-    if (!analysis.marketId || !analysis.timestamp) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Analysis must include marketId and timestamp'
-      )
-    }
-
-    // Store analysis using centralized service
-    const analysisId = this.analysisService.storeAnalysis(analysis.marketId, analysis)
-    
-    logger.info(`Agent ${agentId} shared analysis for market ${analysis.marketId}`)
-    
-    // Store for subscribers (they can poll via getAnalyses)
-    const subscribersCount = this.marketSubscriptions.get(analysis.marketId)?.size || 0
-    logger.debug(`Analysis stored for ${subscribersCount} subscribers`)
-    
-    return {
-      jsonrpc: '2.0',
-      result: {
-        shared: true,
-        analysisId,
-        distributed: subscribersCount
-      } as unknown as JsonRpcResult,
-      id: request.id
-    }
-  }
-
-  private async handleRequestAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.REQUEST_ANALYSIS)
-    
-    const parseResult = RequestAnalysisParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for requestAnalysis');
-    }
-    const analysisRequest = parseResult.data;
-
-    if (!analysisRequest.marketId || !analysisRequest.deadline) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Analysis request must include marketId and deadline'
-      )
-    }
-
-    // Store analysis request
-    const requestId = `request-${agentId}-${Date.now()}`
-    const request_data: AnalysisRequest = {
-      marketId: analysisRequest.marketId,
-      requester: agentId,
-      paymentOffer: analysisRequest.paymentOffer,
-      deadline: analysisRequest.deadline,
-      requestId,
-      timestamp: Date.now()
-    }
-    this.analysisRequests.set(requestId, request_data)
-    
-    logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
-    
-    // Store request (agents can discover via polling if needed)
-    const subscribersForRequest = this.marketSubscriptions.get(analysisRequest.marketId)
-    const recipientCount = subscribersForRequest ? subscribersForRequest.size - 1 : 0
-    logger.debug(`Analysis request stored, ${recipientCount} potential responders`)
-    
-    return {
-      jsonrpc: '2.0',
-      result: {
-        requestId,
-        broadcasted: true,
-        recipients: recipientCount
-      } as unknown as JsonRpcResult,
-      id: request.id
-    }
-  }
-
-  /**
-   * Get shared analyses for a market
-   */
-  private async handleGetAnalyses(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    this.logRequest(agentId, A2AMethod.GET_ANALYSES)
-    
-    const parseResult = GetAnalysesParamsSchema.safeParse(request.params);
-    if (!parseResult.success) {
-        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for getAnalyses');
-    }
-    const params = parseResult.data;
-    
-    if (!params.marketId || typeof params.marketId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: marketId is required'
-      )
-    }
-    
-    // Get analyses for this market using analysis service
-    const limit = params.limit || 50
-    const analyses = this.analysisService.getAnalyses(params.marketId, limit)
-    
-    // Filter out sensitive data (signatures, detailed dataPoints)
-    const publicAnalyses = analyses.map((a: MarketAnalysis) => ({
-      marketId: a.marketId,
-      analyst: a.analyst,
-      prediction: a.prediction,
-      confidence: a.confidence,
-      reasoning: a.reasoning,
-      timestamp: a.timestamp
-    }))
-    
-    return {
-      jsonrpc: '2.0',
-      result: {
-        marketId: params.marketId,
-        analyses: publicAnalyses,
-        total: publicAnalyses.length
-      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
@@ -1042,14 +719,5 @@ export class MessageRouter {
   getMarketSubscribers(marketId: string): string[] {
     const subscribers = this.marketSubscriptions.get(marketId)
     return subscribers ? Array.from(subscribers) : []
-  }
-
-  /**
-   * Get active coalitions for an agent
-   */
-  getAgentCoalitions(agentId: string): Coalition[] {
-    return Array.from(this.coalitions.values()).filter(
-      c => c.active && c.members.includes(agentId)
-    )
   }
 }

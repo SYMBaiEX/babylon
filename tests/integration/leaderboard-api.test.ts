@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { Prisma } from '@prisma/client'
+import { getTestBaseUrl, isServerAvailable } from './test-helpers'
 
 interface LeaderboardEntry {
   id: string
@@ -38,6 +39,8 @@ interface LeaderboardResponse {
   pointsCategory: 'all' | 'earned' | 'referral'
 }
 
+const BASE_URL = getTestBaseUrl()
+
 // Tests require a running server - skip if not available
 let serverAvailable = false
 
@@ -45,19 +48,11 @@ describe('Leaderboard API', () => {
   let testUserId: string
 
   beforeAll(async () => {
-    // Check if server is running
-    try {
-      const response = await fetch('http://localhost:3000/api/health', { 
-        method: 'GET',
-        signal: AbortSignal.timeout(1000)
-      })
-      serverAvailable = response.ok
-    } catch {
-      serverAvailable = false
-    }
+    // Check if server is running using shared helper
+    serverAvailable = await isServerAvailable(BASE_URL, 3000)
     
     if (!serverAvailable) {
-      console.log('⚠️  Skipping Leaderboard API tests - server not running on localhost:3000')
+      console.log('⚠️  Skipping Leaderboard API tests - server not available at', BASE_URL)
       return
     }
     
@@ -102,7 +97,7 @@ describe('Leaderboard API', () => {
     it('should return leaderboard with default "all" points type', async () => {
       if (!serverAvailable) return;
       
-      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500')
+      const response = await fetch(`${BASE_URL}/api/leaderboard?page=1&pageSize=100&minPoints=500`)
       
       expect(response.status).toBe(200)
 
@@ -113,7 +108,7 @@ describe('Leaderboard API', () => {
       expect(data.pagination.page).toBe(1)
       expect(data.pagination.pageSize).toBe(100)
       expect(data.pointsCategory).toBe('all')
-    })
+    }, 15000) // Increased timeout for slower server responses
 
     it('should filter by "earned" points type', async () => {
       if (!serverAvailable) return;

@@ -28,5 +28,7 @@ export type PointsReason =
   | 'referral_signup'
   | 'admin_award'
   | 'admin_deduction'
-  | 'purchase'; // x402 payment purchase
+  | 'purchase'
+  | 'transfer_sent'
+  | 'transfer_received'; // x402 payment purchase
 

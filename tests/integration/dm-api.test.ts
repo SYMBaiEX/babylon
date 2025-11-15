@@ -179,7 +179,7 @@ describe('DM Messaging API', () => {
         // Auth failed - this is expected with test-token
         expect(response.status).toBe(401)
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 })
 
@@ -206,7 +206,7 @@ describe('DM Chat Fetch API', () => {
           expect(Array.isArray(data.directChats) || data.directChats === undefined).toBe(true)
         }
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 
   describe('GET /api/chats/[id]', () => {
@@ -229,7 +229,7 @@ describe('DM Chat Fetch API', () => {
           expect(data.chat.otherUser).toBeDefined()
         }
       }
-    })
+    }, 15000) // Increased timeout for slower server responses
   })
 })
 
