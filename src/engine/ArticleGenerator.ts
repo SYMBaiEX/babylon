@@ -318,14 +318,27 @@ export class ArticleGenerator {
     const articleData = 'response' in response && response.response
       ? response.response
       : response as {
-          title: string;
-          summary: string;
-          content: string;
+          title: string | string[];
+          summary: string | string[];
+          content: string | string[];
           slant: string;
           sentiment: 'positive' | 'negative' | 'neutral';
           category: string;
           tags: string[] | { tag: string[] };
         };
+    
+    // Helper to extract string from possibly array value (XML sometimes returns arrays for text)
+    const extractString = (value: unknown): string => {
+      if (typeof value === 'string') return value;
+      if (Array.isArray(value)) return value[0] || '';
+      if (value && typeof value === 'object') return JSON.stringify(value);
+      return '';
+    };
+    
+    // Extract strings from potentially wrapped values
+    const title = extractString(articleData.title);
+    const summary = extractString(articleData.summary);
+    const content = extractString(articleData.content);
     
     // Handle tags (could be array or {tag: [...]} from XML)
     let tagsArray: string[];
@@ -359,9 +372,9 @@ export class ArticleGenerator {
     // Create article object
     const article: Article = {
       id: await generateSnowflakeId(),
-      title: articleData.title,
-      summary: articleData.summary,
-      content: articleData.content,
+      title,
+      summary,
+      content,
       authorOrgId: organization.id,
       authorOrgName: organization.name,
       byline: journalist?.name,

@@ -524,8 +524,21 @@ export class MarketDecisionEngine {
         logger.debug('Extracted decisions from XML', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');
-      } else if ('decision' in rawResponse && Array.isArray(rawResponse.decision)) {
-        response = rawResponse.decision;
+      } else if ('decision' in rawResponse) {
+        // Handle both array and single decision object
+        const decisionData = rawResponse.decision;
+        if (Array.isArray(decisionData)) {
+          response = decisionData;
+        } else if (decisionData && typeof decisionData === 'object') {
+          // Single decision object - wrap in array
+          response = [decisionData as TradingDecision];
+          logger.debug('Wrapped single decision in array', {
+            npcId: (decisionData as Record<string, unknown>).npcId
+          }, 'MarketDecisionEngine');
+        } else {
+          logger.error('Invalid decision structure', { decisionData }, 'MarketDecisionEngine');
+          return [];
+        }
         logger.debug('Extracted decisions from flat XML structure', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');

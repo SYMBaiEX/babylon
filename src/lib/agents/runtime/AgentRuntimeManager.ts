@@ -9,6 +9,7 @@ import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/c
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { groqPlugin } from '../plugins/groq'
+import { babylonPlugin } from '../plugins/babylon'
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration'
 import { experiencePlugin } from '../plugins/plugin-experience/src'
 
@@ -201,7 +202,7 @@ export class AgentRuntimeManager {
     }
 
     // Enhance with Babylon plugin
-    await enhanceRuntimeWithBabylon(runtime, agentUserId)
+    await enhanceRuntimeWithBabylon(runtime, agentUserId, babylonPlugin)
 
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime)

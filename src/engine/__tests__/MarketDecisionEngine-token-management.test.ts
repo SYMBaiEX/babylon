@@ -310,7 +310,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       expect(decisions[0]?.action).toBe('hold');
     });
 
-    test('should handle wrapped response format with "decision" key (singular)', async () => {
+    test('should handle wrapped response format with "decision" key (array)', async () => {
       const npcs = [createMockNPC('npc1', 'NPC 1')];
       mockContext.setMockNPCs(npcs);
 
@@ -325,6 +325,32 @@ describe('MarketDecisionEngine - Token Management', () => {
           reasoning: 'Holding',
           timestamp: new Date().toISOString(),
         }]
+      };
+      mockLLMInstance.setMockResponse(mockResponse);
+
+      const engine = new MarketDecisionEngine(mockLLM, mockContext);
+      const decisions = await engine.generateBatchDecisions();
+
+      expect(decisions.length).toBe(1);
+      expect(decisions[0]?.action).toBe('hold');
+    });
+
+    test('should handle wrapped response format with "decision" key (single object)', async () => {
+      const npcs = [createMockNPC('npc1', 'NPC 1')];
+      mockContext.setMockNPCs(npcs);
+
+      // LLM returns single decision object (not array) - happens with 1 NPC
+      const mockResponse = {
+        decision: {
+          npcId: 'npc1',
+          npcName: 'NPC 1',
+          action: 'hold' as const,
+          marketType: null,
+          amount: 0,
+          confidence: 1,
+          reasoning: 'Holding',
+          timestamp: new Date().toISOString(),
+        }
       };
       mockLLMInstance.setMockResponse(mockResponse);
 
