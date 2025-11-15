@@ -4,14 +4,16 @@
  * Script to upload issues from CSV to GitHub
  * 
  * Usage:
- *   GITHUB_TOKEN=your_token bun run scripts/upload-github-issues.ts
+ *   GITHUB_TOKEN=your_token bun run scripts/upload-github-issues.ts [csv-path]
  * 
  * Or set GITHUB_TOKEN in .env.local
+ * 
+ * If no csv-path is provided, defaults to ./github-issues-import.csv in the project root.
  */
 
 import { readFileSync } from 'fs';
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve, join } from 'path';
 
 // Dynamic import for csv-parse/sync to avoid TypeScript module resolution issues
 const { parseSync } = require('csv-parse/sync') as { parseSync: (input: string, options: Record<string, unknown>) => unknown[] };
@@ -161,7 +163,8 @@ async function main() {
     // .env.local might not exist, that's okay
   }
 
-  const csvPath = process.argv[2] || '/Users/janbrezina/Library/CloudStorage/GoogleDrive-0x.puncar@gmail.com/My Drive/github-issues-import.csv';
+  // Fix: Replace hardcoded path with relative path
+  const csvPath = process.argv[2] || join(process.cwd(), 'github-issues-import.csv');
   
   if (!process.env.GITHUB_TOKEN) {
     console.error('❌ Error: GITHUB_TOKEN environment variable is required');
@@ -181,9 +184,14 @@ async function main() {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-
-    if (!row || !row.Title || !row.Title.trim()) {
-      console.log(`⏭️  Skipping row ${i + 1}: No title or empty row`);
+    
+    if (!row) {
+      console.log(`⏭️  Skipping row ${i + 1}: Row is undefined`);
+      continue;
+    }
+    
+    if (!row.Title || !row.Title.trim()) {
+      console.log(`⏭️  Skipping row ${i + 1}: No title`);
       continue;
     }
 
@@ -230,4 +238,3 @@ async function main() {
 }
 
 main().catch(console.error);
-
