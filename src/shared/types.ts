@@ -236,6 +236,7 @@ export interface FeedPost {
   relatedQuestion?: number; // Prediction market question ID
   // NOTE: relatedEvent is kept in-memory during generation but NOT persisted
   // or exposed to agents. Used for offline RL training only.
+  relatedEvent?: string | null;
   gameId?: string | null;
   dayNumber?: number | null;
   clueStrength?: number; // 0-1 (how much this reveals)

@@ -18,5 +18,4 @@ export { agentWalletProvider } from './agent-wallet'
 export { entityMentionsProvider } from './entity-mentions'
 export { trendingTopicsProvider } from './trending-topics'
 export { goalsProvider } from './goals'
-export { npcTrustProvider } from './npc-trust'
 
