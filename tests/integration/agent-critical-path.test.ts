@@ -11,14 +11,18 @@
  */
 
 import { describe, test, expect } from 'bun:test'
-import { checkServerAvailableAtLoadTime } from './test-helpers'
+import { checkServerAvailableAtLoadTime, getTestBaseUrl } from './test-helpers'
 
+const API_BASE_URL = process.env.BABYLON_API_URL || getTestBaseUrl()
 const serverAvailable = await checkServerAvailableAtLoadTime()
 if (!serverAvailable) {
-  console.log(`⚠️  Server not available - Skipping tests`)
+  console.log(`⚠️  Server not available at ${API_BASE_URL} - Skipping tests`)
+  console.log(`   💡 To run these tests:`)
+  console.log(`      1. Start the dev server: bun run dev`)
+  console.log(`      2. Or set TEST_SERVER_AVAILABLE=true if server is already running`)
+} else {
+  console.log(`✅ Server is available at ${API_BASE_URL}`)
 }
-
-const API_BASE_URL = process.env.BABYLON_API_URL || 'http://localhost:3000'
 
 // Agent auth uses ENVIRONMENT variables, not database
 // Use CRON_SECRET for agent authentication

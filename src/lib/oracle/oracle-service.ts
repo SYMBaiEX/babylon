@@ -415,6 +415,14 @@ export class OracleService {
         .filter((e: ethers.LogDescription | null) => e && e.name === 'BabylonGameCommitted')
 
       // Update stored commitments and build results
+      // Debug: List all pending commitments before trying to retrieve
+      const allPending = await CommitmentStore.listPending()
+      logger.info(
+        `Found ${allPending.length} pending commitments before update`,
+        { questionIds: allPending.map(c => c.questionId).slice(0, 10) },
+        'OracleService'
+      )
+
       for (let i = 0; i < questionIds.length; i++) {
         const event = events[i]
         const sessionId = event?.args?.sessionId?.toString() || ethers.ZeroHash
@@ -425,6 +433,16 @@ export class OracleService {
             ...stored,
             sessionId
           })
+        } else {
+          logger.warn(
+            `Could not find commitment for questionId ${questionIds[i]} after batch commit`,
+            { 
+              questionId: questionIds[i],
+              allPendingCount: allPending.length,
+              searchedFor: questionIds[i]
+            },
+            'OracleService'
+          )
         }
 
         successful.push({

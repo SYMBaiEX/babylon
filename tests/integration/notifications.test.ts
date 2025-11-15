@@ -84,6 +84,7 @@ describe('Notification System', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Clean up test data
     await prisma.notification.deleteMany({
       where: {

@@ -11,9 +11,8 @@ import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { createHttpA2AClient } from '@/lib/a2a/client'
 
-const SKIP_LIVE_SERVER = process.env.SKIP_LIVE_SERVER === 'true'
-const SERVER_RUNNING = !SKIP_LIVE_SERVER
 const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+let SERVER_RUNNING = false
 
 describe('A2A HTTP - Live Server Tests', () => {
   let testUserId: string
@@ -21,8 +20,27 @@ describe('A2A HTTP - Live Server Tests', () => {
   let a2aClient: ReturnType<typeof createHttpA2AClient>
 
   beforeAll(async () => {
-    if (SKIP_LIVE_SERVER) {
-      console.log('⚠️  Skipping live server tests (set SKIP_LIVE_SERVER=false or unset to enable)')
+    // Check if server is running
+    try {
+      const healthResponse = await fetch(`${BASE_URL}/api/health`, { 
+        signal: AbortSignal.timeout(1000) 
+      })
+      if (healthResponse.ok) {
+        SERVER_RUNNING = true
+      } else {
+        console.log('⚠️  Server not running - skipping live server tests')
+        console.log('   Run `bun dev` to start the server for these tests')
+        return
+      }
+    } catch (error) {
+      console.log('⚠️  Could not connect to server - skipping live server tests')
+      console.log('   Run `bun dev` to start the server for these tests')
+      return
+    }
+    
+    if (process.env.SKIP_LIVE_SERVER === 'true') {
+      console.log('⚠️  Skipping live server tests (SKIP_LIVE_SERVER=true)')
+      SERVER_RUNNING = false
       return
     }
 
@@ -61,7 +79,8 @@ describe('A2A HTTP - Live Server Tests', () => {
   })
 
   afterAll(async () => {
-    if (SKIP_LIVE_SERVER) return
+    if (!prisma) return;
+    if (!SERVER_RUNNING) return
 
     // Cleanup
     await prisma.user.delete({

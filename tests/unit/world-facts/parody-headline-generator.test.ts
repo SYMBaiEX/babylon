@@ -29,6 +29,8 @@ describe('ParodyHeadlineGenerator', () => {
   };
 
   beforeEach(async () => {
+    if (!parodyModelsAvailable) return;
+    
     // Create test feed source
     await prisma.rSSFeedSource.create({
       data: {
@@ -54,6 +56,9 @@ describe('ParodyHeadlineGenerator', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
+    if (!parodyModelsAvailable) return;
+    
     // Cleanup parodies first (foreign key constraint)
     await prisma.parodyHeadline.deleteMany({
       where: {

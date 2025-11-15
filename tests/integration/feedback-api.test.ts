@@ -45,6 +45,8 @@ describe('Feedback API Integration', () => {
   })
 
   afterAll(async () => {
+    if (!prisma || !prisma.feedback) return;
+    
     // Cleanup test data
     await prisma.feedback.deleteMany({
       where: {

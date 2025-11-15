@@ -29,6 +29,7 @@ describe('RSSFeedService', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Ensure Prisma is initialized
     if (!prisma || !prisma.rSSHeadline || !prisma.rSSFeedSource) {
       console.warn('⚠️ Skipping cleanup - Prisma not initialized');

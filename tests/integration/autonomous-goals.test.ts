@@ -61,6 +61,7 @@ describe('Agent Goals System', () => {
   })
   
   afterEach(async () => {
+    if (!prisma) return;
     // Cleanup
     if (testGoalId) {
       await prisma.agentGoal.deleteMany({ where: { id: testGoalId } })
@@ -284,6 +285,7 @@ describe('Agent Goals System', () => {
     })
     
     afterEach(async () => {
+    if (!prisma) return;
       await prisma.agentGoal.deleteMany({ where: { agentUserId: testAgentId } })
     })
     
@@ -369,6 +371,7 @@ describe('Planning Context', () => {
   })
 
   afterEach(async () => {
+    if (!prisma) return;
     // Cleanup
     if (testGoalId) {
       await prisma.agentGoal.deleteMany({ where: { id: testGoalId } })
@@ -670,6 +673,7 @@ describe('Action Plan Generation', () => {
   })
 
   afterEach(async () => {
+    if (!prisma) return;
     if (testGoalId) {
       await prisma.agentGoal.deleteMany({ where: { id: testGoalId } })
     }
@@ -941,6 +945,7 @@ describe('Action Plan Execution', () => {
   })
 
   afterEach(async () => {
+    if (!prisma) return;
     if (!goalsModelsAvailable) return;
     if (testGoalId) {
       await prisma.agentGoalAction.deleteMany({ where: { goalId: testGoalId } })

@@ -14,6 +14,7 @@ describe('Storage Upload', () => {
   const uploadedKeys: string[] = []
 
   afterAll(async () => {
+    if (!prisma) return;
     for (const key of uploadedKeys) {
       try {
         await storage.deleteImage(`https://example.com/${key}`)

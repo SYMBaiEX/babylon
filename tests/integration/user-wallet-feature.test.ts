@@ -71,6 +71,7 @@ describe('User Wallet Feature', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     await prisma.position.deleteMany({ where: { userId: testUserId } })
     await prisma.perpPosition.deleteMany({ where: { userId: testUserId } })
     await prisma.market.deleteMany({ where: { question: 'Will this test pass?' } })

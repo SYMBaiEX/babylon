@@ -92,6 +92,7 @@ describe('Leaderboard API', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     if (testUserId) {
       await prisma.user.delete({ where: { id: testUserId } }).catch(() => {})
     }

@@ -61,7 +61,7 @@ function createMockPrismaClient() {
     'actorFollow', 'userActorFollow', 'actorRelationship',
     'nPCTrade', 'marketPool', 'liquidityPosition', 'swap',
     'userStats', 'aiPrompt', 'threadMessage', 'userGroupAdmin',
-    'userGroupInvite', 'article', 'rSSFeedItem', 'conversation',
+    'userGroupInvite', 'article', 'rSSFeedItem', 'rSSFeedSource', 'rSSHeadline', 'conversation',
     'notification', 'fact', 'factCategoryBlacklist',
     'factResponse', 'topicCategory', 'stickerPackCollectionInfo',
     'leaderboardResults', 'onChainUserMapping', 'automationTask',

@@ -34,6 +34,10 @@ describeWaitlistIntegration('Referral System - Service Integration', () => {
 
   afterAll(async () => {
     // Clean up test users
+    if (!prisma || !prisma.user) {
+      console.log('⏭️  Skipping cleanup - Prisma not initialized');
+      return;
+    }
     if (user1Id) await prisma.user.delete({ where: { id: user1Id } }).catch(() => {})
     if (user2Id) await prisma.user.delete({ where: { id: user2Id } }).catch(() => {})
     // DON'T disconnect Prisma here - it's a singleton shared across all tests

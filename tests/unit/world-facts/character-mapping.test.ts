@@ -45,6 +45,7 @@ describe('CharacterMappingService', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Ensure Prisma is initialized
     if (!prisma || !prisma.characterMapping || !prisma.organizationMapping) {
       console.warn('⚠️ Skipping cleanup - Prisma not initialized');

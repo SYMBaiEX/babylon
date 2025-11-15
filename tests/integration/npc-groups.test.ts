@@ -85,6 +85,7 @@ describe('NPC Groups', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up
     await prisma.chat.deleteMany({
       where: {

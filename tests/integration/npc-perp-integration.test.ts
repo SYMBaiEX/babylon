@@ -89,6 +89,7 @@ describe('NPC Perpetual Positions Integration', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Cleanup - remove NPCTrade records first since they reference pool
     await prisma.nPCTrade.deleteMany({ where: { poolId: testPoolId } });
     await prisma.poolPosition.deleteMany({ where: { poolId: testPoolId } });

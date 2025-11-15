@@ -48,6 +48,12 @@ async function makeA2ARequest(method: string, params?: Record<string, unknown>) 
 
 describe('A2A Rate Limiting', () => {
   beforeAll(async () => {
+    if (!serverAvailable) {
+      console.log('⚠️  Server not running - skipping A2A rate limit tests')
+      console.log('   Run `bun dev` to start the server for these tests')
+      return
+    }
+    
     // Check if server is running
     try {
       const response = await fetch(A2A_ENDPOINT);
@@ -250,6 +256,7 @@ describe('A2A Rate Limiting', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up test users
     if (prisma && prisma.user) {
       try {

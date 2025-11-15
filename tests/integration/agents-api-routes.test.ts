@@ -99,6 +99,7 @@ describe('Agents API Routes - Comprehensive Tests', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     // Cleanup - use correct table name
     await prisma.agentMessage.deleteMany({ where: { agentUserId: testAgentId } })
     await prisma.agentLog.deleteMany({ where: { agentUserId: testAgentId } })

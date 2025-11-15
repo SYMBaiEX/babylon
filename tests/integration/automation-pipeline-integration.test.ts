@@ -84,6 +84,7 @@ describe('AutomationPipeline - Integration Tests', () => {
   });
 
   afterEach(async () => {
+    if (!prisma) return;
     // Cleanup test data after each test
     // Clean up ALL trajectories tracked in the map (from all tests in this suite)
     // This ensures we don't leave test data behind, but may clean up trajectories

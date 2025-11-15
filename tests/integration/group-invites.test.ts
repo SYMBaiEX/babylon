@@ -95,6 +95,7 @@ describe('Group Invites Workflow', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up invites first (they reference the group)
     await prisma.userGroupInvite.deleteMany({
       where: {

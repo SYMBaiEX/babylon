@@ -14,6 +14,7 @@ describe('WorldFactsService', () => {
   const testKey = 'test-fact-' + Date.now();
 
   afterEach(async () => {
+    if (!prisma) return;
     if (!worldFactsModelsAvailable) return;
     
     // Cleanup test data

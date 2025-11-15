@@ -110,11 +110,9 @@ describe('Complete User Social Features Integration', () => {
   })
 
   afterAll(async () => {
-    // Prisma disconnect is handled automatically in serverless environments
-    // Only disconnect if prisma is available and has the method
-    if (prisma && typeof (prisma as any).$disconnect === 'function') {
-      await (prisma as any).$disconnect().catch(() => {});
-    }
+    // DON'T disconnect Prisma - it's a singleton shared across all tests
+    // Disconnecting here breaks subsequent tests in the suite
+    // The test runner handles cleanup at the end
   })
 
   describe('1. User Following Each Other', () => {

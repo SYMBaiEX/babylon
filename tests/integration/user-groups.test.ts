@@ -52,6 +52,7 @@ describe('User Groups', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up test data
     await prisma.userGroup.deleteMany({
       where: {

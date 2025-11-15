@@ -58,6 +58,7 @@ describe('Admin Management API', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up test data
     await prisma.user.deleteMany({
       where: {

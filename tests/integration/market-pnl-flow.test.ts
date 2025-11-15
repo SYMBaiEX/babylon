@@ -40,6 +40,7 @@ describe('Market P&L Flow', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     await prisma.balanceTransaction.deleteMany({ where: { userId: testUserId } })
     await prisma.pointsTransaction.deleteMany({ where: { userId: testUserId } })
     await prisma.user.delete({ where: { id: testUserId } })

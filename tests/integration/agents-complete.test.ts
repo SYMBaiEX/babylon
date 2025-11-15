@@ -35,6 +35,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     // Cleanup
     if (testAgentId) {
       await prisma.user.delete({ where: { id: testAgentId } }).catch(() => {})

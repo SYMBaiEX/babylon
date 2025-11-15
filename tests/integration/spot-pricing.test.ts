@@ -60,6 +60,7 @@ describe('Spot Pricing Integration', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Cleanup
     await prisma.poolPosition.deleteMany({ where: { poolId: testPoolId } });
     await prisma.pool.deleteMany({ where: { id: testPoolId } });

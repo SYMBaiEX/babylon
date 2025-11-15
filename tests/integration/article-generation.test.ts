@@ -29,6 +29,7 @@ describe('Article Generation Integration', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     // Cleanup test data
     await prisma.post.deleteMany({
       where: {

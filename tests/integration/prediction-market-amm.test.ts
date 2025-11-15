@@ -49,6 +49,7 @@ describe('Prediction Market AMM Integration', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     // Cleanup
     await prisma.market.deleteMany({ where: { id: testMarketId } });
     await prisma.question.deleteMany({ where: { id: testQuestionId } });

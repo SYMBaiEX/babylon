@@ -54,36 +54,24 @@ export function getTestBaseUrl(): string {
 export async function checkServerAvailableAtLoadTime(): Promise<boolean> {
   const BASE_URL = getTestBaseUrl()
   
-  // If TEST_SERVER_AVAILABLE is set, do a more lenient check
+  // If TEST_SERVER_AVAILABLE is explicitly set, trust it
   if (process.env.TEST_SERVER_AVAILABLE === 'true') {
-    try {
-      // Try health endpoint first (more reliable)
-      const healthResponse = await fetch(`${BASE_URL}/api/health`, {
-        signal: AbortSignal.timeout(5000), // Longer timeout when we expect server to be ready
-      })
-      if (healthResponse.ok) return true
-    } catch {
-      // Fall through
-    }
-    
-    // Fallback to root check with longer timeout
-    try {
-      const response = await fetch(BASE_URL, {
-        signal: AbortSignal.timeout(5000),
-      })
-      return response.status < 500
-    } catch {
-      return false
-    }
+    return true
   }
   
-  // Standard check with original timeout
+  // If SKIP_LIVE_SERVER is set, skip server checks
+  if (process.env.SKIP_LIVE_SERVER === 'true') {
+    return false
+  }
+  
+  // Quick check with short timeout to avoid hanging test suite
   try {
-    const response = await fetch(BASE_URL, {
-      signal: AbortSignal.timeout(5000), // Increased from 2000 for better reliability
+    const response = await fetch(`${BASE_URL}/api/health`, {
+      signal: AbortSignal.timeout(1000), // Short timeout to fail fast
     })
-    return response.status < 500
-  } catch {
+    return response.ok
+  } catch (e) {
+    // Server not available
     return false
   }
 }

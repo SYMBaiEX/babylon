@@ -114,6 +114,7 @@ describe('Follow System API Integration Tests', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return;
     // Clean up test follows
     await prisma.follow.deleteMany({
       where: {
