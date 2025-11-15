@@ -84,15 +84,14 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
     }
   }, [checkAuthStatus])
 
-  const connectTwitter = useCallback((returnPath?: string) => {
+  const connectTwitter = useCallback((_returnPath?: string) => {
     if (!user?.id) {
       setError('Please sign in first')
       return
     }
 
-    // Redirect to OAuth flow
-    const currentPath = returnPath || window.location.pathname
-    window.location.href = `/api/twitter/oauth/request-token?user_id=${user.id}&return_path=${encodeURIComponent(currentPath)}`
+    // Redirect to OAuth 2.0 flow
+    window.location.href = `/api/auth/twitter/initiate`
   }, [user?.id])
 
   const disconnectTwitter = useCallback(async () => {

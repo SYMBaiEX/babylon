@@ -112,6 +112,7 @@ import { NextResponse } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
 import { notifyMention } from '@/lib/services/notification-service';
+import { getBlockedUserIds, getMutedUserIds, getBlockedByUserIds } from '@/lib/moderation/filters';
 
 /**
  * Safely convert a date value to ISO string
@@ -227,6 +228,16 @@ export const GET = withErrorHandling(async (request: Request) => {
         });
       }
 
+      // Get moderation filters for this user
+      const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
+        getBlockedUserIds(userId),
+        getMutedUserIds(userId),
+        getBlockedByUserIds(userId),
+      ]);
+      
+      // Combine all excluded user IDs
+      const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
+
       // Get posts from followed users/actors with caching
       const posts = await cachedDb.getPostsForFollowing(
         userId,
@@ -234,17 +245,20 @@ export const GET = withErrorHandling(async (request: Request) => {
         limit,
         cursor
       );
+      
+      // Filter out posts from blocked/muted users
+      const filteredPosts = posts.filter(post => !excludedUserIds.has(post.authorId));
 
-      // Get user data for posts
-      const authorIds = [...new Set(posts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
+      // Get user data for filtered posts
+      const authorIds = [...new Set(filteredPosts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
       const users = await prisma.user.findMany({
         where: { id: { in: authorIds } },
         select: { id: true, username: true, displayName: true },
       });
       const userMap = new Map(users.map(u => [u.id, u]));
       
-      // Get interaction counts for all posts in parallel
-      const postIds = posts.map(p => p.id);
+      // Get interaction counts for all filtered posts in parallel
+      const postIds = filteredPosts.map(p => p.id);
       const [allReactions, allComments] = await Promise.all([
         prisma.reaction.groupBy({
           by: ['postId'],
@@ -267,7 +281,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       const repostDataMap = new Map<string, ReturnType<typeof parseRepostContent>>();
       const originalUsernames = new Set<string>();
       
-      for (const post of posts) {
+      for (const post of filteredPosts) {
         const repostData = parseRepostContent(post.content || '');
         if (repostData) {
           repostDataMap.set(post.id, repostData);
@@ -440,6 +454,18 @@ export const GET = withErrorHandling(async (request: Request) => {
           createdAtValue: samplePost.createdAt,
         }, 'GET /api/posts');
       }
+    }
+    
+    // Apply moderation filters if user is authenticated
+    if (userId) {
+      const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
+        getBlockedUserIds(userId),
+        getMutedUserIds(userId),
+        getBlockedByUserIds(userId),
+      ]);
+      
+      const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
+      posts = posts.filter(post => !excludedUserIds.has(post.authorId));
     }
     
     // Get unique author IDs to fetch author data (users, actors, or organizations)

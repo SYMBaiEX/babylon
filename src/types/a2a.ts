@@ -8,7 +8,7 @@ import type { JsonValue, JsonRpcParams, JsonRpcResult } from '@/types/common';
 import { JsonValueSchema } from '@/types/common';
 import type { RegistryClient, X402Manager } from '@/types/a2a-server';
 import type { IAgent0Client } from '@/agents/agent0/types';
-import type { IUnifiedDiscoveryService } from '@/agents/agent0/types';
+import type { IAgentDiscoveryService } from '@/agents/agent0/types';
 
 // Re-export common types
 export type { JsonRpcParams, JsonRpcResult, JsonValue };
@@ -141,6 +141,16 @@ export enum A2AMethod {
   GET_MUTES = 'a2a.getMutes',
   CHECK_BLOCK_STATUS = 'a2a.checkBlockStatus',
   CHECK_MUTE_STATUS = 'a2a.checkMuteStatus',
+  
+  // Moderation Escrow (Admin only)
+  CREATE_ESCROW_PAYMENT = 'a2a.createEscrowPayment',
+  VERIFY_ESCROW_PAYMENT = 'a2a.verifyEscrowPayment',
+  REFUND_ESCROW_PAYMENT = 'a2a.refundEscrowPayment',
+  LIST_ESCROW_PAYMENTS = 'a2a.listEscrowPayments',
+  
+  // Ban Appeal with Escrow
+  APPEAL_BAN = 'a2a.appealBan',
+  APPEAL_BAN_WITH_ESCROW = 'a2a.appealBanWithEscrow',
 
   // Points Transfer
   TRANSFER_POINTS = 'a2a.transferPoints',
@@ -324,15 +334,15 @@ export interface A2AServerConfig {
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   registryClient?: RegistryClient
   agent0Client?: IAgent0Client // Agent0Client - optional for external agent support
-  unifiedDiscovery?: IUnifiedDiscoveryService // UnifiedDiscoveryService - optional for enhanced discovery
+  agentDiscovery?: IAgentDiscoveryService // AgentDiscoveryService - optional for enhanced discovery
 }
 
 // Server Options (used internally by websocket-server)
-export interface A2AServerOptions extends Omit<A2AServerConfig, 'registryClient' | 'agent0Client' | 'unifiedDiscovery'> {
+export interface A2AServerOptions extends Omit<A2AServerConfig, 'registryClient' | 'agent0Client' | 'agentDiscovery'> {
   registryClient?: RegistryClient
   x402Manager?: X402Manager
   agent0Client?: IAgent0Client // Agent0Client - optional for external agent support
-  unifiedDiscovery?: IUnifiedDiscoveryService // UnifiedDiscoveryService - optional for enhanced discovery
+  agentDiscovery?: IAgentDiscoveryService // AgentDiscoveryService - optional for enhanced discovery
 }
 
 // Client Configuration

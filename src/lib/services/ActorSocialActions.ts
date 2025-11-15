@@ -74,10 +74,13 @@ export class ActorSocialActions {
     for (const actor of actors) {
       const actorInteractions = Array.from(interactionMap.entries())
         .filter(([key]) => key.startsWith(`${actor.id}-`))
-        .map(([key, interactions]) => ({
-          userId: key.split('-')[1],
-          interactions,
-        }));
+        .map(([key, interactions]) => {
+          const parts = key.split('-');
+          return {
+            userId: parts.length > 1 ? parts[1] : '',
+            interactions,
+          };
+        });
 
       for (const { userId, interactions } of actorInteractions) {
         if (!userId || interactions.length < this.MIN_INTERACTIONS_FOR_ACTION) {
@@ -144,7 +147,7 @@ export class ActorSocialActions {
               isGroup: true,
               gameId: 'continuous',
               name: {
-                contains: actor.name.split(' ')[0], // Try to match actor's first name
+                contains: actor.name.split(' ')[0] ?? '', // Try to match actor's first name
               },
             },
           });
@@ -213,7 +216,7 @@ export class ActorSocialActions {
       "Got something I think you'd want to hear.",
     ];
     const randomIndex = Math.floor(Math.random() * messages.length);
-    const messageContent: string = messages[randomIndex]!; // Safe: randomIndex is always within bounds
+    const messageContent: string = messages[randomIndex] ?? messages[0] ?? ''; // Safe: randomIndex is always within bounds
 
     // Create or get DM chat
     const chatId = `dm-${actorId}-${userId}`;

@@ -251,7 +251,7 @@ await babylonRuntime.a2aClient.sendRequest('a2a.subscribeMarket', {
   marketId: 'market-123'
 })
 
-// NOTE: For trading, social, and messaging, use REST API endpoints
+// All methods use A2A protocol - no REST API needed
 ```
 
 ---

@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
+import { createNotification } from '@/lib/services/notification-service'
 
 const TransferPointsSchema = z.object({
   recipientId: z.string().min(1, 'Recipient ID is required'),
@@ -172,6 +173,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     'PointsTransfer'
   )
+
+  // Send notification to recipient
+  const senderName = sender.displayName || sender.username || 'Someone'
+  const notificationMessage = message 
+    ? `${senderName} sent you ${amount} points: "${message}"` 
+    : `${senderName} sent you ${amount} points`
+  
+  await createNotification({
+    userId: recipientId,
+    type: 'points_received',
+    actorId: senderId,
+    title: `You received ${amount} points`,
+    message: notificationMessage,
+  }).catch(err => {
+    // Log error but don't fail the transfer
+    logger.error('Failed to create notification for points transfer', { error: err, recipientId, senderId }, 'PointsTransfer')
+  })
 
   return NextResponse.json({
     success: true,

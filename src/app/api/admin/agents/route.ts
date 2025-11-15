@@ -59,6 +59,9 @@ export async function GET(_req: NextRequest) {
           select: {
             totalTrades: true,
             profitableTrades: true,
+            reputationScore: true,
+            averageFeedbackScore: true,
+            totalFeedbackCount: true,
           },
         },
       },
@@ -135,6 +138,9 @@ export async function GET(_req: NextRequest) {
         lifetimePnL: Number(agent.lifetimePnL || 0),
         totalTrades,
         winRate,
+        reputationScore: agent.AgentPerformanceMetrics?.reputationScore ?? 50,
+        averageFeedbackScore: agent.AgentPerformanceMetrics?.averageFeedbackScore ?? 0,
+        totalFeedbackCount: agent.AgentPerformanceMetrics?.totalFeedbackCount ?? 0,
         
         // Status
         agentStatus: agent.agentStatus,

@@ -58,10 +58,7 @@ export const POST = withErrorHandling(async (
     throw new NotFoundError('User', targetUserId);
   }
 
-  // Cannot mute actors/NPCs
-  if (targetUser.isActor) {
-    throw new BusinessLogicError('Cannot mute NPCs', 'CANNOT_MUTE_ACTOR');
-  }
+  // Note: Muting NPCs is allowed - it hides their posts from your feed
 
   if (action === 'mute') {
     // Check if already muted

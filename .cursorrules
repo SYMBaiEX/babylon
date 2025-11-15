@@ -21,3 +21,5 @@ Always research what you are doing and look for existing code before writing new
 Always write tests against the against backend. Only write unit tests where there is some specific logic to test, but mocks also hide bugs, so make sure the backend is running and test every feature by calling the actual APIs. Make sure the backend is running before running integration tests so yuo don't run into errors.
 
 You don't need to write markdown files every time you finish something. Instead, make sure you have reviewed, there are thorough tests for the thing you've done, and you've run the tests and confirmed they passed.
+
+Don't pipe your test commands. Just print them out when you run them in the console. Then I can see the errors and help you.

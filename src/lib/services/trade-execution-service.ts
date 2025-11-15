@@ -17,9 +17,9 @@ import { PredictionPricing } from '@/lib/prediction-pricing';
 
 import type {
   ExecutedTrade,
-  ExecutionResult,
   TradingDecision,
 } from '@/types/market-decisions';
+import type { TradingExecutionResult } from '@/types/market-decisions';
 
 import {
   type AggregatedImpact,
@@ -34,10 +34,10 @@ export class TradeExecutionService {
    */
   async executeDecisionBatch(
     decisions: TradingDecision[]
-  ): Promise<ExecutionResult> {
+  ): Promise<TradingExecutionResult> {
     const startTime = Date.now();
 
-    const result: ExecutionResult = {
+    const result: TradingExecutionResult = {
       totalDecisions: decisions.length,
       successfulTrades: 0,
       failedTrades: 0,

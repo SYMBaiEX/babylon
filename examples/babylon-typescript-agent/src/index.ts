@@ -15,7 +15,13 @@ dotenv.config({ path: '.env.local' })
 import { registerAgent } from './registration'
 import { BabylonA2AClient } from './a2a-client'
 import { AgentMemory } from './memory'
-import { AgentDecisionMaker, type PredictionMarket, type PerpMarket, type FeedPost } from './decision'
+import { 
+  AgentDecisionMaker, 
+  type PredictionMarket, 
+  type PerpMarket, 
+  type FeedPost,
+  type DecisionContext 
+} from './decision'
 import { executeAction } from './actions'
 import fs from 'fs'
 
@@ -51,7 +57,8 @@ async function main() {
       baseUrl: process.env.BABYLON_API_URL?.replace('/api/a2a', '') || 'http://localhost:3000',
       address: agentIdentity.address,
       tokenId: agentIdentity.tokenId,
-      privateKey: process.env.AGENT0_PRIVATE_KEY!
+      privateKey: process.env.AGENT0_PRIVATE_KEY,
+      apiKey: process.env.BABYLON_A2A_API_KEY || ''
     })
 
   await a2aClient.connect()
@@ -101,10 +108,16 @@ async function main() {
         // 2. Make decision
         log('🤔 Making decision...')
         
+        // Type assertion is necessary because A2A client returns generic objects
+        // that match our DecisionContext interface structure
         const decision = await decisionMaker.decide({
-          portfolio: portfolio as unknown as { balance: number; positions: Array<{ id: string; ticker: string; side: 'long' | 'short'; size: number; leverage: number; entryPrice: number; currentPrice: number; pnl: number; unrealizedPnL: number }>; pnl: number },
-          markets: markets as unknown as { predictions: Array<{ question: string; yesShares: number; noShares: number }>; perps: Array<{ name: string; ticker: string; currentPrice: number }> },
-          feed: feed as unknown as { posts: Array<{ content: string }> },
+          portfolio: {
+            balance: portfolio.balance,
+            positions: portfolio.positions as unknown as Array<{ id: string; ticker: string; side: 'long' | 'short'; size: number; leverage: number; entryPrice: number; currentPrice: number; pnl: number; unrealizedPnL: number }>,
+            pnl: portfolio.pnl
+          },
+          markets: markets as DecisionContext['markets'],
+          feed: feed as DecisionContext['feed'],
           memory: recentMemory
         })
 

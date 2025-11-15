@@ -127,13 +127,19 @@ export class TrajectoryRecorder {
       return;
     }
 
+    // Merge correctness from action if present
+    const finalAction: Action = {
+      ...action,
+      correctness: action.correctness || undefined
+    };
+
     const completeStep: TrajectoryStep = {
       stepNumber: traj.currentStep.stepNumber!,
       timestamp: traj.currentStep.timestamp!,
       environmentState: traj.currentStep.environmentState!,
       providerAccesses: traj.currentStep.providerAccesses || [],
       llmCalls: traj.currentStep.llmCalls || [],
-      action,
+      action: finalAction,
       reward
     };
 

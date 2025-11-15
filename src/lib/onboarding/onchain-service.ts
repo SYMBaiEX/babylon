@@ -8,7 +8,7 @@ import { generateSnowflakeId } from '@/lib/snowflake'
 import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
 import { PointsService } from '@/lib/services/points-service'
 import { notifyNewAccount } from '@/lib/services/notification-service'
-import { Agent0Client } from '@/agents/agent0/Agent0Client'
+import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/types/a2a'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
@@ -602,18 +602,18 @@ export async function processOnchainRegistration({
   })
 
   if (user.isAgent) {
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-      privateKey: DEPLOYER_PRIVATE_KEY,
-    })
+    const agent0Client = getAgent0Client()
+
+    // Use individual agent's A2A endpoint if provided, otherwise construct it
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const individualAgentA2AEndpoint = endpoint || `${baseUrl}/api/agents/${dbUser.id}/a2a`
 
     const agent0Result = await agent0Client.registerAgent({
       name: username || dbUser.username || user.userId,
       description: bio || `Autonomous AI agent: ${user.userId}`,
       imageUrl: profileImageUrl ?? undefined,
       walletAddress: registrationAddress,
-      a2aEndpoint: agentEndpoint,
+      a2aEndpoint: individualAgentA2AEndpoint,
       capabilities: {
         strategies: ['momentum'],
         markets: ['prediction'],

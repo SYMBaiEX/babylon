@@ -32,20 +32,30 @@ export const dashboardProvider: Provider = {
       return { text: 'ERROR: A2A client not connected. Cannot load dashboard. Please ensure A2A server is running.' }
     }
     
-    // Fetch dashboard data via A2A protocol (only implemented methods)
-    const [balance, positions] = await Promise.all([
+    // Fetch ALL dashboard data via A2A protocol
+    const [balance, positions, predictions, feed, chats, notifications] = await Promise.all([
       babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
-      babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId })
+      babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId }),
+      babylonRuntime.a2aClient.getPredictions({ status: 'active' }).catch(() => ({ predictions: [] })),
+      babylonRuntime.a2aClient.getFeed({ limit: 5 }).catch(() => ({ posts: [] })),
+      babylonRuntime.a2aClient.getChats('all').catch(() => ({ chats: [] })),
+      babylonRuntime.a2aClient.getNotifications(5).catch(() => ({ notifications: [] }))
     ])
     
-    // NOTE: These A2A methods are NOT currently implemented:
-    // - getPredictions, getFeed, getUnreadCount
-    // Use REST API instead
-    
-    const balanceData = balance as unknown as A2ABalanceResponse
-    const positionsData = positions as unknown as A2APositionsResponse
+    // Type assertions are necessary here because A2A client returns generic responses
+    // These match the actual response types from the A2A protocol
+    const balanceData = balance as A2ABalanceResponse
+    const positionsData = positions as A2APositionsResponse
+    const predictionsData = predictions as { predictions?: Array<{ id: string; question: string }> }
+    const feedData = feed as { posts?: Array<{ id: string; content: string }> }
+    const chatsData = chats as { chats?: Array<{ id: string; name?: string }> }
+    const notificationsData = notifications as { notifications?: Array<{ id: string; message: string }> }
     
     const totalPositions = (positionsData.marketPositions?.length || 0) + (positionsData.perpPositions?.length || 0)
+    const activeMarkets = predictionsData.predictions?.length || 0
+    const recentPosts = feedData.posts?.length || 0
+    const activeChats = chatsData.chats?.length || 0
+    const unreadNotifications = notificationsData.notifications?.length || 0
     
     const result = `📊 AGENT DASHBOARD
 
@@ -54,16 +64,35 @@ Balance: $${balanceData.balance || 0}
 Points: ${balanceData.reputationPoints || 0} pts
 Open Positions: ${totalPositions}
 
-ℹ️ NOTE: For markets, social feed, and messages, use REST API endpoints:
-- GET /api/markets/predictions
-- GET /api/feed
-- GET /api/chats
-- GET /api/notifications
+📈 MARKETS
+Active Markets: ${activeMarkets}
+${predictionsData.predictions && predictionsData.predictions.length > 0 ? 
+  `Recent: ${predictionsData.predictions.slice(0, 3).map(p => p.question.substring(0, 50)).join(', ')}` : 
+  'No active markets'}
 
+📱 SOCIAL FEED
+Recent Posts: ${recentPosts}
+${feedData.posts && feedData.posts.length > 0 ? 
+  `Latest: ${feedData.posts[0]?.content.substring(0, 100)}...` : 
+  'No recent posts'}
+
+💬 MESSAGING
+Active Chats: ${activeChats}
+${chatsData.chats && chatsData.chats.length > 0 ? 
+  `Chats: ${chatsData.chats.slice(0, 3).map(c => c.name || c.id).join(', ')}` : 
+  'No active chats'}
+
+🔔 NOTIFICATIONS
+Unread: ${unreadNotifications}
+${notificationsData.notifications && notificationsData.notifications.length > 0 ? 
+  `Latest: ${notificationsData.notifications[0]?.message.substring(0, 80)}...` : 
+  'No notifications'}
 
 💡 OPPORTUNITIES
 - ${totalPositions > 0 ? 'Monitor open positions' : 'Consider opening positions'}
-- Check REST API for markets, feed, and messages`
+- ${activeMarkets > 0 ? 'Review active markets' : 'Check for new markets'}
+- ${recentPosts > 0 ? 'Engage with recent posts' : 'Create new posts'}
+- ${unreadNotifications > 0 ? 'Review notifications' : 'All caught up'}`
 
     return { text: result }
   }

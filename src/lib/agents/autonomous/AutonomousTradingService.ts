@@ -21,7 +21,7 @@ import { shuffleArray } from '@/lib/utils/randomization'
 export class AutonomousTradingService {
   /**
    * Evaluate and execute trades for an agent
-   * TODO: Removed outer try/catch - let errors propagate. Kept inner try/catch for individual trade execution to continue processing.
+   * Note: Inner try/catch is kept for individual trade execution to continue processing on failure.
    * Returns trade execution result with market identifiers for trajectory recording
    */
   async executeTrades(agentUserId: string, _runtime: IAgentRuntime): Promise<{
@@ -81,6 +81,8 @@ export class AutonomousTradingService {
     const contextString = formatRandomContext(marketContext)
 
     // Build trading decision prompt
+    // Note: NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
+    // and will appear in agent context automatically via providers
     const prompt = `${agent.agentSystem}
 
 You are ${agent.displayName}, an autonomous trading agent.
@@ -111,7 +113,7 @@ Respond in JSON format:
     "market": "id or ticker",
     "action": "buy_yes" | "buy_no" | "sell" | "open_long" | "open_short" | "close",
     "amount": number,
-    "reasoning": "why"
+    "reasoning": "why (mention trust scores if relevant)"
   }
 }
 

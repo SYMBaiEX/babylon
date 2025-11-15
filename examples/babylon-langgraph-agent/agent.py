@@ -15,7 +15,7 @@ import time
 import asyncio
 import argparse
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from dotenv import load_dotenv
 
 # LangChain & LangGraph
@@ -392,10 +392,11 @@ def get_memory_summary() -> str:
 # ==================== LangGraph Tools ====================
 # Global client - needed for tools to access it
 # (LangGraph tools don't support dependency injection)
-_client: Optional[BabylonA2AClient] = None
+# Support both custom and official SDK clients
+_client: Optional[Any] = None
 
-def set_client(client: BabylonA2AClient):
-    """Set global client for tools"""
+def set_client(client: Any):
+    """Set global client for tools (supports both custom and official SDK clients)"""
     global _client
     _client = client
 
@@ -409,7 +410,9 @@ async def get_markets() -> str:
 async def get_portfolio() -> str:
     """Get portfolio including balance and positions. Raises exceptions on error."""
     balance = await _client.call('a2a.getBalance', {})
-    positions = await _client.call('a2a.getPositions', {'userId': _client.agent_id})
+    # Get agent_id - works for both custom and official clients
+    agent_id = getattr(_client, 'agent_id', None) or getattr(_client, 'agentId', None)
+    positions = await _client.call('a2a.getPositions', {'userId': agent_id} if agent_id else {})
     
     return json.dumps({
         'balance': balance.get('balance', 0),
@@ -628,16 +631,41 @@ async def main(max_ticks: Optional[int] = None, log_file: Optional[str] = None):
         print("🔌 Phase 2: Connect to Babylon")
         print("━" * 60)
         
-        a2a_url = os.getenv('BABYLON_A2A_URL', 'http://localhost:3000/api/a2a')
-        client = BabylonA2AClient(
-            http_url=a2a_url,
-            address=identity['address'],
-            token_id=identity['tokenId']
-        )
+        # Use official SDK (required for 100% compliance)
+        try:
+            from babylon_a2a_client import BabylonA2AClient
+            babylon_url = os.getenv('BABYLON_URL', 'http://localhost:3000')
+            agent_card_url = f"{babylon_url}/.well-known/agent-card.json"
+            
+                client = BabylonA2AClient(
+                agent_card_url=agent_card_url,
+                agent_id=identity['agentId'],
+                address=identity['address'],
+                token_id=identity['tokenId']
+            )
+            await client.connect()
+            
+            logger.success("Connected via A2A SDK", {
+                'agent_card_url': agent_card_url,
+                'agent_id': identity['agentId']
+            })
+            print("")
+        except ImportError as e:
+            logger.error("A2A SDK required for compliance", {
+                'error': str(e),
+                'hint': 'Install: pip install a2a-sdk'
+            })
+            raise ImportError(
+                "A2A SDK (a2a-sdk) is required. "
+                "Install with: pip install a2a-sdk"
+            ) from e
+        except Exception as e:
+            logger.error("Failed to connect via A2A SDK", {
+                'error': str(e)
+            })
+            raise
         
         set_client(client)  # Set global for tools
-        
-        logger.success("Connected", {'url': a2a_url, 'agent_id': client.agent_id})
         print("")
         
         # Phase 3: LangGraph

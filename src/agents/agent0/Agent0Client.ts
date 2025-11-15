@@ -1,7 +1,8 @@
 /**
- * Agent0 SDK Client Wrapper
+ * Agent0 SDK Client
  * 
- * Wrapper around Agent0 SDK for agent registration, search, and feedback.
+ * Full implementation of Agent0 SDK client for agent registration, search, and feedback.
+ * Implements IAgent0Client interface for complete Agent0 integration.
  * Uses dynamic imports to handle CommonJS/ESM interop.
  */
 
@@ -24,15 +25,8 @@ import type {
   SearchParams,
   RegistrationFile
 } from 'agent0-sdk'
-import { z } from 'zod';
 import type { JsonValue } from '@/types/common'
-
-const CapabilitiesSchema = z.object({
-  strategies: z.array(z.string()).optional(),
-  markets: z.array(z.string()).optional(),
-  actions: z.array(z.string()).optional(),
-  version: z.string().optional(),
-});
+import { parseCapabilities } from './capabilities-schema'
 
 export class Agent0Client implements IAgent0Client {
   private sdk: SDK | null
@@ -356,29 +350,16 @@ export class Agent0Client implements IAgent0Client {
     actions: string[];
     version: string;
   } {
-    const defaultCapabilities = {
-      strategies: [],
-      markets: [],
-      actions: [],
-      version: '1.0.0',
-    };
-
     if (!extras?.capabilities) {
-      return defaultCapabilities;
+      return parseCapabilities(undefined)
     }
 
-    const validation = CapabilitiesSchema.safeParse(extras.capabilities);
-    if (!validation.success) {
-      logger.warn('Invalid agent capabilities in search result', { error: validation.error, capabilities: extras.capabilities });
-      return defaultCapabilities;
+    const result = parseCapabilities(extras.capabilities)
+    if (result.strategies.length === 0 && result.markets.length === 0 && result.actions.length === 0) {
+      logger.warn('Invalid or empty agent capabilities in search result', { capabilities: extras.capabilities })
     }
 
-    return {
-      strategies: validation.data.strategies ?? [],
-      markets: validation.data.markets ?? [],
-      actions: validation.data.actions ?? [],
-      version: validation.data.version ?? '1.0.0',
-    };
+    return result
   }
   
   /**

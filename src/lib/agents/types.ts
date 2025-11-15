@@ -3,6 +3,7 @@
  */
 
 import type { Character } from '@elizaos/core'
+import type { JsonValue } from '@/types/common'
 
 export interface AgentConfig {
   id: string
@@ -37,7 +38,7 @@ export interface AgentMessage {
   content: string
   modelUsed?: string
   pointsCost: number
-  metadata?: unknown
+  metadata?: Record<string, JsonValue>
   createdAt: Date
 }
 
@@ -50,7 +51,7 @@ export interface AgentLog {
   prompt?: string
   completion?: string
   thinking?: string
-  metadata?: unknown
+  metadata?: Record<string, JsonValue>
   createdAt: Date
 }
 

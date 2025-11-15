@@ -10,7 +10,9 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import type { User } from '@prisma/client'
 import type { CreateAgentParams, AgentPerformance } from '../types'
+import type { JsonValue } from '@/types/common'
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager'
+import { agentIdentityService } from '../identity/AgentIdentityService'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { AuthorizationError } from '@/lib/errors/base.errors'
 
@@ -66,6 +68,7 @@ export class AgentServiceV2 {
           hasUsername: true,
           hasBio: Boolean(description),
           hasProfileImage: Boolean(profileImageUrl),
+          a2aEnabled: true, // Enable A2A by default for all agents
           updatedAt: new Date()
         }
       })
@@ -127,6 +130,11 @@ export class AgentServiceV2 {
     })
 
     logger.info(`Agent user created: ${agentUserId} managed by ${managerUserId}`, undefined, 'AgentService')
+
+    if (this.shouldAutoSetupAgentIdentity()) {
+      void this.setupAgentIdentity(agentUserId)
+    }
+
     return agent
   }
 
@@ -166,6 +174,7 @@ export class AgentServiceV2 {
     autonomousCommenting: boolean
     autonomousDMs: boolean
     autonomousGroupChats: boolean
+    a2aEnabled: boolean
   }>): Promise<User> {
     await this.getAgent(agentUserId, managerUserId) // Verify ownership
 
@@ -187,6 +196,7 @@ export class AgentServiceV2 {
     if (updates.autonomousCommenting !== undefined) userUpdates.autonomousCommenting = updates.autonomousCommenting
     if (updates.autonomousDMs !== undefined) userUpdates.autonomousDMs = updates.autonomousDMs
     if (updates.autonomousGroupChats !== undefined) userUpdates.autonomousGroupChats = updates.autonomousGroupChats
+    if (updates.a2aEnabled !== undefined) userUpdates.a2aEnabled = updates.a2aEnabled
 
     const updatedAgent = await prisma.user.update({
       where: { id: agentUserId },
@@ -447,7 +457,7 @@ export class AgentServiceV2 {
     prompt?: string
     completion?: string
     thinking?: string
-    metadata?: unknown
+    metadata?: Record<string, JsonValue>
   }) {
     return prisma.agentLog.create({
       data: {
@@ -462,6 +472,44 @@ export class AgentServiceV2 {
         metadata: log.metadata || undefined
       }
     })
+  }
+
+  private shouldAutoSetupAgentIdentity(): boolean {
+    if (process.env.AUTO_CREATE_AGENT_WALLETS === 'false') {
+      return false
+    }
+
+    // Require Privy credentials outside development so we do not spam errors
+    const hasPrivyConfig = Boolean(
+      process.env.NEXT_PUBLIC_PRIVY_APP_ID &&
+      process.env.PRIVY_APP_SECRET
+    )
+
+    if (!hasPrivyConfig && process.env.NODE_ENV !== 'development') {
+      logger.warn('Skipping automatic agent identity setup - Privy credentials missing', undefined, 'AgentService')
+      return false
+    }
+
+    return true
+  }
+
+  private async setupAgentIdentity(agentUserId: string): Promise<void> {
+    const skipAgent0Registration = process.env.AGENT0_ENABLED !== 'true'
+
+    try {
+      const agent = await agentIdentityService.setupAgentIdentity(agentUserId, {
+        skipAgent0Registration
+      })
+
+      logger.info('Agent identity setup complete', {
+        agentUserId,
+        walletProvisioned: Boolean(agent.walletAddress),
+        agent0TokenId: agent.agent0TokenId,
+        skippedAgent0: skipAgent0Registration
+      }, 'AgentService')
+    } catch (error) {
+      logger.error('Agent identity setup failed', { agentUserId, error }, 'AgentService')
+    }
   }
 }
 

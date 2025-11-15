@@ -3,19 +3,10 @@
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl'
 
-export interface PortfolioPnLSnapshot {
-  lifetimePnL: number
-  netContributions: number
-  totalDeposited: number
-  totalWithdrawn: number
-  availableBalance: number
-  unrealizedPerpPnL: number
-  unrealizedPredictionPnL: number
-  totalUnrealizedPnL: number
-  totalPnL: number
-  accountEquity: number
-}
+// Re-export for components that import from this hook
+export type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl'
 
 interface UsePortfolioPnLResult {
   loading: boolean

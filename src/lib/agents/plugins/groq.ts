@@ -226,6 +226,19 @@ export const groqPlugin: Plugin = {
       const trajectoryId = (runtime as unknown as { currentTrajectoryId?: string }).currentTrajectoryId
       // Extract model version from runtime if available
       const modelVersion = (runtime as unknown as { currentModelVersion?: string }).currentModelVersion
+      
+      // Log which model is being used (for verification)
+      const isWandbModel = wandbEnabled && wandbApiKey && wandbModel;
+      const modelSource = isWandbModel ? 'wandb' : 'groq';
+      const logger = (await import('@/lib/logger')).logger;
+      logger.debug('LLM call model selection', {
+        model,
+        modelSource,
+        isWandbModel,
+        wandbModel: wandbModel || 'none',
+        groqModel: !isWandbModel ? model : 'none',
+        modelVersion
+      }, 'GroqPlugin')
 
       return await generateGroqText(groq, model, {
         prompt,

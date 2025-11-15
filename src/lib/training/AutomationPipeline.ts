@@ -250,8 +250,11 @@ export class AutomationPipeline {
       TRAIN_RL_LOCAL: 'true'
     };
     
-    const trainingProcess = spawn.spawn('python', [pythonScript], {
-      detached: true,
+    // Use python3 if available, fallback to python
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    
+    const trainingProcess = spawn.spawn(pythonCmd, [pythonScript], {
+      detached: false, // Keep attached to see output
       stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr for debugging
       env
     });

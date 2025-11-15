@@ -161,7 +161,22 @@ export class AgentRuntimeManager {
       const latestModel = await getLatestRLModel();
       if (latestModel && latestModel.modelPath === wandbModel) {
         modelVersion = latestModel.version;
+        
+        // Log model usage for verification
+        logger.info('Agent using trained RL model', {
+          agentId: agentUserId,
+          modelPath: wandbModel,
+          modelVersion: latestModel.version,
+          avgReward: latestModel.metadata.avgReward,
+        }, 'AgentRuntimeManager');
       }
+    } else {
+      // Log when using base model (for verification)
+      logger.info('Agent using base model (not trained RL model)', {
+        agentId: agentUserId,
+        model: wandbModel || 'groq-qwen-32b',
+        reason: useWandb ? 'W&B model not available' : 'W&B disabled',
+      }, 'AgentRuntimeManager');
     }
 
     // Build character from agent user config

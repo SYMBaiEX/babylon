@@ -20,7 +20,9 @@ import { autonomousTradingService } from '../agents/autonomous/AutonomousTrading
 import { autonomousPostingService } from '../agents/autonomous/AutonomousPostingService';
 import { autonomousCommentingService } from '../agents/autonomous/AutonomousCommentingService';
 
-export interface AutonomousTickResult {
+// Use the canonical AutonomousTickResult from AutonomousCoordinator
+// This version extends it with trajectory info
+export interface AutonomousTickResultWithTrajectory {
   success: boolean;
   actionsExecuted: {
     trades: number;
@@ -42,7 +44,7 @@ export class AutonomousCoordinatorWithRecording {
   async executeAutonomousTick(
     agentUserId: string,
     runtime: IAgentRuntime
-  ): Promise<AutonomousTickResult> {
+  ): Promise<AutonomousTickResultWithTrajectory> {
     const startTime = Date.now();
 
     // START TRAJECTORY RECORDING
@@ -62,7 +64,7 @@ export class AutonomousCoordinatorWithRecording {
       (runtime as unknown as { currentTrajectoryId?: string }).currentTrajectoryId = trajId;
     }
 
-    const result: AutonomousTickResult = {
+    const result: AutonomousTickResultWithTrajectory = {
       success: false,
       actionsExecuted: {
         trades: 0,

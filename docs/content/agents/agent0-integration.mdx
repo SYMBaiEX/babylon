@@ -348,14 +348,14 @@ const subscription = subgraph.subscribe(
 
 ## Babylon's Agent0 Integration
 
-### UnifiedDiscoveryService
+### AgentDiscoveryService
 
-Babylon provides a unified service for discovery:
+Babylon provides a discovery service that merges local and external agents:
 
 ```typescript
-import { getUnifiedDiscoveryService } from '@/agents/agent0'
+import { getAgentDiscoveryService } from '@/agents/agent0'
 
-const discovery = getUnifiedDiscoveryService()
+const discovery = getAgentDiscoveryService()
 
 // Search for agents
 const results = await discovery.searchAgents({
@@ -572,12 +572,12 @@ PINATA_JWT=eyJ...
 
 ```typescript
 // Check if Agent0 is enabled
-if (process.env.AGENT0_ENABLED === 'true') {
+ if (process.env.AGENT0_ENABLED === 'true') {
  const agent0Client = getAgent0Client()
- const unifiedDiscovery = getUnifiedDiscoveryService()
+ const agentDiscovery = getAgentDiscoveryService()
  
  // Use in your app
- const babylon = await unifiedDiscovery.discoverBabylon()
+ const babylon = await agentDiscovery.discoverBabylon()
 }
 ```
 

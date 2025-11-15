@@ -45,6 +45,7 @@ interface Agent {
   walletAddress?: string
   agent0TokenId?: number
   onChainRegistered: boolean
+  a2aEnabled?: boolean
   createdAt: string
   updatedAt: string
 }

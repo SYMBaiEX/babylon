@@ -105,6 +105,7 @@ import { InternalServerError } from '@/lib/errors';
 import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { getCacheOrFetch, invalidateCachePattern, CACHE_KEYS } from '@/lib/cache-service';
+import { getBlockedUserIds, getMutedUserIds, getBlockedByUserIds } from '@/lib/moderation/filters';
 
 /**
  * GET /api/notifications - Get user notifications
@@ -148,16 +149,25 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // OPTIMIZED: Cache notifications with short TTL (high-frequency polling endpoint)
   const cacheKey = `notifications:${authUser.userId}:${JSON.stringify(where)}:${validatedLimit}`;
   
+  // Get blocked/muted user IDs to filter notifications
+  const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
+    getBlockedUserIds(authUser.userId),
+    getMutedUserIds(authUser.userId),
+    getBlockedByUserIds(authUser.userId),
+  ]);
+  
+  const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
+
   const { notifications, unreadCount } = await getCacheOrFetch(
     cacheKey,
     async () => {
       return await asUser(authUser, async (db) => {
-        const notifications = await db.notification.findMany({
+        const allNotifications = await db.notification.findMany({
           where,
           orderBy: {
             createdAt: 'desc',
           },
-          take: validatedLimit,
+          take: validatedLimit * 2, // Fetch more to account for filtering
           include: {
             User_Notification_actorIdToUser: {
               select: {
@@ -169,6 +179,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             },
           },
         });
+
+        // Filter out notifications from blocked/muted users
+        const notifications = allNotifications
+          .filter(n => !n.actorId || !excludedUserIds.has(n.actorId))
+          .slice(0, validatedLimit); // Limit to requested amount after filtering
 
         const unreadCount = await db.notification.count({
           where: {

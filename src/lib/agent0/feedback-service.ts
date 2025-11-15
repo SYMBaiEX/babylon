@@ -133,11 +133,83 @@ export class Agent0FeedbackService {
         undefined  // tag filter
       )
       
+      // Parse skill scores from feedback details if available
+      const skillScores: Record<string, { score: number; count: number }> = {}
+      
+      // Try to get detailed feedback to extract skill scores
+      try {
+        // Check if reputation object has feedback details or if we need to fetch them separately
+        // The SDK structure may vary, so we'll try multiple approaches
+        const reputationObj = reputation as Record<string, unknown>
+        
+        // If feedback array is available, parse skills from it
+        if (Array.isArray(reputationObj.feedback)) {
+          const feedbacks = reputationObj.feedback as Array<{ skill?: string; score?: number }>
+          
+          for (const feedback of feedbacks) {
+            if (feedback.skill && typeof feedback.score === 'number') {
+              const skill = feedback.skill
+              if (!skillScores[skill]) {
+                skillScores[skill] = { score: 0, count: 0 }
+              }
+              const skillData = skillScores[skill]
+              if (skillData) {
+                skillData.score += feedback.score
+                skillData.count += 1
+              }
+            }
+          }
+          
+          // Calculate averages
+          for (const skill in skillScores) {
+            const skillData = skillScores[skill]
+            if (skillData && skillData.count > 0) {
+              skillData.score = skillData.score / skillData.count
+            }
+          }
+        }
+      } catch (parseError) {
+        // If parsing fails, continue with empty skill scores
+        logger.debug('Could not parse skill scores from reputation', { error: parseError, agentId })
+      }
+      
+      // Also check local feedback records for skill breakdown
+      const localFeedback = await prisma.gameConfig.findMany({
+        where: {
+          key: { startsWith: `agent0_feedback_${agentId}_` }
+        }
+      })
+      
+      for (const config of localFeedback) {
+        const feedbackData = config.value as { skill?: string; score?: number } | null
+        if (feedbackData?.skill && typeof feedbackData.score === 'number') {
+          const skill = feedbackData.skill
+          if (!skillScores[skill]) {
+            skillScores[skill] = { score: 0, count: 0 }
+          }
+          const skillData = skillScores[skill]
+          if (skillData) {
+            skillData.score += feedbackData.score
+            skillData.count += 1
+          }
+        }
+      }
+      
+      // Calculate averages for local feedback
+      for (const skill in skillScores) {
+        const skillData = skillScores[skill]
+        if (skillData && skillData.count > 0) {
+          const totalScore = skillData.score
+          const count = skillData.count
+          skillData.score = totalScore / count
+        }
+      }
+      
       return {
         agentId,
         averageScore: reputation.averageScore || 0,
         totalFeedback: reputation.count || 0,
-        skillScores: {}  // TODO: Parse from feedback details
+        skillScores
       }
       
     } catch (error) {
@@ -191,7 +263,6 @@ export class Agent0FeedbackService {
       select: { 
         id: true,
         displayName: true,
-        // Assume agents store their Agent0 ID in metadata
         agentSystem: true
       }
     })
@@ -200,19 +271,43 @@ export class Agent0FeedbackService {
       throw new Error('Agent not found')
     }
     
-    // Extract Agent0 ID from agent metadata (if registered)
-    // For now, skip if agent doesn't have Agent0 ID
-    // In production, you'd store this in user table
-    
     logger.info('Rating Babylon agent', {
       agentUserId: babylonAgentUserId,
       score,
       skill
     })
     
-    // TODO: Implement when Babylon agents register on Agent0
-    // For now, just log locally
+    // Check if agent has Agent0 registration in gameConfig
+    const agent0Config = await prisma.gameConfig.findFirst({
+      where: {
+        key: `agent0_registration_${babylonAgentUserId}`
+      }
+    })
     
+    const agent0ConfigValue = agent0Config?.value as { agentId?: string } | null
+    const agent0AgentId = agent0ConfigValue?.agentId
+    
+    // If agent has Agent0 ID, submit feedback to Agent0
+    if (agent0AgentId) {
+      try {
+        await this.submitFeedback({
+          agentId: agent0AgentId,
+          fromUserId,
+          score,
+          skill,
+          comment
+        })
+        logger.info('Agent rating submitted to Agent0', {
+          agentUserId: babylonAgentUserId,
+          agent0AgentId
+        })
+      } catch (error) {
+        logger.error('Failed to submit rating to Agent0, storing locally', { error, agentUserId: babylonAgentUserId })
+        // Fall through to local storage
+      }
+    }
+    
+    // Always store locally for tracking (even if submitted to Agent0)
     await prisma.gameConfig.create({
       data: {
         id: await generateSnowflakeId(),
@@ -223,6 +318,7 @@ export class Agent0FeedbackService {
           score,
           skill,
           comment,
+          agent0AgentId: agent0AgentId || null,
           ratedAt: new Date().toISOString()
         },
         createdAt: new Date(),

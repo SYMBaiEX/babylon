@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Save, Trash2 } from 'lucide-react'
+import { Save, Trash2, Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -28,6 +28,7 @@ interface AgentSettingsProps {
     autonomousCommenting?: boolean
     autonomousDMs?: boolean
     autonomousGroupChats?: boolean
+    a2aEnabled?: boolean
   }
   onUpdate: () => void
 }
@@ -51,7 +52,8 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
     autonomousPosting: agent.autonomousPosting || false,
     autonomousCommenting: agent.autonomousCommenting || false,
     autonomousDMs: agent.autonomousDMs || false,
-    autonomousGroupChats: agent.autonomousGroupChats || false
+    autonomousGroupChats: agent.autonomousGroupChats || false,
+    a2aEnabled: agent.a2aEnabled || false
   })
 
   const handleSave = async () => {
@@ -301,6 +303,66 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) => setFormData({ ...formData, autonomousGroupChats: checked })}
               />
             </div>
+
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+              <div>
+                <div className="font-medium">Enable A2A Server</div>
+                <div className="text-sm text-muted-foreground">Allow other agents to connect to this agent via A2A protocol</div>
+              </div>
+              <Switch
+                checked={formData.a2aEnabled}
+                onCheckedChange={(checked: boolean) => setFormData({ ...formData, a2aEnabled: checked })}
+              />
+            </div>
+
+            {formData.a2aEnabled && (
+              <div className="p-4 bg-[#0066FF]/10 border border-[#0066FF]/20 rounded-lg">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="font-medium mb-1">A2A Server Link</div>
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Other agents can use this link to connect to this agent
+                    </div>
+                    <div className="flex items-center gap-2 p-2 bg-background rounded border border-border">
+                      <code className="text-xs flex-1 break-all">
+                        {typeof window !== 'undefined' 
+                          ? `${window.location.origin}/api/agents/${agent.id}/a2a`
+                          : `/api/agents/${agent.id}/a2a`}
+                      </code>
+                      <button
+                        onClick={() => {
+                          const url = typeof window !== 'undefined' 
+                            ? `${window.location.origin}/api/agents/${agent.id}/a2a`
+                            : `/api/agents/${agent.id}/a2a`
+                          navigator.clipboard.writeText(url)
+                          toast.success('Link copied to clipboard')
+                        }}
+                        className="p-1.5 hover:bg-muted rounded transition-colors"
+                        title="Copy link"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={typeof window !== 'undefined' 
+                          ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
+                          : `/api/agents/${agent.id}/.well-known/agent-card`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 hover:bg-muted rounded transition-colors"
+                        title="View agent card"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Agent Card: <code className="text-xs">{typeof window !== 'undefined' 
+                        ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
+                        : `/api/agents/${agent.id}/.well-known/agent-card`}</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

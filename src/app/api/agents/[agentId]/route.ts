@@ -161,6 +161,7 @@ export async function GET(
       autonomousCommenting: agent!.autonomousCommenting,
       autonomousDMs: agent!.autonomousDMs,
       autonomousGroupChats: agent!.autonomousGroupChats,
+      a2aEnabled: agent!.a2aEnabled,
       modelTier: agent!.agentModelTier,
       status: agent!.agentStatus,
       errorMessage: agent!.agentErrorMessage,
@@ -210,7 +211,8 @@ export async function PUT(
     autonomousPosting,
     autonomousCommenting,
     autonomousDMs,
-    autonomousGroupChats
+    autonomousGroupChats,
+    a2aEnabled
   } = body
 
   const updates: Record<string, unknown> = {}
@@ -236,6 +238,7 @@ export async function PUT(
   if (autonomousCommenting !== undefined) updates.autonomousCommenting = autonomousCommenting
   if (autonomousDMs !== undefined) updates.autonomousDMs = autonomousDMs
   if (autonomousGroupChats !== undefined) updates.autonomousGroupChats = autonomousGroupChats
+  if (a2aEnabled !== undefined) updates.a2aEnabled = a2aEnabled
 
   const agent = await agentService.updateAgent(agentId, user.id, updates)
 

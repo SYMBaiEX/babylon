@@ -1,0 +1,191 @@
+/**
+ * Hook for on-chain prediction market betting with Base Sepolia ETH
+ * 
+ * Enables users to buy/sell shares using their smart wallet
+ * Transactions execute on Base Sepolia blockchain
+ */
+
+import { useCallback, useState } from 'react'
+import type { Address } from 'viem'
+import { encodeFunctionData } from 'viem'
+import { useSmartWallet } from '@/hooks/useSmartWallet'
+import { CHAIN } from '@/constants/chains'
+import { logger } from '@/lib/logger'
+
+// Diamond address on Base Sepolia
+const DIAMOND_ADDRESS = '0xdC3f0aD2f76Cea9379af897fa8EAD4A6d5e43990' as Address
+
+// Prediction Market Facet ABI
+const PREDICTION_MARKET_ABI = [
+  {
+    type: 'function',
+    name: 'buyShares',
+    inputs: [
+      { name: '_marketId', type: 'bytes32' },
+      { name: '_outcome', type: 'uint8' },
+      { name: '_numShares', type: 'uint256' }
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable'
+  },
+  {
+    type: 'function',
+    name: 'sellShares',
+    inputs: [
+      { name: '_marketId', type: 'bytes32' },
+      { name: '_outcome', type: 'uint8' },
+      { name: '_numShares', type: 'uint256' }
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable'
+  },
+  {
+    type: 'function',
+    name: 'calculateCost',
+    inputs: [
+      { name: '_marketId', type: 'bytes32' },
+      { name: '_outcome', type: 'uint8' },
+      { name: '_numShares', type: 'uint256' }
+    ],
+    outputs: [{ name: 'cost', type: 'uint256' }],
+    stateMutability: 'view'
+  }
+] as const
+
+export interface OnChainBetResult {
+  txHash: string
+  shares: number
+  gasUsed?: string
+}
+
+export function useOnChainBetting() {
+  const { client, smartWalletReady, sendSmartWalletTransaction } = useSmartWallet()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Buy shares on-chain with smart wallet
+   */
+  const buyShares = useCallback(
+    async (marketId: string, outcome: 'YES' | 'NO', numShares: number): Promise<OnChainBetResult> => {
+      if (!smartWalletReady || !client) {
+        throw new Error('Smart wallet not ready. Please connect your wallet.')
+      }
+
+      setLoading(true)
+      setError(null)
+
+      try {
+        const outcomeIndex = outcome === 'YES' ? 1 : 0
+        const sharesBigInt = BigInt(Math.floor(numShares * 1e18))
+
+        logger.info('Buying shares on-chain', {
+          marketId,
+          outcome,
+          numShares,
+          outcomeIndex
+        })
+
+        // Encode the function call
+        const data = encodeFunctionData({
+          abi: PREDICTION_MARKET_ABI,
+          functionName: 'buyShares',
+          args: [marketId as `0x${string}`, outcomeIndex, sharesBigInt]
+        })
+
+        // Send transaction via smart wallet
+        const hash = await sendSmartWalletTransaction({
+          to: DIAMOND_ADDRESS,
+          data,
+          chain: CHAIN,
+        })
+
+        logger.info('Buy shares transaction sent', {
+          marketId,
+          outcome,
+          txHash: hash
+        })
+
+        return {
+          txHash: hash,
+          shares: numShares
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Buy shares failed'
+        setError(errorMsg)
+        logger.error('Buy shares on-chain failed', { error: err }, 'useOnChainBetting')
+        throw new Error(errorMsg)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [smartWalletReady, client, sendSmartWalletTransaction]
+  )
+
+  /**
+   * Sell shares on-chain with smart wallet
+   */
+  const sellShares = useCallback(
+    async (marketId: string, outcome: 'YES' | 'NO', numShares: number): Promise<OnChainBetResult> => {
+      if (!smartWalletReady || !client) {
+        throw new Error('Smart wallet not ready. Please connect your wallet.')
+      }
+
+      setLoading(true)
+      setError(null)
+
+      try {
+        const outcomeIndex = outcome === 'YES' ? 1 : 0
+        const sharesBigInt = BigInt(Math.floor(numShares * 1e18))
+
+        logger.info('Selling shares on-chain', {
+          marketId,
+          outcome,
+          numShares
+        })
+
+        // Encode the function call
+        const data = encodeFunctionData({
+          abi: PREDICTION_MARKET_ABI,
+          functionName: 'sellShares',
+          args: [marketId as `0x${string}`, outcomeIndex, sharesBigInt]
+        })
+
+        // Send transaction via smart wallet
+        const hash = await sendSmartWalletTransaction({
+          to: DIAMOND_ADDRESS,
+          data,
+          chain: CHAIN,
+        })
+
+        logger.info('Sell shares transaction sent', {
+          marketId,
+          outcome,
+          txHash: hash
+        })
+
+        return {
+          txHash: hash,
+          shares: numShares
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Sell shares failed'
+        setError(errorMsg)
+        logger.error('Sell shares on-chain failed', { error: err }, 'useOnChainBetting')
+        throw new Error(errorMsg)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [smartWalletReady, client, sendSmartWalletTransaction]
+  )
+
+  return {
+    buyShares,
+    sellShares,
+    loading,
+    error,
+    smartWalletReady
+  }
+}
+

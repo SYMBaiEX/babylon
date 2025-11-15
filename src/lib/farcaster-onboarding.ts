@@ -101,7 +101,7 @@ export async function openFarcasterOnboardingPopup(
       }
 
       try {
-        await response.json()
+      await response.json()
       } catch {
         // Response is ok but empty or invalid JSON - this is acceptable
       }

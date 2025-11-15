@@ -1,8 +1,7 @@
 /**
- * Official A2A Client Integration for Eliza Agents
+ * A2A Client Integration for Eliza Agents
  * 
- * Uses @a2a-js/sdk official client for standards-compliant A2A communication
- * Replaces custom HTTP-based A2A implementation
+ * Uses @a2a-js/sdk client for A2A communication
  */
 
 import { A2AClient } from '@a2a-js/sdk/client'
@@ -16,11 +15,9 @@ export interface BabylonA2ARuntime extends IAgentRuntime {
 }
 
 /**
- * Initialize official A2A client for Babylon
- * 
- * This replaces the custom HTTP-based A2A client with the official SDK
+ * Initialize A2A client for Babylon
  */
-export async function initializeOfficialA2AClient(
+export async function initializeA2AClient(
   endpoint?: string
 ): Promise<A2AClient> {
   const babylonEndpoint = endpoint || 
@@ -28,10 +25,10 @@ export async function initializeOfficialA2AClient(
     process.env.NEXT_PUBLIC_APP_URL + '/.well-known/agent-card.json' ||
     'http://localhost:3000/.well-known/agent-card.json'
   
-  logger.info('Initializing official A2A client for Babylon', { endpoint: babylonEndpoint })
+  logger.info('Initializing A2A client for Babylon', { endpoint: babylonEndpoint })
   
   try {
-    // Use official SDK to create client from agent card
+    // Use SDK to create client from agent card
     const client = await A2AClient.fromCardUrl(babylonEndpoint)
     
     // Validate Babylon capabilities
@@ -44,7 +41,7 @@ export async function initializeOfficialA2AClient(
       })
     }
     
-    logger.info('Official A2A client initialized successfully', {
+    logger.info('A2A client initialized successfully', {
       name: card.name,
       skills: card.skills.length,
       transport: card.preferredTransport,
@@ -54,15 +51,15 @@ export async function initializeOfficialA2AClient(
     return client
     
   } catch (error) {
-    logger.error('Failed to initialize official A2A client', { error, endpoint: babylonEndpoint })
+    logger.error('Failed to initialize A2A client', { error, endpoint: babylonEndpoint })
     throw new Error(`Could not initialize A2A client: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
 /**
- * Execute a Babylon skill via official A2A protocol
+ * Execute a Babylon skill via A2A protocol
  * 
- * @param client - Official A2AClient instance
+ * @param client - A2AClient instance
  * @param skillId - Babylon skill ID (e.g., 'prediction-market-trader')
  * @param message - Natural language message or structured JSON
  * @returns Task or Message response

@@ -11,6 +11,8 @@ export type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog };
 export type { Prisma };
 
 // Trajectory Step types
+// Note: These are simplified versions for training pipeline.
+// For full trajectory recording, see @/lib/agents/plugins/plugin-trajectory-logger/src/types
 export interface TrajectoryStep {
   stepNumber: number;
   timestamp: number;
@@ -56,6 +58,24 @@ export interface Action {
   result?: Record<string, unknown>;
   error?: string;
   reasoning?: string;
+  // Correctness tracking (for RL training)
+  correctness?: {
+    // Prediction market correctness
+    predictionCorrect?: boolean; // Was the prediction correct?
+    actualOutcome?: boolean; // Actual market outcome (YES=true, NO=false)
+    predictedOutcome?: boolean; // What agent predicted
+    
+    // Perp trade correctness
+    perpCorrect?: boolean; // Was the perp trade correct?
+    sentimentAtTrade?: number; // Sentiment at time of trade (-1 to 1)
+    priceChange?: number; // Actual price change after trade
+    expectedDirection?: 'up' | 'down'; // Expected direction based on sentiment
+    
+    // Sentiment analysis accuracy
+    sentimentAccuracy?: number; // How accurate was sentiment reading (0-1)
+    sentimentAtTime?: number; // Sentiment value at time of action
+    actualSentiment?: number; // Actual sentiment (if known)
+  };
 }
 
 // Parsed trajectory data (from JSON fields)

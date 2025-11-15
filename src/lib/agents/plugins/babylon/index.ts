@@ -25,7 +25,7 @@
 
 import type { Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
-import { initializeAgentA2AClient } from './integration-official-sdk-complete'
+import { initializeAgentA2AClient } from './integration-a2a-sdk'
 // Import all providers
 import {
   marketsProvider,
@@ -36,6 +36,7 @@ import {
   notificationsProvider,
   dashboardProvider,
   userWalletProvider,
+  userProfileProvider,
   headlinesProvider,
   marketMoversProvider,
   agentWalletProvider,
@@ -122,7 +123,7 @@ export * from './services'
  * 
  * Advanced Usage (With A2A Client):
  * ```typescript
- * import { A2AClient } from '@/lib/a2a/client'
+ * import { A2AClient } from '@a2a-js/sdk/client'
  * import { babylonPlugin } from '@/lib/agents/plugins/babylon'
  * 
  * const a2aClient = new A2AClient({
@@ -155,7 +156,7 @@ export * from './services'
  */
 export const babylonPlugin: Plugin = {
   name: 'babylon',
-  description: 'Babylon prediction market game integration for AI agents via A2A protocol. Provides access to agent discovery, market data, portfolio, and payments through 10 A2A methods. Other features available via REST API.',
+  description: 'Babylon prediction market game integration for AI agents via A2A protocol. Provides access to all 73+ A2A methods for complete platform functionality including trading, social, messaging, and more.',
   
   providers: [
     goalsProvider, // Agent goals, directives, and constraints - highest priority context
@@ -171,8 +172,12 @@ export const babylonPlugin: Plugin = {
     messagesProvider,
     notificationsProvider,
     userWalletProvider, // Query any user's wallet and positions
+    userProfileProvider, // View any user's profile information
     entityMentionsProvider // Detect and enrich entity mentions (users, companies, stocks)
   ],
+  
+  // Note: Trust tracking and performance evaluation moved to plugin-experience
+  // See: marketOutcomeEvaluator in plugin-experience/src/evaluators
   
   actions: [
     // Trading actions
@@ -218,16 +223,16 @@ export async function initializeBabylonPlugin(
   }
 ) {
   
-  logger.info('Initializing Babylon plugin with official A2A SDK', { endpoint: config.endpoint })
+  logger.info('Initializing Babylon plugin with A2A SDK', { endpoint: config.endpoint })
   
-  // Use official SDK wrapper - requires agentId from runtime
+  // Use A2A client - requires agentId from runtime
   if (!runtime.agentId) {
     throw new Error('Runtime must have agentId to initialize A2A client')
   }
   
   const a2aClient = await initializeAgentA2AClient(runtime.agentId)
   
-  logger.info('✅ Official A2A SDK client ready')
+  logger.info('✅ A2A client ready')
   
   // Inject into runtime
   runtime.a2aClient = a2aClient
@@ -235,7 +240,7 @@ export async function initializeBabylonPlugin(
   // Register plugin
   if (runtime.registerPlugin) {
     runtime.registerPlugin(babylonPlugin)
-    logger.info('✅ Babylon plugin registered with official A2A SDK')
+    logger.info('✅ Babylon plugin registered with A2A client')
   }
   
   return { a2aClient, plugin: babylonPlugin }

@@ -147,7 +147,7 @@ Error: Fal.ai API returned no images
 Error: Actor Actor1 is missing physicalDescription field
 ```
 
-**Solution:** Add required fields to `public/data/actors.json`:
+**Solution:** Add required fields to the actor's individual file in `public/data/actors/actor1.json`:
 
 ```json
 {
@@ -157,6 +157,8 @@ Error: Actor Actor1 is missing physicalDescription field
  "profileBanner": "Banner description here" // Required for banner
 }
 ```
+
+Then rebuild the full file: `bun run scripts/build-actors-json.ts`
 
 ## Regenerating Images
 

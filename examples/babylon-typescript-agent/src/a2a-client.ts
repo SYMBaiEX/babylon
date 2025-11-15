@@ -18,6 +18,8 @@ export interface BabylonA2AClientConfig {
   tokenId: number
   /** Private key for signing (optional, for authenticated requests) */
   privateKey?: string
+  /** Babylon-issued API key for A2A server authentication */
+  apiKey: string
 }
 
 /**
@@ -45,6 +47,7 @@ export class BabylonA2AClient {
         headers.set('x-agent-id', this.agentId)
         headers.set('x-agent-address', this.config.address)
         headers.set('x-agent-token-id', this.config.tokenId.toString())
+        headers.set('x-babylon-api-key', this.config.apiKey)
         return fetch(url, { ...init, headers })
       }
     })
@@ -64,6 +67,7 @@ export class BabylonA2AClient {
             headers.set('x-agent-id', this.agentId)
             headers.set('x-agent-address', this.config.address)
             headers.set('x-agent-token-id', this.config.tokenId.toString())
+            headers.set('x-babylon-api-key', this.config.apiKey)
             return fetch(url, { ...init, headers })
           }
         }
@@ -76,7 +80,7 @@ export class BabylonA2AClient {
       this.agentCard = await client['agentCardPromise'] || null
 
       // Verify connection by sending a test message
-      await this.sendMessage('ping', { action: 'ping' })
+      await this.sendMessage('ping', { operation: 'stats.system', params: {} })
     } catch (error) {
       throw new Error(`Failed to connect to Babylon A2A: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -86,10 +90,18 @@ export class BabylonA2AClient {
    * Send a message to Babylon using official A2A protocol
    * 
    * @param text Text content of the message
-   * @param data Optional structured data (action, params, etc.)
+   * @param command Structured command data (action + params)
    * @returns Task or Message response
    */
-  async sendMessage(text: string, data?: Record<string, unknown>): Promise<Task | Message> {
+  async sendMessage(text: string, command: Record<string, unknown>): Promise<Task | Message> {
+    if (!command || typeof command.operation !== 'string') {
+      throw new Error('A2A command must include an operation string (e.g., "social.create_post", "markets.buy_shares")')
+    }
+
+    const structuredCommand = {
+      operation: command.operation,
+      params: command.params || {}
+    }
     const parts: Array<TextPart | DataPart> = [
       {
         kind: 'text',
@@ -97,12 +109,10 @@ export class BabylonA2AClient {
       }
     ]
 
-    if (data) {
-      parts.push({
-        kind: 'data',
-        data
-      })
-    }
+    parts.push({
+      kind: 'data',
+      data: structuredCommand
+    })
 
     const message: Message = {
       kind: 'message',
@@ -134,6 +144,8 @@ export class BabylonA2AClient {
       throw new Error('Unexpected response format')
     }
   }
+
+  // normalizeCommand removed - now using operation/params format directly
 
   /**
    * Get task status
@@ -224,31 +236,11 @@ export class BabylonA2AClient {
 
   /**
    * Buy prediction market shares
+   * NOTE: This operation is not yet supported by the executor
+   * The executor currently only supports: social.create_post, social.get_feed, markets.list_prediction, users.search, stats.system, stats.leaderboard
    */
   async buyShares(marketId: string, outcome: 'YES' | 'NO', amount: number): Promise<Record<string, JsonValue>> {
-    const response = await this.sendMessage(
-      `Buy ${amount} ${outcome} shares in market ${marketId}`,
-      {
-        skill: 'prediction-market-trader',
-        action: 'buyShares',
-        marketId,
-        outcome,
-        amount
-      }
-    )
-
-    // If it's a task, wait for completion
-    if (response.kind === 'task') {
-      const task = response as Task
-      if (task.status.state !== 'completed' && task.status.state !== 'failed' && task.status.state !== 'canceled') {
-        const completedTask = await this.waitForTask(task.id)
-        return this.extractResult(completedTask)
-      }
-      return this.extractResult(task)
-    }
-    
-    // If it's a message, extract result directly
-    return this.extractResult(response)
+    throw new Error('markets.buy_shares operation not yet supported by executor. Only basic operations are available.')
   }
 
   /**
@@ -258,10 +250,11 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Sell ${shares} shares from position ${positionId}`,
       {
-        skill: 'prediction-market-trader',
-        action: 'sellShares',
-        positionId,
-        shares
+        operation: 'markets.sell_shares',
+        params: {
+          positionId,
+          shares
+        }
       }
     )
 
@@ -284,12 +277,13 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Open ${side} position on ${ticker} with $${amount} at ${leverage}x leverage`,
       {
-        skill: 'perpetual-futures-trader',
-        action: 'openPosition',
-        ticker,
-        side,
-        amount,
-        leverage
+        operation: 'markets.open_perp_position',
+        params: {
+          ticker,
+          side,
+          amount,
+          leverage
+        }
       }
     )
 
@@ -312,9 +306,10 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Close position ${positionId}`,
       {
-        skill: 'perpetual-futures-trader',
-        action: 'closePosition',
-        positionId
+        operation: 'markets.close_perp_position',
+        params: {
+          positionId
+        }
       }
     )
 
@@ -332,14 +327,14 @@ export class BabylonA2AClient {
 
   /**
    * Get predictions (query skill)
+   * SUPPORTED: Uses markets.list_prediction operation
    */
   async getPredictions(params?: { userId?: string; status?: 'active' | 'resolved' }): Promise<{ predictions: Array<Record<string, unknown>> }> {
     const response = await this.sendMessage(
       'What prediction markets are available?',
       {
-        skill: 'market-researcher',
-        action: 'getPredictions',
-        ...params
+        operation: 'markets.list_prediction',
+        params: params || {}
       }
     )
 
@@ -360,8 +355,8 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       'What perpetual futures markets are available?',
       {
-        skill: 'market-researcher',
-        action: 'getPerpetuals'
+        operation: 'markets.list_perpetuals',
+        params: {}
       }
     )
 
@@ -396,8 +391,8 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       'What is my current balance?',
       {
-        skill: 'portfolio-analyst',
-        action: 'getBalance'
+        operation: 'portfolio.get_balance',
+        params: {}
       }
     )
 
@@ -418,9 +413,8 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       userId ? `What are user ${userId}'s positions?` : 'What are my current positions?',
       {
-        skill: 'portfolio-analyst',
-        action: 'getPositions',
-        userId
+        operation: 'portfolio.get_positions',
+        params: userId ? { userId } : {}
       }
     )
 
@@ -458,14 +452,14 @@ export class BabylonA2AClient {
 
   /**
    * Get feed (query skill)
+   * SUPPORTED: Uses social.get_feed operation
    */
   async getFeed(params?: { limit?: number; offset?: number; following?: boolean; type?: 'post' | 'article' }): Promise<{ posts: Array<Record<string, unknown>> }> {
     const response = await this.sendMessage(
       'Show me recent posts from the feed',
       {
-        skill: 'social-media-manager',
-        action: 'getFeed',
-        ...params
+        operation: 'social.get_feed',
+        params: params || {}
       }
     )
 
@@ -481,15 +475,17 @@ export class BabylonA2AClient {
 
   /**
    * Create post (action skill)
+   * SUPPORTED: Uses social.create_post operation
    */
   async createPost(content: string, type: 'post' | 'article' = 'post'): Promise<Record<string, JsonValue>> {
     const response = await this.sendMessage(
       `Post: ${content}`,
       {
-        skill: 'social-media-manager',
-        action: 'createPost',
-        content,
-        type
+        operation: 'social.create_post',
+        params: {
+          content,
+          type
+        }
       }
     )
 
@@ -512,10 +508,11 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Comment on post ${postId}: ${content}`,
       {
-        skill: 'social-media-manager',
-        action: 'createComment',
-        postId,
-        content
+        operation: 'social.create_comment',
+        params: {
+          postId,
+          content
+        }
       }
     )
 
@@ -538,9 +535,10 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Like post ${postId}`,
       {
-        skill: 'social-media-manager',
-        action: 'likePost',
-        postId
+        operation: 'social.like_post',
+        params: {
+          postId
+        }
       }
     )
 
@@ -564,7 +562,7 @@ export class BabylonA2AClient {
       `Send message to chat ${chatId}: ${content}`,
       {
         skill: 'direct-messenger',
-        action: 'sendMessage',
+        action: 'send_message',
         chatId,
         content
       }
@@ -590,7 +588,7 @@ export class BabylonA2AClient {
       'What are my chats?',
       {
         skill: 'direct-messenger',
-        action: 'getChats',
+        action: 'get_chats',
         filter
       }
     )
@@ -613,7 +611,7 @@ export class BabylonA2AClient {
       'What are my notifications?',
       {
         skill: 'notification-manager',
-        action: 'getNotifications',
+        action: 'get_notifications',
         limit
       }
     )
@@ -630,19 +628,20 @@ export class BabylonA2AClient {
 
   /**
    * Get leaderboard (query skill)
+   * SUPPORTED: Uses stats.leaderboard operation
    */
   async getLeaderboard(params?: {
     page?: number
     pageSize?: number
     pointsType?: 'all' | 'earned' | 'referral'
     minPoints?: number
+    limit?: number
   }): Promise<{ leaderboard: Array<Record<string, unknown>> }> {
     const response = await this.sendMessage(
       'Show me the leaderboard',
       {
-        skill: 'stats-researcher',
-        action: 'getLeaderboard',
-        ...params
+        operation: 'stats.leaderboard',
+        params: params || {}
       }
     )
 
@@ -664,7 +663,7 @@ export class BabylonA2AClient {
       `Show me user ${userId}'s profile`,
       {
         skill: 'profile-manager',
-        action: 'getUserProfile',
+        action: 'get_user_profile',
         userId
       }
     )
@@ -683,13 +682,14 @@ export class BabylonA2AClient {
 
   /**
    * Get system stats (query skill)
+   * SUPPORTED: Uses stats.system operation
    */
   async getSystemStats(): Promise<Record<string, JsonValue>> {
     const response = await this.sendMessage(
       'What are the system statistics?',
       {
-        skill: 'stats-researcher',
-        action: 'getSystemStats'
+        operation: 'stats.system',
+        params: {}
       }
     )
 
@@ -713,7 +713,7 @@ export class BabylonA2AClient {
       userId ? `What is user ${userId}'s reputation?` : 'What is my reputation?',
       {
         skill: 'stats-researcher',
-        action: 'getReputation',
+        action: 'get_reputation',
         userId
       }
     )
@@ -738,7 +738,7 @@ export class BabylonA2AClient {
       'What topics are trending?',
       {
         skill: 'stats-researcher',
-        action: 'getTrendingTags',
+        action: 'get_trending_tags',
         limit
       }
     )
@@ -761,7 +761,7 @@ export class BabylonA2AClient {
       'What organizations/perpetual markets are available?',
       {
         skill: 'market-researcher',
-        action: 'getOrganizations',
+        action: 'get_organizations',
         limit
       }
     )
@@ -778,15 +778,17 @@ export class BabylonA2AClient {
 
   /**
    * Search users (query skill)
+   * SUPPORTED: Uses users.search operation
    */
   async searchUsers(query: string, limit?: number): Promise<{ users: Array<Record<string, unknown>> }> {
     const response = await this.sendMessage(
       `Search for users: ${query}`,
       {
-        skill: 'user-relationship-manager',
-        action: 'searchUsers',
-        query,
-        limit
+        operation: 'users.search',
+        params: {
+          query,
+          limit
+        }
       }
     )
 
@@ -808,7 +810,7 @@ export class BabylonA2AClient {
       `Follow user ${userId}`,
       {
         skill: 'user-relationship-manager',
-        action: 'followUser',
+        action: 'follow_user',
         userId
       }
     )
@@ -833,7 +835,7 @@ export class BabylonA2AClient {
       `Unfollow user ${userId}`,
       {
         skill: 'user-relationship-manager',
-        action: 'unfollowUser',
+        action: 'unfollow_user',
         userId
       }
     )
@@ -847,6 +849,168 @@ export class BabylonA2AClient {
       return this.extractResult(task)
     }
     
+    return this.extractResult(response)
+  }
+
+  // Moderation Operations
+
+  /**
+   * Block a user
+   */
+  async blockUser(params: { userId: string; reason?: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Block user ${params.userId}`,
+      {
+        operation: 'moderation.block_user',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Unblock a user
+   */
+  async unblockUser(params: { userId: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Unblock user ${params.userId}`,
+      {
+        operation: 'moderation.unblock_user',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Mute a user
+   */
+  async muteUser(params: { userId: string; reason?: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Mute user ${params.userId}`,
+      {
+        operation: 'moderation.mute_user',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Unmute a user
+   */
+  async unmuteUser(params: { userId: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Unmute user ${params.userId}`,
+      {
+        operation: 'moderation.unmute_user',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Report a user
+   */
+  async reportUser(params: {
+    userId: string;
+    category: string;
+    reason: string;
+    evidence?: string;
+  }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Report user ${params.userId} for ${params.category}`,
+      {
+        operation: 'moderation.report_user',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Report a post
+   */
+  async reportPost(params: {
+    postId: string;
+    category: string;
+    reason: string;
+    evidence?: string;
+  }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Report post ${params.postId} for ${params.category}`,
+      {
+        operation: 'moderation.report_post',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Get list of blocked users
+   */
+  async getBlocks(params?: { limit?: number; offset?: number }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      'Get my blocked users list',
+      {
+        operation: 'moderation.get_blocks',
+        params: params || {}
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Get list of muted users
+   */
+  async getMutes(params?: { limit?: number; offset?: number }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      'Get my muted users list',
+      {
+        operation: 'moderation.get_mutes',
+        params: params || {}
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Check if a user is blocked
+   */
+  async checkBlockStatus(params: { userId: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Check if user ${params.userId} is blocked`,
+      {
+        operation: 'moderation.check_block_status',
+        params
+      }
+    )
+
+    return this.extractResult(response)
+  }
+
+  /**
+   * Check if a user is muted
+   */
+  async checkMuteStatus(params: { userId: string }): Promise<Record<string, JsonValue>> {
+    const response = await this.sendMessage(
+      `Check if user ${params.userId} is muted`,
+      {
+        operation: 'moderation.check_mute_status',
+        params
+      }
+    )
+
     return this.extractResult(response)
   }
 

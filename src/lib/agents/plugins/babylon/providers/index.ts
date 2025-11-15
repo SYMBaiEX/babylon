@@ -9,6 +9,7 @@ export { portfolioProvider } from './portfolio'
 export { feedProvider, trendingProvider } from './social'
 export { messagesProvider, notificationsProvider } from './messaging'
 export { userWalletProvider } from './user-wallet'
+export { userProfileProvider } from './user-profile'
 
 // New context providers
 export { headlinesProvider } from './headlines'
@@ -17,4 +18,5 @@ export { agentWalletProvider } from './agent-wallet'
 export { entityMentionsProvider } from './entity-mentions'
 export { trendingTopicsProvider } from './trending-topics'
 export { goalsProvider } from './goals'
+export { npcTrustProvider } from './npc-trust'
 
