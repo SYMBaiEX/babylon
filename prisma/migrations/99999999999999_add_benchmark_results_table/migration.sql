@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "benchmark_results" (
+CREATE TABLE IF NOT EXISTS "benchmark_results" (
     "id" TEXT NOT NULL,
     "modelId" TEXT NOT NULL,
     "benchmarkId" TEXT NOT NULL,
@@ -28,16 +28,16 @@ CREATE TABLE "benchmark_results" (
 );
 
 -- CreateIndex
-CREATE INDEX "benchmark_results_modelId_idx" ON "benchmark_results"("modelId");
+CREATE INDEX IF NOT EXISTS "benchmark_results_modelId_idx" ON "benchmark_results"("modelId");
 
 -- CreateIndex
-CREATE INDEX "benchmark_results_benchmarkId_idx" ON "benchmark_results"("benchmarkId");
+CREATE INDEX IF NOT EXISTS "benchmark_results_benchmarkId_idx" ON "benchmark_results"("benchmarkId");
 
 -- CreateIndex
-CREATE INDEX "benchmark_results_runAt_idx" ON "benchmark_results"("runAt");
+CREATE INDEX IF NOT EXISTS "benchmark_results_runAt_idx" ON "benchmark_results"("runAt");
 
 -- CreateIndex
-CREATE INDEX "benchmark_results_optimalityScore_idx" ON "benchmark_results"("optimalityScore");
+CREATE INDEX IF NOT EXISTS "benchmark_results_optimalityScore_idx" ON "benchmark_results"("optimalityScore");
 
 -- AddForeignKey (optional, for referential integrity)
 -- ALTER TABLE "benchmark_results" ADD CONSTRAINT "benchmark_results_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "trained_models"("modelId") ON DELETE CASCADE ON UPDATE CASCADE;

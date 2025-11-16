@@ -13,7 +13,7 @@
 
 // @ts-ignore - bun global is available in bun runtime
 import { $ } from 'bun'
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../../src/lib/logger'
 import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'
@@ -35,6 +35,18 @@ if (killedCount > 0) {
   logger.info(`✅ Killed ${killedCount} process(es) on port 3000`, undefined, 'Script')
 } else {
   logger.info('✅ Port 3000 is free', undefined, 'Script')
+}
+
+// 0.5. Clean up Next.js lock file if it exists
+const nextLockPath = join(process.cwd(), '.next', 'dev', 'lock')
+try {
+  if (existsSync(nextLockPath)) {
+    logger.info('Cleaning up Next.js lock file...', undefined, 'Script')
+    unlinkSync(nextLockPath)
+    logger.info('✅ Next.js lock file removed', undefined, 'Script')
+  }
+} catch (error) {
+  logger.warn('Could not remove Next.js lock file (may not exist)', undefined, 'Script')
 }
 
 // Set environment for localnet

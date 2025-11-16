@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate && bun run scripts/postinstall-install-python-deps.ts",
-    "dev": "bun run scripts/pre-dev/pre-dev-local.ts && concurrently --kill-others-on-fail --kill-others -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
+    "dev": "bun run scripts/run-dev.ts",
     "dev:next-only": "SKIP_ENV_VALIDATION=1 bunx next dev",
-    "dev:testnet": "DEPLOYMENT_ENV=testnet bun run scripts/pre-dev/pre-dev-testnet.ts && concurrently --kill-others-on-fail --kill-others -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
+    "dev:testnet": "DEPLOYMENT_ENV=testnet bun run scripts/pre-dev/pre-dev-testnet.ts && concurrently --kill-others-on-fail -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
     "validate:data": "bun run scripts/validate-all-data.ts",
     "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=8192' bunx next build --webpack",
     "start": "bun run scripts/validation/check-environment.ts && bunx next start",

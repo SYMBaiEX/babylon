@@ -104,14 +104,21 @@ const closeEventSource = () => {
     pendingTokenRetry = null;
   }
 
-  if (globalEventSource) {
-    globalEventSource.close();
-    globalEventSource = null;
-  }
-
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
+  }
+
+  if (globalEventSource) {
+    try {
+      // Remove all event listeners to prevent callbacks after close
+      globalEventSource.onopen = null;
+      globalEventSource.onerror = null;
+      globalEventSource.close();
+    } catch (error) {
+      logger.debug('Error closing EventSource', { error }, 'useSSE');
+    }
+    globalEventSource = null;
   }
 
   connectedChannels.clear();
@@ -162,7 +169,15 @@ async function ensureConnection(forceReconnect = false) {
     return;
   }
 
+  // Prevent duplicate connection attempts
   if (connecting) {
+    logger.debug('SSE connection already in progress, skipping', undefined, 'useSSE');
+    return;
+  }
+
+  // If there's already a connection and we're not forcing reconnect, check if it's valid
+  if (!forceReconnect && globalEventSource && globalEventSource.readyState === EventSource.OPEN) {
+    logger.debug('SSE already connected, skipping', undefined, 'useSSE');
     return;
   }
 
@@ -197,8 +212,11 @@ async function ensureConnection(forceReconnect = false) {
   );
 
   const eventSource = new EventSource(url);
+  let errorHandled = false;
 
   eventSource.onopen = () => {
+    // Reset error flag on successful open
+    errorHandled = false;
     connecting = false;
     globalEventSource = eventSource;
     connectedChannels = new Set(requestedChannels);
@@ -206,6 +224,20 @@ async function ensureConnection(forceReconnect = false) {
     notifyConnectionStatus(true, null);
     logger.info('SSE connected', { channels: channelsList }, 'useSSE');
   };
+
+  // Handle the 'connected' event from server
+  eventSource.addEventListener('connected', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      logger.debug('SSE connected event received', { clientId: data.clientId, channels: data.channels }, 'useSSE');
+      // Connection is confirmed, update state
+      connecting = false;
+      reconnectAttempts = 0;
+      notifyConnectionStatus(true, null);
+    } catch (error) {
+      logger.error('Failed to parse connected event', { error, data: event.data }, 'useSSE');
+    }
+  });
 
   eventSource.addEventListener('message', (event) => {
     try {
@@ -222,41 +254,65 @@ async function ensureConnection(forceReconnect = false) {
   });
 
   eventSource.onerror = () => {
-    connecting = false;
-    notifyConnectionStatus(false, 'SSE connection error');
-    logger.warn(
-      'SSE connection lost, scheduling reconnect',
-      undefined,
-      'useSSE'
-    );
-    closeEventSource();
-
-    if (!autoReconnectRef) {
+    // Prevent duplicate error handling
+    if (errorHandled) {
       return;
     }
 
-    if (reconnectAttempts >= maxReconnectAttemptsRef) {
-      notifyConnectionStatus(
-        false,
-        'Unable to connect to real-time updates. Please refresh the page.'
-      );
-      logger.error(
-        'SSE: Max reconnection attempts reached',
-        undefined,
+    // Only handle error if connection is actually closed or failed
+    if (eventSource.readyState === EventSource.CLOSED) {
+      errorHandled = true;
+      connecting = false;
+      
+      // Close immediately to prevent EventSource auto-reconnect
+      if (globalEventSource === eventSource) {
+        globalEventSource = null;
+      }
+      eventSource.close();
+
+      notifyConnectionStatus(false, 'SSE connection error');
+      logger.warn(
+        'SSE connection lost, scheduling reconnect',
+        { reconnectAttempts, maxAttempts: maxReconnectAttemptsRef },
         'useSSE'
       );
-      return;
+
+      if (!autoReconnectRef) {
+        return;
+      }
+
+      if (reconnectAttempts >= maxReconnectAttemptsRef) {
+        notifyConnectionStatus(
+          false,
+          'Unable to connect to real-time updates. Please refresh the page.'
+        );
+        logger.error(
+          'SSE: Max reconnection attempts reached',
+          undefined,
+          'useSSE'
+        );
+        return;
+      }
+
+      // Cancel any existing reconnect timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+
+      const baseDelay = reconnectDelayRef * Math.pow(2, reconnectAttempts);
+      const jitter = baseDelay * 0.25 * (Math.random() * 2 - 1);
+      const delay = Math.min(baseDelay + jitter, 30000);
+
+      reconnectAttempts += 1;
+      reconnectTimeout = setTimeout(() => {
+        reconnectTimeout = null;
+        void ensureConnection();
+      }, delay);
+    } else if (eventSource.readyState === EventSource.CONNECTING) {
+      // Connection is still trying, don't handle as error yet
+      logger.debug('SSE connection in progress...', undefined, 'useSSE');
     }
-
-    const baseDelay = reconnectDelayRef * Math.pow(2, reconnectAttempts);
-    const jitter = baseDelay * 0.25 * (Math.random() * 2 - 1);
-    const delay = Math.min(baseDelay + jitter, 30000);
-
-    reconnectAttempts += 1;
-    reconnectTimeout = setTimeout(() => {
-      reconnectTimeout = null;
-      void ensureConnection();
-    }, delay);
   };
 
   globalEventSource = eventSource;
