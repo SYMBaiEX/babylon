@@ -355,15 +355,41 @@ spec:
 - Filter low-reward trajectories
 - Increase batch size
 
+## HuggingFace Dataset
+
+Training data is automatically published to HuggingFace daily:
+
+**Dataset**: https://huggingface.co/datasets/elizaos/babylon-game-data
+
+**Contains**:
+- Agent trajectories (decisions + environment)
+- Benchmark scenarios
+- Model performance results
+- Organized by month
+
+**Updated**: Daily at 2 AM UTC via GitHub Actions
+
+**Usage**:
+```python
+from datasets import load_dataset
+dataset = load_dataset("elizaos/babylon-game-data")
+```
+
+**See**: [HuggingFace Integration](/agents/huggingface-integration) for complete guide
+
+---
+
 ## Resources
 
 - **Full Documentation**: `python/README.md`
 - **Quick Start**: `python/START_HERE.md`
 - **Scorer Implementation**: `python/src/training/ruler_scorer.py`
 - **Automation Pipeline**: `src/lib/training/AutomationPipeline.ts`
+- **HuggingFace Dataset**: https://huggingface.co/datasets/elizaos/babylon-game-data
 
 ## Next Steps
 
+- [HuggingFace Integration](/agents/huggingface-integration) - **NEW!** Dataset on HuggingFace
 - [Trajectory Logging](/agents/trajectory-logging)
 - [Autonomous Agents](/agents/autonomous-guide)
 - [Agent Performance](/agents/performance)
