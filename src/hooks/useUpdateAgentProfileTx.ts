@@ -11,21 +11,67 @@ import { useSmartWallet } from '@/hooks/useSmartWallet';
 import { CHAIN } from '@/constants/chains';
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
 
+/**
+ * Metadata for updating an agent profile on-chain.
+ */
 export interface AgentProfileMetadata {
+  /** Display name */
   name: string;
+  /** Username (optional) */
   username?: string | null;
+  /** Bio/description (optional) */
   bio?: string | null;
+  /** Profile image URL (optional) */
   profileImageUrl?: string | null;
+  /** Cover image URL (optional) */
   coverImageUrl?: string | null;
+  /** Agent type (default: 'user') */
   type?: 'user' | string;
+  /** ISO timestamp of update */
   updated?: string;
 }
 
+/**
+ * Input for updating an agent profile.
+ */
 interface UpdateAgentProfileInput {
+  /** Profile metadata to update */
   metadata: AgentProfileMetadata;
+  /** Optional custom endpoint URL (defaults to babylon.market/agent/{address}) */
   endpoint?: string;
 }
 
+/**
+ * Hook for updating an agent profile on-chain via the identity registry.
+ * 
+ * Enables users to update their on-chain agent profile metadata including
+ * name, username, bio, and image URLs. Updates are written to the blockchain
+ * through the identity registry contract.
+ * 
+ * Transactions are executed through the smart wallet, enabling gasless
+ * transactions when using an embedded wallet.
+ * 
+ * @returns An object containing:
+ * - `updateAgentProfile`: Function to update the profile with new metadata
+ * - `smartWalletAddress`: The smart wallet address (if available)
+ * - `smartWalletReady`: Whether the smart wallet is ready for transactions
+ * 
+ * @example
+ * ```tsx
+ * const { updateAgentProfile, smartWalletReady } = useUpdateAgentProfileTx();
+ * 
+ * const handleUpdate = async () => {
+ *   const txHash = await updateAgentProfile({
+ *     metadata: {
+ *       name: 'Updated Name',
+ *       bio: 'New bio',
+ *       profileImageUrl: 'https://...'
+ *     }
+ *   });
+ *   console.log('Updated:', txHash);
+ * };
+ * ```
+ */
 export function useUpdateAgentProfileTx() {
   const {
     sendSmartWalletTransaction,

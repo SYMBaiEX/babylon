@@ -6,8 +6,32 @@ import type { CommentInputProps } from '@/types/interactions';
 import { Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+/**
+ * Maximum allowed length for comment content.
+ */
 const MAX_COMMENT_LENGTH = 5000;
 
+/**
+ * Comment input component for writing and submitting comments.
+ * 
+ * Provides a textarea input for writing comments with auto-resize,
+ * character limit validation, and optimistic updates. Supports
+ * both top-level comments and replies. Includes submit and cancel
+ * actions with keyboard shortcuts (Enter to submit, Escape to cancel).
+ * 
+ * @param props - CommentInput component props
+ * @returns Comment input element
+ * 
+ * @example
+ * ```tsx
+ * <CommentInput
+ *   postId="post-123"
+ *   parentCommentId="comment-456"
+ *   placeholder="Write a reply..."
+ *   onSubmit={handleSubmit}
+ * />
+ * ```
+ */
 export function CommentInput({
   postId,
   parentCommentId,

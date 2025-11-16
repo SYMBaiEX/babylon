@@ -8,11 +8,19 @@ import type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl'
 // Re-export for components that import from this hook
 export type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl'
 
+/**
+ * Return type for the usePortfolioPnL hook.
+ */
 interface UsePortfolioPnLResult {
+  /** Whether portfolio data is currently loading */
   loading: boolean
+  /** Any error that occurred while fetching portfolio data */
   error: string | null
+  /** Portfolio PnL snapshot containing all calculated metrics */
   data: PortfolioPnLSnapshot | null
+  /** Function to manually refresh portfolio data */
   refresh: () => Promise<void>
+  /** Timestamp of last successful update */
   lastUpdated: number | null
 }
 
@@ -29,6 +37,37 @@ function toNumber(value: unknown, fallback = 0): number {
   return fallback
 }
 
+/**
+ * Hook for fetching and managing portfolio profit and loss (PnL) data.
+ * 
+ * Calculates comprehensive portfolio metrics including:
+ * - Lifetime PnL (realized gains/losses)
+ * - Unrealized PnL from open positions (perpetuals and predictions)
+ * - Net contributions (deposits minus withdrawals)
+ * - Account equity (net contributions + total PnL)
+ * - Available balance
+ * 
+ * Automatically fetches data when the user is authenticated and refreshes
+ * when the user changes. Supports manual refresh and cancellation of
+ * in-flight requests.
+ * 
+ * @returns Portfolio PnL state including loading status, error, data, and refresh function.
+ * 
+ * @example
+ * ```tsx
+ * const { data, loading, refresh } = usePortfolioPnL();
+ * 
+ * if (loading) return <div>Loading...</div>;
+ * if (data) {
+ *   return (
+ *     <div>
+ *       <p>Total PnL: ${data.totalPnL}</p>
+ *       <p>Account Equity: ${data.accountEquity}</p>
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
 export function usePortfolioPnL(): UsePortfolioPnLResult {
   const { user, authenticated } = useAuth()
   const [loading, setLoading] = useState(false)

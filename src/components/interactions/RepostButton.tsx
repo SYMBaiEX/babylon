@@ -12,6 +12,33 @@ import type { FeedPost } from '@/shared/types';
 import { Skeleton } from '@/components/shared/Skeleton';
 // // import { toast } from 'sonner';
 
+/**
+ * Repost/share button component for sharing posts.
+ * 
+ * Displays a share/repost button with count. Supports both simple reposts
+ * and quote posts (with comment). Shows confirmation modal for new shares.
+ * Manages state via Zustand store with optimistic updates. Adds quote posts
+ * optimistically to the feed.
+ * 
+ * Features:
+ * - Share count display
+ * - Quote post support (with comment)
+ * - Confirmation modal
+ * - Optimistic UI updates
+ * - Real-time count updates
+ * 
+ * @param props - RepostButton component props
+ * @returns Repost button element
+ * 
+ * @example
+ * ```tsx
+ * <RepostButton
+ *   postId="post-123"
+ *   shareCount={5}
+ *   initialShared={false}
+ * />
+ * ```
+ */
 const sizeClasses = {
   sm: 'h-8 px-2 text-xs gap-1',
   md: 'h-10 px-3 text-sm gap-1.5',

@@ -1,6 +1,7 @@
 {
   "id": "neurailink",
   "name": "NeurAIlink",
+  "ticker": "NRLNK",
   "description": "The world's leading brain-computer interface company, helping you connect your brain to the internet because what could go wrong",
   "type": "company",
   "canBeInvolved": true,

@@ -6,6 +6,25 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@/lib/logger';
 
+/**
+ * Delete button component for post deletion.
+ * 
+ * Displays a delete button that only shows for the post author.
+ * Includes confirmation modal before deletion. Refreshes the page
+ * after successful deletion to remove the post from view.
+ * 
+ * @param props - DeleteButton component props
+ * @returns Delete button element or null if user is not the author
+ * 
+ * @example
+ * ```tsx
+ * <DeleteButton
+ *   postId="post-123"
+ *   postAuthorId="user-456"
+ *   onDeleted={() => console.log('Deleted')}
+ * />
+ * ```
+ */
 interface DeleteButtonProps {
   postId: string;
   postAuthorId: string;

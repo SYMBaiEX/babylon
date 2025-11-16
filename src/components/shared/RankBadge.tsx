@@ -1,10 +1,20 @@
 /**
- * RankBadge Component
+ * Rank badge component for displaying leaderboard rankings.
  * 
- * Displays a badge for top-ranked users on the leaderboard
- * - Top 1: Gold badge
- * - Top 2-3: Silver badge
- * - Top 4-10: Bronze badge
+ * Shows visual badges for top-ranked users:
+ * - Rank 1: Gold trophy badge
+ * - Ranks 2-3: Silver medal badge
+ * - Ranks 4-10: Bronze award badge
+ * 
+ * Returns null for ranks above 10. Supports multiple sizes and optional label.
+ * 
+ * @param props - RankBadge component props
+ * @returns Rank badge element or null if rank > 10
+ * 
+ * @example
+ * ```tsx
+ * <RankBadge rank={1} size="lg" showLabel />
+ * ```
  */
 
 import { Award, Medal, Trophy } from 'lucide-react'
@@ -85,9 +95,21 @@ export function RankBadge({ rank, size = 'md', showLabel = true, className = '' 
 }
 
 /**
- * RankNumber Component
+ * Rank number component displaying rank with special styling for top ranks.
  * 
- * Displays the rank number with special styling for top ranks
+ * Shows rank number in a circular badge with gradient backgrounds:
+ * - Rank 1: Yellow gradient
+ * - Ranks 2-3: Gray gradient
+ * - Ranks 4-10: Amber gradient
+ * - Other ranks: Default gray
+ * 
+ * @param props - RankNumber component props
+ * @returns Rank number badge element
+ * 
+ * @example
+ * ```tsx
+ * <RankNumber rank={5} size="md" />
+ * ```
  */
 interface RankNumberProps {
   rank: number

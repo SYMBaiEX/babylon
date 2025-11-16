@@ -193,6 +193,7 @@ export interface MarkovChainState {
 export interface Organization {
   id: string;
   name: string;
+  ticker?: string; // 4-6 character trading ticker (e.g., METAI, NVDAI, AINDRL)
   description: string;
   profileDescription?: string; // What the organization says about itself on its profile
   type: 'company' | 'media' | 'government';

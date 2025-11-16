@@ -1,16 +1,30 @@
 import { cn } from '@/lib/utils'
 
+/**
+ * Visual indicator component for pull-to-refresh gesture.
+ * 
+ * Displays pull progress with arrow icon and text feedback. Shows spinner
+ * during refresh. Smoothly animates height and opacity based on pull distance.
+ * Pushes content down as user pulls.
+ * 
+ * @param props - PullToRefreshIndicator component props
+ * @returns Pull-to-refresh indicator element or null when not active
+ * 
+ * @example
+ * ```tsx
+ * <PullToRefreshIndicator
+ *   pullDistance={50}
+ *   isRefreshing={false}
+ *   threshold={80}
+ * />
+ * ```
+ */
 interface PullToRefreshIndicatorProps {
   pullDistance: number
   isRefreshing: boolean
   threshold?: number
 }
 
-/**
- * Visual indicator for pull-to-refresh gesture
- * Shows pull progress and refresh animation
- * Pushes content down smoothly
- */
 export function PullToRefreshIndicator({
   pullDistance,
   isRefreshing,

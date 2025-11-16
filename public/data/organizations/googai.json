@@ -1,6 +1,7 @@
 {
   "id": "googai",
   "name": "GoogAI",
+  "ticker": "GOOGAI",
   "description": "The world's most popular search engine, organizing the world's information and selling it to the highest bidder since 1998",
   "type": "company",
   "canBeInvolved": true,

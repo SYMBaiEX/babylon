@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating new prediction market questions for daily gameplay.
+ * 
+ * Creates prediction market questions based on in-world events only,
+ * ensuring questions are grounded in the game's narrative. Questions
+ * must be provable, resolvable, and entertaining.
+ * 
+ * Returns XML with generated questions.
+ */
 export const questionGeneration = definePrompt({
   id: 'question-generation',
   version: '3.0.0',

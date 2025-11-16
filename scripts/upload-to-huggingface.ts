@@ -77,7 +77,7 @@ async function uploadToHuggingFace(): Promise<UploadResult> {
     for (const file of filesToUpload) {
       const filePath = path.join(dataDir, file);
       try {
-        const { stdout } = await execAsync(
+        await execAsync(
           `huggingface-cli upload ${datasetName} ${filePath} ${file} --repo-type dataset`
         );
         console.log(`✅ Uploaded ${file}`);

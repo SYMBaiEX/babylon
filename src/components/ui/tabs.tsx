@@ -2,8 +2,21 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 import { cn } from "@/lib/utils"
 
+/**
+ * Tabs component root from Radix UI.
+ * 
+ * Main tabs container component. Provides tab navigation functionality.
+ */
 const Tabs = TabsPrimitive.Root
 
+/**
+ * Tabs list container component.
+ * 
+ * Container for tab triggers with styled background and spacing.
+ * 
+ * @param props - TabsList component props
+ * @returns Tabs list element
+ */
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -19,6 +32,14 @@ const TabsList = React.forwardRef<
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
 
+/**
+ * Tabs trigger button component.
+ * 
+ * Individual tab button with active state styling and focus management.
+ * 
+ * @param props - TabsTrigger component props
+ * @returns Tabs trigger element
+ */
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -34,6 +55,15 @@ const TabsTrigger = React.forwardRef<
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 
+/**
+ * Tabs content panel component.
+ * 
+ * Content panel displayed when corresponding tab is active.
+ * Includes focus management and ring styling.
+ * 
+ * @param props - TabsContent component props
+ * @returns Tabs content element
+ */
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>

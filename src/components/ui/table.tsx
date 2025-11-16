@@ -1,6 +1,22 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Table component for displaying tabular data.
+ * 
+ * Wraps table element with overflow handling and responsive styling.
+ * 
+ * @param props - Table component props
+ * @returns Table element wrapped in scrollable container
+ * 
+ * @example
+ * ```tsx
+ * <Table>
+ *   <TableHeader>...</TableHeader>
+ *   <TableBody>...</TableBody>
+ * </Table>
+ * ```
+ */
 export const Table = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'table'>) => (
   <div className="relative w-full overflow-auto">
     <table className={cn('w-full caption-bottom text-sm', className)} {...props}>
@@ -9,24 +25,56 @@ export const Table = ({ children, className, ...props }: React.ComponentPropsWit
   </div>
 );
 
+/**
+ * Table header component.
+ * 
+ * Container for table header row with border styling.
+ * 
+ * @param props - TableHeader component props
+ * @returns Table header element
+ */
 export const TableHeader = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'thead'>) => (
   <thead className={cn('[&_tr]:border-b', className)} {...props}>
     {children}
   </thead>
 );
 
+/**
+ * Table body component.
+ * 
+ * Container for table body rows with border styling.
+ * 
+ * @param props - TableBody component props
+ * @returns Table body element
+ */
 export const TableBody = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'tbody'>) => (
   <tbody className={cn('[&_tr:last-child]:border-0', className)} {...props}>
     {children}
   </tbody>
 );
 
+/**
+ * Table footer component.
+ * 
+ * Container for table footer with muted background and border styling.
+ * 
+ * @param props - TableFooter component props
+ * @returns Table footer element
+ */
 export const TableFooter = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'tfoot'>) => (
   <tfoot className={cn('border-t bg-muted/50 font-medium [&>tr]:last:border-b-0', className)} {...props}>
     {children}
   </tfoot>
 );
 
+/**
+ * Table row component.
+ * 
+ * Table row with hover effects and selected state styling.
+ * 
+ * @param props - TableRow component props
+ * @returns Table row element
+ */
 export const TableRow = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'tr'>) => (
   <tr 
     className={cn(
@@ -39,6 +87,14 @@ export const TableRow = ({ children, className, ...props }: React.ComponentProps
   </tr>
 );
 
+/**
+ * Table header cell component.
+ * 
+ * Header cell with padding, alignment, and muted text styling.
+ * 
+ * @param props - TableHead component props
+ * @returns Table header cell element
+ */
 export const TableHead = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'th'>) => (
   <th
     className={cn(
@@ -51,6 +107,14 @@ export const TableHead = ({ children, className, ...props }: React.ComponentProp
   </th>
 );
 
+/**
+ * Table cell component.
+ * 
+ * Table data cell with padding and alignment styling.
+ * 
+ * @param props - TableCell component props
+ * @returns Table cell element
+ */
 export const TableCell = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'td'>) => (
   <td
     className={cn('p-4 align-middle [&:has([role=checkbox])]:pr-0', className)}
@@ -60,6 +124,14 @@ export const TableCell = ({ children, className, ...props }: React.ComponentProp
   </td>
 );
 
+/**
+ * Table caption component.
+ * 
+ * Table caption with top margin and muted text styling.
+ * 
+ * @param props - TableCaption component props
+ * @returns Table caption element
+ */
 export const TableCaption = ({ children, className, ...props }: React.ComponentPropsWithoutRef<'caption'>) => (
   <caption className={cn('mt-4 text-sm text-muted-foreground', className)} {...props}>
     {children}

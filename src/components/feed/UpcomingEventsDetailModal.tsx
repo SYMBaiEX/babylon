@@ -4,6 +4,34 @@ import { useEffect } from 'react'
 import { X, Calendar, Clock } from 'lucide-react'
 import Image from 'next/image'
 
+/**
+ * Upcoming event detail modal component for displaying full event information.
+ * 
+ * Displays a modal with full details of an upcoming event including title,
+ * date, time, description, image, and related entities. Handles body scroll
+ * lock and escape key to close. Shows live indicator if event is currently live.
+ * 
+ * Features:
+ * - Full event display
+ * - Date and time formatting
+ * - Live event indicator
+ * - Image support
+ * - Related entities links
+ * - Escape key to close
+ * - Body scroll lock
+ * 
+ * @param props - UpcomingEventDetailModal component props
+ * @returns Upcoming event detail modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <UpcomingEventsDetailModal
+ *   isOpen={isOpen}
+ *   onClose={() => setIsOpen(false)}
+ *   event={eventData}
+ * />
+ * ```
+ */
 interface UpcomingEventDetailModalProps {
   isOpen: boolean
   onClose: () => void

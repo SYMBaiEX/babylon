@@ -1,6 +1,7 @@
 {
   "id": "maicrosoft",
   "name": "MAIcrosoft",
+  "ticker": "MSFT",
   "description": "The world's leading enterprise software company, empowering every person and organization to suffer through Teams meetings and forced Windows updates",
   "type": "company",
   "canBeInvolved": true,

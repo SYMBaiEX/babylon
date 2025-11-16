@@ -1,8 +1,20 @@
 /**
  * Prompt Registry
  * 
- * Central export for all prompt definitions.
- * Import prompts directly for type safety and tree-shaking.
+ * Central export for all prompt definitions across the application.
+ * Provides a single import point for all prompts, enabling type safety
+ * and tree-shaking. Prompts are organized by category (feed, game, image,
+ * system, world, trading).
+ * 
+ * @example
+ * ```ts
+ * import { ambientPost, renderPrompt } from '@/prompts';
+ * 
+ * const prompt = renderPrompt(ambientPost, {
+ *   actorName: 'Alice',
+ *   actorDescription: 'Tech CEO'
+ * });
+ * ```
  */
 
 // Re-export utilities

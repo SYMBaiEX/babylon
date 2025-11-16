@@ -5,6 +5,27 @@ import { X as XIcon, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
+/**
+ * Share verification modal component for verifying external shares.
+ * 
+ * Allows users to paste the URL of their shared post to verify the share
+ * and earn points. Supports Twitter/X and Farcaster platforms. Shows
+ * platform-specific placeholder URLs and success/error feedback.
+ * 
+ * @param props - ShareVerificationModal component props
+ * @returns Share verification modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <ShareVerificationModal
+ *   isOpen={isOpen}
+ *   onClose={() => setIsOpen(false)}
+ *   shareId="share-123"
+ *   platform="twitter"
+ *   userId="user-456"
+ * />
+ * ```
+ */
 interface ShareVerificationModalProps {
   isOpen: boolean
   onClose: () => void

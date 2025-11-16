@@ -1,6 +1,7 @@
 {
   "id": "coinbaise",
   "name": "CoinbAIse",
+  "ticker": "COIN",
   "description": "The world's most trusted cryptocurrency exchange, onboarding normies to volatility and 3.99% fees since 2012",
   "type": "company",
   "canBeInvolved": true,

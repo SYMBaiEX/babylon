@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+/**
+ * Trending item structure for trending panel.
+ */
 interface TrendingItem {
   id: string
   tag: string
@@ -16,6 +19,23 @@ interface TrendingItem {
   rank: number
 }
 
+/**
+ * Trending panel component for displaying trending topics.
+ * 
+ * Displays a list of trending topics/hashtags with post counts and summaries.
+ * Uses widget cache for performance and supports manual refresh via
+ * WidgetRefreshContext. Navigates to trending detail page on click.
+ * 
+ * Features:
+ * - Trending topics list
+ * - Post count display
+ * - Category and summary
+ * - Widget caching
+ * - Manual refresh support
+ * - Loading states
+ * 
+ * @returns Trending panel element
+ */
 export function TrendingPanel() {
   const router = useRouter()
   const [trending, setTrending] = useState<TrendingItem[]>([])

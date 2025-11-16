@@ -7,6 +7,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 
+/**
+ * Represents a prediction market question.
+ */
 interface PredictionMarket {
   id: number | string
   text: string
@@ -19,13 +22,41 @@ interface PredictionMarket {
   noShares?: number
 }
 
+/**
+ * Props for the PredictionTradingModal component.
+ */
 interface PredictionTradingModalProps {
+  /** The prediction market question to trade */
   question: PredictionMarket
+  /** Whether the modal is currently open */
   isOpen: boolean
+  /** Callback when modal should be closed */
   onClose: () => void
+  /** Optional callback when trade succeeds */
   onSuccess?: () => void
 }
 
+/**
+ * Modal component for trading prediction market shares.
+ * 
+ * Provides a full-featured trading interface for buying and selling
+ * YES/NO shares in prediction markets. Shows current prices, expected
+ * payouts, and handles trade execution with loading states and error
+ * handling.
+ * 
+ * @param props - PredictionTradingModal component props
+ * @returns Trading modal element
+ * 
+ * @example
+ * ```tsx
+ * <PredictionTradingModal
+ *   question={market}
+ *   isOpen={isOpen}
+ *   onClose={() => setIsOpen(false)}
+ *   onSuccess={() => refreshData()}
+ * />
+ * ```
+ */
 export function PredictionTradingModal({
   question,
   isOpen,

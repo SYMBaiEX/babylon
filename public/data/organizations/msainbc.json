@@ -1,6 +1,7 @@
 {
   "id": "msainbc",
   "name": "MSAINBC",
+  "ticker": "MSNBC",
   "description": "America's premier news network, providing 24/7 panic coverage of democracy dying and Russia connections everywhere",
   "type": "media",
   "canBeInvolved": true,

@@ -1,6 +1,20 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Progress bar component for displaying completion status.
+ * 
+ * Displays a horizontal progress bar with configurable value and max.
+ * Includes ARIA attributes for accessibility. Value is clamped between 0 and max.
+ * 
+ * @param props - Progress component props
+ * @returns Progress bar element
+ * 
+ * @example
+ * ```tsx
+ * <Progress value={50} max={100} />
+ * ```
+ */
 export interface ProgressProps extends React.ComponentPropsWithoutRef<'div'> {
   value?: number;
   max?: number;

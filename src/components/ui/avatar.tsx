@@ -1,6 +1,22 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Avatar component container.
+ * 
+ * Container for avatar image and fallback. Styling is handled via className.
+ * 
+ * @param props - Avatar component props
+ * @returns Avatar container element
+ * 
+ * @example
+ * ```tsx
+ * <Avatar>
+ *   <AvatarImage src="/avatar.jpg" alt="User" />
+ *   <AvatarFallback>JD</AvatarFallback>
+ * </Avatar>
+ * ```
+ */
 export type AvatarProps = React.ComponentPropsWithoutRef<'div'>;
 
 export const Avatar = ({ children, className, ...props }: AvatarProps) => {
@@ -11,6 +27,14 @@ export const Avatar = ({ children, className, ...props }: AvatarProps) => {
   );
 };
 
+/**
+ * Avatar image component.
+ * 
+ * Displays the avatar image with src and alt attributes.
+ * 
+ * @param props - AvatarImage component props
+ * @returns Avatar image element
+ */
 export interface AvatarImageProps extends React.ComponentPropsWithoutRef<'img'> {
   src?: string;
   alt?: string;
@@ -27,6 +51,14 @@ export const AvatarImage = ({ src, alt, className, ...props }: AvatarImageProps)
   );
 };
 
+/**
+ * Avatar fallback component.
+ * 
+ * Displays fallback content when avatar image fails to load.
+ * 
+ * @param props - AvatarFallback component props
+ * @returns Avatar fallback element
+ */
 export type AvatarFallbackProps = React.ComponentPropsWithoutRef<'div'>;
 
 export const AvatarFallback = ({ children, className, ...props }: AvatarFallbackProps) => {

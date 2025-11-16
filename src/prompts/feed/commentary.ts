@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating expert commentary and analysis on world events.
+ * 
+ * Creates analytical posts from experts providing commentary on events,
+ * market movements, or policy changes. Uses informed, analytical tone
+ * with specific references to events and their implications.
+ * 
+ * Returns XML with expert commentary and metadata.
+ */
 export const commentary = definePrompt({
   id: 'commentary',
   version: '2.0.0',

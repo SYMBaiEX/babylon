@@ -2,16 +2,30 @@
 
 import { useCallback } from 'react';
 
+/**
+ * Side of a perpetual trade position.
+ */
 type TradeSide = 'long' | 'short';
 
+/**
+ * Options for configuring the usePerpTrade hook.
+ */
 interface UsePerpTradeOptions {
+  /** Optional function to get the access token. Falls back to window.__privyAccessToken */
   getAccessToken?: () => Promise<string | null> | string | null;
 }
 
+/**
+ * Payload for opening a perpetual position.
+ */
 interface OpenPerpPayload {
+  /** Ticker symbol (e.g., 'AAPL', 'TSLA') */
   ticker: string;
+  /** Trade side: 'long' or 'short' */
   side: TradeSide;
+  /** Position size */
   size: number;
+  /** Leverage multiplier */
   leverage: number;
 }
 
@@ -98,6 +112,34 @@ function extractErrorMessage(payload: Record<string, unknown> | null, status: nu
   return `Request failed with status ${status}`;
 }
 
+/**
+ * Hook for executing perpetual market trades.
+ * 
+ * Provides functions to open and close perpetual positions. Handles authentication
+ * automatically using the access token. All API calls include proper error handling
+ * and type-safe responses.
+ * 
+ * @param options - Optional configuration including custom access token resolver
+ * 
+ * @returns An object containing:
+ * - `openPosition`: Function to open a new perpetual position
+ * - `closePosition`: Function to close an existing position by ID
+ * 
+ * @example
+ * ```tsx
+ * const { openPosition, closePosition } = usePerpTrade();
+ * 
+ * const handleOpen = async () => {
+ *   const result = await openPosition({
+ *     ticker: 'AAPL',
+ *     side: 'long',
+ *     size: 100,
+ *     leverage: 5
+ *   });
+ *   console.log('Position opened:', result.position.id);
+ * };
+ * ```
+ */
 export function usePerpTrade(options: UsePerpTradeOptions = {}) {
   const callApi = useCallback(
     async <T>(url: string, init: RequestInit = {}): Promise<T> => {

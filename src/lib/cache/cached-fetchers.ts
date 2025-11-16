@@ -59,6 +59,9 @@ export async function getCachedPerpMarkets() {
     
     const markets = await Promise.all(
       companies.map(async (company) => {
+        // Use ticker from company if available, otherwise generate from ID
+        const ticker = company.ticker || company.id.toUpperCase().replace(/-/g, '').substring(0, 12)
+        
         const currentPrice = company.currentPrice || company.initialPrice || 100
         const priceHistory = await db().getPriceHistory(company.id, 1440)
         
@@ -109,7 +112,7 @@ export async function getCachedPerpMarkets() {
         }
         
         return {
-          ticker: company.id.toUpperCase().replace(/-/g, ''),
+          ticker,
           organizationId: company.id,
           name: company.name,
           currentPrice,

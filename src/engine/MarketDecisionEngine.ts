@@ -26,7 +26,9 @@
  * - Relationships with other NPCs (allies/rivals affect decisions)
  * - Recent posts and articles (public information)
  * - Group chat messages (insider information)
- * - Recent events (world developments)
+ * - Recent events (last 24h narrative developments)
+ * - Active questions (especially comparative ones like "Will X outperform Y?")
+ * - Reality grounding (current date, prices, market context)
  * - Available markets (perps and predictions)
  * - Current positions (P&L, sizing)
  * 
@@ -113,12 +115,19 @@ interface TokenConfig {
  * - Dynamically calculates batch sizes based on token limits
  * - Falls back to individual processing if batches fail
  * - Strict validation prevents invalid trades
+ * - Intelligent caching (1-minute TTL) reduces redundant DB queries across batches
  * 
  * @usage
  * Created once by GameEngine and called each tick to generate NPC trading decisions.
  */
 export class MarketDecisionEngine {
   private tokenConfig: TokenConfig;
+  
+  // Caches to avoid redundant queries within same tick
+  private worldContextCache: { context: Awaited<ReturnType<typeof generateWorldContext>>; timestamp: number } | null = null;
+  private activeQuestionsCache: { questions: string; timestamp: number } | null = null;
+  private recentEventsCache: { events: string; timestamp: number } | null = null;
+  private readonly CACHE_TTL_MS = 60000; // 1 minute TTL for caches
   
   /**
    * Create a new MarketDecisionEngine
@@ -353,18 +362,14 @@ export class MarketDecisionEngine {
     // Format NPCs data as string (existing prompts use pre-formatted strings)
     let npcsList = this.formatNPCsList(contexts);
     
-    // Get world context with reality grounding (minimal level to save tokens)
-    const worldContext = await generateWorldContext({
-      maxActors: 0, // Don't need actor list here
-      includeActors: false,
-      realityGroundingLevel: 'minimal', // Just date and key prices
-    });
+    // Get world context with caching (avoids redundant queries in same tick)
+    const worldContext = await this.getCachedWorldContext();
     
-    // Get active questions (especially comparative ones)
-    const activeQuestionsText = await this.formatActiveQuestions();
+    // Get active questions with caching (especially comparative ones)
+    const activeQuestionsText = await this.getCachedActiveQuestions();
     
-    // Get recent events from the current game
-    const recentEventsText = await this.formatRecentEvents();
+    // Get recent events with caching
+    const recentEventsText = await this.getCachedRecentEvents();
     
     // Build the full prompt
     let prompt = renderPrompt(npcMarketDecisions, {
@@ -909,6 +914,85 @@ export class MarketDecisionEngine {
   }
   
   /**
+   * Get cached world context or fetch if expired
+   * Caching reduces redundant queries when processing multiple NPC batches in same tick
+   */
+  private async getCachedWorldContext(): Promise<Awaited<ReturnType<typeof generateWorldContext>>> {
+    const now = Date.now();
+    
+    // Return cached if still valid
+    if (this.worldContextCache && (now - this.worldContextCache.timestamp) < this.CACHE_TTL_MS) {
+      logger.debug('Using cached world context', {
+        age: now - this.worldContextCache.timestamp,
+      }, 'MarketDecisionEngine');
+      return this.worldContextCache.context;
+    }
+    
+    // Fetch fresh context
+    const context = await generateWorldContext({
+      maxActors: 0,
+      includeActors: false,
+      realityGroundingLevel: 'minimal',
+    });
+    
+    // Cache it
+    this.worldContextCache = { context, timestamp: now };
+    logger.debug('Cached world context', {}, 'MarketDecisionEngine');
+    
+    return context;
+  }
+  
+  /**
+   * Get cached active questions or fetch if expired
+   * Caching prevents redundant DB queries when processing multiple NPC batches
+   */
+  private async getCachedActiveQuestions(): Promise<string> {
+    const now = Date.now();
+    
+    // Return cached if still valid
+    if (this.activeQuestionsCache && (now - this.activeQuestionsCache.timestamp) < this.CACHE_TTL_MS) {
+      logger.debug('Using cached active questions', {
+        age: now - this.activeQuestionsCache.timestamp,
+      }, 'MarketDecisionEngine');
+      return this.activeQuestionsCache.questions;
+    }
+    
+    // Fetch fresh questions
+    const questions = await this.formatActiveQuestions();
+    
+    // Cache it
+    this.activeQuestionsCache = { questions, timestamp: now };
+    logger.debug('Cached active questions', {}, 'MarketDecisionEngine');
+    
+    return questions;
+  }
+  
+  /**
+   * Get cached recent events or fetch if expired
+   * Caching prevents redundant DB queries when processing multiple NPC batches
+   */
+  private async getCachedRecentEvents(): Promise<string> {
+    const now = Date.now();
+    
+    // Return cached if still valid
+    if (this.recentEventsCache && (now - this.recentEventsCache.timestamp) < this.CACHE_TTL_MS) {
+      logger.debug('Using cached recent events', {
+        age: now - this.recentEventsCache.timestamp,
+      }, 'MarketDecisionEngine');
+      return this.recentEventsCache.events;
+    }
+    
+    // Fetch fresh events
+    const events = await this.formatRecentEvents();
+    
+    // Cache it
+    this.recentEventsCache = { events, timestamp: now };
+    logger.debug('Cached recent events', {}, 'MarketDecisionEngine');
+    
+    return events;
+  }
+  
+  /**
    * Format active questions for trading context
    * Especially important for comparative questions like "Will X outperform Y?"
    */
@@ -939,14 +1023,71 @@ export class MarketDecisionEngine {
    * Format recent events from current game for trading context
    * Helps NPCs understand the narrative when making decisions
    * 
-   * Note: NPCs already receive feed posts in their individual context.
-   * This provides additional high-level narrative context.
+   * Note: NPCs already receive recent posts in their individual context.
+   * This provides high-level supplementary context for the batch.
    */
   private async formatRecentEvents(): Promise<string> {
-    // Recent events are captured in individual NPC contexts via feed posts
-    // and group chats. This function provides supplementary narrative context.
-    // For now, return a placeholder - the active questions are the critical piece.
-    return 'Check feed posts and group chats for recent developments.';
+    try {
+      // Get recent posts from the last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      // Get actor IDs first
+      const actors = await prisma.actor.findMany({
+        select: { id: true, name: true },
+      });
+      const actorMap = new Map(actors.map(a => [a.id, a.name]));
+      const actorIds = actors.map(a => a.id);
+      
+      if (actorIds.length === 0) {
+        return 'No actors available for narrative context.';
+      }
+      
+      const recentPosts = await prisma.post.findMany({
+        where: {
+          createdAt: { gte: oneDayAgo },
+          authorId: { in: actorIds },
+          type: 'post', // Only regular posts, not comments
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          content: true,
+          authorId: true,
+        },
+      });
+      
+      if (recentPosts.length === 0) {
+        return 'No recent posts in last 24 hours.';
+      }
+      
+      const events = ['Recent developments (last 24h):'];
+      recentPosts.forEach(post => {
+        const name = actorMap.get(post.authorId) || 'Unknown';
+        // Truncate to 100 chars for token efficiency
+        const content = post.content.length > 100 
+          ? `${post.content.substring(0, 100)}...` 
+          : post.content;
+        events.push(`- ${name}: ${content}`);
+      });
+      
+      return events.join('\n');
+    } catch (error) {
+      logger.warn('Failed to fetch recent events', {
+        error: error instanceof Error ? error.message : String(error),
+      }, 'MarketDecisionEngine');
+      return 'NPCs have access to recent posts in their individual contexts.';
+    }
+  }
+  
+  /**
+   * Clear all caches
+   * Call this when you want to force fresh data on next query
+   */
+  clearCaches(): void {
+    this.worldContextCache = null;
+    this.activeQuestionsCache = null;
+    this.recentEventsCache = null;
+    logger.debug('Cleared all caches', {}, 'MarketDecisionEngine');
   }
 }
 

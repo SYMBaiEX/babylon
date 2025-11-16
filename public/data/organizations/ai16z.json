@@ -1,6 +1,7 @@
 {
   "id": "ai16z",
   "name": "AI16Z",
+  "ticker": "AI16Z",
   "description": "The leading autonomous capital firm in the world, where AI makes all the worst VC decisions at machine speed",
   "type": "vc",
   "canBeInvolved": true,

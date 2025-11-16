@@ -3,21 +3,39 @@
 import { cn, sanitizeId } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 
+/**
+ * Props for the Avatar component.
+ */
 interface AvatarProps {
+  /** Unique identifier for the avatar (used for image URL generation) */
   id?: string
+  /** Display name (used for initials fallback) */
   name?: string
+  /** Type of entity: 'actor', 'business', or 'user' */
   type?: 'actor' | 'business' | 'user'
+  /** Direct image source URL */
   src?: string
+  /** Alt text for accessibility */
   alt?: string
+  /** Size variant: 'sm', 'md', or 'lg' */
   size?: 'sm' | 'md' | 'lg'
+  /** Additional CSS classes */
   className?: string
+  /** Scale factor for image sizing */
   scaleFactor?: number
+  /** Image URL (alternative to src) */
   imageUrl?: string
 }
 
+/**
+ * Props for the GroupAvatar component.
+ */
 interface GroupAvatarProps {
+  /** Array of group members with their avatar information */
   members: Array<{ id: string; name: string; type?: 'actor' | 'business' | 'user' }>
+  /** Size variant: 'sm', 'md', or 'lg' */
   size?: 'sm' | 'md' | 'lg'
+  /** Additional CSS classes */
   className?: string
 }
 
@@ -27,6 +45,26 @@ const sizeClasses = {
   lg: 'w-14 h-14 text-base',
 }
 
+/**
+ * Avatar component for displaying user, actor, or business profile pictures.
+ * 
+ * Supports multiple image sources with fallback to initials. Automatically
+ * generates image URLs based on entity type and ID. Handles loading states
+ * and error fallbacks gracefully.
+ * 
+ * @param props - Avatar component props
+ * @returns Avatar element with image or initials fallback
+ * 
+ * @example
+ * ```tsx
+ * <Avatar
+ *   id="123"
+ *   name="Alice"
+ *   type="user"
+ *   size="lg"
+ * />
+ * ```
+ */
 export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1, imageUrl }: AvatarProps) {
   const [primaryImageError, setPrimaryImageError] = useState(false)
   const [fallbackImageError, setFallbackImageError] = useState(false)
@@ -138,6 +176,27 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   )
 }
 
+/**
+ * Group avatar component displaying multiple avatars in an overlapping layout.
+ * 
+ * Shows up to 3 member avatars in an overlapping arrangement. If there's
+ * only one member, displays a single avatar. If empty, shows a default
+ * "G" placeholder.
+ * 
+ * @param props - GroupAvatar component props
+ * @returns Group avatar element with overlapping member avatars
+ * 
+ * @example
+ * ```tsx
+ * <GroupAvatar
+ *   members={[
+ *     { id: '1', name: 'Alice', type: 'user' },
+ *     { id: '2', name: 'Bob', type: 'user' }
+ *   ]}
+ *   size="md"
+ * />
+ * ```
+ */
 export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProps) {
   // Show up to 3 members in overlapping squares
   const displayMembers = members.slice(0, 3)

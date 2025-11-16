@@ -17,16 +17,50 @@ type SmartWalletTxOptions = Parameters<
   SmartWalletClientType['sendTransaction']
 >[1];
 
+/**
+ * Return type for the useSmartWallet hook.
+ */
 interface UseSmartWalletResult {
+  /** The Privy smart wallet client instance */
   client?: SmartWalletClientType;
+  /** The smart wallet address (if available) */
   smartWalletAddress?: string;
+  /** Whether the smart wallet is ready for transactions */
   smartWalletReady: boolean;
+  /** Function to send a transaction via the smart wallet */
   sendSmartWalletTransaction: (
     input: SmartWalletTxInput,
     options?: SmartWalletTxOptions
   ) => Promise<Hex>;
 }
 
+/**
+ * Hook for managing smart wallet operations.
+ * 
+ * Provides access to Privy's smart wallet functionality, enabling gasless
+ * transactions when using an embedded wallet. The smart wallet is a contract
+ * wallet that can be sponsored by Privy's paymaster, allowing users to
+ * interact with the blockchain without holding native tokens.
+ * 
+ * @returns Smart wallet state and transaction sending function.
+ * 
+ * @example
+ * ```tsx
+ * const { smartWalletReady, sendSmartWalletTransaction } = useSmartWallet();
+ * 
+ * const handleTransaction = async () => {
+ *   if (!smartWalletReady) {
+ *     throw new Error('Smart wallet not ready');
+ *   }
+ *   
+ *   const txHash = await sendSmartWalletTransaction({
+ *     to: '0x...',
+ *     value: parseEther('0.1'),
+ *     data: '0x...'
+ *   });
+ * };
+ * ```
+ */
 export function useSmartWallet(): UseSmartWalletResult {
   const { client } = useSmartWallets();
   logger.debug('Smart wallet client initialized', { hasClient: !!client });

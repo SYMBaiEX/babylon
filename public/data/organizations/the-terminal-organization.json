@@ -1,6 +1,7 @@
 {
   "id": "the-terminal-organization",
   "name": "The Terminal Organization",
+  "ticker": "TRMP",
   "description": "America's most tremendous real estate empire, built on debt, NDAs, and the art of the deal since 1971",
   "type": "organization",
   "canBeInvolved": true,

@@ -5,6 +5,23 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
+/**
+ * Dropdown menu component with configurable placement and width.
+ * 
+ * Provides a dropdown menu that opens on trigger click and closes on outside
+ * click. Supports multiple placement options and width variants. Uses Framer
+ * Motion for smooth animations.
+ * 
+ * @param props - Dropdown component props
+ * @returns Dropdown element
+ * 
+ * @example
+ * ```tsx
+ * <Dropdown trigger={<button>Menu</button>} placement="bottom-right">
+ *   <DropdownItem onClick={handleAction}>Action</DropdownItem>
+ * </Dropdown>
+ * ```
+ */
 interface DropdownProps {
   trigger: ReactNode
   children: ReactNode
@@ -75,6 +92,22 @@ export function Dropdown({ trigger, children, className, placement = 'bottom-rig
   )
 }
 
+/**
+ * Dropdown menu item component.
+ * 
+ * Individual clickable item within a dropdown menu. Provides hover states
+ * and click handling.
+ * 
+ * @param props - DropdownItem component props
+ * @returns Dropdown item element
+ * 
+ * @example
+ * ```tsx
+ * <DropdownItem onClick={() => console.log('clicked')}>
+ *   Menu Item
+ * </DropdownItem>
+ * ```
+ */
 interface DropdownItemProps {
   onClick?: () => void
   className?: string

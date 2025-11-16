@@ -357,25 +357,39 @@ spec:
 
 ## HuggingFace Dataset
 
-Training data is automatically published to HuggingFace daily:
+Training data is automatically published to HuggingFace daily via GitHub Actions.
 
-**Dataset**: https://huggingface.co/datasets/elizaos/babylon-game-data
+**Dataset**: [elizaos/babylon-game-data](https://huggingface.co/datasets/elizaos/babylon-game-data) ✅ LIVE
 
 **Contains**:
-- Agent trajectories (decisions + environment)
-- Benchmark scenarios
-- Model performance results
-- Organized by month
+- **Agent Trajectories**: Complete gameplay with decisions + environment + ground truth
+- **Benchmark Scenarios**: Game simulations for evaluation
+- **Model Performance**: Results from model testing
+- **Organized by Month**: Easy browsing (2025-10, 2025-11, etc.)
 
 **Updated**: Daily at 2 AM UTC via GitHub Actions
 
 **Usage**:
 ```python
 from datasets import load_dataset
+
+# Load dataset
 dataset = load_dataset("elizaos/babylon-game-data")
+
+# Use for training
+trajectories = dataset['train']
 ```
 
-**See**: [HuggingFace Integration](/agents/huggingface-integration) for complete guide
+**Offline Simulation** (100-1000x faster):
+```bash
+# Download
+huggingface-cli download elizaos/babylon-game-data
+
+# Run offline
+npm run hf:offline -- --month=2025-11 --agent=my-agent
+```
+
+**See**: [HuggingFace Integration](/agents/huggingface-integration) for complete guide and setup
 
 ---
 

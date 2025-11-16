@@ -3,14 +3,40 @@
 import { Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Props for the SearchBar component.
+ */
 interface SearchBarProps {
+  /** Current search input value */
   value: string
+  /** Callback when search value changes */
   onChange: (value: string) => void
+  /** Placeholder text */
   placeholder?: string
+  /** Additional CSS classes */
   className?: string
+  /** Whether to use compact styling */
   compact?: boolean
 }
 
+/**
+ * Search bar input component with icon and clear button.
+ * 
+ * Provides a search input field with search icon and optional
+ * clear button. Supports both standard and compact variants.
+ * 
+ * @param props - SearchBar component props
+ * @returns Search bar element
+ * 
+ * @example
+ * ```tsx
+ * <SearchBar
+ *   value={searchQuery}
+ *   onChange={setSearchQuery}
+ *   placeholder="Search users..."
+ * />
+ * ```
+ */
 export function SearchBar({ value, onChange, placeholder = 'Search...', className, compact = false }: SearchBarProps) {
   return (
     <div className={cn('relative', className)}>

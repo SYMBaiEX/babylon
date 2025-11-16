@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating day transition summary events.
+ * 
+ * Creates brief transition events marking the start of a new day,
+ * summarizing what happened previously and setting up the new day's
+ * context. Used for narrative continuity between game days.
+ * 
+ * Returns XML with day transition summary.
+ */
 export const dayTransition = definePrompt({
   id: 'day-transition',
   version: '2.0.0',

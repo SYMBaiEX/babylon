@@ -7,6 +7,9 @@ import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
+/**
+ * Prediction market structure for markets panel.
+ */
 interface Market {
   id: string
   question: string
@@ -18,6 +21,9 @@ interface Market {
   changePercent24h?: number
 }
 
+/**
+ * Perpetual market structure for markets panel.
+ */
 interface PerpMarket {
   ticker: string
   name: string
@@ -27,6 +33,22 @@ interface PerpMarket {
   volume24h?: number
 }
 
+/**
+ * Markets panel component for displaying prediction and perpetual markets.
+ * 
+ * Displays a list of prediction markets and trending perpetual markets.
+ * Fetches data from widgets API and supports manual refresh via
+ * WidgetRefreshContext. Shows price changes and volume information.
+ * 
+ * Features:
+ * - Prediction markets list
+ * - Perpetual markets list
+ * - Price change indicators
+ * - Manual refresh support
+ * - Loading states
+ * 
+ * @returns Markets panel element
+ */
 export function MarketsPanel() {
   const router = useRouter()
   const [markets, setMarkets] = useState<Market[]>([])

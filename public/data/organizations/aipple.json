@@ -1,6 +1,7 @@
 {
   "id": "aipple",
   "name": "AIpple",
+  "ticker": "AIPPL",
   "description": "The world's most innovative technology company, pioneering the courage to remove features while innovation is sold separately",
   "type": "company",
   "canBeInvolved": true,

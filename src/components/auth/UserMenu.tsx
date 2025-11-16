@@ -7,10 +7,27 @@ import { useAuthStore } from '@/stores/authStore'
 import { Check, Copy, LogOut } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-// Global fetch tracking to prevent duplicate calls across all UserMenu instances
+/**
+ * Global fetch tracking to prevent duplicate calls across all UserMenu instances.
+ */
 let userMenuFetchInFlight = false
 let userMenuIntervalId: ReturnType<typeof setInterval> | null = null
 
+/**
+ * User menu component displaying user profile and account actions.
+ * 
+ * Shows user avatar, name, username, points balance, referral code, and logout
+ * option in a dropdown menu. Automatically fetches and refreshes user data every
+ * 30 seconds. Prevents duplicate API calls across multiple instances.
+ * 
+ * Features:
+ * - User profile display with avatar
+ * - Points balance (total and available)
+ * - Referral code copy functionality
+ * - Logout action
+ * 
+ * @returns User menu dropdown element or null if no user
+ */
 export function UserMenu() {
   const { logout } = useAuth()
   const { user } = useAuthStore()

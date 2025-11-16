@@ -11,6 +11,40 @@ import { encodeFunctionData, createPublicClient, http, type Address } from 'viem
 import { CHAIN } from '@/constants/chains';
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
 
+/**
+ * Hook for registering an agent on-chain via the identity registry.
+ * 
+ * Enables users to register their agent identity on the blockchain, creating
+ * an on-chain record with their username, endpoint, capabilities, and metadata.
+ * Checks if the wallet is already registered before attempting registration.
+ * 
+ * Transactions are executed through the smart wallet, enabling gasless
+ * transactions when using an embedded wallet.
+ * 
+ * @returns An object containing:
+ * - `registerAgent`: Function to register the agent with profile data
+ * - `smartWalletAddress`: The smart wallet address (if available)
+ * - `smartWalletReady`: Whether the smart wallet is ready for transactions
+ * 
+ * @example
+ * ```tsx
+ * const { registerAgent, smartWalletReady } = useRegisterAgentTx();
+ * 
+ * const handleRegister = async () => {
+ *   if (!smartWalletReady) {
+ *     alert('Wallet not ready');
+ *     return;
+ *   }
+ *   
+ *   const txHash = await registerAgent({
+ *     username: 'myagent',
+ *     displayName: 'My Agent',
+ *     bio: 'A helpful agent'
+ *   });
+ *   console.log('Registered:', txHash);
+ * };
+ * ```
+ */
 export function useRegisterAgentTx() {
   const {
     smartWalletAddress,

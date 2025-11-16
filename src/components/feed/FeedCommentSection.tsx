@@ -13,6 +13,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Feed comment section component for displaying post comments.
+ * 
+ * Displays a post with its comments in a modal or inline view. Supports
+ * nested replies, comment sorting (newest, oldest, popular), and comment
+ * management (edit, delete). Handles body scroll lock and escape key when
+ * used as a modal.
+ * 
+ * Features:
+ * - Post display with interactions
+ * - Comment list with nested replies
+ * - Comment input for new comments
+ * - Comment sorting options
+ * - Edit and delete functionality
+ * - Loading states
+ * 
+ * @param props - FeedCommentSection component props
+ * @returns Feed comment section element
+ * 
+ * @example
+ * ```tsx
+ * <FeedCommentSection
+ *   postId="post-123"
+ *   postData={post}
+ *   onClose={() => setShowComments(false)}
+ * />
+ * ```
+ */
 interface FeedCommentSectionProps {
   postId: string | null;
   postData?: {

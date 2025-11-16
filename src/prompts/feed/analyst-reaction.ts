@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating analyst commentary on stock price movements.
+ * 
+ * Creates financial analyst posts commenting on stock price changes,
+ * market movements, and trading activity. Uses professional financial
+ * analysis tone with specific price references and market context.
+ * 
+ * Returns XML with analyst commentary and metadata.
+ */
 export const analystReaction = definePrompt({
   id: 'analyst-reaction',
   version: '2.0.0',

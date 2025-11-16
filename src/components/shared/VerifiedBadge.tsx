@@ -1,7 +1,12 @@
 import { cn } from '@/lib/utils';
 
+/**
+ * Props for the VerifiedBadge component.
+ */
 interface VerifiedBadgeProps {
+  /** Additional CSS classes */
   className?: string;
+  /** Size variant: 'sm', 'md', or 'lg' */
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -13,6 +18,16 @@ const sizeMap = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Checks if an identifier represents an NPC (non-player character).
+ * 
+ * Determines if an identifier is an NPC by checking if it's not a UUID,
+ * doesn't start with 'did:', and doesn't contain 'privy'. NPC identifiers
+ * are typically simple strings or usernames.
+ * 
+ * @param identifier - The identifier to check
+ * @returns True if the identifier represents an NPC, false otherwise
+ */
 export function isNpcIdentifier(identifier?: string | null): boolean {
   if (!identifier) return false;
 
@@ -26,6 +41,20 @@ export function isNpcIdentifier(identifier?: string | null): boolean {
   return true;
 }
 
+/**
+ * Verified badge component indicating verified status.
+ * 
+ * Displays a checkmark badge to indicate verified accounts or entities.
+ * Supports multiple size variants for different contexts.
+ * 
+ * @param props - VerifiedBadge component props
+ * @returns Verified badge element
+ * 
+ * @example
+ * ```tsx
+ * <VerifiedBadge size="sm" />
+ * ```
+ */
 export function VerifiedBadge({ className, size = 'md' }: VerifiedBadgeProps) {
   return (
     <svg

@@ -1,6 +1,7 @@
 {
   "id": "airk-invest",
   "name": "AIRK Invest",
+  "ticker": "AIRK",
   "description": "The world's most disruptive innovation-focused investment firm, where God guides the portfolio and five-year price targets reset annually",
   "type": "vc",
   "canBeInvolved": true,

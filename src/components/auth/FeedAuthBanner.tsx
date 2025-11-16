@@ -5,6 +5,15 @@ import { cn } from '@/lib/utils'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
+/**
+ * Feed authentication banner content component.
+ * 
+ * Displays a fixed bottom banner prompting unauthenticated users to log in.
+ * Automatically hides on production home page unless dev mode is enabled.
+ * Only shows when auth state is ready and user is not authenticated.
+ * 
+ * @returns Feed auth banner element or null if hidden/not needed
+ */
 function FeedAuthBannerContent() {
   const { login, authenticated, ready } = useAuth()
   const searchParams = useSearchParams()
@@ -70,6 +79,14 @@ function FeedAuthBannerContent() {
   )
 }
 
+/**
+ * Feed authentication banner component wrapper with Suspense boundary.
+ * 
+ * Wraps FeedAuthBannerContent in a Suspense boundary to handle async navigation
+ * hooks gracefully. Provides authentication prompt banner for feed pages.
+ * 
+ * @returns Feed auth banner element wrapped in Suspense
+ */
 export function FeedAuthBanner() {
   return (
     <Suspense fallback={null}>

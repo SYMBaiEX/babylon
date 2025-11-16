@@ -4,6 +4,20 @@ import { Wallet } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 
+/**
+ * Login button component for wallet connection.
+ * 
+ * Displays a "Connect Wallet" button that triggers the authentication
+ * flow when clicked. Automatically disables when auth is not ready.
+ * Uses Privy for wallet connection.
+ * 
+ * @returns Login button element
+ * 
+ * @example
+ * ```tsx
+ * <LoginButton />
+ * ```
+ */
 export function LoginButton() {
   const { ready, login } = useAuth()
 

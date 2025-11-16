@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
+/**
+ * Represents a user's position in a prediction market.
+ */
+
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -78,7 +82,11 @@ interface ApiPredictionPositionPayload {
   resolution?: boolean | null;
 }
 
+/**
+ * Options for configuring user positions loading.
+ */
 interface UseUserPositionsOptions {
+  /** Whether to enable position fetching (default: true) */
   enabled?: boolean;
 }
 
@@ -94,6 +102,38 @@ const createDefaultState = (): PositionsState => ({
   perpStats: { ...DEFAULT_STATS },
 });
 
+/**
+ * Hook for fetching and managing user trading positions.
+ * 
+ * Loads all positions (both perpetual and prediction markets) for a given user.
+ * Automatically refreshes when the userId changes. Supports cancellation of
+ * in-flight requests and error handling.
+ * 
+ * @param userId - The user ID to fetch positions for, or null/undefined to clear positions
+ * @param options - Configuration options including enabled flag
+ * 
+ * @returns An object containing:
+ * - `perpPositions`: Array of perpetual market positions
+ * - `predictionPositions`: Array of prediction market positions
+ * - `perpStats`: Aggregate statistics for perpetual positions
+ * - `loading`: Whether positions are currently loading
+ * - `error`: Any error that occurred while fetching
+ * - `refresh`: Function to manually refresh positions
+ * 
+ * @example
+ * ```tsx
+ * const { perpPositions, predictionPositions, loading } = useUserPositions(userId);
+ * 
+ * if (loading) return <div>Loading positions...</div>;
+ * 
+ * return (
+ *   <div>
+ *     <h2>Perpetual Positions: {perpPositions.length}</h2>
+ *     <h2>Prediction Positions: {predictionPositions.length}</h2>
+ *   </div>
+ * );
+ * ```
+ */
 export function useUserPositions(
   userId?: string | null,
   options: UseUserPositionsOptions = {}

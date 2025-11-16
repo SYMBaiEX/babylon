@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating actor profile pictures based on physical description.
+ * 
+ * Creates satirical portrait images that exaggerate wordplay in actor names
+ * (e.g., "Bot" → robotic elements, "Husk" → hollow elements). Uses editorial
+ * cartoon style with cyborg/AI-augmented features.
+ * 
+ * Returns image generation prompt for actor portrait.
+ */
 export const actorPortrait = definePrompt({
   id: 'actor-portrait',
   version: '4.0.0',
@@ -24,6 +33,15 @@ STYLE: Editorial cartoon meets cyborg portrait. Exaggerated features. Bold, reco
 `.trim()
 });
 
+/**
+ * Prompt for generating actor profile banners.
+ * 
+ * Creates landscape-format banner images for actor profiles using editorial
+ * cartoon style. Focuses on visual storytelling and satirical character
+ * representation in wide format.
+ * 
+ * Returns image generation prompt for actor banner.
+ */
 export const actorBanner = definePrompt({
   id: 'actor-banner',
   version: '1.0.0',

@@ -13,6 +13,15 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 
+/**
+ * Main sidebar content component with navigation and user menu.
+ * 
+ * Provides navigation links, user authentication state, unread message
+ * counts, and admin access. Handles responsive behavior and dev mode
+ * visibility. Includes referral code sharing functionality.
+ * 
+ * @returns Sidebar content element
+ */
 function SidebarContent() {
   const [showMdMenu, setShowMdMenu] = useState(false)
   const [copiedReferral, setCopiedReferral] = useState(false)
@@ -373,6 +382,15 @@ function SidebarContent() {
   )
 }
 
+/**
+ * Sidebar component wrapper with Suspense boundary.
+ * 
+ * Wraps SidebarContent in a Suspense boundary to handle
+ * async navigation hooks gracefully. Provides the main
+ * application sidebar with navigation and user menu.
+ * 
+ * @returns Sidebar element wrapped in Suspense
+ */
 export function Sidebar() {
   return (
     <Suspense fallback={null}>

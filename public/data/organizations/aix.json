@@ -1,6 +1,7 @@
 {
   "id": "aix",
   "name": "AIX",
+  "ticker": "AIX",
   "description": "The everything app, formerly Twitter, where free speech costs $8/month and bots outnumber humans 3 to 1",
   "type": "company",
   "canBeInvolved": true,

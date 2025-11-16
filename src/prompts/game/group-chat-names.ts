@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating multiple satirical group chat names.
+ * 
+ * Creates batch funny, satirical names for private group chats based on
+ * admins and group purposes. Generates multiple names in one call for
+ * efficiency.
+ * 
+ * Returns XML with multiple group chat names.
+ */
 export const groupChatNames = definePrompt({
   id: 'group-chat-names',
   version: '2.0.0',

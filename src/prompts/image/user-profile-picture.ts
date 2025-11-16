@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating humorous profile pictures for new users.
+ * 
+ * Creates memetic, internet-culture-inspired profile pictures with various
+ * styles including internet-famous animals, surreal humor, pop culture
+ * mashups, retro aesthetics, and glitch art. Designed to be funny and relatable.
+ * 
+ * Returns image generation prompt for user profile picture.
+ */
 export const userProfilePicture = definePrompt({
   id: 'user-profile-picture',
   version: '1.0.0',

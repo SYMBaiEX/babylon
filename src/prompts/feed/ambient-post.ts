@@ -1,5 +1,25 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating individual ambient/background posts.
+ * 
+ * Creates casual, character-driven posts that reflect an actor's thoughts,
+ * activities, or opinions unrelated to major events. Posts must reference
+ * specific entities from world context (actors, markets, predictions, trades).
+ * 
+ * Returns XML with the post content and sentiment analysis metadata.
+ * 
+ * @example
+ * ```ts
+ * const prompt = renderPrompt(ambientPost, {
+ *   actorName: 'AIlon Musk',
+ *   actorDescription: 'Tech CEO',
+ *   day: 5,
+ *   worldActors: '...',
+ *   currentMarkets: '...'
+ * });
+ * ```
+ */
 export const ambientPost = definePrompt({
   id: 'ambient-post',
   version: '2.0.0',

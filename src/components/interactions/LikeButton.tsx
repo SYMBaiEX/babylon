@@ -8,7 +8,9 @@ import type { LikeButtonProps } from '@/types/interactions';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useSocialTracking } from '@/hooks/usePostHog';
 
-// Reaction configuration type
+/**
+ * Reaction configuration type for like button reactions.
+ */
 type ReactionConfig = {
   readonly icon: React.ComponentType<{ size?: number; className?: string }>;
   readonly color: string;
@@ -18,7 +20,9 @@ type ReactionConfig = {
   readonly fill: boolean;
 };
 
-// Reaction types with icons and colors
+/**
+ * Available reaction types with icons, colors, and labels.
+ */
 const REACTION_TYPES: Record<string, ReactionConfig> = {
   like: {
     icon: Heart,
@@ -54,8 +58,38 @@ const REACTION_TYPES: Record<string, ReactionConfig> = {
   },
 };
 
+/**
+ * Type for reaction type keys.
+ */
 type ReactionType = keyof typeof REACTION_TYPES;
 
+/**
+ * Like button component for posts and comments with reaction picker.
+ * 
+ * Displays a like button with reaction picker (like, love, laugh, sad).
+ * Supports long-press to open reaction picker. Manages state via
+ * Zustand store with optimistic updates. Tracks reactions with PostHog.
+ * 
+ * Features:
+ * - Multiple reaction types (like, love, laugh, sad)
+ * - Long-press to open reaction picker
+ * - Optimistic UI updates
+ * - Real-time count updates
+ * - Loading states
+ * 
+ * @param props - LikeButton component props
+ * @returns Like button element
+ * 
+ * @example
+ * ```tsx
+ * <LikeButton
+ *   targetId="post-123"
+ *   targetType="post"
+ *   initialLiked={false}
+ *   initialCount={10}
+ * />
+ * ```
+ */
 const sizeClasses = {
   sm: 'h-8 px-2 text-xs gap-1',
   md: 'h-10 px-3 text-sm gap-1.5',

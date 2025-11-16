@@ -1,6 +1,7 @@
 {
   "id": "teslai",
   "name": "TeslAI",
+  "ticker": "TSLAI",
   "description": "The world's most valuable carmaker, pioneering autonomous vehicles with semi-autonomous ethics and Full Self-Driving coming next year (every year)",
   "type": "company",
   "canBeInvolved": true,

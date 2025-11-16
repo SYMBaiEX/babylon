@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating multiple official government responses and statements.
+ * 
+ * Creates batch government posts from agencies responding to events or
+ * making policy announcements. Uses formal, bureaucratic tone appropriate
+ * for official communications.
+ * 
+ * Returns XML with multiple government statement entries.
+ */
 export const governmentPosts = definePrompt({
   id: 'government-posts',
   version: '2.0.0',

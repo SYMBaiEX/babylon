@@ -15,6 +15,35 @@ import { Repeat2 } from 'lucide-react';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { useAuth } from '@/hooks/useAuth';
 
+/**
+ * Post card component for displaying feed posts.
+ * 
+ * Displays a post with author info, content, timestamp, and interaction bar.
+ * Supports reposts, quote posts, articles, and regular posts. Handles
+ * client-side repost parsing if API doesn't provide metadata. Includes
+ * moderation menu and responsive behavior.
+ * 
+ * Features:
+ * - Author avatar and verified badge
+ * - Tagged text parsing (@mentions, #hashtags, $cashtags)
+ * - Repost/quote post display
+ * - Article type support
+ * - Interaction bar (like, comment, share)
+ * - Moderation menu
+ * - Responsive layout
+ * 
+ * @param props - PostCard component props
+ * @returns Post card element
+ * 
+ * @example
+ * ```tsx
+ * <PostCard
+ *   post={postData}
+ *   showInteractions={true}
+ *   onCommentClick={() => openComments()}
+ * />
+ * ```
+ */
 export interface PostCardProps {
   post: {
     id: string;

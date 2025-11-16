@@ -1,6 +1,7 @@
 {
   "id": "politaico",
   "name": "PolitAIco",
+  "ticker": "PLCO",
   "description": "The leading political journalism platform, delivering Beltway gossip and horse race coverage for people who live inside the bubble",
   "type": "media",
   "canBeInvolved": true,

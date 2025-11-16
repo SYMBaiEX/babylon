@@ -1,5 +1,21 @@
 import { cn } from '@/lib/utils'
 
+/**
+ * Separator component for visual division between content sections.
+ * 
+ * Provides a styled separator line with gradient effect. Supports both
+ * horizontal and vertical orientations. Uses a subtle blue gradient with
+ * shadow for visual depth.
+ * 
+ * @param props - Separator component props
+ * @returns Separator element
+ * 
+ * @example
+ * ```tsx
+ * <Separator orientation="horizontal" />
+ * <Separator orientation="vertical" className="h-20" />
+ * ```
+ */
 interface SeparatorProps {
   className?: string
   orientation?: 'horizontal' | 'vertical'

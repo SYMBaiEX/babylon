@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating individual reply posts to existing content.
+ * 
+ * Creates a single reply from an actor responding to another actor's post.
+ * Maintains character voice and references the original content while
+ * adding new perspective or commentary.
+ * 
+ * Returns XML with reply content and metadata.
+ */
 export const reply = definePrompt({
   id: 'reply',
   version: '2.0.0',

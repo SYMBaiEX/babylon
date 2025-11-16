@@ -4,6 +4,9 @@ import { useEffect } from 'react'
 import { X, TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
 import Image from 'next/image'
 
+/**
+ * Breaking news item structure for detail modal.
+ */
 type BreakingNewsItem = {
   id: string
   title: string
@@ -19,6 +22,33 @@ type BreakingNewsItem = {
   relatedOrganizationId?: string
 }
 
+/**
+ * Breaking news detail modal component for displaying full news article.
+ * 
+ * Displays a modal with full details of a breaking news item including
+ * title, description, image, timestamp, and related entities. Handles
+ * body scroll lock and escape key to close.
+ * 
+ * Features:
+ * - Full article display
+ * - Image support
+ * - Icon display based on type
+ * - Related entities links
+ * - Escape key to close
+ * - Body scroll lock
+ * 
+ * @param props - BreakingNewsDetailModal component props
+ * @returns Breaking news detail modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <BreakingNewsDetailModal
+ *   isOpen={isOpen}
+ *   onClose={() => setIsOpen(false)}
+ *   item={newsItem}
+ * />
+ * ```
+ */
 interface BreakingNewsDetailModalProps {
   isOpen: boolean
   onClose: () => void

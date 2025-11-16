@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for analyzing how game events affect company stock prices.
+ * 
+ * Determines the price impact (percentage change) of game events on
+ * company stock prices. Uses low temperature (0.3) for consistent,
+ * logical analysis of event-to-price relationships.
+ * 
+ * Returns XML with price impact analysis and percentage change.
+ */
 export const priceImpact = definePrompt({
   id: 'price-impact',
   version: '2.0.0',

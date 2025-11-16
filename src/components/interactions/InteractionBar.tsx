@@ -12,6 +12,35 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
 import type { InteractionBarProps } from '@/types/interactions';
 
+/**
+ * Interaction bar component for post interactions.
+ * 
+ * Displays like, comment, and share buttons with counts. Manages
+ * interaction state via Zustand store with polling for real-time
+ * updates. Opens comment section or login modal based on auth state.
+ * 
+ * Features:
+ * - Like button with reaction picker
+ * - Comment button with count
+ * - Share/repost button
+ * - Delete button (for post author)
+ * - Real-time count updates via polling
+ * 
+ * @param props - InteractionBar component props
+ * @returns Interaction bar element
+ * 
+ * @example
+ * ```tsx
+ * <InteractionBar
+ *   postId="post-123"
+ *   initialInteractions={{
+ *     likeCount: 10,
+ *     commentCount: 5,
+ *     shareCount: 2
+ *   }}
+ * />
+ * ```
+ */
 export function InteractionBar({
   postId,
   initialInteractions,

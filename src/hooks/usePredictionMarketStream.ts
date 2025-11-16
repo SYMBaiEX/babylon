@@ -2,6 +2,9 @@ import { useMemo } from 'react';
 
 import { useSSEChannel } from '@/hooks/useSSE';
 
+/**
+ * SSE event for prediction market trades.
+ */
 export interface PredictionTradeSSE {
   type: 'prediction_trade';
   marketId: string;
@@ -23,6 +26,9 @@ export interface PredictionTradeSSE {
   };
 }
 
+/**
+ * SSE event for prediction market resolution.
+ */
 export interface PredictionResolutionSSE {
   type: 'prediction_resolution';
   marketId: string;
@@ -36,8 +42,14 @@ export interface PredictionResolutionSSE {
   timestamp: string;
 }
 
+/**
+ * Union type for all prediction market SSE payloads.
+ */
 type SSEPayload = PredictionTradeSSE | PredictionResolutionSSE;
 
+/**
+ * Type guard to check if data is a valid prediction market SSE payload.
+ */
 const isPredictionPayload = (data: unknown): data is SSEPayload => {
   if (!data || typeof data !== 'object' || data === null) return false;
   const type = (data as { type?: string }).type;
@@ -47,11 +59,38 @@ const isPredictionPayload = (data: unknown): data is SSEPayload => {
   return typeof (data as { marketId?: string }).marketId === 'string';
 };
 
+/**
+ * Options for configuring prediction market stream subscriptions.
+ */
 interface UsePredictionMarketStreamOptions {
+  /** Callback invoked when a trade event is received */
   onTrade?: (event: PredictionTradeSSE) => void;
+  /** Callback invoked when a resolution event is received */
   onResolution?: (event: PredictionResolutionSSE) => void;
 }
 
+/**
+ * Hook for subscribing to real-time prediction market updates for a specific market.
+ * 
+ * Subscribes to the 'markets' SSE channel and filters events for the specified
+ * market ID. Automatically handles subscription lifecycle and ensures callbacks
+ * receive the latest version.
+ * 
+ * @param marketId - The ID of the prediction market to subscribe to, or null to unsubscribe
+ * @param options - Callback functions for trade and resolution events
+ * 
+ * @example
+ * ```tsx
+ * usePredictionMarketStream(marketId, {
+ *   onTrade: (event) => {
+ *     console.log('Trade:', event.trade);
+ *   },
+ *   onResolution: (event) => {
+ *     console.log('Resolved:', event.winningSide);
+ *   }
+ * });
+ * ```
+ */
 export function usePredictionMarketStream(
   marketId: string | null,
   { onTrade, onResolution }: UsePredictionMarketStreamOptions = {}
@@ -71,6 +110,24 @@ export function usePredictionMarketStream(
   });
 }
 
+/**
+ * Hook for subscribing to all prediction market updates across all markets.
+ * 
+ * Similar to usePredictionMarketStream but subscribes to events from all
+ * prediction markets, not just a specific one. Useful for dashboards or
+ * feeds showing activity across multiple markets.
+ * 
+ * @param options - Callback functions for trade and resolution events
+ * 
+ * @example
+ * ```tsx
+ * usePredictionMarketsSubscription({
+ *   onTrade: (event) => {
+ *     console.log('Trade in market:', event.marketId);
+ *   }
+ * });
+ * ```
+ */
 export function usePredictionMarketsSubscription(
   { onTrade, onResolution }: UsePredictionMarketStreamOptions = {}
 ) {

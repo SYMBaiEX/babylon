@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating brief conversations between NPCs about game events.
+ * 
+ * Creates natural dialogue between NPCs discussing game events, market
+ * movements, or rumors. Captures character voices and relationships while
+ * providing world-building context.
+ * 
+ * Returns XML with NPC conversation.
+ */
 export const npcConversation = definePrompt({
   id: 'npc-conversation',
   version: '2.0.0',

@@ -9,6 +9,25 @@ import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { useSocialTracking } from '@/hooks/usePostHog'
 
+/**
+ * Follow button component for following/unfollowing users.
+ * 
+ * Displays a follow/unfollow button with loading states and automatic
+ * status checking. Hides for own profile. Tracks follow actions with
+ * PostHog analytics. Supports both button and icon-only variants.
+ * 
+ * @param props - FollowButton component props
+ * @returns Follow button element or null if own profile
+ * 
+ * @example
+ * ```tsx
+ * <FollowButton
+ *   userId="user-123"
+ *   initialFollowing={false}
+ *   onFollowChange={(isFollowing) => console.log(isFollowing)}
+ * />
+ * ```
+ */
 interface FollowButtonProps {
   userId: string
   initialFollowing?: boolean

@@ -2,9 +2,15 @@ import { useMemo, useState } from 'react';
 
 import { useSSEChannel } from '@/hooks/useSSE';
 
+/**
+ * Represents a live market price update.
+ */
 export interface LivePrice {
+  /** The ticker symbol (e.g., 'AAPL', 'TSLA') */
   ticker: string;
+  /** Current price */
   price: number;
+  /** Optional percentage change from previous price */
   changePercent?: number;
 }
 
@@ -35,6 +41,29 @@ const derivePrice = (update: Record<string, unknown>): number | null => {
   return Number.isFinite(price) ? Number(price) : null;
 };
 
+/**
+ * Hook for subscribing to live market price updates via SSE.
+ * 
+ * Automatically subscribes to the 'markets' SSE channel and filters price
+ * updates for the specified tickers. Supports both prediction markets and
+ * perpetual markets. Prices are normalized and deduplicated automatically.
+ * 
+ * @param targetTickers - Array of ticker symbols to subscribe to (e.g., ['AAPL', 'TSLA']).
+ * If empty, subscribes to all market updates. Tickers are case-insensitive.
+ * 
+ * @returns A Map of ticker symbols to LivePrice objects, updated in real-time
+ * as price updates are received via SSE.
+ * 
+ * @example
+ * ```tsx
+ * const prices = useMarketPrices(['AAPL', 'TSLA']);
+ * 
+ * const aaplPrice = prices.get('AAPL');
+ * if (aaplPrice) {
+ *   console.log(`AAPL: $${aaplPrice.price} (${aaplPrice.changePercent}%)`);
+ * }
+ * ```
+ */
 export function useMarketPrices(targetTickers: string[]) {
   const [prices, setPrices] = useState<Map<string, LivePrice>>(new Map());
 

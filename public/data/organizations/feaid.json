@@ -1,6 +1,7 @@
 {
   "id": "feaid",
   "name": "FeAId",
+  "ticker": "FED",
   "description": "America's central banking system, where the printer goes BRRR and inflation is always transitory until it's not",
   "type": "government",
   "canBeInvolved": true,

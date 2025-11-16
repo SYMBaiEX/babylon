@@ -1,7 +1,19 @@
 /**
- * ShareEarnModal Component
+ * Share and earn modal component for sharing content with points rewards.
  * 
- * Modal for sharing content to X and Farcaster with points tracking
+ * Provides a modal interface for sharing to Twitter/X and Farcaster with
+ * points tracking. Shows share status, earned points, and handles share
+ * verification. Checks platform configuration and existing shares on mount.
+ * 
+ * @example
+ * ```tsx
+ * <ShareEarnModal
+ *   isOpen={isOpen}
+ *   onClose={() => setIsOpen(false)}
+ *   contentType="profile"
+ *   contentId="123"
+ * />
+ * ```
  */
 
 import { useState, useEffect } from 'react'
@@ -29,11 +41,20 @@ interface ShareEarnModalProps {
   text?: string
 }
 
+/**
+ * Share status tracking for each platform.
+ */
 interface ShareStatus {
   twitter: { shared: boolean; earned: boolean; loading: boolean }
   farcaster: { shared: boolean; earned: boolean; loading: boolean }
 }
 
+/**
+ * Share and earn modal component.
+ * 
+ * @param props - ShareEarnModal component props
+ * @returns Share and earn modal element or null if not open
+ */
 export function ShareEarnModal({
   isOpen,
   onClose,

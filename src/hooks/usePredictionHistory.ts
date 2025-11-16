@@ -3,25 +3,71 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 import { logger } from '@/lib/logger';
 
+/**
+ * Represents a single point in prediction market price history.
+ */
 export interface PredictionHistoryPoint {
+  /** Timestamp in milliseconds */
   time: number;
+  /** Current YES outcome price (0-1) */
   yesPrice: number;
+  /** Current NO outcome price (0-1) */
   noPrice: number;
+  /** Trading volume since last point */
   volume: number;
+  /** Total liquidity in the market */
   liquidity: number;
 }
 
+/**
+ * Seed data for initializing history when API data is unavailable.
+ */
 interface SeedSnapshot {
+  /** Initial YES shares */
   yesShares?: number;
+  /** Initial NO shares */
   noShares?: number;
+  /** Initial liquidity */
   liquidity?: number;
 }
 
+/**
+ * Options for configuring prediction history loading.
+ */
 interface UsePredictionHistoryOptions {
+  /** Maximum number of history points to keep (default: 200) */
   limit?: number;
+  /** Seed data to use if API fails or returns no data */
   seed?: SeedSnapshot;
 }
 
+/**
+ * Hook for fetching and managing prediction market price history.
+ * 
+ * Loads historical price data from the API and maintains a rolling window
+ * of price points. Automatically appends new points from real-time SSE
+ * updates. Falls back to seed data if API fails or returns no data.
+ * 
+ * @param marketId - The ID of the prediction market, or null to clear history
+ * @param options - Configuration options including limit and seed data
+ * 
+ * @returns An object containing:
+ * - `history`: Array of price history points
+ * - `loading`: Whether history is currently loading
+ * - `error`: Any error that occurred while loading
+ * - `refresh`: Function to manually reload history
+ * 
+ * @example
+ * ```tsx
+ * const { history, loading } = usePredictionHistory(marketId, { limit: 100 });
+ * 
+ * // Use history for charting
+ * const chartData = history.map(point => ({
+ *   x: point.time,
+ *   y: point.yesPrice
+ * }));
+ * ```
+ */
 export function usePredictionHistory(
   marketId: string | null,
   options?: UsePredictionHistoryOptions

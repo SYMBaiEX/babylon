@@ -8,6 +8,9 @@ import { getProfileUrl } from '@/lib/profile-utils'
 import Link from 'next/link'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+/**
+ * Trending post structure for trending posts panel.
+ */
 interface TrendingPost {
   id: string
   content: string
@@ -21,6 +24,22 @@ interface TrendingPost {
   trendingScore: number
 }
 
+/**
+ * Trending posts panel component for displaying trending posts.
+ * 
+ * Displays a list of trending posts with interaction counts and timestamps.
+ * Automatically refreshes every 30 seconds. Navigates to feed with post
+ * query parameter on click to open comments.
+ * 
+ * Features:
+ * - Trending posts list
+ * - Interaction counts (likes, comments, shares)
+ * - Relative timestamps
+ * - Auto-refresh (30s interval)
+ * - Loading states
+ * 
+ * @returns Trending posts panel element
+ */
 export function TrendingPostsPanel() {
   const [posts, setPosts] = useState<TrendingPost[]>([])
   const [loading, setLoading] = useState(true)

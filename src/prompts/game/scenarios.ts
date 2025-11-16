@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating 3 satirical scenarios for game setup.
+ * 
+ * Creates dramatic, satirical scenarios involving main actors that
+ * serve as the foundation for the game's narrative. Scenarios are
+ * grounded in current reality but satirical in nature.
+ * 
+ * Returns XML with 3 scenario descriptions.
+ */
 export const scenarios = definePrompt({
   id: 'scenarios',
   version: '2.0.0',

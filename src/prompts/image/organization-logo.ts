@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating logos for organizations based on description.
+ * 
+ * Creates satirical logo designs that parody real company logos with
+ * exaggerated editorial cartoon style. Uses bold ink lines and absurdist
+ * humor while maintaining recognizability.
+ * 
+ * Returns image generation prompt for organization logo.
+ */
 export const organizationLogo = definePrompt({
   id: 'organization-logo',
   version: '3.0.0',
@@ -19,6 +28,15 @@ IMPORTANT:
 `.trim()
 });
 
+/**
+ * Prompt for generating organization profile banners.
+ * 
+ * Creates landscape-format banner images for organization profiles using
+ * editorial cartoon style. Focuses on corporate satire and visual
+ * storytelling in wide format.
+ * 
+ * Returns image generation prompt for organization banner.
+ */
 export const organizationBanner = definePrompt({
   id: 'organization-banner',
   version: '1.0.0',

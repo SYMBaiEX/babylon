@@ -1,7 +1,18 @@
 /**
- * ShareButton Component
+ * External share button component with tracking and points rewards.
  * 
- * Button to share content with tracking and points rewards
+ * Provides sharing functionality to Twitter/X, Farcaster, and copy link.
+ * Tracks shares for authenticated users and awards points. Shows verification
+ * modal after sharing to verify the share was posted.
+ * 
+ * @example
+ * ```tsx
+ * <ExternalShareButton
+ *   contentType="post"
+ *   contentId="123"
+ *   text="Check out this post!"
+ * />
+ * ```
  */
 
 import { useState } from 'react'
@@ -21,6 +32,9 @@ function FarcasterIcon({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Props for ExternalShareButton component.
+ */
 interface ExternalShareButtonProps {
   contentType: 'post' | 'profile' | 'market' | 'referral' | 'leaderboard'
   contentId?: string
@@ -29,6 +43,12 @@ interface ExternalShareButtonProps {
   className?: string
 }
 
+/**
+ * External share button component.
+ * 
+ * @param props - ExternalShareButton component props
+ * @returns Share button element with dropdown menu
+ */
 export function ExternalShareButton({
   contentType,
   contentId,

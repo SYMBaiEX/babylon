@@ -1,6 +1,7 @@
 {
   "id": "faix-news",
   "name": "FAIX News",
+  "ticker": "FAIX",
   "description": "America's most-watched news network, providing fair and balanced opinions disguised as news 24 hours a day",
   "type": "media",
   "canBeInvolved": true,

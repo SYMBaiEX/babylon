@@ -1,6 +1,7 @@
 {
   "id": "truth-socail",
   "name": "Truth SocAIl",
+  "ticker": "TRUTH",
   "description": "America's fastest-growing social media platform for patriots banned from everywhere else, where TRUTH matters more than truth",
   "type": "social_platform",
   "canBeInvolved": true,

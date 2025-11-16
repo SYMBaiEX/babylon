@@ -273,7 +273,10 @@ export class PerpetualsEngine extends EventEmitter {
     );
 
     for (const company of companies) {
-      const ticker = this.generateTicker(company.id);
+      // Use ticker from organization if available, otherwise generate from ID
+      const ticker = ('ticker' in company && company.ticker) 
+        ? company.ticker 
+        : this.generateTicker(company.id);
 
       const market: PerpMarket = {
         ticker,

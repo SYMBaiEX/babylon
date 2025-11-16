@@ -8,6 +8,9 @@ import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+/**
+ * Article item structure for latest news panel.
+ */
 interface ArticleItem {
   id: string
   title: string
@@ -22,6 +25,22 @@ interface ArticleItem {
   biasScore?: number
 }
 
+/**
+ * Latest news panel component for displaying recent articles.
+ * 
+ * Displays a list of the latest articles from the feed. Uses widget cache
+ * for performance and supports manual refresh via WidgetRefreshContext.
+ * Fetches articles from posts API filtered by type=article.
+ * 
+ * Features:
+ * - Article list with metadata
+ * - Widget caching
+ * - Manual refresh support
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @returns Latest news panel element
+ */
 export function LatestNewsPanel() {
   const [articles, setArticles] = useState<ArticleItem[]>([])
   const [loading, setLoading] = useState(true)

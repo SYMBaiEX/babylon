@@ -1,14 +1,16 @@
 /**
  * World Context Generator
  * 
- * Generates context strings for prompts including:
- * - Actor names (parody only)
+ * Generates comprehensive context strings for prompts including:
+ * - Actor names (parody only, never real names)
  * - Current markets and prices
  * - Active predictions
  * - Recent trades
  * - Reality grounding (current date, prices, politics, tech, culture)
  * 
  * This is the single source of truth for world context in prompts.
+ * All generated content should use this context to ensure consistency
+ * and prevent outdated or incorrect references.
  */
 
 import { loadActorsData } from '@/lib/data/actors-loader';
@@ -23,16 +25,30 @@ import {
   REALITY_GROUNDING 
 } from './reality-grounding';
 
+/**
+ * Options for configuring world context generation.
+ */
 export interface WorldContextOptions {
+  /** Whether to include actor names (default: true) */
   includeActors?: boolean;
+  /** Whether to include current markets (default: true) */
   includeMarkets?: boolean;
+  /** Whether to include active predictions (default: true) */
   includePredictions?: boolean;
+  /** Whether to include recent trades (default: true) */
   includeTrades?: boolean;
+  /** Whether to include reality grounding (default: true) */
   includeRealityGrounding?: boolean;
+  /** Maximum number of actors to include (default: 50) */
   maxActors?: number;
+  /** Level of reality grounding detail: 'full', 'concise', 'minimal', or 'none' (default: 'concise') */
   realityGroundingLevel?: 'full' | 'concise' | 'minimal' | 'none';
 }
 
+/**
+ * Complete world context object containing all contextual information
+ * for prompt generation.
+ */
 export interface WorldContext {
   // Actor context
   worldActors: string;
@@ -55,11 +71,14 @@ export interface WorldContext {
 }
 
 /**
- * Generates the world actors list for prompt context
- * ONLY includes parody names - real names are NEVER mentioned
- * Shuffles actors to add variety to prompts
+ * Generates the world actors list for prompt context.
  * 
- * **Optimized:** Only loads actors (not orgs or relationships)
+ * ONLY includes parody names - real names are NEVER mentioned.
+ * Shuffles actors to add variety to prompts. Optimized to only
+ * load actors data (not organizations or relationships).
+ * 
+ * @param maxActors - Maximum number of actors to include (default: all)
+ * @returns Formatted string listing actors in "Name (@username)" format
  */
 export function generateWorldActors(maxActors?: number): string {
   // OPTIMIZATION: Only load actors, not organizations or relationships
@@ -82,8 +101,12 @@ export function generateWorldActors(maxActors?: number): string {
 }
 
 /**
- * Generates current markets context from database
- * Includes both prediction markets and perpetual futures
+ * Generates current markets context from database.
+ * 
+ * Includes both prediction markets and perpetual futures markets.
+ * Returns top 5 most active markets of each type, shuffled for variety.
+ * 
+ * @returns Formatted string describing active markets and their prices/probabilities
  */
 export async function generateCurrentMarkets(): Promise<string> {
   // Get active prediction markets
@@ -142,7 +165,12 @@ export async function generateCurrentMarkets(): Promise<string> {
 }
 
 /**
- * Generates active predictions context from database
+ * Generates active predictions context from database.
+ * 
+ * Fetches active questions/predictions that haven't resolved yet.
+ * Returns top 10 most recent questions with days until resolution.
+ * 
+ * @returns Formatted string listing active predictions and their resolution dates
  */
 export async function generateActivePredictions(): Promise<string> {
   // Get active questions from the Question table
@@ -172,7 +200,12 @@ export async function generateActivePredictions(): Promise<string> {
 }
 
 /**
- * Generates recent trades context from database
+ * Generates recent trades context from database.
+ * 
+ * Fetches recent trades from both NPCs and agents, combines them,
+ * and returns the top 20 most recent trades with actor names and details.
+ * 
+ * @returns Formatted string listing recent trading activity
  */
 export async function generateRecentTrades(): Promise<string> {
   // Get recent NPC trades
@@ -244,13 +277,27 @@ export async function generateRecentTrades(): Promise<string> {
 }
 
 /**
- * Generates complete world context for prompts
+ * Generates complete world context for prompts.
  * 
  * This is the main function to use when generating any content.
- * It provides current date, market data, and reality grounding.
+ * It provides current date, market data, actor information, and
+ * reality grounding. Fetches data in parallel for performance.
  * 
- * @param options - Configuration for what context to include
- * @returns Complete world context object
+ * @param options - Configuration for what context to include and detail level
+ * @returns Complete world context object with all requested context strings
+ * 
+ * @example
+ * ```ts
+ * const context = await generateWorldContext({
+ *   maxActors: 30,
+ *   realityGroundingLevel: 'concise'
+ * });
+ * 
+ * const prompt = renderPrompt(ambientPost, {
+ *   ...context,
+ *   actorName: 'Alice'
+ * });
+ * ```
  */
 export async function generateWorldContext(
   options: WorldContextOptions = {}
@@ -316,7 +363,12 @@ export async function generateWorldContext(
 }
 
 /**
- * Get a list of parody actor names (for validation purposes only)
+ * Get a list of parody actor names (for validation purposes only).
+ * 
+ * Returns all actor names that should be used in generated content.
+ * Used for validation to ensure only parody names are used.
+ * 
+ * @returns Array of parody actor names
  */
 export function getParodyActorNames(): string[] {
   const actorsData = loadActorsData({
@@ -329,7 +381,13 @@ export function getParodyActorNames(): string[] {
 }
 
 /**
- * Get a list of forbidden real names (for validation - these should NEVER appear in output)
+ * Get a list of forbidden real names (for validation).
+ * 
+ * These names should NEVER appear in generated output. Used for
+ * validation to catch any accidental use of real names instead
+ * of parody names.
+ * 
+ * @returns Array of forbidden real names that must not appear in content
  */
 export function getForbiddenRealNames(): string[] {
   const actorsData = loadActorsData({
@@ -342,9 +400,13 @@ export function getForbiddenRealNames(): string[] {
 }
 
 /**
- * Validate that generated content doesn't use real names
+ * Validate that generated content doesn't use real names.
+ * 
+ * Checks if the text contains any forbidden real names. Returns
+ * an array of validation errors if any are found.
+ * 
  * @param text - The generated content to check
- * @returns Array of validation errors (empty if valid)
+ * @returns Array of validation error messages (empty if valid)
  */
 export function validateNoRealNames(text: string): string[] {
   const forbiddenNames = getForbiddenRealNames();
@@ -361,20 +423,41 @@ export function validateNoRealNames(text: string): string[] {
 }
 
 /**
- * Check if generated content is grounded in current reality
+ * Check if generated content is grounded in current reality.
+ * 
+ * Validates that content references current dates, prices, and events.
+ * Returns warnings if outdated references are detected (e.g., old prices,
+ * wrong president, outdated AI models).
+ * 
  * @param text - The generated content to check
- * @returns Array of warnings about outdated references
+ * @returns Array of warning messages about outdated references
  */
 export function checkRealityGrounding(text: string): string[] {
   return checkReality(text);
 }
 
 /**
- * Complete validation of generated content
- * Checks both parody names and reality grounding
+ * Complete validation of generated content.
+ * 
+ * Checks both parody names (errors) and reality grounding (warnings).
+ * Returns a comprehensive validation result with all issues found.
  * 
  * @param text - The generated content to validate
- * @returns Object with errors and warnings
+ * @returns Validation result object:
+ *   - `errors`: Array of critical errors (real names found)
+ *   - `warnings`: Array of warnings (outdated references)
+ *   - `isValid`: Whether content passed validation (no errors)
+ * 
+ * @example
+ * ```ts
+ * const validation = validateGeneratedContent(generatedText);
+ * if (!validation.isValid) {
+ *   console.error('Errors:', validation.errors);
+ * }
+ * if (validation.warnings.length > 0) {
+ *   console.warn('Warnings:', validation.warnings);
+ * }
+ * ```
  */
 export function validateGeneratedContent(text: string): {
   errors: string[];

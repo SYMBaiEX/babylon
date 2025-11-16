@@ -1,6 +1,7 @@
 {
   "id": "nvidai",
   "name": "NVIDAI",
+  "ticker": "NVDAI",
   "description": "The world's leading AI infrastructure company, turning sand into gold and gamers into paupers one GPU at a time",
   "type": "company",
   "canBeInvolved": true,

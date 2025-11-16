@@ -11,6 +11,27 @@
 
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating context-aware trading decisions for NPCs.
+ * 
+ * Simulates trading decisions for multiple NPCs based on their information
+ * access (feed posts, group chats), personality, tier, and current market
+ * conditions. Considers active questions, events, and narratives when
+ * determining positions.
+ * 
+ * Returns XML with trading decisions for each NPC including market type,
+ * ticker, side, size, and reasoning.
+ * 
+ * @example
+ * ```ts
+ * const prompt = renderPrompt(npcMarketDecisions, {
+ *   npcCount: 10,
+ *   realityGrounding: '...',
+ *   activeQuestions: '...',
+ *   npcContexts: '...'
+ * });
+ * ```
+ */
 export const npcMarketDecisions = definePrompt({
   id: 'npc-market-decisions',
   version: '3.0.0',

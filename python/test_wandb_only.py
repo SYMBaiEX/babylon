@@ -34,61 +34,24 @@ async def test_wandb():
     
     print("✅ ART framework imported")
     
-    # CRITICAL: Always use personal account (has write access) instead of org
-    # Even if WANDB_ENTITY is set to an org, we need personal account for model training
-    project_name = os.getenv('WANDB_PROJECT', 'babylon-continuous')
-    env_entity = os.getenv('WANDB_ENTITY')
+    # Use eliza-labs/babylon project (configured in W&B)
+    project_name = os.getenv('WANDB_PROJECT', 'babylon')
+    entity = os.getenv('WANDB_ENTITY', 'eliza-labs')  # Default to eliza-labs org
+    
+    print(f"✅ Using W&B project: {entity}/{project_name}")
     
     try:
-        print("🔍 Detecting W&B personal account from API...")
-        wandb.login(key=wandb_key)
-        api = wandb.Api()
-        # CRITICAL: Always use viewer.username (personal account) for model training
-        # Orgs may not have "models write access" permission
-        entity = api.viewer.username  # Personal account (has write access)
-        default_entity = api.viewer.entity  # Might be org
-        
-        if env_entity and env_entity != entity:
-            print(f"⚠️  WANDB_ENTITY is set to '{env_entity}' (org, may not have write access)")
-            print(f"✅ Overriding to personal account: {entity} (has write access)")
-        elif entity != default_entity:
-            print(f"⚠️  Default entity is '{default_entity}' (org, may not have write access)")
-            print(f"✅ Using personal account: {entity} (has write access)")
-        else:
-            print(f"✅ Using entity: {entity}")
-    except Exception as e:
-        print(f"❌ Could not detect entity: {e}")
-        if env_entity:
-            print(f"   Falling back to WANDB_ENTITY: {env_entity}")
-            entity = env_entity
-        else:
-            print("   Set WANDB_ENTITY=your-username in .env.local")
-            return False
-    
-    # Use entity/project format
-    if "/" not in project_name:
-        full_project = f"{entity}/{project_name}"
-    else:
-        full_project = project_name
-    
-    print(f"📦 Project: {full_project}")
-    
-    try:
-        # Initialize wandb with extended timeout to fix 524 errors
-        # CRITICAL: Don't create a run yet - just verify connection
-        # The ART model registration will create its own run
+        # Verify W&B connection and project
         print("🔗 Verifying W&B connection...")
-        # Just verify API access, don't create run yet
         api = wandb.Api()
         try:
-            # Try to access the project (will create if doesn't exist)
+            # Verify project exists and is accessible
             _ = api.project(project_name, entity=entity)
             print(f"✅ Project '{project_name}' accessible under entity '{entity}'")
         except Exception as e:
             print(f"⚠️  Project check: {e}")
             print("   Will try to create during model registration")
         
-        wandb_run = None  # Don't create run yet - ART will handle it
         print("✅ W&B connection verified")
         
         # Create model - use project name WITHOUT entity prefix when passing entity separately

@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating multiple reply posts creating conversations.
+ * 
+ * Generates a thread of replies from multiple actors responding to an
+ * original post, creating natural conversation flows. Maintains character
+ * voices and builds on previous replies in the thread.
+ * 
+ * Returns XML with multiple reply entries forming a conversation.
+ */
 export const replies = definePrompt({
   id: 'replies',
   version: '2.0.0',

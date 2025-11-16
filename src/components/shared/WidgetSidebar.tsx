@@ -6,6 +6,23 @@ import { TrendingPanel } from '@/components/feed/TrendingPanel'
 import { MarketsPanel } from '@/components/feed/MarketsPanel'
 import { EntitySearchAutocomplete } from '@/components/explore/EntitySearchAutocomplete'
 
+/**
+ * Widget sidebar component for desktop layouts.
+ * 
+ * Provides a sticky sidebar with search, latest news, trending, and markets
+ * panels. Implements smart scrolling behavior on XL+ screens where the sidebar
+ * translates vertically as the user scrolls to keep content visible. On smaller
+ * screens, the sidebar is hidden.
+ * 
+ * Features:
+ * - Entity search autocomplete
+ * - Latest news panel
+ * - Trending panel
+ * - Markets panel
+ * - Smart sticky scrolling on XL+ screens
+ * 
+ * @returns Widget sidebar element (hidden on screens < XL)
+ */
 export function WidgetSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)

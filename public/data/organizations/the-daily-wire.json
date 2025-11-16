@@ -1,6 +1,7 @@
 {
   "id": "the-daily-wire",
   "name": "The DAIly Wire",
+  "ticker": "WIRE",
   "description": "America's fastest-growing conservative media company, destroying the left with facts and logic (alternative versions)",
   "type": "media",
   "canBeInvolved": true,

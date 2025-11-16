@@ -1,7 +1,19 @@
 /**
- * ShareButton Component
+ * Share button component with tracking and points rewards.
  * 
- * Button to share content with tracking and points rewards
+ * Provides sharing functionality to Twitter/X, Farcaster (with Mini App SDK
+ * support), native share, and copy link. Tracks shares for authenticated users
+ * and awards points. Shows verification modal after sharing to verify the
+ * share was posted. Supports Farcaster Mini App context for native sharing.
+ * 
+ * @example
+ * ```tsx
+ * <ShareButton
+ *   contentType="post"
+ *   contentId="123"
+ *   text="Check out this post!"
+ * />
+ * ```
  */
 
 import { useState } from 'react'
@@ -22,6 +34,9 @@ function FarcasterIcon({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Props for ShareButton component.
+ */
 interface ShareButtonProps {
   contentType: 'post' | 'profile' | 'market' | 'referral' | 'leaderboard'
   contentId?: string
@@ -30,6 +45,12 @@ interface ShareButtonProps {
   className?: string
 }
 
+/**
+ * Share button component.
+ * 
+ * @param props - ShareButton component props
+ * @returns Share button element with dropdown menu
+ */
 export function ShareButton({
   contentType,
   contentId,

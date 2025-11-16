@@ -421,6 +421,13 @@ export class MarketContextService {
         type: 'company',
         currentPrice: { not: null },
       },
+      select: {
+        id: true,
+        name: true,
+        ticker: true,
+        currentPrice: true,
+        initialPrice: true,
+      },
     });
     
     return Promise.all(
@@ -463,9 +470,11 @@ export class MarketContextService {
         const openInterest = positions.reduce((sum, pos) => sum + pos.size, 0);
         const volume24h = positions.reduce((sum, pos) => sum + pos.size, 0);
         
-        // Provide raw org ID as ticker so LLM uses the correct format
+        // Use ticker field if available, fallback to transformed org ID
+        const ticker = company.ticker || company.id.toUpperCase().replace(/-/g, '');
+        
         return {
-          ticker: company.id,
+          ticker,
           organizationId: company.id,
           name: company.name || 'Unknown',
           currentPrice,

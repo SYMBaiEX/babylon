@@ -1,6 +1,7 @@
 {
   "id": "opnai",
-  "name": "OpnAI",
+  "name": "OpenAGI",
+  "ticker": "OPNAI",
   "description": "The world's leading AI safety company, now with 40% more hallucinations per token and 100% more subscription fees",
   "profileDescription": "Building safe AGI for humanity. GPT-5 coming soon. Safety is our top priority. Upgrade to ChatGPT Plus for the best experience. We're making AI safe and beneficial.",
   "type": "company",

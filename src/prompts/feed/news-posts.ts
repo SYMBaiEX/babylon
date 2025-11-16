@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating breaking news posts from media entities.
+ * 
+ * Creates news-style posts from media organizations reporting on world
+ * events. Uses journalistic tone and references specific events, actors,
+ * and market impacts.
+ * 
+ * Returns XML with news post content and metadata.
+ */
 export const newsPosts = definePrompt({
   id: 'news-posts',
   version: '2.0.0',

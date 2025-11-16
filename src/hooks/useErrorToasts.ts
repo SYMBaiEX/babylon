@@ -4,8 +4,19 @@ import { useInteractionStore } from '@/stores/interactionStore'
 import type { InteractionError } from '@/types/interactions'
 
 /**
- * Hook to display toast notifications for interaction errors
- * Monitors the error state in interactionStore and shows toasts
+ * Hook to display toast notifications for interaction errors.
+ * 
+ * Monitors the error state in the interaction store and automatically displays
+ * toast notifications when new errors occur. Prevents duplicate toasts for
+ * the same error by tracking previously shown errors.
+ * 
+ * Errors are displayed using Sonner toast notifications with a 4-second duration.
+ * 
+ * @example
+ * ```tsx
+ * // Simply call the hook - it will automatically show toasts for errors
+ * useErrorToasts();
+ * ```
  */
 export function useErrorToasts() {
   const { errors } = useInteractionStore()

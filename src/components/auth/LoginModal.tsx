@@ -4,6 +4,29 @@ import { logger } from '@/lib/logger'
 import { usePrivy } from '@privy-io/react-auth'
 import { useEffect, useRef } from 'react'
 
+/**
+ * Login modal component that triggers Privy's native login modal.
+ * 
+ * Acts as a wrapper that triggers Privy's built-in authentication modal when
+ * opened. Automatically closes when user successfully authenticates. Supports
+ * custom title and message for context-specific login prompts.
+ * 
+ * Note: This component doesn't render any UI itself - it delegates to Privy's
+ * native modal system.
+ * 
+ * @param props - LoginModal component props
+ * @returns null (delegates to Privy's native modal)
+ * 
+ * @example
+ * ```tsx
+ * <LoginModal
+ *   isOpen={showLogin}
+ *   onClose={() => setShowLogin(false)}
+ *   title="Sign in to trade"
+ *   message="You need to be signed in to place trades"
+ * />
+ * ```
+ */
 interface LoginModalProps {
   isOpen: boolean
   onClose: () => void

@@ -6,6 +6,32 @@ import { X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Create post modal component for composing new posts.
+ * 
+ * Provides a modal interface for creating new posts with textarea input,
+ * character limit (280 chars), and submit functionality. Handles body scroll
+ * lock and escape key to close. Supports both mobile and desktop layouts.
+ * 
+ * Features:
+ * - Textarea with character counter
+ * - Submit button with loading state
+ * - Escape key to close
+ * - Body scroll lock when open
+ * - Responsive mobile/desktop layouts
+ * 
+ * @param props - CreatePostModal component props
+ * @returns Create post modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <CreatePostModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   onPostCreated={(post) => console.log('Created:', post)}
+ * />
+ * ```
+ */
 interface CreatePostModalProps {
   isOpen: boolean
   onClose: () => void

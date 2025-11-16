@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating announcement posts for significant stock price movements.
+ * 
+ * Creates announcement posts reporting significant stock price changes for
+ * companies. Used to notify players of major market movements and their
+ * potential causes.
+ * 
+ * Returns XML with price announcement post.
+ */
 export const priceAnnouncement = definePrompt({
   id: 'price-announcement',
   version: '2.0.0',

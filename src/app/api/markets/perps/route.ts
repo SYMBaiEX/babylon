@@ -151,6 +151,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Build markets with REAL 24h stats
   const markets = await Promise.all(
     companies.map(async (company: Organization) => {
+      // Use ticker from company if available, otherwise generate from ID
+      const ticker = company.ticker || company.id.toUpperCase().replace(/-/g, '').substring(0, 12);
+      
       const currentPrice = Number(company.currentPrice) || Number(company.initialPrice) || 100;
 
       // Get last 24 hours of price history (1440 minutes)
@@ -273,7 +276,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
 
       return {
-        ticker: company.id.toUpperCase().replace(/-/g, ''),
+        ticker,
         organizationId: company.id,
         name: company.name,
         currentPrice,

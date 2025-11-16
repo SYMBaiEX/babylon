@@ -18,6 +18,23 @@ const alertVariants = cva(
   }
 )
 
+/**
+ * Alert component for displaying informational messages.
+ * 
+ * Provides styled alert containers with variants (default, destructive).
+ * Supports icon positioning and responsive text layout.
+ * 
+ * @param props - Alert component props
+ * @returns Alert element
+ * 
+ * @example
+ * ```tsx
+ * <Alert variant="destructive">
+ *   <AlertTitle>Error</AlertTitle>
+ *   <AlertDescription>Something went wrong</AlertDescription>
+ * </Alert>
+ * ```
+ */
 const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
@@ -31,6 +48,14 @@ const Alert = React.forwardRef<
 ))
 Alert.displayName = "Alert"
 
+/**
+ * Alert title component.
+ * 
+ * Displays the alert title with medium font weight and tight tracking.
+ * 
+ * @param props - AlertTitle component props
+ * @returns Alert title element
+ */
 const AlertTitle = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLHeadingElement>
@@ -43,6 +68,14 @@ const AlertTitle = React.forwardRef<
 ))
 AlertTitle.displayName = "AlertTitle"
 
+/**
+ * Alert description component.
+ * 
+ * Displays alert description text with relaxed line height.
+ * 
+ * @param props - AlertDescription component props
+ * @returns Alert description element
+ */
 const AlertDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>

@@ -1,6 +1,20 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Badge component for displaying labels and status indicators.
+ * 
+ * Simple badge component that extends span element. Currently accepts
+ * variant prop but styling is handled via className.
+ * 
+ * @param props - Badge component props
+ * @returns Badge element
+ * 
+ * @example
+ * ```tsx
+ * <Badge variant="default">New</Badge>
+ * ```
+ */
 export interface BadgeProps extends React.ComponentPropsWithoutRef<'span'> {
   variant?: 'default' | 'secondary' | 'outline' | 'destructive';
 }

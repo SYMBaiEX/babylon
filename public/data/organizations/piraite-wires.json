@@ -1,6 +1,7 @@
 {
   "id": "piraite-wires",
   "name": "PirAIte Wires",
+  "ticker": "PIRAT",
   "description": "Silicon Valley's premier underground newsletter, delivering edgelord journalism funded entirely by Peter Thiel since 2020",
   "type": "media",
   "canBeInvolved": true,

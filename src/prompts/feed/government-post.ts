@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating single government agency response or statement.
+ * 
+ * Creates official government posts from agencies responding to events
+ * or making policy announcements. Uses formal, bureaucratic tone while
+ * referencing specific events and actors.
+ * 
+ * Returns XML with government statement and metadata.
+ */
 export const governmentPost = definePrompt({
   id: 'government-post',
   version: '2.0.0',

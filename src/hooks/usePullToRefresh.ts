@@ -28,8 +28,36 @@ interface HTMLDivElementWithPTR extends HTMLDivElement {
 }
 
 /**
- * Pull-to-refresh hook
- * Touch and wheel both show visual pull feedback
+ * Hook for implementing pull-to-refresh functionality.
+ * 
+ * Supports both touch gestures (mobile) and mouse wheel (desktop) for triggering
+ * refresh actions. Provides visual feedback during pull and handles edge cases
+ * like preventing duplicate refreshes and managing scroll state.
+ * 
+ * Features:
+ * - Touch gesture support for mobile devices
+ * - Mouse wheel support for desktop
+ * - Visual pull distance feedback
+ * - Automatic refresh triggering at threshold
+ * - Prevents duplicate refresh calls
+ * - Respects scroll position
+ * 
+ * @param options - Configuration options including refresh callback and thresholds
+ * 
+ * @returns Pull-to-refresh state and control functions:
+ * - `pullDistance`: Current pull distance in pixels
+ * - `isRefreshing`: Whether refresh is currently in progress
+ * - `containerRef`: Ref callback to attach to scrollable container
+ * - `triggerRefresh`: Function to manually trigger refresh
+ * 
+ * @example
+ * const { pullDistance, isRefreshing, containerRef } = usePullToRefresh({
+ *   onRefresh: async () => {
+ *     await fetchData();
+ *   },
+ *   threshold: 80,
+ *   maxPullDistance: 150
+ * });
  */
 export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshReturn {
   const {

@@ -9,6 +9,11 @@ import type { JsonValue } from "@/types/common";
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
 
+/**
+ * Chart configuration type for defining chart data series styling.
+ * 
+ * Maps data keys to label, icon, and color/theme configuration.
+ */
 export type ChartConfig = {
   [k in string]: {
     label?: React.ReactNode;
@@ -25,6 +30,14 @@ type ChartContextProps = {
 
 const ChartContext = React.createContext<ChartContextProps | null>(null);
 
+/**
+ * Hook to access chart context.
+ * 
+ * Must be used within a ChartContainer. Returns chart configuration.
+ * 
+ * @returns Chart context with config
+ * @throws Error if used outside ChartContainer
+ */
 function useChart() {
   const context = React.useContext(ChartContext);
 
@@ -35,6 +48,22 @@ function useChart() {
   return context;
 }
 
+/**
+ * Chart container component for wrapping Recharts charts.
+ * 
+ * Provides chart context and responsive container. Generates unique chart ID
+ * and injects CSS variables for theming. Wraps Recharts ResponsiveContainer.
+ * 
+ * @param props - ChartContainer component props
+ * @returns Chart container element with context provider
+ * 
+ * @example
+ * ```tsx
+ * <ChartContainer config={chartConfig}>
+ *   <LineChart>...</LineChart>
+ * </ChartContainer>
+ * ```
+ */
 function ChartContainer({
   id,
   className,
@@ -70,6 +99,15 @@ function ChartContainer({
   );
 }
 
+/**
+ * Chart style component that injects CSS variables for theming.
+ * 
+ * Generates CSS custom properties for chart colors based on config.
+ * Supports light/dark theme variants.
+ * 
+ * @param props - ChartStyle component props
+ * @returns Style element or null if no color config
+ */
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color
@@ -103,8 +141,23 @@ ${colorConfig
   );
 };
 
+/**
+ * Chart tooltip component from Recharts.
+ * 
+ * Re-exported Recharts Tooltip primitive.
+ */
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+/**
+ * Chart tooltip content component with custom styling.
+ * 
+ * Custom tooltip content for charts with indicator types (dot, line, dashed),
+ * label formatting, and payload filtering. Supports custom formatters and
+ * label display options.
+ * 
+ * @param props - ChartTooltipContent component props
+ * @returns Tooltip content element or null if not active
+ */
 function ChartTooltipContent({
   active,
   payload,
@@ -295,8 +348,22 @@ function ChartTooltipContent({
   );
 }
 
+/**
+ * Chart legend component from Recharts.
+ * 
+ * Re-exported Recharts Legend primitive.
+ */
 const ChartLegend = RechartsPrimitive.Legend;
 
+/**
+ * Chart legend content component with custom styling.
+ * 
+ * Custom legend content for charts with icon support and vertical alignment.
+ * Displays legend items with icons or color indicators.
+ * 
+ * @param props - ChartLegendContent component props
+ * @returns Legend content element or null if no payload
+ */
 function ChartLegendContent({
   className,
   hideIcon = false,
@@ -359,7 +426,17 @@ function ChartLegendContent({
   );
 }
 
-// Helper to extract item config from a payload.
+/**
+ * Helper function to extract chart item configuration from payload.
+ * 
+ * Extracts configuration from chart payload data, checking both direct
+ * payload properties and nested payload.payload properties.
+ * 
+ * @param config - Chart configuration object
+ * @param payload - Payload data from chart
+ * @param key - Key to look up in config
+ * @returns Chart item configuration or undefined
+ */
 function getPayloadConfigFromPayload(
   config: ChartConfig,
   payload: JsonValue,

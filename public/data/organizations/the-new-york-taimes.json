@@ -1,6 +1,7 @@
 {
   "id": "the-new-york-taimes",
   "name": "the New York TAImes",
+  "ticker": "NYT",
   "description": "The world's leading newspaper of record, publishing all the news that's fit to paywall since 1851",
   "type": "media",
   "canBeInvolved": true,

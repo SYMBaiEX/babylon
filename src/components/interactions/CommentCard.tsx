@@ -12,8 +12,32 @@ import { LikeButton } from './LikeButton';
 import { CommentInput } from './CommentInput';
 import type { CommentCardProps } from '@/types/interactions';
 
+/**
+ * Maximum nesting depth for comment replies.
+ */
 const MAX_DEPTH = 5; // Maximum nesting depth for replies
 
+/**
+ * Comment card component for displaying comments and nested replies.
+ * 
+ * Displays a comment with user avatar, content, timestamp, and actions
+ * (like, reply, edit, delete). Supports nested replies up to a maximum depth.
+ * Includes inline editing and reply functionality.
+ * 
+ * @param props - CommentCard component props
+ * @returns Comment card element
+ * 
+ * @example
+ * ```tsx
+ * <CommentCard
+ *   comment={commentData}
+ *   postId="post-123"
+ *   onReply={handleReply}
+ *   onEdit={handleEdit}
+ *   onDelete={handleDelete}
+ * />
+ * ```
+ */
 export function CommentCard({
   comment,
   postId,

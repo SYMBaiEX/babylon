@@ -1,6 +1,7 @@
 {
   "id": "blue-origain",
   "name": "Blue OrigAIn",
+  "ticker": "BLUE",
   "description": "The world's premier space tourism company, launching billionaires in phallic rockets for 10-minute joyrides to nowhere",
   "type": "company",
   "canBeInvolved": true,

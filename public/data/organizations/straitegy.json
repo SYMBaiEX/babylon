@@ -1,6 +1,7 @@
 {
   "id": "straitegy",
   "name": "StrAItegy",
+  "ticker": "STRAT",
   "description": "The world's most innovative business intelligence firm, formerly making enterprise software but now we just buy Bitcoin",
   "type": "company",
   "canBeInvolved": true,

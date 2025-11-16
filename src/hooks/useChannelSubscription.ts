@@ -5,8 +5,24 @@ import { useSSEChannel } from './useSSE'
 import type { Channel } from './useSSE'
 
 /**
- * Hook for subscribing to a channel for real-time updates
- * Uses Server-Sent Events (SSE) instead of WebSocket for Vercel compatibility
+ * Hook for subscribing to a channel for real-time updates.
+ * 
+ * Uses Server-Sent Events (SSE) instead of WebSocket for Vercel compatibility.
+ * Automatically handles subscription lifecycle and ensures the callback always
+ * receives the latest version without causing re-subscriptions.
+ * 
+ * @param channel - The channel name to subscribe to, or null to unsubscribe.
+ * @param onUpdate - Callback function called when updates are received for the channel.
+ * The callback receives the update data as a record of key-value pairs.
+ * 
+ * @returns An object with `isSubscribed` boolean indicating subscription status.
+ * 
+ * @example
+ * ```tsx
+ * const { isSubscribed } = useChannelSubscription('markets', (data) => {
+ *   console.log('Market update:', data);
+ * });
+ * ```
  */
 export function useChannelSubscription(
   channel: Channel | null,

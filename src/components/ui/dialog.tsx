@@ -1,6 +1,22 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Dialog component for displaying modal dialogs.
+ * 
+ * Provides a modal dialog overlay with backdrop. Closes when backdrop
+ * is clicked or onOpenChange is called. Only renders when open is true.
+ * 
+ * @param props - Dialog component props
+ * @returns Dialog element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <Dialog open={isOpen} onOpenChange={setIsOpen}>
+ *   <DialogContent>...</DialogContent>
+ * </Dialog>
+ * ```
+ */
 export interface DialogProps extends React.ComponentPropsWithoutRef<'div'> {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -24,6 +40,15 @@ export const Dialog = ({ children, open, onOpenChange, className, ...props }: Di
   );
 };
 
+/**
+ * Dialog content container component.
+ * 
+ * Wraps the dialog content with styling and prevents click propagation.
+ * Includes fade-in and zoom-in animations.
+ * 
+ * @param props - DialogContent component props
+ * @returns Dialog content element
+ */
 export type DialogContentProps = React.ComponentPropsWithoutRef<'div'>;
 
 export const DialogContent = ({ children, className, ...props }: DialogContentProps) => {
@@ -42,6 +67,15 @@ export const DialogContent = ({ children, className, ...props }: DialogContentPr
   );
 };
 
+/**
+ * Dialog header container component.
+ * 
+ * Provides layout for dialog title and description with responsive
+ * text alignment (center on mobile, left on desktop).
+ * 
+ * @param props - DialogHeader component props
+ * @returns Dialog header element
+ */
 export type DialogHeaderProps = React.ComponentPropsWithoutRef<'div'>;
 
 export const DialogHeader = ({ children, className, ...props }: DialogHeaderProps) => {
@@ -52,6 +86,14 @@ export const DialogHeader = ({ children, className, ...props }: DialogHeaderProp
   );
 };
 
+/**
+ * Dialog title component.
+ * 
+ * Displays the dialog title with semibold font and tight tracking.
+ * 
+ * @param props - DialogTitle component props
+ * @returns Dialog title element
+ */
 export type DialogTitleProps = React.ComponentPropsWithoutRef<'h2'>;
 
 export const DialogTitle = ({ children, className, ...props }: DialogTitleProps) => {
@@ -62,6 +104,14 @@ export const DialogTitle = ({ children, className, ...props }: DialogTitleProps)
   );
 };
 
+/**
+ * Dialog description component.
+ * 
+ * Displays dialog description text with muted foreground color.
+ * 
+ * @param props - DialogDescription component props
+ * @returns Dialog description element
+ */
 export type DialogDescriptionProps = React.ComponentPropsWithoutRef<'p'>;
 
 export const DialogDescription = ({ children, className, ...props }: DialogDescriptionProps) => {
@@ -72,6 +122,15 @@ export const DialogDescription = ({ children, className, ...props }: DialogDescr
   );
 };
 
+/**
+ * Dialog footer container component.
+ * 
+ * Provides layout for action buttons with responsive column/row
+ * layout (column on mobile, row on desktop).
+ * 
+ * @param props - DialogFooter component props
+ * @returns Dialog footer element
+ */
 export type DialogFooterProps = React.ComponentPropsWithoutRef<'div'>;
 
 export const DialogFooter = ({ children, className, ...props }: DialogFooterProps) => {

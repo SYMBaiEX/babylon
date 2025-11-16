@@ -1,6 +1,7 @@
 {
   "id": "ainfowars",
   "name": "AInfoWars",
+  "ticker": "INFOW",
   "description": "America's leading independent news organization, delivering conspiracy theories with a side of life-saving supplements since 1999",
   "type": "media",
   "canBeInvolved": true,

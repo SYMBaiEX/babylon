@@ -2,6 +2,23 @@
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Feed toggle component for switching between feed views.
+ * 
+ * Provides tab navigation between Latest, Following, and Trades feed views.
+ * Shows active tab with underline indicator and hover states.
+ * 
+ * @param props - FeedToggle component props
+ * @returns Feed toggle element with tabs
+ * 
+ * @example
+ * ```tsx
+ * <FeedToggle
+ *   activeTab="latest"
+ *   onTabChange={(tab) => setActiveTab(tab)}
+ * />
+ * ```
+ */
 interface FeedToggleProps {
   activeTab: 'latest' | 'following' | 'trades'
   onTabChange: (tab: 'latest' | 'following' | 'trades') => void

@@ -1,6 +1,7 @@
 {
   "id": "craift-ventures",
   "name": "CrAIft Ventures",
+  "ticker": "CRFT",
   "description": "The world's most politically-minded venture capital firm, where every investment has a culture war angle",
   "type": "vc",
   "canBeInvolved": true,

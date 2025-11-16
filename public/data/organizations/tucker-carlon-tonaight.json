@@ -1,6 +1,7 @@
 {
   "id": "tucker-carlon-tonaight",
   "name": "Tucker Carlon TonAIght",
+  "ticker": "TCKR",
   "description": "America's most authentic independent news show, broadcasting confused face journalism from a garden shed since 2023",
   "type": "media",
   "canBeInvolved": true,

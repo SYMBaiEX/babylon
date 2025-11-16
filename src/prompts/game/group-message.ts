@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating individual private group chat messages with insider info.
+ * 
+ * Creates a single private group chat message containing insider trading
+ * information, strategic revelations, or confidential discussions. Messages
+ * provide exclusive information to group members.
+ * 
+ * Returns XML with group message content.
+ */
 export const groupMessage = definePrompt({
   id: 'group-message',
   version: '2.0.0',

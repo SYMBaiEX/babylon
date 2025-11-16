@@ -9,6 +9,22 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 
+/**
+ * Wallet balance component displaying user balance and lifetime PnL.
+ * 
+ * Shows current available balance and lifetime profit/loss in a compact
+ * card format. Automatically refreshes when refreshTrigger changes.
+ * Only displays when user is authenticated. Color-codes balance based on
+ * starting balance ($1000) and shows profit/loss indicators.
+ * 
+ * @param props - WalletBalance component props
+ * @returns Wallet balance element or null if not authenticated
+ * 
+ * @example
+ * ```tsx
+ * <WalletBalance refreshTrigger={Date.now()} />
+ * ```
+ */
 interface WalletBalanceProps {
   refreshTrigger?: number; // Timestamp or counter to force refresh
 }

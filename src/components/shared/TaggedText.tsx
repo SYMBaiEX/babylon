@@ -2,16 +2,30 @@
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Tagged text component for parsing and highlighting social tags.
+ * 
+ * Parses and highlights @mentions, #hashtags, and $cashtags in text.
+ * Tags are clickable and styled in blue with hover effects. Handles
+ * edge cases like null/undefined text and empty strings gracefully.
+ * 
+ * @param props - TaggedText component props
+ * @returns Tagged text element with highlighted tags
+ * 
+ * @example
+ * ```tsx
+ * <TaggedText
+ *   text="Check out @username and #hashtag $AAPL"
+ *   onTagClick={(tag) => console.log('Clicked:', tag)}
+ * />
+ * ```
+ */
 interface TaggedTextProps {
   text: string
   onTagClick?: (tag: string) => void
   className?: string
 }
 
-/**
- * Component that parses and highlights @mentions, #hashtags, and $cashtags
- * Tags are clickable and styled in blue
- */
 export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
   // Handle null, undefined, or non-string text - return plain text
   if (!text || typeof text !== 'string') {

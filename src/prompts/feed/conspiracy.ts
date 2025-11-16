@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating conspiracy theorist takes on world events.
+ * 
+ * Creates satirical conspiracy theory posts from characters who see
+ * hidden connections and secret plots in events. Uses conspiratorial
+ * tone with wild connections and speculation.
+ * 
+ * Returns XML with conspiracy theory posts and metadata.
+ */
 export const conspiracy = definePrompt({
   id: 'conspiracy',
   version: '2.0.0',

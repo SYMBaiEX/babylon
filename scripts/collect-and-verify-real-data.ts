@@ -78,7 +78,7 @@ async function collectRealTrajectories() {
     if (count === 0) {
       console.log('ℹ️  No trajectories yet. Generate some first:');
       console.log('  npx tsx scripts/generate-test-trajectories.ts\n');
-      return [];
+      return 0;
     }
     
     // Get sample to verify it's real data

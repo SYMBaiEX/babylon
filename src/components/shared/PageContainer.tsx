@@ -2,6 +2,22 @@ import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 import { forwardRef } from 'react'
 
+/**
+ * Page container component for consistent page layout.
+ * 
+ * Provides a standardized container with consistent padding and responsive
+ * behavior. Supports optional padding removal and custom className.
+ * 
+ * @param props - PageContainer component props
+ * @returns Page container element
+ * 
+ * @example
+ * ```tsx
+ * <PageContainer noPadding>
+ *   <h1>Page Content</h1>
+ * </PageContainer>
+ * ```
+ */
 interface PageContainerProps {
   children: ReactNode
   className?: string

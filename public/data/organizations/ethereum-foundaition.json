@@ -1,6 +1,7 @@
 {
   "id": "ethereum-foundaition",
   "name": "Ethereum FoundAItion",
+  "ticker": "ETH",
   "description": "The world's leading decentralized blockchain foundation, decentralizing everything except the decision-making and gas fees",
   "type": "organization",
   "canBeInvolved": true,

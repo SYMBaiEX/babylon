@@ -8,8 +8,19 @@
  */
 
 /**
- * CURRENT DATE & TIME CONTEXT
- * Updated dynamically at generation time
+ * Get current date and time context for prompts.
+ * 
+ * Returns various formatted date/time strings updated dynamically
+ * at generation time. Used to ensure all generated content references
+ * the current date correctly.
+ * 
+ * @returns Object containing:
+ *   - `dateISO`: ISO 8601 formatted date string
+ *   - `dateFull`: Full human-readable date (e.g., "Monday, November 16, 2025")
+ *   - `time`: Formatted time (e.g., "3:45 PM")
+ *   - `year`: Current year as string
+ *   - `month`: Current month name (e.g., "November")
+ *   - `day`: Current day of month as string
  */
 export function getCurrentDateContext(): {
   dateISO: string;
@@ -139,8 +150,13 @@ When generating content:
 `.trim();
 
 /**
- * Get a concise reality grounding string for prompts
- * Includes current date dynamically
+ * Get a concise reality grounding string for prompts.
+ * 
+ * Returns a condensed version of current world facts including prices,
+ * leadership, AI state, and key 2025 context. Includes current date
+ * dynamically. Suitable for most prompts that need reality grounding.
+ * 
+ * @returns Concise reality grounding string with current date and key facts
  */
 export function getRealityGrounding(): string {
   const dateCtx = getCurrentDateContext();
@@ -175,7 +191,12 @@ CRITICAL: Ground all predictions in this reality. BTC is at $95K (not $30K). Tru
 }
 
 /**
- * Get a minimal reality check string for quick context
+ * Get a minimal reality check string for quick context.
+ * 
+ * Returns a very brief one-line summary of key current facts.
+ * Useful when token limits are tight or only basic grounding is needed.
+ * 
+ * @returns Minimal one-line reality grounding string
  */
 export function getMinimalRealityGrounding(): string {
   const dateCtx = getCurrentDateContext();
@@ -183,8 +204,17 @@ export function getMinimalRealityGrounding(): string {
 }
 
 /**
- * Reality check for generated content
- * Returns warnings if content seems outdated
+ * Reality check for generated content.
+ * 
+ * Validates that content references current reality (prices, dates, leadership).
+ * Returns warnings if outdated references are detected, such as:
+ * - Outdated cryptocurrency prices (e.g., Bitcoin at $30K instead of $95K)
+ * - Wrong president (Biden instead of Trump)
+ * - Outdated AI models (GPT-4 instead of GPT-5.1)
+ * - Outdated iPhone models (iPhone 14/15 instead of iPhone 17)
+ * 
+ * @param text - The generated content to check
+ * @returns Array of warning messages about outdated references
  */
 export function checkRealityGrounding(text: string): string[] {
   const warnings: string[] = [];

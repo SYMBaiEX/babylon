@@ -3,17 +3,46 @@
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/**
+ * Props for the EmptyState component.
+ */
 interface EmptyStateProps {
+  /** Optional icon to display */
   icon?: LucideIcon;
+  /** Title text */
   title: string;
+  /** Description text */
   description: string;
+  /** Optional action button */
   action?: {
+    /** Button label */
     label: string;
+    /** Button click handler */
     onClick: () => void;
   };
+  /** Additional CSS classes */
   className?: string;
 }
 
+/**
+ * Empty state component for displaying when there's no content.
+ * 
+ * Shows a centered message with optional icon and action button.
+ * Used to indicate empty lists, no results, or initial states.
+ * 
+ * @param props - EmptyState component props
+ * @returns Empty state element
+ * 
+ * @example
+ * ```tsx
+ * <EmptyState
+ *   icon={Inbox}
+ *   title="No messages"
+ *   description="You don't have any messages yet"
+ *   action={{ label: "Send Message", onClick: handleSend }}
+ * />
+ * ```
+ */
 export function EmptyState({
   icon: Icon,
   title,

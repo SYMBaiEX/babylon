@@ -1,6 +1,7 @@
 {
   "id": "ciai",
   "name": "CIAI",
+  "ticker": "CIA",
   "description": "America's premier intelligence agency, delivering regime change with excellent customer support since 1947",
   "type": "government",
   "canBeInvolved": true,

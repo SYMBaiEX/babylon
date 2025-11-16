@@ -1,6 +1,7 @@
 {
   "id": "founders-faind",
   "name": "Founders FAInd",
+  "ticker": "FNDR",
   "description": "The world's most contrarian venture capital firm, pioneering the libertarian-to-defense-contractor pipeline since 2005",
   "type": "vc",
   "canBeInvolved": true,

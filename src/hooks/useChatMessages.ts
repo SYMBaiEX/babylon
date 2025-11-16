@@ -1,25 +1,62 @@
-/**
- * useChatMessages Hook
- * 
- * Manages chat messages with SSE for real-time updates
- * Replaces WebSocket-based useChatMessages from useWebSocket
- */
-
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSSEChannel } from './useSSE';
 import { logger } from '@/lib/logger';
 
+/**
+ * Represents a chat message in the system.
+ */
 export interface ChatMessage {
+  /** Unique message identifier */
   id: string;
+  /** Message content/text */
   content: string;
+  /** ID of the chat this message belongs to */
   chatId: string;
+  /** ID of the user who sent the message */
   senderId: string;
+  /** ISO timestamp when the message was created */
   createdAt: string;
+  /** Whether this is a game chat message */
   isGameChat?: boolean;
 }
 
 /**
- * Hook for managing chat messages with real-time SSE updates
+ * Hook for managing chat messages with real-time SSE updates.
+ * 
+ * Provides comprehensive chat message management including:
+ * - Initial message loading with pagination
+ * - Real-time message updates via SSE
+ * - Message history pagination (load more)
+ * - Automatic deduplication
+ * - Polling fallback for multi-instance serverless environments
+ * 
+ * Replaces the previous WebSocket-based implementation with SSE for better
+ * Vercel compatibility. Messages are automatically sorted by timestamp.
+ * 
+ * @param chatId - The ID of the chat to load messages for, or null to clear messages.
+ * 
+ * @returns An object containing:
+ * - `messages`: Array of chat messages sorted by timestamp
+ * - `isLoading`: Whether initial messages are being loaded
+ * - `isLoadingMore`: Whether more messages are being loaded (pagination)
+ * - `hasMore`: Whether there are more messages to load
+ * - `loadMore`: Function to load older messages
+ * - `addMessage`: Function to manually add a message to the list
+ * - `clearMessages`: Function to clear all messages
+ * - `reloadMessages`: Function to reload messages from the API
+ * - `isConnected`: Whether SSE connection is active
+ * 
+ * @example
+ * ```tsx
+ * const { messages, isLoading, loadMore, hasMore } = useChatMessages(chatId);
+ * 
+ * return (
+ *   <div>
+ *     {messages.map(msg => <div key={msg.id}>{msg.content}</div>)}
+ *     {hasMore && <button onClick={loadMore}>Load More</button>}
+ *   </div>
+ * );
+ * ```
  */
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

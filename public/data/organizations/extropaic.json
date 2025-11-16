@@ -1,6 +1,7 @@
 {
   "id": "extropaic",
   "name": "ExtropAIc",
+  "ticker": "XTRPC",
   "description": "The world's first thermodynamic computing company, accelerating towards AGI at maximum entropy because physics demands it",
   "type": "company",
   "canBeInvolved": true,

@@ -5,6 +5,21 @@ import Link from 'next/link'
 import { Trophy, Copy, Check, ExternalLink, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 
+/**
+ * Invite friends banner component for referral program.
+ * 
+ * Displays a banner encouraging users to invite friends and earn referral
+ * rewards. Shows referral code, copy functionality, and tracks banner views
+ * and dismissals. Links to rewards page for more details.
+ * 
+ * @param props - InviteFriendsBanner component props
+ * @returns Invite friends banner element or null if no referral code
+ * 
+ * @example
+ * ```tsx
+ * <InviteFriendsBanner onDismiss={() => console.log('dismissed')} />
+ * ```
+ */
 interface InviteFriendsBannerProps {
   onDismiss?: () => void
 }

@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating real-time ambient posts for continuous minute-level generation.
+ * 
+ * Creates short, casual ambient posts optimized for frequent generation
+ * (every minute). Provides continuous atmosphere and world-building
+ * without major event context.
+ * 
+ * Returns XML with brief ambient post.
+ */
 export const minuteAmbient = definePrompt({
   id: 'minute-ambient',
   version: '2.0.0',

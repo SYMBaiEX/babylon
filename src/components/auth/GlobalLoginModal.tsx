@@ -5,6 +5,15 @@ import { useLoginModal } from '@/hooks/useLoginModal'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
+/**
+ * Global login modal content component.
+ * 
+ * Connects to the global login modal state and displays LoginModal when needed.
+ * Automatically hides on production home page unless dev mode is enabled.
+ * Uses Zustand store for global state management.
+ * 
+ * @returns Global login modal element or null if hidden/not open
+ */
 function GlobalLoginModalContent() {
   const { isOpen, closeLoginModal, title, message } = useLoginModal()
   const searchParams = useSearchParams()
@@ -32,6 +41,14 @@ function GlobalLoginModalContent() {
   )
 }
 
+/**
+ * Global login modal component wrapper with Suspense boundary.
+ * 
+ * Wraps GlobalLoginModalContent in a Suspense boundary to handle async navigation
+ * hooks gracefully. Provides a global login modal accessible throughout the app.
+ * 
+ * @returns Global login modal element wrapped in Suspense
+ */
 export function GlobalLoginModal() {
   return (
     <Suspense fallback={null}>

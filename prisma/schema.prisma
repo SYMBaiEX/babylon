@@ -692,6 +692,7 @@ model OracleTransaction {
 model Organization {
   id            String       @id
   name          String
+  ticker        String?      // 4-6 character trading ticker (e.g., METAI, NVDAI, AINDRL)
   description   String
   type          String
   canBeInvolved Boolean      @default(true)
@@ -704,6 +705,7 @@ model Organization {
 
   @@index([currentPrice])
   @@index([type])
+  @@index([ticker])
 }
 
 model PerpPosition {

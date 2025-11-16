@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating multiple corporate PR statements and responses to events.
+ * 
+ * Creates batch corporate posts from companies responding to events or
+ * making announcements. Uses professional corporate tone and references
+ * specific market impacts and events.
+ * 
+ * Returns XML with multiple corporate post entries.
+ */
 export const companyPosts = definePrompt({
   id: 'company-posts',
   version: '2.0.0',

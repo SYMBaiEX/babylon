@@ -3,6 +3,22 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Alert dialog component for displaying modal confirmations and alerts.
+ * 
+ * Provides a modal dialog overlay with backdrop blur. Closes when backdrop
+ * is clicked or onOpenChange is called. Only renders when open is true.
+ * 
+ * @param props - AlertDialog component props
+ * @returns Alert dialog element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+ *   <AlertDialogContent>...</AlertDialogContent>
+ * </AlertDialog>
+ * ```
+ */
 interface AlertDialogProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -27,6 +43,15 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
   )
 }
 
+/**
+ * Alert dialog content container component.
+ * 
+ * Wraps the dialog content with styling and prevents click propagation.
+ * Includes fade-in and zoom-in animations.
+ * 
+ * @param props - AlertDialogContent component props
+ * @returns Alert dialog content element
+ */
 interface AlertDialogContentProps {
   children: React.ReactNode
   className?: string
@@ -47,6 +72,15 @@ export function AlertDialogContent({ children, className }: AlertDialogContentPr
   )
 }
 
+/**
+ * Alert dialog header container component.
+ * 
+ * Provides layout for dialog title and description with responsive
+ * text alignment (center on mobile, left on desktop).
+ * 
+ * @param props - AlertDialogHeader component props
+ * @returns Alert dialog header element
+ */
 interface AlertDialogHeaderProps {
   children: React.ReactNode
   className?: string
@@ -60,6 +94,14 @@ export function AlertDialogHeader({ children, className }: AlertDialogHeaderProp
   )
 }
 
+/**
+ * Alert dialog title component.
+ * 
+ * Displays the dialog title with semibold font styling.
+ * 
+ * @param props - AlertDialogTitle component props
+ * @returns Alert dialog title element
+ */
 interface AlertDialogTitleProps {
   children: React.ReactNode
   className?: string
@@ -73,6 +115,14 @@ export function AlertDialogTitle({ children, className }: AlertDialogTitleProps)
   )
 }
 
+/**
+ * Alert dialog description component.
+ * 
+ * Displays dialog description text with muted foreground color.
+ * 
+ * @param props - AlertDialogDescription component props
+ * @returns Alert dialog description element
+ */
 interface AlertDialogDescriptionProps {
   children: React.ReactNode
   className?: string
@@ -86,6 +136,15 @@ export function AlertDialogDescription({ children, className }: AlertDialogDescr
   )
 }
 
+/**
+ * Alert dialog footer container component.
+ * 
+ * Provides layout for action buttons with responsive column/row
+ * layout (column on mobile, row on desktop).
+ * 
+ * @param props - AlertDialogFooter component props
+ * @returns Alert dialog footer element
+ */
 interface AlertDialogFooterProps {
   children: React.ReactNode
   className?: string
@@ -99,6 +158,15 @@ export function AlertDialogFooter({ children, className }: AlertDialogFooterProp
   )
 }
 
+/**
+ * Alert dialog action button component.
+ * 
+ * Primary action button for alert dialogs with primary styling.
+ * Extends standard button HTML attributes.
+ * 
+ * @param props - AlertDialogAction component props
+ * @returns Alert dialog action button element
+ */
 interface AlertDialogActionProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode
   className?: string
@@ -122,6 +190,15 @@ export function AlertDialogAction({ children, className, ...props }: AlertDialog
   )
 }
 
+/**
+ * Alert dialog cancel button component.
+ * 
+ * Secondary/cancel action button for alert dialogs with outline styling.
+ * Extends standard button HTML attributes.
+ * 
+ * @param props - AlertDialogCancel component props
+ * @returns Alert dialog cancel button element
+ */
 interface AlertDialogCancelProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode
   className?: string

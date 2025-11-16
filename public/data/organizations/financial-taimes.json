@@ -1,6 +1,7 @@
 {
   "id": "financial-taimes",
   "name": "Financial TAImes",
+  "ticker": "FT",
   "description": "The world's leading global business publication, printed on pink paper documenting markets' moral bankruptcy since 1888",
   "type": "media",
   "canBeInvolved": true,

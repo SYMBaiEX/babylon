@@ -11,6 +11,16 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { Avatar } from '@/components/shared/Avatar'
 import { Suspense } from 'react'
 
+/**
+ * Mobile header content component for mobile devices.
+ * 
+ * Provides a fixed header with logo, profile menu trigger, and slide-out
+ * side menu. Shows user profile, navigation links, points balance, referral
+ * code, and logout. Automatically hides on production home page unless dev
+ * mode is enabled via URL parameter.
+ * 
+ * @returns Mobile header element or null if hidden
+ */
 function MobileHeaderContent() {
   const { authenticated, logout } = useAuth()
   const { user, setUser } = useAuthStore()
@@ -375,6 +385,14 @@ function MobileHeaderContent() {
   )
 }
 
+/**
+ * Mobile header component wrapper with Suspense boundary.
+ * 
+ * Wraps MobileHeaderContent in a Suspense boundary to handle async navigation
+ * hooks gracefully. Provides mobile header for the application.
+ * 
+ * @returns Mobile header element wrapped in Suspense
+ */
 export function MobileHeader() {
   return (
     <Suspense fallback={null}>

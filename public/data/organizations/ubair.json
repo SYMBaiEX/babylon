@@ -1,6 +1,7 @@
 {
   "id": "ubair",
   "name": "UbAIr",
+  "ticker": "UBER",
   "description": "The world's leading rideshare platform, pioneering the gig economy where workers own nothing but the privilege of driving",
   "type": "company",
   "canBeInvolved": true,

@@ -8,6 +8,9 @@ import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Waitlist data structure containing user position and points information.
+ */
 interface WaitlistData {
   position: number          // Leaderboard rank (dynamic)
   leaderboardRank: number   // Same as position
@@ -26,6 +29,9 @@ interface WaitlistData {
   referralCount: number
 }
 
+/**
+ * Top user structure for leaderboard display.
+ */
 interface TopUser {
   id: string
   username: string | null
@@ -37,6 +43,23 @@ interface TopUser {
   rank: number
 }
 
+/**
+ * Coming soon / waitlist page component.
+ * 
+ * Displays a landing page for unauthenticated users with signup option,
+ * and a waitlist position dashboard for authenticated users. Handles:
+ * - User onboarding and waitlist registration
+ * - Referral code generation and sharing
+ * - Points tracking and leaderboard display
+ * - Email and wallet bonus awards
+ * 
+ * Shows different states:
+ * - Unauthenticated: Landing page with signup button
+ * - Loading: Loading spinner while fetching waitlist data
+ * - Authenticated: Waitlist position, points, leaderboard, and referral tools
+ * 
+ * @returns Coming soon page element
+ */
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
   const { user: dbUser } = useAuth()

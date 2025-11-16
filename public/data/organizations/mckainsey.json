@@ -1,6 +1,7 @@
 {
   "id": "mckainsey",
   "name": "McKAInsey",
+  "ticker": "MCKS",
   "description": "The world's leading management consulting firm, optimizing your company into irrelevance one PowerPoint at a time since 1926",
   "type": "company",
   "canBeInvolved": true,

@@ -22,28 +22,35 @@ async function buildTickerMap(): Promise<Map<string, OrganizationTicker>> {
     where: { type: 'company' },
     select: {
       id: true,
+      ticker: true,
       currentPrice: true,
       initialPrice: true,
     },
   });
 
-  // Map both raw org IDs and transformed tickers to handle both formats
+  // Map both raw org IDs and tickers to handle both formats
   const map = new Map<string, OrganizationTicker>();
   
   for (const org of organizations) {
+    const ticker = org.ticker || org.id.toUpperCase().replace(/-/g, '');
     const entry = {
       id: org.id,
       currentPrice: org.currentPrice,
       initialPrice: org.initialPrice,
-      ticker: org.id, // Use raw org ID
+      ticker,
     };
     
-    // Add mapping for raw org ID
+    // Add mapping for org ID
     map.set(org.id, entry);
+    
+    // Add mapping for ticker (primary way to reference)
+    map.set(ticker, entry);
     
     // Also add mapping for transformed ticker for backwards compatibility
     const transformedTicker = org.id.toUpperCase().replace(/-/g, '');
-    map.set(transformedTicker, entry);
+    if (transformedTicker !== ticker) {
+      map.set(transformedTicker, entry);
+    }
   }
   
   return map;

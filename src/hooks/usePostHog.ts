@@ -1,11 +1,31 @@
-/**
- * PostHog Tracking Hooks
- * Convenient hooks for tracking events throughout the app
- */
-
 import { useCallback } from 'react'
 import { posthog } from '@/lib/posthog/client'
 
+/**
+ * Main PostHog analytics hook for tracking events throughout the app.
+ * 
+ * Provides convenient methods for tracking various types of user interactions
+ * and events. All events include automatic timestamps. Only tracks when
+ * PostHog is initialized and in a browser environment.
+ * 
+ * @returns An object containing tracking functions:
+ * - `track`: Generic event tracking
+ * - `trackAction`: Track user actions with automatic 'user_' prefix
+ * - `trackNavigation`: Track page navigation events
+ * - `trackClick`: Track button clicks
+ * - `trackFormSubmit`: Track form submissions with success status
+ * - `trackError`: Track errors and exceptions
+ * - `posthog`: Direct access to PostHog client instance
+ * 
+ * @example
+ * ```tsx
+ * const { track, trackClick, trackError } = usePostHog();
+ * 
+ * const handleClick = () => {
+ *   trackClick('buy_button', { marketId: '123' });
+ * };
+ * ```
+ */
 export function usePostHog() {
   // Track generic event
   const track = useCallback((event: string, properties?: Record<string, unknown>) => {
@@ -75,7 +95,21 @@ export function usePostHog() {
 }
 
 /**
- * Hook for tracking signup and onboarding
+ * Hook for tracking signup and onboarding events.
+ * 
+ * Specialized tracking functions for user registration and onboarding flows.
+ * Helps measure conversion rates and identify drop-off points in the signup process.
+ * 
+ * @returns Tracking functions for signup and onboarding events.
+ * 
+ * @example
+ * ```tsx
+ * const { trackSignupStarted, trackSignupCompleted } = useSignupTracking();
+ * 
+ * useEffect(() => {
+ *   trackSignupStarted();
+ * }, []);
+ * ```
  */
 export function useSignupTracking() {
   const { track } = usePostHog()
@@ -119,7 +153,21 @@ export function useSignupTracking() {
 }
 
 /**
- * Hook for tracking market/trading actions
+ * Hook for tracking market and trading actions.
+ * 
+ * Specialized tracking functions for market views, trades, and pool actions.
+ * Helps analyze trading behavior and market engagement.
+ * 
+ * @returns Tracking functions for market-related events.
+ * 
+ * @example
+ * ```tsx
+ * const { trackMarketView, trackTrade } = useMarketTracking();
+ * 
+ * useEffect(() => {
+ *   trackMarketView(marketId, 'prediction');
+ * }, [marketId]);
+ * ```
  */
 export function useMarketTracking() {
   const { track } = usePostHog()
@@ -170,7 +218,21 @@ export function useMarketTracking() {
 }
 
 /**
- * Hook for tracking social interactions
+ * Hook for tracking social interactions and content engagement.
+ * 
+ * Specialized tracking functions for posts, likes, comments, follows, and shares.
+ * Helps measure social engagement and content performance.
+ * 
+ * @returns Tracking functions for social interaction events.
+ * 
+ * @example
+ * ```tsx
+ * const { trackPostLike, trackFollow } = useSocialTracking();
+ * 
+ * const handleLike = () => {
+ *   trackPostLike(postId, true);
+ * };
+ * ```
  */
 export function useSocialTracking() {
   const { track } = usePostHog()
@@ -225,7 +287,23 @@ export function useSocialTracking() {
 }
 
 /**
- * Hook for tracking page performance
+ * Hook for tracking page performance and API call metrics.
+ * 
+ * Specialized tracking functions for measuring page load times and API
+ * performance. Helps identify performance bottlenecks and optimize user experience.
+ * 
+ * @returns Tracking functions for performance metrics.
+ * 
+ * @example
+ * ```tsx
+ * const { trackPageLoad, trackAPICall } = usePerformanceTracking();
+ * 
+ * useEffect(() => {
+ *   const start = Date.now();
+ *   // ... page loads ...
+ *   trackPageLoad('home', Date.now() - start);
+ * }, []);
+ * ```
  */
 export function usePerformanceTracking() {
   const { track } = usePostHog()

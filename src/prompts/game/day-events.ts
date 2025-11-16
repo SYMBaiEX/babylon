@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating day-by-day event descriptions with narrative context.
+ * 
+ * Creates detailed event descriptions for each day of the game, including
+ * narrative context, actor involvement, and market impacts. Events drive
+ * the game's story and affect prediction markets.
+ * 
+ * Returns XML with day event descriptions.
+ */
 export const dayEvents = definePrompt({
   id: 'event-descriptions',
   version: '2.0.0',

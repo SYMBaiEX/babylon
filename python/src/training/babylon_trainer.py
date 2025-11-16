@@ -71,7 +71,7 @@ class BabylonTrainer:
     def __init__(
         self,
         db_url: str,
-        project: str = "babylon",
+        project: str = "babylon",  # Project name (will use eliza-labs/babylon)
         base_model: str = "OpenPipe/Qwen3-14B-Instruct",  # ONLY model available in W&B ART
         min_agents: int = 1  # Lowered to 1 - always train even with minimal data
     ):
@@ -170,28 +170,15 @@ class BabylonTrainer:
             project_name = self.project
             env_entity = os.getenv("WANDB_ENTITY")
             
-            # CRITICAL: Always detect personal account from API (has write access)
-            # Even if WANDB_ENTITY is set to an org, we need personal account for model training
-            if os.getenv("WANDB_API_KEY"):
-                try:
-                    import wandb
-                    wandb.login(key=os.getenv("WANDB_API_KEY"))
-                    api = wandb.Api()
-                    # Always use viewer.username (personal account) for model training
-                    entity = api.viewer.username  # Personal account (has write access)
-                    default_entity = api.viewer.entity  # Might be org
-                    
-                    if env_entity and env_entity != entity:
-                        logger.info(f"WANDB_ENTITY is '{env_entity}' (org) - using personal account '{entity}' (has write access)")
-                    elif entity != default_entity:
-                        logger.info(f"Default entity is '{default_entity}' (org) - using personal account '{entity}' (has write access)")
-                    else:
-                        logger.info(f"Using W&B entity: {entity}")
-                except Exception as e:
-                    logger.warning(f"Could not auto-detect entity: {e}")
-                    entity = env_entity  # Fall back to env var if API fails
-            else:
+            # Use WANDB_ENTITY from environment if set, otherwise use default
+            # CRITICAL: Use eliza-labs org (has proper permissions configured)
+            if env_entity:
                 entity = env_entity
+                logger.info(f"Using WANDB_ENTITY from environment: {entity}")
+            else:
+                # Default to eliza-labs org (project is eliza-labs/babylon)
+                entity = "eliza-labs"
+                logger.info(f"Using default entity: {entity}")
         
         # Create model with explicit entity (avoids permissions issues)
         # CRITICAL: Pass project name WITHOUT entity prefix when entity is passed separately
@@ -212,26 +199,10 @@ class BabylonTrainer:
         force_local = os.getenv('FORCE_LOCAL_TRAINING', 'false').lower() == 'true'
         
         if wandb_key:
-            # CRITICAL: Initialize wandb with _service_wait BEFORE using ServerlessBackend
-            # This fixes the 524 timeout issue by increasing service wait time
-            # Must create actual run (not disabled) for settings to take effect
-            self._wandb_run = None
-            try:
-                import wandb
-                # Initialize wandb with extended timeout for service operations
-                # Create actual run (not disabled) so settings apply globally
-                self._wandb_run = wandb.init(
-                    project=project_name,
-                    entity=entity,
-                    settings=wandb.Settings(_service_wait=300),  # 5 minute timeout (fixes 524)
-                    name="training-init"  # Create actual run for settings to take effect
-                )
-                logger.info("✓ Initialized W&B with _service_wait=300 (fixes 524 timeout)")
-            except Exception as e:
-                logger.warning(f"Could not initialize wandb with _service_wait: {e}")
-                self._wandb_run = None
-            
-            # WANDB_API_KEY is set - use W&B remote training (preferred)
+            # CRITICAL: Don't call wandb.init() - it causes permission errors
+            # ART's ServerlessBackend handles wandb initialization internally
+            # Just create the backend with the API key
+            logger.info("✓ Using W&B ServerlessBackend (skipping wandb.init to avoid permission issues)")
             self.backend = ServerlessBackend(api_key=wandb_key)
             
             # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
@@ -950,41 +921,17 @@ async def main():
     print("=" * 70)
     print()
     
-    # CRITICAL: Auto-detect entity to avoid permissions issues
-    # Use personal account (has write access) instead of org if no entity specified
+    # Use eliza-labs/babylon project (configured in W&B)
     project_name = os.getenv("WANDB_PROJECT", "babylon")
-    entity = os.getenv("WANDB_ENTITY")
+    entity = os.getenv("WANDB_ENTITY", "eliza-labs")  # Default to eliza-labs org
     
-    # If project doesn't include entity and WANDB_ENTITY not set, auto-detect from API
-    if "/" not in project_name and not entity and wandb_key:
-        try:
-            import wandb
-            # Get entity from API first (before init to avoid permission issues)
-            wandb.login(key=wandb_key)
-            api = wandb.Api()
-            entity = api.viewer.username  # Use personal account (has write access)
-            print(f"✅ Auto-detected W&B entity: {entity} (personal account)")
-            print(f"   Project will be: {entity}/{project_name}")
-            
-            # CRITICAL: Initialize wandb with _service_wait to fix 524 timeout
-            # Use actual run (not disabled) so settings apply globally
-            wandb_run = wandb.init(
-                project=project_name,
-                entity=entity,  # Use personal account
-                settings=wandb.Settings(_service_wait=300),  # 5 minute timeout
-                name="training-init"  # Create actual run for settings
-            )
-            print(f"   Initialized W&B with _service_wait=300 (fixes 524 timeout)")
-            # Don't finish yet - keep it open for training
-        except Exception as e:
-            print(f"⚠️  Could not auto-detect entity: {e}")
-            print(f"   Using project as-is: {project_name}")
-            entity = None
+    print(f"✅ Using W&B project: {entity}/{project_name}")
+    print(f"   ART ServerlessBackend will handle wandb initialization")
     
     # Create trainer (will handle entity/project formatting)
     trainer = BabylonTrainer(
         db_url=db_url,
-        project=project_name if not entity else f"{entity}/{project_name}",
+        project=project_name,  # Just project name, entity is handled separately
         base_model=os.getenv("BASE_MODEL", "OpenPipe/Qwen3-14B-Instruct"),  # ONLY model available in W&B ART
         min_agents=int(os.getenv("MIN_AGENTS_PER_WINDOW", "1"))
     )

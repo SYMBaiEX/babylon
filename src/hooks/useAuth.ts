@@ -15,19 +15,35 @@ import { logger } from '@/lib/logger';
 
 import { type User, useAuthStore } from '@/stores/authStore';
 
+/**
+ * Return type for the useAuth hook.
+ */
 interface UseAuthReturn {
+  /** Whether Privy authentication is ready */
   ready: boolean;
+  /** Whether the user is currently authenticated */
   authenticated: boolean;
+  /** Whether the user profile is currently loading */
   loadingProfile: boolean;
+  /** The current authenticated user, or null if not authenticated */
   user: User | null;
+  /** The connected wallet (prioritizes embedded wallet for gas sponsorship) */
   wallet: ConnectedWallet | undefined;
+  /** The smart wallet address if available */
   smartWalletAddress?: string;
+  /** Whether the smart wallet is ready for transactions */
   smartWalletReady: boolean;
+  /** Whether the user needs to complete onboarding */
   needsOnboarding: boolean;
+  /** Whether the user needs to register on-chain */
   needsOnchain: boolean;
+  /** Function to trigger the login modal */
   login: () => void;
+  /** Function to logout and clear all auth state */
   logout: () => Promise<void>;
+  /** Function to refresh the current user profile */
   refresh: () => Promise<void>;
+  /** Function to get the current access token */
   getAccessToken: () => Promise<string | null>;
 }
 
@@ -40,6 +56,36 @@ let globalTokenRetryTimeout: number | null = null;
 // Track users for whom social accounts have been linked in this session
 const linkedSocialUsers = new Set<string>();
 
+/**
+ * Main authentication hook for managing user authentication state.
+ * 
+ * This hook provides comprehensive authentication management including:
+ * - User profile loading and synchronization
+ * - Wallet connection and management (prioritizes embedded wallet for gas sponsorship)
+ * - Smart wallet integration
+ * - Social account linking (Farcaster, Twitter, Wallet)
+ * - Access token management
+ * - Onboarding and on-chain registration status
+ * 
+ * The hook uses Privy for authentication and automatically:
+ * - Fetches user profile when authenticated
+ * - Links social accounts when available
+ * - Manages access tokens for API calls
+ * - Prevents duplicate profile fetches across components
+ * 
+ * @returns Authentication state and methods for login, logout, and profile refresh.
+ * 
+ * @example
+ * ```tsx
+ * const { user, authenticated, login, logout } = useAuth();
+ * 
+ * if (!authenticated) {
+ *   return <button onClick={login}>Login</button>;
+ * }
+ * 
+ * return <div>Welcome, {user?.displayName}</div>;
+ * ```
+ */
 export function useAuth(): UseAuthReturn {
   const {
     ready,

@@ -1,15 +1,20 @@
-/**
- * useSSE Hook
- *
- * Replaces useWebSocket for Server-Sent Events (SSE)
- * Provides automatic reconnection and channel subscription
- */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { usePrivy } from '@privy-io/react-auth';
 
 import { logger } from '@/lib/logger';
 
+/**
+ * SSE channel names for different event types.
+ * 
+ * Standard channels include:
+ * - 'feed': General feed updates
+ * - 'markets': Market price and trade updates
+ * - 'breaking-news': Breaking news events
+ * - 'upcoming-events': Upcoming event notifications
+ * 
+ * Custom channel names (strings) are also supported.
+ */
 export type Channel =
   | 'feed'
   | 'markets'
@@ -17,28 +22,50 @@ export type Channel =
   | 'upcoming-events'
   | string;
 
+/**
+ * Represents a message received via SSE.
+ */
 export interface SSEMessage {
+  /** The channel this message was received on */
   channel: Channel;
+  /** Message type identifier */
   type: string;
+  /** Message payload data */
   data: Record<string, unknown>;
+  /** Timestamp when the message was received */
   timestamp: number;
 }
 
+/**
+ * Options for configuring the SSE hook.
+ */
 interface SSEHookOptions {
+  /** Initial channels to subscribe to */
   channels?: Channel[];
+  /** Whether to automatically reconnect on connection loss (default: true) */
   autoReconnect?: boolean;
+  /** Delay between reconnection attempts in ms (default: 3000) */
   reconnectDelay?: number;
+  /** Maximum number of reconnection attempts (default: 5) */
   maxReconnectAttempts?: number;
 }
 
+/**
+ * Return type for the useSSE hook.
+ */
 interface SSEHookReturn {
+  /** Whether currently connected to SSE endpoint */
   isConnected: boolean;
+  /** Any connection error message */
   error: string | null;
+  /** Function to subscribe to a channel */
   subscribe: (
     channel: Channel,
     callback: (message: SSEMessage) => void
   ) => void;
+  /** Function to unsubscribe from a channel */
   unsubscribe: (channel: Channel) => void;
+  /** Function to manually trigger reconnection */
   reconnect: () => void;
 }
 
@@ -235,6 +262,39 @@ async function ensureConnection(forceReconnect = false) {
   globalEventSource = eventSource;
 }
 
+/**
+ * Main hook for Server-Sent Events (SSE) connection management.
+ * 
+ * Replaces WebSocket for real-time updates, providing better compatibility
+ * with Vercel's serverless architecture. Manages a single global SSE
+ * connection shared across all hook instances, with automatic channel
+ * subscription and reconnection handling.
+ * 
+ * Features:
+ * - Automatic reconnection with exponential backoff
+ * - Shared connection across components (efficient)
+ * - Channel-based subscription model
+ * - Authentication token management
+ * - Connection state tracking
+ * 
+ * @param options - Configuration options for connection behavior
+ * 
+ * @returns SSE connection state and subscription management functions.
+ * 
+ * @example
+ * ```tsx
+ * const { isConnected, subscribe, unsubscribe } = useSSE();
+ * 
+ * useEffect(() => {
+ *   const handleMessage = (msg) => {
+ *     console.log('Received:', msg);
+ *   };
+ *   
+ *   subscribe('markets', handleMessage);
+ *   return () => unsubscribe('markets');
+ * }, []);
+ * ```
+ */
 export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const {
     channels: _initialChannels = [],
@@ -380,7 +440,24 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
 }
 
 /**
- * Hook for subscribing to a specific channel
+ * Simplified hook for subscribing to a single SSE channel.
+ * 
+ * Wrapper around useSSE that provides a simpler API for single-channel
+ * subscriptions. Automatically handles subscription lifecycle and ensures
+ * the callback always receives the latest version.
+ * 
+ * @param channel - The channel name to subscribe to, or null to unsubscribe
+ * @param onMessage - Callback function called when messages are received.
+ * Receives the message data as a record of key-value pairs.
+ * 
+ * @returns An object with `isConnected` boolean indicating connection status.
+ * 
+ * @example
+ * ```tsx
+ * const { isConnected } = useSSEChannel('markets', (data) => {
+ *   console.log('Market update:', data);
+ * });
+ * ```
  */
 export function useSSEChannel(
   channel: Channel | null,

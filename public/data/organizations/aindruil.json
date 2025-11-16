@@ -1,6 +1,7 @@
 {
   "id": "aindruil",
   "name": "AIndruil",
+  "ticker": "AINDRL",
   "description": "The world's most innovative defense technology company, building autonomous drones for democracy and other less democratic applications",
   "type": "company",
   "canBeInvolved": true,

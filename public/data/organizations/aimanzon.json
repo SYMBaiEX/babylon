@@ -1,6 +1,7 @@
 {
   "id": "aimanzon",
   "name": "AImanzon",
+  "ticker": "AMZN",
   "description": "The world's most customer-obsessed company, selling everything including your dignity with free two-day shipping",
   "type": "company",
   "canBeInvolved": true,

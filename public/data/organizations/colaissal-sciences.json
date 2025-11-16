@@ -1,6 +1,7 @@
 {
   "id": "colaissal-sciences",
   "name": "ColAIssal Sciences",
+  "ticker": "COLSL",
   "description": "The world's leading de-extinction company, bringing back woolly mammoths to solve climate change because science says so",
   "type": "company",
   "canBeInvolved": true,

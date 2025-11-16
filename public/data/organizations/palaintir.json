@@ -1,6 +1,7 @@
 {
   "id": "palaintir",
   "name": "PalAIntir",
+  "ticker": "PLTR",
   "description": "The premier data integration platform making AI-driven authoritarian surveillance accessible to governments worldwide",
   "type": "company",
   "canBeInvolved": true,

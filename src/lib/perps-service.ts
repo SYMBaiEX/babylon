@@ -63,10 +63,22 @@ async function initializePerpsEngine(): Promise<void> {
   initializing = true;
   try {
     // Get organizations directly from prisma to avoid module initialization order issues
-    const orgs = await prisma.organization.findMany();
+    const orgs = await prisma.organization.findMany({
+      select: {
+        id: true,
+        name: true,
+        ticker: true,
+        description: true,
+        type: true,
+        canBeInvolved: true,
+        initialPrice: true,
+        currentPrice: true,
+      },
+    });
     const organizations: Organization[] = orgs.map(o => ({
       id: o.id,
       name: o.name,
+      ticker: o.ticker ?? undefined,
       description: o.description,
       type: o.type as Organization['type'],
       canBeInvolved: o.canBeInvolved,

@@ -8,6 +8,15 @@ import { Suspense, useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 
+/**
+ * Bottom navigation content component for mobile devices.
+ * 
+ * Provides mobile navigation with Feed, Markets, Chats, and Notifications tabs.
+ * Shows unread message and notification badges. Automatically hides on production
+ * home page unless dev mode is enabled via URL parameter.
+ * 
+ * @returns Bottom navigation element or null if hidden
+ */
 function BottomNavContent() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -133,6 +142,14 @@ function BottomNavContent() {
   )
 }
 
+/**
+ * Bottom navigation component wrapper with Suspense boundary.
+ * 
+ * Wraps BottomNavContent in a Suspense boundary to handle async navigation
+ * hooks gracefully. Provides mobile navigation for the application.
+ * 
+ * @returns Bottom navigation element wrapped in Suspense
+ */
 export function BottomNav() {
   return (
     <Suspense fallback={null}>

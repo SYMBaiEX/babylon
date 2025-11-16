@@ -1,5 +1,14 @@
 import { definePrompt } from '../define-prompt';
 
+/**
+ * Prompt for generating definitive resolution events proving question outcomes.
+ * 
+ * Creates clear, definitive events that prove whether a prediction market
+ * question resolved as YES or NO. Events must be unambiguous and provide
+ * clear evidence of the outcome.
+ * 
+ * Returns XML with resolution event description.
+ */
 export const resolutionEvent = definePrompt({
   id: 'resolution-event',
   version: '2.0.0',

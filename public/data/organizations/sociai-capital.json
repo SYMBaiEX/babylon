@@ -1,6 +1,7 @@
 {
   "id": "sociai-capital",
   "name": "Social CapAItal",
+  "ticker": "SOCAP",
   "description": "The world's most mission-driven investment firm, SPACing trash and taking cash while fighting inequality from a private jet",
   "type": "vc",
   "canBeInvolved": true,
