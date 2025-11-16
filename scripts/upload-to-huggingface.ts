@@ -39,7 +39,7 @@ async function uploadToHuggingFace(): Promise<UploadResult> {
     
     logger.info('Uploading to HuggingFace', { summary });
     
-    const datasetName = process.env.HF_DATASET_NAME || 'babylonlabs/babylon-game-data';
+    const datasetName = process.env.HF_DATASET_NAME || 'elizaos/babylon-game-data';
     
     // Generate README for dataset
     await generateDatasetCard(dataDir, summary, datasetName);

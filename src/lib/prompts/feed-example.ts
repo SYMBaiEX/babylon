@@ -5,7 +5,7 @@
  * and world context into your feed generation.
  */
 
-import { generateWorldContext, getParodyActorNames, getForbiddenRealNames } from './world-context';
+import { generateWorldContext, getParodyActorNames, getForbiddenRealNames } from '@/prompts';
 import { renderPrompt } from '@/prompts/loader';
 import { ambientPosts, reactions, newsPosts } from '@/prompts';
 
@@ -72,7 +72,7 @@ export function validateNoRealNames(text: string): string[] {
   const violations: string[] = [];
 
   // Check if text contains any forbidden real names
-  forbiddenNames.forEach(realName => {
+  forbiddenNames.forEach((realName: string) => {
     if (text.includes(realName)) {
       violations.push(`FORBIDDEN: Found real name "${realName}" - must use parody names only`);
     }

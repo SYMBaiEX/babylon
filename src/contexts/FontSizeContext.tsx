@@ -1,41 +1,9 @@
 /**
  * Font Size Context Provider
  * 
- * @module contexts/FontSizeContext
- * 
- * @description
- * Provides global font size management for accessibility and user preferences.
- * Supports preset sizes (small/medium/large) and custom numeric multipliers.
- * Automatically persists user preferences to localStorage for consistency
- * across sessions.
- * 
- * **Features:**
- * - Three preset sizes (small: 87.5%, medium: 100%, large: 112.5%)
- * - Custom numeric multipliers for fine-grained control
- * - localStorage persistence
- * - React Context API for global state
- * - Type-safe hooks and interfaces
- * 
- * @example
- * ```tsx
- * // Wrap app with provider
- * <FontSizeProvider>
- *   <App />
- * </FontSizeProvider>
- * 
- * // Use in components
- * function MyComponent() {
- *   const { fontSize, setFontSizePreset } = useFontSize()
- *   
- *   return (
- *     <div style={{ fontSize: `${fontSize}rem` }}>
- *       <button onClick={() => setFontSizePreset('large')}>
- *         Increase Font Size
- *       </button>
- *     </div>
- *   )
- * }
- * ```
+ * Provides global font size management for accessibility.
+ * Persists user preferences to localStorage and allows both
+ * preset sizes (small/medium/large) and custom numeric values.
  */
 
 'use client'

@@ -1,51 +1,9 @@
 /**
  * Widget Refresh Context Provider
  * 
- * @module contexts/WidgetRefreshContext
- * 
- * @description
- * Provides a centralized refresh mechanism for managing widget data updates.
- * Widgets can register their refresh callbacks which can then be triggered
- * globally (e.g., via pull-to-refresh gestures or manual refresh buttons).
- * 
- * **Use Cases:**
- * - Pull-to-refresh gestures that update all visible widgets
- * - Global refresh button triggering multiple widget updates
- * - Coordinated data refetching across dashboard components
- * - Widget lifecycle management with automatic cleanup
- * 
- * **Features:**
- * - Named widget registration for targeted updates
- * - Global refresh-all functionality
- * - Automatic cleanup on component unmount
- * - Zero re-renders (uses refs for storage)
- * 
- * @example
- * ```tsx
- * // Wrap app with provider
- * <WidgetRefreshProvider>
- *   <App />
- * </WidgetRefreshProvider>
- * 
- * // Register widget refresh
- * function MarketWidget() {
- *   const { registerRefresh, unregisterRefresh } = useWidgetRefresh()
- *   const { refetch } = useMarketData()
- *   
- *   useEffect(() => {
- *     registerRefresh('markets', refetch)
- *     return () => unregisterRefresh('markets')
- *   }, [refetch])
- *   
- *   return <div>Market Widget</div>
- * }
- * 
- * // Trigger global refresh
- * function RefreshButton() {
- *   const { refreshAll } = useWidgetRefresh()
- *   return <button onClick={refreshAll}>Refresh All</button>
- * }
- * ```
+ * Provides a centralized refresh mechanism for widgets.
+ * Allows widgets to register refresh functions that can be
+ * triggered globally (e.g., pull-to-refresh gesture).
  */
 
 'use client'

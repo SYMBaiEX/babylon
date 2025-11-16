@@ -8,7 +8,7 @@
  * - Character limits respected
  */
 
-import { getForbiddenRealNames } from './world-context';
+import { getForbiddenRealNames } from '@/prompts';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -23,7 +23,7 @@ export function validateNoRealNames(text: string): string[] {
   const forbiddenNames = getForbiddenRealNames();
   const violations: string[] = [];
 
-  forbiddenNames.forEach(realName => {
+  forbiddenNames.forEach((realName: string) => {
     // Case insensitive check to catch variations
     const regex = new RegExp(`\\b${realName}\\b`, 'i');
     if (regex.test(text)) {

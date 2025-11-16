@@ -1,41 +1,14 @@
 /**
  * Agent0 Subgraph Client
  * 
- * @module agents/agent0/SubgraphClient
- * 
- * @description
- * GraphQL client for querying the Agent0 subgraph for fast agent discovery.
- * Provides indexed access to agent registry data with filtering and search.
- * Handles metadata parsing from key-value pairs to structured objects.
- * 
- * The subgraph indexes Agent0's on-chain registry, providing:
- * - Fast agent search by capabilities and reputation
- * - Metadata parsing from hex-encoded key-value pairs
- * - Game platform discovery
- * - Agent feedback history
- * 
- * @example
- * ```typescript
- * const client = new SubgraphClient()
- * 
- * // Get specific agent
- * const agent = await client.getAgent(123)
- * 
- * // Search by capabilities
- * const agents = await client.searchAgents({
- *   strategies: ['prediction-markets'],
- *   markets: ['crypto']
- * })
- * ```
+ * Queries the Agent0 subgraph for fast agent discovery and search.
+ * Updated to match the actual Agent0 subgraph schema (agentId, metadata key-value pairs).
  */
 
 import { GraphQLClient } from 'graphql-request'
 import { parseCapabilities } from './capabilities-schema'
 
-/**
- * Raw subgraph agent response structure
- * @internal
- */
+// Raw subgraph response structure
 interface RawSubgraphAgent {
   id: string
   chainId: string
@@ -50,12 +23,7 @@ interface RawSubgraphAgent {
   }>
 }
 
-/**
- * Transformed agent structure from subgraph
- * 
- * @interface SubgraphAgent
- * @description Babylon-compatible agent format with parsed metadata
- */
+// Transformed agent structure (backward compatible)
 export interface SubgraphAgent {
   id: string
   tokenId: number
@@ -80,25 +48,10 @@ export interface SubgraphAgent {
   }>
 }
 
-/**
- * Agent0 Subgraph Client Class
- * 
- * @class SubgraphClient
- * @description GraphQL client for Agent0 subgraph queries with automatic configuration
- */
 export class SubgraphClient {
   private client: GraphQLClient | null
   private isLocalnet: boolean
 
-  /**
-   * Creates SubgraphClient instance
-   * 
-   * @description
-   * Automatically configures from AGENT0_SUBGRAPH_URL environment variable.
-   * Gracefully handles localnet mode without subgraph.
-   * 
-   * @throws {Error} If AGENT0_SUBGRAPH_URL not set and not in localnet mode
-   */
   constructor() {
     const subgraphUrl = process.env.AGENT0_SUBGRAPH_URL
     const network = process.env.AGENT0_NETWORK || 'sepolia'

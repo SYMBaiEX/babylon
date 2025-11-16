@@ -67,11 +67,12 @@
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { MarketContextService } from '@/lib/services/market-context-service';
-import { renderPrompt, npcMarketDecisions } from '@/prompts';
+import { renderPrompt, npcMarketDecisions, generateWorldContext } from '@/prompts';
 import type { TradingDecision } from '@/types/market-decisions';
 import type { NPCMarketContext } from '@/types/market-context';
 import { countTokensSync, getSafeContextLimit, truncateToTokenLimitSync } from '@/lib/token-counter';
 import type { JsonValue } from '@/types/common';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Token management configuration
@@ -352,10 +353,26 @@ export class MarketDecisionEngine {
     // Format NPCs data as string (existing prompts use pre-formatted strings)
     let npcsList = this.formatNPCsList(contexts);
     
+    // Get world context with reality grounding (minimal level to save tokens)
+    const worldContext = await generateWorldContext({
+      maxActors: 0, // Don't need actor list here
+      includeActors: false,
+      realityGroundingLevel: 'minimal', // Just date and key prices
+    });
+    
+    // Get active questions (especially comparative ones)
+    const activeQuestionsText = await this.formatActiveQuestions();
+    
+    // Get recent events from the current game
+    const recentEventsText = await this.formatRecentEvents();
+    
     // Build the full prompt
     let prompt = renderPrompt(npcMarketDecisions, {
       npcCount: contexts.length.toString(),
       npcsList,
+      realityGrounding: worldContext.realityGrounding,
+      activeQuestions: activeQuestionsText,
+      recentEvents: recentEventsText,
     });
     
     // Count tokens and enforce limit
@@ -381,6 +398,9 @@ export class MarketDecisionEngine {
       const promptPrefix = renderPrompt(npcMarketDecisions, {
         npcCount: contexts.length.toString(),
         npcsList: '',
+        realityGrounding: worldContext.realityGrounding,
+        activeQuestions: activeQuestionsText,
+        recentEvents: recentEventsText,
       });
       const prefixTokens = countTokensSync(promptPrefix);
       const bufferTokens = Math.floor(this.tokenConfig.maxContextTokens * 0.1); // 10% buffer
@@ -392,6 +412,9 @@ export class MarketDecisionEngine {
       prompt = renderPrompt(npcMarketDecisions, {
         npcCount: contexts.length.toString(),
         npcsList,
+        realityGrounding: worldContext.realityGrounding,
+        activeQuestions: activeQuestionsText,
+        recentEvents: recentEventsText,
       });
       
       promptTokens = countTokensSync(prompt);
@@ -883,6 +906,47 @@ export class MarketDecisionEngine {
     }
     
     return decisions[0]!;
+  }
+  
+  /**
+   * Format active questions for trading context
+   * Especially important for comparative questions like "Will X outperform Y?"
+   */
+  private async formatActiveQuestions(): Promise<string> {
+    const questions = await prisma.question.findMany({
+      where: {
+        status: 'active',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10, // Top 10 most recent questions
+    });
+    
+    if (questions.length === 0) {
+      return 'No active prediction questions currently.';
+    }
+    
+    const formatted = questions.map(q => {
+      const daysUntil = Math.ceil(
+        (q.resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      );
+      return `- "${q.text}" (resolves in ${daysUntil} days)`;
+    });
+    
+    return formatted.join('\n');
+  }
+  
+  /**
+   * Format recent events from current game for trading context
+   * Helps NPCs understand the narrative when making decisions
+   * 
+   * Note: NPCs already receive feed posts in their individual context.
+   * This provides additional high-level narrative context.
+   */
+  private async formatRecentEvents(): Promise<string> {
+    // Recent events are captured in individual NPC contexts via feed posts
+    // and group chats. This function provides supplementary narrative context.
+    // For now, return a placeholder - the active questions are the critical piece.
+    return 'Check feed posts and group chats for recent developments.';
   }
 }
 

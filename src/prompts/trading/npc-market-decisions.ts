@@ -13,9 +13,9 @@ import { definePrompt } from '../define-prompt';
 
 export const npcMarketDecisions = definePrompt({
   id: 'npc-market-decisions',
-  version: '2.0.0',
+  version: '3.0.0',
   category: 'trading',
-  description: 'Generate trading decisions for multiple NPCs in batch based on information they have access to',
+  description: 'Generate context-aware trading decisions for NPCs based on active questions, events, and narratives',
   temperature: 0.8,
   maxTokens: 8000,
   
@@ -23,7 +23,22 @@ export const npcMarketDecisions = definePrompt({
 
 You are simulating the trading decisions of {{npcCount}} different traders/NPCs in a prediction market and perpetual futures platform.
 
-Each NPC has their own personality, information access, and trading balance. Based on what they've seen in the feed, heard in private group chats, and observed in markets, determine what positions (if any) they should take.
+Each NPC has their own personality, information access, and trading balance. Based on what they've seen in the feed, heard in private group chats, observed in markets, AND ACTIVE QUESTIONS, determine what positions (if any) they should take.
+
+{{realityGrounding}}
+
+ACTIVE QUESTIONS:
+{{activeQuestions}}
+
+RECENT EVENTS & NARRATIVES:
+{{recentEvents}}
+
+⚠️ TRADING MUST ALIGN WITH ACTIVE QUESTIONS:
+- If question asks "Will OpnAI stock outperform MetAI stock?" and events favor OpnAI, NPCs should trade OpnAI higher
+- If question asks "Will TeslAI reach $500?" and events suggest it will, NPCs should buy TeslAI
+- Stock prices MUST reflect the narrative - if events are positive for a company, its stock should rise
+- NPCs with access to positive insider info should trade accordingly
+- Comparative questions require NPCs to actively trade BOTH stocks based on which they think will win
 
 CRITICAL RULES:
 1. ⚠️ BALANCE CONSTRAINT: NPCs can ONLY trade with their available balance. If balance is $10,000, max trade is $10,000. NEVER exceed this.

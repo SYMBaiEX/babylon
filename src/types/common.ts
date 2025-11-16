@@ -1,25 +1,7 @@
 /**
  * Common Type Definitions
  * 
- * @module types/common
- * 
- * @description
- * Foundational type definitions used throughout Babylon to eliminate `unknown` and `any`.
- * Provides type-safe alternatives for JSON values, API responses, error handling, and
- * common patterns like pagination and filtering.
- * 
- * **Key Types:**
- * - `JsonValue`: Recursive type for JSON-serializable values
- * - `JsonRpcParams`/`JsonRpcResult`: Type-safe RPC communication
- * - `PaginatedResponse`: Standard pagination wrapper
- * - `ErrorResponse`: Consistent error structure
- * - `Result<T, E>`: Rust-style result type for error handling
- * 
- * **Design Principles:**
- * - No `any` or `unknown` types in application code
- * - Type-safe JSON handling
- * - Zod schemas for runtime validation
- * - Consistent error and response structures
+ * Shared types for common patterns that replace 'unknown' and 'any'
  */
 
 /**

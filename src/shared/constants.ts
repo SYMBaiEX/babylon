@@ -1,23 +1,7 @@
 /**
  * Shared Constants for Babylon Game
- * 
- * @module shared/constants
  *
- * @description
- * Centralized constant definitions used throughout the Babylon ecosystem.
- * Eliminates magic strings/numbers and provides single source of truth for:
- * - Actor tiers and selection counts
- * - Post types and feed configurations
- * - Game structure (scenarios, questions, days)
- * - Organization types
- * - Feed widget thresholds
- * - Escalation rules by game phase
- * 
- * **Key Features:**
- * - Type-safe constant objects with `as const` assertions
- * - Exported types derived from constant values
- * - Configurable thresholds for dynamic game behavior
- * - Phase-based escalation system
+ * Centralized constants to eliminate magic strings across codebase
  */
 
 /**

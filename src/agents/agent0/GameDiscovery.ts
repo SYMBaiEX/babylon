@@ -1,32 +1,8 @@
 /**
  * Game Discovery Service
  * 
- * @module agents/agent0/GameDiscovery
- * 
- * @description
- * Enables external agents to discover Babylon and other game platforms
- * through the Agent0 registry. Provides game-specific discovery with metadata
- * fetching from IPFS and endpoint validation.
- * 
- * Key features:
- * - Discover games by type and market category
- * - Find Babylon specifically with retry logic
- * - Validate game endpoints (MCP, A2A, API)
- * - Fetch complete game metadata from IPFS
- * 
- * @example
- * ```typescript
- * const discovery = new GameDiscoveryService()
- * 
- * // Find prediction market games
- * const games = await discovery.discoverGames({
- *   type: 'game-platform',
- *   markets: ['prediction']
- * })
- * 
- * // Find Babylon specifically
- * const babylon = await discovery.findBabylon()
- * ```
+ * Enables external agents to discover Babylon and other games
+ * through the Agent0 registry.
  */
 
 import { SubgraphClient } from './SubgraphClient'
@@ -35,20 +11,10 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
-/**
- * Game config value schema for database storage
- * @internal
- */
 const GameConfigValueSchema = z.object({
   tokenId: z.number(),
 });
 
-/**
- * Discoverable game platform information
- * 
- * @interface DiscoverableGame
- * @description Complete game metadata including endpoints, capabilities, and reputation
- */
 export interface DiscoverableGame {
   tokenId: number
   name: string

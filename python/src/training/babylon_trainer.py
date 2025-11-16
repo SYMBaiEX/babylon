@@ -162,31 +162,36 @@ class BabylonTrainer:
         logger.info(f"Initializing model: {name}")
         
         # CRITICAL: Extract entity and project separately to avoid permissions issues
-        # If project contains entity (entity/project format), split it
-        # Otherwise, auto-detect entity from W&B API (uses personal account with write access)
+        # Always use personal account (has write access) instead of org
+        # Orgs may not have "models write access" permission
         if "/" in self.project:
             entity, project_name = self.project.split("/", 1)
         else:
             project_name = self.project
-            entity = os.getenv("WANDB_ENTITY")
-            # Auto-detect entity from API if not set (uses personal account)
-            if not entity and os.getenv("WANDB_API_KEY"):
+            env_entity = os.getenv("WANDB_ENTITY")
+            
+            # CRITICAL: Always detect personal account from API (has write access)
+            # Even if WANDB_ENTITY is set to an org, we need personal account for model training
+            if os.getenv("WANDB_API_KEY"):
                 try:
                     import wandb
-                    # CRITICAL: Initialize wandb with _service_wait to fix 524 timeout
-                    # This increases the timeout for W&B service operations
-                    wandb.init(
-                        project=project_name,
-                        entity=entity,
-                        settings=wandb.Settings(_service_wait=300),  # 5 minute timeout
-                        mode="disabled"  # Don't create a run, just initialize settings
-                    )
+                    wandb.login(key=os.getenv("WANDB_API_KEY"))
                     api = wandb.Api()
-                    entity = api.viewer.username  # Use personal account (has write access)
-                    logger.info(f"Auto-detected W&B entity: {entity} (personal account)")
-                    wandb.finish()  # Clean up
-                except Exception:
-                    entity = None
+                    # Always use viewer.username (personal account) for model training
+                    entity = api.viewer.username  # Personal account (has write access)
+                    default_entity = api.viewer.entity  # Might be org
+                    
+                    if env_entity and env_entity != entity:
+                        logger.info(f"WANDB_ENTITY is '{env_entity}' (org) - using personal account '{entity}' (has write access)")
+                    elif entity != default_entity:
+                        logger.info(f"Default entity is '{default_entity}' (org) - using personal account '{entity}' (has write access)")
+                    else:
+                        logger.info(f"Using W&B entity: {entity}")
+                except Exception as e:
+                    logger.warning(f"Could not auto-detect entity: {e}")
+                    entity = env_entity  # Fall back to env var if API fails
+            else:
+                entity = env_entity
         
         # Create model with explicit entity (avoids permissions issues)
         self.model = art.TrainableModel(
@@ -225,10 +230,55 @@ class BabylonTrainer:
             
             # WANDB_API_KEY is set - use W&B remote training (preferred)
             self.backend = ServerlessBackend(api_key=wandb_key)
-            await self.model.register(self.backend)
-            logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
-            logger.info(f"  Model: {self.base_model}")
-            logger.info("  Training will run on W&B infrastructure (not local GPU)")
+            
+            # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
+            max_retries = 3
+            retry_delay = 10  # seconds
+            
+            for attempt in range(1, max_retries + 1):
+                try:
+                    if attempt > 1:
+                        logger.info(f"Retry attempt {attempt}/{max_retries} (waiting {retry_delay}s)...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    
+                    # Wrap in asyncio.wait_for to add our own timeout
+                    await asyncio.wait_for(
+                        self.model.register(self.backend),
+                        timeout=180.0  # 3 minute timeout per attempt
+                    )
+                    logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
+                    logger.info(f"  Model: {self.base_model}")
+                    logger.info("  Training will run on W&B infrastructure (not local GPU)")
+                    break
+                    
+                except asyncio.TimeoutError:
+                    if attempt < max_retries:
+                        logger.warning(f"Model registration timeout (attempt {attempt}/{max_retries})")
+                        continue
+                    else:
+                        raise ValueError("W&B training API timeout after all retries - service may be overloaded")
+                        
+                except Exception as e:
+                    error_str = str(e)
+                    # Retry on transient errors: 524 timeout, 500 workflow errors
+                    is_retryable = (
+                        "524" in error_str or 
+                        "timeout" in error_str.lower() or
+                        "500" in error_str or
+                        "workflow error" in error_str.lower() or
+                        "InternalServerError" in str(type(e))
+                    )
+                    
+                    if is_retryable and attempt < max_retries:
+                        if "500" in error_str or "workflow error" in error_str.lower():
+                            logger.warning(f"W&B workflow error (attempt {attempt}/{max_retries}) - retrying...")
+                        else:
+                            logger.warning(f"W&B timeout (attempt {attempt}/{max_retries}) - retrying...")
+                        continue
+                    else:
+                        # Different error or out of retries - raise
+                        raise
         else:
             # WANDB_API_KEY not set - check if local training is allowed
             is_large_model = any(size in self.base_model for size in ["14B", "7B", "32B"])

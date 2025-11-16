@@ -4,7 +4,7 @@
  * Utilities for working with feed prompts and world context
  */
 
-// World context generation
+// World context generation - re-export from prompts
 export {
   generateWorldContext,
   generateWorldActors,
@@ -14,7 +14,7 @@ export {
   getParodyActorNames,
   getForbiddenRealNames,
   type WorldContextOptions,
-} from './world-context';
+} from '@/prompts';
 
 // Re-export ActorData from shared types for convenience
 export type { ActorData } from '@/shared/types';

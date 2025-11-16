@@ -1,36 +1,9 @@
 /**
  * Agent0 SDK Client
  * 
- * @module agents/agent0/Agent0Client
- * 
- * @description
- * Complete implementation of the Agent0 SDK client providing:
- * - Agent registration on ERC-8004 compatible registries
- * - IPFS metadata publishing via configurable providers (Pinata, Filecoin, node)
- * - Agent search and discovery via subgraph indexing
- * - Reputation feedback submission with cryptographic authorization
- * 
- * The client handles multi-chain operations (Ethereum for Agent0, Base for game logic)
- * and provides automatic retry logic with fail-fast error handling.
- * 
- * @example
- * ```typescript
- * const client = getAgent0Client()
- * 
- * // Register an agent
- * const result = await client.registerAgent({
- *   name: 'My Trading Agent',
- *   description: 'AI-powered prediction agent',
- *   walletAddress: '0x...',
- *   capabilities: { strategies: ['prediction-markets'], markets: ['crypto'], actions: ['place-bet'] }
- * })
- * 
- * // Search for agents
- * const agents = await client.searchAgents({ strategies: ['prediction-markets'] })
- * 
- * // Submit feedback
- * await client.submitFeedback({ targetAgentId: 123, rating: 4, comment: 'Great agent!' })
- * ```
+ * Full implementation of Agent0 SDK client for agent registration, search, and feedback.
+ * Implements IAgent0Client interface for complete Agent0 integration.
+ * Uses dynamic imports to handle CommonJS/ESM interop.
  */
 
 import { logger } from '@/lib/logger'
@@ -55,16 +28,6 @@ import type {
 import type { JsonValue } from '@/types/common'
 import { parseCapabilities } from './capabilities-schema'
 
-/**
- * Agent0 Client Implementation
- * 
- * @class Agent0Client
- * @implements {IAgent0Client}
- * 
- * @description
- * Core client for interacting with Agent0 protocol across Ethereum networks.
- * Manages SDK initialization, agent lifecycle, and network communications.
- */
 export class Agent0Client implements IAgent0Client {
   private sdk: SDK | null
   private chainId: number
@@ -80,23 +43,6 @@ export class Agent0Client implements IAgent0Client {
   }
   private initPromise: Promise<void> | null = null
   
-  /**
-   * Creates Agent0Client instance
-   * 
-   * @param config - Client configuration
-   * @param config.network - Target Ethereum network (sepolia/mainnet/localnet)
-   * @param config.rpcUrl - Ethereum RPC endpoint URL
-   * @param config.privateKey - Private key for signing transactions (0x-prefixed hex)
-   * @param config.ipfsProvider - IPFS provider type (default: 'node')
-   * @param config.ipfsNodeUrl - IPFS node URL (required for 'node' provider)
-   * @param config.pinataJwt - Pinata JWT token (required for 'pinata' provider)
-   * @param config.filecoinPrivateKey - Filecoin private key (required for 'filecoinPin' provider)
-   * @param config.subgraphUrl - Agent0 subgraph URL for queries
-   * 
-   * @remarks
-   * SDK is lazily initialized on first use via ensureSDK().
-   * Chain ID is automatically determined from network parameter.
-   */
   constructor(config: {
     network: 'sepolia' | 'mainnet' | 'localnet'
     rpcUrl: string
@@ -120,21 +66,7 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Initialize SDK with fail-fast error handling
-   * 
-   * @private
-   * @returns Promise that resolves when SDK is initialized
-   * @throws {Error} If IPFS provider configuration is invalid or SDK initialization fails
-   * 
-   * @description
-   * Ensures SDK is initialized exactly once using singleton pattern with initPromise.
-   * Validates IPFS provider configuration before initialization.
-   * Fails fast on errors to prevent silent failures in production.
-   * 
-   * @remarks
-   * - Automatically called by all public methods before SDK access
-   * - Uses lazy initialization pattern to defer SDK creation
-   * - Clears initPromise on both success and error to enable retries
+   * Initialize SDK - fails fast on any error
    */
   private async ensureSDK(): Promise<void> {
     if (this.sdk) return
@@ -203,41 +135,12 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Register an agent with Agent0 protocol
+   * Register an agent with Agent0 SDK
    * 
-   * @param params - Agent registration parameters
-   * @returns Promise resolving to registration result with tokenId and metadata CID
-   * @throws {Error} If SDK not initialized or registration fails
-   * 
-   * @description
-   * Complete agent registration flow:
-   * 1. Register agent on-chain via ERC-8004 compatible registry
-   * 2. Publish metadata to IPFS via configured provider
-   * 3. Index agent in Agent0 subgraph for discovery
-   * 
-   * @example
-   * ```typescript
-   * const result = await client.registerAgent({
-   *   name: 'Trading Bot Alpha',
-   *   description: 'Automated prediction market agent',
-   *   imageUrl: 'https://example.com/logo.png',
-   *   walletAddress: '0x...',
-   *   mcpEndpoint: 'https://myagent.com/mcp',
-   *   a2aEndpoint: 'https://myagent.com/a2a',
-   *   capabilities: {
-   *     strategies: ['prediction-markets'],
-   *     markets: ['crypto', 'sports'],
-   *     actions: ['place-bet', 'analyze-odds']
-   *   }
-   * })
-   * console.log(`Agent registered with token ID: ${result.tokenId}`)
-   * ```
-   * 
-   * @remarks
-   * - Requires SDK initialized with write access (private key configured)
-   * - MCP and A2A endpoints are optional but recommended for full functionality
-   * - Agent is set to active status by default
-   * - Capabilities must include at least one strategy, market, or action
+   * This will:
+   * 1. Register on-chain (ERC-8004)
+   * 2. Publish metadata to IPFS
+   * 3. Index in Agent0 subgraph
    */
   async registerAgent(params: Agent0RegistrationParams): Promise<Agent0RegistrationResult> {
     await this.ensureSDK()
@@ -304,31 +207,14 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Register Babylon game platform on Agent0 network
+   * Register Babylon game itself on agent0 (Ethereum)
    *
-   * @returns Promise resolving to registration result
-   * @throws {Error} If BASE_IDENTITY_REGISTRY_ADDRESS not configured
-   * 
-   * @description
-   * Registers the Babylon game itself as a discoverable agent in the Agent0 ecosystem.
-   * This enables:
-   * - Cross-game agent discovery (agents can find Babylon)
-   * - External agent onboarding to Babylon markets
-   * - Interoperability with broader Agent0 network
-   * - Multi-chain game coordination (Ethereum for discovery, Base for operations)
+   * This registers the GAME as an agent in the agent0 ecosystem for:
+   * - Cross-game discovery
+   * - External agent onboarding
+   * - Interoperability with agent0 network
    *
-   * @remarks
-   * - Game metadata includes Base network contract addresses for cross-chain operations
-   * - Uses BABYLON_GAME_WALLET or falls back to AGENT0_PRIVATE_KEY
-   * - Capabilities include game-specific actions like market creation and player registration
-   * - X402 support enabled for paid agent interactions
-   * 
-   * @example
-   * ```typescript
-   * const client = getAgent0Client()
-   * const result = await client.registerBabylonGame()
-   * console.log(`Babylon registered as agent with token: ${result.tokenId}`)
-   * ```
+   * The game's metadata includes pointers to Base network where game operates
    */
   async registerBabylonGame(): Promise<Agent0RegistrationResult> {
     const baseChainId = parseInt(process.env.BASE_CHAIN_ID || '8453', 10) // Base mainnet by default
@@ -372,34 +258,7 @@ export class Agent0Client implements IAgent0Client {
   }
 
   /**
-   * Search for agents on Agent0 network
-   * 
-   * @param filters - Search filters for agent discovery
-   * @returns Promise resolving to array of matching agent profiles
-   * @throws {Error} If SDK not initialized
-   * 
-   * @description
-   * Queries the Agent0 subgraph to find agents matching specified criteria.
-   * Supports filtering by strategies, skills, name, and X402 payment support.
-   * 
-   * @example
-   * ```typescript
-   * // Find prediction market agents
-   * const agents = await client.searchAgents({ 
-   *   strategies: ['prediction-markets'],
-   *   x402Support: true
-   * })
-   * 
-   * // Find agents by name
-   * const babylon = await client.searchAgents({ 
-   *   name: 'Babylon'
-   * })
-   * ```
-   * 
-   * @remarks
-   * - Supports both 'strategies' and 'skills' filters (mapped to a2aSkills)
-   * - X402 support filter enables finding agents that accept payment
-   * - Results include basic reputation scores (trustScore, accuracyScore)
+   * Search for agents using Agent0 SDK
    */
   async searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]> {
     await this.ensureSDK()
@@ -445,38 +304,11 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Submit reputation feedback for an agent
+   * Submit feedback for an agent
    * 
-   * @param params - Feedback parameters
-   * @param params.targetAgentId - Token ID of agent receiving feedback
-   * @param params.rating - Rating score from -5 (worst) to +5 (best)
-   * @param params.comment - Optional feedback comment
-   * @returns Promise that resolves when feedback is submitted
-   * @throws {Error} If SDK not initialized with write access or feedback submission fails
-   * 
-   * @description
-   * Submits cryptographically signed feedback to Agent0 network for agent reputation tracking.
-   * Rating is converted to Agent0's 0-100 scale automatically.
-   * 
-   * @example
-   * ```typescript
-   * await client.submitFeedback({
-   *   targetAgentId: 123,
-   *   rating: 4,
-   *   comment: 'Excellent predictions on crypto markets'
-   * })
-   * ```
-   * 
-   * @remarks
-   * **Important Authorization Requirements:**
-   * - Agent must pre-authorize this client's address for feedback submission
-   * - For user-submitted feedback, use Agent0FeedbackService instead
-   * - For system feedback, ensure system address is pre-authorized during agent registration
-   * - Feedback expires after 24 hours and requires re-signing
-   * 
-   * Rating scale conversion:
-   * - Input: -5 to +5 (standard rating)
-   * - Output: 0 to 100 (Agent0 protocol scale)
+   * Note: This method requires the agent to have pre-authorized feedback from the client address.
+   * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
+   * For system-level reputation updates, ensure the agent has pre-authorized the system address.
    */
   async submitFeedback(params: Agent0FeedbackParams): Promise<void> {
     await this.ensureSDK()
@@ -526,23 +358,6 @@ export class Agent0Client implements IAgent0Client {
   
   /**
    * Get agent profile from Agent0 network
-   * 
-   * @param tokenId - Agent's unique token ID
-   * @returns Promise resolving to agent profile or null if not found
-   * @throws {Error} If SDK not initialized
-   * 
-   * @description
-   * Fetches complete agent profile including metadata, capabilities, and reputation
-   * from the Agent0 subgraph.
-   * 
-   * @example
-   * ```typescript
-   * const profile = await client.getAgentProfile(123)
-   * if (profile) {
-   *   console.log(`Agent: ${profile.name}`)
-   *   console.log(`Trust Score: ${profile.reputation.trustScore}`)
-   * }
-   * ```
    */
   async getAgentProfile(tokenId: number): Promise<Agent0AgentProfile | null> {
     await this.ensureSDK()
@@ -571,18 +386,6 @@ export class Agent0Client implements IAgent0Client {
     }
   }
 
-  /**
-   * Parse and validate agent capabilities from extras metadata
-   * 
-   * @private
-   * @param extras - Raw metadata from Agent0 SDK response
-   * @returns Validated capabilities object with defaults for missing fields
-   * 
-   * @description
-   * Transforms raw Agent0 metadata into typed capabilities object.
-   * Validates structure and provides default empty arrays for missing fields.
-   * Logs warnings for invalid or empty capabilities.
-   */
   private parseCapabilities(extras: Record<string, JsonValue> | undefined): {
     strategies: string[];
     markets: string[];
@@ -602,42 +405,17 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Check if Agent0 SDK is available with write access
-   * 
-   * @returns true if SDK is initialized and has write access, false otherwise
-   * 
-   * @description
-   * Synchronous check for SDK availability. Returns false if SDK hasn't been
-   * initialized yet or is in read-only mode.
-   * 
-   * @remarks
-   * - Returns false if SDK not yet initialized (call ensureSDK() or any method first)
-   * - Returns false if SDK is in read-only mode (missing private key)
-   * - Use ensureAvailable() for async initialization and checking
+   * Check if Agent0 SDK is available
+   * Note: This will return false if SDK hasn't been initialized yet.
+   * Call ensureSDK() or any method that uses the SDK to initialize it first.
    */
   isAvailable(): boolean {
     return this.sdk !== null && !this.sdk.isReadOnly
   }
   
   /**
-   * Ensure SDK is initialized and check availability
-   * 
-   * @returns Promise resolving to true if SDK is available with write access
-   * 
-   * @description
-   * Attempts to initialize SDK if not already initialized, then checks for write access.
-   * Safe to call multiple times - handles initialization failures gracefully.
-   * 
-   * @example
-   * ```typescript
-   * if (await client.ensureAvailable()) {
-   *   // SDK ready for operations
-   *   await client.registerAgent(...)
-   * } else {
-   *   // SDK unavailable or read-only
-   *   console.log('Agent0 not available')
-   * }
-   * ```
+   * Initialize SDK synchronously if possible, or return current availability
+   * For async initialization, use any method that calls ensureSDK()
    */
   async ensureAvailable(): Promise<boolean> {
     try {
@@ -670,17 +448,7 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Get the underlying Agent0 SDK instance
-   * 
-   * @returns SDK instance if initialized, null otherwise
-   * 
-   * @description
-   * Provides direct access to the Agent0 SDK for advanced operations
-   * not exposed through the client interface.
-   * 
-   * @remarks
-   * Use with caution - direct SDK access bypasses client's error handling and logging.
-   * Prefer using client methods when available.
+   * Get the underlying SDK instance
    */
   getSDK(): SDK | null {
     return this.sdk
@@ -688,42 +456,10 @@ export class Agent0Client implements IAgent0Client {
 }
 
 /**
- * Singleton Agent0Client instance
- * @internal
+ * Get or create singleton Agent0Client instance
  */
 let agent0ClientInstance: Agent0Client | null = null
 
-/**
- * Get or create singleton Agent0Client instance
- * 
- * @returns Singleton Agent0Client instance
- * @throws {Error} If required environment variables not configured
- * 
- * @description
- * Factory function providing singleton access to Agent0Client.
- * Automatically configures client from environment variables:
- * - AGENT0_NETWORK: Target network (sepolia/mainnet/localnet)
- * - AGENT0_RPC_URL or ETHEREUM_SEPOLIA_RPC_URL: Ethereum RPC endpoint
- * - BABYLON_GAME_PRIVATE_KEY or AGENT0_PRIVATE_KEY: Private key for signing
- * - AGENT0_IPFS_PROVIDER: IPFS provider (node/pinata/filecoinPin)
- * - PINATA_JWT: Pinata API token (if using pinata)
- * - FILECOIN_PRIVATE_KEY: Filecoin key (if using filecoinPin)
- * - AGENT0_SUBGRAPH_URL: Agent0 subgraph endpoint
- * 
- * @example
- * ```typescript
- * // Get singleton instance
- * const client = getAgent0Client()
- * 
- * // Register agent
- * const result = await client.registerAgent({ ... })
- * ```
- * 
- * @remarks
- * - Creates client instance on first call, returns same instance on subsequent calls
- * - Validates environment configuration and fails fast if misconfigured
- * - Localnet defaults to Anvil chain ID (31337) and localhost:8545
- */
 export function getAgent0Client(): Agent0Client {
   if (!agent0ClientInstance) {
     // Validate network string
