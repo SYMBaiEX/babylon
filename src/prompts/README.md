@@ -86,26 +86,36 @@ const params = getPromptParams(newsPosts);
 const response = await llm.generateJSON(prompt, undefined, params);
 ```
 
-### With World Context
+### With World Context & Reality Grounding
 
 ```typescript
-import { generateWorldContext } from '@/lib/prompts/world-context';
-import { renderPrompt, getPromptParams, reactions } from '@/prompts';
+import { generateWorldContext, renderPrompt, getPromptParams, reactions } from '@/prompts';
 
-// Generate world context once per day
-const worldContext = await generateWorldContext({ maxActors: 50 });
+// Generate world context with reality grounding
+const worldContext = await generateWorldContext({ 
+  maxActors: 50,
+  realityGroundingLevel: 'concise' // 'full' | 'concise' | 'minimal' | 'none'
+});
 
-// Render prompt with world context
+// Render prompt with world context (includes reality grounding automatically)
 const prompt = renderPrompt(reactions, {
   eventDescription: '...',
   actorsList: '...',
-  ...worldContext  // Spreads worldActors, currentMarkets, etc.
+  ...worldContext  // Spreads: worldActors, currentMarkets, realityGrounding, currentDate, etc.
 });
 
 // Use prompt parameters
 const params = getPromptParams(reactions);
 const response = await llm.generateJSON(prompt, undefined, params);
 ```
+
+**What's included in worldContext:**
+- `worldActors` - List of parody actor names
+- `currentMarkets` - Active prediction markets and stock prices
+- `activePredictions` - Current questions
+- `recentTrades` - Recent trading activity
+- `realityGrounding` - Current date, prices, politics, AI state, culture
+- `currentDate`, `currentTime`, `currentYear`, etc. - Temporal context
 
 ## Key Features
 
@@ -145,6 +155,58 @@ const params = getPromptParams(newsPosts);
 // Prevents mismatches between template and usage
 ```
 
+## Reality Grounding System
+
+**NEW**: Prevents LLM from generating outdated predictions based on old training data.
+
+### The Problem
+LLMs trained on 2023 data might generate:
+- ❌ "Will Bitcoin hit $35K?" (It's already at $95K in Nov 2025)
+- ❌ "Will iPhone 15 launch?" (iPhone 17 is current)
+- ❌ "President Biden announces..." (Trump is president in 2025)
+
+### The Solution
+Reality grounding provides current facts to every prompt:
+
+```typescript
+const worldContext = await generateWorldContext({
+  realityGroundingLevel: 'concise' // Default for most prompts
+});
+
+// worldContext.realityGrounding contains:
+// - Current date (November 16, 2025)
+// - Crypto prices (BTC: $95K, ETH: $3.2K, SOL: $140)
+// - Stock prices (NVDA: $190, META: $610, TSLA: $400-440)
+// - Political context (Trump president since Jan 2025)
+// - AI state (GPT-5.1, Claude 4.5, Gemini 2.5)
+// - Pop culture (iPhone 17, Taylor Swift dominance)
+```
+
+### Reality Grounding Levels
+
+- **`full`** - Complete reality context (~2000 tokens) - Use for question generation
+- **`concise`** - Key facts only (~500 tokens) - Default for feed generation
+- **`minimal`** - One-line summary (~50 tokens) - Use for simple posts
+- **`none`** - No reality grounding - Only for system prompts
+
+### Validation
+
+Check generated content for outdated references:
+
+```typescript
+import { validateGeneratedContent } from '@/prompts';
+
+const validation = validateGeneratedContent(generatedText);
+
+if (!validation.isValid) {
+  console.error('Errors:', validation.errors); // Real names found
+}
+
+if (validation.warnings.length > 0) {
+  console.warn('Warnings:', validation.warnings); // Outdated prices/facts
+}
+```
+
 ## Important Rules
 
 All prompts must follow these rules:
@@ -152,8 +214,9 @@ All prompts must follow these rules:
 1. **NEVER use real names** - Always use parody names (AIlon Musk, Sam AIltman, etc.)
 2. **NO hashtags or emojis** - Keep content clean and professional
 3. **World Context** - Include `{{worldActors}}`, `{{currentMarkets}}`, etc. when available
-4. **XML Output** - Most prompts require XML-formatted responses
-5. **Post-processing** - All outputs are post-processed to replace any real names that slip through
+4. **Reality Grounding** - Include `{{realityGrounding}}` in all content generation prompts
+5. **XML Output** - Most prompts require XML-formatted responses
+6. **Post-processing** - All outputs are post-processed to replace any real names that slip through
 
 ## Benefits
 

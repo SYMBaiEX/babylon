@@ -60,7 +60,7 @@
 
 import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import { questionGeneration, questionResolutionValidation, renderPrompt } from '@/prompts';
+import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext } from '@/prompts';
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
 
@@ -209,7 +209,7 @@ export class QuestionManager {
           .join('\n')}`
       : '\n\nNo active questions yet.';
 
-    const prompt = this.buildQuestionGenerationPrompt(
+    const prompt = await this.buildQuestionGenerationPrompt(
       scenarios,
       actors,
       organizations,
@@ -274,14 +274,14 @@ export class QuestionManager {
   /**
    * Build LLM prompt for question generation
    */
-  private buildQuestionGenerationPrompt(
+  private async buildQuestionGenerationPrompt(
     scenarios: Scenario[],
     actors: SelectedActor[],
     organizations: Organization[],
     recentContext: string,
     activeQuestionsContext: string,
     numToGenerate: number
-  ): string {
+  ): Promise<string> {
     const scenariosList = scenarios
       .map(
         s => `
@@ -310,13 +310,20 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       .map(o => `- ${o.name}: ${o.description}`)
       .join('\n');
 
+    // Generate world context with reality grounding for better question quality
+    const worldContext = await generateWorldContext({
+      maxActors: 50,
+      realityGroundingLevel: 'concise',
+    });
+
     return renderPrompt(questionGeneration, {
       scenariosList,
       actorsList,
       orgsList,
       recentContext,
       activeQuestionsContext,
-      numToGenerate: numToGenerate.toString()
+      numToGenerate: numToGenerate.toString(),
+      ...worldContext,
     });
   }
 

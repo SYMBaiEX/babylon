@@ -1,8 +1,34 @@
 /**
  * Authentication Store
  * 
- * Manages user authentication state, wallet connection, and onboarding status.
- * Persists authentication data to localStorage for session persistence.
+ * @module stores/authStore
+ * 
+ * @description
+ * Zustand store managing global authentication state for the Babylon application.
+ * Handles user profile data, wallet connection, onboarding flow, and session persistence.
+ * 
+ * **Key Features:**
+ * - User profile and authentication state
+ * - Wallet connection tracking
+ * - Onboarding status management
+ * - localStorage persistence for session continuity
+ * - Login modal control
+ * - Social connection status (Farcaster, Twitter)
+ * 
+ * @example
+ * ```typescript
+ * import { useAuthStore } from '@/stores/authStore'
+ * 
+ * function MyComponent() {
+ *   const { user, setUser, logout, showLoginModal } = useAuthStore()
+ *   
+ *   if (!user) {
+ *     return <button onClick={() => showLoginModal()}>Login</button>
+ *   }
+ *   
+ *   return <div>Welcome, {user.displayName}!</div>
+ * }
+ * ```
  */
 
 import { create } from 'zustand'

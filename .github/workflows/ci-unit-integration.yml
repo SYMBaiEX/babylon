@@ -18,7 +18,7 @@ jobs:
   test-unit-integration:
     name: Unit & Integration Tests
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 15
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -73,6 +73,7 @@ jobs:
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY || '' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
@@ -142,7 +143,11 @@ jobs:
           REDIS_URL: redis://localhost:6379
           TEST_API_URL: http://localhost:3000
           NODE_ENV: test
-        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
+        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts src/engine/__tests__/
         continue-on-error: false
 
       - name: Stop Next.js dev server

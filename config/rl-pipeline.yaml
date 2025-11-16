@@ -66,7 +66,7 @@ training:
   max_grad_norm: 1.0
   gamma: 0.99
   checkpoint_frequency: 5  # Save checkpoint every 5 windows
-  wandb_project: "babylon-rl-continuous"
+  wandb_project: "babylon-continuous"
   wandb_entity: null  # Use default from env
 
 # Model Deployment

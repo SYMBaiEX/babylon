@@ -10,6 +10,25 @@ export { definePrompt, renderTemplate } from './define-prompt';
 export { renderPrompt, getPromptParams } from './loader';
 export type { PromptDefinition } from './define-prompt';
 
+// World Context & Reality Grounding
+export {
+  generateWorldContext,
+  generateWorldActors,
+  generateCurrentMarkets,
+  generateActivePredictions,
+  generateRecentTrades,
+  getParodyActorNames,
+  getForbiddenRealNames,
+  validateNoRealNames,
+  checkRealityGrounding,
+  validateGeneratedContent,
+  getCurrentDateContext,
+  getRealityGrounding,
+  getMinimalRealityGrounding,
+  REALITY_GROUNDING,
+} from './world-context';
+export type { WorldContext, WorldContextOptions } from './world-context';
+
 // Prompts by category
 // Feed prompts
 export { governmentPosts } from './feed/government-posts';

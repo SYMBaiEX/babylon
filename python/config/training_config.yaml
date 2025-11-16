@@ -62,7 +62,7 @@ deployment:
     health_check_retries: 5
     
   coreweave:
-    endpoint_template: "https://babylon-rl-{version}.coreweave.cloud/v1/chat/completions"
+    endpoint_template: "https://babylon-{version}.coreweave.cloud/v1/chat/completions"
     deployment_strategy: "blue-green"  # blue-green or canary
     canary_percentage: 10
     health_check_retries: 10
@@ -73,12 +73,12 @@ storage:
   checkpoints_dir: "./checkpoints"
   logs_dir: "./logs"
   metrics_dir: "./metrics"
-  coreweave_s3_bucket: "babylon-rl-training"
+  coreweave_s3_bucket: "babylon-training"
   
 # Monitoring settings
 monitoring:
   enable_wandb: true
-  wandb_project: "babylon-rl-continuous"
+  wandb_project: "babylon-continuous"
   log_frequency_steps: 10
   save_trajectory_samples: true
   alert_on_failure: true

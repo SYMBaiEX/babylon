@@ -1,7 +1,7 @@
 {
   "id": "deparment-of-war",
   "name": "Deparment of War",
-  "description": "formerly Department of Defense, now honest",
+  "description": "America's premier military force, formerly the Department of Defense but we're being honest now about what we actually do",
   "type": "government",
   "canBeInvolved": true,
   "postStyle": "Military industrial complex. War as policy. Defense budgets. Honesty through rebranding. Pentagon speak.",

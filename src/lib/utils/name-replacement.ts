@@ -113,6 +113,9 @@ export function replaceNameVariations(
   // Replace each variation
   for (let i = 0; i < sortedOld.length; i++) {
     const oldVar = sortedOld[i];
+    if (!oldVar) {
+      continue;
+    }
     const newVar = sortedNew[i] || newFirstName + ' ' + newLastName;
 
     // Use word boundaries for replacement

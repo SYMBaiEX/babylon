@@ -10,7 +10,7 @@ import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
 import { callGroqDirect } from '../llm/direct-groq'
 import { generateRandomMarketContext, formatRandomContext } from '@/lib/prompts/random-context'
-import { generateWorldContext } from '@/lib/prompts/world-context'
+import { generateWorldContext } from '@/prompts'
 import { characterMappingService } from '@/lib/services/character-mapping-service'
 import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
 

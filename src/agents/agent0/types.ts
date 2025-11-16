@@ -1,14 +1,34 @@
 /**
  * Agent0 Integration Type Definitions
  * 
- * Type-safe interfaces for Agent0 SDK integration
+ * @module agents/agent0/types
+ * 
+ * @description
+ * Comprehensive type definitions for Agent0 SDK integration throughout Babylon.
+ * Defines interfaces for:
+ * - Agent0Client operations (registration, search, feedback)
+ * - Agent discovery and filtering
+ * - Reputation aggregation from multiple sources
+ * - Cross-system type compatibility
+ * 
+ * These types ensure type safety across Agent0 operations and provide
+ * clear contracts for agent management, discovery, and reputation tracking.
  */
 
 import type { AgentProfile, AgentCapabilities } from '@/types/a2a'
 
 /**
  * Agent0 Client Interface
- * Defines the methods available on Agent0Client for external use
+ * 
+ * @interface IAgent0Client
+ * 
+ * @description
+ * Defines the complete API surface for Agent0Client operations.
+ * Provides methods for agent lifecycle management, search, and reputation.
+ * 
+ * @remarks
+ * All methods fail fast on errors. Check `isAvailable()` or `ensureAvailable()`
+ * before operations to verify SDK is properly initialized.
  */
 export interface IAgent0Client {
   registerAgent(params: Agent0RegistrationParams): Promise<Agent0RegistrationResult>

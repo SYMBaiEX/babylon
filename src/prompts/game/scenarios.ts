@@ -10,6 +10,8 @@ export const scenarios = definePrompt({
   template: `
 You must respond with valid XML only.
 
+{{realityGrounding}}
+
 Create 3 dramatic, satirical scenarios for these main actors:
 
 MAIN ACTORS:

@@ -1,7 +1,25 @@
 /**
  * Shared Utility Functions for Babylon Game
+ * 
+ * @module shared/utils
  *
- * Consolidated utility functions to eliminate duplication across codebase
+ * @description
+ * Consolidated utility functions used across the Babylon codebase.
+ * Provides common operations for:
+ * - Actor voice and style formatting
+ * - Date/time formatting
+ * - Sentiment analysis
+ * - Relationship context building
+ * - Organization behavior guidelines
+ * - Phase-based narrative context
+ * - Number clamping and conversions
+ * 
+ * **Design Principles:**
+ * - Single source of truth for shared logic
+ * - Pure functions with no side effects
+ * - Type-safe interfaces
+ * - Comprehensive documentation with examples
+ * - Re-exports from specialized util modules
  */
 
 import type { Actor, ActorRelationship, Organization } from './types';

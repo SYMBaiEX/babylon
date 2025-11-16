@@ -86,6 +86,7 @@ jobs:
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY || '' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
@@ -98,20 +99,10 @@ jobs:
       - name: Setup Prisma and Database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Generate Prisma client first
-          echo "🔧 Generating Prisma client..."
-          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Force reset and apply migrations
-          echo "🗄️ Resetting database and applying migrations..."
-          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          # Run seed to ensure test data is loaded
-          echo "🌱 Seeding database..."
-          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
-          
-          echo "✅ Database setup complete"
+          # Use the setup script for consistent database initialization
+          bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
 
       - name: Clean stale .next types before typecheck
         run: rm -rf .next/types

@@ -88,7 +88,7 @@ if [ "$ENVIRONMENT" = "coreweave" ] && command -v systemctl > /dev/null; then
     echo ""
     echo "Setting up systemd service..."
     
-    SERVICE_FILE="/tmp/babylon-rl-training.service"
+    SERVICE_FILE="/tmp/babylon-training.service"
     
     cat > "$SERVICE_FILE" << EOF
 [Unit]
@@ -116,11 +116,11 @@ EOF
     if [ "$DRY_RUN" != "true" ]; then
         sudo cp "$SERVICE_FILE" /etc/systemd/system/
         sudo systemctl daemon-reload
-        sudo systemctl enable babylon-rl-training
-        sudo systemctl start babylon-rl-training
+        sudo systemctl enable babylon-training
+        sudo systemctl start babylon-training
         
         echo "✅ Systemd service installed and started"
-        echo "Check status with: sudo systemctl status babylon-rl-training"
+        echo "Check status with: sudo systemctl status babylon-training"
     else
         echo "🔍 DRY RUN: Would install systemd service:"
         cat "$SERVICE_FILE"
@@ -199,7 +199,7 @@ echo "  1. Monitor with: $MONITOR_SCRIPT"
 echo "  2. View logs: tail -f logs/training_pipeline.log"
 echo "  3. Check cron: crontab -l"
 if [ "$ENVIRONMENT" = "coreweave" ]; then
-    echo "  4. Check systemd: sudo systemctl status babylon-rl-training"
+    echo "  4. Check systemd: sudo systemctl status babylon-training"
 fi
 echo ""
 echo "🚀 Training pipeline will run automatically!"

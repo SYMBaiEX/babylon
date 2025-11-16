@@ -68,7 +68,7 @@ except ImportError as e:
 # Configuration
 DATABASE_URL = os.getenv('DATABASE_URL')
 WANDB_API_KEY = os.getenv('WANDB_API_KEY')
-WANDB_PROJECT = os.getenv('WANDB_PROJECT', 'babylon-rl')
+WANDB_PROJECT = os.getenv('WANDB_PROJECT', 'babylon')
 POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '300'))  # 5 minutes default
 PORT = int(os.getenv('PORT', '8000'))
 

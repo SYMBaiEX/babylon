@@ -8,7 +8,7 @@ echo "=============================================="
 echo ""
 
 # Configuration
-NAMESPACE="babylon-rl"
+NAMESPACE="babylon"
 DOCKER_IMAGE="babylonrl/training-pipeline:latest"
 REGISTRY="registry.coreweave.cloud"
 
@@ -52,7 +52,7 @@ echo "🔐 Setting up secrets..."
 if [ -f ".env.coreweave" ]; then
     echo "Found .env.coreweave, creating secrets..."
     
-    kubectl create secret generic babylon-rl-secrets \
+    kubectl create secret generic babylon-secrets \
         --from-env-file=.env.coreweave \
         --namespace="$NAMESPACE" \
         --dry-run=client -o yaml | kubectl apply -f -
@@ -61,7 +61,7 @@ if [ -f ".env.coreweave" ]; then
 else
     echo "⚠️  No .env.coreweave file found"
     echo "Please create secrets manually:"
-    echo "  kubectl create secret generic babylon-rl-secrets \\"
+    echo "  kubectl create secret generic babylon-secrets \\"
     echo "    --from-literal=DATABASE_URL=... \\"
     echo "    --from-literal=OPENPIPE_API_KEY=... \\"
     echo "    --namespace=$NAMESPACE"
@@ -76,8 +76,8 @@ echo ""
 
 # Step 6: Wait for rollout
 echo "⏳ Waiting for deployment..."
-kubectl rollout status deployment/babylon-rl-training -n "$NAMESPACE" --timeout=10m
-kubectl rollout status deployment/babylon-rl-inference -n "$NAMESPACE" --timeout=10m
+kubectl rollout status deployment/babylon-training -n "$NAMESPACE" --timeout=10m
+kubectl rollout status deployment/babylon-inference -n "$NAMESPACE" --timeout=10m
 echo "✅ Deployments ready"
 echo ""
 
@@ -88,7 +88,7 @@ kubectl get services -n "$NAMESPACE"
 echo ""
 
 echo "🌐 Inference endpoint:"
-INFERENCE_IP=$(kubectl get service babylon-rl-inference -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+INFERENCE_IP=$(kubectl get service babylon-inference -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 if [ -n "$INFERENCE_IP" ]; then
     echo "  http://$INFERENCE_IP"
 else
@@ -99,20 +99,20 @@ echo ""
 # Step 8: Show logs
 echo "📝 Recent logs:"
 echo "--------------"
-kubectl logs -n "$NAMESPACE" deployment/babylon-rl-training --tail=20
+kubectl logs -n "$NAMESPACE" deployment/babylon-training --tail=20
 echo ""
 
 echo "✅ Deployment complete!"
 echo ""
 echo "📊 Monitor with:"
 echo "  kubectl get pods -n $NAMESPACE -w"
-echo "  kubectl logs -n $NAMESPACE -f deployment/babylon-rl-training"
-echo "  kubectl logs -n $NAMESPACE -f deployment/babylon-rl-inference"
+echo "  kubectl logs -n $NAMESPACE -f deployment/babylon-training"
+echo "  kubectl logs -n $NAMESPACE -f deployment/babylon-inference"
 echo ""
 echo "🔧 Manage with:"
 echo "  kubectl get all -n $NAMESPACE"
-echo "  kubectl describe deployment babylon-rl-training -n $NAMESPACE"
-echo "  kubectl scale deployment babylon-rl-inference --replicas=4 -n $NAMESPACE"
+echo "  kubectl describe deployment babylon-training -n $NAMESPACE"
+echo "  kubectl scale deployment babylon-inference --replicas=4 -n $NAMESPACE"
 
 
 

@@ -140,7 +140,7 @@ load_dotenv(project_root / '.env.local', override=True)
 load_dotenv(project_root / '.env')
 
 wandb_key = os.getenv('WANDB_API_KEY')
-wandb_project = os.getenv('WANDB_PROJECT', 'babylon-rl')
+wandb_project = os.getenv('WANDB_PROJECT', 'babylon')
 
 if not wandb_key:
     print("⚠️  WANDB_API_KEY not set")
@@ -176,7 +176,7 @@ echo ""
 # Step 6: List available training windows
 echo "=== STEP 6: Check Available Training Data ==="
 export MODE=list
-export WANDB_PROJECT=${WANDB_PROJECT:-babylon-rl}
+export WANDB_PROJECT=${WANDB_PROJECT:-babylon}
 export MIN_AGENTS_PER_WINDOW=2
 
 echo "Checking for training windows..."

@@ -56,7 +56,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentService } from '@/lib/agents/services/AgentService'
-import { autonomousCoordinator, AutonomousCoordinatorWithRecording } from '@/lib/agents/autonomous'
+import { autonomousCoordinator } from '@/lib/agents/autonomous'
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for agent tick
@@ -101,14 +101,11 @@ export async function POST(_req: NextRequest) {
     if (agent.autonomousDMs) enabledFeatures.push('DMs')
     if (agent.autonomousGroupChats) enabledFeatures.push('group chats')
 
-    // Use recording coordinator for RL training data collection
+    // Enable trajectory recording for RL training data collection
     // Can be toggled via environment variable
-    const shouldRecord = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-    const coordinator = shouldRecord 
-      ? new AutonomousCoordinatorWithRecording() 
-      : autonomousCoordinator;
+    const recordTrajectories = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
     
-    const tickResult = await coordinator.executeAutonomousTick(agent.id, runtime)
+    const tickResult = await autonomousCoordinator.executeAutonomousTick(agent.id, runtime, recordTrajectories)
 
     const actions = {
       trades: tickResult.actionsExecuted.trades,

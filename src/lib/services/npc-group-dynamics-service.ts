@@ -16,7 +16,7 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { generateWorldContext } from '@/lib/prompts/world-context';
+import { generateWorldContext } from '@/prompts';
 import { validateNoRealNames, validateNoHashtags, validateNoEmojis } from '@/lib/prompts/validate-output';
 import { Prisma } from '@prisma/client';
 

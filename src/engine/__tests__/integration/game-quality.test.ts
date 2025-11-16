@@ -24,8 +24,21 @@ import { describe, test, expect } from 'bun:test';
 import { GameGenerator } from '@/generator/GameGenerator';
 import { logger } from '@/lib/logger';
 
+// Check if LLM API keys are available
+const hasLLMKey = !!(
+  process.env.WANDB_API_KEY ||
+  process.env.GROQ_API_KEY ||
+  process.env.ANTHROPIC_API_KEY ||
+  process.env.OPENAI_API_KEY
+);
+
 describe('Game Quality Integration Tests', () => {
   test('generated game has no undefined fields', async () => {
+    if (!hasLLMKey) {
+      console.log('⏭️  Skipping - No LLM API key available (WANDB_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required)');
+      return;
+    }
+    
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -114,6 +127,11 @@ describe('Game Quality Integration Tests', () => {
   });
   
   test('all actor IDs are unique', async () => {
+    if (!hasLLMKey) {
+      console.log('⏭️  Skipping - No LLM API key available');
+      return;
+    }
+    
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -133,6 +151,11 @@ describe('Game Quality Integration Tests', () => {
   });
   
   test('all event IDs are unique', async () => {
+    if (!hasLLMKey) {
+      console.log('⏭️  Skipping - No LLM API key available');
+      return;
+    }
+    
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -147,6 +170,11 @@ describe('Game Quality Integration Tests', () => {
   });
   
   test('all actor references are valid', async () => {
+    if (!hasLLMKey) {
+      console.log('⏭️  Skipping - No LLM API key available');
+      return;
+    }
+    
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -187,6 +215,11 @@ describe('Game Quality Integration Tests', () => {
   });
   
   test('questions have metadata and arc plans', async () => {
+    if (!hasLLMKey) {
+      console.log('⏭️  Skipping - No LLM API key available');
+      return;
+    }
+    
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     

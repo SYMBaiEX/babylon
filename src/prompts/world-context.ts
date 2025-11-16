@@ -1,27 +1,63 @@
 /**
  * World Context Generator
  * 
- * Generates context strings for feed prompts including actor names,
- * markets, predictions, and recent trades.
+ * Generates context strings for prompts including:
+ * - Actor names (parody only)
+ * - Current markets and prices
+ * - Active predictions
+ * - Recent trades
+ * - Reality grounding (current date, prices, politics, tech, culture)
+ * 
+ * This is the single source of truth for world context in prompts.
  */
 
 import { loadActorsData } from '@/lib/data/actors-loader';
 import { prisma } from '@/lib/prisma';
 import { shuffleArray } from '@/lib/utils/randomization';
 import type { ActorData } from '@/shared/types';
+import { 
+  getCurrentDateContext, 
+  getRealityGrounding, 
+  getMinimalRealityGrounding,
+  checkRealityGrounding as checkReality,
+  REALITY_GROUNDING 
+} from './reality-grounding';
 
 export interface WorldContextOptions {
   includeActors?: boolean;
   includeMarkets?: boolean;
   includePredictions?: boolean;
   includeTrades?: boolean;
+  includeRealityGrounding?: boolean;
   maxActors?: number;
+  realityGroundingLevel?: 'full' | 'concise' | 'minimal' | 'none';
+}
+
+export interface WorldContext {
+  // Actor context
+  worldActors: string;
+  
+  // Market context
+  currentMarkets: string;
+  activePredictions: string;
+  recentTrades: string;
+  
+  // Date/time context
+  currentDateTime: string;
+  currentDate: string;
+  currentTime: string;
+  currentYear: string;
+  currentMonth: string;
+  currentDay: string;
+  
+  // Reality grounding
+  realityGrounding: string;
 }
 
 /**
  * Generates the world actors list for prompt context
  * ONLY includes parody names - real names are NEVER mentioned
- * Now shuffles actors to add variety to prompts
+ * Shuffles actors to add variety to prompts
  * 
  * **Optimized:** Only loads actors (not orgs or relationships)
  */
@@ -208,30 +244,28 @@ export async function generateRecentTrades(): Promise<string> {
 }
 
 /**
- * Generates complete world context for feed prompts
- * Note: This is async because it fetches from database
+ * Generates complete world context for prompts
  * 
- * Now includes current date/time for temporal awareness in posts
+ * This is the main function to use when generating any content.
+ * It provides current date, market data, and reality grounding.
+ * 
+ * @param options - Configuration for what context to include
+ * @returns Complete world context object
  */
-export async function generateWorldContext(options: WorldContextOptions = {}): Promise<{
-  worldActors: string;
-  currentMarkets: string;
-  activePredictions: string;
-  recentTrades: string;
-  currentDateTime: string;
-  currentDate: string;
-  currentTime: string;
-  currentYear: string;
-}> {
+export async function generateWorldContext(
+  options: WorldContextOptions = {}
+): Promise<WorldContext> {
   const {
     includeActors = true,
     includeMarkets = true,
     includePredictions = true,
     includeTrades = true,
+    includeRealityGrounding = true,
     maxActors = 50, // Limit to top 50 actors to avoid token limits
+    realityGroundingLevel = 'concise', // Default to concise for most prompts
   } = options;
 
-  const now = new Date();
+  const dateContext = getCurrentDateContext();
 
   // Fetch data in parallel for performance
   const [markets, predictions, trades] = await Promise.all([
@@ -240,25 +274,44 @@ export async function generateWorldContext(options: WorldContextOptions = {}): P
     includeTrades ? generateRecentTrades() : Promise.resolve(''),
   ]);
 
+  // Determine reality grounding level
+  let realityGrounding = '';
+  if (includeRealityGrounding) {
+    switch (realityGroundingLevel) {
+      case 'full':
+        realityGrounding = REALITY_GROUNDING;
+        break;
+      case 'concise':
+        realityGrounding = getRealityGrounding();
+        break;
+      case 'minimal':
+        realityGrounding = getMinimalRealityGrounding();
+        break;
+      case 'none':
+        realityGrounding = '';
+        break;
+    }
+  }
+
   return {
+    // Actor context
     worldActors: includeActors ? generateWorldActors(maxActors) : '',
+    
+    // Market context
     currentMarkets: markets,
     activePredictions: predictions,
     recentTrades: trades,
-    // Current date/time context for temporal awareness
-    currentDateTime: now.toISOString(),
-    currentDate: now.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    }),
-    currentTime: now.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    }),
-    currentYear: now.getFullYear().toString(),
+    
+    // Date/time context
+    currentDateTime: dateContext.dateISO,
+    currentDate: dateContext.dateFull,
+    currentTime: dateContext.time,
+    currentYear: dateContext.year,
+    currentMonth: dateContext.month,
+    currentDay: dateContext.day,
+    
+    // Reality grounding
+    realityGrounding,
   };
 }
 
@@ -266,7 +319,11 @@ export async function generateWorldContext(options: WorldContextOptions = {}): P
  * Get a list of parody actor names (for validation purposes only)
  */
 export function getParodyActorNames(): string[] {
-  const actorsData = loadActorsData();
+  const actorsData = loadActorsData({
+    includeActors: true,
+    includeOrganizations: false,
+    includeRelationships: false,
+  });
   const actors = actorsData.actors as ActorData[];
   return actors.map(actor => actor.name);
 }
@@ -275,23 +332,108 @@ export function getParodyActorNames(): string[] {
  * Get a list of forbidden real names (for validation - these should NEVER appear in output)
  */
 export function getForbiddenRealNames(): string[] {
-  const actorsData = loadActorsData();
+  const actorsData = loadActorsData({
+    includeActors: true,
+    includeOrganizations: false,
+    includeRelationships: false,
+  });
   const actors = actorsData.actors as ActorData[];
   return actors.map(actor => actor.realName);
 }
 
 /**
- * Example usage in your feed generation:
+ * Validate that generated content doesn't use real names
+ * @param text - The generated content to check
+ * @returns Array of validation errors (empty if valid)
+ */
+export function validateNoRealNames(text: string): string[] {
+  const forbiddenNames = getForbiddenRealNames();
+  const violations: string[] = [];
+
+  // Check if text contains any forbidden real names
+  forbiddenNames.forEach(realName => {
+    if (text.includes(realName)) {
+      violations.push(`FORBIDDEN: Found real name "${realName}" - must use parody names only`);
+    }
+  });
+
+  return violations;
+}
+
+/**
+ * Check if generated content is grounded in current reality
+ * @param text - The generated content to check
+ * @returns Array of warnings about outdated references
+ */
+export function checkRealityGrounding(text: string): string[] {
+  return checkReality(text);
+}
+
+/**
+ * Complete validation of generated content
+ * Checks both parody names and reality grounding
  * 
- * import { generateWorldContext } from '@/lib/prompts/world-context';
- * import { renderPrompt, ambientPosts } from '@/prompts';
+ * @param text - The generated content to validate
+ * @returns Object with errors and warnings
+ */
+export function validateGeneratedContent(text: string): {
+  errors: string[];
+  warnings: string[];
+  isValid: boolean;
+} {
+  const errors = validateNoRealNames(text);
+  const warnings = checkRealityGrounding(text);
+  
+  return {
+    errors,
+    warnings,
+    isValid: errors.length === 0,
+  };
+}
+
+/**
+ * Re-export reality grounding utilities
+ */
+export {
+  getCurrentDateContext,
+  getRealityGrounding,
+  getMinimalRealityGrounding,
+  REALITY_GROUNDING,
+} from './reality-grounding';
+
+/**
+ * Example usage:
  * 
- * const worldContext = generateWorldContext();
+ * ```typescript
+ * import { generateWorldContext, renderPrompt } from '@/prompts';
+ * import { ambientPosts } from '@/prompts';
+ * 
+ * // Generate world context with reality grounding
+ * const worldContext = await generateWorldContext({
+ *   maxActors: 30,
+ *   realityGroundingLevel: 'concise', // 'full' | 'concise' | 'minimal' | 'none'
+ * });
+ * 
+ * // Use in prompt
  * const prompt = renderPrompt(ambientPosts, {
  *   day: 5,
  *   actorCount: 3,
  *   actorsList: "...",
- *   ...worldContext // Spreads: worldActors, currentMarkets, activePredictions, recentTrades
+ *   progressContext: "...",
+ *   atmosphereContext: "...",
+ *   previousPostsContext: "",
+ *   trendContext: "",
+ *   ...worldContext, // Spreads all context including reality grounding
  * });
+ * 
+ * // Validate output
+ * const validation = validateGeneratedContent(generatedText);
+ * if (!validation.isValid) {
+ *   console.error('Validation errors:', validation.errors);
+ * }
+ * if (validation.warnings.length > 0) {
+ *   console.warn('Reality warnings:', validation.warnings);
+ * }
+ * ```
  */
 

@@ -1,6 +1,30 @@
 /**
  * A2A Protocol Type Definitions
- * Agent-to-Agent communication types following JSON-RPC 2.0 spec
+ * 
+ * @module types/a2a
+ * 
+ * @description
+ * Complete type definitions for the Agent-to-Agent (A2A) communication protocol.
+ * Implements JSON-RPC 2.0 specification with Babylon-specific extensions for
+ * agent discovery, capabilities, reputation, and inter-agent messaging.
+ * 
+ * **Protocol Components:**
+ * - JSON-RPC 2.0 base types (request, response, error, notification)
+ * - A2A method definitions and parameter types
+ * - Agent capabilities and metadata structures
+ * - Reputation tracking and feedback types
+ * - Discovery and registration interfaces
+ * - X402 payment protocol integration
+ * 
+ * **Key Features:**
+ * - Type-safe RPC communication
+ * - Zod schemas for runtime validation
+ * - Agent discovery and search
+ * - Capability-based routing
+ * - Reputation aggregation
+ * - Cross-game interoperability
+ * 
+ * @see {@link https://www.jsonrpc.org/specification} JSON-RPC 2.0 Specification
  */
 
 import { z } from 'zod';

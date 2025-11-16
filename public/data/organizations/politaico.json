@@ -1,7 +1,7 @@
 {
   "id": "politaico",
   "name": "PolitAIco",
-  "description": "politics for the people",
+  "description": "The leading political journalism platform, delivering Beltway gossip and horse race coverage for people who live inside the bubble",
   "type": "media",
   "canBeInvolved": true,
   "postStyle": "Inside baseball politics. Beltway gossip. Horse race coverage. Sources say. Playbook energy.",

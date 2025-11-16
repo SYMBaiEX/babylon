@@ -20,6 +20,8 @@ Event involving these actors: {{eventDescription}}
 
 {{previousPostsContext}}
 
+{{realityGrounding}}
+
 WORLD CONTEXT:
 {{worldActors}}
 {{currentMarkets}}

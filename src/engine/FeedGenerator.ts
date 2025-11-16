@@ -78,7 +78,7 @@
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
 import { ContentValidator } from '@/lib/validation/content-validator';
-import { generateWorldContext } from '@/lib/prompts/world-context';
+import { generateWorldContext, type WorldContext } from '@/prompts';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
 
 import {
@@ -221,7 +221,7 @@ export class FeedGenerator extends EventEmitter {
   private relationshipContextCache: Map<string, string> = new Map(); // Cache relationship prompts
   private organizations: Organization[] = [];
   private actorGroupContexts: Map<string, string> = new Map();
-  private worldContext: { worldActors: string; currentMarkets: string; activePredictions: string; recentTrades: string; currentDateTime: string; currentDate: string; currentTime: string; currentYear: string } | null = null;
+  private worldContext: WorldContext | null = null;
   private _npcPersonas: Map<string, { reliability: number; insiderOrgs: string[]; willingToLie: boolean; selfInterest: string }> = new Map();
   private trendingTopics?: TrendingTopicsEngine;
   private trendContext: string = '';

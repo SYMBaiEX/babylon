@@ -23,7 +23,7 @@ import { prisma } from '@/lib/prisma';
 import { BenchmarkDataGenerator, type BenchmarkConfig } from '@/lib/benchmark/BenchmarkDataGenerator';
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { AutonomousCoordinatorWithRecording } from '@/lib/autonomous/AutonomousCoordinatorWithRecording';
+import { autonomousCoordinator } from '@/lib/agents/autonomous';
 import { SimulationEngine, type SimulationConfig } from '@/lib/benchmark/SimulationEngine';
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 import { createTestAgent, ensureTestAgents } from '@/lib/agents/utils/createTestAgent';
@@ -287,10 +287,7 @@ class PipelineRunner {
       
       engine.initialize();
       
-      // Use recording coordinator - it automatically handles trajectory recording
-      const coordinator = new AutonomousCoordinatorWithRecording();
-      
-      // Run simulation loop
+      // Run simulation loop with trajectory recording enabled
       let tickCount = 0;
       let lastTrajectoryId: string | undefined;
       
@@ -300,7 +297,8 @@ class PipelineRunner {
           console.log(`    Tick ${tickCount}/${snapshot.ticks.length}...`);
         }
         
-        const tickResult = await coordinator.executeAutonomousTick(agentId, runtime).catch((error: Error) => {
+        // Execute tick with trajectory recording enabled
+        const tickResult = await autonomousCoordinator.executeAutonomousTick(agentId, runtime, true).catch((error: Error) => {
           logger.error('Tick execution error', { error, tick: tickCount }, 'RLPipeline');
           return { success: false, trajectoryId: undefined } as { success: boolean; trajectoryId?: string };
         });
@@ -317,7 +315,7 @@ class PipelineRunner {
       // Get final results
       const result = await engine.run();
       
-      // Note: AutonomousCoordinatorWithRecording handles trajectory ending automatically
+      // Note: Autonomous coordinator handles trajectory ending automatically
       // Each tick creates its own trajectory, so we have multiple trajectories
       // The coordinator will save them with proper metadata
       

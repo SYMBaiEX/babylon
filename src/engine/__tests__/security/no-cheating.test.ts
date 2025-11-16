@@ -17,9 +17,22 @@ import { describe, test, expect } from 'bun:test';
 import { GameGenerator } from '@/generator/GameGenerator';
 import type { Question } from '@/shared/types';
 
+// Check if LLM API keys are available
+const hasLLMKey = !!(
+  process.env.WANDB_API_KEY ||
+  process.env.GROQ_API_KEY ||
+  process.env.ANTHROPIC_API_KEY ||
+  process.env.OPENAI_API_KEY
+);
+
 describe('Security: Prevent Cheating', () => {
   describe('No Predetermined Outcome Access', () => {
     test('question outcomes not visible before resolution', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -44,6 +57,11 @@ describe('Security: Prevent Cheating', () => {
     });
     
     test('posts dont directly reveal predetermined outcomes', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -119,6 +137,11 @@ describe('Security: Prevent Cheating', () => {
   
   describe('No Hidden Knowledge Access', () => {
     test('NPC persona reliability not visible to users', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -137,6 +160,11 @@ describe('Security: Prevent Cheating', () => {
     });
     
     test('insider status not visible to users', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -159,6 +187,11 @@ describe('Security: Prevent Cheating', () => {
   
   describe('Information Gradient Integrity', () => {
     test('early game doesnt reveal too much', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -179,6 +212,11 @@ describe('Security: Prevent Cheating', () => {
     });
     
     test('late game provides sufficient clarity', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -220,6 +258,11 @@ describe('Security: Prevent Cheating', () => {
     });
     
     test('group chat membership provides fair insider advantage', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -246,6 +289,11 @@ describe('Security: Prevent Cheating', () => {
   
   describe('Temporal Integrity', () => {
     test('posts have valid timestamps in sequence', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       
@@ -267,6 +315,11 @@ describe('Security: Prevent Cheating', () => {
     });
     
     test('event timestamps match their day numbers', async () => {
+      if (!hasLLMKey) {
+        console.log('⏭️  Skipping - No LLM API key available');
+        return;
+      }
+      
       const generator = new GameGenerator();
       const game = await generator.generateCompleteGame();
       

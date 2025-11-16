@@ -596,7 +596,7 @@ export class BenchmarkDataGenerator {
       }
       
       // Simulate group chat invites (for the agent being tested)
-      if (this.rng.next() > 0.9 && currentState.groupChats.length > 0) {
+      if (this.rng.next() > 0.9 && currentState.groupChats && currentState.groupChats.length > 0) {
         const groupChat = currentState.groupChats[Math.floor(this.rng.next() * currentState.groupChats.length)];
         if (groupChat && groupChat.memberIds.length < 10) {
           groupChat.invitedAgent = true;

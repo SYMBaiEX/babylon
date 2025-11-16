@@ -10,7 +10,6 @@
  */
 
 import { EnhancedLoadTestSimulator } from '@/lib/testing/enhanced-load-test-simulator';
-import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
 import { queryMonitor } from '@/lib/db/query-monitor';
 
 console.log('╔══════════════════════════════════════════════════════════╗');
@@ -53,7 +52,7 @@ async function main() {
   console.log('Test Configuration (SAFE):');
   console.log(`  Concurrent Users: ${config.concurrentUsers} (low, won't crash)`);
   console.log(`  Duration: ${config.durationSeconds}s`);
-  console.log(`  Max RPS: ${config.maxRPS}`);
+  console.log(`  Max RPS: ${config.maxRps}`);
   console.log(`  Memory Limit: ${config.resourceLimits.maxMemoryMB}MB`);
   console.log(`  Route: ${config.targetRoute}\n`);
 

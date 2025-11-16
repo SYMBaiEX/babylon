@@ -67,7 +67,7 @@ async function testGeneration() {
     const path = await import('path');
     const tempFile = path.join(process.cwd(), 'benchmarks', `test-${snapshot.id}.json`);
     await fs.writeFile(tempFile, JSON.stringify(snapshot, null, 2));
-    const view = await BenchmarkDataViewer.view(tempFile, { showGroundTruth: true });
+    await BenchmarkDataViewer.view(tempFile, { showGroundTruth: true });
     await fs.unlink(tempFile).catch(() => {});
     console.log('✅ Viewer works');
     

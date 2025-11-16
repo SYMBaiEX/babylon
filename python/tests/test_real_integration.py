@@ -175,7 +175,7 @@ class TestRealWandB:
         
         api_key = os.getenv("WANDB_API_KEY")
         entity = os.getenv("WANDB_ENTITY")
-        project = "babylon-rl-test"
+        project = "babylon-test"
         
         wandb.login(key=api_key)
         
@@ -354,7 +354,7 @@ class TestModelEndpoint:
                 response = await client.post(
                     f"{endpoint}/v1/chat/completions",
                     json={
-                        "model": "babylon-rl",
+                        "model": "babylon",
                         "messages": [
                             {"role": "user", "content": "Test"}
                         ],

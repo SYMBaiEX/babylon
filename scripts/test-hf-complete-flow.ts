@@ -199,7 +199,7 @@ async function verifyFiles(outputDir: string) {
   console.log('');
 }
 
-async function testOfflineSimulation(outputDir: string) {
+async function testOfflineSimulation(_outputDir: string) {
   console.log('╔════════════════════════════════════════════════════════╗');
   console.log('║    TESTING OFFLINE SIMULATION                          ║');
   console.log('╚════════════════════════════════════════════════════════╝\n');

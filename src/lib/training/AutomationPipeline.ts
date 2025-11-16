@@ -349,8 +349,13 @@ export class AutomationPipeline {
       MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000',  // CRITICAL: Hard limit to prevent 200GB usage
       WANDB_PROJECT: this.config.wandbProject || 'babylon-training',
       DATABASE_URL: process.env.DATABASE_URL || '',
-      // Pass WANDB_API_KEY if set (for remote training), otherwise will use local fallback
-      WANDB_API_KEY: process.env.WANDB_API_KEY || '',  // Empty string = local training fallback
+      // Training logic:
+      // - If WANDB_API_KEY is set: Use remote training (preferred)
+      // - If WANDB_API_KEY is NOT set: Check TRAIN_RL_LOCAL (with resource checks)
+      // - Large models require FORCE_LOCAL_TRAINING=true if training locally
+      TRAIN_RL_LOCAL: process.env.TRAIN_RL_LOCAL || 'false',
+      WANDB_API_KEY: process.env.WANDB_API_KEY || '',  // Explicitly pass W&B key
+      FORCE_LOCAL_TRAINING: process.env.FORCE_LOCAL_TRAINING || 'false',  // Allow forcing local training for large models
       // Allow forcing training with minimal data for testing
       FORCE_TRAINING: options.force ? 'true' : 'false',
       MIN_AGENTS_PER_WINDOW: '1'  // Lower minimum for testing
@@ -359,7 +364,13 @@ export class AutomationPipeline {
     if (process.env.WANDB_API_KEY) {
       logger.info('WANDB_API_KEY set - training will use W&B remote backend', undefined, 'AutomationPipeline');
     } else {
-      logger.warn('WANDB_API_KEY not set - training will fall back to local GPU/CPU', undefined, 'AutomationPipeline');
+      const trainLocal = process.env.TRAIN_RL_LOCAL === 'true';
+      const forceLocal = process.env.FORCE_LOCAL_TRAINING === 'true';
+      if (trainLocal || forceLocal) {
+        logger.warn('WANDB_API_KEY not set - training will fall back to local GPU/CPU (with resource checks)', undefined, 'AutomationPipeline');
+      } else {
+        logger.warn('WANDB_API_KEY not set - training will use W&B remote backend (requires WANDB_API_KEY)', undefined, 'AutomationPipeline');
+      }
     }
     
     // Use python3 if available, fallback to python

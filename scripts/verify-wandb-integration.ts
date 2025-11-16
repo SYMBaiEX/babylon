@@ -49,13 +49,6 @@ async function checkWandbLogin(): Promise<string | null> {
     // Use W&B Public API to get user info (no auth needed for public endpoints)
     // Or use internal API with proper auth
     try {
-      // Try the public API first
-      const publicResponse = await fetch(`https://api.wandb.ai/api/v1/users/${apiKey.substring(0, 8)}`, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
       // If that doesn't work, try with auth header
       const authHeader = `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`;
       const response = await fetch('https://api.wandb.ai/api/v1/viewer', {
@@ -115,6 +108,11 @@ async function listWandbRuns(project: string): Promise<WandbRun[]> {
     }
     
     const [entity, projectName] = project.split('/');
+    
+    if (!entity || !projectName) {
+      console.error('❌ Invalid project format. Expected: entity/project');
+      return [];
+    }
     
     // Try using W&B Public API (works without auth for public projects)
     // Or use the REST API with proper authentication
@@ -182,6 +180,11 @@ async function checkWandbModels(project: string): Promise<WandbModel[]> {
     
     const [entity, projectName] = project.split('/');
     
+    if (!entity || !projectName) {
+      console.error('❌ Invalid project format. Expected: entity/project');
+      return [];
+    }
+    
     // W&B stores models as artifacts, check artifacts API
     // Models created by ART are stored as model artifacts
     const url = `https://api.wandb.ai/api/v1/artifacts?project=${encodeURIComponent(projectName)}&entity=${encodeURIComponent(entity)}&type=model&per_page=10`;
@@ -237,27 +240,32 @@ async function checkDatabaseModels(): Promise<void> {
   try {
     console.log('\n💾 Checking database for trained models...');
     
-    const models = await prisma.trainedModel.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
-    
-    console.log(`✅ Found ${models.length} models in database`);
-    
-    if (models.length > 0) {
-      console.log('\n📋 Database models:');
-      models.forEach((model, i) => {
-        console.log(`  ${i + 1}. ${model.modelId} (v${model.version})`);
-        console.log(`     Status: ${model.status}`);
-        console.log(`     W&B Run ID: ${model.wandbRunId || 'N/A'}`);
-        console.log(`     Storage Path: ${model.storagePath}`);
-        if (model.createdAt) {
-          console.log(`     Created: ${model.createdAt.toLocaleString()}`);
-        }
+    try {
+      const models = await prisma.trainedModel.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5
       });
+      
+      console.log(`✅ Found ${models.length} models in database`);
+      
+      if (models.length > 0) {
+        console.log('\n📋 Database models:');
+        models.forEach((model, i) => {
+          console.log(`  ${i + 1}. ${model.modelId} (v${model.version})`);
+          console.log(`     Status: ${model.status}`);
+          console.log(`     W&B Run ID: ${model.wandbRunId || 'N/A'}`);
+          console.log(`     Storage Path: ${model.storagePath}`);
+          if (model.createdAt) {
+            console.log(`     Created: ${model.createdAt.toLocaleString()}`);
+          }
+        });
+      }
+    } catch (dbError) {
+      console.log('⚠️  Database not available (this is okay for W&B verification)');
+      console.log(`   Error: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
     }
   } catch (error) {
-    console.error('❌ Error checking database:', error instanceof Error ? error.message : String(error));
+    console.log('⚠️  Could not check database (this is okay for W&B verification)');
   }
 }
 
@@ -391,7 +399,11 @@ async function main() {
     console.log('\n✅ W&B integration is working! Files exist on W&B servers.');
   }
   
-  await prisma.$disconnect();
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // Ignore disconnect errors
+  }
 }
 
 main().catch((error) => {

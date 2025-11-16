@@ -19,6 +19,8 @@ Type: {{eventType}}
 
 {{orgBehaviorContext}}
 
+{{realityGrounding}}
+
 WORLD CONTEXT:
 {{worldActors}}
 {{currentMarkets}}

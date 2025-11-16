@@ -4,14 +4,14 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: babylon-rl
+  name: babylon
 ---
 # ConfigMap for environment variables
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: babylon-rl-config
-  namespace: babylon-rl
+  name: babylon-config
+  namespace: babylon
 data:
   TRAINING_ENV: "coreweave"
   MIN_AGENTS_PER_WINDOW: "5"
@@ -29,8 +29,8 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: babylon-rl-secrets
-  namespace: babylon-rl
+  name: babylon-secrets
+  namespace: babylon
 type: Opaque
 stringData:
   DATABASE_URL: "" # Fill in via kubectl or CI/CD
@@ -43,8 +43,8 @@ stringData:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: babylon-rl-checkpoints
-  namespace: babylon-rl
+  name: babylon-checkpoints
+  namespace: babylon
 spec:
   accessModes:
     - ReadWriteMany
@@ -57,8 +57,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: babylon-rl-logs
-  namespace: babylon-rl
+  name: babylon-logs
+  namespace: babylon
 spec:
   accessModes:
     - ReadWriteMany
@@ -71,10 +71,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: babylon-rl-training
-  namespace: babylon-rl
+  name: babylon-training
+  namespace: babylon
   labels:
-    app: babylon-rl
+    app: babylon
     component: training
 spec:
   replicas: 1  # Single training job
@@ -82,12 +82,12 @@ spec:
     type: Recreate  # Don't run multiple trainers
   selector:
     matchLabels:
-      app: babylon-rl
+      app: babylon
       component: training
   template:
     metadata:
       labels:
-        app: babylon-rl
+        app: babylon
         component: training
     spec:
       containers:
@@ -104,9 +104,9 @@ spec:
             value: "true"
         envFrom:
           - configMapRef:
-              name: babylon-rl-config
+              name: babylon-config
           - secretRef:
-              name: babylon-rl-secrets
+              name: babylon-secrets
         resources:
           requests:
             cpu: "8"
@@ -140,10 +140,10 @@ spec:
       volumes:
         - name: checkpoints
           persistentVolumeClaim:
-            claimName: babylon-rl-checkpoints
+            claimName: babylon-checkpoints
         - name: logs
           persistentVolumeClaim:
-            claimName: babylon-rl-logs
+            claimName: babylon-logs
       nodeSelector:
         gpu.nvidia.com/class: A100
       tolerations:
@@ -155,21 +155,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: babylon-rl-inference
-  namespace: babylon-rl
+  name: babylon-inference
+  namespace: babylon
   labels:
-    app: babylon-rl
+    app: babylon
     component: inference
 spec:
   replicas: 2  # For redundancy
   selector:
     matchLabels:
-      app: babylon-rl
+      app: babylon
       component: inference
   template:
     metadata:
       labels:
-        app: babylon-rl
+        app: babylon
         component: inference
     spec:
       containers:
@@ -179,7 +179,7 @@ spec:
           - --model
           - /models/current
           - --served-model-name
-          - babylon-rl
+          - babylon
           - --tensor-parallel-size
           - "4"
           - --max-model-len
@@ -216,7 +216,7 @@ spec:
       volumes:
         - name: checkpoints
           persistentVolumeClaim:
-            claimName: babylon-rl-checkpoints
+            claimName: babylon-checkpoints
       nodeSelector:
         gpu.nvidia.com/class: A100
       tolerations:
@@ -228,15 +228,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: babylon-rl-inference
-  namespace: babylon-rl
+  name: babylon-inference
+  namespace: babylon
   labels:
-    app: babylon-rl
+    app: babylon
     component: inference
 spec:
   type: LoadBalancer
   selector:
-    app: babylon-rl
+    app: babylon
     component: inference
   ports:
     - name: http
@@ -248,8 +248,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: babylon-rl-ingress
-  namespace: babylon-rl
+  name: babylon-ingress
+  namespace: babylon
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -257,17 +257,17 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - babylon-rl.coreweave.cloud
-      secretName: babylon-rl-tls
+        - babylon.coreweave.cloud
+      secretName: babylon-tls
   rules:
-    - host: babylon-rl.coreweave.cloud
+    - host: babylon.coreweave.cloud
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: babylon-rl-inference
+                name: babylon-inference
                 port:
                   number: 80
 ---
@@ -275,13 +275,13 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: babylon-rl-inference-hpa
-  namespace: babylon-rl
+  name: babylon-inference-hpa
+  namespace: babylon
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: babylon-rl-inference
+    name: babylon-inference
   minReplicas: 2
   maxReplicas: 10
   metrics:
@@ -302,8 +302,8 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: babylon-rl-cleanup
-  namespace: babylon-rl
+  name: babylon-cleanup
+  namespace: babylon
 spec:
   schedule: "0 3 * * *"  # Daily at 3am
   jobTemplate:
@@ -330,22 +330,22 @@ spec:
           volumes:
             - name: checkpoints
               persistentVolumeClaim:
-                claimName: babylon-rl-checkpoints
+                claimName: babylon-checkpoints
             - name: logs
               persistentVolumeClaim:
-                claimName: babylon-rl-logs
+                claimName: babylon-logs
           restartPolicy: OnFailure
 ---
 # ServiceMonitor: Prometheus monitoring
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: babylon-rl-metrics
-  namespace: babylon-rl
+  name: babylon-metrics
+  namespace: babylon
 spec:
   selector:
     matchLabels:
-      app: babylon-rl
+      app: babylon
   endpoints:
     - port: metrics
       interval: 30s

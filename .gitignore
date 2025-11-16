@@ -46,3 +46,4 @@ __pycache__
 .secrets
 exports/
 **/__pycache__/**
+wandb

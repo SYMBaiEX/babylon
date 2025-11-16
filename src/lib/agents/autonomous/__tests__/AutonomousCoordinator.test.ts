@@ -27,11 +27,11 @@ describe('Autonomous Coordinator', () => {
         displayName: 'Test Autonomous Agent',
         walletAddress: ethers.Wallet.createRandom().address,
         isAgent: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-        autonomousGroupChats: true,
+        autonomousTrading: false, // Disabled by default to avoid LLM calls
+        autonomousPosting: false,
+        autonomousCommenting: false,
+        autonomousDMs: false,
+        autonomousGroupChats: false,
         agentSystem: 'You are a test agent',
         agentModelTier: 'lite',
         virtualBalance: 10000,
@@ -50,10 +50,23 @@ describe('Autonomous Coordinator', () => {
         if (params.prompt.includes('decide if you should')) {
           return '[false, false, false]' // Don't respond to batch
         }
-        if (params.prompt.includes('trading decision')) {
-          return JSON.stringify({ action: 'hold' })
+        if (params.prompt.includes('trading decision') || params.prompt.includes('make a trade')) {
+          return JSON.stringify({ action: 'hold', reasoning: 'Test - holding position' })
+        }
+        if (params.prompt.includes('create a post')) {
+          return 'Test post content from autonomous agent'
+        }
+        if (params.prompt.includes('write a comment')) {
+          return 'Test comment from autonomous agent'
         }
         return 'Test response content'
+      }),
+      getSetting: mock((key: string) => {
+        // Return mock settings
+        if (key === 'WANDB_ENABLED') return 'false'
+        if (key === 'GROQ_API_KEY') return 'test-key'
+        if (key === 'OPENROUTER_API_KEY') return undefined
+        return undefined
       }),
       character: {
         name: 'Test Agent',
@@ -72,25 +85,14 @@ describe('Autonomous Coordinator', () => {
     const result = await autonomousCoordinator.executeAutonomousTick(testAgentId, mockRuntime)
     
     expect(result).toBeTruthy()
-    expect(typeof result.success).toBe('boolean')
+    expect(result.success).toBe(true)
     expect(result.actionsExecuted).toBeDefined()
     expect(typeof result.duration).toBe('number')
-    expect(result.method).toMatch(/a2a|database/)
+    expect(result.method).toMatch(/a2a|database|planning_coordinator/)
   })
 
   test('executeAutonomousTick respects agent configuration', async () => {
-    // Disable all autonomous features
-    await prisma.user.update({
-      where: { id: testAgentId },
-      data: {
-        autonomousTrading: false,
-        autonomousPosting: false,
-        autonomousCommenting: false,
-        autonomousDMs: false,
-        autonomousGroupChats: false
-      }
-    })
-
+    // Features are already disabled by default
     const result = await autonomousCoordinator.executeAutonomousTick(testAgentId, mockRuntime)
     
     // Should complete but execute no actions
@@ -98,34 +100,29 @@ describe('Autonomous Coordinator', () => {
     expect(result.actionsExecuted.trades).toBe(0)
     expect(result.actionsExecuted.posts).toBe(0)
     expect(result.actionsExecuted.comments).toBe(0)
-
-    // Re-enable for other tests
-    await prisma.user.update({
-      where: { id: testAgentId },
-      data: {
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true
-      }
-    })
   })
 
   test('executeAutonomousTick uses correct method (A2A vs DB)', async () => {
-    // Without A2A client
+    // Without A2A client (features disabled, so no actual actions)
     const resultDB = await autonomousCoordinator.executeAutonomousTick(testAgentId, mockRuntime)
     expect(resultDB.method).toBe('database')
+    expect(resultDB.success).toBe(true)
 
     // With A2A client (mock)
     const runtimeWithA2A = {
       ...mockRuntime,
       a2aClient: {
         isConnected: () => true,
-        sendRequest: mock(async () => ({ predictions: [], engagements: 0 }))
+        sendRequest: mock(async () => ({ predictions: [], engagements: 0 })),
+        getPredictions: mock(async () => ({ predictions: [] })),
+        getPerpetuals: mock(async () => ({ perpetuals: [] })),
+        getPortfolio: mock(async () => ({ balance: 10000, positions: [] }))
       }
     } as Partial<IAgentRuntime> as IAgentRuntime
 
     const resultA2A = await autonomousCoordinator.executeAutonomousTick(testAgentId, runtimeWithA2A)
     expect(resultA2A.method).toBe('a2a')
+    expect(resultA2A.success).toBe(true)
   })
 
   test('actions are properly counted', async () => {

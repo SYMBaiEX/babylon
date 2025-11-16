@@ -32,7 +32,7 @@ export function renderPrompt(
     optionalVars?: string[];
   } = {}
 ): string {
-  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades'] } = options;
+  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades', 'realityGrounding', 'currentDateTime', 'currentDate', 'currentTime', 'currentYear', 'currentMonth', 'currentDay'] } = options;
   
   let rendered = prompt.template;
   

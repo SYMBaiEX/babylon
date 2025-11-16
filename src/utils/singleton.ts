@@ -1,22 +1,79 @@
 /**
- * Singleton Utility
+ * Singleton Utility Patterns
  * 
- * Provides a reusable singleton pattern for server instances.
- * Prevents double initialization and handles cleanup.
+ * @module utils/singleton
+ * 
+ * @description
+ * Reusable singleton patterns for managing server-side instance lifecycles.
+ * Provides three flavors of singleton management:
+ * - Standard singleton (module-scoped)
+ * - Global singleton (survives hot module reload in development)
+ * - Port-aware singleton (prevents port binding conflicts for WebSocket servers)
+ * 
+ * **Use Cases:**
+ * - Database connection pools
+ * - WebSocket servers
+ * - Cache instances
+ * - API clients with expensive initialization
+ * - Development hot-reload-safe singletons
+ * 
+ * @example
+ * ```typescript
+ * // Standard singleton
+ * const { getInstance, setInstance } = createSingleton<Database>()
+ * if (!getInstance()) {
+ *   setInstance(new Database())
+ * }
+ * 
+ * // Global singleton (hot-reload safe)
+ * const dbSingleton = createGlobalSingleton<Database>('database')
+ * if (!dbSingleton.getInstance()) {
+ *   dbSingleton.setInstance(new Database())
+ * }
+ * 
+ * // Port-aware singleton
+ * const wsSingleton = createPortSingleton<WebSocketServer>('wss')
+ * const existing = wsSingleton.getInstance(3000)
+ * if (!existing) {
+ *   wsSingleton.setInstance(new WebSocketServer(), 3000)
+ * }
+ * ```
  */
 
-// Type for the global object used for singleton storage
+/**
+ * Type for the global object used for singleton storage
+ * @internal
+ */
 interface GlobalSingletonStorage {
   [key: string]: unknown;
 }
 
-// Helper to get typed global object
+/**
+ * Helper to get typed global object
+ * @internal
+ */
 function getGlobalStorage(): GlobalSingletonStorage {
   return global as unknown as GlobalSingletonStorage;
 }
 
 /**
- * Creates a singleton getter/setter pattern for a type T
+ * Creates a module-scoped singleton pattern
+ * 
+ * @template T - Type of the singleton instance
+ * @returns Singleton management object with get/set/clear methods
+ * 
+ * @description
+ * Creates a singleton that persists for the lifetime of the module.
+ * Gets reset when module is hot-reloaded in development.
+ * 
+ * @example
+ * ```typescript
+ * const cacheSingleton = createSingleton<Cache>()
+ * if (!cacheSingleton.getInstance()) {
+ *   cacheSingleton.setInstance(new Cache())
+ * }
+ * const cache = cacheSingleton.getInstance()
+ * ```
  */
 export function createSingleton<T>(): {
   getInstance: () => T | null;

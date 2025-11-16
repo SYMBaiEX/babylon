@@ -16,7 +16,7 @@ echo ""
 # Configuration
 MODEL_VERSION=${1:-"v1.0.0"}
 NAMESPACE=${NAMESPACE:-"tenant-babylon-prod"}
-SERVICE_NAME="babylon-rl-${MODEL_VERSION}"
+SERVICE_NAME="babylon-${MODEL_VERSION}"
 GPU_TYPE=${GPU_TYPE:-"A100_NVLINK_80GB"}
 MIN_REPLICAS=${MIN_REPLICAS:-"0"}
 MAX_REPLICAS=${MAX_REPLICAS:-"10"}
@@ -82,7 +82,7 @@ if [ -d "$CHECKPOINT_DIR" ]; then
     echo "Checkpoint already exists locally, skipping download"
 else
     wandb artifact download \
-        ${WANDB_ENTITY}/babylon-rl-continuous/model-${MODEL_VERSION}:latest \
+        ${WANDB_ENTITY}/babylon-continuous/model-${MODEL_VERSION}:latest \
         --root "$CHECKPOINT_DIR" || {
         echo -e "${RED}❌ Failed to download checkpoint from W&B${NC}"
         exit 1
@@ -94,7 +94,7 @@ echo ""
 
 # Step 2: Upload to CoreWeave S3
 echo "☁️  Step 2: Uploading to CoreWeave S3..."
-S3_PATH="s3://babylon-rl-training/checkpoints/${MODEL_VERSION}"
+S3_PATH="s3://babylon-training/checkpoints/${MODEL_VERSION}"
 
 aws s3 sync \
     "$CHECKPOINT_DIR" \
@@ -109,7 +109,7 @@ echo ""
 
 # Step 3: Generate deployment manifest
 echo "📝 Step 3: Generating deployment manifest..."
-MANIFEST_FILE="/tmp/babylon-rl-deploy-${MODEL_VERSION}.yaml"
+MANIFEST_FILE="/tmp/babylon-deploy-${MODEL_VERSION}.yaml"
 
 cat > "$MANIFEST_FILE" << EOF
 apiVersion: serving.coreweave.com/v1alpha1
@@ -118,7 +118,7 @@ metadata:
   name: ${SERVICE_NAME}
   namespace: ${NAMESPACE}
   labels:
-    app: babylon-rl
+    app: babylon
     version: ${MODEL_VERSION}
   annotations:
     serving.coreweave.com/enable-auth: "true"
@@ -154,7 +154,7 @@ spec:
     # vLLM configuration
     env:
       - name: VLLM_MODEL_NAME
-        value: "babylon-rl"
+        value: "babylon"
       - name: VLLM_MAX_MODEL_LEN
         value: "4096"
       - name: VLLM_TENSOR_PARALLEL_SIZE
@@ -205,7 +205,7 @@ kubectl wait --for=condition=Ready \
     --timeout=15m || {
     echo -e "${RED}❌ Deployment did not become ready${NC}"
     echo "Check logs with:"
-    echo "  kubectl logs -n $NAMESPACE -l app=babylon-rl"
+    echo "  kubectl logs -n $NAMESPACE -l app=babylon"
     exit 1
 }
 
@@ -231,7 +231,7 @@ echo "🧪 Step 7: Testing inference..."
 TEST_RESPONSE=$(curl -s -X POST "$ENDPOINT/v1/chat/completions" \
     -H "Content-Type: application/json" \
     -d '{
-        "model": "babylon-rl",
+        "model": "babylon",
         "messages": [
             {"role": "user", "content": "Test"}
         ],
@@ -292,14 +292,14 @@ echo "  Replicas: $MIN_REPLICAS-$MAX_REPLICAS"
 echo ""
 echo "🔧 Management Commands:"
 echo "  View status:   kubectl get inferenceservice $SERVICE_NAME -n $NAMESPACE"
-echo "  View logs:     kubectl logs -n $NAMESPACE -l app=babylon-rl"
+echo "  View logs:     kubectl logs -n $NAMESPACE -l app=babylon"
 echo "  View metrics:  kubectl port-forward -n $NAMESPACE svc/$SERVICE_NAME 8080:8080"
 echo "  Delete:        kubectl delete inferenceservice $SERVICE_NAME -n $NAMESPACE"
 echo ""
 echo "🧪 Test Inference:"
 echo "  curl -X POST '$ENDPOINT/v1/chat/completions' \\"
 echo "    -H 'Content-Type: application/json' \\"
-echo "    -d '{\"model\": \"babylon-rl\", \"messages\": [{\"role\": \"user\", \"content\": \"Test\"}]}'"
+echo "    -d '{\"model\": \"babylon\", \"messages\": [{\"role\": \"user\", \"content\": \"Test\"}]}'"
 echo ""
 echo "🎉 Your model is now live on CoreWeave serverless!"
 

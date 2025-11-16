@@ -1,4 +1,4 @@
-    """
+"""
 Babylon RL Training with ART ServerlessBackend
 TESTED AND WORKING - Following ART's proven pattern
 
@@ -33,9 +33,16 @@ if os.getenv('WANDB_API_KEY'):
     print(f"✅ WANDB_API_KEY found ({len(os.getenv('WANDB_API_KEY'))} chars)")
     print("   Training will use W&B serverless remote infrastructure")
 else:
-    print("⚠️  WANDB_API_KEY not found")
-    print("   WANDB_API_KEY is REQUIRED - ServerlessBackend only supports W&B remote training")
-    print("   Get your key from: https://wandb.ai/settings")
+    train_local = os.getenv('TRAIN_RL_LOCAL', 'false').lower() == 'true'
+    if train_local:
+        print("⚠️  WANDB_API_KEY not found, but TRAIN_RL_LOCAL=true")
+        print("   Note: ART ServerlessBackend still requires WANDB_API_KEY")
+        print("   Even 'local' training uses W&B infrastructure")
+    else:
+        print("⚠️  WANDB_API_KEY not found")
+        print("   Set WANDB_API_KEY for remote training (recommended)")
+        print("   Or set TRAIN_RL_LOCAL=true for local (still requires WANDB_API_KEY)")
+        print("   Get your key from: https://wandb.ai/settings")
 
 if os.getenv('DATABASE_URL'):
     db_url_preview = os.getenv('DATABASE_URL', '')[:50]
@@ -69,7 +76,47 @@ class BabylonTrainer:
         min_agents: int = 1  # Lowered to 1 - always train even with minimal data
     ):
         self.db_url = db_url
-        self.project = project
+        # CRITICAL: Auto-detect entity from W&B API to avoid permissions issues
+        # If project doesn't contain entity, prepend user's personal entity
+        if "/" not in project:
+            entity = os.getenv("WANDB_ENTITY")
+            if not entity and os.getenv("WANDB_API_KEY"):
+                try:
+                    import wandb
+                    # Get entity from API first (before any init calls)
+                    wandb.login(key=os.getenv("WANDB_API_KEY"))
+                    api = wandb.Api()
+                    entity = api.viewer.username  # Use personal account (has write access)
+                    logger.info(f"Auto-detected W&B entity: {entity} (from API)")
+                except Exception as e:
+                    logger.warning(f"Could not auto-detect entity: {e}")
+                    entity = None
+            if entity:
+                self.project = f"{entity}/{project}"
+            else:
+                self.project = project
+        else:
+            # If project contains entity, check if it's the org (which may not have write access)
+            parts = project.split("/", 1)
+            if len(parts) == 2:
+                entity_part, project_part = parts
+                # If entity is an org and we have API key, try to use personal account instead
+                if entity_part and os.getenv("WANDB_API_KEY"):
+                    try:
+                        import wandb
+                        wandb.login(key=os.getenv("WANDB_API_KEY"))
+                        api = wandb.Api()
+                        personal_entity = api.viewer.username
+                        # Use personal account if different from org
+                        if personal_entity != entity_part:
+                            logger.info(f"Switching from org '{entity_part}' to personal account '{personal_entity}'")
+                            self.project = f"{personal_entity}/{project_part}"
+                        else:
+                            self.project = project
+                    except Exception:
+                        self.project = project
+            else:
+                self.project = project
         self.base_model = base_model
         self.min_agents = min_agents
         self.pool: Optional[asyncpg.Pool] = None
@@ -85,6 +132,13 @@ class BabylonTrainer:
         """Close connections"""
         if self.pool:
             await self.pool.close()
+        # Clean up wandb run if we created one
+        if hasattr(self, '_wandb_run') and self._wandb_run:
+            try:
+                import wandb
+                self._wandb_run.finish()
+            except:
+                pass
     
     def get_window_id(self, hours_ago: int = 0) -> str:
         """Get window ID (format: YYYY-MM-DDTHH:00)"""
@@ -107,27 +161,109 @@ class BabylonTrainer:
         
         logger.info(f"Initializing model: {name}")
         
-        # Create model
+        # CRITICAL: Extract entity and project separately to avoid permissions issues
+        # If project contains entity (entity/project format), split it
+        # Otherwise, auto-detect entity from W&B API (uses personal account with write access)
+        if "/" in self.project:
+            entity, project_name = self.project.split("/", 1)
+        else:
+            project_name = self.project
+            entity = os.getenv("WANDB_ENTITY")
+            # Auto-detect entity from API if not set (uses personal account)
+            if not entity and os.getenv("WANDB_API_KEY"):
+                try:
+                    import wandb
+                    # CRITICAL: Initialize wandb with _service_wait to fix 524 timeout
+                    # This increases the timeout for W&B service operations
+                    wandb.init(
+                        project=project_name,
+                        entity=entity,
+                        settings=wandb.Settings(_service_wait=300),  # 5 minute timeout
+                        mode="disabled"  # Don't create a run, just initialize settings
+                    )
+                    api = wandb.Api()
+                    entity = api.viewer.username  # Use personal account (has write access)
+                    logger.info(f"Auto-detected W&B entity: {entity} (personal account)")
+                    wandb.finish()  # Clean up
+                except Exception:
+                    entity = None
+        
+        # Create model with explicit entity (avoids permissions issues)
         self.model = art.TrainableModel(
             name=name,
-            project=self.project,
+            project=project_name,
+            entity=entity,  # CRITICAL: Pass entity separately to use personal account
             base_model=self.base_model
         )
         
         # Check if WANDB_API_KEY is set to decide backend
-        # If set: use W&B remote training
-        # If not set: fall back to local training
+        # If set: use W&B remote training (preferred)
+        # If not set: fall back to local training (with resource checks)
         wandb_key = os.getenv('WANDB_API_KEY')
+        train_local_flag = os.getenv('TRAIN_RL_LOCAL', 'false').lower() == 'true'
+        force_local = os.getenv('FORCE_LOCAL_TRAINING', 'false').lower() == 'true'
         
         if wandb_key:
-            # WANDB_API_KEY is set - use W&B remote training
+            # CRITICAL: Initialize wandb with _service_wait BEFORE using ServerlessBackend
+            # This fixes the 524 timeout issue by increasing service wait time
+            # Must create actual run (not disabled) for settings to take effect
+            self._wandb_run = None
+            try:
+                import wandb
+                # Initialize wandb with extended timeout for service operations
+                # Create actual run (not disabled) so settings apply globally
+                self._wandb_run = wandb.init(
+                    project=project_name,
+                    entity=entity,
+                    settings=wandb.Settings(_service_wait=300),  # 5 minute timeout (fixes 524)
+                    name="training-init"  # Create actual run for settings to take effect
+                )
+                logger.info("✓ Initialized W&B with _service_wait=300 (fixes 524 timeout)")
+            except Exception as e:
+                logger.warning(f"Could not initialize wandb with _service_wait: {e}")
+                self._wandb_run = None
+            
+            # WANDB_API_KEY is set - use W&B remote training (preferred)
             self.backend = ServerlessBackend(api_key=wandb_key)
             await self.model.register(self.backend)
             logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
             logger.info(f"  Model: {self.base_model}")
             logger.info("  Training will run on W&B infrastructure (not local GPU)")
         else:
-            # WANDB_API_KEY not set - use local training fallback
+            # WANDB_API_KEY not set - check if local training is allowed
+            is_large_model = any(size in self.base_model for size in ["14B", "7B", "32B"])
+            
+            # Check resources before allowing local training of large models
+            if is_large_model and not force_local:
+                # Large model - require force flag or WANDB
+                raise ValueError(
+                    f"Cannot train large model ({self.base_model}) locally without FORCE_LOCAL_TRAINING=true. "
+                    "Large models require significant resources (14B needs ~30GB+ RAM). "
+                    "Options:\n"
+                    "  1. Set WANDB_API_KEY for remote training (recommended)\n"
+                    "  2. Set FORCE_LOCAL_TRAINING=true to override (use at your own risk)\n"
+                    "Get WANDB key from: https://wandb.ai/settings"
+                )
+            
+            # Check available memory for resource warning
+            if is_large_model:
+                try:
+                    import psutil
+                    available_gb = psutil.virtual_memory().available / (1024**3)
+                    total_gb = psutil.virtual_memory().total / (1024**3)
+                    logger.warning(f"⚠️  Training large model locally: {self.base_model}")
+                    logger.warning(f"   Available memory: {available_gb:.1f}GB / {total_gb:.1f}GB")
+                    if available_gb < 32:
+                        logger.warning("   ⚠️  WARNING: Low available memory - training may fail or be very slow")
+                    if force_local:
+                        logger.warning("   FORCE_LOCAL_TRAINING enabled - proceeding despite warnings")
+                except ImportError:
+                    logger.warning("⚠️  psutil not available - cannot check system resources")
+                    logger.warning("   Install with: pip install psutil")
+                except Exception as e:
+                    logger.warning(f"⚠️  Could not check memory: {e}")
+            
+            # Try local training fallback
             # Try ServerlessBackend without API key (may support local fallback)
             try:
                 self.backend = ServerlessBackend()  # No API key = local fallback
@@ -707,21 +843,52 @@ async def main():
         print("Set with: export DATABASE_URL=postgresql://...")
         return
     
-    # Check WANDB_API_KEY to determine training mode
+    # Check training configuration
     wandb_key = os.getenv("WANDB_API_KEY")
+    train_local_flag = os.getenv("TRAIN_RL_LOCAL", "false").lower() == "true"
+    force_local = os.getenv("FORCE_LOCAL_TRAINING", "false").lower() == "true"
     base_model = os.getenv("BASE_MODEL", "OpenPipe/Qwen3-14B-Instruct")
+    is_large_model = any(size in base_model for size in ["14B", "7B", "32B"])
     
     if wandb_key:
-        # WANDB_API_KEY is set - use remote training
+        # WANDB available - prefer remote training
         print("✅ WANDB_API_KEY found - using W&B serverless REMOTE training")
         print("   Training will run on W&B infrastructure (not local GPU)")
         print(f"   Model: {base_model}")
     else:
-        # WANDB_API_KEY not set - use local training fallback
-        print("⚠️  WANDB_API_KEY not set - using LOCAL training fallback")
-        print("   Training will run on local GPU/CPU")
+        # WANDB_API_KEY not set - check if local training is allowed
+        print("⚠️  WANDB_API_KEY not set - checking local training options")
         print(f"   Model: {base_model}")
-        print("\n   For remote training, set WANDB_API_KEY:")
+        
+        if is_large_model and not force_local:
+            print("❌ ERROR: Cannot train large model locally without FORCE_LOCAL_TRAINING=true")
+            print("   Large models require significant resources (14B needs ~30GB+ RAM)")
+            print("\n   Options:")
+            print("   1. Set WANDB_API_KEY for remote training (recommended)")
+            print("   2. Set FORCE_LOCAL_TRAINING=true to override (use at your own risk)")
+            print("\n   Get WANDB key from: https://wandb.ai/settings")
+            return
+        
+        if is_large_model and force_local:
+            print("⚠️  FORCE_LOCAL_TRAINING enabled for large model")
+            print("   ⚠️  Ensure you have sufficient resources (~30GB+ RAM)")
+        
+        # Check available memory
+        try:
+            import psutil
+            available_gb = psutil.virtual_memory().available / (1024**3)
+            total_gb = psutil.virtual_memory().total / (1024**3)
+            print(f"   Available memory: {available_gb:.1f}GB / {total_gb:.1f}GB")
+            if is_large_model and available_gb < 32:
+                print("   ⚠️  WARNING: Low available memory - training may fail or be very slow")
+        except ImportError:
+            print("   ⚠️  psutil not available - cannot check system resources")
+            print("   Install with: pip install psutil")
+        except Exception as e:
+            print(f"   ⚠️  Could not check memory: {e}")
+        
+        print("\n   Proceeding with LOCAL training fallback...")
+        print("   For remote training, set WANDB_API_KEY:")
         print("   export WANDB_API_KEY=your-key-here")
         print("   Get your key from: https://wandb.ai/settings")
     
@@ -730,10 +897,41 @@ async def main():
     print("=" * 70)
     print()
     
-    # Create trainer
+    # CRITICAL: Auto-detect entity to avoid permissions issues
+    # Use personal account (has write access) instead of org if no entity specified
+    project_name = os.getenv("WANDB_PROJECT", "babylon")
+    entity = os.getenv("WANDB_ENTITY")
+    
+    # If project doesn't include entity and WANDB_ENTITY not set, auto-detect from API
+    if "/" not in project_name and not entity and wandb_key:
+        try:
+            import wandb
+            # Get entity from API first (before init to avoid permission issues)
+            wandb.login(key=wandb_key)
+            api = wandb.Api()
+            entity = api.viewer.username  # Use personal account (has write access)
+            print(f"✅ Auto-detected W&B entity: {entity} (personal account)")
+            print(f"   Project will be: {entity}/{project_name}")
+            
+            # CRITICAL: Initialize wandb with _service_wait to fix 524 timeout
+            # Use actual run (not disabled) so settings apply globally
+            wandb_run = wandb.init(
+                project=project_name,
+                entity=entity,  # Use personal account
+                settings=wandb.Settings(_service_wait=300),  # 5 minute timeout
+                name="training-init"  # Create actual run for settings
+            )
+            print(f"   Initialized W&B with _service_wait=300 (fixes 524 timeout)")
+            # Don't finish yet - keep it open for training
+        except Exception as e:
+            print(f"⚠️  Could not auto-detect entity: {e}")
+            print(f"   Using project as-is: {project_name}")
+            entity = None
+    
+    # Create trainer (will handle entity/project formatting)
     trainer = BabylonTrainer(
         db_url=db_url,
-        project=os.getenv("WANDB_PROJECT", "babylon"),
+        project=project_name if not entity else f"{entity}/{project_name}",
         base_model=os.getenv("BASE_MODEL", "OpenPipe/Qwen3-14B-Instruct"),  # ONLY model available in W&B ART
         min_agents=int(os.getenv("MIN_AGENTS_PER_WINDOW", "1"))
     )

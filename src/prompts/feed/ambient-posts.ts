@@ -18,6 +18,8 @@ Day {{day}}/30
 
 {{previousPostsContext}}
 
+{{realityGrounding}}
+
 WORLD CONTEXT:
 {{worldActors}}
 {{currentMarkets}}
