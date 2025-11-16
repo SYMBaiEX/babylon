@@ -158,7 +158,7 @@ Test dataset showing structure and format.
 
 \`\`\`python
 from datasets import load_dataset
-dataset = load_dataset("babylonlabs/babylon-game-data")
+dataset = load_dataset("elizaos/babylon-game-data")
 \`\`\`
 `;
   

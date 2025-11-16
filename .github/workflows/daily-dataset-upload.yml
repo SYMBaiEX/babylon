@@ -50,7 +50,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "📊 Collecting all game data..."
-          bun run scripts/collect-game-data-for-hf.ts
+          npx tsx scripts/collect-game-data-for-hf.ts
       
       - name: Upload to HuggingFace
         env:
