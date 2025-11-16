@@ -79,11 +79,7 @@ class InMemoryBroadcaster extends EventEmitter {
   removeClient(clientId: string) {
     const client = this.clients.get(clientId);
     if (client) {
-      try {
-        client.controller.close();
-      } catch {
-        // Controller already closed, ignore
-      }
+      client.controller.close();
       this.clients.delete(clientId);
       logger.debug(`SSE client disconnected: ${clientId}`, { clientId }, 'InMemoryBroadcaster');
     }
@@ -233,11 +229,7 @@ class ServerlessBroadcaster extends EventEmitter {
   removeClient(clientId: string) {
     const client = this.clients.get(clientId);
     if (client) {
-      try {
-        client.controller.close();
-      } catch {
-        // Controller already closed, ignore
-      }
+      client.controller.close();
       this.clients.delete(clientId);
       logger.debug(`SSE client disconnected: ${clientId}`, { clientId }, 'ServerlessBroadcaster');
     }

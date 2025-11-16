@@ -1,49 +1,68 @@
 /**
  * Perpetual Futures Trades API
  * 
- * @route GET /api/markets/perps/trades/[ticker]
+ * @route GET /api/markets/perps/trades/[ticker]/trades - Get perp trades
  * @access Public
  * 
  * @description
- * Get all trades for a specific perpetual futures market with pagination and Redis caching.
- * Returns trades from perp positions (opens/closes) and balance transactions related to this ticker.
+ * Returns all trades for a specific perpetual futures market with pagination
+ * and Redis caching. Includes perp positions (opens/closes) and balance
+ * transactions. Includes NPC/agent trades with reasoning.
  * 
- * **Features:**
- * - Redis caching with 30s TTL for fast access
- * - Pagination support (limit/offset)
- * - Automatic cache invalidation on new trades
- * - Includes user profiles and organization metadata
- * - Includes NPC/agent trades with reasoning
- * 
- * **Query Parameters:**
- * @query {number} limit - Trades per page (1-100, default: 50)
- * @query {number} offset - Pagination offset (default: 0)
- * 
- * **Response:**
- * @returns {object} Trades response
- * @property {array} trades - Array of trade objects
- * @property {number} total - Total trades count
- * @property {boolean} hasMore - Whether more trades available
- * @property {string} ticker - Market ticker symbol
- * @property {object} organization - Organization details
- * 
- * **Trade Object:**
- * @property {string} id - Trade ID
- * @property {string} type - 'perp' | 'balance' | 'npc'
- * @property {object} user - Trader profile
- * @property {string} side - 'long' | 'short'
- * @property {number} size - Position size in USD
- * @property {number} leverage - Leverage multiplier
- * @property {number} entryPrice - Entry price
- * @property {Date} timestamp - When trade occurred
- * @property {string} [reason] - NPC reasoning (for NPC trades)
- * @property {number} [sentiment] - NPC sentiment (for NPC trades)
+ * @openapi
+ * /api/markets/perps/trades/{ticker}/trades:
+ *   get:
+ *     tags:
+ *       - Markets
+ *     summary: Get perpetual futures trades
+ *     description: Returns trades for a specific perp market with pagination
+ *     parameters:
+ *       - in: path
+ *         name: ticker
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Market ticker symbol
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Trades per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Pagination offset
+ *     responses:
+ *       200:
+ *         description: Trades retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 trades:
+ *                   type: array
+ *                 total:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
+ *                 ticker:
+ *                   type: string
+ *                 organization:
+ *                   type: object
+ *       404:
+ *         description: Market not found
  * 
  * @example
  * ```typescript
- * // Get recent trades for ticker
- * const response = await fetch('/api/markets/perps/BTC/trades?limit=20');
- * const { trades, hasMore } = await response.json();
+ * const { trades } = await fetch('/api/markets/perps/trades/BTC/trades?limit=20')
+ *   .then(r => r.json());
  * ```
  */
 

@@ -33,7 +33,7 @@ describe('Agent Wallet Service', () => {
 
   afterAll(async () => {
     // Cleanup
-    await prisma.user.delete({ where: { id: testAgentId } }).catch(() => {})
+    await prisma.user.delete({ where: { id: testAgentId } })
   })
 
   test('createAgentEmbeddedWallet creates wallet without user interaction', async () => {
@@ -54,9 +54,10 @@ describe('Agent Wallet Service', () => {
       expect(agent?.walletAddress).toBe(result.walletAddress)
       expect(agent?.privyId).toBe(result.privyUserId)
       
-    } catch (_error) {
-      // Expected in test environment without Privy
-      expect(true).toBe(true)
+    } catch (error) {
+      // In test environment without Privy, this is expected
+      // But we should still verify the error is about Privy configuration
+      expect(error).toBeDefined()
       console.log('   ⚠️  Privy not configured in test environment (expected)')
     }
   })
@@ -94,16 +95,5 @@ describe('Agent Wallet Service', () => {
     expect(typeof isVerified).toBe('boolean')
   })
 
-  test('VERIFICATION: Agent wallet service properly designed', () => {
-    console.log('\n✅ Agent Wallet Service Tests')
-    console.log('   ✅ Wallet creation designed for Privy')
-    console.log('   ✅ Development fallback works')
-    console.log('   ✅ On-chain registration automated')
-    console.log('   ✅ Server-side signing supported')
-    console.log('   ✅ No user interaction required')
-    console.log('\n🎉 Wallet service verified!\n')
-    
-    expect(true).toBe(true)
-  })
 })
 

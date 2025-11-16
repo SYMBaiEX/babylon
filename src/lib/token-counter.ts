@@ -143,7 +143,7 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   
   // Current Strategy Models - INPUT CONTEXT LIMITS (output is separate!)
   'qwen/qwen3-32b': 131072,                    // 131k INPUT, 40,960 OUTPUT (separate) - Groq
-  'OpenPipe/Qwen3-14B-Instruct': 131072,       // 131k INPUT with YaRN, 32,768 native - W&B
+  'OpenPipe/Qwen3-14B-Instruct': 32768,        // 32,768 native INPUT via W&B API (NOT 131K extended!)
   'Qwen/Qwen2.5-32B-Instruct': 131072,         // 131k INPUT, 40,960 OUTPUT (separate)
   
   // Groq Models - INPUT CONTEXT (per https://console.groq.com/docs/models)

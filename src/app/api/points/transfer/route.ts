@@ -1,8 +1,64 @@
 /**
- * Points Transfer API Route
+ * Points Transfer API
  * 
- * Enables peer-to-peer point transfers between users
- * Similar to Farcaster's "pay" feature
+ * @route POST /api/points/transfer - Transfer points
+ * @access Authenticated
+ * 
+ * @description
+ * Enables peer-to-peer point transfers between users. Similar to Farcaster's
+ * "pay" feature. Includes optional message and notifications.
+ * 
+ * @openapi
+ * /api/points/transfer:
+ *   post:
+ *     tags:
+ *       - Points
+ *     summary: Transfer points
+ *     description: Transfers points from authenticated user to another user
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - recipientId
+ *               - amount
+ *             properties:
+ *               recipientId:
+ *                 type: string
+ *               amount:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Points amount (positive integer)
+ *               message:
+ *                 type: string
+ *                 maxLength: 200
+ *                 description: Optional transfer message
+ *     responses:
+ *       200:
+ *         description: Transfer completed successfully
+ *       400:
+ *         description: Invalid input or insufficient balance
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Recipient not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/points/transfer', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     recipientId: 'user-id',
+ *     amount: 100,
+ *     message: 'Thanks!'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

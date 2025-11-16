@@ -94,7 +94,7 @@ async function verifyReputationCalculation() {
   } catch (error) {
     recordResult('Reputation Calculation', false, 'Error during calculation', { error })
     // Clean up on error
-    await prisma.user.delete({ where: { id: testUserId } }).catch(() => {})
+    await prisma.user.delete({ where: { id: testUserId } })
   }
 }
 

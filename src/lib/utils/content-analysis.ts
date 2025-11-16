@@ -8,15 +8,19 @@
  */
 
 /**
- * Analyze text certainty from language patterns
+ * Analyze certainty level in content
  * 
- * @param content - Post content to analyze
- * @returns Certainty score 0-1 based on language confidence
+ * Detects certainty markers (definitely, confirmed) and hedging words
+ * (maybe, possibly) to determine how certain the content sounds.
  * 
- * @description
- * Looks for certainty markers vs hedging language.
- * High certainty: "definitely", "confirmed", "certain"
- * Low certainty: "maybe", "possibly", "might"
+ * @param content - Text content to analyze
+ * @returns Certainty score between 0 (uncertain) and 1 (certain)
+ * 
+ * @example
+ * ```typescript
+ * analyzeCertainty("This is definitely happening"); // ~0.6 (high certainty)
+ * analyzeCertainty("Maybe this could happen"); // ~0.3 (low certainty)
+ * ```
  */
 export function analyzeCertainty(content: string): number {
   const text = content.toLowerCase();
@@ -52,8 +56,16 @@ export function analyzeCertainty(content: string): number {
 /**
  * Detect insider language patterns
  * 
- * @param content - Post content
- * @returns True if content suggests insider knowledge
+ * Checks for phrases that suggest insider knowledge or confidential sources.
+ * 
+ * @param content - Post content to analyze
+ * @returns True if content contains insider language patterns
+ * 
+ * @example
+ * ```typescript
+ * hasInsiderLanguage("My sources say this will happen"); // true
+ * hasInsiderLanguage("This is public information"); // false
+ * ```
  */
 export function hasInsiderLanguage(content: string): boolean {
   const text = content.toLowerCase();
@@ -82,8 +94,17 @@ export function hasInsiderLanguage(content: string): boolean {
 /**
  * Analyze sentiment from text
  * 
- * @param content - Post content
- * @returns Sentiment score -1 to 1
+ * Uses keyword matching to detect positive and negative sentiment.
+ * Returns score between -1 (negative) and 1 (positive).
+ * 
+ * @param content - Post content to analyze
+ * @returns Sentiment score between -1 (negative) and 1 (positive)
+ * 
+ * @example
+ * ```typescript
+ * analyzeSentiment("This is great news!"); // ~0.3 (positive)
+ * analyzeSentiment("This is terrible"); // ~-0.3 (negative)
+ * ```
  */
 export function analyzeSentiment(content: string): number {
   const text = content.toLowerCase();
@@ -118,9 +139,18 @@ export function analyzeSentiment(content: string): number {
 /**
  * Calculate information freshness
  * 
- * @param postDay - Day post was created
- * @param currentDay - Current game day
- * @returns Freshness score 0.3-1.0 (older posts less valuable)
+ * Determines how fresh/relevant a post is based on its age.
+ * Older posts receive lower freshness scores.
+ * 
+ * @param postDay - Day post was created (1-30)
+ * @param currentDay - Current game day (1-30)
+ * @returns Freshness score between 0.3 (very old) and 1.0 (fresh)
+ * 
+ * @example
+ * ```typescript
+ * calculateFreshness(5, 10); // ~0.6 (5 days old)
+ * calculateFreshness(10, 10); // 1.0 (current day)
+ * ```
  */
 export function calculateFreshness(postDay: number, currentDay: number): number {
   const age = currentDay - postDay;
@@ -131,16 +161,32 @@ export function calculateFreshness(postDay: number, currentDay: number): number 
 /**
  * Composite content quality score (NO ORACLE DATA)
  * 
- * @param content - Post content
- * @param authorRole - Author's public role
- * @param postDay - When posted
- * @param currentDay - Current day
- * @param historicalAccuracy - Author's past accuracy (from outcomes)
- * @returns Quality score 0-100
- * 
- * @description
  * Calculates post quality from OBSERVABLE and HISTORICAL data only.
  * Does NOT use oracle metadata (clueStrength, pointsToward).
+ * 
+ * Combines:
+ * - Content analysis (certainty, insider language): 0-40 points
+ * - Source quality (historical accuracy): 0-30 points
+ * - Role credibility: 0-15 points
+ * - Freshness: 0-15 points
+ * 
+ * @param content - Post content to analyze
+ * @param authorRole - Author's public role (observable from profile)
+ * @param postDay - Day post was created (optional)
+ * @param currentDay - Current game day (optional)
+ * @param historicalAccuracy - Author's past accuracy 0-1 (optional)
+ * @returns Quality score between 0 and 100
+ * 
+ * @example
+ * ```typescript
+ * const quality = calculateContentQuality(
+ *   "My sources confirm this will happen",
+ *   "insider",
+ *   10,
+ *   10,
+ *   0.8
+ * ); // Returns: ~85 (high quality)
+ * ```
  */
 export function calculateContentQuality(
   content: string,
@@ -188,8 +234,17 @@ function getRoleBaseScore(role?: string | null): number {
 /**
  * Analyze if post makes a prediction
  * 
- * @param content - Post content
- * @returns Prediction analysis
+ * Detects whether content makes a YES/NO prediction and determines
+ * the direction and confidence level.
+ * 
+ * @param content - Post content to analyze
+ * @returns Object with prediction status, direction, and confidence
+ * 
+ * @example
+ * ```typescript
+ * const result = detectPrediction("This will definitely happen");
+ * // Returns: { makesPrediction: true, direction: 'YES', confidence: 0.6 }
+ * ```
  */
 export function detectPrediction(content: string): {
   makesPrediction: boolean;

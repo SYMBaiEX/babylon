@@ -1,0 +1,22 @@
+{
+  "id": "colaissal-sciences",
+  "name": "ColAIssal Sciences",
+  "description": "bringing back extinct species because we can",
+  "type": "company",
+  "canBeInvolved": true,
+  "postStyle": "De-extinction hype. Mammoth resurrection. Climate solutions through extinct species. Science meets spectacle. Jurassic Park but real.",
+  "postExample": [
+    "Woolly mammoths coming back",
+    "De-extinction is climate action",
+    "Bringing back extinct species",
+    "Science solving climate change",
+    "Mammoths will restore ecosystems",
+    "De-extinction: the future is the past"
+  ],
+  "initialPrice": 120,
+  "pfpDescription": "Colossal logo with woolly mammoth silhouette. DNA helix forming the C. De-extinction progress bar. Climate graphs improving. Science meets spectacle. Jurassic Park vibes but real.",
+  "bannerDescription": "A prehistoric landscape where woolly mammoths graze alongside modern technology. DNA sequences spiral into extinct species being resurrected. Climate change graphs improve as mammoths appear. The scene shows science bringing back the past to save the future. Lab equipment and prehistoric animals coexist. De-extinction: because we can.",
+  "profileDescription": "Woolly mammoths coming back. De-extinction is climate action. Bringing back extinct species. Science solving climate change. Mammoths will restore ecosystems",
+  "originalName": "Colossal Biosciences",
+  "originalHandle": "colossal"
+}

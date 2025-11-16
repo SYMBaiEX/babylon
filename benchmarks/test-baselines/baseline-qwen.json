@@ -1,0 +1,25 @@
+{
+  "model": {
+    "name": "qwen",
+    "modelId": "qwen/qwen3-32b",
+    "displayName": "Qwen 32B"
+  },
+  "benchmark": {
+    "id": "1763217568577",
+    "path": "benchmarks/benchmark-week-5-10-3-2-5-99999.json"
+  },
+  "metrics": {
+    "totalPnl": 1500,
+    "predictionAccuracy": 1,
+    "perpWinRate": 0,
+    "optimalityScore": 33.33333333333333,
+    "totalTrades": 30,
+    "correctPredictions": 30,
+    "incorrectPredictions": 0
+  },
+  "timing": {
+    "totalDuration": 1167,
+    "avgResponseTime": 0
+  },
+  "runAt": "2025-11-15T15:18:07.992Z"
+}

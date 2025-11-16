@@ -77,6 +77,7 @@
 
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
+import { ContentValidator } from '@/lib/validation/content-validator';
 import { generateWorldContext } from '@/lib/prompts/world-context';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
 
@@ -217,9 +218,10 @@ export class FeedGenerator extends EventEmitter {
   private llm?: BabylonLLMClient;
   private actorStates: Map<string, ActorState> = new Map();
   private relationships: ActorRelationship[] | ActorConnection[] = [];
+  private relationshipContextCache: Map<string, string> = new Map(); // Cache relationship prompts
   private organizations: Organization[] = [];
   private actorGroupContexts: Map<string, string> = new Map();
-  private worldContext: { worldActors: string; currentMarkets: string; activePredictions: string; recentTrades: string } | null = null;
+  private worldContext: { worldActors: string; currentMarkets: string; activePredictions: string; recentTrades: string; currentDateTime: string; currentDate: string; currentTime: string; currentYear: string } | null = null;
   private _npcPersonas: Map<string, { reliability: number; insiderOrgs: string[]; willingToLie: boolean; selfInterest: string }> = new Map();
   private trendingTopics?: TrendingTopicsEngine;
   private trendContext: string = '';
@@ -422,7 +424,31 @@ Trending system not initialized yet.
    */
   setRelationships(relationships: ActorRelationship[] | ActorConnection[]) {
     this.relationships = relationships;
+    // Clear cache when relationships are updated
+    this.relationshipContextCache.clear();
   }
+
+  /**
+   * Get relationship context from database for an actor (cached and efficient)
+   * Returns simple text list for direct prompt injection
+   */
+  async getActorRelationships(actorId: string): Promise<string> {
+    // Check cache first (efficient - no database query)
+    if (this.relationshipContextCache.has(actorId)) {
+      return this.relationshipContextCache.get(actorId)!;
+    }
+
+    // Fetch from database (only if not cached)
+    const { RelationshipEvolutionEngine } = await import('./RelationshipEvolutionEngine');
+    const engine = new RelationshipEvolutionEngine();
+    const context = await engine.getRelationshipContextForActor(actorId);
+    
+    // Cache it (subsequent calls are instant)
+    this.relationshipContextCache.set(actorId, context);
+    
+    return context;
+  }
+
   /**
    * Generate complete feed for a game day
    * 
@@ -488,16 +514,22 @@ Trending system not initialized yet.
   async generateDayFeed(
     day: number,
     worldEvents: WorldEvent[],
-    allActors: Actor[],
-    outcome?: boolean
+    allActors: Actor[]
   ): Promise<FeedPost[]> {
+    // Validate inputs using canonical validator (fail-fast)
+    ContentValidator.validateDayNumber(day, 'generateDayFeed');
+    ContentValidator.validateNotEmpty(allActors, 'allActors in generateDayFeed');
+    
     const feed: FeedPost[] = [];
 
     // Generate world context once per day for all prompts
     this.worldContext = await generateWorldContext({ maxActors: 50 });
 
-    // Derive outcome from events if not provided (for narrative coherence)
-    const derivedOutcome = outcome ?? (worldEvents.length > 0 && worldEvents[0]?.pointsToward === 'YES');
+    // Derive outcome from events for narrative coherence (not from parameter)
+    // Uses majority of event hints to determine overall direction
+    const yesEvents = worldEvents.filter(e => e.pointsToward === 'YES').length;
+    const noEvents = worldEvents.filter(e => e.pointsToward === 'NO').length;
+    const derivedOutcome = yesEvents > noEvents;
 
     try {
       // For each world event, generate cascading reactions
@@ -558,6 +590,15 @@ Trending system not initialized yet.
           const entity = isOrg ? mediaOrgs[i] : journalists[i - mediaOrgs.length];
           if (!entity) return; // Skip if entity doesn't exist
 
+          // Fail-fast: Validate required fields using canonical validator
+          try {
+            ContentValidator.validatePostContent(post.post, `media post from ${entity.name}`);
+            ContentValidator.validateEntityName(entity.name, `media entity ${i}`);
+          } catch (error) {
+            logger.error('Validation failed, skipping post', { error, entity: entity.name, index: i });
+            return; // Skip invalid posts
+          }
+
           cascade.push({
             id: `${worldEvent.id}-${isOrg ? 'media' : 'news'}-${i}`,
             day,
@@ -567,9 +608,9 @@ Trending system not initialized yet.
             author: entity.id,
             authorName: entity.name,
             relatedEvent: worldEvent.id,
-            sentiment: post.sentiment,
-            clueStrength: post.clueStrength,
-            pointsToward: post.pointsToward,
+            sentiment: post.sentiment ?? 0,
+            clueStrength: post.clueStrength ?? 0,
+            pointsToward: post.pointsToward ?? null,
           });
         });
       }
@@ -2291,6 +2332,9 @@ Trending system not initialized yet.
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
+    // Get relationship context from database (cached for efficiency)
+    const relationshipContext = await this.getActorRelationships(actor.id);
+
     // General atmosphere based on game phase, not outcome
     const atmosphereNote = day <= 10
       ? 'Early in the month - things are just getting started.'
@@ -2308,6 +2352,7 @@ Trending system not initialized yet.
       actorName: actor.name,
       actorDescription: actor.description || actor.role || 'actor',
       emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
+      relationshipContext: relationshipContext ? '\nYour relationships:\n' + relationshipContext + '\n' : '',
       day: day.toString(),
       progressContext,
       atmosphereNote,
@@ -2654,7 +2699,7 @@ Trending system not initialized yet.
     actor: { id: string; name: string; description?: string; role?: string; mood?: number },
     timestamp: Date
   ): Promise<{ content: string; sentiment: number; energy: number }> {
-    const currentTime = timestamp.toLocaleString('en-US', {
+    const formattedTime = timestamp.toLocaleString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -2677,9 +2722,10 @@ Trending system not initialized yet.
       actorName: actor.name,
       actorDescription: actor.description || actor.role || 'industry professional',
       emotionalContext,
-      currentTime,
       atmosphereContext,
-      ...(this.worldContext || {})
+      ...(this.worldContext || {}),
+      // Override currentTime with formatted version for this specific prompt
+      currentTime: formattedTime,
     });
 
     const params = getPromptParams(minuteAmbient);

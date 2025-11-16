@@ -65,7 +65,7 @@ describe('Autonomous Coordinator', () => {
 
   afterAll(async () => {
     // Cleanup
-    await prisma.user.delete({ where: { id: testAgentId } }).catch(() => {})
+    await prisma.user.delete({ where: { id: testAgentId } })
   })
 
   test('executeAutonomousTick completes without errors', async () => {
@@ -176,18 +176,5 @@ describe('Autonomous Coordinator', () => {
     // (Can't easily test this without complex mocking, but logic is correct)
   })
 
-  test('VERIFICATION: All autonomous services coordinated', () => {
-    console.log('\n✅ Autonomous Coordinator Tests')
-    console.log('   ✅ Tick execution works')
-    console.log('   ✅ Respects agent configuration')
-    console.log('   ✅ Uses correct method (A2A vs DB)')
-    console.log('   ✅ Actions properly counted')
-    console.log('   ✅ Execution time reasonable')
-    console.log('   ✅ Batch responses coordinated')
-    console.log('   ✅ No duplication')
-    console.log('\n🎉 Autonomous system fully verified!\n')
-    
-    expect(true).toBe(true)
-  })
 })
 

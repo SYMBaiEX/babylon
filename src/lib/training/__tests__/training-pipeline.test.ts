@@ -30,18 +30,13 @@ describe('Training Automation Pipeline', () => {
     });
   });
 
-  describe.skip('Data Status', () => {
+  describe('Data Status', () => {
     it('should return data status without errors', async () => {
       const pipeline = new AutomationPipeline();
       
-      try {
-        const status = await pipeline.getStatus();
-        expect(status).toBeDefined();
-        expect('data' in status && status.data).toBeDefined();
-      } catch (error) {
-        // Expected to fail if trajectory tables don't exist yet
-        expect(error).toBeDefined();
-      }
+      const status = await pipeline.getStatus();
+      expect(status).toBeDefined();
+      expect('data' in status && status.data).toBeDefined();
     });
   });
 

@@ -104,17 +104,24 @@ class CachedDatabaseService {
         const offset = !isCursor && typeof cursorOrOffset === 'number' ? cursorOrOffset : 0;
         
         // Build where clause with cursor or use offset
+        const now = new Date();
         const where: {
           authorId: { in: string[] };
           deletedAt: null;
-          timestamp?: { lt: Date };
+          timestamp?: { lt: Date; lte: Date } | { lte: Date };
         } = {
           authorId: { in: nonTestFollowedIds },
           deletedAt: null,
         };
         
+        // Time-based filter: Only return posts up to current time (prevent future access)
         if (cursor) {
-          where.timestamp = { lt: new Date(cursor) };
+          where.timestamp = {
+            lt: new Date(cursor),
+            lte: now, // ✅ No future posts
+          };
+        } else {
+          where.timestamp = { lte: now }; // ✅ No future posts
         }
         
         // Query posts from database (only from non-test users)

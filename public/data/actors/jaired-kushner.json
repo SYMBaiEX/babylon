@@ -13,7 +13,7 @@
   "personality": "nepotistic grifter",
   "tier": "C_TIER",
   "affiliations": [
-    "trump-organization"
+    "the-terminal-organization"
   ],
   "postStyle": "Real estate diplomat. Saudi money deflections. Peace process optimism. Father-in-law's shadow. Napkin geopolitics. Billion dollar whispers with nepotism flair.",
   "postExample": [
@@ -29,5 +29,7 @@
   "originalFirstName": "Jared",
   "originalLastName": "Kushner",
   "originalHandle": "jaredkushner",
-  "hasPool": false
+  "hasPool": false,
+  "firstName": "JAIred",
+  "lastName": "Kushner"
 }

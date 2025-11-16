@@ -1,9 +1,66 @@
 /**
  * Active Market Biases API
- *
- * GET /api/markets/bias/active
- * Returns list of all active market biases configured in the system
- * Used to show current sentiment/price manipulations in markets
+ * 
+ * @route GET /api/markets/bias/active - Get active market biases
+ * @access Public
+ * 
+ * @description
+ * Returns list of all active market biases configured in the system. Shows
+ * current sentiment/price manipulations affecting markets. Used for transparency
+ * and market analysis.
+ * 
+ * @openapi
+ * /api/markets/bias/active:
+ *   get:
+ *     tags:
+ *       - Markets
+ *     summary: Get active market biases
+ *     description: Returns all active market biases affecting prices and sentiment
+ *     responses:
+ *       200:
+ *         description: Active biases retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 biases:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       entityId:
+ *                         type: string
+ *                       entityName:
+ *                         type: string
+ *                       direction:
+ *                         type: string
+ *                         enum: [up, down]
+ *                       strength:
+ *                         type: number
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       expiresAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                       decayRate:
+ *                         type: number
+ *                       adjustment:
+ *                         type: number
+ *                 count:
+ *                   type: integer
+ * 
+ * @example
+ * ```typescript
+ * const { biases } = await fetch('/api/markets/bias/active')
+ *   .then(r => r.json());
+ * ```
+ * 
+ * @see {@link /lib/feedback/bias-engine} Bias engine
  */
 
 import { NextResponse } from 'next/server'

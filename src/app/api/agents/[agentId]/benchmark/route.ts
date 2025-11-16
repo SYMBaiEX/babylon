@@ -1,7 +1,7 @@
 /**
  * Agent Benchmark API
  * 
- * @route POST /api/agents/[agentId]/benchmark - Run agent through benchmark simulation
+ * @route POST /api/agents/[agentId]/benchmark - Run agent benchmark
  * @access Authenticated (owner only)
  * 
  * @description
@@ -9,43 +9,73 @@
  * performance. Uses the same AutonomousCoordinator that powers autonomous ticks but in
  * a controlled simulation environment with pre-recorded game data.
  * 
- * **How It Works:**
- * 1. Load benchmark snapshot (pre-recorded game data)
- * 2. Initialize agent's Eliza runtime
- * 3. Inject SimulationA2AInterface (replaces real A2A)
- * 4. Run agent through each tick using AutonomousCoordinator
- * 5. Calculate performance metrics
- * 6. Return results
- * 
- * **Features:**
- * - Fast-forward simulation (non-real-time)
- * - Deterministic replays for consistent testing
- * - Comprehensive performance metrics
- * - Compatible with all agent capabilities (trading, posting, etc.)
- * - Can run multiple benchmarks for statistical significance
- * 
- * @param {string} agentId - Agent user ID (path parameter)
- * @param {string} benchmarkPath - Path to benchmark JSON file (required)
- * @param {number} runs - Number of runs for statistical average (default: 1)
- * @param {string} outputDir - Directory to save results (optional)
- * 
- * @returns {object} Benchmark results
- * @property {boolean} success - Operation success
- * @property {object} results - Performance results
- * @property {number} results.totalPnl - Total profit/loss
- * @property {number} results.predictionAccuracy - Prediction accuracy (0-1)
- * @property {number} results.perpWinRate - Perp win rate (0-1)
- * @property {number} results.optimalityScore - How close to optimal (0-100)
- * @property {number} results.actionsExecuted - Total actions taken
- * @property {number} results.duration - Execution time (ms)
- * 
- * @throws {401} Unauthorized - Not authenticated or not agent owner
- * @throws {404} Agent not found
- * @throws {500} Benchmark execution failed
+ * @openapi
+ * /api/agents/{agentId}/benchmark:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Run agent benchmark
+ *     description: Runs agent through benchmark simulation to measure performance
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - benchmarkPath
+ *             properties:
+ *               benchmarkPath:
+ *                 type: string
+ *                 description: Path to benchmark JSON file
+ *               runs:
+ *                 type: integer
+ *                 default: 1
+ *                 description: Number of runs for statistical average
+ *               outputDir:
+ *                 type: string
+ *                 description: Directory to save results
+ *     responses:
+ *       200:
+ *         description: Benchmark completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 results:
+ *                   type: object
+ *                   properties:
+ *                     totalPnl:
+ *                       type: number
+ *                     predictionAccuracy:
+ *                       type: number
+ *                     perpWinRate:
+ *                       type: number
+ *                     optimalityScore:
+ *                       type: number
+ *                     actionsExecuted:
+ *                       type: integer
+ *                     duration:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Agent not found
  * 
  * @example
  * ```typescript
- * // Run single benchmark
  * const response = await fetch(`/api/agents/${agentId}/benchmark`, {
  *   method: 'POST',
  *   body: JSON.stringify({

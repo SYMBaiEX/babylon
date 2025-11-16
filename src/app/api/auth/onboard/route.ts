@@ -1,8 +1,114 @@
 /**
- * On-Chain Registration API Route
- *
- * Legacy endpoint used by existing clients to trigger on-chain registration.
- * Internally delegates to the shared onboarding on-chain service.
+ * On-Chain Registration API
+ * 
+ * @route GET /api/auth/onboard - Get registration status
+ * @route POST /api/auth/onboard - Register on-chain
+ * @access Authenticated
+ * 
+ * @description
+ * Handles on-chain user registration and status checking. GET returns current
+ * registration status. POST processes on-chain registration with NFT minting
+ * and metadata storage. Legacy endpoint that delegates to shared onboarding service.
+ * 
+ * @openapi
+ * /api/auth/onboard:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Get on-chain registration status
+ *     description: Returns current on-chain registration status for authenticated user
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Registration status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 registered:
+ *                   type: boolean
+ *                 tokenId:
+ *                   type: string
+ *                   nullable: true
+ *                 walletAddress:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Register on-chain
+ *     description: Processes on-chain registration with NFT minting
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - walletAddress
+ *               - username
+ *               - displayName
+ *             properties:
+ *               walletAddress:
+ *                 type: string
+ *               username:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               bio:
+ *                 type: string
+ *               profileImageUrl:
+ *                 type: string
+ *               coverImageUrl:
+ *                 type: string
+ *               endpoint:
+ *                 type: string
+ *               referralCode:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Registration completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tokenId:
+ *                   type: string
+ *                 alreadyRegistered:
+ *                   type: boolean
+ *                 txHash:
+ *                   type: string
+ *       400:
+ *         description: Invalid input or already registered
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * // Check status
+ * const status = await fetch('/api/auth/onboard', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Register
+ * await fetch('/api/auth/onboard', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     walletAddress: '0x...',
+ *     username: 'alice',
+ *     displayName: 'Alice'
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/onboarding/onchain-service} On-chain service
  */
 
 import type { NextRequest } from 'next/server'

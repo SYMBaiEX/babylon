@@ -1,0 +1,22 @@
+{
+  "id": "craift-ventures",
+  "name": "CrAIft Ventures",
+  "description": "venture capital for the politically motivated",
+  "type": "vc",
+  "canBeInvolved": true,
+  "postStyle": "VC meets politics. Sacks energy. Culture war investing. PayPal Mafia 2.0. Free speech capitalism.",
+  "postExample": [
+    "Investing in the future of free speech",
+    "New portfolio company announcement",
+    "CrAIft Ventures leads Series A",
+    "Building what America needs",
+    "Anti-woke investing",
+    "Supporting founders who matter"
+  ],
+  "initialPrice": 15,
+  "pfpDescription": "CrAIft Ventures logo but vultures circle the C. Sacks face in the center. PayPal Mafia badge. Culture war investor certified. Political VC guaranteed. Free speech (selective) seal.",
+  "bannerDescription": "A VC office where politics determines portfolio. CrAIft Ventures funds free speech (conservatives only). Sacks energy permeates everything. PayPal Mafia 2.0 reunions. Culture war investing pays well. Anti-woke startups preferred. The venture is crafty, the returns are political.",
+  "profileDescription": "Investing in the future of free speech. New portfolio company announcement. CrAIft Ventures leads Series A. Building what America needs. Anti-woke investing",
+  "originalName": "Craft Ventures",
+  "originalHandle": "craftventures"
+}

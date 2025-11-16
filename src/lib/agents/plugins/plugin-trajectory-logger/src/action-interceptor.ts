@@ -227,29 +227,15 @@ export function wrapProviderWithLogging(
       }
 
       let result: import('@elizaos/core').ProviderResult = { text: '' };
-      let error: string | undefined;
-      let success = false;
 
       try {
         result = await originalGet?.(runtime, message, state) || { text: '' };
-        success = true;
-      } catch (err) {
-        error = err instanceof Error ? err.message : String(err);
-        logger.error('Provider access failed', {
-          provider: provider.name,
-          trajectoryId,
-          error,
-        }, 'ProviderInterceptor');
-        // Don't throw here - log the error and return empty result
-        result = { text: `ERROR: ${error}` };
-      } finally {
-        // Log provider access (even on error)
+        // Log provider access on success
         loggerService.logProviderAccess(stepId, {
           providerName: provider.name,
           data: {
             text: result.text || '',
-            success,
-            error: error || undefined,
+            success: true,
           },
           purpose: `Provider ${provider.name} accessed for context`,
           query: {
@@ -257,11 +243,28 @@ export function wrapProviderWithLogging(
             state: state ? JSON.parse(JSON.stringify(state)) : undefined,
           },
         });
-      }
-
-      // Re-throw error if it occurred (after logging)
-      if (error) {
-        throw new Error(error);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        logger.error('Provider access failed', {
+          provider: provider.name,
+          trajectoryId,
+          error,
+        }, 'ProviderInterceptor');
+        // Log provider access before rethrowing
+        loggerService.logProviderAccess(stepId, {
+          providerName: provider.name,
+          data: {
+            text: '',
+            success: false,
+            error: error,
+          },
+          purpose: `Provider ${provider.name} accessed for context`,
+          query: {
+            message: message.content.text || '',
+            state: state ? JSON.parse(JSON.stringify(state)) : undefined,
+          },
+        });
+        throw err;
       }
 
       return result;

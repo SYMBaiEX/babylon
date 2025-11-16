@@ -1,6 +1,89 @@
 /**
- * API Route: /api/groups/[groupId]/admins
- * Methods: POST (promote to admin), DELETE (remove admin)
+ * Group Admins Management API
+ * 
+ * @route POST /api/groups/[groupId]/admins - Promote member to admin
+ * @route DELETE /api/groups/[groupId]/admins - Remove admin
+ * @access Authenticated (group admin only)
+ * 
+ * @description
+ * Manages group administrators. POST promotes a member to admin. DELETE
+ * removes admin status. Only group admins can perform these actions.
+ * 
+ * @openapi
+ * /api/groups/{groupId}/admins:
+ *   post:
+ *     tags:
+ *       - Groups
+ *     summary: Promote member to admin
+ *     description: Promotes a group member to admin (group admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Member promoted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not group admin
+ *       404:
+ *         description: Group or user not found
+ *   delete:
+ *     tags:
+ *       - Groups
+ *     summary: Remove admin
+ *     description: Removes admin status from a member (group admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to remove admin from
+ *     responses:
+ *       200:
+ *         description: Admin removed successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not group admin
+ *       404:
+ *         description: Group or user not found
+ * 
+ * @example
+ * ```typescript
+ * // Promote to admin
+ * await fetch(`/api/groups/${groupId}/admins`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ userId: 'user-id' })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

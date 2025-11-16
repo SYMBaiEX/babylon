@@ -1,6 +1,71 @@
 /**
- * API Route: /api/twitter/tweet
- * Posts a tweet using OAuth 2.0
+ * Twitter Tweet API
+ * 
+ * @route POST /api/twitter/tweet - Post tweet
+ * @access Authenticated
+ * 
+ * @description
+ * Posts a tweet to Twitter/X using OAuth 2.0. Requires user to have connected
+ * their Twitter account. Supports optional content type and content ID for tracking.
+ * 
+ * @openapi
+ * /api/twitter/tweet:
+ *   post:
+ *     tags:
+ *       - Twitter
+ *     summary: Post tweet
+ *     description: Posts a tweet to Twitter/X using OAuth 2.0
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Tweet text content
+ *               contentType:
+ *                 type: string
+ *                 enum: [market, profile, referral]
+ *                 description: Optional content type for tracking
+ *               contentId:
+ *                 type: string
+ *                 description: Optional content ID for tracking
+ *     responses:
+ *       200:
+ *         description: Tweet posted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 tweetId:
+ *                   type: string
+ *       400:
+ *         description: Missing tweet text
+ *       401:
+ *         description: Twitter account not connected
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/twitter/tweet', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     text: 'Check out this market!',
+ *     contentType: 'market',
+ *     contentId: 'market-id'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

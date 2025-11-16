@@ -10,6 +10,66 @@
  * pricing model with yes/no binary outcomes. Supports both anonymous and
  * authenticated access with position tracking.
  * 
+ * @openapi
+ * /api/markets/predictions:
+ *   get:
+ *     tags:
+ *       - Markets
+ *     summary: Get prediction markets
+ *     description: Returns active prediction markets with real-time pricing, share counts, and optional user positions
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: User ID to include position data
+ *     responses:
+ *       200:
+ *         description: Prediction markets retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 questions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       questionNumber:
+ *                         type: integer
+ *                       text:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                         enum: [active, resolved, cancelled]
+ *                       createdDate:
+ *                         type: string
+ *                         format: date-time
+ *                       resolutionDate:
+ *                         type: string
+ *                         format: date-time
+ *                       resolvedOutcome:
+ *                         type: string
+ *                         nullable: true
+ *                       scenario:
+ *                         type: string
+ *                       yesShares:
+ *                         type: number
+ *                       noShares:
+ *                         type: number
+ *                       userPosition:
+ *                         type: object
+ *                         nullable: true
+ *                 count:
+ *                   type: integer
+ *       400:
+ *         description: Invalid query parameters
+ * 
  * **Market Data Includes:**
  * - **Question Details:** text, status, creation/resolution dates, outcomes
  * - **Market Pricing:** yes/no share counts, implied probabilities
@@ -42,31 +102,6 @@
  * - Authenticated users: `asUser()` with user context
  * - Unauthenticated: `asPublic()` with read-only access
  * 
- * **GET /api/markets/predictions - Get Prediction Markets**
- * 
- * @query {string} [userId] - User ID to include position data
- * 
- * @returns {object} Prediction markets response
- * @property {boolean} success - Operation success status
- * @property {array} questions - Array of prediction market objects
- * @property {number} count - Total markets count
- * 
- * **Question Object Fields:**
- * @property {string} id - Question/market ID
- * @property {number} questionNumber - Sequential question number
- * @property {string} text - Question text
- * @property {string} status - Market status
- * @property {string} createdDate - Creation timestamp
- * @property {string} resolutionDate - Resolution deadline
- * @property {string} [resolvedOutcome] - Outcome if resolved
- * @property {string} scenario - Associated scenario ID
- * @property {number} yesShares - Yes shares in market
- * @property {number} noShares - No shares in market
- * @property {object} [userPosition] - User position (if userId provided)
- * 
- * @throws {400} Bad Request - Invalid query parameters
- * @throws {500} Internal Server Error
- * 
  * @example
  * ```typescript
  * // Get all active markets (public)
@@ -83,13 +118,6 @@
  * const userMarkets = await fetch(`/api/markets/predictions?userId=${userId}`, {
  *   headers: { 'Authorization': `Bearer ${token}` }
  * }).then(r => r.json());
- * 
- * userMarkets.questions.forEach(q => {
- *   if (q.userPosition) {
- *     const { shares, avgPrice, currentPrice, unrealizedPnL } = q.userPosition;
- *     console.log(`Position: ${shares} @ $${avgPrice}, P&L: $${unrealizedPnL}`);
- *   }
- * });
  * ```
  * 
  * @see {@link /lib/database-service} Database query layer

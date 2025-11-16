@@ -13,7 +13,24 @@ export interface ParseResult<T> {
 
 /**
  * Safely parse JSON from a Response object
- * Returns typed result instead of silently swallowing errors
+ * 
+ * Parses a fetch Response's JSON body, returning a result object instead of throwing.
+ * Handles network errors, invalid JSON, and empty responses gracefully.
+ * 
+ * @param response - Fetch Response object to parse
+ * @param context - Optional context string for error logging
+ * @returns Promise resolving to ParseResult with success flag and data or error
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/data');
+ * const result = await parseJsonResponse<MyType>(response);
+ * if (result.success) {
+ *   console.log(result.data); // Typed data
+ * } else {
+ *   console.error(result.error); // Error message
+ * }
+ * ```
  */
 export async function parseJsonResponse<T = unknown>(
   response: Response,
@@ -36,6 +53,23 @@ export async function parseJsonResponse<T = unknown>(
 
 /**
  * Parse JSON string with proper error handling
+ * 
+ * Safely parses a JSON string, returning a result object instead of throwing.
+ * Useful for parsing user input or cached data where errors are expected.
+ * 
+ * @param jsonString - JSON string to parse (can be null/undefined)
+ * @param context - Optional context string for error logging
+ * @returns ParseResult with success flag and data or error message
+ * 
+ * @example
+ * ```typescript
+ * const result = parseJsonString('{"key": "value"}');
+ * if (result.success) {
+ *   console.log(result.data); // { key: "value" }
+ * } else {
+ *   console.error(result.error); // Error message
+ * }
+ * ```
  */
 export function parseJsonString<T = unknown>(
   jsonString: string | null | undefined,
@@ -61,7 +95,21 @@ export function parseJsonString<T = unknown>(
 
 /**
  * Parse JSON with fallback value
- * Use this ONLY when a fallback is truly acceptable
+ * 
+ * Parses JSON string, returning fallback value if parsing fails.
+ * Use this ONLY when a fallback is truly acceptable - prefer parseJsonString
+ * for better error handling.
+ * 
+ * @param jsonString - JSON string to parse (can be null/undefined)
+ * @param fallback - Value to return if parsing fails
+ * @param context - Optional context string for error logging
+ * @returns Parsed data or fallback value
+ * 
+ * @example
+ * ```typescript
+ * const data = parseJsonWithFallback('invalid', { default: 'value' });
+ * // Returns: { default: 'value' } (fallback)
+ * ```
  */
 export function parseJsonWithFallback<T>(
   jsonString: string | null | undefined,

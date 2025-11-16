@@ -61,51 +61,46 @@ export class NPCGroupDynamicsService {
       messagesPosted: 0,
     };
 
+    logger.info('Processing NPC group dynamics', undefined, 'NPCGroupDynamicsService');
+
+    // Initialize LLM client for message generation
+    let llm: BabylonLLMClient | null = null;
     try {
-      logger.info('Processing NPC group dynamics', undefined, 'NPCGroupDynamicsService');
-
-      // Initialize LLM client for message generation
-      let llm: BabylonLLMClient | null = null;
-      try {
-        llm = new BabylonLLMClient();
-      } catch (error) {
-        logger.warn('Failed to initialize LLM for group dynamics', { error }, 'NPCGroupDynamicsService');
-      }
-
-      // 1. Form new groups
-      const newGroups = await this.formNewGroups();
-      result.groupsCreated = newGroups;
-
-      // 2. NPCs join existing groups
-      const joins = await this.processGroupJoins();
-      result.membersAdded = joins;
-
-      // 3. NPCs leave groups
-      const leaves = await this.processGroupLeaves();
-      result.membersRemoved = leaves;
-
-      // 4. NPCs post messages to groups
-      if (llm) {
-        const messages = await this.postGroupMessages(llm);
-        result.messagesPosted = messages;
-      }
-
-      // 5. Invite users to groups
-      const invites = await this.inviteUsersToGroups();
-      result.usersInvited = invites;
-
-      // 6. Kick users based on weighted participation metrics
-      const kicks = await this.kickUsersWithWeightedLogic();
-      result.usersKicked = kicks;
-
-      const duration = Date.now() - startTime;
-      logger.info('NPC group dynamics complete', { ...result, duration }, 'NPCGroupDynamicsService');
-
-      return result;
+      llm = new BabylonLLMClient();
     } catch (error) {
-      logger.error('Error in NPC group dynamics', { error }, 'NPCGroupDynamicsService');
-      return result;
+      logger.warn('Failed to initialize LLM for group dynamics', { error }, 'NPCGroupDynamicsService');
     }
+
+    // 1. Form new groups
+    const newGroups = await this.formNewGroups();
+    result.groupsCreated = newGroups;
+
+    // 2. NPCs join existing groups
+    const joins = await this.processGroupJoins();
+    result.membersAdded = joins;
+
+    // 3. NPCs leave groups
+    const leaves = await this.processGroupLeaves();
+    result.membersRemoved = leaves;
+
+    // 4. NPCs post messages to groups
+    if (llm) {
+      const messages = await this.postGroupMessages(llm);
+      result.messagesPosted = messages;
+    }
+
+    // 5. Invite users to groups
+    const invites = await this.inviteUsersToGroups();
+    result.usersInvited = invites;
+
+    // 6. Kick users based on weighted participation metrics
+    const kicks = await this.kickUsersWithWeightedLogic();
+    result.usersKicked = kicks;
+
+    const duration = Date.now() - startTime;
+    logger.info('NPC group dynamics complete', { ...result, duration }, 'NPCGroupDynamicsService');
+
+    return result;
   }
 
   /**
@@ -114,9 +109,8 @@ export class NPCGroupDynamicsService {
   private static async formNewGroups(): Promise<number> {
     let groupsCreated = 0;
 
-    try {
-      // Get NPCs who could start a group
-      const npcs = await prisma.actor.findMany({
+    // Get NPCs who could start a group
+    const npcs = await prisma.actor.findMany({
         where: {
           hasPool: true,
         },
@@ -201,9 +195,6 @@ export class NPCGroupDynamicsService {
           memberCount: memberIds.size,
         }, 'NPCGroupDynamicsService');
       }
-    } catch (error) {
-      logger.error('Error forming new groups', { error }, 'NPCGroupDynamicsService');
-    }
 
     return groupsCreated;
   }
@@ -214,9 +205,8 @@ export class NPCGroupDynamicsService {
   private static async processGroupJoins(): Promise<number> {
     let joinsProcessed = 0;
 
-    try {
-      // Get all NPC group chats
-      const groups = await prisma.chat.findMany({
+    // Get all NPC group chats
+    const groups = await prisma.chat.findMany({
         where: {
           isGroup: true,
         },
@@ -300,9 +290,6 @@ export class NPCGroupDynamicsService {
           }
         }
       }
-    } catch (error) {
-      logger.error('Error processing group joins', { error }, 'NPCGroupDynamicsService');
-    }
 
     return joinsProcessed;
   }
@@ -313,9 +300,8 @@ export class NPCGroupDynamicsService {
   private static async processGroupLeaves(): Promise<number> {
     let leavesProcessed = 0;
 
-    try {
-      // Get all NPC group memberships
-      const memberships = await prisma.chatParticipant.findMany({
+    // Get all NPC group memberships
+    const memberships = await prisma.chatParticipant.findMany({
         where: {
           Chat: {
             isGroup: true,
@@ -389,9 +375,6 @@ export class NPCGroupDynamicsService {
           }, 'NPCGroupDynamicsService');
         }
       }
-    } catch (error) {
-      logger.error('Error processing group leaves', { error }, 'NPCGroupDynamicsService');
-    }
 
     return leavesProcessed;
   }
@@ -402,23 +385,22 @@ export class NPCGroupDynamicsService {
   private static async postGroupMessages(llm: BabylonLLMClient): Promise<number> {
     let messagesPosted = 0;
 
-    try {
-      // Get active group chats with NPC participants
-      const groups = await prisma.chat.findMany({
-        where: {
-          isGroup: true,
-        },
-        include: {
-          ChatParticipant: true,
-          Message: {
-            orderBy: {
-              createdAt: 'desc',
-            },
-            take: 10,
+    // Get active group chats with NPC participants
+    const groups = await prisma.chat.findMany({
+      where: {
+        isGroup: true,
+      },
+      include: {
+        ChatParticipant: true,
+        Message: {
+          orderBy: {
+            createdAt: 'desc',
           },
+          take: 10,
         },
-        take: 20, // Process up to 20 groups per tick
-      });
+      },
+      take: 20, // Process up to 20 groups per tick
+    });
 
       for (const group of groups) {
         // Random chance to post
@@ -554,9 +536,6 @@ Return your response as XML in this exact format:
           }, 'NPCGroupDynamicsService');
         }
       }
-    } catch (error) {
-      logger.error('Error posting group messages', { error }, 'NPCGroupDynamicsService');
-    }
 
     return messagesPosted;
   }
@@ -604,9 +583,8 @@ Return your response as XML in this exact format:
       enemyPenalties: 0,
     };
 
-    try {
-      // 1. Check follows (all-time)
-      const followCount = await prisma.follow.count({
+    // 1. Check follows (all-time)
+    const followCount = await prisma.follow.count({
         where: {
           followerId: userId,
           followingId: {
@@ -730,12 +708,8 @@ Return your response as XML in this exact format:
       breakdown.friendBoosts = relationshipModifier.friendBoosts;
       breakdown.enemyPenalties = relationshipModifier.enemyPenalties;
       
-      // Apply the modifier to the final score
-      score = score * relationshipModifier.modifier;
-
-    } catch (error) {
-      logger.warn('Error calculating reply guy score', { error, userId }, 'NPCGroupDynamicsService');
-    }
+    // Apply the modifier to the final score
+    score = score * relationshipModifier.modifier;
 
     return { score, breakdown };
   }
@@ -762,9 +736,8 @@ Return your response as XML in this exact format:
     let friendBoosts = 0;
     let enemyPenalties = 0;
 
-    try {
-      // Get all NPCs the user has engaged with (via UserInteraction table)
-      const userInteractions = await prisma.userInteraction.findMany({
+    // Get all NPCs the user has engaged with (via UserInteraction table)
+    const userInteractions = await prisma.userInteraction.findMany({
         where: {
           userId,
           timestamp: {
@@ -828,13 +801,8 @@ Return your response as XML in this exact format:
         }
       }
 
-      // Cap the modifier between 0.2x (80% penalty max) and 2.0x (100% boost max)
-      modifier = Math.max(0.2, Math.min(2.0, modifier));
-
-    } catch (error) {
-      logger.warn('Error calculating relationship modifier', { error, userId }, 'NPCGroupDynamicsService');
-      return { modifier: 1.0, friendBoosts: 0, enemyPenalties: 0 };
-    }
+    // Cap the modifier between 0.2x (80% penalty max) and 2.0x (100% boost max)
+    modifier = Math.max(0.2, Math.min(2.0, modifier));
 
     return { modifier, friendBoosts, enemyPenalties };
   }

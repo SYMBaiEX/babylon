@@ -60,6 +60,7 @@
 import type { Actor, Organization, WorldEvent, Question } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { shuffleArray } from '@/lib/utils/randomization';
 
 type ArticleStage = 'breaking' | 'commentary' | 'resolution';
 
@@ -602,7 +603,7 @@ FORMAT YOUR RESPONSE AS XML:
    */
   private selectNewsOrgs(orgs: Organization[], count: number): Organization[] {
     // Shuffle and take first N
-    const shuffled = [...orgs].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(orgs);
     return shuffled.slice(0, count);
   }
 }

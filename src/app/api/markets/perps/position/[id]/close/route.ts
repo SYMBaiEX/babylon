@@ -1,7 +1,80 @@
 /**
- * API Route: /api/markets/perps/position/[id]/close
- * Methods: POST (close a perpetual futures position)
+ * Perpetual Futures Close Position API
+ * 
+ * @route POST /api/markets/perps/position/[id]/close - Close perpetual position
+ * @access Authenticated
+ * 
+ * @description
+ * Closes an existing perpetual futures position. Calculates final P&L, fees,
+ * and updates user balance. Supports partial closes. Tracks trade events.
+ * 
+ * @openapi
+ * /api/markets/perps/position/{id}/close:
+ *   post:
+ *     tags:
+ *       - Markets
+ *     summary: Close perpetual position
+ *     description: Closes an existing perpetual futures position with P&L calculation
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Position ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               size:
+ *                 type: number
+ *                 description: Partial close size (optional, closes full position if omitted)
+ *     responses:
+ *       200:
+ *         description: Position closed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 position:
+ *                   type: object
+ *                 realizedPnL:
+ *                   type: number
+ *                 fee:
+ *                   type: object
+ *                 newBalance:
+ *                   type: number
+ *       400:
+ *         description: Invalid position or insufficient size
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Position not found
+ * 
+ * @example
+ * ```typescript
+ * // Close full position
+ * await fetch(`/api/markets/perps/position/${positionId}/close`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Partial close
+ * await fetch(`/api/markets/perps/position/${positionId}/close`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ size: 50 })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/perp-trade-service} Perp trade service
  */
+
 import type { NextRequest } from 'next/server';
 
 import { authenticate } from '@/lib/api/auth-middleware';

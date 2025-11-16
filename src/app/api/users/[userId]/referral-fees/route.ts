@@ -1,6 +1,58 @@
 /**
- * API Route: GET /api/users/[userId]/referral-fees
- * Get referral fee earnings for a user
+ * User Referral Fees API
+ * 
+ * @route GET /api/users/[userId]/referral-fees - Get referral fee earnings
+ * @access Authenticated (own profile only)
+ * 
+ * @description
+ * Returns referral fee earnings including total earned, total referrals, top
+ * referrals, and recent fee transactions. Requires own profile access.
+ * 
+ * @openapi
+ * /api/users/{userId}/referral-fees:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get referral fee earnings
+ *     description: Returns referral fee earnings and statistics (own profile only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (must match authenticated user)
+ *     responses:
+ *       200:
+ *         description: Referral fees retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalEarned:
+ *                   type: number
+ *                 totalReferrals:
+ *                   type: integer
+ *                 topReferrals:
+ *                   type: array
+ *                 recentFees:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Cannot access another user's referral fees
+ * 
+ * @example
+ * ```typescript
+ * const { totalEarned, recentFees } = await fetch(`/api/users/${userId}/referral-fees`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
+ * 
+ * @see {@link /lib/services/fee-service} Fee service
  */
 
 import type { NextRequest } from 'next/server'

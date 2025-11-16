@@ -1,6 +1,17 @@
+/**
+ * Authentication Store
+ * 
+ * Manages user authentication state, wallet connection, and onboarding status.
+ * Persists authentication data to localStorage for session persistence.
+ */
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+/**
+ * User profile data structure.
+ * Contains user information, authentication status, and preferences.
+ */
 export interface User {
   id: string
   walletAddress?: string

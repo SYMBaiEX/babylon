@@ -316,7 +316,7 @@ class TestEndToEndFlow:
                 db_url=db_url,
                 wandb_api_key=wandb_key,
                 wandb_entity=wandb_entity,
-                base_model="Qwen/Qwen2.5-0.5B-Instruct"
+                base_model="OpenPipe/Qwen3-14B-Instruct"  # Only model in W&B ART catalog
             )
             
             training_data = await trainer._prepare_training_data(window_id)

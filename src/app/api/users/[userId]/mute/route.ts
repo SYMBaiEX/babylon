@@ -1,8 +1,106 @@
 /**
- * User Mute API Route
- * POST /api/users/[userId]/mute
+ * User Mute API
  * 
- * Mute or unmute a user
+ * @route POST /api/users/[userId]/mute - Mute or unmute user
+ * @route GET /api/users/[userId]/mute - Check if user is muted
+ * @access Authenticated
+ * 
+ * @description
+ * Manages user muting/unmuting. POST mutes or unmutes a user (hides their posts
+ * from feed). GET checks if the current user has muted the target user. Handles
+ * race conditions for concurrent mute requests.
+ * 
+ * @openapi
+ * /api/users/{userId}/mute:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Mute or unmute user
+ *     description: Mutes or unmutes a user (hides their posts from feed)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Target user ID to mute/unmute
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [mute, unmute]
+ *               reason:
+ *                 type: string
+ *                 description: Optional reason for muting
+ *     responses:
+ *       200:
+ *         description: Mute/unmute action completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 mute:
+ *                   type: object
+ *                   nullable: true
+ *       400:
+ *         description: Invalid action or already muted/unmuted
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Target user not found
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Check if user is muted
+ *     description: Returns whether the current user has muted the target user
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Target user ID to check
+ *     responses:
+ *       200:
+ *         description: Mute status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isMuted:
+ *                   type: boolean
+ *                 mute:
+ *                   type: object
+ *                   nullable: true
+ * 
+ * @example
+ * ```typescript
+ * // Mute user
+ * await fetch(`/api/users/${userId}/mute`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ action: 'mute' })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/moderation/filters} Moderation filters
  */
 
 import type { NextRequest } from 'next/server';

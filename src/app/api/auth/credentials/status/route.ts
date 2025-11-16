@@ -1,42 +1,43 @@
 /**
  * OAuth Credentials Status API
  * 
- * @route GET /api/auth/credentials/status
+ * @route GET /api/auth/credentials/status - Check OAuth credentials status
  * @access Public
  * 
  * @description
- * Checks the availability of OAuth credentials for social platform integrations.
- * Returns configuration status for Twitter and Farcaster authentication flows.
- * Used by the frontend to conditionally display social login options based on
- * server configuration.
+ * Checks availability of OAuth credentials for social platform integrations.
+ * Returns configuration status for Twitter and Farcaster. Used by frontend
+ * to conditionally display social login options.
  * 
- * **Platform Detection:**
- * - Twitter: Requires `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`
- * - Farcaster: Requires `NEYNAR_API_KEY`
- * 
- * **Use Cases:**
- * - Frontend conditional rendering of social login buttons
- * - Feature detection for social integrations
- * - Admin monitoring of OAuth configuration status
- * - Graceful degradation when credentials are not configured
- * 
- * **GET /api/auth/credentials/status - Check Credentials**
- * 
- * @returns {object} Credentials status
- * @property {boolean} twitter - Twitter OAuth 2.0 configured
- * @property {boolean} farcaster - Farcaster authentication configured
+ * @openapi
+ * /api/auth/credentials/status:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Check OAuth credentials status
+ *     description: Returns configuration status for Twitter and Farcaster OAuth
+ *     responses:
+ *       200:
+ *         description: Credentials status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 twitter:
+ *                   type: boolean
+ *                   description: Twitter OAuth 2.0 configured
+ *                 farcaster:
+ *                   type: boolean
+ *                   description: Farcaster authentication configured
  * 
  * @example
  * ```typescript
- * const status = await fetch('/api/auth/credentials/status')
+ * const { twitter, farcaster } = await fetch('/api/auth/credentials/status')
  *   .then(r => r.json());
  * 
- * if (status.twitter) {
+ * if (twitter) {
  *   // Show Twitter login button
- * }
- * 
- * if (status.farcaster) {
- *   // Show Farcaster login button
  * }
  * ```
  * 

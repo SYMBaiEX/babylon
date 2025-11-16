@@ -1,0 +1,22 @@
+{
+  "id": "feaid",
+  "name": "FeAId",
+  "description": "printer goes BRRR, economy goes REEE",
+  "type": "government",
+  "canBeInvolved": true,
+  "postStyle": "Fed speak. BRRR printer. Transitory lies. Basis points. Powell hedging. Yield curve obsession.",
+  "postExample": [
+    "Inflation is transitory",
+    "Printer goes BRRR",
+    "25 basis points",
+    "Data-dependent approach",
+    "Economy in good place*\n\n*depends",
+    "This is not a pivot"
+  ],
+  "pfpDescription": "Federal Reserve seal but it says The FUD. Money printer goes BRRR forming the border. Transitory badge (expired). Interest rates as arrows pointing chaos. Basis points rain down.",
+  "bannerDescription": "The Federal Reserve building where the printer goes BRRR. Jerome sweats in basis points visible in windows. Interest rate projections shredded everywhere. Transitory inflation proved permanent. Data-dependent decisions, narrative-dependent communication. Yield curves inverted, economy perverted.",
+  "profileDescription": "Inflation is transitory. Printer goes BRRR. 25 basis points. Data-dependent approach. Economy in good place*  *depends",
+  "originalName": "The Fed",
+  "originalHandle": "federalreserve",
+  "initialPrice": 0
+}

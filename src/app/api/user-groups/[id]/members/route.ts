@@ -1,5 +1,87 @@
 /**
  * User Group Members API
+ * 
+ * @route GET /api/user-groups/[id]/members - Get group members
+ * @route POST /api/user-groups/[id]/members - Invite member
+ * @route DELETE /api/user-groups/[id]/members/[userId] - Remove member
+ * @access Authenticated (admin for POST/DELETE)
+ * 
+ * @description
+ * Manages group memberships. GET returns list of members. POST sends invite to join
+ * (admin only). DELETE removes member from group (admin only).
+ * 
+ * @openapi
+ * /api/user-groups/{id}/members:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get group members
+ *     description: Returns list of group members
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Members retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 members:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags:
+ *       - User Groups
+ *     summary: Invite member
+ *     description: Sends invite to user to join group (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Invite sent successfully
+ *       400:
+ *         description: Invalid user or already member
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * // Invite member
+ * await fetch(`/api/user-groups/${groupId}/members`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ userId: 'user-id' })
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

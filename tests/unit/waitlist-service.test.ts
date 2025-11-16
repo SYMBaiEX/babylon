@@ -8,7 +8,8 @@ import { describe, it, expect, afterEach, beforeAll, beforeEach, mock } from 'bu
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
-const shouldSkipWaitlistTests = process.env.CI === 'true' || process.env.SKIP_WAITLIST_TESTS === 'true'
+// Only skip if explicitly requested - CI should run these tests
+const shouldSkipWaitlistTests = process.env.SKIP_WAITLIST_TESTS === 'true'
 const describeWaitlist = shouldSkipWaitlistTests ? describe.skip : describe
 
 // Also skip if prisma models aren't available (happens under concurrent test load)

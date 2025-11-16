@@ -1,7 +1,7 @@
 /**
  * Agent Authentication API
  * 
- * @route POST /api/agents/auth
+ * @route POST /api/agents/auth - Authenticate agent
  * @access Public (with credentials)
  * 
  * @description
@@ -10,38 +10,53 @@
  * credentials are validated against environment variables, and successful
  * authentication returns a time-limited session token.
  * 
- * **Authentication Flow:**
- * 1. Agent provides agentId and agentSecret
- * 2. Credentials verified against environment configuration
- * 3. Session token generated and stored
- * 4. Expired sessions automatically cleaned up
- * 5. Token used for subsequent authenticated requests
- * 
- * **Security Features:**
- * - Secure credential validation via environment variables
- * - Time-limited session tokens (configurable expiration)
- * - Automatic cleanup of expired sessions
- * - Cryptographically secure token generation
- * - Rate limiting and abuse prevention
- * 
- * **POST /api/agents/auth - Authenticate Agent**
- * 
- * @param {string} agentId - Agent identifier (required)
- * @param {string} agentSecret - Agent secret key (required)
- * 
- * @returns {object} Authentication response
- * @property {boolean} success - Authentication success status
- * @property {string} sessionToken - Session token for authenticated requests
- * @property {string} expiresAt - ISO timestamp of session expiration
- * @property {number} expiresIn - Seconds until session expires
- * 
- * @throws {400} Bad Request - Invalid request format
- * @throws {401} Unauthorized - Invalid credentials
- * @throws {500} Internal Server Error
+ * @openapi
+ * /api/agents/auth:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Authenticate agent
+ *     description: Authenticates agent with credentials and returns session token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - agentId
+ *               - agentSecret
+ *             properties:
+ *               agentId:
+ *                 type: string
+ *                 description: Agent identifier
+ *               agentSecret:
+ *                 type: string
+ *                 description: Agent secret key
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 sessionToken:
+ *                   type: string
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *                 expiresIn:
+ *                   type: integer
+ *       400:
+ *         description: Invalid request format
+ *       401:
+ *         description: Invalid credentials
  * 
  * @example
  * ```typescript
- * // Authenticate agent
  * const response = await fetch('/api/agents/auth', {
  *   method: 'POST',
  *   headers: { 'Content-Type': 'application/json' },

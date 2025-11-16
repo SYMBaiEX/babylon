@@ -1,6 +1,83 @@
 /**
- * API Route: /api/users/[userId]/posts
- * Methods: GET (get user posts and comments/replies)
+ * User Posts API
+ * 
+ * @route GET /api/users/[userId]/posts - Get user posts and replies
+ * @access Public
+ * 
+ * @description
+ * Returns user's posts and comments/replies with interaction counts. Supports
+ * filtering by type (posts or replies). Includes reposts/shares and excludes
+ * future posts. Optimized with batch queries to prevent N+1 problems.
+ * 
+ * @openapi
+ * /api/users/{userId}/posts:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get user posts and replies
+ *     description: Returns user's posts or replies with interaction counts and author information
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID, username, or wallet address
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [posts, replies]
+ *           default: posts
+ *         description: Type of content to retrieve
+ *     responses:
+ *       200:
+ *         description: User posts/replies retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 type:
+ *                   type: string
+ *                   enum: [posts, replies]
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       content:
+ *                         type: string
+ *                       authorId:
+ *                         type: string
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                       likeCount:
+ *                         type: integer
+ *                       commentCount:
+ *                         type: integer
+ *                       shareCount:
+ *                         type: integer
+ *                       isLiked:
+ *                         type: boolean
+ *                       isShared:
+ *                         type: boolean
+ *                 total:
+ *                   type: integer
+ * 
+ * @example
+ * ```typescript
+ * // Get user posts
+ * const posts = await fetch('/api/users/user_123/posts?type=posts');
+ * 
+ * // Get user replies
+ * const replies = await fetch('/api/users/user_123/posts?type=replies');
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
  */
 
 import type { NextRequest } from 'next/server';
@@ -160,11 +237,13 @@ export const GET = withErrorHandling(async (
         total: replies.length,
       });
     } else {
-      // Get user's posts
+      // Get user's posts - filter out future posts
+      const now = new Date();
       const posts = await prisma.post.findMany({
         where: {
           authorId: canonicalUserId,
           deletedAt: null, // Filter out deleted posts
+          timestamp: { lte: now }, // ✅ No future posts
           // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
@@ -201,10 +280,13 @@ export const GET = withErrorHandling(async (
         take: 100,
       });
 
-      // Also get user's shares (reposts)
+      // Also get user's shares (reposts) - only for posts up to current time
       const shares = await prisma.share.findMany({
         where: {
           userId: canonicalUserId,
+          Post: {
+            timestamp: { lte: now }, // ✅ No future posts
+          },
         },
         include: {
           Post: {

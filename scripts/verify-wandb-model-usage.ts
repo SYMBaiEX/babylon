@@ -415,7 +415,7 @@ class WandbModelUsageVerifier {
     if (!step1.passed) {
       console.log('❌ Cannot continue - no trained model found\n');
       this.printSummary();
-      await prisma.$disconnect().catch(() => {});
+      await prisma.$disconnect();
       process.exit(step1.details.includes('Database connection failed') ? 1 : 0);
       return;
     }
@@ -503,12 +503,12 @@ async function main() {
 
 main()
   .then(() => {
-    prisma.$disconnect().catch(() => {});
+    prisma.$disconnect();
     process.exit(0);
   })
   .catch((error) => {
     console.error('Verification failed:', error);
-    prisma.$disconnect().catch(() => {});
+    prisma.$disconnect();
     process.exit(1);
   });
 

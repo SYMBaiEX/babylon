@@ -1,5 +1,87 @@
 /**
  * User Group Admins API
+ * 
+ * @route GET /api/user-groups/[id]/admins - Get group admins
+ * @route POST /api/user-groups/[id]/admins - Grant admin privileges
+ * @route DELETE /api/user-groups/[id]/admins/[userId] - Revoke admin privileges
+ * @access Authenticated (admin only)
+ * 
+ * @description
+ * Manages group admin privileges. GET returns list of admins. POST grants admin
+ * privileges to a member. DELETE revokes admin privileges.
+ * 
+ * @openapi
+ * /api/user-groups/{id}/admins:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get group admins
+ *     description: Returns list of group admins
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Admins retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 admins:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags:
+ *       - User Groups
+ *     summary: Grant admin privileges
+ *     description: Grants admin privileges to a group member (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Admin privileges granted successfully
+ *       400:
+ *         description: User not a member
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * // Grant admin
+ * await fetch(`/api/user-groups/${groupId}/admins`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ userId: 'user-id' })
+ * });
+ * ```
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';

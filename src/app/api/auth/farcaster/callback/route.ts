@@ -1,49 +1,76 @@
 /**
  * Farcaster Authentication Callback API
  * 
- * @route POST /api/auth/farcaster/callback
- * @access Public
+ * @route POST /api/auth/farcaster/callback - Link Farcaster account
+ * @access Public (with signature verification)
  * 
  * @description
- * Handles the Farcaster "Sign-In With Farcaster" (SIWF) authentication flow.
- * Verifies Farcaster signatures, links Farcaster accounts to user profiles,
- * and awards bonus points for first-time linkage. Uses Neynar API for
- * signature verification.
+ * Handles Farcaster "Sign-In With Farcaster" (SIWF) authentication flow. Verifies
+ * signatures via Neynar API, links Farcaster accounts, and awards bonus points.
  * 
- * **Authentication Flow:**
- * 1. User initiates Farcaster authentication on frontend
- * 2. Farcaster app signs message with user's FID
- * 3. Frontend sends signature and message to this callback
- * 4. Server verifies signature using Neynar API
- * 5. Farcaster account linked to user profile
- * 6. Bonus points awarded on first link
- * 
- * **Security Features:**
- * - Cryptographic signature verification via Neynar
- * - State parameter with timestamp expiration (10 minutes)
- * - Prevention of duplicate account linking
- * - Validation against signature replay attacks
- * 
- * **POST /api/auth/farcaster/callback - Link Farcaster Account**
- * 
- * @param {string} message - Signed message from Farcaster
- * @param {string} signature - Cryptographic signature
- * @param {number} fid - Farcaster ID (FID)
- * @param {string} username - Farcaster username
- * @param {string} [displayName] - Display name from Farcaster
- * @param {string} [pfpUrl] - Profile picture URL
- * @param {string} state - State parameter (userId:timestamp)
- * 
- * @returns {object} Link result
- * @property {boolean} success - Link success status
- * @property {number} pointsAwarded - Bonus points awarded
- * @property {number} newTotal - New total points balance
- * 
- * @throws {400} Bad Request - Invalid payload or expired state
- * @throws {401} Unauthorized - Invalid signature
- * @throws {404} Not Found - User not found
- * @throws {409} Conflict - Farcaster account already linked
- * @throws {500} Internal Server Error
+ * @openapi
+ * /api/auth/farcaster/callback:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Link Farcaster account
+ *     description: Verifies Farcaster signature and links account (SIWF flow)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - message
+ *               - signature
+ *               - fid
+ *               - username
+ *               - state
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 description: Signed message from Farcaster
+ *               signature:
+ *                 type: string
+ *                 description: Cryptographic signature
+ *               fid:
+ *                 type: integer
+ *                 description: Farcaster ID (FID)
+ *               username:
+ *                 type: string
+ *                 description: Farcaster username
+ *               displayName:
+ *                 type: string
+ *                 description: Display name from Farcaster
+ *               pfpUrl:
+ *                 type: string
+ *                 description: Profile picture URL
+ *               state:
+ *                 type: string
+ *                 description: State parameter (userId:timestamp)
+ *     responses:
+ *       200:
+ *         description: Farcaster account linked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 pointsAwarded:
+ *                   type: number
+ *                 newTotal:
+ *                   type: number
+ *       400:
+ *         description: Invalid payload or expired state
+ *       401:
+ *         description: Invalid signature
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Farcaster account already linked
  * 
  * @example
  * ```typescript

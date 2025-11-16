@@ -1,6 +1,100 @@
 /**
- * API Route: /api/posts/[id]/reply
- * Methods: POST (reply to a post with rate limiting and quality checks)
+ * Post Reply API
+ * 
+ * @route POST /api/posts/[id]/reply - Reply to a post
+ * @access Authenticated
+ * 
+ * @description
+ * Creates a reply/comment to a post with comprehensive quality checks, rate limiting,
+ * and game mechanics integration. Includes following mechanics, group chat invites,
+ * and quality scoring. Designed for NPC interaction and engagement.
+ * 
+ * @openapi
+ * /api/posts/{id}/reply:
+ *   post:
+ *     tags:
+ *       - Posts
+ *     summary: Reply to a post
+ *     description: Creates a reply comment with quality checks, rate limiting, and game mechanics (following, invites)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID to reply to
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Reply content
+ *               marketId:
+ *                 type: string
+ *                 description: Optional market ID for tracking
+ *               sentiment:
+ *                 type: string
+ *                 description: Optional sentiment (positive/negative/neutral)
+ *     responses:
+ *       201:
+ *         description: Reply created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 comment:
+ *                   type: object
+ *                 quality:
+ *                   type: object
+ *                   properties:
+ *                     score:
+ *                       type: number
+ *                     warnings:
+ *                       type: array
+ *                 streak:
+ *                   type: object
+ *                 following:
+ *                   type: object
+ *                   properties:
+ *                     followed:
+ *                       type: boolean
+ *                 groupChat:
+ *                   type: object
+ *                   properties:
+ *                     invited:
+ *                       type: boolean
+ *       400:
+ *         description: Quality check failed or rate limit exceeded
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post not found
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch(`/api/posts/${postId}/reply`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     content: 'Great post!',
+ *     sentiment: 'positive'
+ *   })
+ * });
+ * const { comment, quality, following } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/services/message-quality-checker} Quality checker
+ * @see {@link /lib/services/following-mechanics} Following mechanics
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';

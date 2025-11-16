@@ -1,7 +1,59 @@
 /**
  * Trending Tag Detail API
  * 
- * GET /api/trending/[tag] - Get posts with a specific tag
+ * @route GET /api/trending/[tag] - Get posts by tag
+ * @access Public (optional authentication for RLS)
+ * 
+ * @description
+ * Returns posts with a specific tag. Supports pagination. Optional authentication
+ * applies RLS for personalized results.
+ * 
+ * @openapi
+ * /api/trending/{tag}:
+ *   get:
+ *     tags:
+ *       - Trending
+ *     summary: Get posts by tag
+ *     description: Returns posts with specific tag (optional auth for RLS)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tag
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Tag name
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Posts per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
+ *     responses:
+ *       200:
+ *         description: Posts retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 posts:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized (optional)
+ * 
+ * @example
+ * ```typescript
+ * const { posts } = await fetch('/api/trending/crypto?limit=20')
+ *   .then(r => r.json());
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

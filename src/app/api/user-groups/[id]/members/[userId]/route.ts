@@ -1,5 +1,64 @@
 /**
  * User Group Member Actions API
+ * 
+ * @route DELETE /api/user-groups/[id]/members/[userId] - Remove member
+ * @access Authenticated (admin or self)
+ * 
+ * @description
+ * Removes a member from a group. Users can remove themselves, or admins can
+ * remove others. Cannot remove the group creator. Also removes from associated
+ * chat participants.
+ * 
+ * @openapi
+ * /api/user-groups/{id}/members/{userId}:
+ *   delete:
+ *     tags:
+ *       - User Groups
+ *     summary: Remove member from group
+ *     description: Removes member from group (self or admin only, cannot remove creator)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to remove
+ *     responses:
+ *       200:
+ *         description: Member removed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Cannot remove group creator
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required (if removing others)
+ *       404:
+ *         description: User is not a member
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/user-groups/${groupId}/members/${userId}`, {
+ *   method: 'DELETE',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

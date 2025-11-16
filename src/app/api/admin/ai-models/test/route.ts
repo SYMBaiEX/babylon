@@ -1,6 +1,55 @@
 /**
- * Test endpoint for AI model configuration
- * Verifies that wandb integration is working correctly
+ * Admin AI Model Test API
+ * 
+ * @route POST /api/admin/ai-models/test - Test AI model configuration
+ * @access Admin
+ * 
+ * @description
+ * Tests the current AI model configuration with a simple completion request.
+ * Verifies wandb integration and model availability. Returns test response
+ * and performance metrics.
+ * 
+ * @openapi
+ * /api/admin/ai-models/test:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Test AI model configuration
+ *     description: Tests current AI model with simple completion (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Test completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 provider:
+ *                   type: string
+ *                 model:
+ *                   type: string
+ *                 durationMs:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Model test failed
+ * 
+ * @example
+ * ```typescript
+ * const result = await fetch('/api/admin/ai-models/test', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

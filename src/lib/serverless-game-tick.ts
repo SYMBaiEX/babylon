@@ -33,6 +33,7 @@ import { getOracleService } from './oracle';
 import { worldFactsService } from './services/world-facts-service';
 import { rssFeedService } from './services/rss-feed-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
+import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -68,6 +69,7 @@ export interface GameTickResult {
     parodiesGenerated: number;
     headlinesCleaned: number;
   };
+  relationshipsUpdated?: number;
 }
 
 /**
@@ -75,8 +77,10 @@ export interface GameTickResult {
  * Designed to complete within 3 minutes (180 seconds)
  * Uses parallelization for posts, articles, and other operations to maximize throughput
  * Guarantees critical operations (market decisions) always execute via budget reserve
+ * 
+ * @param skipContentGeneration - If true, skips post/event/article generation (for buffer management)
  */
-export async function executeGameTick(): Promise<GameTickResult> {
+export async function executeGameTick(skipContentGeneration: boolean = false): Promise<GameTickResult> {
   const timestamp = new Date();
   const startedAt = Date.now();
   const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 180000); // 3 minutes default
@@ -202,28 +206,33 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     // Combined post and article generation to mix NPCs and orgs
-    if (Date.now() < criticalOpsDeadline) {
-      const { posts, articles } = await generateMixedPosts(
-        activeQuestions.slice(0, 3),
-        timestamp,
-        llmClient,
-        criticalOpsDeadline
-      );
-      result.postsCreated = posts;
-      result.articlesCreated = articles;
-    } else {
-      logger.warn(
-        'Skipping post generation – tick budget exceeded',
-        { budgetMs },
-        'GameTick'
-      );
-    }
+    // Skip if buffer is sufficient (content generation handled by lookahead service)
+    if (!skipContentGeneration) {
+      if (Date.now() < criticalOpsDeadline) {
+        const { posts, articles } = await generateMixedPosts(
+          activeQuestions.slice(0, 3),
+          timestamp,
+          llmClient,
+          criticalOpsDeadline
+        );
+        result.postsCreated = posts;
+        result.articlesCreated = articles;
+      } else {
+        logger.warn(
+          'Skipping post generation – tick budget exceeded',
+          { budgetMs },
+          'GameTick'
+        );
+      }
 
-    const eventsGenerated = await generateEvents(
-      activeQuestions.slice(0, 3),
-      timestamp
-    );
-    result.eventsCreated = eventsGenerated;
+      const eventsGenerated = await generateEvents(
+        activeQuestions.slice(0, 3),
+        timestamp
+      );
+      result.eventsCreated = eventsGenerated;
+    } else {
+      logger.info('Skipping content generation (buffer sufficient)', undefined, 'GameTick');
+    }
 
     // CRITICAL PRIORITY: Generate and execute NPC trading decisions
     // This ALWAYS runs - uses the full deadline, not the critical ops deadline
@@ -292,19 +301,22 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     // Generate articles AFTER market decisions (lower priority, but parallelized)
-    if (Date.now() < deadline) {
-      const articlesGenerated = await generateArticles(
-        timestamp,
-        llmClient,
-        deadline
-      );
-      result.articlesCreated += articlesGenerated; // Add to existing count from mixed posts
-    } else {
-      logger.warn(
-        'Skipping article generation – tick budget exceeded',
-        { budgetMs },
-        'GameTick'
-      );
+    // Skip if buffer is sufficient (content generation handled by lookahead service)
+    if (!skipContentGeneration) {
+      if (Date.now() < deadline) {
+        const articlesGenerated = await generateArticles(
+          timestamp,
+          llmClient,
+          deadline
+        );
+        result.articlesCreated += articlesGenerated; // Add to existing count from mixed posts
+      } else {
+        logger.warn(
+          'Skipping article generation – tick budget exceeded',
+          { budgetMs },
+          'GameTick'
+        );
+      }
     }
 
     const currentActiveCount =
@@ -389,6 +401,18 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.info('Alpha group invites sent', { count: invites.length, invites }, 'GameTick');
     }
 
+    // Evolve NPC relationships based on recent interactions (every 10 ticks to save compute)
+    const shouldEvolveRelationships = Math.floor(timestamp.getTime() / 60000) % 10 === 0;
+    if (shouldEvolveRelationships && Date.now() < deadline) {
+      logger.info('Evolving NPC relationships...', undefined, 'GameTick');
+      const relationshipEngine = new RelationshipEvolutionEngine(llmClient);
+      const relationshipsUpdated = await relationshipEngine.analyzeAndUpdateRelationships();
+      result.relationshipsUpdated = relationshipsUpdated;
+      if (relationshipsUpdated > 0) {
+        logger.info(`✅ Updated ${relationshipsUpdated} relationships`, { count: relationshipsUpdated }, 'GameTick');
+      }
+    }
+
     // Process NPC group dynamics (form, join, leave, post, invite, kick)
     const { NPCGroupDynamicsService } = await import('./services/npc-group-dynamics-service');
     const dynamics = await NPCGroupDynamicsService.processTickDynamics();
@@ -426,23 +450,33 @@ export async function executeGameTick(): Promise<GameTickResult> {
  */
 async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
   // Check if we need to bootstrap
-  const trendingCount = await prisma.trendingTag.count();
-  const newsCount = await prisma.post.count({ where: { type: 'article' } });
+  const [trendingCount, newsCount, relationshipCount] = await Promise.all([
+    prisma.trendingTag.count(),
+    prisma.post.count({ where: { type: 'article' } }),
+    prisma.actorRelationship.count(),
+  ]);
   
   const MIN_TRENDING = 5;
   const MIN_NEWS = 5;
   
-  // If we have enough of both, nothing to do
-  if (trendingCount >= MIN_TRENDING && newsCount >= MIN_NEWS) {
+  // If we have enough of everything, nothing to do
+  if (trendingCount >= MIN_TRENDING && newsCount >= MIN_NEWS && relationshipCount > 0) {
     return;
   }
   
   logger.info('Bootstrapping initial content...', {
     currentTrending: trendingCount,
     currentNews: newsCount,
+    currentRelationships: relationshipCount,
     needTrending: trendingCount < MIN_TRENDING,
     needNews: newsCount < MIN_NEWS,
+    needRelationships: relationshipCount === 0,
   }, 'GameTick');
+  
+  // Bootstrap relationships FIRST (needed for social dynamics)
+  if (relationshipCount === 0) {
+    await bootstrapInitialRelationships();
+  }
   
   // Bootstrap news articles if needed
   if (newsCount < MIN_NEWS) {
@@ -457,7 +491,45 @@ async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
   logger.info('Bootstrap complete', {
     trendingCount: await prisma.trendingTag.count(),
     newsCount: await prisma.post.count({ where: { type: 'article' } }),
+    relationshipCount: await prisma.actorRelationship.count(),
   }, 'GameTick');
+}
+
+/**
+ * Generate initial NPC relationships on first tick
+ */
+async function bootstrapInitialRelationships(): Promise<void> {
+  logger.info('Generating initial NPC relationships...', undefined, 'GameTick');
+  
+  // Get all actors and organizations
+  const [actors, organizations] = await Promise.all([
+    prisma.actor.findMany(),
+    prisma.organization.findMany(),
+  ]);
+  
+  // Convert to Actor type
+  const actorData = actors.map(a => ({
+    id: a.id,
+    name: a.name,
+    description: a.description || undefined,
+    domain: a.domain,
+    personality: a.personality || undefined,
+    affiliations: a.affiliations,
+  }));
+  
+  const orgData = organizations.map(o => ({
+    id: o.id,
+    name: o.name,
+    description: o.description,
+    type: o.type as 'company' | 'media' | 'government',
+    canBeInvolved: true,
+  }));
+  
+  // Generate relationships
+  const engine = new RelationshipEvolutionEngine();
+  const created = await engine.generateInitialRelationships(actorData, orgData);
+  
+  logger.info(`✅ Generated ${created} initial relationships`, { count: created }, 'GameTick');
 }
 
 /**
@@ -744,15 +816,14 @@ async function generateMixedPosts(
       return { posts: 0, articles: 0 };
     }
 
-    try {
-      // Calculate timestamp for this post (spread throughout the minute)
-      const slotOffset = i * timeSlotMs;
-      const randomJitter = Math.random() * timeSlotMs * 0.8;
-      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-      
-      if (creator.type === 'actor') {
-        // Generate NPC post
-        const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
+    // Calculate timestamp for this post (spread throughout the minute)
+    const slotOffset = i * timeSlotMs;
+    const randomJitter = Math.random() * timeSlotMs * 0.8;
+    const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
+    
+    if (creator.type === 'actor') {
+      // Generate NPC post
+      const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
 
 ${worldFactsContext}
 
@@ -761,40 +832,40 @@ Return your response as XML in this exact format:
   <post>your post content here</post>
 </response>`;
 
-        const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
-          prompt,
-          {
-            properties: {
-              post: { type: 'string' },
-            },
-            required: ['post'],
+      const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
+        prompt,
+        {
+          properties: {
+            post: { type: 'string' },
           },
-          { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
-        );
-        
-        // Handle XML structure
-        const postContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
-          ? (response.response as { post: string }).post
-          : (response as { post: string }).post;
+          required: ['post'],
+        },
+        { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+      );
+      
+      // Handle XML structure
+      const postContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
+        ? (response.response as { post: string }).post
+        : (response as { post: string }).post;
 
-        if (!postContent) {
-          logger.warn('Empty post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
-          return { posts: 0, articles: 0 };
-        }
+      if (!postContent) {
+        logger.warn('Empty post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
+        return { posts: 0, articles: 0 };
+      }
 
-        await db().createPostWithAllFields({
-          id: await generateSnowflakeId(),
-          content: postContent,
-          authorId: creator.id,
-          gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp: timestampWithOffset,
-        });
-        
-        logger.debug('Created NPC post', { actor: creator.name, timestamp: timestampWithOffset }, 'GameTick');
-        return { posts: 1, articles: 0 };
+      await db().createPostWithAllFields({
+        id: await generateSnowflakeId(),
+        content: postContent,
+        authorId: creator.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: timestampWithOffset,
+      });
+      
+      logger.debug('Created NPC post', { actor: creator.name, timestamp: timestampWithOffset }, 'GameTick');
+      return { posts: 1, articles: 0 };
 
-      } else {
+    } else {
         // Organization content - can be either article or regular post
         // 10% chance to create article, 90% chance to create regular post
         const shouldCreateArticle = Math.random() < 0.1;
@@ -914,14 +985,6 @@ Return your response as XML in this exact format:
           return { posts: 1, articles: 0 };
         }
       }
-    } catch (error) {
-      logger.error(
-        'Failed to generate post',
-        { error, questionIndex: i, creatorId: creator?.id, creatorName: creator?.name, questionId: question?.id },
-        'GameTick'
-      );
-      return { posts: 0, articles: 0 };
-    }
   });
 
   // Wait for all posts to complete
@@ -935,6 +998,12 @@ Return your response as XML in this exact format:
     if (result.status === 'fulfilled') {
       postsCreated += result.value.posts;
       articlesCreated += result.value.articles;
+    } else {
+      logger.error(
+        'Failed to generate post',
+        { error: result.reason, questionIndex: result.reason?.questionIndex },
+        'GameTick'
+      );
     }
   }
 
@@ -959,11 +1028,15 @@ async function generateArticles(
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<number> {
-  // Get recent events (from last 2 hours)
-  const twoHoursAgo = new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
+  // Get recent events (from last 2 hours, up to current time)
+  const now = new Date();
+  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
   const recentEvents = await prisma.worldEvent.findMany({
     where: {
-      timestamp: { gte: twoHoursAgo },
+      timestamp: { 
+        gte: twoHoursAgo,
+        lte: now, // ✅ No future events
+      },
       visibility: 'public',
     },
     orderBy: { timestamp: 'desc' },
@@ -1062,8 +1135,7 @@ async function generateArticles(
       return 0;
     }
 
-    try {
-      const worldEvent: WorldEvent = {
+    const worldEvent: WorldEvent = {
         id: event.id,
         type: event.eventType as WorldEvent['type'],
         description: event.description,
@@ -1111,25 +1183,23 @@ async function generateArticles(
       }
       
       return created;
-    } catch (error) {
-      logger.error(
-        'Failed to generate article from event',
-        { error, eventId: event.id },
-        'GameTick'
-      );
-      return 0;
-    }
   });
 
   // Wait for all article generation to complete
   const results = await Promise.allSettled(articlePromises);
   
-  // Count successful articles
+  // Count successful articles and log failures
   const articlesCreated = results.reduce((sum, result) => {
     if (result.status === 'fulfilled') {
       return sum + result.value;
+    } else {
+      logger.error(
+        'Failed to generate article from event',
+        { error: result.reason },
+        'GameTick'
+      );
+      return sum;
     }
-    return sum;
   }, 0);
 
   logger.info(`Parallel article generation complete`, { 
@@ -1173,11 +1243,10 @@ async function generateBaselineArticlesParallel(
     const org = newsOrgs[i];
     if (!org || !org.name) return 0;
     
-    const topicData = baselineTopics[i % baselineTopics.length];
+      const topicData = baselineTopics[i % baselineTopics.length];
     if (!topicData) return 0;
     
-    try {
-      const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
+    const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
 
 Your article should include:
 - A compelling headline (max 100 chars)
@@ -1237,10 +1306,6 @@ Return your response as XML in this exact format:
       
       logger.debug('Created baseline article', { org: org.name, topic: topicData.topic }, 'GameTick');
       return 1;
-    } catch (error) {
-      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
-      return 0;
-    }
   });
   
   // Wait for all baseline articles to complete
@@ -1249,8 +1314,10 @@ Return your response as XML in this exact format:
   const articlesCreated = results.reduce((sum, result) => {
     if (result.status === 'fulfilled') {
       return sum + result.value;
+    } else {
+      logger.warn('Failed to generate baseline article', { error: result.reason }, 'GameTick');
+      return sum;
     }
-    return sum;
   }, 0);
   
   logger.info('Parallel baseline article generation complete', { 
@@ -1920,24 +1987,16 @@ async function publishOracleCommitments(
 
     // Update questions with oracle data
     for (const success of result.successful) {
-      try {
-        await prisma.question.update({
-          where: { id: success.questionId },
-          data: {
-            oracleSessionId: success.sessionId,
-            oracleCommitment: success.commitment,
-            oracleCommitTxHash: success.txHash,
-            oracleCommitBlock: success.blockNumber || null
-          }
-        });
-        committed++;
-      } catch (error) {
-        logger.error(
-          'Failed to update question with oracle data',
-          { error, questionId: success.questionId },
-          'GameTick'
-        );
-      }
+      await prisma.question.update({
+        where: { id: success.questionId },
+        data: {
+          oracleSessionId: success.sessionId,
+          oracleCommitment: success.commitment,
+          oracleCommitTxHash: success.txHash,
+          oracleCommitBlock: success.blockNumber || null
+        }
+      });
+      committed++;
     }
 
     errors = result.failed.length;
@@ -2000,23 +2059,15 @@ async function publishOracleReveals(
 
     // Update questions with oracle data
     for (const success of result.successful) {
-      try {
-        await prisma.question.update({
-          where: { id: success.questionId },
-          data: {
-            oracleRevealTxHash: success.txHash,
-            oracleRevealBlock: success.blockNumber || null,
-            oraclePublishedAt: new Date()
-          }
-        });
-        revealed++;
-      } catch (error) {
-        logger.error(
-          'Failed to update question with reveal data',
-          { error, questionId: success.questionId },
-          'GameTick'
-        );
-      }
+      await prisma.question.update({
+        where: { id: success.questionId },
+        data: {
+          oracleRevealTxHash: success.txHash,
+          oracleRevealBlock: success.blockNumber || null,
+          oraclePublishedAt: new Date()
+        }
+      });
+      revealed++;
     }
 
     errors = result.failed.length;
@@ -2113,23 +2164,8 @@ async function updateWidgetCaches(): Promise<number> {
             ? ((totalValue - totalDeposits) / totalDeposits) * 100
             : 0;
 
-        // Safely extract Actor name with multiple fallbacks
-        let npcActorName = 'Unknown';
-        try {
-          if (
-            pool.Actor &&
-            typeof pool.Actor === 'object' &&
-            'name' in pool.Actor
-          ) {
-            npcActorName = pool.Actor.name || 'Unknown';
-          }
-        } catch (e) {
-          logger.warn(
-            'Failed to extract Actor name',
-            { poolId: pool.id, error: e },
-            'GameTick'
-          );
-        }
+        // Extract Actor name
+        const npcActorName = pool.Actor?.name || 'Unknown';
 
         return {
           id: pool.id,

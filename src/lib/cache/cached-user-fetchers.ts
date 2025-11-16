@@ -183,10 +183,12 @@ export async function getCachedFollowingFeed(
       };
     }
 
-    // Get posts from followed users/actors
+    // Get posts from followed users/actors (up to current time)
+    const now = new Date();
     const posts = await prisma.post.findMany({
       where: {
         authorId: { in: allFollowedIds },
+        timestamp: { lte: now }, // ✅ No future posts
       },
       orderBy: {
         timestamp: 'desc',

@@ -266,7 +266,7 @@ async function seedCharacterMappings() {
     // Political Figures
     { realName: 'Joe Biden', parodyName: 'Bot Biden', category: 'politics', aliases: ['Biden'], priority: 89 },
     { realName: 'Donald Trump', parodyName: 'Donald Prompt', category: 'politics', aliases: ['Trump'], priority: 88 },
-    { realName: 'Jerome Powell', parodyName: 'Jerome Power', category: 'politics', aliases: ['Powell'], priority: 87 },
+    { realName: 'Jerome Powell', parodyName: 'JerAIme PowAIl', category: 'politics', aliases: ['Powell'], priority: 87 },
     
     // AI Researchers
     { realName: 'Yann LeCun', parodyName: 'Yann LeGPU', category: 'tech', aliases: ['LeCun'], priority: 86 },

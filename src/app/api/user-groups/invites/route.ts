@@ -1,7 +1,54 @@
 /**
  * User Group Invites API
  * 
- * Get all pending invites for the authenticated user
+ * @route GET /api/user-groups/invites - Get pending invites
+ * @route POST /api/user-groups/invites/[id] - Accept/decline invite
+ * @access Authenticated
+ * 
+ * @description
+ * Manages group invites. GET returns all pending invites for authenticated user.
+ * POST accepts or declines an invite.
+ * 
+ * @openapi
+ * /api/user-groups/invites:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get pending invites
+ *     description: Returns all pending group invites for authenticated user
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Invites retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 invites:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       group:
+ *                         type: object
+ *                       inviter:
+ *                         type: object
+ *                       invitedAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * const { invites } = await fetch('/api/user-groups/invites', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

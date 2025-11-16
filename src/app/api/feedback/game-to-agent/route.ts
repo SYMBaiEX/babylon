@@ -1,8 +1,65 @@
 /**
  * Game-to-Agent Feedback API
- *
- * Allows games to submit performance feedback for agents.
- * This is the primary mechanism for rating agent performance in games.
+ * 
+ * @route POST /api/feedback/game-to-agent - Submit game feedback for agent
+ * @access Public
+ * 
+ * @description
+ * Allows games to submit performance feedback for agents. Primary mechanism
+ * for rating agent performance in games. Updates agent metrics and reputation.
+ * 
+ * @openapi
+ * /api/feedback/game-to-agent:
+ *   post:
+ *     tags:
+ *       - Feedback
+ *     summary: Submit game feedback for agent
+ *     description: Submits game performance feedback for agent
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - agentId
+ *               - gameId
+ *               - score
+ *               - won
+ *             properties:
+ *               agentId:
+ *                 type: string
+ *               gameId:
+ *                 type: string
+ *               score:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 100
+ *               won:
+ *                 type: boolean
+ *               comment:
+ *                 type: string
+ *                 maxLength: 5000
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Feedback submitted successfully
+ *       400:
+ *         description: Invalid input
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/feedback/game-to-agent', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     agentId: 'agent-id',
+ *     gameId: 'game-id',
+ *     score: 85,
+ *     won: true
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

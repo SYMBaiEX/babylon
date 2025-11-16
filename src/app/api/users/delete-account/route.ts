@@ -1,6 +1,80 @@
 /**
- * API Route: /api/users/delete-account
- * Methods: POST (delete user account - GDPR right to erasure)
+ * User Account Deletion API
+ * 
+ * @route POST /api/users/delete-account - Delete user account
+ * @access Authenticated
+ * 
+ * @description
+ * Permanently deletes user account and associated data (GDPR right to erasure).
+ * Performs cascading deletion of user data while preserving anonymized data for
+ * analytics. Includes blockchain data notice for on-chain registered users.
+ * 
+ * @openapi
+ * /api/users/delete-account:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Delete user account
+ *     description: Permanently deletes user account and data (GDPR compliance)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - confirmation
+ *             properties:
+ *               confirmation:
+ *                 type: string
+ *                 enum: [DELETE MY ACCOUNT]
+ *                 description: Confirmation text required for deletion
+ *               reason:
+ *                 type: string
+ *                 description: Optional reason for deletion
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 deleted_data:
+ *                   type: object
+ *                 blockchain_notice:
+ *                   type: object
+ *                   nullable: true
+ *                 important_notes:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       400:
+ *         description: Invalid confirmation text
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/users/delete-account', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     confirmation: 'DELETE MY ACCOUNT',
+ *     reason: 'Privacy concerns'
+ *   })
+ * });
+ * ```
+ * 
+ * @see GDPR Article 17 - Right to erasure
  */
 
 import type { NextRequest } from 'next/server'

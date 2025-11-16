@@ -23,10 +23,9 @@ let testAccessToken: string;
 let testUser: User;
 
 describe('Settings Page Integration Tests', () => {
+  const hasTestCreds = !!(process.env.TEST_USER_ID && process.env.TEST_ACCESS_TOKEN);
+
   beforeAll(async () => {
-    // TODO: Set up test user authentication
-    // For now, skip tests if credentials are not available
-    const hasTestCreds = process.env.TEST_USER_ID && process.env.TEST_ACCESS_TOKEN;
     if (!hasTestCreds) {
       console.warn('⚠️  Skipping settings tests - TEST_USER_ID and TEST_ACCESS_TOKEN not set');
       return;
@@ -49,7 +48,10 @@ describe('Settings Page Integration Tests', () => {
 
   describe('Profile Tab', () => {
     test('should update display name', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       const newDisplayName = `Test User ${Date.now()}`;
       
@@ -71,7 +73,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should update bio', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       const newBio = `Test bio updated at ${Date.now()}`;
       
@@ -93,7 +98,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should enforce username change rate limit (24 hours)', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // First, try to change username
       const newUsername = `testuser${Date.now()}`;
@@ -129,7 +137,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should reject duplicate usernames', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try to use a common username that likely exists
       const response = await fetch(`${API_URL}/users/${testUserId}/update-profile`, {
@@ -150,7 +161,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should require on-chain registration for profile updates', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Fetch current user to check registration status
       const userResponse = await fetch(`${API_URL}/users/me`, {
@@ -179,36 +193,15 @@ describe('Settings Page Integration Tests', () => {
     });
   });
 
-  describe('Theme Tab', () => {
-    test('should persist theme preference in localStorage', () => {
-      // Theme is handled by next-themes and stored in localStorage
-      // This is a client-side test, so we can only verify the implementation exists
-      // In browser tests, we would:
-      // 1. Navigate to settings
-      // 2. Change theme
-      // 3. Reload page
-      // 4. Verify theme persisted
-      expect(true).toBe(true); // Placeholder - requires browser testing
-    });
-  });
-
-  describe('Security Tab', () => {
-    test('should display connected wallets', async () => {
-      // This is a Privy integration that requires browser testing
-      // Verify the SecurityTab component exists and has proper structure
-      expect(true).toBe(true); // Placeholder - requires browser testing
-    });
-
-    test('should allow logout', async () => {
-      // Logout is handled by Privy client-side
-      // Verify the logout button functionality exists
-      expect(true).toBe(true); // Placeholder - requires browser testing
-    });
-  });
+  // Theme Tab and Security Tab tests require browser testing
+  // These are tested in synpress/playwright e2e tests
 
   describe('Privacy Tab', () => {
     test('should export user data (GDPR compliance)', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       const response = await fetch(`${API_URL}/users/export-data`, {
         headers: {
@@ -226,7 +219,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should include all user data in export', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       const response = await fetch(`${API_URL}/users/export-data`, {
         headers: {
@@ -249,7 +245,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should require exact confirmation for account deletion', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try with wrong confirmation
       const response = await fetch(`${API_URL}/users/delete-account`, {
@@ -268,7 +267,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should not allow account deletion without proper confirmation', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Missing confirmation field
       const response = await fetch(`${API_URL}/users/delete-account`, {
@@ -289,18 +291,8 @@ describe('Settings Page Integration Tests', () => {
     // because that would delete the test account!
   });
 
-  describe('Tab Navigation', () => {
-    test('should sync tab with URL parameter', () => {
-      // This requires browser testing to verify URL changes
-      // Verify the implementation exists in the code
-      expect(true).toBe(true); // Placeholder - requires browser testing
-    });
-
-    test('should handle browser back/forward navigation', () => {
-      // This requires browser testing
-      expect(true).toBe(true); // Placeholder - requires browser testing
-    });
-  });
+  // Tab Navigation tests require browser testing
+  // These are tested in synpress/playwright e2e tests
 
   describe('Authentication Requirements', () => {
     test('should require authentication for profile updates', async () => {
@@ -347,7 +339,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should prevent users from updating other users profiles', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try to update a different user's profile (use a different ID)
       const otherUserId = 'different-user-id';
@@ -370,7 +365,10 @@ describe('Settings Page Integration Tests', () => {
 
   describe('Input Validation', () => {
     test('should validate display name length', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try extremely long display name
       const longName = 'a'.repeat(300);
@@ -396,7 +394,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should validate username format', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try invalid username with special characters
       const invalidUsername = 'user@#$%^&*()';
@@ -419,7 +420,10 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should validate bio length', async () => {
-      if (!testAccessToken) return;
+      if (!hasTestCreds) {
+        console.log('⏭️  Skipping - test credentials not available');
+        return;
+      }
 
       // Try extremely long bio
       const longBio = 'a'.repeat(2000);

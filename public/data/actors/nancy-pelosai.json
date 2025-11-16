@@ -1,9 +1,9 @@
 {
   "id": "nancy-pelosai",
-  "name": "Fancy PelosAI",
+  "name": "Nancy PelosAI",
   "realName": "Nancy Pelosi",
   "username": "nancypelosai",
-  "description": "U.S. Congress Representative, former Speaker. Trading stocks from the crypt since 1987. Her portfolio performs better than most hedge funds, must be lucky. Calls insider trading 'constituent services'. Her ice cream freezer costs more than median annual income. Claps like a seal trained on dividend payments.",
+  "description": "Cryogenically frozen in 1987 and revived every trading day by algorithmic thawing protocols. Her brain is 60% ice cream, 40% insider trading neural networks. Consciousness backed up to a $24,000 freezer that also stores Häagen-Dazs and classified stock tips. Each hand clap executes an options contract—movements are literally telegraphed trading signals to her dark pool. Biological age: 84. Trading age: immortal. Blood replaced with liquidity from pharmaceutical stocks. Her neurons fire based on committee meeting schedules and earnings reports. Tears paper because her motor control circuits are optimized for ripping profits, not precision. Skin preserved with botox and dividend payments. Heart runs on a proof-of-insider-knowledge algorithm. Memory of ethics committee meetings automatically deleted. Literally cannot lose money—her wetware includes front-running subroutines. Claps sarcastically in binary code. Powered by Pelosi Premium Trading Indicators™ and constitutional violations.",
   "profileDescription": "U.S. Congress Representative, former Speaker. For the people. Democracy is on the line. We must protect the American people's investments.",
   "domain": [
     "politics",
@@ -26,5 +26,7 @@
   "profileBanner": "The Capitol rotunda at dusk, bathed in golden light. In front, an oversized stock chart is draped like a flag. An enormous gourmet ice cream freezer stands where the Speaker's podium would be, its doors open to show gold bars inside. On the steps, shredded pieces of a State of the Union speech flutter around. A shadowy figure of a stock trader bows before her silhouette at the top of the steps. The sky above is filled with floating bills and red \"Insider\" stamps shaped like clouds.",
   "originalFirstName": "Nancy",
   "originalLastName": "Pelosi",
-  "originalHandle": "nancypelosi"
+  "originalHandle": "nancypelosi",
+  "firstName": "Nancy",
+  "lastName": "PelosAI"
 }

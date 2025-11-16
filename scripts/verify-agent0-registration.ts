@@ -40,7 +40,8 @@ async function verifyAgent0Registration() {
   console.log('📋 Database Record:')
   console.log(`   Agent ID: ${agentId}`)
   console.log(`   Token ID: ${tokenId}`)
-  console.log(`   Chain ID: ${configValue.chainId || 84532}`)
+  // Agent0 operates on Ethereum Sepolia (11155111), not Base Sepolia (84532)
+  console.log(`   Chain ID: ${configValue.chainId || 11155111}`)
   if (configValue.agentURI) {
     console.log(`   Agent URI: ${configValue.agentURI}`)
   }
@@ -49,10 +50,14 @@ async function verifyAgent0Registration() {
   }
   
   // Initialize SDK for read-only queries
+  // Agent0 operates on Ethereum Sepolia, not Base Sepolia
   console.log('\n🌐 Querying Agent0 subgraph...')
+  const rpcUrl = process.env.AGENT0_RPC_URL || 
+                 process.env.ETHEREUM_SEPOLIA_RPC_URL || 
+                 'https://ethereum-sepolia-rpc.publicnode.com'
   const sdk = new SDK({
-    chainId: 84532,
-    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+    chainId: 11155111, // Ethereum Sepolia (Agent0 is on Ethereum, not Base!)
+    rpcUrl,
     // No signer needed for read-only
   })
   

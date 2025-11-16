@@ -22,4 +22,6 @@ Always write tests against the against backend. Only write unit tests where ther
 
 You don't need to write markdown files every time you finish something. Instead, make sure you have reviewed, there are thorough tests for the thing you've done, and you've run the tests and confirmed they passed.
 
-Don't pipe your test commands. Just print them out when you run them in the console. Then I can see the errors and help you.
+Don't pipe your commands. Just print them out when you run them in the console. Then I can see the errors and help you.
+
+There are other agents working on stuff. If you see things change or linter issues, it's probably work in progress. don't revert. try to ignore it unless you're sure it's just an issue that needs to be fixed.

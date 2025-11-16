@@ -1,5 +1,105 @@
 /**
  * User Group Details API
+ * 
+ * @route GET /api/user-groups/[id] - Get group details
+ * @route PUT /api/user-groups/[id] - Update group
+ * @route DELETE /api/user-groups/[id] - Delete group
+ * @access Authenticated (member/admin)
+ * 
+ * @description
+ * Manages individual user groups. GET returns group details with members and admins.
+ * PUT updates group name/description (admin only). DELETE removes group (admin only).
+ * 
+ * @openapi
+ * /api/user-groups/{id}:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get group details
+ *     description: Returns group details with members and admins (members only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Group details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 group:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a member of this group
+ *   put:
+ *     tags:
+ *       - User Groups
+ *     summary: Update group
+ *     description: Updates group name and description (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Group updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   delete:
+ *     tags:
+ *       - User Groups
+ *     summary: Delete group
+ *     description: Deletes a group (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Group deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * // Get group details
+ * const { group } = await fetch(`/api/user-groups/${groupId}`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

@@ -23,6 +23,14 @@ export const swaggerDefinition = {
       url: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
       description: 'Development server',
     },
+    ...(process.env.NEXT_PUBLIC_BASE_URL && process.env.NEXT_PUBLIC_BASE_URL !== 'http://localhost:3000'
+      ? []
+      : [
+          {
+            url: 'https://babylon.game',
+            description: 'Production server',
+          },
+        ]),
   ],
   components: {
     securitySchemes: {
@@ -31,6 +39,12 @@ export const swaggerDefinition = {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         description: 'Privy authentication token',
+      },
+      BearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Bearer authentication token (alias for PrivyAuth)',
       },
       CronSecret: {
         type: 'http',

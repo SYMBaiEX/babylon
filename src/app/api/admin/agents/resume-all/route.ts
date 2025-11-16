@@ -1,5 +1,48 @@
 /**
- * Admin API: Resume All Agents
+ * Admin Agents Resume All API
+ * 
+ * @route POST /api/admin/agents/resume-all - Resume all agents
+ * @access Admin
+ * 
+ * @description
+ * Resumes all autonomous agents that have sufficient points. Re-enables all
+ * autonomous behaviors (trading, posting, commenting, DMs, group chats).
+ * Admin only.
+ * 
+ * @openapi
+ * /api/admin/agents/resume-all:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Resume all agents
+ *     description: Resumes all agents with sufficient points (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Agents resumed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                   description: Number of agents resumed
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/admin/agents/resume-all', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';
@@ -43,6 +86,8 @@ export async function POST(_req: NextRequest) {
     );
   }
 }
+
+
 
 
 

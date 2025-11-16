@@ -12,6 +12,7 @@ import type { IAgentRuntime } from '@elizaos/core'
 import type { Prisma } from '@prisma/client'
 import { callGroqDirect } from '../llm/direct-groq'
 import type { AgentConstraints, AgentDirective, AgentGoal } from '../types/goals'
+import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService'
 import { autonomousPostingService } from './AutonomousPostingService'
 import { autonomousTradingService } from './AutonomousTradingService'
@@ -20,11 +21,17 @@ import { autonomousDMService } from './AutonomousDMService'
 
 /**
  * Agent interface for planning
+ * 
+ * Represents agent configuration needed for action planning.
+ * Uses `unknown` for directives/constraints as they are stored as JSON
+ * and parsed dynamically based on agent configuration.
  */
 interface PlanningAgent {
   agentSystem?: string;
   displayName: string;
+  /** Agent directives stored as JSON (parsed dynamically) */
   agentDirectives?: unknown;
+  /** Agent constraints stored as JSON (parsed dynamically) */
   agentConstraints?: unknown;
   agentMaxActionsPerTick?: number;
   agentRiskTolerance?: string;
@@ -105,24 +112,49 @@ export interface PlanningContext {
 
 /**
  * Autonomous action execution result
+ * 
+ * Contains detailed results from executing an action plan, including
+ * success/failure counts and per-action results.
  */
 export interface AutonomousExecutionResult {
+  /** Number of actions planned */
   planned: number
+  /** Number of actions executed */
   executed: number
+  /** Number of actions that succeeded */
   successful: number
+  /** Number of actions that failed */
   failed: number
+  /** Detailed results for each action */
   results: Array<{
     action: PlannedAction
     success: boolean
+    /** Action-specific result data (type varies by action type) */
     result?: unknown
+    /** Error message if action failed */
     error?: string
   }>
+  /** IDs of goals that were updated during execution */
   goalsUpdated: string[]
 }
 
 export class AutonomousPlanningCoordinator {
   /**
    * Generate a comprehensive action plan for this tick
+   * 
+   * Analyzes agent goals, constraints, and current state to generate
+   * a multi-action plan that maximizes progress toward objectives.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (used for W&B model access)
+   * @returns ActionPlan with prioritized actions and reasoning
+   * @throws Error if agent not found
+   * 
+   * @remarks
+   * - Uses large model (W&B trained if available) for complex planning
+   * - Falls back to simple plan if no goals configured
+   * - Validates plan against agent constraints
+   * - Truncates prompt if exceeds 30K tokens
    */
   async generateActionPlan(
     agentUserId: string,
@@ -176,11 +208,23 @@ export class AutonomousPlanningCoordinator {
     // Build enhanced planning prompt
     const prompt = this.buildPlanningPrompt(planningAgent, context)
     
-    // Use LARGE model for complex multi-action planning
+    // Ensure prompt fits within 32K context limit (W&B trained models)
+    const estimatedTokens = countTokensSync(prompt)
+    let finalPrompt = prompt
+    
+    if (estimatedTokens > 30000) {  // 30K with 2K safety margin
+      logger.warn(`Planning prompt too long: ${estimatedTokens} tokens, truncating`, { agentUserId: agent.id })
+      const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
+      finalPrompt = truncated.text
+      logger.info(`Truncated to ${truncated.tokens} tokens`, { agentUserId: agent.id })
+    }
+    
+    // Use LARGE model (trained W&B model if available, else qwen3-32b) for complex planning
     const planResponse = await callGroqDirect({
-      prompt,
+      prompt: finalPrompt,
       system: agent.agentSystem || undefined,
-      modelSize: 'large',  // Complex reasoning requires large model
+      modelSize: 'large',  // Uses trained W&B model if available
+      runtime: _runtime,  // Pass runtime to access W&B trained models
       temperature: 0.7,
       maxTokens: 1500  // Allow detailed planning
     })
@@ -560,6 +604,23 @@ Your action plan (JSON only):`
   /**
    * Execute the planned actions in priority order
    */
+    /**
+   * Execute an action plan
+   * 
+   * Executes all actions in the plan in priority order, tracking
+   * successes and failures. Updates goal progress based on results.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param runtime - Agent runtime (used for W&B model access)
+   * @param plan - Action plan to execute
+   * @returns Execution result with success counts and goal updates
+   * 
+   * @remarks
+   * - Executes actions in priority order (highest first)
+   * - Continues processing even if individual actions fail
+   * - Updates goal progress for completed actions
+   * - Returns detailed results for each action
+   */
   async executePlan(
     agentUserId: string,
     runtime: IAgentRuntime,
@@ -577,31 +638,23 @@ Your action plan (JSON only):`
     const sortedActions = [...plan.actions].sort((a, b) => b.priority - a.priority)
     
     for (const action of sortedActions) {
-      try {
-        const result = await this.executeAction(agentUserId, runtime, action)
-        results.push({
-          action,
-          success: result.success,
-          result: result.data,
-          error: result.error
-        })
-        
-        // Track progress toward goal
-        if (action.goalId && result.success) {
-          await this.updateGoalProgress(action.goalId, agentUserId, action)
-          goalsUpdated.add(action.goalId)
-        }
-        
-        // Small delay between actions
-        await new Promise(resolve => setTimeout(resolve, 500))
-      } catch (error) {
-        logger.error(`Failed to execute action: ${action.type}`, error, 'PlanningCoordinator')
-        results.push({
-          action,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+      // Fail fast - don't catch errors, let them propagate
+      const result = await this.executeAction(agentUserId, runtime, action)
+      results.push({
+        action,
+        success: result.success,
+        result: result.data,
+        error: result.error
+      })
+      
+      // Track progress toward goal
+      if (action.goalId && result.success) {
+        await this.updateGoalProgress(action.goalId, agentUserId, action)
+        goalsUpdated.add(action.goalId)
       }
+      
+      // Small delay between actions
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
     
     const successful = results.filter(r => r.success).length
@@ -627,6 +680,18 @@ Your action plan (JSON only):`
   
   /**
    * Execute a single action
+   * 
+   * Routes action execution to the appropriate service based on action type.
+   * Returns a result object indicating success/failure and any result data.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param runtime - Agent runtime (used for W&B model access)
+   * @param action - Planned action to execute
+   * @returns Result object with success status and optional data/error
+   * 
+   * @remarks
+   * Uses `unknown` for result data as different action types return
+   * different data structures (trade results, post IDs, etc.)
    */
   private async executeAction(
     agentUserId: string,
@@ -635,36 +700,30 @@ Your action plan (JSON only):`
   ): Promise<{ success: boolean; data?: unknown; error?: string }> {
     logger.info(`Executing ${action.type} action`, { agentId: agentUserId, priority: action.priority }, 'PlanningCoordinator')
     
-    try {
-      switch (action.type) {
-        case 'trade':
-          const tradeResult = await autonomousTradingService.executeTrades(agentUserId, runtime)
-          return { success: tradeResult.tradesExecuted > 0, data: { trades: tradeResult.tradesExecuted } }
-        
-        case 'post':
-          const postId = await autonomousPostingService.createAgentPost(agentUserId, runtime)
-          return { success: !!postId, data: { postId } }
-        
-        case 'respond':
-          const responses = await autonomousBatchResponseService.processBatch(agentUserId, runtime)
-          return { success: responses > 0, data: { responses } }
-        
-        case 'comment':
-          const commentId = await autonomousCommentingService.createAgentComment(agentUserId, runtime)
-          return { success: !!commentId, data: { commentId } }
-        
-        case 'message':
-          const dmResponses = await autonomousDMService.respondToDMs(agentUserId, runtime)
-          return { success: dmResponses > 0, data: { responses: dmResponses } }
-        
-        default:
-          return { success: false, error: `Unknown action type: ${action.type}` }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Execution failed'
-      }
+    // Fail fast - don't catch errors here, let them propagate
+    switch (action.type) {
+      case 'trade':
+        const tradeResult = await autonomousTradingService.executeTrades(agentUserId, runtime)
+        return { success: tradeResult.tradesExecuted > 0, data: { trades: tradeResult.tradesExecuted } }
+      
+      case 'post':
+        const postId = await autonomousPostingService.createAgentPost(agentUserId, runtime)
+        return { success: !!postId, data: { postId } }
+      
+      case 'respond':
+        const responses = await autonomousBatchResponseService.processBatch(agentUserId, runtime)
+        return { success: responses > 0, data: { responses } }
+      
+      case 'comment':
+        const commentId = await autonomousCommentingService.createAgentComment(agentUserId, runtime)
+        return { success: !!commentId, data: { commentId } }
+      
+      case 'message':
+        const dmResponses = await autonomousDMService.respondToDMs(agentUserId, runtime)
+        return { success: dmResponses > 0, data: { responses: dmResponses } }
+      
+      default:
+        throw new Error(`Unknown action type: ${action.type}`)
     }
   }
   

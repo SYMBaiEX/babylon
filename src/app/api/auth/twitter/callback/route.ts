@@ -1,72 +1,60 @@
 /**
- * Twitter OAuth 2.0 Callback API
+ * Twitter OAuth Callback API
  * 
- * @route GET /api/auth/twitter/callback
+ * @route GET /api/auth/twitter/callback - Handle Twitter OAuth callback
  * @access Public (with state validation)
  * 
  * @description
- * Handles the OAuth 2.0 callback redirect from Twitter after user authorization.
- * Exchanges authorization code for access token, fetches user profile data,
- * links Twitter account to user profile, and awards bonus points for first-time
- * linkage. Includes comprehensive error handling and security validation.
+ * Handles OAuth callback from Twitter, exchanges code for token, fetches profile,
+ * links Twitter account, and awards points. Redirects to rewards page with status.
  * 
- * **Callback Flow:**
- * 1. Twitter redirects user back with authorization code
- * 2. Server validates state parameter and expiration
- * 3. Authorization code exchanged for access token
- * 4. User profile data fetched from Twitter API
- * 5. Twitter account linked to Babylon user profile
- * 6. Bonus points awarded on first link
- * 7. User redirected to rewards page with status
- * 
- * **Security Features:**
- * - State parameter validation with 10-minute expiration
- * - Prevention of duplicate account linking
- * - Secure token exchange with Basic Auth
- * - Access token encrypted storage (production)
- * - Comprehensive error handling and logging
- * 
- * **Twitter Profile Data Retrieved:**
- * - Twitter User ID
- * - Username (@handle)
- * - Display name
- * - Profile image URL
- * - Bio/description
- * 
- * **GET /api/auth/twitter/callback - Handle OAuth Callback**
- * 
- * @query {string} code - Authorization code from Twitter
- * @query {string} state - State parameter (userId:timestamp:nonce)
- * @query {string} [error] - OAuth error if authorization failed
- * 
- * @returns {redirect} Redirect to rewards page with status
- * - Success: `/rewards?success=twitter_linked&points={amount}`
- * - Error: `/rewards?error={error_code}`
- * 
- * **Error Codes:**
- * - `missing_params` - Missing code or state parameter
- * - `invalid_state` - Malformed state parameter
- * - `state_expired` - State timestamp older than 10 minutes
- * - `token_exchange_failed` - Failed to exchange code for token
- * - `failed_to_get_user` - Failed to fetch Twitter profile
- * - `invalid_twitter_data` - Invalid data from Twitter API
- * - `twitter_already_linked` - Twitter account linked to different user
+ * @openapi
+ * /api/auth/twitter/callback:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Handle Twitter OAuth callback
+ *     description: Processes OAuth callback and links Twitter account (redirects to rewards page)
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Authorization code from Twitter
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: State parameter (userId|timestamp|nonce)
+ *       - in: query
+ *         name: error
+ *         schema:
+ *           type: string
+ *         description: OAuth error if authorization failed
+ *     responses:
+ *       302:
+ *         description: Redirect to rewards page
+ *         headers:
+ *           Location:
+ *             schema:
+ *               type: string
+ *               example: /rewards?success=twitter_linked&points=100
+ *       400:
+ *         description: Invalid parameters or state expired
  * 
  * @example
  * ```typescript
  * // Twitter redirects to:
- * // /api/auth/twitter/callback?code=abc123&state=user-id:timestamp:nonce
+ * // /api/auth/twitter/callback?code=abc123&state=user-id|timestamp|nonce
  * 
  * // On success, user redirected to:
  * // /rewards?success=twitter_linked&points=100
- * 
- * // On error, user redirected to:
- * // /rewards?error=twitter_already_linked
  * ```
  * 
  * @see {@link /api/auth/twitter/initiate} OAuth initiation
  * @see {@link /lib/services/points-service} Points service
- * @see {@link https://developer.twitter.com/en/docs/authentication/oauth-2-0} Twitter OAuth 2.0
  */
 
 import type { NextRequest} from 'next/server';

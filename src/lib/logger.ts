@@ -24,14 +24,19 @@ class Logger {
     error: 3
   }
 
-  constructor() {
-    // Set log level based on environment
-    const envLevel = process.env.LOG_LEVEL as LogLevel | undefined
-    if (envLevel && this.levelPriority[envLevel] !== undefined) {
-      this.level = envLevel
+  constructor(level?: LogLevel) {
+    // Allow explicit level override (for A2A compatibility)
+    if (level && this.levelPriority[level] !== undefined) {
+      this.level = level
     } else {
-      // Default: debug in development, info in production
-      this.level = process.env.NODE_ENV === 'production' ? 'info' : 'debug'
+      // Set log level based on environment
+      const envLevel = process.env.LOG_LEVEL as LogLevel | undefined
+      if (envLevel && this.levelPriority[envLevel] !== undefined) {
+        this.level = envLevel
+      } else {
+        // Default: debug in development, info in production
+        this.level = process.env.NODE_ENV === 'production' ? 'info' : 'debug'
+      }
     }
   }
 

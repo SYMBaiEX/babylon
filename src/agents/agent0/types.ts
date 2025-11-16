@@ -17,6 +17,11 @@ export interface IAgent0Client {
   submitFeedback(params: Agent0FeedbackParams): Promise<void>
   getAgentProfile(tokenId: number): Promise<Agent0AgentProfile | null>
   isAvailable(): boolean
+  // Optional methods for advanced features (can be added as needed)
+  // updateAgentMetadata?(tokenId: number, metadata: Partial<Agent0RegistrationParams>): Promise<void>
+  // revokeFeedback?(agentId: number, feedbackIndex: number): Promise<void>
+  // appendResponse?(agentId: number, clientAddress: string, feedbackIndex: number, responseUri: string): Promise<void>
+  // getReputationSummary?(agentId: number): Promise<{ count: number; averageScore: number }>
 }
 
 /**

@@ -1,12 +1,49 @@
 /**
- * Admin API: Game Statistics
- * GET /api/admin/game-stats
+ * Admin Game Statistics API
  * 
- * Returns comprehensive game simulation statistics including:
- * - Game state (running/paused, ticks)
- * - Content generation metrics (posts, articles, chats, messages)
- * - LLM usage statistics
- * - Rate calculations (per minute metrics)
+ * @route GET /api/admin/game-stats - Get game statistics
+ * @access Admin
+ * 
+ * @description
+ * Returns comprehensive game simulation statistics including game state,
+ * content generation metrics, LLM usage, and rate calculations (per minute).
+ * 
+ * @openapi
+ * /api/admin/game-stats:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get game statistics
+ *     description: Returns comprehensive game simulation statistics (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 gameState:
+ *                   type: object
+ *                 contentMetrics:
+ *                   type: object
+ *                 llmUsage:
+ *                   type: object
+ *                 rates:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const stats = await fetch('/api/admin/game-stats', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

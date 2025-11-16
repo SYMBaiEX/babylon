@@ -118,11 +118,29 @@ async function ensureHarnessAgents(count: number, managerId: string): Promise<st
       select: { walletAddress: true }
     })
 
+    // Only create wallet if agent doesn't have one and auto-create is enabled
     if (!agentRecord?.walletAddress && process.env.AUTO_CREATE_AGENT_WALLETS !== 'false') {
       try {
         await agentWalletService.createAgentEmbeddedWallet(agentId)
       } catch (error) {
-        console.warn(`⚠️  Failed to auto-provision wallet for ${agentId}:`, error)
+        // Wallet creation failed - this is OK for test agents, they can use dev wallets
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.warn(`⚠️  Failed to auto-provision wallet for ${agentId}: ${errorMsg}`);
+        console.warn(`   Agent will use development wallet (this is OK for testing)`);
+        
+        // Ensure agent has at least a dev wallet address
+        if (!agentRecord?.walletAddress) {
+          const { ethers } = await import('ethers');
+          const devWallet = ethers.Wallet.createRandom();
+          await prisma.user.update({
+            where: { id: agentId },
+            data: {
+              walletAddress: devWallet.address,
+              privyId: `dev_${agentId}`
+            }
+          });
+          console.log(`   ✅ Created dev wallet: ${devWallet.address}`);
+        }
       }
     }
   }
@@ -204,6 +222,17 @@ async function main() {
     process.exit(1)
   }
 
+  // Test database connection immediately - fail fast if DB is not available
+  try {
+    await prisma.$connect()
+    // Simple query to verify connection
+    await prisma.user.findFirst({ take: 1 })
+  } catch (error) {
+    console.error('❌ Cannot connect to database. Is it running?')
+    console.error('   Error:', error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
+
   const options = parseArgs()
   const runStartedAt = new Date()
 
@@ -226,12 +255,8 @@ async function main() {
   for (const agentId of agentIds) {
     console.log(`\n🎯 Running benchmarks for ${agentId}`)
     for (let run = 1; run <= options.runsPerAgent; run++) {
-      try {
-        const result = await runBenchmark(agentId, snapshotPath, run, options.saveTrajectories)
-        console.log(`   Run ${run}: PnL=${result.metrics.totalPnl.toFixed(2)} | accuracy=${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}% | optimality=${result.metrics.optimalityScore.toFixed(1)}`)
-      } catch (error) {
-        console.error(`   ❌ Run ${run} failed`, error)
-      }
+      const result = await runBenchmark(agentId, snapshotPath, run, options.saveTrajectories)
+      console.log(`   Run ${run}: PnL=${result.metrics.totalPnl.toFixed(2)} | accuracy=${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}% | optimality=${result.metrics.optimalityScore.toFixed(1)}`)
     }
   }
 

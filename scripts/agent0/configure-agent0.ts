@@ -57,8 +57,11 @@ async function main() {
   }
 
   if (!currentConfig.rpcUrl) {
-    logger.info('Setting Base Sepolia RPC URL...', undefined, 'Script')
-    updates['BASE_SEPOLIA_RPC_URL'] = 'https://sepolia.base.org'
+    logger.info('Setting Ethereum Sepolia RPC URL for Agent0...', undefined, 'Script')
+    // Agent0 operates on Ethereum Sepolia, not Base Sepolia
+    updates['AGENT0_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com'
+    // Also set ETHEREUM_SEPOLIA_RPC_URL as fallback
+    updates['ETHEREUM_SEPOLIA_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com'
   }
 
   if (!currentConfig.subgraphUrl) {

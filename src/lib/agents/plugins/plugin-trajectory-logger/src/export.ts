@@ -9,6 +9,7 @@
 
 import type { Prisma } from '@prisma/client';
 import type { Trajectory } from './types';
+import { shuffleArray } from '@/lib/utils/randomization';
 
 export interface ExportOptions {
   // Dataset configuration
@@ -289,7 +290,7 @@ function splitDataset<T>(
   const { train, validation, test: testRatio } = ratio || defaultRatio;
   
   // Shuffle data
-  const shuffled = [...data].sort(() => Math.random() - 0.5);
+  const shuffled = shuffleArray(data);
   
   const trainSize = Math.floor(shuffled.length * train);
   const valSize = Math.floor(shuffled.length * validation);
@@ -575,6 +576,10 @@ export async function exportGroupedForGRPO(
     const { prisma } = await import('@/lib/prisma');
     const { groupTrajectories, toARTTrajectory } = await import('./art-format');
     
+    // CRITICAL: Enforce maxTrajectories limit to prevent 200GB disk usage
+    const MAX_TRAJECTORIES = options.maxTrajectories || 2000; // Default hard limit
+    const MAX_TRAJECTORIES_PER_SCENARIO = 50; // Limit per scenario to prevent huge files
+    
     // Get all scenarios
     const scenarios = await prisma.trajectory.groupBy({
       by: ['scenarioId'],
@@ -588,16 +593,25 @@ export async function exportGroupedForGRPO(
     await fs.mkdir(exportDir, { recursive: true });
 
     let totalExported = 0;
+    let remainingQuota = MAX_TRAJECTORIES;
 
     for (const { scenarioId, _count } of scenarios) {
       if (!scenarioId || _count < 2) continue; // Need at least 2 for comparison
+      if (remainingQuota <= 0) break; // Stop if we've hit the limit
+      
+      // Calculate how many trajectories we can take for this scenario
+      const takeForScenario = Math.min(
+        MAX_TRAJECTORIES_PER_SCENARIO,
+        remainingQuota
+      );
       
       const trajectories = await prisma.trajectory.findMany({
         where: {
           scenarioId,
           ...buildWhereClause(options)
         },
-        orderBy: { startTime: 'asc' }
+        orderBy: { startTime: 'asc' },
+        take: takeForScenario // CRITICAL: Limit per scenario
       });
 
       // Convert to trajectory objects
@@ -619,6 +633,9 @@ export async function exportGroupedForGRPO(
       const groups = groupTrajectories(trajObjects as Trajectory[]);
       
       for (const group of groups) {
+        // Skip if we've hit the global limit
+        if (remainingQuota <= 0) break;
+        
         const artFormat = {
           groupId: group.groupId,
           scenarioId: group.scenarioId,
@@ -630,11 +647,13 @@ export async function exportGroupedForGRPO(
         const filePath = path.join(exportDir, `group-${scenarioId}.jsonl`);
         await fs.writeFile(filePath, JSON.stringify(artFormat) + '\n', 'utf-8');
         
-        totalExported += group.trajectories.length;
+        const exported = group.trajectories.length;
+        totalExported += exported;
+        remainingQuota -= exported;
       }
     }
 
-    console.log(`Exported ${totalExported} trajectories in ${scenarios.length} GRPO groups`);
+    console.log(`Exported ${totalExported} trajectories in ${scenarios.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`);
 
     return {
       success: true,

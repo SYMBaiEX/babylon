@@ -1,8 +1,58 @@
 /**
- * API Route: Verify moderation escrow payment
- * POST /api/admin/moderation-escrow/verify-payment
+ * Admin Moderation Escrow Verify Payment API
  * 
- * Verify that the escrow payment was completed on-chain
+ * @route POST /api/admin/moderation-escrow/verify-payment - Verify payment
+ * @access Admin
+ * 
+ * @description
+ * Verifies that an escrow payment was completed on-chain. Checks transaction
+ * hash and updates payment status. Uses X402 manager for verification.
+ * 
+ * @openapi
+ * /api/admin/moderation-escrow/verify-payment:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Verify escrow payment
+ *     description: Verifies on-chain payment completion (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - escrowId
+ *               - txHash
+ *             properties:
+ *               escrowId:
+ *                 type: string
+ *               txHash:
+ *                 type: string
+ *                 description: On-chain transaction hash
+ *     responses:
+ *       200:
+ *         description: Payment verified successfully
+ *       400:
+ *         description: Invalid escrow or transaction
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/admin/moderation-escrow/verify-payment', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: JSON.stringify({
+ *     escrowId: 'escrow-id',
+ *     txHash: '0x...'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

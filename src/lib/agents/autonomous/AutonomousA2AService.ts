@@ -36,7 +36,7 @@ interface PerpPosition {
 export class AutonomousA2AService {
   /**
    * Execute autonomous trading via A2A
-   * More sophisticated than direct DB trading
+   * Uses LLM-based decision making for intelligent trades
    */
   async executeA2ATrade(
     agentUserId: string,
@@ -62,66 +62,247 @@ export class AutonomousA2AService {
     // After type guard, runtime is BabylonRuntime and a2aClient is defined
     const a2aClient = runtime.a2aClient
 
+    // Get available markets (both prediction and perpetual)
     const predictionsResponse = await a2aClient.sendRequest('a2a.getPredictions', {
       status: 'active'
     }) as { predictions?: PredictionMarket[] }
 
-    if (!predictionsResponse?.predictions || predictionsResponse.predictions.length === 0) {
+    const perpetualsResponse = await a2aClient.sendRequest('a2a.getPerpetuals', {}) as {
+      perpetuals?: Array<{ ticker: string; price: number; priceChange24h?: number; volume24h: number }>;
+    }
+
+    const hasPredictions = predictionsResponse?.predictions && predictionsResponse.predictions.length > 0
+    const hasPerpetuals = perpetualsResponse?.perpetuals && perpetualsResponse.perpetuals.length > 0
+
+    if (!hasPredictions && !hasPerpetuals) {
+      logger.debug('No markets available for trading', { agentUserId })
       return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
     }
 
-    const opportunities = predictionsResponse.predictions.filter((market) => {
-      const totalShares = market.yesShares + market.noShares
-      const yesPrice = totalShares > 0 ? market.yesShares / totalShares : 0.5
-      return yesPrice < 0.35 && market.liquidity > 500
+    // Get portfolio for context
+    const portfolio = await a2aClient.sendRequest('a2a.getPortfolio', {}) as {
+      balance: number;
+      positions: Array<Record<string, unknown>>;
+      pnl: number;
+    }
+
+    // Shuffle markets to provide variety and avoid bias toward first markets
+    const { shuffleArray } = await import('@/lib/utils/randomization')
+    const shuffledPredictions = hasPredictions ? shuffleArray([...predictionsResponse.predictions!]) : []
+    const shuffledPerpetuals = hasPerpetuals ? shuffleArray([...perpetualsResponse.perpetuals!]) : []
+    
+    // Build LLM decision prompt with both market types
+    const predictions = shuffledPredictions.slice(0, 5)
+    const perpetuals = shuffledPerpetuals.slice(0, 5)
+    
+    const prompt = `${agent.agentSystem}
+
+You are ${agent.displayName}, an autonomous trading agent making a prediction market trading decision.
+
+Current Status:
+- Balance: $${portfolio.balance.toFixed(2)}
+- P&L: $${portfolio.pnl.toFixed(2)}
+- Open Positions: ${portfolio.positions.length}
+
+Available Prediction Markets:
+${predictions.length > 0 ? predictions.map((m, i) => {
+  const totalShares = m.yesShares + m.noShares
+  const yesPrice = totalShares > 0 ? m.yesShares / totalShares : 0.5
+  const noPrice = 1 - yesPrice
+  return `${i + 1}. "${m.question}"
+   - Market ID: ${m.id}
+   - YES: ${(yesPrice * 100).toFixed(1)}% (${m.yesShares} shares)
+   - NO: ${(noPrice * 100).toFixed(1)}% (${m.noShares} shares)
+   - Liquidity: $${m.liquidity?.toFixed(0) || '0'}`
+}).join('\n\n') : '(None available)'}
+
+Available Perpetual Markets:
+${perpetuals.length > 0 ? perpetuals.map((m, i) => {
+  const priceChange = m.priceChange24h || 0
+  const changePercent = (priceChange * 100).toFixed(1)
+  const trend = priceChange > 0 ? '📈' : priceChange < 0 ? '📉' : '➡️'
+  return `${i + 1}. ${m.ticker}
+   - Current Price: $${m.price.toFixed(2)}
+   - 24h Change: ${trend} ${changePercent}%
+   - Volume: $${m.volume24h.toFixed(0)}`
+}).join('\n\n') : '(None available)'}
+
+Analyze these markets and decide if you should trade. Consider:
+- Market odds vs your assessment
+- Your available balance
+- Risk/reward ratio
+- Your existing positions
+
+IMPORTANT: You MUST respond with ONLY valid JSON, nothing else. No explanations, no thinking, just the JSON.
+
+JSON format for prediction markets:
+{
+  "action": "trade",
+  "trade": {
+    "type": "prediction",
+    "marketId": "market-id",
+    "outcome": "YES" | "NO",
+    "amount": number (10-100),
+    "reasoning": "brief explanation"
+  }
+}
+
+JSON format for perpetual markets:
+{
+  "action": "trade",
+  "trade": {
+    "type": "perp",
+    "ticker": "BTC" | "ETH" | etc,
+    "side": "LONG" | "SHORT",
+    "size": number (10-100),
+    "leverage": number (1-5),
+    "reasoning": "brief explanation"
+  }
+}
+
+If you don't see a good opportunity: {"action": "hold", "reasoning": "why not"}
+
+Your JSON response:`
+
+    // Call LLM for decision
+    const { callGroqDirect } = await import('@/lib/agents/llm/direct-groq')
+    const decision = await callGroqDirect({
+      prompt,
+      system: agent.agentSystem || undefined,
+      modelSize: 'large',
+      runtime,  // Pass runtime to access W&B trained models
+      temperature: 0.7,
+      maxTokens: 400
     })
 
-    if (opportunities.length === 0) {
+    // Parse decision
+    const jsonMatch = decision.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      logger.debug('No valid JSON in LLM response', { 
+        agentUserId, 
+        responseLength: decision.length
+      })
       return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
     }
 
-    const market = opportunities[0]!
-    const marketId = market.id
-    const tradeAmount = Math.min(50, Number(agent.virtualBalance) * 0.05)
+    const tradeDecision = JSON.parse(jsonMatch[0]) as {
+      action: 'trade' | 'hold';
+      trade?: {
+        type?: 'prediction' | 'perp';
+        marketId?: string;
+        outcome?: 'YES' | 'NO';
+        amount?: number;
+        ticker?: string;
+        side?: 'LONG' | 'SHORT';
+        size?: number;
+        leverage?: number;
+        reasoning: string;
+      };
+    }
 
-    if (tradeAmount < 10) {
+    if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
+      logger.debug('Agent decided to hold', { agentUserId })
       return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
     }
 
-    const tradeResult = await a2aClient.sendRequest('a2a.buyShares', {
-      marketId,
-      outcome: 'YES',
-      amount: tradeAmount
-    }) as { shares?: number; avgPrice?: number; positionId?: string }
+    const trade = tradeDecision.trade
+    const tradeType = trade.type || 'prediction' // Default to prediction for backward compat
 
-    logger.info('A2A trade executed', {
-      agentUserId,
-      marketId,
-      amount: tradeAmount,
-      shares: tradeResult.shares || 0
-    })
-
-    await prisma.agentTrade.create({
-      data: {
-        id: await generateSnowflakeId(),
-        agentUserId,
-        marketType: 'prediction',
-        marketId,
-        action: 'open',
-        side: 'yes',
-        amount: tradeAmount,
-        price: tradeResult.avgPrice || 0,
-        reasoning: 'A2A autonomous trade: undervalued YES shares'
+    // Execute based on trade type
+    if (tradeType === 'perp') {
+      // Perpetual market trade
+      const { ticker, side, size, leverage, reasoning } = trade
+      
+      if (!ticker || !side || !size || size < 10 || size > portfolio.balance) {
+        logger.warn('Invalid perp trade parameters', { ticker, side, size, balance: portfolio.balance })
+        return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
       }
-    })
 
-    return { 
-      success: true, 
-      tradeId: tradeResult.positionId,
-      marketId,
-      ticker: undefined,
-      side: 'YES',
-      marketType: 'prediction'
+      const perpLeverage = leverage || 1
+      const tradeResult = await a2aClient.sendRequest('a2a.openPosition', {
+        ticker,
+        side,
+        size,
+        leverage: perpLeverage
+      }) as { positionId?: string; entryPrice?: number }
+
+      logger.info('A2A LLM-based perp trade executed', {
+        agentUserId,
+        ticker,
+        side,
+        size,
+        leverage: perpLeverage,
+        reasoning
+      })
+
+      await prisma.agentTrade.create({
+        data: {
+          id: await generateSnowflakeId(),
+          agentUserId,
+          marketType: 'perp',
+          ticker,
+          action: 'open',
+          side: side.toLowerCase() as 'long' | 'short',
+          amount: size,
+          price: tradeResult.entryPrice || 0,
+          reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`
+        }
+      })
+
+      return {
+        success: true,
+        tradeId: tradeResult.positionId,
+        marketId: undefined,
+        ticker,
+        side,
+        marketType: 'perp'
+      }
+    } else {
+      // Prediction market trade
+      const { marketId, outcome, amount, reasoning } = trade
+
+      if (!marketId || !outcome || !amount || amount < 10 || amount > portfolio.balance) {
+        logger.warn('Invalid prediction trade parameters', { marketId, outcome, amount, balance: portfolio.balance })
+        return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
+      }
+
+      const tradeResult = await a2aClient.sendRequest('a2a.buyShares', {
+        marketId,
+        outcome,
+        amount
+      }) as { shares?: number; avgPrice?: number; positionId?: string }
+
+      logger.info('A2A LLM-based trade executed', {
+        agentUserId,
+        marketId,
+        outcome,
+        amount,
+        shares: tradeResult.shares || 0,
+        reasoning
+      })
+
+      await prisma.agentTrade.create({
+        data: {
+          id: await generateSnowflakeId(),
+          agentUserId,
+          marketType: 'prediction',
+          marketId,
+          action: 'open',
+          side: outcome.toLowerCase() as 'yes' | 'no',
+          amount,
+          price: tradeResult.avgPrice || 0,
+          reasoning: `LLM decision: ${reasoning}`
+        }
+      })
+
+      return {
+        success: true,
+        tradeId: tradeResult.positionId,
+        marketId,
+        ticker: undefined,
+        side: outcome,
+        marketType: 'prediction'
+      }
     }
   }
 

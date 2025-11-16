@@ -1,6 +1,75 @@
 /**
  * API Route: /api/posts/[id]/comments
  * Methods: GET (get comments), POST (add comment)
+ * 
+ * @openapi
+ * /api/posts/{id}/comments:
+ *   get:
+ *     tags:
+ *       - Comments
+ *     summary: Get comments for a post
+ *     description: Returns threaded comments for a post, ordered chronologically with reply structure.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Comments list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 comments:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       404:
+ *         description: Post not found
+ *   post:
+ *     tags:
+ *       - Comments
+ *     summary: Add comment to post
+ *     description: Creates a new comment on a post. Supports mentions and replies. Creates notifications.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Comment content
+ *               parentCommentId:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Parent comment ID for replies
+ *     responses:
+ *       200:
+ *         description: Comment created successfully
+ *       400:
+ *         description: Invalid content or rate limited
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post not found
  */
 
 import { authenticate, optionalAuth } from '@/lib/api/auth-middleware';
@@ -107,7 +176,8 @@ export const GET = withErrorHandling(async (
 
   const canonicalUserId = user ? getCanonicalUserId(user) : undefined;
 
-  // Check if post exists
+  // Check if post exists and is not in the future
+  const now = new Date();
   const post = await prisma.post.findUnique({
     where: { id: postId },
   });
@@ -118,6 +188,11 @@ export const GET = withErrorHandling(async (
 
   if (post.deletedAt) {
     throw new NotFoundError('Post (deleted)', postId);
+  }
+
+  // ✅ Don't allow access to future posts
+  if (post.timestamp > now) {
+    throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
   }
 
     // Get all comments for the post (including nested replies)

@@ -1,6 +1,49 @@
 /**
- * API Route: /api/users/[userId]/is-new
- * Methods: GET (check if user needs setup)
+ * User Is New API
+ * 
+ * @route GET /api/users/[userId]/is-new - Check if user is new
+ * @access Public (optional authentication)
+ * 
+ * @description
+ * Checks if a user needs profile setup. Returns whether user is new and
+ * needs onboarding. Optional authentication for personalized results.
+ * 
+ * @openapi
+ * /api/users/{userId}/is-new:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Check if user is new
+ *     description: Returns whether user needs profile setup (optional auth)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 needsSetup:
+ *                   type: boolean
+ *                 isNew:
+ *                   type: boolean
+ *       401:
+ *         description: Unauthorized (optional)
+ * 
+ * @example
+ * ```typescript
+ * const { needsSetup } = await fetch(`/api/users/${userId}/is-new`)
+ *   .then(r => r.json());
+ * ```
  */
 
 import {

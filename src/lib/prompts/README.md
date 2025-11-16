@@ -91,7 +91,7 @@ The system automatically loads **ONLY PARODY NAMES** from the actors data struct
 - Sam AIltman (@ailtman)
 - Mark Zuckerborg (@markzuckerborg)
 - Vitalik ButerAIn (@vitailik)
-- Jerome Power (@jeromepower)
+- JerAIme PowAIl (@jeromepower)
 - Trump Terminal (@trumpterminal)
 - ... and 80+ more
 

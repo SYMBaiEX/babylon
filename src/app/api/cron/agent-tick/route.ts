@@ -1,107 +1,52 @@
 /**
- * Autonomous Agent Tick Cron Job
+ * Autonomous Agent Tick Cron Job API
  * 
- * @route POST /api/cron/agent-tick
- * @access Cron (requires CRON_SECRET)
+ * @route POST /api/cron/agent-tick - Execute agent tick
+ * @access Cron (CRON_SECRET required)
  * 
  * @description
- * Scheduled cron job that runs all autonomous agents, executing their
- * configured autonomous actions. Processes agents in sequence, deducting
- * points and logging all activities. Automatically pauses agents with
- * insufficient points.
+ * Scheduled cron job that runs all autonomous agents, executing their configured
+ * autonomous actions (trading, posting, commenting, DMs, group chats). Processes
+ * agents in sequence, deducting points and logging activities. Auto-pauses agents
+ * with insufficient points.
  * 
- * **Agent Capabilities:**
- * Each agent can have multiple autonomous features enabled:
- * - **autonomousTrading:** Execute trades on prediction/perp markets
- * - **autonomousPosting:** Create social media posts
- * - **autonomousCommenting:** Reply to posts and comments
- * - **autonomousDMs:** Send direct messages to users
- * - **autonomousGroupChats:** Participate in group conversations
- * 
- * **Execution Flow:**
- * 1. Query all agents with autonomous features enabled
- * 2. Check points balance (minimum 1 point required)
- * 3. Deduct points based on model tier (free: 1 point, pro: 2 points)
- * 4. Load agent runtime with personality and configuration
- * 5. Execute coordinated autonomous tick via AutonomousCoordinator
- * 6. Log all actions and update agent status
- * 7. Handle errors and auto-pause if insufficient points
- * 
- * **Coordinated Execution:**
- * Uses AutonomousCoordinator for intelligent decision-making:
- * - Dashboard context for situational awareness
- * - Batch response processing for efficiency
- * - Coordinated action planning across all features
- * - Comprehensive logging and analytics
- * 
- * **Points System:**
- * - Lite tier: 1 point per tick
- * - Standard tier: 2 points per tick
- * - Pro tier: 3 points per tick
- * - Auto-pause when balance < required points
- * - Points refunded on errors
- * 
- * **Agent States:**
- * - **running:** Successfully executing autonomous actions
- * - **paused:** Insufficient points or manually paused
- * - **error:** Encountered error during execution
- * 
- * **Authentication:**
- * Requires `Authorization: Bearer ${CRON_SECRET}` header
- * 
- * @returns {object} Execution summary
- * @property {boolean} success - Overall operation success
- * @property {number} processed - Number of agents processed
- * @property {number} duration - Total execution time (ms)
- * @property {array} results - Per-agent execution results
- * 
- * **Result Object:**
- * @property {string} agentId - Agent user ID
- * @property {string} name - Agent display name
- * @property {string} status - Execution status (success/error/paused)
- * @property {number} pointsDeducted - Points deducted for tick (if successful)
- * @property {number} duration - Agent execution time (ms)
- * @property {string} error - Error message (if failed)
- * @property {string} reason - Failure reason (if paused)
- * 
- * @throws {401} Unauthorized - invalid or missing CRON_SECRET
- * @throws {500} Internal server error
+ * @openapi
+ * /api/cron/agent-tick:
+ *   post:
+ *     tags:
+ *       - Cron
+ *     summary: Execute agent tick
+ *     description: Runs all autonomous agents with coordinated execution (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: Agent tick executed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 agentsProcessed:
+ *                   type: integer
+ *                 agentsPaused:
+ *                   type: integer
+ *                 errors:
+ *                   type: array
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
  * 
  * @example
  * ```typescript
- * // Trigger cron job (Vercel Cron, GitHub Actions, etc.)
- * const response = await fetch('https://your-domain.com/api/cron/agent-tick', {
+ * await fetch('/api/cron/agent-tick', {
  *   method: 'POST',
- *   headers: {
- *     'Authorization': `Bearer ${process.env.CRON_SECRET}`
- *   }
- * });
- * 
- * const { processed, duration, results } = await response.json();
- * console.log(`Processed ${processed} agents in ${duration}ms`);
- * 
- * // Check results
- * results.forEach(result => {
- *   if (result.status === 'success') {
- *     console.log(`✓ ${result.name}: ${result.duration}ms`);
- *   } else {
- *     console.log(`✗ ${result.name}: ${result.error || result.reason}`);
- *   }
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
  * });
  * ```
  * 
- * **Cron Schedule (vercel.json):**
- * ```json
- * {
- *   "crons": [{
- *     "path": "/api/cron/agent-tick",
- *     "schedule": "* * * * *"
- *   }]
- * }
- * ```
- * 
- * @see {@link /lib/agents/runtime/AgentRuntimeManager} Runtime management
- * @see {@link /lib/agents/autonomous} Autonomous coordinator
+ * @see {@link /lib/services/autonomous-coordinator} Autonomous coordinator
  * @see {@link /lib/agents/services/AgentService} Agent service
  */
 

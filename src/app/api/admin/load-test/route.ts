@@ -1,8 +1,77 @@
 /**
- * Admin API: Load Testing
- * POST /api/admin/load-test - Run a load test
- * GET /api/admin/load-test/status - Get load test status
- * GET /api/admin/load-test/results - Get load test results
+ * Admin Load Test API
+ * 
+ * @route POST /api/admin/load-test - Run load test
+ * @route GET /api/admin/load-test - Get load test status/results
+ * @access Admin
+ * 
+ * @description
+ * Load testing endpoint for admin. POST runs a load test with specified
+ * scenario (LIGHT, NORMAL, HEAVY, STRESS). GET returns status or results.
+ * 
+ * @openapi
+ * /api/admin/load-test:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Run load test
+ *     description: Runs load test with specified scenario (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - scenario
+ *             properties:
+ *               scenario:
+ *                 type: string
+ *                 enum: [LIGHT, NORMAL, HEAVY, STRESS]
+ *               baseUrl:
+ *                 type: string
+ *                 format: uri
+ *     responses:
+ *       200:
+ *         description: Load test started successfully
+ *       400:
+ *         description: Invalid scenario
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get load test status/results
+ *     description: Returns load test status or results (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [status, results]
+ *         description: Type of data to retrieve
+ *     responses:
+ *       200:
+ *         description: Status or results retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/admin/load-test', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: JSON.stringify({ scenario: 'HEAVY' })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

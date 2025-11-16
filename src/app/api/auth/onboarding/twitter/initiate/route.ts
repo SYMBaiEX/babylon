@@ -1,6 +1,33 @@
 /**
- * Twitter OAuth for Onboarding Profile Import
- * Initiates OAuth flow to import Twitter profile data during onboarding
+ * Twitter Onboarding OAuth Initiate API
+ * 
+ * @route GET /api/auth/onboarding/twitter/initiate - Initiate Twitter OAuth
+ * @access Authenticated
+ * 
+ * @description
+ * Initiates Twitter OAuth 2.0 flow for importing profile data during onboarding.
+ * Redirects user to Twitter authorization page. State includes user ID for callback.
+ * 
+ * @openapi
+ * /api/auth/onboarding/twitter/initiate:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Initiate Twitter OAuth for onboarding
+ *     description: Redirects to Twitter OAuth authorization page for profile import
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       302:
+ *         description: Redirect to Twitter OAuth
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * // Redirects to Twitter OAuth
+ * window.location.href = '/api/auth/onboarding/twitter/initiate';
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

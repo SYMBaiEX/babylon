@@ -6,7 +6,7 @@
  * @route GET /api/users/[userId]/profile
  * @access Public (no authentication required)
  * 
- * @swagger
+ * @openapi
  * /api/users/{userId}/profile:
  *   get:
  *     tags:

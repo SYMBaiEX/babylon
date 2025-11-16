@@ -383,13 +383,16 @@ async function executeQueryFeed(
 ) {
   logger.debug(`Agent ${agent.agentId} querying feed`, args, 'MCP')
   
+  const now = new Date();
   const posts = await prisma.post.findMany({
     where: args.questionId ? {
       // Filter by question if provided
       // Note: questionId might need to be mapped from market/question
       deletedAt: null, // Filter out deleted posts
+      timestamp: { lte: now }, // ✅ No future posts
     } : {
       deletedAt: null, // Filter out deleted posts
+      timestamp: { lte: now }, // ✅ No future posts
     },
     orderBy: { timestamp: 'desc' },
     take: args.limit || 20

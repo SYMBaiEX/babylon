@@ -139,8 +139,8 @@ export class AutonomousCoordinator {
         
         return result
       } catch (error) {
-        logger.error('Planning coordinator failed, falling back to legacy mode', error, 'AutonomousCoordinator')
-        // Fall through to legacy mode
+        logger.error('Planning coordinator failed', error, 'AutonomousCoordinator')
+        throw error // Fail fast - don't fall back silently
       }
     }
 

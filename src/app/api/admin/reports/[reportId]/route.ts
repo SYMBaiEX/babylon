@@ -1,7 +1,122 @@
 /**
  * Admin Report Management API
- * GET /api/admin/reports/[reportId] - Get report details
- * POST /api/admin/reports/[reportId] - Update report status
+ * 
+ * @route GET /api/admin/reports/[reportId] - Get report details
+ * @route POST /api/admin/reports/[reportId] - Take action on report
+ * @access Admin
+ * 
+ * @description
+ * Manages individual reports. GET returns detailed report information with related
+ * reports. POST allows taking actions: resolve, dismiss, escalate, ban_user, or
+ * evaluate (AI evaluation). Requires admin authentication.
+ * 
+ * @openapi
+ * /api/admin/reports/{reportId}:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get report details
+ *     description: Returns detailed report information with related reports (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reportId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Report ID
+ *     responses:
+ *       200:
+ *         description: Report details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report:
+ *                   type: object
+ *                 relatedReports:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Report not found
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Take action on report
+ *     description: Resolves, dismisses, escalates, bans user, or evaluates report (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reportId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Report ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [resolve, dismiss, escalate, ban_user, evaluate]
+ *               resolution:
+ *                 type: string
+ *                 description: Resolution notes (required for resolve/dismiss/escalate/ban_user)
+ *     responses:
+ *       200:
+ *         description: Action completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 evaluation:
+ *                   type: object
+ *                   nullable: true
+ *       400:
+ *         description: Invalid action or missing resolution
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Report not found
+ * 
+ * @example
+ * ```typescript
+ * // Get report details
+ * const report = await fetch(`/api/admin/reports/${reportId}`, {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * 
+ * // Resolve report
+ * await fetch(`/api/admin/reports/${reportId}`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: JSON.stringify({
+ *     action: 'resolve',
+ *     resolution: 'User warned'
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/api/admin-middleware} Admin middleware
+ * @see {@link /lib/moderation/report-evaluation} Report evaluation
  */
 
 import type { NextRequest } from 'next/server';

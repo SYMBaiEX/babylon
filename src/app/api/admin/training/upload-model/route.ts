@@ -1,9 +1,58 @@
 /**
- * Model Upload API
- * POST /api/admin/training/upload-model
+ * Admin Training Upload Model API
  * 
- * Uploads trained model to Vercel Blob storage.
- * Called by Python deployment script after training.
+ * @route POST /api/admin/training/upload-model - Upload trained model
+ * @access Admin
+ * 
+ * @description
+ * Uploads trained model to Vercel Blob storage. Called by Python deployment
+ * script after training completes. Supports multipart file uploads.
+ * 
+ * @openapi
+ * /api/admin/training/upload-model:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Upload trained model
+ *     description: Uploads trained model to blob storage (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - modelFile
+ *               - version
+ *             properties:
+ *               modelFile:
+ *                 type: string
+ *                 format: binary
+ *               version:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Model uploaded successfully
+ *       400:
+ *         description: Invalid file or version
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const formData = new FormData();
+ * formData.append('modelFile', file);
+ * formData.append('version', 'v1.0.0');
+ * await fetch('/api/admin/training/upload-model', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: formData
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

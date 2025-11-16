@@ -202,9 +202,9 @@ export class CapitalAllocationService {
     return [
       { description: 'S-tier Tech CEO (AIlon)', capital: 500000, reputation: 7071 },
       { description: 'S-tier VC Founder (Peter ThAIl)', capital: 450000, reputation: 6708 },
-      { description: 'A-tier VC (Mark And‑Reason)', capital: 135000, reputation: 3674 },
+      { description: 'A-tier VC (Marc AIndreessen)', capital: 135000, reputation: 3674 },
       { description: 'A-tier CEO (Jeff BAIzos)', capital: 150000, reputation: 3873 },
-      { description: 'B-tier Investor (Cashie Wood)', capital: 27500, reputation: 1658 },
+      { description: 'B-tier Investor (CathAI Wood)', capital: 27500, reputation: 1658 },
       { description: 'B-tier Media Host (Tucker)', capital: 20000, reputation: 1414 },
       { description: 'C-tier Influencer', capital: 8000, reputation: 894 },
       { description: 'C-tier Journalist', capital: 8000, reputation: 894 },

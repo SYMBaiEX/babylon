@@ -32,6 +32,8 @@ model Actor {
   ActorFollow_ActorFollow_followingIdToActor          ActorFollow[]       @relation("ActorFollow_followingIdToActor")
   ActorRelationship_ActorRelationship_actor1IdToActor ActorRelationship[] @relation("ActorRelationship_actor1IdToActor")
   ActorRelationship_ActorRelationship_actor2IdToActor ActorRelationship[] @relation("ActorRelationship_actor2IdToActor")
+  NPCInteraction_NPCInteraction_actor1IdToActor       NPCInteraction[]    @relation("NPCInteraction_actor1IdToActor")
+  NPCInteraction_NPCInteraction_actor2IdToActor       NPCInteraction[]    @relation("NPCInteraction_actor2IdToActor")
   NPCTrade                                            NPCTrade[]
   Pool                                                Pool[]
   UserActorFollow                                     UserActorFollow[]
@@ -58,19 +60,22 @@ model ActorFollow {
 }
 
 model ActorRelationship {
-  id                                      String   @id
+  id                                      String    @id
   actor1Id                                String
   actor2Id                                String
   relationshipType                        String
   strength                                Float
   sentiment                               Float
-  isPublic                                Boolean  @default(true)
+  isPublic                                Boolean   @default(true)
   history                                 String?
   affects                                 Json?
-  createdAt                               DateTime @default(now())
+  createdAt                               DateTime  @default(now())
   updatedAt                               DateTime
-  Actor_ActorRelationship_actor1IdToActor Actor    @relation("ActorRelationship_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
-  Actor_ActorRelationship_actor2IdToActor Actor    @relation("ActorRelationship_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
+  lastInteraction                         DateTime?
+  interactionCount                        Int       @default(0)
+  evolutionCount                          Int       @default(0)
+  Actor_ActorRelationship_actor1IdToActor Actor     @relation("ActorRelationship_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
+  Actor_ActorRelationship_actor2IdToActor Actor     @relation("ActorRelationship_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
 
   @@unique([actor1Id, actor2Id])
   @@index([actor1Id])
@@ -78,6 +83,26 @@ model ActorRelationship {
   @@index([relationshipType])
   @@index([sentiment])
   @@index([strength])
+  @@index([lastInteraction])
+}
+
+model NPCInteraction {
+  id                                    String   @id
+  actor1Id                              String
+  actor2Id                              String
+  interactionType                       String
+  sentiment                             Float    @default(0)
+  context                               String
+  metadata                              Json?
+  timestamp                             DateTime @default(now())
+  Actor_NPCInteraction_actor1IdToActor  Actor    @relation("NPCInteraction_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
+  Actor_NPCInteraction_actor2IdToActor  Actor    @relation("NPCInteraction_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
+
+  @@index([actor1Id, actor2Id, timestamp])
+  @@index([timestamp])
+  @@index([actor1Id])
+  @@index([actor2Id])
+  @@index([interactionType])
 }
 
 model AgentLog {
@@ -1456,14 +1481,18 @@ model TrainedModel {
   evalMetrics     Json?
   wandbRunId      String?
   wandbArtifactId String?
+  huggingFaceRepo String?
   agentsUsing     Int       @default(0)
   totalInferences Int       @default(0)
+  lastBenchmarked DateTime?
+  benchmarkCount  Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([status])
   @@index([version])
   @@index([deployedAt])
+  @@index([lastBenchmarked])
   @@map("trained_models")
 }
 
@@ -1487,6 +1516,30 @@ model TrainingBatch {
   @@index([scenarioId])
   @@index([status, createdAt])
   @@map("training_batches")
+}
+
+model BenchmarkResult {
+  id                    String   @id
+  modelId               String
+  benchmarkId           String
+  benchmarkPath         String
+  runAt                 DateTime @default(now())
+  totalPnl              Float
+  predictionAccuracy    Float
+  perpWinRate           Float
+  optimalityScore       Float
+  detailedMetrics       Json
+  baselinePnlDelta      Float?
+  baselineAccuracyDelta Float?
+  improved              Boolean?
+  duration              Int
+  createdAt             DateTime @default(now())
+
+  @@index([modelId])
+  @@index([benchmarkId])
+  @@index([runAt])
+  @@index([optimalityScore])
+  @@map("benchmark_results")
 }
 
 model Trajectory {
@@ -1777,4 +1830,15 @@ model ModerationEscrow {
   @@index([paymentRequestId])
   @@index([paymentTxHash])
   @@index([createdAt(sort: Desc)])
+}
+
+/// Generation lock for preventing concurrent tick generation
+model GenerationLock {
+  id        String   @id @default("game-tick-lock")
+  lockedBy  String   // Process/server identifier
+  lockedAt  DateTime @default(now())
+  expiresAt DateTime // Lock expires after 5 minutes (stale lock recovery)
+  operation String   @default("game-tick") // What operation is locked
+  
+  @@index([expiresAt])
 }

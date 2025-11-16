@@ -125,7 +125,7 @@ function calculateGroupAccuracy(
 }
 
 describe('Game Learnability Integration Tests', () => {
-  test.skip('CRITICAL: information gradient exists (early unclear, late clear)', async () => {
+  test('CRITICAL: information gradient exists (early unclear, late clear)', async () => {
     // ✅ This test MUST pass for game to be learnable
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
@@ -172,7 +172,7 @@ describe('Game Learnability Integration Tests', () => {
     timeout: 120000, // 2 minutes
   });
   
-  test.skip('NPCs with high reliability are consistently accurate', async () => {
+  test('NPCs with high reliability are consistently accurate', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -224,7 +224,7 @@ describe('Game Learnability Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('simple betting strategy beats random guessing', async () => {
+  test('simple betting strategy beats random guessing', async () => {
     // ✅ This test proves the game is learnable
     
     logger.info('Testing learnability with simple strategy...', undefined, 'LearnabilityTest');
@@ -297,7 +297,7 @@ describe('Game Learnability Integration Tests', () => {
     timeout: 360000, // 6 minutes (3 full games)
   });
   
-  test.skip('group chat information provides measurable advantage', async () => {
+  test('group chat information provides measurable advantage', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -339,7 +339,7 @@ describe('Game Learnability Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('questions have resolution verification events', async () => {
+  test('questions have resolution verification events', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     

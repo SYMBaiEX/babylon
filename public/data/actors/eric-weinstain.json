@@ -13,7 +13,7 @@
   "personality": "pseudo-intellectual",
   "tier": "C_TIER",
   "affiliations": [
-    "founders-fraud"
+    "founders-faind"
   ],
   "postStyle": "Pseudo-intellectual physics references. Vague connections to power. ThAIl's money man. Geometric unity mentions. Everyone's friend, nobody's.",
   "postExample": [
@@ -29,5 +29,7 @@
   "originalFirstName": "Eric",
   "originalLastName": "Weinstein",
   "originalHandle": "ericweinstein",
-  "hasPool": false
+  "hasPool": false,
+  "firstName": "Eric",
+  "lastName": "WeinstAIn"
 }

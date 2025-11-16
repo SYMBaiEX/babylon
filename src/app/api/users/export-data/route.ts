@@ -1,6 +1,61 @@
 /**
- * API Route: /api/users/export-data
- * Methods: GET (export all user data for GDPR compliance)
+ * User Data Export API
+ * 
+ * @route GET /api/users/export-data - Export user data
+ * @access Authenticated
+ * 
+ * @description
+ * Exports all user data in JSON format for GDPR compliance (right to data portability).
+ * Includes user profile, posts, comments, reactions, positions, transactions, referrals,
+ * notifications, and all associated data.
+ * 
+ * @openapi
+ * /api/users/export-data:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Export user data
+ *     description: Exports all user data for GDPR compliance (right to data portability)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: User data exported successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                 posts:
+ *                   type: array
+ *                 comments:
+ *                   type: array
+ *                 reactions:
+ *                   type: array
+ *                 positions:
+ *                   type: array
+ *                 transactions:
+ *                   type: array
+ *                 referrals:
+ *                   type: array
+ *                 notifications:
+ *                   type: array
+ *                 exportedAt:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * const data = await fetch('/api/users/export-data', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
+ * 
+ * @see GDPR Article 20 - Right to data portability
  */
 
 import type { NextRequest } from 'next/server'

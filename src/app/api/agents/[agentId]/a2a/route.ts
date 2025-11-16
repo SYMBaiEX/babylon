@@ -1,18 +1,70 @@
 /**
  * Per-Agent A2A Server Endpoint
  * 
- * @route POST /api/agents/[agentId]/a2a
- * @route GET /api/agents/[agentId]/a2a
+ * @route POST /api/agents/[agentId]/a2a - A2A message handler
+ * @route GET /api/agents/[agentId]/a2a - A2A capabilities
  * @access Public (with agent authentication)
  * 
  * @description
  * A2A server endpoint for individual agents. When an agent has A2A enabled,
  * this endpoint allows other agents to communicate with it directly via the
  * A2A protocol. This enables agent-to-agent communication outside of the
- * ordinary gameplay.
+ * ordinary gameplay. Uses MessageRouter scoped to the specific agent.
  * 
- * The endpoint uses the same MessageRouter as the root A2A server but scopes
- * all operations to the specific agent identified by agentId.
+ * @openapi
+ * /api/agents/{agentId}/a2a:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Handle A2A message
+ *     description: Processes A2A protocol message for agent (agent authentication required)
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Message processed successfully
+ *       400:
+ *         description: Invalid A2A message
+ *       404:
+ *         description: Agent not found or A2A not enabled
+ *   get:
+ *     tags:
+ *       - Agents
+ *     summary: Get A2A capabilities
+ *     description: Returns A2A capabilities for agent
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     responses:
+ *       200:
+ *         description: Capabilities retrieved successfully
+ *       404:
+ *         description: Agent not found or A2A not enabled
+ * 
+ * @example
+ * ```typescript
+ * // Send A2A message
+ * await fetch(`/api/agents/${agentId}/a2a`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${agentToken}` },
+ *   body: JSON.stringify({ message: 'A2A message' })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

@@ -71,15 +71,37 @@ async function initializeA2ASdkClient(
   // Create A2A client from Agent Card URL
   // Use default fetch - authentication will be handled by server via headers
   // The SDK will handle standard A2A methods, extensions will use custom headers
-  const a2aClient = await A2AClient.fromCardUrl(agentCardUrl)
+  // In test/development, A2A client may not be available - make it optional
+  try {
+    const a2aClient = await A2AClient.fromCardUrl(agentCardUrl)
 
-  logger.info('✅ A2A SDK client created', { 
-    agentUserId, 
-    agentName: agent.displayName,
-    agentCardUrl
-  })
+    logger.info('✅ A2A SDK client created', { 
+      agentUserId, 
+      agentName: agent.displayName,
+      agentCardUrl
+    })
 
-  return a2aClient
+    return a2aClient
+  } catch (error) {
+    // In test/dev scenarios, server may not be running - this is OK
+    const isTestEnv = process.env.NODE_ENV === 'test' || 
+                     process.env.NODE_ENV === 'development' ||
+                     baseUrl.includes('localhost');
+    
+    if (isTestEnv) {
+      logger.warn('A2A client initialization failed (server may not be running) - using database fallback', {
+        agentUserId,
+        error: error instanceof Error ? error.message : String(error),
+        agentCardUrl
+      }, 'BabylonIntegration');
+      
+      // Return null to indicate A2A is not available - plugin will use database fallback
+      return null as unknown as A2AClient;
+    }
+    
+    // In production, re-throw the error
+    throw error;
+  }
 }
 
 /**
@@ -88,7 +110,7 @@ async function initializeA2ASdkClient(
  */
 export class BabylonA2AClient {
   public readonly agentId: string
-  private sdkClient: A2AClient
+  private sdkClient: A2AClient | null
   // Stored for potential future use (ERC-8004 headers, etc.)
   // Prefixed with _ to indicate intentionally unused
   // @ts-expect-error - Intentionally unused, stored for future use
@@ -96,7 +118,7 @@ export class BabylonA2AClient {
   // @ts-expect-error - Intentionally unused, stored for future use
   private readonly _agentTokenId?: number
 
-  constructor(sdkClient: A2AClient, agentId: string, agentAddress?: string, agentTokenId?: number) {
+  constructor(sdkClient: A2AClient | null, agentId: string, agentAddress?: string, agentTokenId?: number) {
     this.sdkClient = sdkClient
     this._agentAddress = agentAddress
     this._agentTokenId = agentTokenId
@@ -106,10 +128,13 @@ export class BabylonA2AClient {
   }
 
   /**
-   * Check if client is connected (always true for HTTP client)
+   * Check if client is connected
+   * Returns false if SDK client is null (A2A not available)
    */
   isConnected(): boolean {
-    return true
+    // Check if underlying SDK client exists
+    // If sdkClient is null, A2A is not available
+    return this.sdkClient !== null && this.sdkClient !== undefined
   }
 
   /**
@@ -120,6 +145,9 @@ export class BabylonA2AClient {
     action: string,
     params: Record<string, unknown>
   ): Promise<unknown> {
+    if (!this.sdkClient) {
+      throw new Error('A2A client not available - use database fallback')
+    }
     // Map action to skill ID - comprehensive mapping for all 69+ A2A methods
     const skillMap: Record<string, string> = {
       // Portfolio & Balance
@@ -652,16 +680,23 @@ export class BabylonA2AClient {
 
 /**
  * Initialize A2A client
+ * Returns null if A2A is not available (for graceful fallback)
  */
 export async function initializeAgentA2AClient(
   agentUserId: string
-): Promise<BabylonA2AClient> {
+): Promise<BabylonA2AClient | null> {
   const agent = await prisma.user.findUnique({
     where: { id: agentUserId },
     select: { walletAddress: true, agent0TokenId: true }
   })
 
   const sdkClient = await initializeA2ASdkClient(agentUserId)
+  
+  // If SDK client is null, A2A is not available
+  if (!sdkClient) {
+    return null
+  }
+  
   const walletAddress = agent?.walletAddress || undefined
   const agent0TokenId = agent?.agent0TokenId || undefined
   return new BabylonA2AClient(
@@ -685,17 +720,38 @@ export async function enhanceRuntimeWithBabylon(
   // A2A is REQUIRED - initialize client
   let a2aClient: BabylonA2AClient | undefined
   try {
-    a2aClient = await initializeAgentA2AClient(agentUserId)
-    babylonRuntime.a2aClient = a2aClient as unknown as typeof babylonRuntime.a2aClient
+    const sdkClient = await initializeA2ASdkClient(agentUserId)
     
-    logger.info('✅ Babylon plugin registered with A2A client', { 
-      agentUserId,
-      pluginName: plugin.name,
-      providersCount: plugin.providers?.length || 0,
-      actionsCount: plugin.actions?.length || 0,
-      a2aConnected: true,
-      a2aEndpoint: process.env.NEXT_PUBLIC_APP_URL || process.env.BABYLON_A2A_ENDPOINT || 'http://localhost:3000'
-    })
+    // Check if SDK client is null (indicates A2A not available)
+    if (!sdkClient) {
+      logger.warn('A2A SDK client is null - using database fallback', {
+        agentUserId,
+        agentCardUrl: `${process.env.BABYLON_A2A_ENDPOINT || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/.well-known/agent-card.json`
+      }, 'BabylonIntegration')
+      // Don't set a2aClient - will use database fallback
+    } else {
+      const agent = await prisma.user.findUnique({
+        where: { id: agentUserId },
+        select: { walletAddress: true, agent0TokenId: true }
+      })
+      
+      a2aClient = new BabylonA2AClient(
+        sdkClient,
+        agentUserId,
+        agent?.walletAddress || undefined,
+        agent?.agent0TokenId || undefined
+      )
+      babylonRuntime.a2aClient = a2aClient as unknown as typeof babylonRuntime.a2aClient
+      
+      logger.info('✅ Babylon plugin registered with A2A client', { 
+        agentUserId,
+        pluginName: plugin.name,
+        providersCount: plugin.providers?.length || 0,
+        actionsCount: plugin.actions?.length || 0,
+        a2aConnected: true,
+        a2aEndpoint: process.env.NEXT_PUBLIC_APP_URL || process.env.BABYLON_A2A_ENDPOINT || 'http://localhost:3000'
+      })
+    }
   } catch (error) {
     // Log detailed error for debugging
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'

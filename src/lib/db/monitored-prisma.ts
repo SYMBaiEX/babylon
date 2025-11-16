@@ -10,6 +10,7 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { queryMonitor } from './query-monitor';
+import { performanceMonitor } from '../monitoring/performance-monitor';
 
 /**
  * Create a Prisma client with automatic query monitoring
@@ -34,7 +35,7 @@ export function createMonitoredPrismaClient(baseClient: PrismaClient): PrismaCli
       const result = await next(params);
       const duration = Date.now() - startTime;
       
-      // Record query metrics
+      // Record query metrics in query monitor
       queryMonitor.recordQuery({
         query: `${model}.${operation}`,
         duration,
@@ -42,6 +43,14 @@ export function createMonitoredPrismaClient(baseClient: PrismaClient): PrismaCli
         model,
         operation,
       });
+      
+      // CRITICAL: Also record in performance monitor for integrated metrics
+      performanceMonitor.recordDatabaseOperation(
+        model,
+        operation,
+        duration,
+        duration > 500 // Flag as CPU-intensive if >500ms
+      );
       
       return result;
     });

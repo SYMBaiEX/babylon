@@ -1,6 +1,47 @@
 /**
- * Admin API: Training Data Status
- * Provides visibility into collected trajectories and training readiness
+ * Admin Training Data Status API
+ * 
+ * @route GET /api/admin/training-data - Get training data status
+ * @access Admin
+ * 
+ * @description
+ * Returns training data statistics and readiness information including
+ * trajectory counts, window statistics, and training readiness metrics.
+ * 
+ * @openapi
+ * /api/admin/training-data:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get training data status
+ *     description: Returns training data statistics and readiness (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalTrajectories:
+ *                   type: integer
+ *                 windowStats:
+ *                   type: array
+ *                 readyWindows:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const status = await fetch('/api/admin/training-data', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

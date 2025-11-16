@@ -1,7 +1,7 @@
 /**
  * Games Listing API
  * 
- * @route GET /api/games
+ * @route GET /api/games - Get all games
  * @access Public
  * 
  * @description
@@ -9,10 +9,37 @@
  * game instances or scenarios, including the main continuous game and
  * any archived or completed games.
  * 
- * **Game Information Includes:**
- * - Game ID and identifiers
- * - Running status (active/paused)
- * - Current day/date in game time
+ * @openapi
+ * /api/games:
+ *   get:
+ *     tags:
+ *       - Game
+ *     summary: Get all games
+ *     description: Returns list of all games in the system
+ *     responses:
+ *       200:
+ *         description: Games retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 games:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       isRunning:
+ *                         type: boolean
+ *                       currentDay:
+ *                         type: integer
+ * 
+ * @example
+ * ```typescript
+ * const { games } = await fetch('/api/games').then(r => r.json());
+ * ```
  * - Timing information (started, paused, last tick)
  * - Game configuration (speed, continuous mode)
  * - Active questions/events

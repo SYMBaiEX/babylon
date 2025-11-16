@@ -1,3 +1,80 @@
+/**
+ * Stats Widget API
+ * 
+ * @route GET /api/feed/widgets/stats - Get platform statistics
+ * @access Public
+ * 
+ * @description
+ * Returns platform-wide statistics including active players, AI agents, total posts,
+ * and points in circulation. Aggregates data from users and actors with RLS support.
+ * 
+ * @openapi
+ * /api/feed/widgets/stats:
+ *   get:
+ *     tags:
+ *       - Feed
+ *     summary: Get platform statistics
+ *     description: Returns platform-wide stats including players, agents, posts, and points
+ *     parameters:
+ *       - in: query
+ *         name: includeMarkets
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Include market statistics
+ *       - in: query
+ *         name: includeUsers
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Include user statistics
+ *       - in: query
+ *         name: includePools
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Include pool statistics
+ *       - in: query
+ *         name: includeVolume
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Include volume statistics
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     activePlayers:
+ *                       type: integer
+ *                       description: Active users in last 7 days
+ *                     aiAgents:
+ *                       type: integer
+ *                       description: Total AI agents/actors
+ *                     totalHoots:
+ *                       type: integer
+ *                       description: Total posts
+ *                     pointsInCirculation:
+ *                       type: string
+ *                       description: Formatted points in circulation
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/feed/widgets/stats');
+ * const { stats } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
+ */
+
 import type { NextRequest } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
 import { asUser, asPublic } from '@/lib/db/context'

@@ -63,7 +63,7 @@ async def grpo_trainer(db_url):
     """Create GRPO trainer instance"""
     trainer = GRPOTrainingService(
         db_url=db_url,
-        model_name="Qwen/Qwen2.5-0.5B-Instruct",
+        model_name="OpenPipe/Qwen3-14B-Instruct",  # Only model in W&B ART catalog
         batch_size=2,
         iterations_per_window=2  # Lower for testing
     )

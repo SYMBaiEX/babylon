@@ -1,6 +1,89 @@
 /**
- * API Route: /api/users/signup
- * Methods: POST (complete off-chain onboarding profile)
+ * User Signup API
+ * 
+ * @route POST /api/users/signup - Complete user signup/onboarding
+ * @access Authenticated
+ * 
+ * @description
+ * Completes off-chain user onboarding with profile creation, referral handling,
+ * social account linking, and points awards. Supports waitlist users, legal
+ * acceptance tracking, and identity token verification from Privy.
+ * 
+ * @openapi
+ * /api/users/signup:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Complete user signup
+ *     description: Completes off-chain onboarding with profile creation and points awards
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - displayName
+ *             properties:
+ *               username:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               bio:
+ *                 type: string
+ *               profileImageUrl:
+ *                 type: string
+ *               coverImageUrl:
+ *                 type: string
+ *               referralCode:
+ *                 type: string
+ *               identityToken:
+ *                 type: string
+ *                 description: Privy identity token for social account linking
+ *               isWaitlist:
+ *                 type: boolean
+ *                 default: false
+ *               tosAccepted:
+ *                 type: boolean
+ *               privacyPolicyAccepted:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Signup completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                 referral:
+ *                   type: object
+ *                   nullable: true
+ *       400:
+ *         description: Username taken or invalid input
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/users/signup', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     username: 'alice',
+ *     displayName: 'Alice',
+ *     bio: 'Hello world',
+ *     referralCode: 'friend123'
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/points-service} Points service
+ * @see {@link /lib/onboarding/types} Onboarding types
  */
 
 import type { NextRequest } from 'next/server'
@@ -340,9 +423,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/users/signup'
   )
 
-  await notifyNewAccount(result.user.id)
-
-  logger.warn('Failed to send welcome notification', { userId: result.user.id }, 'POST /api/users/signup')
+  try {
+    await notifyNewAccount(result.user.id)
+  } catch (error) {
+    logger.warn('Failed to send welcome notification', { userId: result.user.id, error }, 'POST /api/users/signup')
+  }
 
   // Track signup with PostHog
   await trackServerEvent(result.user.id, 'signup_completed', {

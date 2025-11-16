@@ -1,7 +1,63 @@
 /**
  * Admin Groups API
  * 
- * View all group chats in the system for verification and debugging
+ * @route GET /api/admin/groups - Get all group chats
+ * @access Admin
+ * 
+ * @description
+ * Returns all group chats in the system for verification and debugging.
+ * Supports filtering by creator and sorting by various fields. Admin only.
+ * 
+ * @openapi
+ * /api/admin/groups:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get all group chats
+ *     description: Returns all group chats with filtering and sorting (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: creator
+ *         schema:
+ *           type: string
+ *         description: Filter by creator name
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, memberCount, messageCount]
+ *           default: createdAt
+ *         description: Sort field
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Groups retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 groups:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const { groups } = await fetch('/api/admin/groups?sortBy=memberCount', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import { requireAdmin } from '@/lib/api/admin-middleware';

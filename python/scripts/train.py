@@ -45,14 +45,19 @@ async def train(
     db_url = os.getenv('DATABASE_URL')
     wandb_api_key = os.getenv('WANDB_API_KEY')
     judge_model = os.getenv('JUDGE_MODEL', 'openai/gpt-4o-mini')
-    base_model = os.getenv('BASE_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
+    # CRITICAL: Only model available in W&B ART catalog
+    base_model = os.getenv('BASE_MODEL', 'OpenPipe/Qwen3-14B-Instruct')
     project = os.getenv('PROJECT_NAME', 'babylon-agents')
     model_name = os.getenv('MODEL_NAME', 'babylon-mmo')
     
     if not db_url:
         raise ValueError("DATABASE_URL required")
     if not wandb_api_key:
-        raise ValueError("WANDB_API_KEY required")
+        raise ValueError(
+            "WANDB_API_KEY is REQUIRED. "
+            "ServerlessBackend only supports W&B remote training (no local GPU fallback). "
+            "Get your key from: https://wandb.ai/settings"
+        )
     
     logger.info("=" * 80)
     logger.info("BABYLON RL TRAINING")

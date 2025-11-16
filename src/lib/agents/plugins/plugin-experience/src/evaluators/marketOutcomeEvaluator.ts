@@ -103,10 +103,13 @@ export const marketOutcomeEvaluator: Evaluator = {
 
       // === 1. UPDATE NPC TRUST SCORES ===
       
+      // Only analyze posts up to resolution time (no future posts)
+      const now = new Date();
       const posts = await prisma.post.findMany({
         where: {
           gameId: questionNumber.toString(),
           deletedAt: null,
+          timestamp: { lte: now }, // ✅ No future posts
         },
         select: {
           id: true,

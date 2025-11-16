@@ -17,12 +17,31 @@ import { Prisma } from '@prisma/client'
 import { agentPnLService } from '../services/AgentPnLService'
 import { generateRandomMarketContext, formatRandomContext } from '@/lib/prompts/random-context'
 import { shuffleArray } from '@/lib/utils/randomization'
+import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
 
 export class AutonomousTradingService {
   /**
    * Evaluate and execute trades for an agent
-   * Note: Inner try/catch is kept for individual trade execution to continue processing on failure.
-   * Returns trade execution result with market identifiers for trajectory recording
+   * 
+   * Analyzes market conditions and agent strategy to make trading decisions.
+   * Executes trades on prediction markets and perpetual markets based on LLM analysis.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (reserved for future use)
+   * @returns Trade execution result with count and market identifiers
+   * @throws Error if agent not found
+   * 
+   * @remarks
+   * - Uses LLM to analyze market conditions and make trading decisions
+   * - Shuffles markets to add variety to prompts
+   * - Continues processing even if individual trades fail
+   * - Returns market identifiers for trajectory recording
+   * 
+   * @example
+   * ```typescript
+   * const result = await tradingService.executeTrades('agent-123', runtime);
+   * console.log(`Executed ${result.tradesExecuted} trades`);
+   * ```
    */
   async executeTrades(agentUserId: string, _runtime: IAgentRuntime): Promise<{
     tradesExecuted: number;
@@ -120,26 +139,47 @@ Respond in JSON format:
 Only trade if you have strong conviction and sufficient balance.
 ${contextString}`
 
-    // Use large model (qwen3-32b) for trading decisions (background processing)
-    const decision = await callGroqDirect({
-      prompt,
-      system: agent.agentSystem || undefined,
-      modelSize: 'large',  // Background operation, use qwen3-32b
-      temperature: 0.7,
-      maxTokens: 300
-    })
+    // Ensure prompt fits within 32K context limit (W&B trained models)
+    const estimatedTokens = countTokensSync(prompt)
+    let finalPrompt = prompt
+    
+    if (estimatedTokens > 30000) {  // 30K with 2K safety margin
+      logger.warn(`Trading prompt too long: ${estimatedTokens} tokens, truncating`, { agentUserId })
+      const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
+      finalPrompt = truncated.text
+      logger.info(`Truncated to ${truncated.tokens} tokens`, { agentUserId })
+    }
+
+    // Use large model (qwen3-32b or trained W&B model) for trading decisions
+    // Add timeout to prevent hanging (30 seconds max)
+    const decision = await Promise.race([
+      callGroqDirect({
+        prompt: finalPrompt,
+        system: agent.agentSystem || undefined,
+        modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
+        runtime: _runtime,  // Pass runtime to access W&B trained models
+        temperature: 0.7,
+        maxTokens: 300
+      }),
+      new Promise<string>((resolve) => {
+        setTimeout(() => {
+          logger.warn(`Trading decision timeout for agent ${agentUserId}, defaulting to hold`, undefined, 'AutonomousTrading')
+          resolve('{"action": "hold"}')
+        }, 30000) // 30 second timeout
+      })
+    ])
 
     const jsonMatch = decision.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      return {
-        tradesExecuted: 0,
-        marketId: undefined,
-        ticker: undefined,
-        side: undefined,
-        marketType: undefined
-      }
+      throw new Error(`Failed to parse trade decision JSON from LLM response: ${decision.substring(0, 200)}`)
     }
-    const tradeDecision = JSON.parse(jsonMatch[0]) as { action: string; trade?: {type: string; market: string; action: string; amount: number; reasoning?: string } }
+    
+    let tradeDecision: { action: string; trade?: {type: string; market: string; action: string; amount: number; reasoning?: string } }
+    try {
+      tradeDecision = JSON.parse(jsonMatch[0]) as { action: string; trade?: {type: string; market: string; action: string; amount: number; reasoning?: string } }
+    } catch (parseError) {
+      throw new Error(`Failed to parse JSON trade decision: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decision.substring(0, 200)}`)
+    }
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
       return {
@@ -253,6 +293,7 @@ ${contextString}`
           }
         } catch (error) {
           logger.error(`Trade execution failed for agent ${agentUserId}`, error, 'AutonomousTrading')
+          throw error // Fail fast - don't continue on trade errors
         }
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
@@ -296,6 +337,7 @@ ${contextString}`
           }
         } catch (error) {
           logger.error(`Perp trade execution failed for agent ${agentUserId}`, error, 'AutonomousTrading')
+          throw error // Fail fast - don't continue on trade errors
         }
       }
     }

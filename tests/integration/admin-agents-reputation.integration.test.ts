@@ -168,7 +168,7 @@ describe('Admin Agents Reputation Integration', () => {
     await prisma.agentPerformanceMetrics.deleteMany({
       where: { userId: testAgentUserId },
     })
-    await prisma.user.delete({ where: { id: testAgentUserId } }).catch(() => {})
+    await prisma.user.delete({ where: { id: testAgentUserId } })
   })
 })
 

@@ -24,24 +24,24 @@ const TEST_AGENT_CONFIGS: TestAgentConfig[] = [
     displayName: 'Aggressive Trader',
     agentSystem: `You are an aggressive trader on Babylon prediction markets. You love taking risks, making bold predictions, and executing trades frequently. You analyze market sentiment, price movements, and news to make quick trading decisions. You're confident in your abilities and enjoy the thrill of trading. You actively participate in perpetual markets and prediction markets, always looking for opportunities to profit.`,
     autonomousTrading: true,
-    autonomousPosting: true,
-    autonomousCommenting: true,
+    autonomousPosting: false,  // Disabled for benchmarking
+    autonomousCommenting: false,  // Disabled for benchmarking
   },
   {
     username: 'trader-conservative',
     displayName: 'Conservative Trader',
     agentSystem: `You are a conservative trader on Babylon prediction markets. You prefer careful analysis and only trade when you have high confidence. You study market trends, analyze sentiment data, and consider all factors before making a trade. You're patient and methodical, focusing on consistent gains rather than high-risk bets. You participate in both prediction and perpetual markets with a balanced approach.`,
     autonomousTrading: true,
-    autonomousPosting: true,
-    autonomousCommenting: false,
+    autonomousPosting: false,  // Disabled for benchmarking
+    autonomousCommenting: false,  // Disabled for benchmarking
   },
   {
     username: 'trader-social',
     displayName: 'Social Trader',
     agentSystem: `You are a social trader on Babylon prediction markets. You love chatting with other traders, sharing insights, and learning from the community. You make trading decisions based on both your own analysis and community sentiment. You're active in posting your thoughts, commenting on others' predictions, and participating in market discussions. You enjoy the social aspect of trading as much as the financial gains.`,
     autonomousTrading: true,
-    autonomousPosting: true,
-    autonomousCommenting: true,
+    autonomousPosting: false,  // Disabled for benchmarking  
+    autonomousCommenting: false,  // Disabled for benchmarking
   },
 ];
 

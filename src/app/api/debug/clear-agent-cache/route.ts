@@ -1,23 +1,49 @@
 /**
  * Clear Agent Runtime Cache API
  * 
- * @route POST /api/debug/clear-agent-cache
+ * @route POST /api/debug/clear-agent-cache - Clear agent cache
  * @access Admin/Debug
  * 
  * @description
  * Debug endpoint to forcefully clear all cached agent runtimes from memory.
  * Useful for troubleshooting agent behavior issues, memory leaks, or forcing
- * runtime reinitialization after configuration changes.
+ * runtime reinitialization after configuration changes. Clears ALL agent
+ * runtimes, causing temporary performance impact.
  * 
- * **Use Cases:**
- * - Reset agent behavior after system prompt updates
- * - Clear stale runtime instances
- * - Free up memory during development
- * - Force reload of agent configurations
+ * @openapi
+ * /api/debug/clear-agent-cache:
+ *   post:
+ *     tags:
+ *       - Debug
+ *     summary: Clear agent cache
+ *     description: Clears all cached agent runtimes (admin/debug only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Cache cleared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 cleared:
+ *                   type: integer
+ *                   description: Number of runtimes cleared
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin/debug access required
  * 
- * **Warning:** This will clear ALL agent runtimes, causing temporary
- * performance impact as agents reinitialize on their next tick.
- * 
+ * @example
+ * ```typescript
+ * await fetch('/api/debug/clear-agent-cache', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * ```
  * @returns {object} Success response with count of cleared runtimes
  * @property {boolean} success - Operation success status
  * @property {number} cleared - Number of runtime instances cleared

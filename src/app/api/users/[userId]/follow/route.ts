@@ -8,7 +8,7 @@
  * @route GET /api/users/[userId]/follow - Check follow status
  * @access Private (requires authentication)
  * 
- * @swagger
+ * @openapi
  * /api/users/{userId}/follow:
  *   post:
  *     tags:

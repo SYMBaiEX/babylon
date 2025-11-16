@@ -1,53 +1,79 @@
 /**
  * Game Control API
  * 
- * @route POST /api/game/control - Start or pause game
- * @route GET /api/game/control - Get current game state
- * @access POST: Admin (requires ADMIN_TOKEN or dev environment)
+ * @route GET /api/game/control - Get game state
+ * @route POST /api/game/control - Start/pause game
  * @access GET: Public
+ * @access POST: Admin (ADMIN_TOKEN or dev)
  * 
  * @description
- * Controls the main continuous game engine, allowing administrators to start,
- * pause, and monitor the game state. The game engine drives all in-game events,
- * time progression, market updates, and NPC behaviors.
+ * Controls the main continuous game engine. GET returns current game state.
+ * POST starts or pauses the game (admin only).
  * 
- * **POST - Game Control Actions**
+ * @openapi
+ * /api/game/control:
+ *   get:
+ *     tags:
+ *       - Game
+ *     summary: Get game state
+ *     description: Returns current game state (public)
+ *     responses:
+ *       200:
+ *         description: Game state retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 game:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     isRunning:
+ *                       type: boolean
+ *                     currentDay:
+ *                       type: integer
+ *   post:
+ *     tags:
+ *       - Game
+ *     summary: Start/pause game
+ *     description: Controls game engine (admin only, requires ADMIN_TOKEN)
+ *     security:
+ *       - CronSecret: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [start, pause]
+ *     responses:
+ *       200:
+ *         description: Game control action completed successfully
+ *       401:
+ *         description: Unauthorized (admin token required)
  * 
- * Start or pause the game engine. Creates the continuous game if it doesn't
- * exist. Only accessible to administrators or in development mode.
+ * @example
+ * ```typescript
+ * // Get state
+ * const { game } = await fetch('/api/game/control').then(r => r.json());
  * 
- * **Actions:**
- * - **start:** Starts the game engine, beginning time progression and events
- * - **pause:** Pauses the game engine, freezing all game state
- * 
- * **Authentication:**
- * Requires `x-admin-token` header matching `ADMIN_TOKEN` environment variable,
- * or must be running in development mode (`NODE_ENV=development`).
- * 
- * @param {string} action - Control action: 'start' | 'pause' (required)
- * 
- * @returns {object} Game state after action
- * @property {boolean} success - Operation success
- * @property {string} action - Action that was performed
- * @property {object} game - Current game state
- * 
- * **GET - Get Game State**
- * 
- * Returns the current state of the continuous game including running status,
- * current day, and timing information. Publicly accessible for monitoring.
- * 
- * @returns {object} Current game state
- * @property {boolean} success - Operation success
- * @property {object|null} game - Game state (null if no game exists)
- * 
- * **Game State Object:**
- * @property {string} id - Game ID
- * @property {boolean} isRunning - Whether game is running
- * @property {boolean} isContinuous - Continuous mode flag
- * @property {number} currentDay - Current day in game timeline
- * @property {string} currentDate - Current game date (ISO)
- * @property {number} speed - Game speed multiplier
- * @property {string} startedAt - When game started (ISO)
+ * // Control game
+ * await fetch('/api/game/control', {
+ *   method: 'POST',
+ *   headers: { 'x-admin-token': adminToken },
+ *   body: JSON.stringify({ action: 'start' })
+ * });
+ * ```
  * @property {string} pausedAt - When game was paused (ISO)
  * @property {string} lastTickAt - Last game tick timestamp (ISO)
  * @property {number} activeQuestions - Number of active questions

@@ -111,6 +111,18 @@ export class BenchmarkValidator {
       if (!Array.isArray(gt.socialOpportunities)) {
         errors.push('groundTruth.socialOpportunities must be an array');
       }
+      
+      if (!Array.isArray(gt.hiddenFacts)) {
+        errors.push('groundTruth.hiddenFacts must be an array');
+      }
+      
+      if (!Array.isArray(gt.hiddenEvents)) {
+        errors.push('groundTruth.hiddenEvents must be an array');
+      }
+      
+      if (!gt.trueFacts || typeof gt.trueFacts !== 'object') {
+        errors.push('groundTruth.trueFacts must be an object');
+      }
     }
     
     // 5. Cross-validate: markets in initialState should have outcomes in groundTruth

@@ -1,16 +1,52 @@
 /**
- * Vercel Cron Job: Game Tick
+ * Game Tick Cron Job API
  * 
- * This endpoint is called by Vercel Cron to generate game content.
- * Replaces the continuous daemon with scheduled serverless invocations.
+ * @route POST /api/cron/game-tick - Execute game tick
+ * @access Cron (CRON_SECRET required)
  * 
- * Configuration in vercel.json:
- * - Runs every minute
- * - Generates posts, events, updates markets
- * - Syncs reputation data every 3 hours (checked internally)
- * - Max execution time: 300s
+ * @description
+ * Scheduled cron job that generates game content including posts, events, market
+ * updates, and reputation syncs. Runs every minute via Vercel Cron. Uses generation
+ * locks to prevent concurrent execution. Max execution time: 300s.
  * 
- * Security: Uses Vercel Cron secret for authentication
+ * @openapi
+ * /api/cron/game-tick:
+ *   post:
+ *     tags:
+ *       - Cron
+ *     summary: Execute game tick
+ *     description: Scheduled cron job for game content generation (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: Game tick executed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 generated:
+ *                   type: object
+ *                 duration:
+ *                   type: number
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
+ *       409:
+ *         description: Game tick already in progress
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/cron/game-tick', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/serverless-game-tick} Game tick service
+ * @see {@link /lib/services/generation-lock-service} Generation lock service
  */
 
 import type { NextRequest } from 'next/server'
@@ -19,6 +55,9 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { AuthorizationError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { executeGameTick } from '@/lib/serverless-game-tick'
+import { acquireGenerationLock, releaseGenerationLock } from '@/lib/services/generation-lock-service'
+import { checkLookaheadStatus, generateAheadIfNeeded } from '@/lib/services/lookahead-generation-service'
+import { BabylonLLMClient } from '@/generator/llm/openai-client'
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for game tick
@@ -75,40 +114,113 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const startTime = Date.now();
-  logger.info('🎮 Game tick started', undefined, 'Cron');
-
-  // 2. Check if we should skip (maintenance mode, etc.) - system operation
-  const gameState = await asSystem(async (db) => {
-    return await db.game.findFirst({
-      where: { isContinuous: true },
-    });
-  });
-
-  if (!gameState || !gameState.isRunning) {
-    logger.info('Game is paused - skipping tick', undefined, 'Cron');
+  const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  
+  // 2. Acquire generation lock to prevent concurrent execution
+  if (!await acquireGenerationLock(lockId)) {
+    logger.info('Tick skipped - lock held by another process', { lockId }, 'Cron');
     return successResponse({
       success: true,
       skipped: true,
-      reason: 'Game paused',
+      reason: 'Lock held by another process',
     });
   }
 
-  // 3. Execute the tick (generates posts, events, updates markets)
-  const result = await executeGameTick();
+  try {
+    logger.info('🎮 Game tick started', { lockId }, 'Cron');
 
-  const duration = Date.now() - startTime;
-  logger.info('✅ Game tick completed', {
-    duration: `${duration}ms`,
-    posts: result.postsCreated,
-    events: result.eventsCreated,
-    marketsUpdated: result.marketsUpdated,
-  }, 'Cron');
+    // 3. Check if we should skip (maintenance mode, etc.) - system operation
+    const gameState = await asSystem(async (db) => {
+      return await db.game.findFirst({
+        where: { isContinuous: true },
+      });
+    });
 
-  return successResponse({
-    success: true,
-    duration,
-    result,
-  });
+    if (!gameState || !gameState.isRunning) {
+      logger.info('Game is paused - skipping tick', undefined, 'Cron');
+      return successResponse({
+        success: true,
+        skipped: true,
+        reason: 'Game paused',
+      });
+    }
+
+    // 4. Check buffer status - only generate if buffer < 15 minutes
+    const bufferStatus = await checkLookaheadStatus();
+    
+    if (!bufferStatus.needsGeneration) {
+      logger.info('Buffer sufficient - skipping content generation', {
+        minutesAhead: bufferStatus.minutesAhead,
+        latestTimestamp: bufferStatus.latestTimestamp?.toISOString(),
+      }, 'Cron');
+      
+      // Still execute non-content operations (NPC trading, market updates, etc.)
+      // These don't need future timestamps and should run every tick
+      // Skip content generation since buffer is sufficient
+      const result = await executeGameTick(true); // skipContentGeneration = true
+      
+      const duration = Date.now() - startTime;
+      logger.info('✅ Game tick completed (buffer sufficient, content skipped)', {
+        duration: `${duration}ms`,
+        bufferMinutes: bufferStatus.minutesAhead,
+        marketsUpdated: result.marketsUpdated,
+      }, 'Cron');
+
+      return successResponse({
+        success: true,
+        skipped: false,
+        bufferSufficient: true,
+        bufferMinutes: bufferStatus.minutesAhead,
+        duration,
+        result,
+      });
+    }
+
+    // 5. Buffer is low - generate ahead to maintain 15-minute buffer
+    logger.info('Buffer low - generating ahead', {
+      currentAhead: bufferStatus.minutesAhead,
+      target: 15,
+      latestTimestamp: bufferStatus.latestTimestamp?.toISOString(),
+    }, 'Cron');
+
+    const llmClient = new BabylonLLMClient(undefined, undefined, 'groq');
+    const lookaheadResult = await generateAheadIfNeeded(llmClient, 15);
+    
+    logger.info('Lookahead generation complete', {
+      generated: lookaheadResult.generated,
+      windowsGenerated: lookaheadResult.windowsGenerated,
+      newLatestTimestamp: lookaheadResult.newLatestTimestamp?.toISOString(),
+    }, 'Cron');
+
+    // 6. Execute normal tick operations (NPC trading, market updates, etc.)
+    // Note: Content generation is handled by lookahead, this handles operational tasks
+    const result = await executeGameTick();
+
+    const duration = Date.now() - startTime;
+    logger.info('✅ Game tick completed', {
+      duration: `${duration}ms`,
+      bufferMinutes: bufferStatus.minutesAhead,
+      windowsGenerated: lookaheadResult.windowsGenerated,
+      posts: result.postsCreated,
+      events: result.eventsCreated,
+      marketsUpdated: result.marketsUpdated,
+    }, 'Cron');
+
+    return successResponse({
+      success: true,
+      duration,
+      bufferMinutes: bufferStatus.minutesAhead,
+      lookahead: {
+        generated: lookaheadResult.generated,
+        windowsGenerated: lookaheadResult.windowsGenerated,
+      },
+      result,
+    });
+    
+  } finally {
+    // Always release lock, even on error
+    await releaseGenerationLock(lockId);
+  }
 });
 
 // GET endpoint for Vercel Cron (some cron services use GET)

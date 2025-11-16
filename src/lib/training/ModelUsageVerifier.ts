@@ -31,6 +31,18 @@ export interface VerificationResult {
 export class ModelUsageVerifier {
   /**
    * Verify that an agent runtime is using trained model
+   * 
+   * Checks the agent's runtime configuration to determine which model
+   * is being used and whether it's a trained W&B model or base model.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param runtime - Agent runtime to verify
+   * @returns ModelUsageStats with model information and inference count
+   * 
+   * @remarks
+   * - Checks WANDB_ENABLED and WANDB_MODEL settings
+   * - Falls back to Groq model if W&B not enabled
+   * - Counts inferences from last 24 hours
    */
   static async verifyAgentModelUsage(
     agentUserId: string,

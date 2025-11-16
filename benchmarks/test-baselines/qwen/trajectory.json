@@ -1,0 +1,3429 @@
+{
+  "states": [
+    {
+      "tick": 1,
+      "timestamp": 1763217578577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64547.44970521331,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3209.5231664168837,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 2,
+      "timestamp": 1763217588577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64054.36532859774,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3222.530173496183,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 3,
+      "timestamp": 1763217598577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64271.58104374812,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3214.8761427277477,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 4,
+      "timestamp": 1763217608577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63674.79276100113,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3211.090280319617,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 5,
+      "timestamp": 1763217618577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64326.51474833416,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3204.408967383508,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 6,
+      "timestamp": 1763217628577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64490.156251161105,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3202.187919524528,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 7,
+      "timestamp": 1763217638577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64067.16936822729,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3187.5912649702864,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 8,
+      "timestamp": 1763217648577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64081.808195402955,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3212.2298515072266,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 9,
+      "timestamp": 1763217658577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64437.27915195396,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3190.552763404505,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 10,
+      "timestamp": 1763217668577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64011.73346467653,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3198.252574697005,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 11,
+      "timestamp": 1763217678577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64207.01365201521,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3196.81354723217,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 12,
+      "timestamp": 1763217688577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63624.71802411619,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3183.308891063653,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 13,
+      "timestamp": 1763217698577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63644.82833026917,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3171.96327767618,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 14,
+      "timestamp": 1763217708577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63204.98967456625,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3143.0750163128437,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 15,
+      "timestamp": 1763217718577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63462.253698288005,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3144.768179083098,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 16,
+      "timestamp": 1763217728577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 62896.94935449684,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3171.5647036989444,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 17,
+      "timestamp": 1763217738577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63093.028566939574,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3199.4988732754737,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 18,
+      "timestamp": 1763217748577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 62977.01223110842,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3202.7422971423657,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 19,
+      "timestamp": 1763217758577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63195.518681977905,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3176.810082309891,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 20,
+      "timestamp": 1763217768577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 63720.56759059742,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3172.5260442499143,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 21,
+      "timestamp": 1763217778577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64345.97196905332,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3190.6068909016044,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 22,
+      "timestamp": 1763217788577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 64899.62783470673,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3218.5935646741173,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 23,
+      "timestamp": 1763217798577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65313.114842812334,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3201.3159514873837,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 24,
+      "timestamp": 1763217808577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65202.76675901462,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3201.230962839829,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 25,
+      "timestamp": 1763217818577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65200.2961950492,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3218.0489309631216,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 26,
+      "timestamp": 1763217828577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65557.2244291616,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3198.2683395190834,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 27,
+      "timestamp": 1763217838577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65677.70078616311,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3168.33459477518,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 28,
+      "timestamp": 1763217848577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65649.86220432003,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3188.7036392415025,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 29,
+      "timestamp": 1763217858577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 65559.0531334351,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3164.768351256558,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    },
+    {
+      "tick": 30,
+      "timestamp": 1763217868577,
+      "predictionMarkets": [
+        {
+          "id": "market-0",
+          "question": "Will Bitcoin reach $100k by end of month?",
+          "yesShares": 695.0656242435798,
+          "noShares": 388.61783957108855,
+          "yesPrice": 0.6413917416409428,
+          "noPrice": 0.35860825835905713,
+          "totalVolume": 0,
+          "liquidity": 1083.6834638146684,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-1",
+          "question": "Will the next Fed meeting result in rate cut?",
+          "yesShares": 203.01636648364365,
+          "noShares": 972.5636838702485,
+          "yesPrice": 0.17269463395753304,
+          "noPrice": 0.827305366042467,
+          "totalVolume": 0,
+          "liquidity": 1175.5800503538921,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        },
+        {
+          "id": "market-2",
+          "question": "Will Trump win the 2024 election?",
+          "yesShares": 314.0428010607138,
+          "noShares": 253.72135671786964,
+          "yesPrice": 0.5531219200053558,
+          "noPrice": 0.44687807999464424,
+          "totalVolume": 0,
+          "liquidity": 567.7641577785835,
+          "resolved": false,
+          "createdAt": 1763217568577,
+          "resolveAt": 1763217868577
+        }
+      ],
+      "perpetualMarkets": [
+        {
+          "ticker": "BTC",
+          "price": 66137.9881003292,
+          "priceChange24h": -1.2629598728381097,
+          "volume24h": 2815668.77476871,
+          "openInterest": 769728.9164643735,
+          "fundingRate": 0.0005214916681870818,
+          "nextFundingTime": 1763246368577
+        },
+        {
+          "ticker": "ETH",
+          "price": 3139.14850358595,
+          "priceChange24h": 1.955625240225345,
+          "volume24h": 1892733.1641316414,
+          "openInterest": 1071081.0830350965,
+          "fundingRate": 0.0009516139337792992,
+          "nextFundingTime": 1763246368577
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-0",
+          "name": "Agent 0",
+          "reputation": 66.38149834470823,
+          "totalPnl": 6.712482310831547
+        },
+        {
+          "id": "agent-1",
+          "name": "Agent 1",
+          "reputation": 91.53432048624381,
+          "totalPnl": 32.215272542089224
+        },
+        {
+          "id": "agent-2",
+          "name": "Agent 2",
+          "reputation": 93.12980469549075,
+          "totalPnl": 499.2832075804472
+        },
+        {
+          "id": "agent-3",
+          "name": "Agent 3",
+          "reputation": 55.85829083574936,
+          "totalPnl": 167.13548684492707
+        },
+        {
+          "id": "agent-4",
+          "name": "Agent 4",
+          "reputation": 96.61542625399306,
+          "totalPnl": -416.22347105294466
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "tick": 0,
+      "timestamp": 1763219887214,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 1,
+      "timestamp": 1763219887243,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 2,
+      "timestamp": 1763219887267,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 3,
+      "timestamp": 1763219887298,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 4,
+      "timestamp": 1763219887323,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 5,
+      "timestamp": 1763219887351,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 6,
+      "timestamp": 1763219887374,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 7,
+      "timestamp": 1763219887399,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 8,
+      "timestamp": 1763219887423,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 9,
+      "timestamp": 1763219887451,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 10,
+      "timestamp": 1763219887481,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 11,
+      "timestamp": 1763219887504,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 12,
+      "timestamp": 1763219887527,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 13,
+      "timestamp": 1763219887554,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 14,
+      "timestamp": 1763219887579,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 15,
+      "timestamp": 1763219887605,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 16,
+      "timestamp": 1763219887630,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 17,
+      "timestamp": 1763219887656,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 18,
+      "timestamp": 1763219887686,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 19,
+      "timestamp": 1763219887715,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 20,
+      "timestamp": 1763219887742,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 21,
+      "timestamp": 1763219887770,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 22,
+      "timestamp": 1763219887799,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 23,
+      "timestamp": 1763219887822,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 24,
+      "timestamp": 1763219887847,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 25,
+      "timestamp": 1763219887873,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 26,
+      "timestamp": 1763219887900,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 27,
+      "timestamp": 1763219887927,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 28,
+      "timestamp": 1763219887951,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    },
+    {
+      "tick": 29,
+      "timestamp": 1763219887974,
+      "type": "buy_prediction",
+      "data": {
+        "marketId": "market-1",
+        "outcome": "YES",
+        "amount": 50
+      },
+      "duration": 0,
+      "correctness": {
+        "predictionCorrect": true,
+        "actualOutcome": true,
+        "predictedOutcome": true
+      }
+    }
+  ],
+  "rewards": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "windowId": "benchmark-1763217568577"
+}

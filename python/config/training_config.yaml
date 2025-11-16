@@ -7,22 +7,26 @@ environment:
     data_collection_interval_minutes: 60  # Hourly windows
     min_agents_per_window: 3  # Minimum for local testing
     training_frequency_windows: 2  # Train every 2 windows locally
-    model_size: "small"  # qwen2.5-0.5b-instruct
+    # CRITICAL: Only model available in W&B ART catalog
+    model_size: "large"  # OpenPipe/Qwen3-14B-Instruct (14.8B parameters)
     batch_size: 4
     gradient_accumulation_steps: 2
     max_concurrent_training: 1
+    # NOTE: All training uses W&B remote infrastructure (no local GPU)
     
   coreweave:
     enabled: false
     data_collection_interval_minutes: 60
     min_agents_per_window: 5  # More agents in production
     training_frequency_windows: 1  # Train every window
-    model_size: "large"  # qwen2.5-7b-instruct or qwen2.5-14b-instruct
+    # CRITICAL: Only model available in W&B ART catalog
+    model_size: "large"  # OpenPipe/Qwen3-14B-Instruct (14.8B parameters)
     batch_size: 16
     gradient_accumulation_steps: 4
     max_concurrent_training: 2
     gpu_type: "A100"
     gpu_count: 4
+    # NOTE: All training uses W&B remote infrastructure
 
 # Data collection settings
 data_collection:

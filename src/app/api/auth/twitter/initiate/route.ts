@@ -1,50 +1,37 @@
 /**
- * Twitter OAuth 2.0 Initiation API
+ * Twitter OAuth Initiation API
  * 
- * @route GET /api/auth/twitter/initiate
+ * @route GET /api/auth/twitter/initiate - Initiate Twitter OAuth
  * @access Authenticated
  * 
  * @description
- * Initiates Twitter OAuth 2.0 authentication flow by redirecting the user to
- * Twitter's authorization page. Generates a secure state parameter containing
- * user ID and timestamp for CSRF protection. Uses OAuth 2.0 with PKCE for
- * secure authorization.
+ * Initiates Twitter OAuth 2.0 flow with PKCE, redirecting user to Twitter
+ * authorization page. Generates secure state parameter with CSRF protection.
  * 
- * **OAuth Flow:**
- * 1. User clicks "Connect Twitter" button
- * 2. Frontend redirects to this endpoint
- * 3. Server authenticates user and generates state
- * 4. User redirected to Twitter authorization page
- * 5. User authorizes Babylon on Twitter
- * 6. Twitter redirects to callback with authorization code
- * 
- * **Security Features:**
- * - CSRF protection via state parameter
- * - State includes userId, timestamp, and random nonce
- * - PKCE (Proof Key for Code Exchange) support
- * - Scopes limited to read permissions only
- * 
- * **Required Environment Variables:**
- * - `TWITTER_CLIENT_ID` - Twitter OAuth client ID
- * - `NEXT_PUBLIC_APP_URL` - Application base URL
- * 
- * **GET /api/auth/twitter/initiate - Start OAuth Flow**
- * 
- * @returns {redirect} Redirect to Twitter authorization page
- * 
- * @throws {401} Unauthorized - Not authenticated
- * @throws {503} Service Unavailable - Twitter OAuth not configured
- * @throws {500} Internal Server Error
+ * @openapi
+ * /api/auth/twitter/initiate:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Initiate Twitter OAuth
+ *     description: Starts Twitter OAuth 2.0 flow with PKCE (redirects to Twitter)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       302:
+ *         description: Redirect to Twitter authorization page
+ *       401:
+ *         description: Unauthorized
+ *       503:
+ *         description: Twitter OAuth not configured
  * 
  * @example
  * ```typescript
  * // Redirect user to initiate Twitter OAuth
  * window.location.href = '/api/auth/twitter/initiate';
- * 
- * // User will be redirected to Twitter, then back to callback
  * ```
  * 
- * @see {@link /api/auth/twitter/callback} OAuth callback handler
+ * @see {@link /api/auth/twitter/callback} OAuth callback
  * @see {@link https://developer.twitter.com/en/docs/authentication/oauth-2-0} Twitter OAuth 2.0
  */
 

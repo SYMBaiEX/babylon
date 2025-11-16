@@ -1,5 +1,5 @@
 {
-  "id": "sam-AIltman",
+  "id": "sam-ailtman",
   "name": "Sam AIltman",
   "realName": "Sam Altman",
   "username": "ailtman",
@@ -30,5 +30,7 @@
   "profileBanner": "A futuristic server room bathed in soft blue light, with a glowing AGI brain hologram hovering center. In one corner, a TED talk stage silhouette. A pile of discarded notepads and dollar bills lies near a big red 'ALIGNMENT' button. The backdrop shows a horizon of endless servers fading into a bright dawn.",
   "originalFirstName": "Sam",
   "originalLastName": "Altman",
-  "originalHandle": "altman"
+  "originalHandle": "altman",
+  "firstName": "Sam",
+  "lastName": "AIltman"
 }

@@ -31,15 +31,63 @@ export interface RulerScore {
   scoredAt: Date;
 }
 
-interface MarketOutcomes {
+/**
+ * Market outcomes for a time window
+ * Used to evaluate trading decisions against ground truth
+ */
+export interface MarketOutcomes {
+  /** Stock price changes in the window */
   stocks: Array<{ ticker: string; changePercent: number }>;
+  /** Prediction market resolutions in the window */
   predictions: Array<{ marketId: string; outcome: string }>;
+}
+
+/**
+ * Trading performance score breakdown
+ */
+interface TradingScore {
+  /** Overall trading score (0-1) */
+  overall: number;
+  /** P&L-based score (0-1) */
+  pnlScore: number;
+  /** Win rate (0-1) */
+  winRate: number;
+  /** Risk-adjusted return score (0-1) */
+  riskAdjustedReturn: number;
+}
+
+/**
+ * Strategic decision score breakdown
+ */
+interface StrategicScore {
+  /** Overall strategic score (0-1) */
+  overall: number;
+  /** Timing quality score (0-1) */
+  timingScore: number;
+  /** Market selection quality score (0-1) */
+  marketSelectionScore: number;
 }
 
 export class RulerScoringService {
 
   /**
    * Score a single trajectory using RULER framework
+   * 
+   * Evaluates agent performance across trading, social, and strategic dimensions.
+   * Scores are normalized to 0-1 range and stored in the trajectory record.
+   * 
+   * @param trajectoryId - Unique identifier for the trajectory to score
+   * @returns RulerScore object with detailed breakdown, or null if trajectory not found/invalid
+   * @throws Never throws - returns null on errors and logs warnings
+   * 
+   * @example
+   * ```typescript
+   * const score = await rulerScoringService.scoreTrajectory('traj-123');
+   * if (score) {
+   *   console.log(`Overall: ${score.overallScore}`);
+   *   console.log(`Trading: ${score.tradingScore}`);
+   * }
+   * ```
    */
   async scoreTrajectory(trajectoryId: string): Promise<RulerScore | null> {
     const trajectory = await prisma.trajectory.findUnique({
@@ -59,7 +107,38 @@ export class RulerScoringService {
       return null;
     }
 
-    const steps: TrajectoryStep[] = JSON.parse(trajectory.stepsJson);
+    // Validate stepsJson before parsing
+    if (!trajectory.stepsJson || trajectory.stepsJson === 'null' || trajectory.stepsJson === '[]') {
+      logger.warn('Trajectory has invalid stepsJson, skipping scoring', { 
+        trajectoryId,
+        stepsJson: trajectory.stepsJson 
+      });
+      return null;
+    }
+
+    // Parse stepsJson with error handling
+    let steps: TrajectoryStep[];
+    try {
+      steps = JSON.parse(trajectory.stepsJson) as TrajectoryStep[];
+    } catch (error) {
+      logger.error('Failed to parse trajectory stepsJson (corrupted data)', {
+        trajectoryId,
+        error: error instanceof Error ? error.message : String(error),
+        stepsJsonPreview: trajectory.stepsJson.substring(0, 100)
+      }, 'RulerScoringService');
+      return null; // Return null instead of throwing - allows batch processing to continue
+    }
+    
+    // Validate it's an array with content
+    if (!Array.isArray(steps) || steps.length === 0) {
+      logger.warn('Trajectory stepsJson is not a valid array or is empty', { 
+        trajectoryId,
+        type: typeof steps,
+        length: Array.isArray(steps) ? steps.length : 'N/A'
+      });
+      return null;
+    }
+
     const windowId = trajectory.windowId;
 
     // Get market outcomes for this window
@@ -97,14 +176,23 @@ export class RulerScoringService {
       scoredAt: new Date()
     };
 
-    // Save score to database
-    await prisma.trajectory.update({
-      where: { trajectoryId },
-      data: {
-        aiJudgeReward: overallScore,
-        aiJudgeReasoning: score.reasoning
-      }
-    });
+    // Save score to database with error handling
+    try {
+      await prisma.trajectory.update({
+        where: { trajectoryId },
+        data: {
+          aiJudgeReward: overallScore,
+          aiJudgeReasoning: score.reasoning
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to save RULER score to database', {
+        trajectoryId,
+        overallScore,
+        error: error instanceof Error ? error.message : String(error)
+      }, 'RulerScoringService');
+      // Still return the score even if save fails - scoring succeeded
+    }
 
     logger.info('Trajectory scored with RULER', {
       trajectoryId,
@@ -118,17 +206,25 @@ export class RulerScoringService {
   }
 
   /**
-   * Score trading performance
+   * Score trading performance based on P&L, win rate, and risk-adjusted returns
+   * 
+   * Evaluates:
+   * - P&L score: Normalized total reward from trajectory steps
+   * - Win rate: Percentage of correct predictions/trades
+   * - Risk-adjusted return: Average reward per trade
+   * 
+   * @param steps - Trajectory steps containing trading actions
+   * @param outcomes - Market outcomes for validation (null if unavailable)
+   * @returns TradingScore with overall score and component breakdowns
+   * 
+   * @remarks
+   * Returns neutral scores (0.5) if no trading steps found.
+   * Win rate calculation requires outcomes; defaults to 0.5 if unavailable.
    */
   private scoreTradingPerformance(
     steps: TrajectoryStep[],
-    outcomes: { stocks: Array<{ ticker: string; changePercent: number }>; predictions: Array<{ marketId: string; outcome: string }> } | null
-  ): {
-    overall: number;
-    pnlScore: number;
-    winRate: number;
-    riskAdjustedReturn: number;
-  } {
+    outcomes: MarketOutcomes | null
+  ): TradingScore {
     const tradingSteps = steps.filter(s => 
       s.action.actionType.includes('TRADING') || 
       s.action.actionType.includes('BUY') || 
@@ -197,7 +293,14 @@ export class RulerScoringService {
   }
 
   /**
-   * Score social engagement
+   * Score social engagement based on post/comment activity and success rate
+   * 
+   * Evaluates:
+   * - Success rate: Percentage of successful social actions
+   * - Engagement frequency: Normalized count of social actions
+   * 
+   * @param steps - Trajectory steps containing social actions (POST, COMMENT)
+   * @returns Social engagement score (0-1), defaults to 0.5 if no social activity
    */
   private scoreSocialEngagement(steps: TrajectoryStep[]): number {
     const socialSteps = steps.filter(s => 
@@ -220,16 +323,24 @@ export class RulerScoringService {
   }
 
   /**
-   * Score strategic decisions
+   * Score strategic decision-making quality
+   * 
+   * Evaluates:
+   * - Timing score: Percentage of profitable trades
+   * - Market selection score: Quality of market choices based on activity
+   * 
+   * @param steps - Trajectory steps containing trading actions
+   * @param outcomes - Market outcomes for validation (null if unavailable)
+   * @returns StrategicScore with overall score and component breakdowns
+   * 
+   * @remarks
+   * Returns neutral scores (0.5) if no trading steps found.
+   * Market selection requires outcomes; defaults to 0.5 if unavailable.
    */
   private scoreStrategicDecisions(
     steps: TrajectoryStep[],
-    outcomes: { stocks: Array<{ ticker: string; changePercent: number }>; predictions: Array<{ marketId: string; outcome: string }> } | null
-  ): {
-    overall: number;
-    timingScore: number;
-    marketSelectionScore: number;
-  } {
+    outcomes: MarketOutcomes | null
+  ): StrategicScore {
     const tradingSteps = steps.filter(s => 
       s.action.actionType.includes('TRADING') || 
       s.action.actionType.includes('BUY') || 
@@ -290,11 +401,19 @@ export class RulerScoringService {
 
   /**
    * Generate human-readable reasoning for the score
+   * 
+   * Creates a natural language summary highlighting strengths and weaknesses
+   * across trading, social, and strategic dimensions.
+   * 
+   * @param tradingScore - Trading performance breakdown
+   * @param socialScore - Social engagement score
+   * @param strategicScore - Strategic decision breakdown
+   * @returns Human-readable reasoning string
    */
   private generateReasoning(
-    tradingScore: { overall: number; pnlScore: number; winRate: number; riskAdjustedReturn: number },
+    tradingScore: TradingScore,
     socialScore: number,
-    strategicScore: { overall: number; timingScore: number; marketSelectionScore: number }
+    strategicScore: StrategicScore
   ): string {
     const parts: string[] = [];
 
@@ -322,12 +441,29 @@ export class RulerScoringService {
   }
 
   /**
-   * Get market outcomes for a window
+   * Get market outcomes for a time window
+   * 
+   * Retrieves resolved prediction markets and stock price changes within
+   * the specified window for ground truth validation.
+   * 
+   * @param windowId - Window identifier (ISO timestamp format)
+   * @returns MarketOutcomes with resolved markets and price changes, or null on error
+   * 
+   * @remarks
+   * Window duration is assumed to be 1 hour from the windowId timestamp.
+   * Stock price changes are currently empty; can be enhanced to track actual changes.
    */
   private async getWindowOutcomes(windowId: string): Promise<MarketOutcomes | null> {
     try {
       // Parse window ID to get time range
       const windowDate = new Date(windowId);
+      
+      // Validate date is valid
+      if (isNaN(windowDate.getTime())) {
+        logger.warn('Invalid windowId format, cannot parse date', { windowId }, 'RulerScoringService');
+        return null;
+      }
+      
       const windowEnd = new Date(windowDate.getTime() + 60 * 60 * 1000); // 1 hour window
 
       // Get resolved prediction markets in this window
@@ -357,13 +493,28 @@ export class RulerScoringService {
         }))
       };
     } catch (error) {
-      logger.warn('Failed to get window outcomes', { windowId, error: error instanceof Error ? error.message : String(error) });
-      return null;
+      logger.error('Failed to get window outcomes', {
+        windowId,
+        error: error instanceof Error ? error.message : String(error)
+      }, 'RulerScoringService');
+      return null; // Return null on error - scoring can continue without outcomes
     }
   }
 
   /**
    * Score multiple trajectories in batch
+   * 
+   * Processes trajectories sequentially, skipping any that fail to score.
+   * Errors are logged but don't stop the batch processing.
+   * 
+   * @param trajectoryIds - Array of trajectory IDs to score
+   * @returns Array of successfully scored trajectories (may be shorter than input)
+   * 
+   * @example
+   * ```typescript
+   * const scores = await rulerScoringService.scoreTrajectories(['traj-1', 'traj-2']);
+   * console.log(`Scored ${scores.length} trajectories`);
+   * ```
    */
   async scoreTrajectories(trajectoryIds: string[]): Promise<RulerScore[]> {
     const scores: RulerScore[] = [];
@@ -386,7 +537,19 @@ export class RulerScoringService {
   }
 
   /**
-   * Score all unscored trajectories in a window
+   * Score all unscored trajectories in a time window
+   * 
+   * Finds all training trajectories in the window that haven't been scored yet
+   * (aiJudgeReward is null) and scores them in batch.
+   * 
+   * @param windowId - Window identifier to score trajectories for
+   * @returns Number of trajectories successfully scored
+   * 
+   * @example
+   * ```typescript
+   * const count = await rulerScoringService.scoreWindow('2025-11-16T10:00');
+   * console.log(`Scored ${count} trajectories`);
+   * ```
    */
   async scoreWindow(windowId: string): Promise<number> {
     const trajectories = await prisma.trajectory.findMany({
@@ -418,5 +581,10 @@ export class RulerScoringService {
   }
 }
 
+/**
+ * Singleton instance of RulerScoringService
+ * 
+ * Use this instance throughout the application for consistent scoring behavior.
+ */
 export const rulerScoringService = new RulerScoringService();
 

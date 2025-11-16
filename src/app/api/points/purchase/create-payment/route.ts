@@ -1,6 +1,67 @@
 /**
- * API Route: Create x402 payment request for points purchase
- * POST /api/points/purchase/create-payment
+ * Points Purchase Create Payment API
+ * 
+ * @route POST /api/points/purchase/create-payment - Create payment request
+ * @access Authenticated
+ * 
+ * @description
+ * Creates an x402 payment request for purchasing points. Returns payment
+ * request details for on-chain completion. Uses X402 escrow system.
+ * 
+ * @openapi
+ * /api/points/purchase/create-payment:
+ *   post:
+ *     tags:
+ *       - Points
+ *     summary: Create payment request for points
+ *     description: Creates x402 payment request for points purchase
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amountUSD
+ *               - fromAddress
+ *             properties:
+ *               amountUSD:
+ *                 type: number
+ *                 description: Amount in USD
+ *               fromAddress:
+ *                 type: string
+ *                 pattern: '^0x[a-fA-F0-9]{40}$'
+ *                 description: User's wallet address
+ *     responses:
+ *       200:
+ *         description: Payment request created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 requestId:
+ *                   type: string
+ *                 paymentRequest:
+ *                   type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/points/purchase/create-payment', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     amountUSD: 10,
+ *     fromAddress: '0x...'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

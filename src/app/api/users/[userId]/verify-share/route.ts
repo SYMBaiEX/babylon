@@ -1,6 +1,70 @@
 /**
- * API Route: /api/users/[userId]/verify-share
- * Methods: POST (verify that a share was actually posted)
+ * User Verify Share API
+ * 
+ * @route POST /api/users/[userId]/verify-share - Verify share action
+ * @access Authenticated
+ * 
+ * @description
+ * Verifies that a share action was actually completed (user posted on platform).
+ * Awards points if verification succeeds. Supports Twitter and Farcaster.
+ * 
+ * @openapi
+ * /api/users/{userId}/verify-share:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Verify share action
+ *     description: Verifies share was posted and awards points (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - shareId
+ *               - platform
+ *             properties:
+ *               shareId:
+ *                 type: string
+ *               platform:
+ *                 type: string
+ *                 enum: [twitter, farcaster]
+ *               postUrl:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL to actual post for verification
+ *     responses:
+ *       200:
+ *         description: Share verified successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized for this user
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/users/${userId}/verify-share`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     shareId: 'share-id',
+ *     platform: 'twitter',
+ *     postUrl: 'https://twitter.com/...'
+ *   })
+ * });
+ * ```
  */
 
 import {

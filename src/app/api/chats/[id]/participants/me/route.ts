@@ -1,13 +1,53 @@
+/**
+ * Chat Leave API
+ * 
+ * @route DELETE /api/chats/[id]/participants/me - Leave chat
+ * @access Authenticated
+ * 
+ * @description
+ * Allows the authenticated user to leave a chat. Removes user from chat
+ * participants. User must be a participant.
+ * 
+ * @openapi
+ * /api/chats/{id}/participants/me:
+ *   delete:
+ *     tags:
+ *       - Chats
+ *     summary: Leave chat
+ *     description: Removes authenticated user from chat participants
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Chat ID
+ *     responses:
+ *       200:
+ *         description: Left chat successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a participant
+ *       404:
+ *         description: Chat not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/chats/${chatId}/participants/me`, {
+ *   method: 'DELETE',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
+ */
+
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { withErrorHandling, successResponse, errorResponse } from '@/lib/errors/error-handler'
+import { withErrorHandling, successResponse, errorResponse } from '@/lib/errors/error-handler'                                                                  
 import { logger } from '@/lib/logger'
 import { asUser } from '@/lib/db/context'
-
-/**
- * DELETE /api/chats/[id]/participants/me
- * Allows the authenticated user to leave a chat
- */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }

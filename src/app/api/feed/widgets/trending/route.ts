@@ -1,7 +1,62 @@
 /**
  * Trending Tags Widget API
  * 
- * GET /api/feed/widgets/trending - Get current trending tags
+ * @route GET /api/feed/widgets/trending - Get trending tags
+ * @access Public
+ * 
+ * @description
+ * Returns current trending tags with post counts, summaries, and recent post
+ * samples. Uses cached trending data from tag storage service. Includes AI-generated
+ * summaries for each trending tag.
+ * 
+ * @openapi
+ * /api/feed/widgets/trending:
+ *   get:
+ *     tags:
+ *       - Feed
+ *     summary: Get trending tags
+ *     description: Returns current trending tags with summaries and post counts
+ *     responses:
+ *       200:
+ *         description: Trending tags retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 trending:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       tag:
+ *                         type: string
+ *                       tagSlug:
+ *                         type: string
+ *                       category:
+ *                         type: string
+ *                       postCount:
+ *                         type: integer
+ *                       summary:
+ *                         type: string
+ *                       rank:
+ *                         type: integer
+ *                 message:
+ *                   type: string
+ *                   nullable: true
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/feed/widgets/trending');
+ * const { trending } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/services/tag-storage-service} Tag storage service
+ * @see {@link /lib/services/trending-summary-service} Trending summary service
  */
 
 import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'

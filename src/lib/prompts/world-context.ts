@@ -22,9 +22,16 @@ export interface WorldContextOptions {
  * Generates the world actors list for prompt context
  * ONLY includes parody names - real names are NEVER mentioned
  * Now shuffles actors to add variety to prompts
+ * 
+ * **Optimized:** Only loads actors (not orgs or relationships)
  */
 export function generateWorldActors(maxActors?: number): string {
-  const actorsData = loadActorsData();
+  // OPTIMIZATION: Only load actors, not organizations or relationships
+  const actorsData = loadActorsData({ 
+    includeActors: true, 
+    includeOrganizations: false, 
+    includeRelationships: false 
+  });
   const actors = actorsData.actors as ActorData[];
   
   // Shuffle actors to add randomness/entropy to prompts
@@ -203,12 +210,18 @@ export async function generateRecentTrades(): Promise<string> {
 /**
  * Generates complete world context for feed prompts
  * Note: This is async because it fetches from database
+ * 
+ * Now includes current date/time for temporal awareness in posts
  */
 export async function generateWorldContext(options: WorldContextOptions = {}): Promise<{
   worldActors: string;
   currentMarkets: string;
   activePredictions: string;
   recentTrades: string;
+  currentDateTime: string;
+  currentDate: string;
+  currentTime: string;
+  currentYear: string;
 }> {
   const {
     includeActors = true,
@@ -217,6 +230,8 @@ export async function generateWorldContext(options: WorldContextOptions = {}): P
     includeTrades = true,
     maxActors = 50, // Limit to top 50 actors to avoid token limits
   } = options;
+
+  const now = new Date();
 
   // Fetch data in parallel for performance
   const [markets, predictions, trades] = await Promise.all([
@@ -230,6 +245,20 @@ export async function generateWorldContext(options: WorldContextOptions = {}): P
     currentMarkets: markets,
     activePredictions: predictions,
     recentTrades: trades,
+    // Current date/time context for temporal awareness
+    currentDateTime: now.toISOString(),
+    currentDate: now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    currentTime: now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }),
+    currentYear: now.getFullYear().toString(),
   };
 }
 

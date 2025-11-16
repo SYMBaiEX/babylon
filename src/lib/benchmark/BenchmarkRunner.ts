@@ -63,6 +63,32 @@ export interface BenchmarkComparisonResult {
 export class BenchmarkRunner {
   /**
    * Run a single benchmark
+   * 
+   * Executes a complete benchmark run by loading or generating benchmark data,
+   * initializing the simulation engine, running the agent through the simulation,
+   * and collecting comprehensive metrics and trajectory data.
+   * 
+   * @param config - Benchmark run configuration
+   * @returns SimulationResult with metrics, actions, and trajectory data
+   * @throws Error if benchmark fails to load/generate or simulation fails
+   * 
+   * @remarks
+   * - Can load existing benchmark from file or generate new one
+   * - Supports trajectory recording for RL training
+   * - Validates that agent actually took actions
+   * - Saves results to output directory
+   * 
+   * @example
+   * ```typescript
+   * const result = await BenchmarkRunner.runSingle({
+   *   benchmarkPath: './benchmarks/test.json',
+   *   agentRuntime: runtime,
+   *   agentUserId: 'agent-123',
+   *   saveTrajectory: true,
+   *   outputDir: './results'
+   * });
+   * console.log(`P&L: ${result.metrics.totalPnl}`);
+   * ```
    */
   static async runSingle(config: BenchmarkRunConfig): Promise<SimulationResult> {
     logger.info('Starting benchmark run', {
@@ -141,17 +167,13 @@ export class BenchmarkRunner {
     let trajectoryRecorder: TrajectoryRecorder | undefined;
     let trajectoryId: string | undefined;
     if (config.saveTrajectory) {
-      try {
-        trajectoryRecorder = new TrajectoryRecorder();
-        trajectoryId = await trajectoryRecorder.startTrajectory({
-          agentId: config.agentUserId,
-          scenarioId: `benchmark-${snapshot.id}`,
-        });
-        logger.info('Trajectory recording started', { trajectoryId });
-      } catch (error) {
-        logger.warn('Failed to start trajectory recording', { error });
-        // Continue without trajectory recording
-      }
+      // Fail fast - trajectory recording setup errors should crash
+      trajectoryRecorder = new TrajectoryRecorder();
+      trajectoryId = await trajectoryRecorder.startTrajectory({
+        agentId: config.agentUserId,
+        scenarioId: `benchmark-${snapshot.id}`,
+      });
+      logger.info('Trajectory recording started', { trajectoryId });
     }
     
     // 5. Initialize simulation
@@ -179,13 +201,11 @@ export class BenchmarkRunner {
       }
       
       // Execute autonomous tick (agent makes decisions via A2A)
+      // Fail fast - don't catch errors, let them propagate
       const tickResult = await coordinator.executeAutonomousTick(
         config.agentUserId,
         config.agentRuntime
-      ).catch((error: Error) => {
-        logger.error('Tick execution error', { error, tick: currentTick });
-        return { success: false, actionsExecuted: {}, duration: 0, method: 'error' };
-      });
+      );
       
       if (tickResult.success && tickResult.actionsExecuted && 'trades' in tickResult.actionsExecuted && (tickResult.actionsExecuted.trades > 0 || tickResult.actionsExecuted.posts > 0)) {
         logger.debug('Agent took actions', {
@@ -225,15 +245,12 @@ export class BenchmarkRunner {
     
     // 9. Save trajectory if enabled
     if (trajectoryRecorder && trajectoryId) {
-      try {
-        await trajectoryRecorder.endTrajectory(trajectoryId, {
-          finalPnL: result.metrics.totalPnl,
-          finalBalance: undefined,
-        });
-        logger.info('Trajectory recording saved', { trajectoryId });
-      } catch (error) {
-        logger.warn('Failed to save trajectory recording', { error });
-      }
+      // Fail fast - trajectory recording errors should crash
+      await trajectoryRecorder.endTrajectory(trajectoryId, {
+        finalPnL: result.metrics.totalPnl,
+        finalBalance: undefined,
+      });
+      logger.info('Trajectory recording saved', { trajectoryId });
     }
     
     // 10. Save results
@@ -251,6 +268,26 @@ export class BenchmarkRunner {
   
   /**
    * Run multiple benchmarks and compare
+   * 
+   * Executes multiple benchmark runs with the same configuration and compares
+   * their results to assess consistency and average performance.
+   * 
+   * @param config - Benchmark run configuration
+   * @param numRuns - Number of iterations to run
+   * @returns BenchmarkComparisonResult with aggregated metrics and comparison
+   * 
+   * @remarks
+   * - Runs benchmarks sequentially with small delays between runs
+   * - Calculates average P&L, accuracy, and optimality scores
+   * - Identifies best and worst performing runs
+   * - Saves comparison report to output directory
+   * 
+   * @example
+   * ```typescript
+   * const comparison = await BenchmarkRunner.runMultiple(config, 5);
+   * console.log(`Average P&L: ${comparison.comparison.avgPnl}`);
+   * console.log(`Best run: ${comparison.comparison.bestRun}`);
+   * ```
    */
   static async runMultiple(
     config: BenchmarkRunConfig,
@@ -315,6 +352,30 @@ export class BenchmarkRunner {
   
   /**
    * Compare two agents on same benchmark
+   * 
+   * Runs two different agents on the same benchmark snapshot and compares
+   * their performance to determine which performs better.
+   * 
+   * @param agent1Config - Configuration for first agent
+   * @param agent2Config - Configuration for second agent
+   * @param benchmarkPath - Path to benchmark snapshot (same for both agents)
+   * @returns Comparison result with both agents' results and performance delta
+   * 
+   * @remarks
+   * - Runs both agents in parallel for efficiency
+   * - Compares P&L, accuracy, and optimality scores
+   * - Determines winner based on total P&L
+   * 
+   * @example
+   * ```typescript
+   * const comparison = await BenchmarkRunner.compareAgents(
+   *   agent1Config,
+   *   agent2Config,
+   *   './benchmarks/test.json'
+   * );
+   * console.log(`Winner: ${comparison.winner}`);
+   * console.log(`P&L Delta: ${comparison.delta.pnl}`);
+   * ```
    */
   static async compareAgents(
     agent1Config: BenchmarkRunConfig,
@@ -367,14 +428,42 @@ export class BenchmarkRunner {
   
   /**
    * Load benchmark from file
+   * 
+   * @param benchmarkPath - Path to benchmark JSON file
+   * @returns Parsed benchmark snapshot
+   * @throws Error if file cannot be read or parsed
    */
   private static async loadBenchmark(benchmarkPath: string): Promise<BenchmarkGameSnapshot> {
-    const data = await fs.readFile(benchmarkPath, 'utf-8');
-    return JSON.parse(data) as BenchmarkGameSnapshot;
+    try {
+      const data = await fs.readFile(benchmarkPath, 'utf-8');
+      const parsed = JSON.parse(data) as BenchmarkGameSnapshot;
+      
+      // Validate basic structure
+      if (!parsed.id || !parsed.initialState || !parsed.groundTruth) {
+        throw new Error(`Invalid benchmark file: missing required fields (id, initialState, or groundTruth)`);
+      }
+      
+      return parsed;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`Failed to parse benchmark JSON file: ${error.message}`);
+      }
+      if ((error as { code?: string })?.code === 'ENOENT') {
+        throw new Error(`Benchmark file not found: ${benchmarkPath}`);
+      }
+      throw error;
+    }
   }
   
   /**
    * Generate new benchmark
+   * 
+   * Creates a new benchmark snapshot using the provided configuration
+   * and saves it for future reuse.
+   * 
+   * @param config - Benchmark generation configuration
+   * @returns Generated benchmark snapshot
+   * @throws Error if generation fails
    */
   private static async generateBenchmark(config: BenchmarkConfig): Promise<BenchmarkGameSnapshot> {
     logger.info('Generating new benchmark', config);
@@ -394,6 +483,12 @@ export class BenchmarkRunner {
   
   /**
    * Save simulation result
+   * 
+   * Saves complete simulation results including metrics, trajectory data,
+   * and full result object to the output directory.
+   * 
+   * @param result - Simulation result to save
+   * @param outputDir - Directory to save results in
    */
   private static async saveResult(result: SimulationResult, outputDir: string): Promise<void> {
     await fs.mkdir(outputDir, { recursive: true });
@@ -415,6 +510,11 @@ export class BenchmarkRunner {
   
   /**
    * Save comparison report
+   * 
+   * Saves benchmark comparison results to a JSON file in the output directory.
+   * 
+   * @param comparison - Comparison result to save
+   * @param outputDir - Directory to save comparison in
    */
   private static async saveComparison(
     comparison: BenchmarkComparisonResult,

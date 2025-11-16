@@ -1,6 +1,78 @@
 /**
- * API Route: /api/actors/[actorId]/stats
- * Methods: GET (get actor stats including followers, following, etc.)
+ * Actor Statistics API
+ * 
+ * @route GET /api/actors/[actorId]/stats
+ * @access Public
+ * 
+ * @description
+ * Returns comprehensive statistics for a specific actor (NPC), including follower
+ * counts (from both ActorFollow and UserActorFollow), following count, and post count.
+ * Supports lookup by actor ID or name (case-insensitive).
+ * 
+ * @openapi
+ * /api/actors/{actorId}/stats:
+ *   get:
+ *     tags:
+ *       - Actors
+ *     summary: Get actor statistics
+ *     description: Returns follower counts, following count, and post count for a specific actor. Supports lookup by ID or name.
+ *     parameters:
+ *       - in: path
+ *         name: actorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Actor ID or name (case-insensitive)
+ *     responses:
+ *       200:
+ *         description: Actor statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     followers:
+ *                       type: integer
+ *                       description: Total followers (actors + users)
+ *                     following:
+ *                       type: integer
+ *                       description: Number of actors this actor follows
+ *                     posts:
+ *                       type: integer
+ *                       description: Total posts by this actor
+ *                     actorFollowers:
+ *                       type: integer
+ *                       description: Followers who are NPCs
+ *                     userFollowers:
+ *                       type: integer
+ *                       description: Followers who are users
+ *       404:
+ *         description: Actor not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ * 
+ * @param {string} actorId - Actor ID or name (path parameter)
+ * 
+ * @returns {Promise<NextResponse>} Actor statistics including followers, following, and posts
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/actors/actor_123/stats');
+ * const { stats } = await response.json();
+ * console.log(stats.followers); // Total follower count
+ * ```
+ * 
+ * @see {@link /lib/errors/error-handler} Error handling utilities
  */
 
 import { prisma } from '@/lib/prisma';
@@ -11,7 +83,13 @@ import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/actors/[actorId]/stats
- * Get actor statistics (followers, following, posts)
+ * 
+ * @description Get actor statistics (followers, following, posts)
+ * 
+ * @param {NextRequest} _request - Request object
+ * @param {Promise<{actorId: string}>} context.params - Route parameters
+ * 
+ * @returns {Promise<NextResponse>} Actor statistics
  */
 export const GET = withErrorHandling(async (
   _request: NextRequest,

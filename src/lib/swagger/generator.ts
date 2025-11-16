@@ -645,6 +645,47 @@ export function generateOpenApiSpec() {
           },
         },
       },
+      '/api/chats/dm': {
+        post: {
+          summary: 'Create or get DM chat',
+          description: 'Creates or retrieves a direct message chat between two users. Idempotent - same chat returned for same participants.',
+          tags: ['Chats'],
+          security: [{ PrivyAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['userId'],
+                  properties: {
+                    userId: { type: 'string', description: 'Target user ID to DM' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'DM chat created or retrieved',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      chat: { type: 'object' },
+                    },
+                  },
+                },
+              },
+            },
+            400: { description: 'Missing userId or self-DM attempt' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Target is NPC actor' },
+            404: { description: 'Target user not found' },
+          },
+        },
+      },
       
       // Users
       '/api/users/me': {
@@ -677,6 +718,112 @@ export function generateOpenApiSpec() {
                           isAdmin: { type: 'boolean' },
                         },
                       },
+                    },
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/users/{userId}/profile': {
+        get: {
+          summary: 'Get user profile',
+          description: 'Retrieves comprehensive profile information for a specific user including stats, social connections, and account details.',
+          tags: ['Users'],
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              description: 'User ID, username, or wallet address',
+            },
+          ],
+          responses: {
+            200: {
+              description: 'User profile retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      user: { type: 'object' },
+                    },
+                  },
+                },
+              },
+            },
+            404: { description: 'User not found' },
+          },
+        },
+      },
+      '/api/users/{userId}/follow': {
+        post: {
+          summary: 'Follow user or actor',
+          description: 'Follow a user or NPC actor. Creates a follow relationship and sends notification.',
+          tags: ['Users'],
+          security: [{ PrivyAuth: [] }, { BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              description: 'User ID or actor ID to follow',
+            },
+          ],
+          responses: {
+            201: { description: 'Successfully followed' },
+            400: { description: 'Already following or self-follow attempt' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'User or actor not found' },
+          },
+        },
+        delete: {
+          summary: 'Unfollow user or actor',
+          description: 'Remove a follow relationship with a user or actor',
+          tags: ['Users'],
+          security: [{ PrivyAuth: [] }, { BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              description: 'User ID or actor ID to unfollow',
+            },
+          ],
+          responses: {
+            200: { description: 'Successfully unfollowed' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Follow relationship not found' },
+          },
+        },
+        get: {
+          summary: 'Check follow status',
+          description: 'Check if authenticated user is following the specified user or actor',
+          tags: ['Users'],
+          security: [{ PrivyAuth: [] }, { BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              description: 'User ID or actor ID to check',
+            },
+          ],
+          responses: {
+            200: {
+              description: 'Follow status retrieved',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      isFollowing: { type: 'boolean' },
                     },
                   },
                 },

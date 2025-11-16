@@ -1,12 +1,44 @@
 /**
- * Training Check Cron
+ * Training Check Cron API
  * 
- * Runs hourly to:
- * 1. Score new trajectories with RULER
- * 2. Check training readiness
- * 3. Monitor system health
+ * @route GET /api/cron/training-check - Training check cron
+ * @access Cron (CRON_SECRET)
  * 
- * Triggered by Vercel Cron: 0 * * * * (hourly)
+ * @description
+ * Runs hourly to score new trajectories with RULER, check training readiness,
+ * and monitor system health. Triggered by Vercel Cron (hourly).
+ * 
+ * @openapi
+ * /api/cron/training-check:
+ *   get:
+ *     tags:
+ *       - Cron
+ *     summary: Training check cron
+ *     description: Hourly training check (scores trajectories, checks readiness)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: Check completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 trajectoriesScored:
+ *                   type: integer
+ *                 readiness:
+ *                   type: object
+ * 
+ * @example
+ * ```typescript
+ * // Called by Vercel Cron (hourly)
+ * await fetch('/api/cron/training-check', {
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * ```
  */
 
 import { NextResponse } from 'next/server';

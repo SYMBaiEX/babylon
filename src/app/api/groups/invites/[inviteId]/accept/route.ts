@@ -1,6 +1,46 @@
 /**
- * API Route: /api/groups/invites/[inviteId]/accept
- * Methods: POST (accept a group invite)
+ * Group Invite Accept API
+ * 
+ * @route POST /api/groups/invites/[inviteId]/accept - Accept group invite
+ * @access Authenticated
+ * 
+ * @description
+ * Accepts a group invitation. Adds the authenticated user to the group
+ * and removes the invite. User must be the invitee.
+ * 
+ * @openapi
+ * /api/groups/invites/{inviteId}/accept:
+ *   post:
+ *     tags:
+ *       - Groups
+ *     summary: Accept group invite
+ *     description: Accepts a group invitation (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: inviteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invite ID
+ *     responses:
+ *       200:
+ *         description: Invite accepted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not the invitee
+ *       404:
+ *         description: Invite not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/groups/invites/${inviteId}/accept`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

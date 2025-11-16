@@ -59,9 +59,7 @@ describe('initializeAgentA2AClient wallet provisioning', () => {
     expect(sdkFromCardMock).toHaveBeenCalledTimes(1)
   })
 
-  test.skip('does not call wallet service when wallet already exists', async () => {
-    // TODO: Fix module mocking - currently the mock is still being called
-    // even when walletAddress is set, suggesting the code or mock needs to be fixed
+  test('does not call wallet service when wallet already exists', async () => {
     findUniqueMock.mockResolvedValueOnce({
       id: 'agent-2',
       isAgent: true,
@@ -71,7 +69,9 @@ describe('initializeAgentA2AClient wallet provisioning', () => {
     const { initializeAgentA2AClient } = await import('@/lib/agents/plugins/babylon/integration-a2a-sdk')
     await initializeAgentA2AClient('agent-2')
 
+    // Wallet service should not be called if wallet already exists
     expect(createWalletMock).not.toHaveBeenCalled()
+    // SDK should still be initialized
     expect(sdkFromCardMock).toHaveBeenCalledTimes(1)
   })
 })

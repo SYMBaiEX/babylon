@@ -13,6 +13,28 @@ import { callGroqDirect } from '../llm/direct-groq'
 export class AutonomousCommentingService {
   /**
    * Find relevant posts and create comments
+   * 
+   * Finds recent posts the agent hasn't commented on and generates
+   * an insightful comment using LLM analysis.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (reserved for future use)
+   * @returns Comment ID if comment was created, null otherwise
+   * @throws Error if agent not found
+   * 
+   * @remarks
+   * - Only considers posts from last 24 hours
+   * - Filters out posts agent already commented on
+   * - Uses small model for fast comment generation
+   * - Comment must be at least 5 characters to be posted
+   * 
+   * @example
+   * ```typescript
+   * const commentId = await commentingService.createAgentComment('agent-123', runtime);
+   * if (commentId) {
+   *   console.log(`Created comment: ${commentId}`);
+   * }
+   * ```
    */
   async createAgentComment(agentUserId: string, _runtime: IAgentRuntime): Promise<string | null> {
     const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
@@ -21,12 +43,14 @@ export class AutonomousCommentingService {
     }
 
       // Get recent posts that agent hasn't commented on
+      const now = new Date();
       const recentPosts = await prisma.post.findMany({
         where: {
           authorId: { not: agentUserId },
           deletedAt: null,
-          createdAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          timestamp: { 
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+            lte: now, // ✅ No future posts
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -70,6 +94,7 @@ Generate ONLY the comment text, nothing else.`
         prompt,
         system: agent.agentSystem || undefined,
         modelSize: 'small',  // Free tier: Frequent operation, use fast model
+        runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.8,
         maxTokens: 80
       })

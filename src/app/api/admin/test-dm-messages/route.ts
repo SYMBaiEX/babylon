@@ -1,8 +1,64 @@
 /**
- * Admin API: Test DM Messages
- * POST /api/admin/test-dm-messages
+ * Admin Test DM Messages API
  * 
- * Send bulk test DM messages between two users for testing pagination
+ * @route POST /api/admin/test-dm-messages - Send test DM messages
+ * @access Admin
+ * 
+ * @description
+ * Sends bulk test DM messages between two users for testing pagination
+ * and message handling. Creates or gets DM chat and sends multiple messages.
+ * Admin only.
+ * 
+ * @openapi
+ * /api/admin/test-dm-messages:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Send test DM messages
+ *     description: Sends bulk test messages between users for testing (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - senderId
+ *               - recipientId
+ *             properties:
+ *               senderId:
+ *                 type: string
+ *               recipientId:
+ *                 type: string
+ *               messageCount:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 200
+ *                 default: 100
+ *     responses:
+ *       200:
+ *         description: Test messages sent successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/admin/test-dm-messages', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: JSON.stringify({
+ *     senderId: 'user-1',
+ *     recipientId: 'user-2',
+ *     messageCount: 50
+ *   })
+ * });
+ * ```
  */
 
 import { requireAdmin } from '@/lib/api/admin-middleware';

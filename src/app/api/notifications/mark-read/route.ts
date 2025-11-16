@@ -1,7 +1,55 @@
 /**
  * Mark Notifications as Read API
  * 
- * Mark one or more notifications as read/acknowledged
+ * @route POST /api/notifications/mark-read - Mark notifications as read
+ * @access Authenticated
+ * 
+ * @description
+ * Marks one or more notifications as read/acknowledged. Supports marking
+ * specific notifications, all notifications of a type, or all notifications.
+ * 
+ * @openapi
+ * /api/notifications/mark-read:
+ *   post:
+ *     tags:
+ *       - Notifications
+ *     summary: Mark notifications as read
+ *     description: Marks notifications as read (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notificationIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Specific notification IDs to mark
+ *               type:
+ *                 type: string
+ *                 description: Mark all notifications of this type
+ *               markAll:
+ *                 type: boolean
+ *                 description: Mark all notifications as read
+ *     responses:
+ *       200:
+ *         description: Notifications marked as read successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/notifications/mark-read', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ markAll: true })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

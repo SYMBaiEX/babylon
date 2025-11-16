@@ -31,31 +31,79 @@ export interface ReputationSummary {
  */
 export class Agent0FeedbackService {
   private sdk: SDK
-  private chainId: number = 84532
+  private chainId: number
   
   constructor() {
+    // Determine network and chain ID (must match Agent0Client configuration)
+    const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet' | 'localnet') || 'sepolia'
+    
+    if (network === 'localnet') {
+      this.chainId = 31337 // Anvil default chain ID
+    } else if (network === 'sepolia') {
+      this.chainId = 11155111 // Ethereum Sepolia (Agent0 is on Ethereum, not Base Sepolia)
+    } else {
+      this.chainId = 1 // Ethereum mainnet
+    }
+    
     // Use default test key for localnet (first Anvil account)
     const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
                                process.env.BABYLON_AGENT0_PRIVATE_KEY ||
-                               (process.env.AGENT0_NETWORK === 'localnet' 
+                               (network === 'localnet' 
                                  ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
                                  : undefined)
     
     // Use 'node' IPFS provider for localnet, 'pinata' for production
-    const isLocalnet = process.env.AGENT0_NETWORK === 'localnet'
+    const isLocalnet = network === 'localnet'
     const ipfsProvider: 'node' | 'filecoinPin' | 'pinata' = 
       (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') || 
       (isLocalnet ? 'node' : 'pinata')
     
+    // Determine RPC URL based on network
+    // Agent0 operates on Ethereum (Sepolia/mainnet) for discovery layer
+    // Match Agent0Client RPC URL resolution pattern
+    let rpcUrl: string
+    if (network === 'localnet') {
+      rpcUrl = process.env.AGENT0_RPC_URL || 'http://localhost:8545'
+    } else {
+      // For sepolia/mainnet, prefer AGENT0_RPC_URL, then fallback to Ethereum RPC URLs
+      // Agent0 contracts are on Ethereum (Sepolia/mainnet), not Base
+      rpcUrl = process.env.AGENT0_RPC_URL || 
+               (network === 'sepolia' 
+                 ? (process.env.ETHEREUM_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com')
+                 : (process.env.ETHEREUM_RPC_URL || 'https://ethereum-rpc.publicnode.com'))
+    }
+    
+    // Validate IPFS provider configuration
+    if (ipfsProvider === 'pinata' && !process.env.PINATA_JWT) {
+      throw new Error('PINATA_JWT is required when using pinata IPFS provider for Agent0FeedbackService')
+    }
+    if (ipfsProvider === 'filecoinPin' && !process.env.FILECOIN_PRIVATE_KEY) {
+      throw new Error('FILECOIN_PRIVATE_KEY is required when using filecoinPin IPFS provider for Agent0FeedbackService')
+    }
+    
     // Initialize SDK with signer for feedback submission
-    this.sdk = new SDK({
-      chainId: this.chainId,
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      signer: feedbackPrivateKey || '',
-      ipfs: ipfsProvider,
-      pinataJwt: process.env.PINATA_JWT,
-      ipfsNodeUrl: isLocalnet ? 'https://ipfs.io' : undefined
-    })
+    try {
+      this.sdk = new SDK({
+        chainId: this.chainId,
+        rpcUrl,
+        signer: feedbackPrivateKey || '',
+        ipfs: ipfsProvider,
+        pinataJwt: process.env.PINATA_JWT,
+        ipfsNodeUrl: isLocalnet ? 'https://ipfs.io' : undefined
+      })
+    } catch (error) {
+      logger.error(
+        'Failed to initialize Agent0FeedbackService SDK',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          chainId: this.chainId,
+          rpcUrl,
+          ipfsProvider
+        },
+        'Agent0FeedbackService'
+      )
+      throw error
+    }
   }
   
   /**
@@ -236,27 +284,21 @@ export class Agent0FeedbackService {
    * Get Babylon's own reputation from Agent0
    */
   async getBabylonReputation(): Promise<ReputationSummary | null> {
-    try {
-      const config = await prisma.gameConfig.findUnique({
-        where: { key: 'agent0_registration' }
-      })
-      
-      type Agent0Config = {
-        agentId?: string
-      }
-      const configValue = (config?.value ?? null) as Agent0Config | null
-      
-      if (!configValue?.agentId) {
-        logger.warn('Babylon not registered on Agent0')
-        return null
-      }
-      
-      return await this.getAgentReputation(configValue.agentId)
-      
-    } catch (error) {
-      logger.error('Failed to get Babylon reputation', error)
+    const config = await prisma.gameConfig.findUnique({
+      where: { key: 'agent0_registration' }
+    })
+    
+    type Agent0Config = {
+      agentId?: string
+    }
+    const configValue = (config?.value ?? null) as Agent0Config | null
+    
+    if (!configValue?.agentId) {
+      logger.warn('Babylon not registered on Agent0')
       return null
     }
+    
+    return await this.getAgentReputation(configValue.agentId)
   }
   
   /**

@@ -1,6 +1,53 @@
 /**
  * API Route: /api/posts/[id]/like
  * Methods: POST (like), DELETE (unlike)
+ * 
+ * @openapi
+ * /api/posts/{id}/like:
+ *   post:
+ *     tags:
+ *       - Posts
+ *     summary: Like a post
+ *     description: Adds a like reaction to a post. Creates notification for post author.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post liked successfully
+ *       400:
+ *         description: Already liked or rate limited
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post not found
+ *   delete:
+ *     tags:
+ *       - Posts
+ *     summary: Unlike a post
+ *     description: Removes a like reaction from a post.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post unliked successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post or like not found
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
@@ -48,10 +95,16 @@ export const POST = withErrorHandling(async (
     const { user: dbUser } = await ensureUserForAuth(user, { displayName });
     const canonicalUserId = dbUser.id;
 
-    // Check if post exists first
+    // Check if post exists first and is not in the future
+    const now = new Date();
     let post = await prisma.post.findUnique({
       where: { id: postId },
     });
+
+    // ✅ Don't allow liking future posts
+    if (post && post.timestamp > now) {
+      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+    }
 
     if (!post) {
       const parseResult = parsePostId(postId);

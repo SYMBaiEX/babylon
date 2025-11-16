@@ -1,6 +1,68 @@
 /**
- * API Route: /api/groups/invites
- * Methods: GET (list user's pending invites)
+ * Group Invites API
+ * 
+ * @route GET /api/groups/invites - Get pending group invites
+ * @access Authenticated
+ * 
+ * @description
+ * Returns all pending group invites for the authenticated user. Includes group
+ * details and metadata for each invite.
+ * 
+ * @openapi
+ * /api/groups/invites:
+ *   get:
+ *     tags:
+ *       - Groups
+ *     summary: Get pending group invites
+ *     description: Returns all pending group invites for the current user
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Invites retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 invites:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       groupId:
+ *                         type: string
+ *                       group:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           memberCount:
+ *                             type: integer
+ *                       invitedAt:
+ *                         type: string
+ *                         format: date-time
+ *                       status:
+ *                         type: string
+ *                         enum: [pending, accepted, declined]
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/groups/invites', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { invites } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
  */
 
 import type { NextRequest } from 'next/server'

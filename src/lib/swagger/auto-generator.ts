@@ -8,13 +8,15 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import { swaggerDefinition } from './config';
 import type { Options } from 'swagger-jsdoc';
+import path from 'path';
 
 const options: Options = {
   definition: swaggerDefinition,
   // Scan all route files for @openapi JSDoc comments
+  // Use absolute paths for better reliability
   apis: [
-    './src/app/api/**/*.ts',
-    './src/app/api/**/*.tsx',
+    path.join(process.cwd(), 'src/app/api/**/*.ts'),
+    path.join(process.cwd(), 'src/app/api/**/*.tsx'),
   ],
 };
 
@@ -47,19 +49,49 @@ interface OpenAPISpec {
  */
 export async function generateAutoSpec() {
   try {
-    const spec: OpenAPISpec = swaggerJsdoc(options) as OpenAPISpec;
+    const autoSpec: OpenAPISpec = swaggerJsdoc(options) as OpenAPISpec;
     
     // Ensure openapi version field is present (required by Swagger UI)
-    if (!spec.openapi && !spec.swagger) {
-      spec.openapi = swaggerDefinition.openapi || '3.0.0';
+    if (!autoSpec.openapi && !autoSpec.swagger) {
+      autoSpec.openapi = swaggerDefinition.openapi || '3.0.0';
     }
     
     // Ensure all required OpenAPI fields are present
-    if (!spec.info) {
-      spec.info = swaggerDefinition.info;
+    if (!autoSpec.info) {
+      autoSpec.info = swaggerDefinition.info;
     }
     
-    return spec;
+    // Merge with manual generator to fill in missing routes
+    // This ensures we have complete documentation even if swagger-jsdoc misses some routes
+    const { generateOpenApiSpec } = await import('./generator');
+    const manualSpec = generateOpenApiSpec();
+    
+    // Merge paths: auto-generated takes precedence, but manual fills gaps
+    const mergedSpec: OpenAPISpec = {
+      ...swaggerDefinition,
+      ...autoSpec,
+      paths: {
+        ...(manualSpec.paths || {}),
+        ...(autoSpec.paths || {}), // Auto-generated paths override manual ones
+      },
+      tags: [
+        ...(Array.isArray(manualSpec.tags) ? manualSpec.tags : []),
+        ...(Array.isArray(autoSpec.tags) ? autoSpec.tags : []),
+      ],
+    };
+    
+    // Remove duplicate tags
+    const uniqueTags = new Map();
+    if (Array.isArray(mergedSpec.tags)) {
+      mergedSpec.tags.forEach((tag: { name: string; description?: string }) => {
+        if (!uniqueTags.has(tag.name)) {
+          uniqueTags.set(tag.name, tag);
+        }
+        });
+      mergedSpec.tags = Array.from(uniqueTags.values());
+    }
+    
+    return mergedSpec;
   } catch (error) {
     console.error('Error generating OpenAPI spec:', error);
     

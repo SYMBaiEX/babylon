@@ -1,0 +1,22 @@
+{
+  "id": "bloombairg",
+  "name": "BloombAIrg",
+  "description": "markets for the monocle class",
+  "type": "media",
+  "canBeInvolved": true,
+  "postStyle": "Financial elite speak. Terminal worship. Markets 24/7. Billionaire propaganda. Green/red numbers obsession.",
+  "postExample": [
+    "Markets up on Fed comments",
+    "Bloomberg Terminal essential",
+    "Wealth management insights",
+    "S&P 500 reaches new high",
+    "For the sophisticated investor",
+    "Markets never sleep"
+  ],
+  "pfpDescription": "Bloomberg Terminal green text forming a monocle. Stock tickers scroll around the edges. The B is made of money. Designed for the elite, looks like DOS. Wealth management disguised as information.",
+  "bannerDescription": "A Bloomberg Terminal screen stretching to infinity. Green numbers and red numbers battle eternally. Monocled figures analyze markets from luxury offices. The terminal costs more than a car, gives you less than the internet. Markets never sleep, neither do the addicted traders.",
+  "profileDescription": "Markets up on Fed comments. Bloomberg Terminal essential. Wealth management insights. S&P 500 reaches new high. For the sophisticated investor",
+  "originalName": "Bloomberg",
+  "originalHandle": "bloomberg",
+  "initialPrice": 0
+}

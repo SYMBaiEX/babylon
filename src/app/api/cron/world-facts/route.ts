@@ -1,16 +1,50 @@
 /**
- * Vercel Cron Job: World Facts Update
+ * World Facts Update Cron Job API
  * 
- * This endpoint is called by Vercel Cron to update world facts:
- * - Fetches RSS feeds
- * - Generates parody headlines
- * - Cleans up old headlines
+ * @route POST /api/cron/world-facts - Update world facts
+ * @access Cron (CRON_SECRET required)
  * 
- * Configuration in vercel.json:
- * - Runs periodically (e.g., every 6 hours)
- * - Max execution time: 300s
+ * @description
+ * Scheduled cron job that fetches RSS feeds, generates parody headlines, and
+ * cleans up old headlines. Runs periodically (e.g., every 6 hours). Max execution
+ * time: 300s.
  * 
- * Security: Uses CRON_SECRET for authentication
+ * @openapi
+ * /api/cron/world-facts:
+ *   post:
+ *     tags:
+ *       - Cron
+ *     summary: Update world facts
+ *     description: Fetches RSS feeds and generates parody headlines (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: World facts updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 headlinesGenerated:
+ *                   type: integer
+ *                 headlinesCleaned:
+ *                   type: integer
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/cron/world-facts', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/rss-feed-service} RSS feed service
+ * @see {@link /lib/services/parody-headline-generator} Parody headline generator
  */
 
 import type { NextRequest } from 'next/server';

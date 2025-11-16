@@ -1,15 +1,52 @@
 /**
- * Training Status Cron
+ * Training Status Cron Job API
  * 
- * Runs daily to:
- * 1. Check if system is ready to train
- * 2. Report readiness status  
- * 3. Log training metrics
+ * @route GET /api/cron/training - Check training readiness
+ * @access Cron (CRON_SECRET required)
  * 
- * Triggered by Vercel Cron: 0 0 * * * (daily at midnight)
+ * @description
+ * Daily cron job that checks training system readiness, reports status, and logs
+ * metrics. Training is triggered by GitHub Actions; this endpoint monitors readiness.
+ * Max execution time: 60s.
  * 
- * NOTE: Training is triggered by GitHub Actions cron (2 AM UTC daily)
- * This endpoint just monitors readiness and reports status
+ * @openapi
+ * /api/cron/training:
+ *   get:
+ *     tags:
+ *       - Cron
+ *     summary: Check training readiness
+ *     description: Checks if system is ready for training and reports status (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: Training status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ready:
+ *                   type: boolean
+ *                 reason:
+ *                   type: string
+ *                   nullable: true
+ *                 stats:
+ *                   type: object
+ *                 status:
+ *                   type: object
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/cron/training', {
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * const { ready, stats } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/training/AutomationPipeline} Automation pipeline
  */
 
 import { NextResponse } from 'next/server';

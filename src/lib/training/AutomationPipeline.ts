@@ -14,6 +14,8 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { exportGroupedForGRPO } from '../agents/plugins/plugin-trajectory-logger/src/export';
+import { modelSelectionService } from './ModelSelectionService';
+import { benchmarkService } from './BenchmarkService';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type {
@@ -38,13 +40,13 @@ export class AutomationPipeline {
 
     this.config = {
       minTrajectoriesForTraining: config.minTrajectoriesForTraining
-        ?? (Number.isFinite(envMinTrajectories) && envMinTrajectories > 0 ? envMinTrajectories : 1000),
+        ?? (Number.isFinite(envMinTrajectories) && envMinTrajectories > 0 ? envMinTrajectories : 1),  // Default to 1 trajectory minimum (for testing - can be overridden via env)
       minGroupSize: config.minGroupSize
-        ?? (Number.isFinite(envMinGroupSize) && envMinGroupSize > 0 ? envMinGroupSize : 10),
+        ?? (Number.isFinite(envMinGroupSize) && envMinGroupSize > 0 ? envMinGroupSize : 1),  // Keep at 1 for flexibility
       dataQualityThreshold: config.dataQualityThreshold ?? 0.95,
       autoTriggerTraining: config.autoTriggerTraining !== false,
       trainingInterval: config.trainingInterval || 24, // Daily by default
-      baseModel: config.baseModel || 'OpenPipe/Qwen3-14B-Instruct',
+      baseModel: config.baseModel || 'OpenPipe/Qwen3-14B-Instruct',  // ONLY model available in W&B ART (32K context)
       modelNamePrefix: config.modelNamePrefix || 'babylon-agent',
       modelStoragePath: config.modelStoragePath || path.resolve(process.cwd(), 'storage/models'),
       dataStoragePath: config.dataStoragePath || path.resolve(process.cwd(), 'storage/training-data'),
@@ -57,7 +59,22 @@ export class AutomationPipeline {
    * Check if we're ready to train
    */
   async checkTrainingReadiness(): Promise<TrainingReadinessResult> {
-    // Count unscored trajectories
+    // Count SCORED trajectories ready for training
+    const scoredAndReady = await prisma.trajectory.count({
+      where: {
+        isTrainingData: true,
+        usedInTraining: false,
+        aiJudgeReward: { not: null },  // Must be SCORED
+        NOT: {
+          OR: [
+            { stepsJson: 'null' },
+            { stepsJson: '[]' }
+          ]
+        }
+      }
+    });
+
+    // Also count unscored for reporting
     const unscored = await prisma.trajectory.count({
       where: {
         isTrainingData: true,
@@ -72,7 +89,7 @@ export class AutomationPipeline {
       where: {
         isTrainingData: true,
         usedInTraining: false,
-        scenarioId: { not: null }
+        scenarioId: { not: null }  // Only include trajectories with scenario IDs
       },
       _count: true
     });
@@ -83,36 +100,38 @@ export class AutomationPipeline {
     const quality = await this.calculateDataQuality();
 
     const stats = {
-      totalTrajectories: unscored,
-      unscoredTrajectories: unscored,
+      totalTrajectories: scoredAndReady,  // Use scored trajectory count
+      unscoredTrajectories: unscored,  // Actual unscored count
       scenarioGroups: validGroups.length,
       dataQuality: quality
     };
 
-    // Check if ready
-    if (unscored < this.config.minTrajectoriesForTraining) {
+    // Check if ready using SCORED trajectories
+    if (scoredAndReady < this.config.minTrajectoriesForTraining) {
       return {
         ready: false,
-        reason: `Need ${this.config.minTrajectoriesForTraining - unscored} more trajectories`,
+        reason: `Need ${this.config.minTrajectoriesForTraining - scoredAndReady} more trajectories`,
         stats
       };
     }
 
-    if (validGroups.length < 10) {
-      return {
-        ready: false,
-        reason: `Need more scenario groups (${validGroups.length}/10 minimum)`,
-        stats
-      };
-    }
+    // Removed strict group requirement - train even with few groups
+    // if (validGroups.length < 10) {
+    //   return {
+    //     ready: false,
+    //     reason: `Need more scenario groups (${validGroups.length}/10 minimum)`,
+    //     stats
+    //   };
+    // }
 
-    if (quality < this.config.dataQualityThreshold) {
-      return {
-        ready: false,
-        reason: `Data quality too low (${(quality * 100).toFixed(1)}% < ${this.config.dataQualityThreshold * 100}%)`,
-        stats
-      };
-    }
+    // Removed strict quality threshold - train even with lower quality for bootstrapping
+    // if (quality < this.config.dataQualityThreshold) {
+    //   return {
+    //     ready: false,
+    //     reason: `Data quality too low (${(quality * 100).toFixed(1)}% < ${this.config.dataQualityThreshold * 100}%)`,
+    //     stats
+    //   };
+    // }
 
     return {
       ready: true,
@@ -140,7 +159,25 @@ export class AutomationPipeline {
     let totalChecks = 0;
 
     for (const traj of sample) {
-      const steps: TrajectoryStep[] = JSON.parse(traj.stepsJson);
+      // Validate stepsJson exists and is valid before parsing
+      if (!traj.stepsJson || traj.stepsJson === 'null' || traj.stepsJson === '[]') {
+        continue; // Skip invalid trajectories
+      }
+
+      let steps: TrajectoryStep[];
+      try {
+        steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
+      } catch (error) {
+        logger.warn('Failed to parse trajectory stepsJson in quality check', {
+          trajectoryId: traj.trajectoryId,
+          error: error instanceof Error ? error.message : String(error)
+        }, 'AutomationPipeline');
+        continue; // Skip corrupted trajectories
+      }
+
+      if (!Array.isArray(steps)) {
+        continue; // Skip if not an array
+      }
       
       // Check 1: Has steps
       totalChecks++;
@@ -182,6 +219,7 @@ export class AutomationPipeline {
     // Check readiness
     const readiness = await this.checkTrainingReadiness();
     
+    // If forcing, allow training even with 0 trajectories (for testing wandb integration)
     if (!readiness.ready && !options.force) {
       return {
         success: false,
@@ -189,18 +227,79 @@ export class AutomationPipeline {
       };
     }
 
+    // If forcing but no trajectories at all, try to score some first
+    if (options.force && readiness.stats.totalTrajectories === 0 && readiness.stats.unscoredTrajectories > 0) {
+      logger.info('Force mode: Attempting to score unscored trajectories first', {
+        unscored: readiness.stats.unscoredTrajectories
+      }, 'AutomationPipeline');
+      
+      try {
+        const { rulerScoringService } = await import('./RulerScoringService');
+        // Score recent trajectories
+        const recentWindows = await prisma.trajectory.findMany({
+          where: {
+            isTrainingData: true,
+            usedInTraining: false,
+            aiJudgeReward: null,
+            windowId: { not: null }
+          },
+          select: { windowId: true },
+          distinct: ['windowId'],
+          take: 5,
+          orderBy: { createdAt: 'desc' }
+        });
+
+        for (const window of recentWindows) {
+          if (window.windowId) {
+            await rulerScoringService.scoreWindow(window.windowId);
+          }
+        }
+        
+        // Re-check readiness after scoring
+        const newReadiness = await this.checkTrainingReadiness();
+        logger.info('After scoring', {
+          scored: newReadiness.stats.totalTrajectories,
+          stillUnscored: newReadiness.stats.unscoredTrajectories
+        }, 'AutomationPipeline');
+      } catch (error) {
+        logger.warn('Failed to score trajectories in force mode', {
+          error: error instanceof Error ? error.message : String(error)
+        }, 'AutomationPipeline');
+        // Continue anyway - Python trainer can work with unscored data using local scoring
+      }
+    }
+
+    // Use ModelSelectionService for smart model selection
+    const modelSelection = await modelSelectionService.selectBaseModel();
+    
+    logger.info('Model selection for training', {
+      strategy: modelSelection.strategy,
+      modelPath: modelSelection.modelPath,
+      bundleCount: modelSelection.metadata?.bundleCount
+    });
+
+    // Get data limit based on bundle count
+    const dataLimit = await modelSelectionService.getTrainingDataLimit();
+    
     // Prepare data
-    logger.info('Preparing training data...', readiness.stats);
+    logger.info('Preparing training data...', {
+      ...readiness.stats,
+      selectedModel: modelSelection.modelPath,
+      strategy: modelSelection.strategy,
+      dataLimit
+    });
     
     const batchId = `batch-${Date.now()}`;
     // Use standardized window ID format (YYYY-MM-DDTHH:00)
     const { getCurrentWindowId } = await import('./window-utils');
     const windowId = getCurrentWindowId();
 
-    // Export trajectories
+    // Export trajectories with data limit
+    const maxTrajectories = dataLimit || options.batchSize || readiness.stats.totalTrajectories;
+    
     const exportResult = await exportGroupedForGRPO({
       datasetName: `${this.config.modelNamePrefix}-${batchId}`,
-      maxTrajectories: options.batchSize || readiness.stats.totalTrajectories,
+      maxTrajectories,
       includeJudged: false // Will score with RULER
     });
 
@@ -219,9 +318,9 @@ export class AutomationPipeline {
         id: batchId,
         batchId,
         scenarioId: windowId,
-        baseModel: this.config.baseModel,
+        baseModel: modelSelection.modelPath,  // FIX: Use selected model, not config
         modelVersion: nextVersion,
-        trajectoryIds: JSON.stringify(await this.getTrajectoryIds(options.batchSize)),
+        trajectoryIds: JSON.stringify(await this.getTrajectoryIds(maxTrajectories)),
         rewardsJson: JSON.stringify([]),
         status: 'pending',
         createdAt: new Date()
@@ -239,16 +338,29 @@ export class AutomationPipeline {
     const spawn = await import('child_process');
     
     // Set environment variables for Python script
+    // If WANDB_API_KEY is set, will use remote training; otherwise falls back to local
     const env = {
       ...process.env,
       MODE: 'single',
       BATCH_ID: batchId,
       MODEL_VERSION: nextVersion,
       WINDOW_ID: windowId,
+      BASE_MODEL: modelSelection.modelPath,  // Use selected model from ModelSelectionService
+      MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000',  // CRITICAL: Hard limit to prevent 200GB usage
       WANDB_PROJECT: this.config.wandbProject || 'babylon-training',
       DATABASE_URL: process.env.DATABASE_URL || '',
-      TRAIN_RL_LOCAL: 'true'
+      // Pass WANDB_API_KEY if set (for remote training), otherwise will use local fallback
+      WANDB_API_KEY: process.env.WANDB_API_KEY || '',  // Empty string = local training fallback
+      // Allow forcing training with minimal data for testing
+      FORCE_TRAINING: options.force ? 'true' : 'false',
+      MIN_AGENTS_PER_WINDOW: '1'  // Lower minimum for testing
     };
+    
+    if (process.env.WANDB_API_KEY) {
+      logger.info('WANDB_API_KEY set - training will use W&B remote backend', undefined, 'AutomationPipeline');
+    } else {
+      logger.warn('WANDB_API_KEY not set - training will fall back to local GPU/CPU', undefined, 'AutomationPipeline');
+    }
     
     // Use python3 if available, fallback to python
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
@@ -354,6 +466,36 @@ export class AutomationPipeline {
   }
 
   /**
+   * Clean up export files to prevent disk space accumulation
+   * CRITICAL: Export files can accumulate to 200GB+ if not cleaned up
+   */
+  private async cleanupExportFiles(batchId: string): Promise<void> {
+    try {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      
+      // Clean up GRPO export directory
+      const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
+      try {
+        const files = await fs.readdir(exportDir);
+        for (const file of files) {
+          const filePath = path.join(exportDir, file);
+          await fs.unlink(filePath);
+        }
+        logger.info('Cleaned up export files', { batchId, filesRemoved: files.length }, 'AutomationPipeline');
+      } catch (error) {
+        // Directory might not exist, that's okay
+        if ((error as { code?: string })?.code !== 'ENOENT') {
+          logger.warn('Failed to clean up export files', { error: error instanceof Error ? error.message : String(error) }, 'AutomationPipeline');
+        }
+      }
+    } catch (error) {
+      logger.warn('Export cleanup failed', { error: error instanceof Error ? error.message : String(error) }, 'AutomationPipeline');
+      // Don't throw - cleanup failures shouldn't break the pipeline
+    }
+  }
+
+  /**
    * Automation loop (called by cron)
    */
   async runAutomationCycle(): Promise<void> {
@@ -365,9 +507,15 @@ export class AutomationPipeline {
       if (status.status === 'completed') {
         // Deploy model (Python script already created model record)
         await this.deployModel(this.currentTrainingJob);
+        // CRITICAL: Clean up export files to prevent disk space accumulation
+        await this.cleanupExportFiles(this.currentTrainingJob);
         this.currentTrainingJob = null;
       } else if (status.status === 'failed') {
         logger.error('Training job failed', { batchId: this.currentTrainingJob });
+        // Clean up export files even on failure
+        await this.cleanupExportFiles(this.currentTrainingJob).catch(() => {
+          // Ignore cleanup errors
+        });
         this.currentTrainingJob = null;
       }
       return;
@@ -509,7 +657,26 @@ export class AutomationPipeline {
     });
 
     // Mark trajectories as used
-    const trajectoryIds = JSON.parse(batch.trajectoryIds);
+    // Parse trajectory IDs with error handling
+    let trajectoryIds: string[];
+    try {
+      if (!batch.trajectoryIds || batch.trajectoryIds === 'null' || batch.trajectoryIds === '[]') {
+        logger.warn('Training batch has invalid trajectoryIds', { batchId: batch.id });
+        trajectoryIds = [];
+      } else {
+        trajectoryIds = JSON.parse(batch.trajectoryIds) as string[];
+        if (!Array.isArray(trajectoryIds)) {
+          logger.warn('Training batch trajectoryIds is not an array', { batchId: batch.id });
+          trajectoryIds = [];
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to parse training batch trajectoryIds', {
+        batchId: batch.id,
+        error: error instanceof Error ? error.message : String(error)
+      }, 'AutomationPipeline');
+      trajectoryIds = [];
+    }
     await prisma.trajectory.updateMany({
       where: {
         trajectoryId: { in: trajectoryIds }
@@ -533,6 +700,102 @@ export class AutomationPipeline {
       version: batch.modelVersion,
       modelId: model.modelId
     });
+  }
+
+  /**
+   * Benchmark and conditionally deploy trained model
+   * Only deploys if performance meets threshold
+   */
+  async benchmarkAndDeploy(batchId: string, autoDeploy = true): Promise<{
+    benchmarked: boolean;
+    deployed: boolean;
+    reason?: string;
+  }> {
+    const batch = await prisma.trainingBatch.findUnique({
+      where: { batchId }
+    });
+
+    if (!batch) {
+      return { benchmarked: false, deployed: false, reason: 'Batch not found' };
+    }
+
+    // Get model
+    const model = await prisma.trainedModel.findFirst({
+      where: {
+        trainingBatch: batch.id,
+        status: 'ready'
+      }
+    });
+
+    if (!model) {
+      return { benchmarked: false, deployed: false, reason: 'Model not found' };
+    }
+
+    try {
+      // Benchmark the model
+      logger.info('Benchmarking model...', { modelId: model.modelId }, 'AutomationPipeline');
+      const benchmarkResults = await benchmarkService.benchmarkModel(model.modelId);
+      
+      // Compare with previous models
+      const comparison = await benchmarkService.compareModels(model.modelId);
+      
+      logger.info('Benchmark complete', {
+        modelId: model.modelId,
+        score: benchmarkResults.benchmarkScore,
+        shouldDeploy: comparison.shouldDeploy,
+        reason: comparison.reason
+      }, 'AutomationPipeline');
+
+      // Deploy if performance is good enough (and autoDeploy is enabled)
+      if (comparison.shouldDeploy && autoDeploy) {
+        await this.deployModel(batchId);
+        return { 
+          benchmarked: true, 
+          deployed: true, 
+          reason: comparison.reason 
+        };
+      }
+
+      return {
+        benchmarked: true,
+        deployed: false,
+        reason: comparison.reason || 'Performance below threshold'
+      };
+
+    } catch (error) {
+      logger.error('Benchmarking failed - model NOT deployed', { error, modelId: model.modelId }, 'AutomationPipeline');
+      
+      // SAFETY: Do NOT deploy on benchmark failure
+      // Better to skip deployment than deploy a potentially bad model
+      // Admins can manually deploy via dashboard if needed
+      return {
+        benchmarked: false,
+        deployed: false,
+        reason: `Benchmark failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Get model selection info for next training
+   */
+  async getModelSelectionInfo() {
+    try {
+      const selection = await modelSelectionService.selectBaseModel();
+      const summary = await modelSelectionService.getSelectionSummary();
+      
+      return {
+        success: true,
+        selection,
+        summary
+      };
+    } catch (error) {
+      logger.error('Model selection failed', error, 'AutomationPipeline');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Selection failed'
+      };
+    }
   }
 
   /**

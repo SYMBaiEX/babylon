@@ -1,7 +1,79 @@
 /**
- * API Route: /api/embed/post/[id]
- * Serves Farcaster embed metadata for post sharing
- * Reference: https://miniapps.farcaster.xyz/docs/guides/sharing
+ * Post Embed API
+ * 
+ * @route GET /api/embed/post/[id] - Get post embed metadata
+ * @access Public
+ * 
+ * @description
+ * Returns Farcaster embed metadata for post sharing. Includes post content,
+ * author info, interaction counts, and Open Graph data for rich link previews.
+ * 
+ * @openapi
+ * /api/embed/post/{id}:
+ *   get:
+ *     tags:
+ *       - Embed
+ *     summary: Get post embed metadata
+ *     description: Returns Farcaster embed metadata for post sharing (Open Graph)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Embed metadata retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 type:
+ *                   type: string
+ *                   example: post
+ *                 version:
+ *                   type: string
+ *                   example: "1"
+ *                 url:
+ *                   type: string
+ *                 title:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 author:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                       nullable: true
+ *                 metadata:
+ *                   type: object
+ *                   properties:
+ *                     likeCount:
+ *                       type: integer
+ *                     commentCount:
+ *                       type: integer
+ *                     shareCount:
+ *                       type: integer
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *                 image:
+ *                   type: string
+ *       404:
+ *         description: Post not found
+ * 
+ * @example
+ * ```typescript
+ * const metadata = await fetch(`/api/embed/post/${postId}`)
+ *   .then(r => r.json());
+ * ```
+ * 
+ * @see {@link https://miniapps.farcaster.xyz/docs/guides/sharing} Farcaster embed docs
  */
 
 import { NextResponse, type NextRequest } from 'next/server'

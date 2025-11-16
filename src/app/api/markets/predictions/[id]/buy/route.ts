@@ -1,6 +1,90 @@
 /**
- * API Route: /api/markets/predictions/[id]/buy
- * Methods: POST (buy YES or NO shares in prediction market)
+ * Prediction Market Buy API
+ * 
+ * @route POST /api/markets/predictions/[id]/buy - Buy shares in prediction market
+ * @access Authenticated
+ * 
+ * @description
+ * Buys YES or NO shares in a prediction market using Automated Market Maker (AMM)
+ * pricing. Includes fee calculation, wallet balance checks, position tracking,
+ * and price history recording. Supports both virtual and on-chain trading.
+ * 
+ * @openapi
+ * /api/markets/predictions/{id}/buy:
+ *   post:
+ *     tags:
+ *       - Markets
+ *     summary: Buy prediction market shares
+ *     description: Buys YES or NO shares in a prediction market using AMM pricing
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Market/question ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - side
+ *               - amount
+ *             properties:
+ *               side:
+ *                 type: string
+ *                 enum: [yes, no]
+ *                 description: Side to buy (YES or NO)
+ *               amount:
+ *                 type: number
+ *                 minimum: 0.01
+ *                 description: Amount to spend (in virtual currency)
+ *     responses:
+ *       200:
+ *         description: Shares purchased successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 shares:
+ *                   type: number
+ *                 cost:
+ *                   type: number
+ *                 fees:
+ *                   type: number
+ *                 newBalance:
+ *                   type: number
+ *                 position:
+ *                   type: object
+ *       400:
+ *         description: Invalid input or insufficient funds
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Market not found
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch(`/api/markets/predictions/${marketId}/buy`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     side: 'yes',
+ *     amount: 100
+ *   })
+ * });
+ * const { shares, cost, newBalance } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/prediction-pricing} Prediction pricing service
+ * @see {@link /lib/services/wallet-service} Wallet service
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';

@@ -1,0 +1,29 @@
+{
+  "totalPnl": -674.7019255507411,
+  "predictionMetrics": {
+    "totalPositions": 28,
+    "correctPredictions": 11,
+    "incorrectPredictions": 17,
+    "accuracy": 0.39285714285714285,
+    "avgPnlPerPosition": -15
+  },
+  "perpMetrics": {
+    "totalTrades": 2,
+    "profitableTrades": 1,
+    "winRate": 0.5,
+    "avgPnlPerTrade": -127.35096277537052,
+    "maxDrawdown": 257.81587448231596
+  },
+  "socialMetrics": {
+    "postsCreated": 0,
+    "groupsJoined": 0,
+    "messagesReceived": 0,
+    "reputationGained": 25
+  },
+  "timing": {
+    "avgResponseTime": 0,
+    "maxResponseTime": 0,
+    "totalDuration": 11254
+  },
+  "optimalityScore": 30
+}

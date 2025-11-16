@@ -1,6 +1,125 @@
 /**
- * API Route: /api/chats/[id]/participants
- * Methods: POST (add users to chat), GET (get chat participants)
+ * Chat Participants API
+ * 
+ * @route GET /api/chats/[id]/participants - Get chat participants
+ * @route POST /api/chats/[id]/participants - Add users to chat
+ * @access Authenticated (participants only)
+ * 
+ * @description
+ * Manages chat participants. GET returns list of participants, POST adds new
+ * users to a group chat. Includes automatic notifications for new participants.
+ * 
+ * @openapi
+ * /api/chats/{id}/participants:
+ *   get:
+ *     tags:
+ *       - Chats
+ *     summary: Get chat participants
+ *     description: Returns list of users participating in the chat
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Chat ID
+ *     responses:
+ *       200:
+ *         description: Participants retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 participants:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       userId:
+ *                         type: string
+ *                       chatId:
+ *                         type: string
+ *                       joinedAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a chat participant
+ *       404:
+ *         description: Chat not found
+ *   post:
+ *     tags:
+ *       - Chats
+ *     summary: Add users to chat
+ *     description: Adds one or more users to a group chat
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Chat ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userIds
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of user IDs to add
+ *     responses:
+ *       201:
+ *         description: Users added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 participants:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized to add participants
+ *       404:
+ *         description: Chat or user not found
+ * 
+ * @example
+ * ```typescript
+ * // Get participants
+ * const response = await fetch(`/api/chats/${chatId}/participants`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Add participants
+ * await fetch(`/api/chats/${chatId}/participants`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     userIds: ['user1', 'user2']
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/notification-service} Notification service
  */
 
 import type { NextRequest } from 'next/server'

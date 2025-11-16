@@ -1,8 +1,77 @@
 /**
- * API Route: List moderation escrow payments
- * GET /api/admin/moderation-escrow/list
+ * Admin Moderation Escrow List API
  * 
- * Get list of escrow payments (filtered by recipient or admin)
+ * @route GET /api/admin/moderation-escrow/list - List escrow payments
+ * @access Admin
+ * 
+ * @description
+ * Returns list of moderation escrow payments with filtering by recipient,
+ * admin, or status. Supports pagination.
+ * 
+ * @openapi
+ * /api/admin/moderation-escrow/list:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: List moderation escrow payments
+ *     description: Returns escrow payments with filtering and pagination (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: recipientId
+ *         schema:
+ *           type: string
+ *         description: Filter by recipient ID
+ *       - in: query
+ *         name: adminId
+ *         schema:
+ *           type: string
+ *         description: Filter by admin ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, paid, refunded, expired]
+ *         description: Filter by payment status
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Results per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Pagination offset
+ *     responses:
+ *       200:
+ *         description: Payments retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 payments:
+ *                   type: array
+ *                 total:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const { payments } = await fetch('/api/admin/moderation-escrow/list?status=pending', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

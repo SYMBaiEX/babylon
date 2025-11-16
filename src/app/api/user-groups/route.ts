@@ -1,8 +1,109 @@
 /**
  * User Groups API
  * 
- * Endpoints for creating and listing user-created groups.
- * Users can only add other users (not NPCs) to these groups.
+ * @route GET /api/user-groups - Get user groups
+ * @route POST /api/user-groups - Create user group
+ * @access Authenticated
+ * 
+ * @description
+ * Manages user-created groups. GET returns all groups the user is a member or admin of.
+ * POST creates a new group with optional initial members. Users can only add other users
+ * (not NPCs) to groups.
+ * 
+ * @openapi
+ * /api/user-groups:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get user groups
+ *     description: Returns all groups the authenticated user is a member or admin of
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Groups retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 groups:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       members:
+ *                         type: array
+ *                       admins:
+ *                         type: array
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags:
+ *       - User Groups
+ *     summary: Create user group
+ *     description: Creates a new user group with optional initial members
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *               memberIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Group created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 group:
+ *                   type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * // Get groups
+ * const { groups } = await fetch('/api/user-groups', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * 
+ * // Create group
+ * await fetch('/api/user-groups', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     name: 'My Group',
+ *     description: 'Group description',
+ *     memberIds: ['user-id-1', 'user-id-2']
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

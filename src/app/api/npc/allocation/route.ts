@@ -1,18 +1,64 @@
 /**
  * NPC Reputation-Adjusted Allocation API
- *
- * POST /api/npc/allocation
- * Calculates allocation amount adjusted by NPC's reputation score
- *
- * Request body:
- * - npcUserId: string - NPC user ID
- * - baseAmount: number - Base allocation amount
- *
- * Response:
- * - adjustedAmount: number - Reputation-adjusted allocation
- * - reputationScore: number - NPC's current reputation score
- * - multiplier: number - Applied multiplier
- * - usedFallback: boolean - Whether fallback was used (no reputation data)
+ * 
+ * @route POST /api/npc/allocation - Calculate reputation-adjusted allocation
+ * @access Public
+ * 
+ * @description
+ * Calculates allocation amount adjusted by NPC's reputation score. Returns
+ * adjusted amount, reputation score, multiplier, and whether fallback was used.
+ * 
+ * @openapi
+ * /api/npc/allocation:
+ *   post:
+ *     tags:
+ *       - NPC
+ *     summary: Calculate reputation-adjusted allocation
+ *     description: Calculates allocation adjusted by NPC reputation score
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - npcUserId
+ *               - baseAmount
+ *             properties:
+ *               npcUserId:
+ *                 type: string
+ *               baseAmount:
+ *                 type: number
+ *                 description: Base allocation amount
+ *     responses:
+ *       200:
+ *         description: Allocation calculated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 adjustedAmount:
+ *                   type: number
+ *                 reputationScore:
+ *                   type: number
+ *                 multiplier:
+ *                   type: number
+ *                 usedFallback:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid input
+ * 
+ * @example
+ * ```typescript
+ * const { adjustedAmount } = await fetch('/api/npc/allocation', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     npcUserId: 'npc-id',
+ *     baseAmount: 1000
+ *   })
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

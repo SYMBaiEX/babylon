@@ -78,7 +78,13 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  // NOTE: Start your dev server manually with 'bun run dev' before running tests
-  // webServer config disabled to avoid conflicts with manually-run server
+  webServer: process.env.CI ? undefined : {
+    command: 'bun run scripts/pre-dev/pre-dev-local.ts && bunx next dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120 * 1000,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  },
 })
 

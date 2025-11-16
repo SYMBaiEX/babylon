@@ -114,13 +114,15 @@ export class NPCInteractionTracker {
     const endDate = window?.endDate || new Date();
     const startDate = window?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days
 
-    // Get all NPC posts in the time window
+    // Get all NPC posts in the time window (up to current time)
+    const now = new Date();
+    const effectiveEndDate = endDate > now ? now : endDate;
     const npcPosts = await prisma.post.findMany({
       where: {
         authorId: npcId,
-        createdAt: {
+        timestamp: {
           gte: startDate,
-          lte: endDate,
+          lte: effectiveEndDate, // ✅ No future posts
         },
         deletedAt: null,
       },

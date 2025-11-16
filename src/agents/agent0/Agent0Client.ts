@@ -78,8 +78,16 @@ export class Agent0Client implements IAgent0Client {
     
     this.initPromise = (async () => {
       try {
-        // For localnet with 'node' provider, provide default IPFS node URL if not specified
+        // Validate IPFS provider configuration
         const ipfsProvider = this.config.ipfsProvider || 'node'
+        if (ipfsProvider === 'pinata' && !this.config.pinataJwt) {
+          throw new Error('PINATA_JWT is required when using pinata IPFS provider')
+        }
+        if (ipfsProvider === 'filecoinPin' && !this.config.filecoinPrivateKey) {
+          throw new Error('FILECOIN_PRIVATE_KEY is required when using filecoinPin IPFS provider')
+        }
+        
+        // For localnet with 'node' provider, provide default IPFS node URL if not specified
         let ipfsNodeUrl = this.config.ipfsNodeUrl
         if (ipfsProvider === 'node' && !ipfsNodeUrl) {
           // Default to public IPFS gateway for localnet/testing
@@ -103,6 +111,9 @@ export class Agent0Client implements IAgent0Client {
           rpcUrl: this.config.rpcUrl,
           isReadOnly: this.sdk.isReadOnly
         }, 'Agent0Client')
+        
+        // Clear initPromise on success so retries work if needed
+        this.initPromise = null
       } catch (error) {
         logger.error(
           'Failed to initialize Agent0 SDK',
@@ -113,6 +124,8 @@ export class Agent0Client implements IAgent0Client {
           },
           'Agent0Client'
         )
+        // Clear initPromise on error so retries can attempt again
+        this.initPromise = null
         // Don't set SDK on error - keep it null
         throw error
       }
@@ -254,8 +267,11 @@ export class Agent0Client implements IAgent0Client {
     
     const searchParams: SearchParams = {}
     
+    // Map strategies or skills to a2aSkills (both represent A2A skills)
     if (filters.strategies && filters.strategies.length > 0) {
       searchParams.a2aSkills = filters.strategies
+    } else if (filters.skills && filters.skills.length > 0) {
+      searchParams.a2aSkills = filters.skills
     }
     
     if (filters.name) {
@@ -264,6 +280,9 @@ export class Agent0Client implements IAgent0Client {
     
     if (filters.x402Support !== undefined) {
       searchParams.x402support = filters.x402Support
+    } else if (filters.hasX402 !== undefined) {
+      // Legacy support for hasX402
+      searchParams.x402support = filters.hasX402
     }
     
     const { items } = await this.sdk!.searchAgents(searchParams)
@@ -286,6 +305,10 @@ export class Agent0Client implements IAgent0Client {
   
   /**
    * Submit feedback for an agent
+   * 
+   * Note: This method requires the agent to have pre-authorized feedback from the client address.
+   * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
+   * For system-level reputation updates, ensure the agent has pre-authorized the system address.
    */
   async submitFeedback(params: Agent0FeedbackParams): Promise<void> {
     await this.ensureSDK()
@@ -299,6 +322,7 @@ export class Agent0Client implements IAgent0Client {
     const agentId = `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`
     const agent0Score = Math.max(0, Math.min(100, (params.rating + 5) * 10))
     
+    // Prepare feedback file
     const feedbackFile = this.sdk.prepareFeedback(
       agentId,
       agent0Score,
@@ -309,7 +333,25 @@ export class Agent0Client implements IAgent0Client {
       undefined
     )
     
-    await this.sdk.giveFeedback(agentId, feedbackFile)
+    // For system-level feedback, we need to sign authorization
+    // The SDK's signer (from config.privateKey) is used to sign the authorization
+    // The agent should have pre-authorized this client address during registration
+    // Get the signer address from the private key
+    const { Wallet } = await import('ethers')
+    const signerWallet = new Wallet(this.config.privateKey)
+    const signerAddress = signerWallet.address as `0x${string}`
+    
+    // Sign feedback authorization (client signs to authorize themselves)
+    // The agent should have pre-authorized this client address during registration
+    const auth = await this.sdk.signFeedbackAuth(
+      agentId,
+      signerAddress,
+      undefined, // index (auto-increment)
+      24 // 24 hour expiry
+    )
+    
+    // Submit feedback with authorization
+    await this.sdk.giveFeedback(agentId, feedbackFile, auth)
     
     logger.info(`Feedback submitted successfully for agent ${agentId}`, undefined, 'Agent0Client [submitFeedback]')
   }
@@ -420,28 +462,62 @@ let agent0ClientInstance: Agent0Client | null = null
 
 export function getAgent0Client(): Agent0Client {
   if (!agent0ClientInstance) {
-    // Support localnet RPC URL
-    const rpcUrl = process.env.AGENT0_RPC_URL || 
-                   process.env.BASE_SEPOLIA_RPC_URL || 
-                   process.env.BASE_RPC_URL ||
-                   (process.env.AGENT0_NETWORK === 'localnet' ? 'http://localhost:8545' : undefined)
-    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || 
-                       process.env.AGENT0_PRIVATE_KEY ||
-                       (process.env.AGENT0_NETWORK === 'localnet' ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' : undefined)
+    // Validate network string
+    const networkEnv = process.env.AGENT0_NETWORK
+    const validNetworks = ['sepolia', 'mainnet', 'localnet'] as const
+    const network = (networkEnv && validNetworks.includes(networkEnv as typeof validNetworks[number]))
+      ? (networkEnv as 'sepolia' | 'mainnet' | 'localnet')
+      : 'sepolia'
     
-    if (!rpcUrl || !privateKey) {
-      throw new Error(
-        'Agent0Client requires RPC URL and private key. Set AGENT0_RPC_URL or BASE_SEPOLIA_RPC_URL, and BABYLON_GAME_PRIVATE_KEY or AGENT0_PRIVATE_KEY'
+    if (networkEnv && !validNetworks.includes(networkEnv as typeof validNetworks[number])) {
+      logger.warn(
+        `Invalid AGENT0_NETWORK value: ${networkEnv}. Using default: sepolia`,
+        undefined,
+        'Agent0Client'
       )
     }
     
-    const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet' | 'localnet') || 'sepolia'
+    // Support localnet RPC URL
+    // Note: Agent0 operates on Ethereum, not Base, so we use Ethereum RPC URLs
+    const rpcUrl = process.env.AGENT0_RPC_URL || 
+                   (network === 'localnet' 
+                     ? 'http://localhost:8545'
+                     : (network === 'sepolia'
+                       ? (process.env.ETHEREUM_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com')
+                       : (process.env.ETHEREUM_RPC_URL || 'https://ethereum-rpc.publicnode.com')))
+    
+    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || 
+                       process.env.AGENT0_PRIVATE_KEY ||
+                       (network === 'localnet' ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' : undefined)
+    
+    if (!rpcUrl || !privateKey) {
+      throw new Error(
+        'Agent0Client requires RPC URL and private key. Set AGENT0_RPC_URL (or ETHEREUM_SEPOLIA_RPC_URL for sepolia), and BABYLON_GAME_PRIVATE_KEY or AGENT0_PRIVATE_KEY'
+      )
+    }
+    
+    // Validate IPFS provider configuration
+    const ipfsProvider = (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') || 'node'
+    if (ipfsProvider === 'pinata' && !process.env.PINATA_JWT) {
+      logger.warn(
+        'PINATA_JWT not set but pinata IPFS provider selected. SDK initialization may fail.',
+        undefined,
+        'Agent0Client'
+      )
+    }
+    if (ipfsProvider === 'filecoinPin' && !process.env.FILECOIN_PRIVATE_KEY) {
+      logger.warn(
+        'FILECOIN_PRIVATE_KEY not set but filecoinPin IPFS provider selected. SDK initialization may fail.',
+        undefined,
+        'Agent0Client'
+      )
+    }
     
     agent0ClientInstance = new Agent0Client({
       network,
       rpcUrl,
       privateKey,
-      ipfsProvider: (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') || 'node',
+      ipfsProvider,
       ipfsNodeUrl: process.env.AGENT0_IPFS_API,
       pinataJwt: process.env.PINATA_JWT,
       filecoinPrivateKey: process.env.FILECOIN_PRIVATE_KEY,

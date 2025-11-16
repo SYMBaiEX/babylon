@@ -1,8 +1,49 @@
 /**
- * SSE Stats Route
- *
- * Returns statistics about connected SSE clients
- * Useful for debugging and monitoring
+ * SSE Stats API
+ * 
+ * @route GET /api/sse/stats - Get SSE connection statistics
+ * @access Public
+ * 
+ * @description
+ * Returns statistics about connected Server-Sent Events (SSE) clients including
+ * total connections, channels, and connection details. Useful for debugging and
+ * monitoring real-time features.
+ * 
+ * @openapi
+ * /api/sse/stats:
+ *   get:
+ *     tags:
+ *       - SSE
+ *     summary: Get SSE connection statistics
+ *     description: Returns statistics about connected SSE clients
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     totalClients:
+ *                       type: integer
+ *                     channels:
+ *                       type: object
+ *                 timestamp:
+ *                   type: integer
+ * 
+ * @example
+ * ```typescript
+ * const { stats } = await fetch('/api/sse/stats')
+ *   .then(r => r.json());
+ * console.log(`Total SSE clients: ${stats.totalClients}`);
+ * ```
+ * 
+ * @see {@link /lib/sse/event-broadcaster} Event broadcaster
  */
 
 import type { NextRequest } from 'next/server'

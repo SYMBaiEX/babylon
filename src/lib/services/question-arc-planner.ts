@@ -43,6 +43,7 @@
 
 import type { Question, Actor, Organization } from '@/shared/types';
 import { logger } from '@/lib/logger';
+import { shuffleArray } from '@/lib/utils/randomization';
 
 /**
  * Phase-specific event distribution targets
@@ -279,7 +280,7 @@ export class QuestionArcPlanner {
       potentialInsiders.length
     );
     
-    const shuffled = potentialInsiders.sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(potentialInsiders);
     return shuffled.slice(0, numInsiders).map(a => a.id);
   }
   
@@ -304,7 +305,7 @@ export class QuestionArcPlanner {
       potentialDeceivers.length
     );
     
-    const shuffled = potentialDeceivers.sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(potentialDeceivers);
     return shuffled.slice(0, numDeceivers).map(a => a.id);
   }
   

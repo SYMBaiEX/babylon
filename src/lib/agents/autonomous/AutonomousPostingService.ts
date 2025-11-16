@@ -12,6 +12,7 @@ import { callGroqDirect } from '../llm/direct-groq'
 import { generateRandomMarketContext, formatRandomContext } from '@/lib/prompts/random-context'
 import { generateWorldContext } from '@/lib/prompts/world-context'
 import { characterMappingService } from '@/lib/services/character-mapping-service'
+import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
 
 export class AutonomousPostingService {
   /**
@@ -30,8 +31,12 @@ export class AutonomousPostingService {
         take: 5
       })
 
+      const now = new Date();
       const recentPosts = await prisma.post.findMany({
-        where: { authorId: agentUserId },
+        where: { 
+          authorId: agentUserId,
+          timestamp: { lte: now }, // ✅ No future posts
+        },
         orderBy: { createdAt: 'desc' },
         take: 3
       })
@@ -98,12 +103,23 @@ ${contextString}
 
 Generate ONLY the post text, nothing else.`
 
-      // Use kimi for user-visible post generation (high quality content)
-      // Note: This still calls through callGroqDirect but the model will be routed appropriately
+      // Ensure prompt fits within 32K context limit (W&B trained models)
+      const estimatedTokens = countTokensSync(prompt)
+      let finalPrompt = prompt
+      
+      if (estimatedTokens > 30000) {  // 30K with 2K safety margin
+        logger.warn(`Post generation prompt too long: ${estimatedTokens} tokens, truncating`, { agentUserId })
+        const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
+        finalPrompt = truncated.text
+        logger.info(`Truncated to ${truncated.tokens} tokens`, { agentUserId })
+      }
+
+      // Use large model (qwen3-32b or trained W&B model) for post generation
       const postContent = await callGroqDirect({
-        prompt,
+        prompt: finalPrompt,
         system: agent.agentSystem || undefined,
-        modelSize: 'large',  // Use large model (qwen3-32b) for quality posts
+        modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
+        runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.8,
         maxTokens: 100
       })

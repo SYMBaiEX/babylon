@@ -25,7 +25,21 @@ import type {
 export class MarketContextService {
   /**
    * Build market context for all NPCs in the system
-   * Optimized to minimize database queries
+   * 
+   * Optimized to minimize database queries by fetching shared data once
+   * and reusing it across all NPCs. Filters out test actors.
+   * 
+   * @returns Map of NPC ID to their market context
+   * 
+   * @remarks
+   * This method is optimized for batch processing. For single NPC context,
+   * use buildContextForNPC() which is more efficient for individual lookups.
+   * 
+   * @example
+   * ```typescript
+   * const contexts = await service.buildContextForAllNPCs();
+   * const npcContext = contexts.get('npc-123');
+   * ```
    */
   async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
@@ -136,6 +150,20 @@ export class MarketContextService {
   
   /**
    * Build context for a specific NPC with relationship data
+   * 
+   * Fetches market data, feed posts, events, and relationships for a single NPC.
+   * More efficient than buildContextForAllNPCs() for individual lookups.
+   * 
+   * @param npcId - Unique identifier for the NPC
+   * @returns Complete market context for the NPC
+   * @throws Error if NPC not found
+   * 
+   * @example
+   * ```typescript
+   * const context = await service.buildContextForNPC('npc-123');
+   * console.log(`Balance: ${context.availableBalance}`);
+   * console.log(`Markets: ${context.predictionMarkets.length}`);
+   * ```
    */
   async buildContextForNPC(npcId: string): Promise<NPCMarketContext> {
     const npc = await prisma.actor.findUnique({
@@ -179,7 +207,13 @@ export class MarketContextService {
   }
 
   /**
-   * Get relationships for an NPC (all relationships, not just event-related)
+   * Get relationships for an NPC
+   * 
+   * Retrieves all actor relationships where the NPC is involved,
+   * regardless of event association.
+   * 
+   * @param npcId - Unique identifier for the NPC
+   * @returns Array of relationship contexts
    */
   private async getRelationshipsForNPC(npcId: string): Promise<RelationshipContext[]> {
     const relationships = await prisma.actorRelationship.findMany({
@@ -208,7 +242,18 @@ export class MarketContextService {
 
   
   /**
-   * Get insider information from group chats this NPC is in (token-limited)
+   * Get insider information from group chats this NPC is in
+   * 
+   * Retrieves messages from group chats where the NPC is a member.
+   * Messages are truncated and limited to prevent token overflow.
+   * 
+   * @param npcId - Unique identifier for the NPC
+   * @returns Array of group chat message contexts
+   * 
+   * @remarks
+   * - Limited to 20 messages per chat
+   * - Messages truncated to 120 characters
+   * - Only includes chats where NPC is a participant
    */
   private async getInsiderInfo(npcId: string): Promise<GroupChatContext[]> {
     const groupChats = await prisma.chat.findMany({
@@ -254,12 +299,24 @@ export class MarketContextService {
   }
   
   /**
-   * Get recent feed posts (token-limited)
+   * Get recent feed posts
+   * 
+   * Retrieves the most recent feed posts, excluding deleted ones.
+   * Content is truncated to limit token usage.
+   * 
+   * @returns Array of feed post contexts
+   * 
+   * @remarks
+   * - Limited to 50 most recent posts
+   * - Post content truncated to 200 characters
+   * - Article titles truncated to 80 characters
    */
   private async getRecentFeed(): Promise<FeedPostContext[]> {
+    const now = new Date();
     const posts = await prisma.post.findMany({
       where: {
         deletedAt: null, // Filter out deleted posts
+        timestamp: { lte: now }, // ✅ No future posts
       },
       orderBy: { createdAt: 'desc' },
       take: 50, // Reduced from 100 to limit tokens
@@ -288,10 +345,24 @@ export class MarketContextService {
   }
   
   /**
-   * Get recent events with actor involvement (token-limited)
+   * Get recent events with actor involvement
+   * 
+   * Retrieves recent world events, filtering to only include events
+   * up to the current time to prevent future information leakage.
+   * 
+   * @returns Array of event contexts
+   * 
+   * @remarks
+   * - Limited to 30 most recent events
+   * - Event descriptions truncated to 150 characters
+   * - Only includes events with timestamp <= now()
    */
   private async getRecentEvents(): Promise<EventContext[]> {
+    const now = new Date();
     const events = await prisma.worldEvent.findMany({
+      where: {
+        timestamp: { lte: now }, // ✅ No future events
+      },
       orderBy: { timestamp: 'desc' },
       take: 30, // Reduced from 50 to limit tokens
     });
@@ -316,6 +387,10 @@ export class MarketContextService {
   
   /**
    * Get current market snapshots
+   * 
+   * Retrieves snapshots of both perpetual and prediction markets.
+   * 
+   * @returns MarketSnapshots with perps, predictions, and timestamp
    */
   private async getMarketSnapshots(): Promise<MarketSnapshots> {
     const [perps, predictions] = await Promise.all([
@@ -332,6 +407,13 @@ export class MarketContextService {
   
   /**
    * Get perpetual market snapshots
+   * 
+   * Retrieves current state of all perpetual markets including:
+   * - Current price and 24h price change
+   * - High/low prices
+   * - Volume and open interest
+   * 
+   * @returns Array of perpetual market snapshots
    */
   private async getPerpMarketSnapshots(): Promise<PerpMarketSnapshot[]> {
     const companies = await prisma.organization.findMany({
@@ -399,7 +481,17 @@ export class MarketContextService {
   }
   
   /**
-   * Get prediction market snapshots (token-limited)
+   * Get prediction market snapshots
+   * 
+   * Retrieves current state of active prediction markets.
+   * Limited to top 15 most active markets to control token usage.
+   * 
+   * @returns Array of prediction market snapshots
+   * 
+   * @remarks
+   * - Limited to 15 most active markets (by yesShares)
+   * - Question text truncated to 120 characters
+   * - Only includes unresolved markets with endDate >= now
    */
   private async getPredictionMarketSnapshots(): Promise<PredictionMarketSnapshot[]> {
     const markets = await prisma.market.findMany({

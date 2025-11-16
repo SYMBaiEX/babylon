@@ -377,8 +377,8 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       await pipeline['runHealthChecks']();
 
-      // Test passes if no error is thrown
-      expect(true).toBe(true);
+      // Test passes if no error is thrown - verify mocks were called
+      expect((prisma.user as unknown as MockPrismaClient['user']).count).toHaveBeenCalled();
     });
 
     test('should handle database errors gracefully', async () => {

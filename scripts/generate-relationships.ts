@@ -298,8 +298,9 @@ async function main() {
     console.log(`  ${type}: ${count}`);
   });
   
-  console.log('\nDone! Rebuild actors-full.json with:');
-  console.log('  bun run scripts/build-actors-json.ts');
+  console.log('\nDone! Relationships generated and added to actors.json');
+  console.log('Server-side code will automatically load them via loadActorsData()');
+  console.log('Client-side code should use /api/actors endpoint');
 }
 
 main().catch(console.error);

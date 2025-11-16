@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Activity,
   AlertCircle,
   Bot,
   Building2,
@@ -14,13 +13,18 @@ import {
   Users,
   Wallet,
   X,
+  Star,
+  Ban,
+  Flag,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Avatar } from '@/components/shared/Avatar'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { SearchBar } from '@/components/shared/SearchBar'
+import { FeedbackForm } from '@/components/feedback/FeedbackForm'
 import { cn } from '@/lib/utils'
 import { z } from 'zod'
+import { toast } from 'sonner'
 
 const RegistryEntitySchema = z.object({
   type: z.enum(['user', 'actor', 'agent', 'app']),
@@ -31,6 +35,7 @@ const RegistryEntitySchema = z.object({
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   walletAddress: z.string().optional(),
+  isActor: z.boolean().optional(),
   onChainRegistered: z.boolean().optional(),
   nftTokenId: z.number().nullable().optional(),
   agent0TokenId: z.number().nullable().optional(),
@@ -40,6 +45,12 @@ const RegistryEntitySchema = z.object({
   a2aEndpoint: z.string().optional(),
   balance: z.string().optional(),
   reputationPoints: z.number().optional(),
+  reputationScore: z.number().optional(),
+  averageFeedbackScore: z.number().optional(),
+  totalFeedbackCount: z.number().optional(),
+  isBanned: z.boolean().optional(),
+  isScammer: z.boolean().optional(),
+  isCSAM: z.boolean().optional(),
   tier: z.string().optional(),
   role: z.string().optional(),
   domain: z.array(z.string()).optional(),
@@ -88,6 +99,13 @@ export function RegistryTab() {
   const [search, setSearch] = useState('')
   const [onChainOnly, setOnChainOnly] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'users' | 'actors' | 'agents' | 'apps'>('all')
+  const [selectedEntity, setSelectedEntity] = useState<RegistryEntity | null>(null)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [showBanModal, setShowBanModal] = useState(false)
+  const [banReason, setBanReason] = useState('')
+  const [isScammer, setIsScammer] = useState(false)
+  const [isCSAM, setIsCSAM] = useState(false)
+  const [isBanning, setIsBanning] = useState(false)
 
   useEffect(() => {
     fetchRegistry()
@@ -192,6 +210,28 @@ export function RegistryTab() {
                   {entity.bio || entity.description}
                 </p>
               )}
+
+              {/* Moderation Flags */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {entity.isBanned && (
+                  <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-500 flex items-center gap-1">
+                    <Ban className="w-3 h-3" />
+                    Banned
+                  </span>
+                )}
+                {entity.isScammer && (
+                  <span className="px-2 py-0.5 text-xs rounded bg-orange-500/20 text-orange-500 flex items-center gap-1">
+                    <Flag className="w-3 h-3" />
+                    Scammer
+                  </span>
+                )}
+                {entity.isCSAM && (
+                  <span className="px-2 py-0.5 text-xs rounded bg-red-600/20 text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    CSAM
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -249,14 +289,42 @@ export function RegistryTab() {
                 </div>
               </div>
             )}
-            {entity.reputationPoints !== undefined && (
-              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-xl px-3 py-2">
-                <Activity className="h-4 w-4 text-purple-500 shrink-0" />
+            {(entity.reputationScore !== undefined || entity.reputationPoints !== undefined) && (
+              <div className={cn(
+                "flex items-center gap-2 text-sm rounded-xl px-3 py-2 border",
+                entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'bg-green-500/5 border-green-500/20' :
+                entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'bg-yellow-500/5 border-yellow-500/20' :
+                entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'bg-orange-500/5 border-orange-500/20' :
+                entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'bg-red-500/5 border-red-500/20' :
+                'bg-purple-500/5 border-purple-500/20'
+              )}>
+                <Star className={cn(
+                  "h-4 w-4 shrink-0",
+                  entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'text-green-500' :
+                  entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'text-yellow-500' :
+                  entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'text-orange-500' :
+                  entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'text-red-500' :
+                  'text-purple-500'
+                )} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
-                  <div className="font-semibold truncate text-foreground">
-                    {entity.reputationPoints.toLocaleString()} pts
+                  <div className={cn(
+                    "font-semibold truncate",
+                    entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'text-green-500' :
+                    entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'text-yellow-500' :
+                    entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'text-orange-500' :
+                    entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'text-red-500' :
+                    'text-foreground'
+                  )}>
+                    {entity.reputationScore !== undefined 
+                      ? `${Math.round(entity.reputationScore)}/100`
+                      : `${entity.reputationPoints?.toLocaleString() || 0} pts`}
                   </div>
+                  {entity.totalFeedbackCount !== undefined && entity.totalFeedbackCount > 0 && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {entity.totalFeedbackCount} reviews
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -361,6 +429,45 @@ export function RegistryTab() {
               )}
             </div>
           )}
+
+          {/* Admin Actions */}
+          {entity.type === 'user' && !entity.isActor && (
+            <div className="pt-3 border-t border-border flex gap-2">
+              {entity.agent0TokenId && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setSelectedEntity(entity)
+                    setShowFeedbackModal(true)
+                  }}
+                  className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-1"
+                  title="Give feedback"
+                >
+                  <Star className="w-4 h-4" />
+                  Feedback
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setSelectedEntity(entity)
+                  setShowBanModal(true)
+                }}
+                className={cn(
+                  "flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1",
+                  entity.isBanned
+                    ? "bg-green-500/20 text-green-500 hover:bg-green-500/30"
+                    : "bg-red-500/20 text-red-500 hover:bg-red-500/30"
+                )}
+                title={entity.isBanned ? "Unban user" : "Ban user"}
+              >
+                <Ban className="w-4 h-4" />
+                {entity.isBanned ? 'Unban' : 'Ban'}
+              </button>
+            </div>
+          )}
         </div>
       </>
     )
@@ -383,11 +490,53 @@ export function RegistryTab() {
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200"
+        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:border-primary/50"
       >
         {cardContent}
       </div>
     )
+  }
+
+  const handleBanUser = async (entity: RegistryEntity, action: 'ban' | 'unban') => {
+    if (action === 'ban' && !banReason.trim()) {
+      toast.error('Please provide a reason for banning')
+      return
+    }
+
+    setIsBanning(true)
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          action,
+          reason: action === 'ban' ? banReason : undefined,
+          isScammer: action === 'ban' ? isScammer : false,
+          isCSAM: action === 'ban' ? isCSAM : false,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to update user')
+      }
+
+      toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully')
+      setShowBanModal(false)
+      setBanReason('')
+      setIsScammer(false)
+      setIsCSAM(false)
+      setSelectedEntity(null)
+      fetchRegistry()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update user')
+    } finally {
+      setIsBanning(false)
+    }
   }
 
   const allEntities = data
@@ -586,6 +735,128 @@ export function RegistryTab() {
             </div>
           )}
         </>
+      )}
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && selectedEntity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Give Feedback</h2>
+            <p className="text-muted-foreground mb-4">
+              Rate <strong>{selectedEntity.name}</strong>
+            </p>
+            
+            <FeedbackForm
+              toUserId={selectedEntity.id}
+              toUserName={selectedEntity.name}
+              category="general"
+              onSuccess={() => {
+                setShowFeedbackModal(false)
+                setSelectedEntity(null)
+                fetchRegistry()
+              }}
+              onCancel={() => {
+                setShowFeedbackModal(false)
+                setSelectedEntity(null)
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Ban Modal */}
+      {showBanModal && selectedEntity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">
+              {selectedEntity.isBanned ? 'Unban User' : 'Ban User'}
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              {selectedEntity.isBanned 
+                ? `Are you sure you want to unban ${selectedEntity.name}?`
+                : `Are you sure you want to ban ${selectedEntity.name}?`}
+            </p>
+            
+            {!selectedEntity.isBanned && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Reason for ban <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={banReason}
+                    onChange={(e) => setBanReason(e.target.value)}
+                    placeholder="Explain why this user is being banned..."
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-border resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="mb-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="isScammer"
+                      checked={isScammer}
+                      onChange={(e) => setIsScammer(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                    />
+                    <label htmlFor="isScammer" className="text-sm font-medium cursor-pointer">
+                      Mark as Scammer
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This user is engaging in fraudulent or deceptive behavior
+                      </p>
+                    </label>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="isCSAM"
+                      checked={isCSAM}
+                      onChange={(e) => setIsCSAM(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                    />
+                    <label htmlFor="isCSAM" className="text-sm font-medium cursor-pointer">
+                      Mark as CSAM (Child Sexual Abuse Material)
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This user is sharing or promoting child sexual abuse material
+                      </p>
+                    </label>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowBanModal(false)
+                  setBanReason('')
+                  setIsScammer(false)
+                  setIsCSAM(false)
+                  setSelectedEntity(null)
+                }}
+                className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleBanUser(selectedEntity, selectedEntity.isBanned ? 'unban' : 'ban')}
+                disabled={isBanning || (!selectedEntity.isBanned && !banReason.trim())}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50",
+                  selectedEntity.isBanned
+                    ? "bg-green-500 text-white hover:bg-green-600"
+                    : "bg-red-500 text-white hover:bg-red-600"
+                )}
+              >
+                <Ban className="w-4 h-4" />
+                {isBanning ? 'Processing...' : selectedEntity.isBanned ? 'Unban User' : 'Ban User'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

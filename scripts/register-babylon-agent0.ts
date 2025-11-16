@@ -6,9 +6,9 @@
  * 
  * Prerequisites:
  * - BABYLON_AGENT0_PRIVATE_KEY set in .env
- * - BASE_SEPOLIA_RPC_URL set in .env
+ * - AGENT0_RPC_URL or ETHEREUM_SEPOLIA_RPC_URL set in .env
  * - PINATA_JWT set in .env (for IPFS metadata storage)
- * - Wallet must have Base Sepolia ETH for gas
+ * - Wallet must have Ethereum Sepolia ETH for gas (not Base Sepolia!)
  * 
  * Run: bun run scripts/register-babylon-agent0.ts
  */
@@ -27,9 +27,10 @@ async function registerBabylonOnAgent0() {
     throw new Error('BABYLON_AGENT0_PRIVATE_KEY not set in environment')
   }
   
-  if (!process.env.BASE_SEPOLIA_RPC_URL) {
-    throw new Error('BASE_SEPOLIA_RPC_URL not set in environment')
-  }
+  // Agent0 operates on Ethereum Sepolia, not Base Sepolia
+  const rpcUrl = process.env.AGENT0_RPC_URL || 
+                 process.env.ETHEREUM_SEPOLIA_RPC_URL || 
+                 'https://ethereum-sepolia-rpc.publicnode.com'
   
   if (!process.env.PINATA_JWT) {
     throw new Error('PINATA_JWT not set in environment (needed for IPFS metadata storage)')
@@ -38,15 +39,16 @@ async function registerBabylonOnAgent0() {
   // Initialize Agent0 SDK
   console.log('📡 Initializing Agent0 SDK...')
   const sdk = new SDK({
-    chainId: 84532,  // Base Sepolia
-    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL,
+    chainId: 11155111,  // Ethereum Sepolia (Agent0 is on Ethereum, not Base!)
+    rpcUrl,
     signer: process.env.BABYLON_AGENT0_PRIVATE_KEY,
     ipfs: 'pinata',
     pinataJwt: process.env.PINATA_JWT
   })
   
   console.log('✅ SDK initialized')
-  console.log(`   Chain: Base Sepolia (84532)`)
+  console.log(`   Chain: Ethereum Sepolia (11155111)`)
+  console.log(`   RPC: ${rpcUrl}`)
   console.log(`   Signer: ${sdk.web3Client.address || 'Unknown'}`)
   
   // Check if already registered

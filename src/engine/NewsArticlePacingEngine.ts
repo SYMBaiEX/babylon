@@ -30,6 +30,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { shuffleArray } from '@/lib/utils/randomization';
 
 /**
  * Article generation stage in question lifecycle
@@ -295,7 +296,7 @@ export class NewsArticlePacingEngine {
     }
 
     // Shuffle and take N
-    const shuffled = [...eligibleOrgs].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(eligibleOrgs);
     return shuffled.slice(0, count);
   }
 

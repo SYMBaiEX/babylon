@@ -1,6 +1,90 @@
 /**
- * API Route: /api/posts/feed/favorites
- * Methods: GET (get posts from favorited profiles)
+ * Favorites Feed API
+ * 
+ * @route GET /api/posts/feed/favorites - Get posts from favorited profiles
+ * @access Authenticated (optional, returns empty if not authenticated)
+ * 
+ * @description
+ * Returns posts from profiles the user has favorited. Optimized with batch queries
+ * to prevent N+1 problems. Includes interaction counts and user interaction state.
+ * 
+ * @openapi
+ * /api/posts/feed/favorites:
+ *   get:
+ *     tags:
+ *       - Posts
+ *     summary: Get favorites feed
+ *     description: Returns posts from favorited profiles with interaction counts
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Posts per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *     responses:
+ *       200:
+ *         description: Favorites feed retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 posts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       content:
+ *                         type: string
+ *                       authorId:
+ *                         type: string
+ *                       interactions:
+ *                         type: object
+ *                         properties:
+ *                           likeCount:
+ *                             type: integer
+ *                           commentCount:
+ *                             type: integer
+ *                           shareCount:
+ *                             type: integer
+ *                           isLiked:
+ *                             type: boolean
+ *                           isShared:
+ *                             type: boolean
+ *                 total:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
+ *                 limit:
+ *                   type: integer
+ *                 offset:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized (returns empty feed)
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/posts/feed/favorites?limit=20&page=1', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { posts, total, hasMore } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
  */
 
 import type { NextRequest } from 'next/server';
@@ -61,12 +145,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Get posts from favorited profiles
+    // Only show posts up to current time (prevent future access)
+    const now = new Date();
     const posts = await db.post.findMany({
       where: {
         authorId: {
           in: favoritedUserIds,
         },
         deletedAt: null, // Filter out deleted posts
+        timestamp: { lte: now }, // ✅ No future posts
       },
       orderBy: {
         createdAt: 'desc',
@@ -79,12 +166,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
 
-    // Get total count
+    // Get total count (only count posts up to current time)
     const totalCount = await db.post.count({
       where: {
         authorId: {
           in: favoritedUserIds,
         },
+        timestamp: { lte: now }, // ✅ No future posts
       },
     });
 

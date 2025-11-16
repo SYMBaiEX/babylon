@@ -1,19 +1,51 @@
 /**
- * Vercel Cron Job: Reputation Sync to ERC-8004
+ * Reputation Sync Cron Job API
  * 
- * Continuously syncs reputation scores to ERC-8004 via Agent0 SDK.
+ * @route POST /api/cron/reputation-sync - Sync reputation to ERC-8004
+ * @access Cron (CRON_SECRET required)
  * 
- * Configuration in vercel.json:
- * - Runs daily (or more frequently for new accounts)
- * - Publishes reputation as feedback signals on-chain
- * - Updates local metrics
+ * @description
+ * Scheduled cron job that syncs reputation scores to ERC-8004 via Agent0 SDK.
+ * Publishes reputation as feedback signals on-chain and updates local metrics.
+ * Runs daily with more frequent updates for new accounts. Max execution time: 300s.
  * 
- * Based on ERC-8004 spec and inspired by Neynar Scores approach:
- * - Weekly recalculation for most users
- * - More frequent updates for new accounts
- * - Continuous reputation tracking
+ * @openapi
+ * /api/cron/reputation-sync:
+ *   post:
+ *     tags:
+ *       - Cron
+ *     summary: Sync reputation to ERC-8004
+ *     description: Syncs reputation scores to blockchain via Agent0 SDK (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: Reputation sync completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 synced:
+ *                   type: integer
+ *                 failed:
+ *                   type: integer
+ *                 duration:
+ *                   type: number
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
  * 
- * Security: Uses Vercel Cron secret for authentication
+ * @example
+ * ```typescript
+ * await fetch('/api/cron/reputation-sync', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/reputation/erc8004-reputation-sync} ERC-8004 sync service
  */
 
 import type { NextRequest } from 'next/server'

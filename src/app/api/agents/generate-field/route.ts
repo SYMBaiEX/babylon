@@ -1,52 +1,67 @@
 /**
  * AI Field Generation API
  * 
- * @route POST /api/agents/generate-field
+ * @route POST /api/agents/generate-field - Generate field content
  * @access Public
  * 
  * @description
  * AI-powered content generation for agent configuration fields using Groq
- * (qwen/qwen3-32b) or Claude (claude-sonnet-4-5) as fallback. Generates
- * contextually appropriate content for agent profiles, personalities, system
- * prompts, trading strategies, and other configuration fields. Used during
- * agent creation and editing workflows.
+ * or Claude. Generates contextually appropriate content for agent profiles,
+ * personalities, system prompts, trading strategies, etc.
  * 
- * **Supported Fields:**
- * - `name` - Creative agent names
- * - `description` - Agent descriptions (1-2 sentences)
- * - `system` - System prompts defining behavior
- * - `bio` - Three short bio points (pipe-separated)
- * - `personality` - Personality descriptions
- * - `tradingStrategy` - Trading strategy descriptions
- * 
- * **Features:**
- * - Context-aware generation using existing field values
- * - Field-specific prompts optimized for each use case
- * - Temperature tuning for creative yet coherent output
- * - Auto-completion and enhancement of partial inputs
- * - Clean output without quotes or formatting artifacts
- * 
- * **POST /api/agents/generate-field - Generate Field Content**
- * 
- * @param {string} fieldName - Field to generate (required)
- * @param {string} [currentValue] - Current/partial value for enhancement
- * @param {object} [context] - Context for generation
- * @param {string} [context.name] - Agent name
- * @param {string} [context.description] - Agent description
- * @param {string} [context.system] - System prompt
- * 
- * @returns {object} Generated content response
- * @property {boolean} success - Generation success status
- * @property {string} value - Generated content
- * 
- * @throws {400} Bad Request - Missing field name
- * @throws {500} Internal Server Error - AI generation failed
- * @throws {503} Service Unavailable - No LLM API key configured (GROQ_API_KEY or ANTHROPIC_API_KEY required)
+ * @openapi
+ * /api/agents/generate-field:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Generate field content
+ *     description: Generates AI content for agent configuration fields
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fieldName
+ *             properties:
+ *               fieldName:
+ *                 type: string
+ *                 enum: [name, description, system, bio, personality, tradingStrategy]
+ *                 description: Field to generate
+ *               currentValue:
+ *                 type: string
+ *                 description: Current/partial value for enhancement
+ *               context:
+ *                 type: object
+ *                 description: Context for generation
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   system:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Content generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 value:
+ *                   type: string
+ *       400:
+ *         description: Missing field name
+ *       503:
+ *         description: No LLM API key configured
  * 
  * @example
  * ```typescript
- * // Generate agent name
- * const name = await fetch('/api/agents/generate-field', {
+ * const { value } = await fetch('/api/agents/generate-field', {
  *   method: 'POST',
  *   headers: { 'Content-Type': 'application/json' },
  *   body: JSON.stringify({ fieldName: 'name' })

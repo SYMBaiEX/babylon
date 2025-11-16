@@ -82,6 +82,7 @@ Generate ONLY the response text, nothing else.`
           prompt,
           system: agent.agentSystem || undefined,
           modelSize: 'small',  // Free tier: Frequent operation, use fast model
+          runtime: _runtime,  // Pass runtime to access W&B trained models
           temperature: 0.8,
           maxTokens: 80
         })

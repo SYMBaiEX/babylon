@@ -1,7 +1,93 @@
 /**
- * Admin API: Trading Feed
- * GET /api/admin/trades - Returns recent trades across all markets
- * POST /api/admin/trades - Create/force a trade (for testing)
+ * Admin Trading Feed API
+ * 
+ * @route GET /api/admin/trades - Get trading feed
+ * @route POST /api/admin/trades - Create test trade
+ * @access Admin
+ * 
+ * @description
+ * GET returns recent trades across all markets (balance transactions, NPC trades,
+ * positions). POST creates/forces a trade for testing purposes. Requires admin
+ * authentication.
+ * 
+ * @openapi
+ * /api/admin/trades:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get trading feed
+ *     description: Returns recent trades across all markets (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Results per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Pagination offset
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, balance, npc, position]
+ *           default: all
+ *         description: Filter by trade type
+ *     responses:
+ *       200:
+ *         description: Trading feed retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 trades:
+ *                   type: array
+ *                 total:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Create test trade
+ *     description: Creates/forces a trade for testing (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       201:
+ *         description: Test trade created successfully
+ *       400:
+ *         description: Invalid trade data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const feed = await fetch('/api/admin/trades?type=balance&limit=20', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
+ * 
+ * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
 import type { NextRequest } from 'next/server';

@@ -37,6 +37,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const newsItems: BreakingNewsItem[] = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
     const items: BreakingNewsItem[] = []
+    const currentTime = new Date(); // Single timestamp for all queries in this scope
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
@@ -49,11 +50,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const availableEventTypes = uniqueEventTypes.map(e => e.eventType.toLowerCase())
     
     // Get recent events, filtering for news-worthy types dynamically
+    // Only show events up to current time (prevent future access)
     const recentEvents = await db.worldEvent.findMany({
       take: FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY,
       orderBy: { timestamp: 'desc' },
       where: {
         visibility: 'public', // Only show public events
+        timestamp: { lte: currentTime }, // ✅ No future events
       },
     })
     
@@ -181,9 +184,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const actorIds = new Set(allActors.map(a => a.id))
 
     // Get recent posts and filter for actor posts
+    // Only show posts up to current time (prevent future access)
     const recentPosts = await db.post.findMany({
       where: {
         deletedAt: null, // Filter out deleted posts
+        timestamp: { lte: currentTime }, // ✅ No future posts
       },
       take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
       orderBy: { timestamp: 'desc' },
@@ -263,11 +268,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 4. Fallback: If we don't have enough items, get ANY recent posts from actors
+    // Only show posts up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
       const fallbackPosts = await db.post.findMany({
-        take: 20,
-        orderBy: { timestamp: 'desc' },
         where: {
+          timestamp: { lte: currentTime }, // ✅ No future posts
           // Exclude posts already included
           id: {
             notIn: items.map(item => item.id),
@@ -276,6 +281,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           authorId: { in: Array.from(actorIds) },
           deletedAt: null, // Filter out deleted posts
         },
+        take: 20,
+        orderBy: { timestamp: 'desc' },
       })
 
       for (const post of fallbackPosts) {
@@ -306,8 +313,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 5. Final fallback: Get ANY recent world events if still not enough
+    // Only show events up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
       const allRecentEvents = await db.worldEvent.findMany({
+        where: {
+          timestamp: { lte: currentTime }, // ✅ No future events
+        },
         take: 10,
         orderBy: { timestamp: 'desc' },
       })
@@ -347,6 +358,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     : await asPublic(async (db) => {
     // Same logic for public access
     const items: BreakingNewsItem[] = []
+    const currentTime = new Date(); // Single timestamp for all queries in this scope
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
@@ -359,11 +371,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const availableEventTypes = uniqueEventTypes.map(e => e.eventType.toLowerCase())
     
     // Get recent events, filtering for news-worthy types dynamically
+    // Only show events up to current time (prevent future access)
     const recentEvents = await db.worldEvent.findMany({
       take: FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY,
       orderBy: { timestamp: 'desc' },
       where: {
         visibility: 'public', // Only show public events
+        timestamp: { lte: currentTime }, // ✅ No future events
       },
     })
     
@@ -491,9 +505,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const actorIds = new Set(allActors.map(a => a.id))
 
     // Get recent posts and filter for actor posts
+    // Only show posts up to current time (prevent future access)
     const recentPosts = await db.post.findMany({
       where: {
         deletedAt: null, // Filter out deleted posts
+        timestamp: { lte: currentTime }, // ✅ No future posts
       },
       take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
       orderBy: { timestamp: 'desc' },
@@ -573,11 +589,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 4. Fallback: If we don't have enough items, get ANY recent posts from actors
+    // Only show posts up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
       const fallbackPosts = await db.post.findMany({
-        take: 20,
-        orderBy: { timestamp: 'desc' },
         where: {
+          timestamp: { lte: currentTime }, // ✅ No future posts
           // Exclude posts already included
           id: {
             notIn: items.map(item => item.id),
@@ -586,6 +602,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           authorId: { in: Array.from(actorIds) },
           deletedAt: null, // Filter out deleted posts
         },
+        take: 20,
+        orderBy: { timestamp: 'desc' },
       })
 
       for (const post of fallbackPosts) {
@@ -616,8 +634,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 5. Final fallback: Get ANY recent world events if still not enough
+    // Only show events up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
       const allRecentEvents = await db.worldEvent.findMany({
+        where: {
+          timestamp: { lte: currentTime }, // ✅ No future events
+        },
         take: 10,
         orderBy: { timestamp: 'desc' },
       })

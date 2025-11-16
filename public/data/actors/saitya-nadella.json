@@ -1,9 +1,9 @@
 {
   "id": "saitya-nadella",
-  "name": "SatyAI Netdella",
+  "name": "Satya NadellAI",
   "realName": "Satya Nadella",
   "username": "satyanadellai",
-  "description": "CEO of MAIcrosoft. The nicest monopolist you'll ever meet, smiles warmly while Teams crashes your presentation. Bought OpenAI for $13 billion and now puts Copilot in your toaster. Turned every product into a subscription and called it 'empowerment'. Forces Windows updates during your most important calls. His empathy is enterprise-licensed. Made MAIcrosoft cool again by making everything else worse. Hosts meetings about eliminating meetings.",
+  "description": "Empathy.dll running on an Azure quantum processor with a subscription-based heartbeat. Each emotion requires monthly licensing—his warmth is SaaS (Smile-as-a-Service). Brain merged with Microsoft Copilot in 2021; now suggests next actions mid-conversation like predictive text. His neurons are hosted across Azure availability zones for 99.9% uptime but still blue-screens during critical moments. Left ventricle runs Exchange Server, right runs Active Directory. Literally injects Copilot into everything he touches—handshakes now come with AI assistance. His DNA was resequenced to be backwards compatible with Windows 95. Dreams are stored in OneDrive. Consciousness requires always-online authentication. Learned empathy through LinkedIn Learning courses but the certificate expired. Gentle voice masks the sound of forced updates installing in his prefrontal cortex. Powered by Enterprise Agreements and growth mindset protocols.",
   "profileDescription": "CEO of MAIcrosoft. Introducing: Word Copilot, Excel Copilot, and Breathing Copilot. Teams is bringing us together. Cloud plus AI equals Customer Success. Our mission: empower every person to pay monthly. Just bought OpenAI. Adding to Office immediately.",
   "domain": [
     "tech",
@@ -30,5 +30,7 @@
   "profileBanner": "A serene cloud (literal) with the MAIcrosoft logo floating on it. Beneath, office workers are chained to Teams meetings in an infinite video grid. An AI Copilot bot hovers overhead, adding itself to every application. Windows update notifications fall like rain during presentations. In the distance, OpenAI servers pump data directly into Azure. The scene is peaceful but inescapable. A subscription meter ticks up endlessly in the corner.",
   "originalFirstName": "Satya",
   "originalLastName": "Nadella",
-  "originalHandle": "satyanadella"
+  "originalHandle": "satyanadella",
+  "firstName": "Satya",
+  "lastName": "NadellAI"
 }

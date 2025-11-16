@@ -39,10 +39,10 @@ export function getRLModelConfig(): RLModelConfig {
     enabled,
     wandbApiKey: process.env.WANDB_API_KEY,
     wandbEntity: process.env.WANDB_ENTITY,
-    wandbProject: process.env.WANDB_PROJECT || 'babylon-rl-training',
+    wandbProject: process.env.WANDB_PROJECT || 'babylon-training',
     modelVersion: process.env.RL_MODEL_VERSION, // Optional: pin to specific version
     fallbackToBase: process.env.RL_FALLBACK_TO_BASE !== 'false', // Default: true
-    baseModel: process.env.BASE_MODEL || 'OpenPipe/Qwen3-14B-Instruct'
+    baseModel: process.env.BASE_MODEL || 'OpenPipe/Qwen3-14B-Instruct'  // ONLY model in W&B ART catalog (32K context)
   };
 }
 

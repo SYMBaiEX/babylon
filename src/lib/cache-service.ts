@@ -16,6 +16,7 @@ import { redis, redisClientType } from './redis';
 import { logger } from './logger';
 import type { Redis as UpstashRedis } from '@upstash/redis';
 import type IORedis from 'ioredis';
+// import { performanceMonitor } from './monitoring/performance-monitor';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -97,6 +98,7 @@ export async function getCache<T>(
   options: CacheOptions = {}
 ): Promise<T | null> {
   const fullKey = options.namespace ? `${options.namespace}:${key}` : key;
+  // const startTime = performance.now();
 
   if (redis && redisClientType) {
     const cached = await redis.get(fullKey);
@@ -149,6 +151,8 @@ export async function getCache<T>(
     }
     
     logger.debug('Cache miss (Redis)', { key: fullKey }, 'CacheService');
+    // const latency = performance.now() - startTime;
+    // performanceMonitor.recordCacheOperation('get', false, latency);
     return null;
   }
 
@@ -157,6 +161,9 @@ export async function getCache<T>(
   if (entry) {
     if (entry.expiresAt > Date.now()) {
       logger.debug('Cache hit (Memory)', { key: fullKey }, 'CacheService');
+      // const latency = performance.now() - startTime;
+      // const bytes = JSON.stringify(entry.value).length;
+      // performanceMonitor.recordCacheOperation('get', true, latency, bytes);
       return entry.value as T;
     }
     memoryCache.delete(fullKey);
@@ -164,6 +171,8 @@ export async function getCache<T>(
   }
 
   logger.debug('Cache miss (Memory)', { key: fullKey }, 'CacheService');
+  // const latency = performance.now() - startTime;
+  // performanceMonitor.recordCacheOperation('get', false, latency);
   return null;
 }
 
@@ -177,8 +186,10 @@ export async function setCache<T>(
 ): Promise<void> {
   const fullKey = options.namespace ? `${options.namespace}:${key}` : key;
   const ttl = options.ttl || 300;
+  // const startTime = performance.now();
 
   const serialized = JSON.stringify(value);
+  // const bytes = serialized.length;
 
   if (redis && redisClientType) {
     if (redisClientType === 'upstash') {
@@ -187,12 +198,16 @@ export async function setCache<T>(
       await (redis as IORedis).set(fullKey, serialized, 'EX', ttl);
     }
     logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
+    // const latency = performance.now() - startTime;
+    // performanceMonitor.recordCacheOperation('set', true, latency, bytes);
     return;
   }
 
   const expiresAt = Date.now() + (ttl * 1000);
   memoryCache.set(fullKey, { value, expiresAt });
   logger.debug('Cache set (Memory)', { key: fullKey, ttl }, 'CacheService');
+  // const latency = performance.now() - startTime;
+  // performanceMonitor.recordCacheOperation('set', true, latency, bytes);
 }
 
 /**

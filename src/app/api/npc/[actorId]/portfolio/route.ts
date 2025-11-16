@@ -1,12 +1,53 @@
 /**
  * NPC Portfolio API
- *
- * GET /api/npc/[actorId]/portfolio
- * Returns comprehensive portfolio data for an NPC actor including:
- * - Total portfolio value and available balance
- * - Unrealized and realized PnL
- * - Position count and utilization
- * - Risk score and portfolio metrics
+ * 
+ * @route GET /api/npc/[actorId]/portfolio - Get NPC portfolio
+ * @access Public
+ * 
+ * @description
+ * Returns comprehensive portfolio data for an NPC actor including total
+ * portfolio value, PnL, position count, and risk metrics.
+ * 
+ * @openapi
+ * /api/npc/{actorId}/portfolio:
+ *   get:
+ *     tags:
+ *       - NPC
+ *     summary: Get NPC portfolio
+ *     description: Returns comprehensive portfolio data for NPC actor
+ *     parameters:
+ *       - in: path
+ *         name: actorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: NPC actor ID
+ *     responses:
+ *       200:
+ *         description: Portfolio retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalValue:
+ *                   type: number
+ *                 unrealizedPnl:
+ *                   type: number
+ *                 realizedPnl:
+ *                   type: number
+ *                 positionCount:
+ *                   type: integer
+ *                 riskScore:
+ *                   type: number
+ *       404:
+ *         description: NPC actor not found
+ * 
+ * @example
+ * ```typescript
+ * const portfolio = await fetch(`/api/npc/${actorId}/portfolio`)
+ *   .then(r => r.json());
+ * ```
  */
 
 import { NextResponse } from 'next/server'

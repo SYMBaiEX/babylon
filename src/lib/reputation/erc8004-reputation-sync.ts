@@ -206,29 +206,42 @@ export async function syncUserReputationToERC8004(
           // Note: This requires the agent to have pre-authorized feedback from the system address
           // The SDK will handle signing and submission if properly configured
           try {
+            // Check if Agent0Client is available before attempting to use it
+            // getAgent0Client() may throw if not configured, so we catch that
             const agent0Client = getAgent0Client()
             
-            // Submit feedback via Agent0 SDK
-            // Convert 0-100 score to -5 to +5 scale (ERC-8004 uses -5 to +5)
-            const rating = Math.round((feedbackScore / 100) * 10 - 5)
-            
-            await agent0Client.submitFeedback({
-              targetAgentId: user.agent0TokenId,
-              rating,
-              comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
-              transactionId: `reputation-sync-${userId}-${Date.now()}`,
-            })
+            // Verify client is available and not in read-only mode
+            const isAvailable = await agent0Client.ensureAvailable()
+            if (!isAvailable) {
+              onChainError = 'Agent0Client not available or in read-only mode'
+              logger.debug('Agent0Client not available for feedback submission', {
+                userId,
+                agent0TokenId: user.agent0TokenId,
+              }, 'ERC8004ReputationSync')
+            } else {
+              // Submit feedback via Agent0 SDK
+              // Convert 0-100 score to -5 to +5 scale (ERC-8004 uses -5 to +5)
+              const rating = Math.round((feedbackScore / 100) * 10 - 5)
+              
+              await agent0Client.submitFeedback({
+                targetAgentId: user.agent0TokenId,
+                rating,
+                comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
+                transactionId: `reputation-sync-${userId}-${Date.now()}`,
+              })
 
-            onChainSubmitted = true
-            logger.info('Reputation synced to ERC-8004 on-chain', {
-              userId,
-              agent0TokenId: user.agent0TokenId,
-              feedbackScore,
-              rating,
-              tags,
-            }, 'ERC8004ReputationSync')
+              onChainSubmitted = true
+              logger.info('Reputation synced to ERC-8004 on-chain', {
+                userId,
+                agent0TokenId: user.agent0TokenId,
+                feedbackScore,
+                rating,
+                tags,
+              }, 'ERC8004ReputationSync')
+            }
           } catch (submitError) {
             // If submission fails, log but don't fail the sync
+            // This includes cases where getAgent0Client() throws or submitFeedback fails
             onChainError = submitError instanceof Error ? submitError.message : 'Unknown submission error'
             logger.warn('Agent0 feedback submission failed', {
               userId,

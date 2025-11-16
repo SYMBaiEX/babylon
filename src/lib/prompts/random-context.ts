@@ -121,10 +121,14 @@ async function getActiveQuestions(limit: number = 3): Promise<Array<{ question: 
  */
 async function getTrendingPosts(limit: number = 3): Promise<Array<{ author: string; content: string; likes: number }>> {
   try {
+    const now = new Date();
     const posts = await prisma.post.findMany({
       where: {
         deletedAt: null,
-        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24h
+        timestamp: { 
+          gte: new Date(now.getTime() - 24 * 60 * 60 * 1000), // Last 24h
+          lte: now, // ✅ No future posts
+        },
       },
       orderBy: { timestamp: 'desc' },
       take: 20, // Get more, then sample
@@ -149,7 +153,11 @@ async function getTrendingPosts(limit: number = 3): Promise<Array<{ author: stri
  */
 async function getRecentEvents(limit: number = 2): Promise<Array<{ title: string; description: string }>> {
   try {
+    const now = new Date();
     const events = await prisma.worldEvent.findMany({
+      where: {
+        timestamp: { lte: now }, // ✅ No future events
+      },
       orderBy: { timestamp: 'desc' },
       take: 10, // Get more, then sample
     });

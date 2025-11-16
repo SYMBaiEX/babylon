@@ -1,10 +1,93 @@
 /**
- * World Facts Admin API
+ * Admin World Facts API
  * 
- * @route GET /api/admin/world-facts - Get all world facts
- * @route POST /api/admin/world-facts - Create or update world facts
- * @route DELETE /api/admin/world-facts - Delete a world fact
- * @access Admin only
+ * @route GET /api/admin/world-facts - Get world facts
+ * @route POST /api/admin/world-facts - Create/update world facts
+ * @route DELETE /api/admin/world-facts - Delete world fact
+ * @access Admin
+ * 
+ * @description
+ * Manages world facts, RSS feeds, parody headlines, and character mappings.
+ * GET returns all facts and related data. POST creates/updates facts.
+ * DELETE removes a fact.
+ * 
+ * @openapi
+ * /api/admin/world-facts:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get world facts
+ *     description: Returns all world facts, RSS feeds, parodies, and mappings (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Facts retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 facts:
+ *                   type: array
+ *                 rssFeeds:
+ *                   type: array
+ *                 parodies:
+ *                   type: array
+ *                 characterMappings:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Create/update world facts
+ *     description: Creates or updates world facts (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Facts updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   delete:
+ *     tags:
+ *       - Admin
+ *     summary: Delete world fact
+ *     description: Deletes a world fact (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               factId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Fact deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const { facts } = await fetch('/api/admin/world-facts', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';
@@ -120,5 +203,7 @@ export const DELETE = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse({ success: true });
 });
+
+
 
 

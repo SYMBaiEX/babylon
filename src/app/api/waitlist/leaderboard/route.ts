@@ -1,6 +1,58 @@
 /**
  * Waitlist Leaderboard API
- * GET /api/waitlist/leaderboard?limit=10
+ * 
+ * @route GET /api/waitlist/leaderboard - Get waitlist leaderboard
+ * @access Public
+ * 
+ * @description
+ * Returns top waitlist users ranked by invite points. Shows leaderboard with
+ * user rankings and points.
+ * 
+ * @openapi
+ * /api/waitlist/leaderboard:
+ *   get:
+ *     tags:
+ *       - Waitlist
+ *     summary: Get waitlist leaderboard
+ *     description: Returns top waitlist users ranked by invite points
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of top users to return
+ *     responses:
+ *       200:
+ *         description: Leaderboard retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 leaderboard:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: string
+ *                       rank:
+ *                         type: integer
+ *                       points:
+ *                         type: number
+ *                       referralCount:
+ *                         type: integer
+ *                 totalShown:
+ *                   type: integer
+ * 
+ * @example
+ * ```typescript
+ * const { leaderboard } = await fetch('/api/waitlist/leaderboard?limit=20')
+ *   .then(r => r.json());
+ * ```
+ * 
+ * @see {@link /lib/services/waitlist-service} Waitlist service
  */
 
 import type { NextRequest } from 'next/server'

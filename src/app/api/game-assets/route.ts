@@ -1,7 +1,7 @@
 /**
  * Game Assets API
  * 
- * @route GET /api/game-assets
+ * @route GET /api/game-assets - Get game assets
  * @access Public (optional authentication for RLS)
  * 
  * @description
@@ -9,28 +9,34 @@
  * data needed for client-side game initialization. Designed for Vercel
  * serverless deployment where file system access is limited.
  * 
- * **Assets Included:**
- * - **Group Chats:** All game-related group chat rooms
- *   - ID and name for each chat
- *   - Associated with continuous game
- *   - Used for multi-player discussions
+ * @openapi
+ * /api/game-assets:
+ *   get:
+ *     tags:
+ *       - Game
+ *     summary: Get game assets
+ *     description: Returns game assets for client initialization (optional auth for RLS)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Assets retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 groupChats:
+ *                   type: array
+ *                 actors:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized (optional)
  * 
- * **Optional Authentication:**
- * - If authenticated: Returns assets with RLS (Row-Level Security) applied
- * - If unauthenticated: Returns public game assets
- * 
- * **Vercel Compatibility:**
- * Assets are fetched from database rather than filesystem to support
- * serverless deployments. Static assets (actors data, etc.) should be
- * fetched directly from the public directory by clients.
- * 
- * **Client Integration:**
+ * @example
  * ```typescript
- * // Fetch additional static assets directly
- * const actors = await fetch('/data/actors-full.json').then(r => r.json());
+ * const assets = await fetch('/api/game-assets').then(r => r.json());
  * const questions = await fetch('/data/questions.json').then(r => r.json());
- * // Or use the API endpoint
- * const actors = await fetch('/api/actors').then(r => r.json());
  * ```
  * 
  * @returns {object} Game assets
@@ -55,10 +61,10 @@
  *   console.log(`Chat: ${chat.name} (${chat.id})`);
  * });
  * 
- * // Combine with static assets
+ * // Combine with actor data
  * const [gameAssets, actors] = await Promise.all([
  *   fetch('/api/game-assets').then(r => r.json()),
- *   fetch('/data/actors-full.json').then(r => r.json())
+ *   fetch('/api/actors').then(r => r.json())  // Uses individual files via loader
  * ]);
  * ```
  * 
@@ -72,7 +78,7 @@
  * ```
  * 
  * @see {@link /lib/db/context} Database context with RLS
- * @see {@link /public/data/actors-full.json} Static actor data (generated)
+ * @see {@link /api/actors} Actor data API endpoint
  * @see {@link /public/data/README.md} Actor data structure documentation
  * @see {@link /api/games} Games listing endpoint
  */
@@ -117,7 +123,7 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
       })
 
   // If you need additional game assets, store them in database or
-  // have the client fetch from /data/actors-full.json or /api/actors directly
+  // have the client use /api/actors endpoint for actor/org/relationship data
   const assets = {
     groupChats: groupChats.map(chat => ({
       id: chat.id,

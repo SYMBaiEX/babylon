@@ -1,6 +1,114 @@
 /**
  * Admin Reports API
- * GET /api/admin/reports - Get all reports with filtering
+ * 
+ * @route GET /api/admin/reports - Get reports list
+ * @access Admin
+ * 
+ * @description
+ * Returns paginated list of user reports with comprehensive filtering, sorting,
+ * and moderation metrics. Includes reporter and reported user information.
+ * Requires admin authentication.
+ * 
+ * @openapi
+ * /api/admin/reports:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get reports list
+ *     description: Returns paginated reports with filtering and sorting (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Results per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, reviewed, resolved, dismissed]
+ *         description: Filter by status
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, urgent]
+ *         description: Filter by priority
+ *       - in: query
+ *         name: reportType
+ *         schema:
+ *           type: string
+ *         description: Filter by report type
+ *       - in: query
+ *         name: reporterId
+ *         schema:
+ *           type: string
+ *         description: Filter by reporter ID
+ *       - in: query
+ *         name: reportedUserId
+ *         schema:
+ *           type: string
+ *         description: Filter by reported user ID
+ *       - in: query
+ *         name: reportedPostId
+ *         schema:
+ *           type: string
+ *         description: Filter by reported post ID
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [created, updated]
+ *           default: created
+ *         description: Sort field
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Reports retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 reports:
+ *                   type: array
+ *                 total:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/admin/reports?status=pending&priority=high', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
 import type { NextRequest } from 'next/server';

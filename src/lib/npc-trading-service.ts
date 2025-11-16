@@ -429,11 +429,15 @@ export class NPCTradingService {
    * Process all recent posts and execute NPC trades
    */
   static async processRecentPosts(marketContext: MarketContext): Promise<void> {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     
     const recentPosts = await prisma.post.findMany({
       where: { 
-        createdAt: { gte: oneHourAgo },
+        timestamp: { 
+          gte: oneHourAgo,
+          lte: now, // ✅ No future posts
+        },
         deletedAt: null, // Filter out deleted posts
       },
       orderBy: { createdAt: 'desc' },

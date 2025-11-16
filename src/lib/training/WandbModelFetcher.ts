@@ -42,6 +42,20 @@ export async function getLatestRLModel(): Promise<ModelArtifact | null> {
     // This is what we need for WANDB API inference
     const wandbModelId = model.storagePath || model.modelId;
     
+    // Validate critical fields
+    if (!wandbModelId || wandbModelId.trim().length === 0) {
+      logger.error('Model has no storagePath or modelId', { 
+        modelId: model.modelId,
+        storagePath: model.storagePath 
+      }, 'WandbModelFetcher');
+      return null;
+    }
+    
+    if (!model.baseModel || model.baseModel.trim().length === 0) {
+      logger.error('Model has no baseModel', { modelId: model.modelId }, 'WandbModelFetcher');
+      return null;
+    }
+    
     return {
       version: model.version,
       modelId: model.modelId, // Database model ID (babylon-agent-v1.0.0)

@@ -197,8 +197,8 @@ export default function ActorProfilePage() {
       }
     }
       
-      // Try to load from actors-full.json (contains all actors)
-      const response = await fetch('/data/actors-full.json')
+      // Try to load from API endpoint (uses optimized server-side loader)
+      const response = await fetch('/api/actors')
       if (!response.ok) throw new Error('Failed to load actors')
       
       const actorsDb = await response.json() as { actors?: Actor[]; organizations?: Organization[] }

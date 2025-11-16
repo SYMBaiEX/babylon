@@ -1,6 +1,77 @@
 /**
- * Admin API: AI Model Configuration
- * Manages wandb model selection and system AI settings
+ * Admin AI Models API
+ * 
+ * @route GET /api/admin/ai-models - Get AI model configuration
+ * @route POST /api/admin/ai-models - Update AI model configuration
+ * @access Admin
+ * 
+ * @description
+ * Manages AI model configuration including wandb model selection and system
+ * AI settings. GET returns current configuration and available models.
+ * POST updates model selection.
+ * 
+ * @openapi
+ * /api/admin/ai-models:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get AI model configuration
+ *     description: Returns current AI configuration and available models (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Configuration retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activeProvider:
+ *                   type: string
+ *                 providers:
+ *                   type: object
+ *                 wandbModels:
+ *                   type: array
+ *                 settings:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Update AI model configuration
+ *     description: Updates AI model selection and settings (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               wandbEnabled:
+ *                 type: boolean
+ *               wandbModelId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Configuration updated successfully
+ *       400:
+ *         description: Invalid configuration
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const config = await fetch('/api/admin/ai-models', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

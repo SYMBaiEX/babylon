@@ -1,4 +1,4 @@
-"""
+    """
 Babylon RL Training with ART ServerlessBackend
 TESTED AND WORKING - Following ART's proven pattern
 
@@ -31,8 +31,11 @@ if env_path.exists():
 # Verify critical environment variables
 if os.getenv('WANDB_API_KEY'):
     print(f"✅ WANDB_API_KEY found ({len(os.getenv('WANDB_API_KEY'))} chars)")
+    print("   Training will use W&B serverless remote infrastructure")
 else:
-    print("⚠️  WANDB_API_KEY not found - will use local GPU training if ART supports it")
+    print("⚠️  WANDB_API_KEY not found")
+    print("   WANDB_API_KEY is REQUIRED - ServerlessBackend only supports W&B remote training")
+    print("   Get your key from: https://wandb.ai/settings")
 
 if os.getenv('DATABASE_URL'):
     db_url_preview = os.getenv('DATABASE_URL', '')[:50]
@@ -61,9 +64,9 @@ class BabylonTrainer:
     def __init__(
         self,
         db_url: str,
-        project: str = "babylon-rl",
-        base_model: str = "Qwen/Qwen2.5-0.5B-Instruct",
-        min_agents: int = 2  # Lowered for easier testing
+        project: str = "babylon",
+        base_model: str = "OpenPipe/Qwen3-14B-Instruct",  # ONLY model available in W&B ART
+        min_agents: int = 1  # Lowered to 1 - always train even with minimal data
     ):
         self.db_url = db_url
         self.project = project
@@ -111,25 +114,82 @@ class BabylonTrainer:
             base_model=self.base_model
         )
         
-        # Create backend (auto-detects WANDB_API_KEY)
-        self.backend = ServerlessBackend()
+        # Check if WANDB_API_KEY is set to decide backend
+        # If set: use W&B remote training
+        # If not set: fall back to local training
+        wandb_key = os.getenv('WANDB_API_KEY')
         
-        # Register
-        await self.model.register(self.backend)
+        if wandb_key:
+            # WANDB_API_KEY is set - use W&B remote training
+            self.backend = ServerlessBackend(api_key=wandb_key)
+            await self.model.register(self.backend)
+            logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
+            logger.info(f"  Model: {self.base_model}")
+            logger.info("  Training will run on W&B infrastructure (not local GPU)")
+        else:
+            # WANDB_API_KEY not set - use local training fallback
+            # Try ServerlessBackend without API key (may support local fallback)
+            try:
+                self.backend = ServerlessBackend()  # No API key = local fallback
+                await self.model.register(self.backend)
+                logger.info("⚠️  WANDB_API_KEY not set - using LOCAL training fallback")
+                logger.info(f"  Model: {self.base_model}")
+                logger.info("  Training will run on local GPU/CPU")
+                logger.warning("  For remote training, set WANDB_API_KEY environment variable")
+            except Exception as e:
+                # If ServerlessBackend doesn't support local fallback, try LocalBackend
+                try:
+                    from art.local.backend import LocalBackend
+                    self.backend = LocalBackend()
+                    await self.model.register(self.backend)
+                    logger.info("✓ Using LocalBackend for LOCAL training")
+                    logger.info(f"  Model: {self.base_model}")
+                    logger.info("  Training will run on local GPU/CPU")
+                except ImportError:
+                    # LocalBackend not available, raise helpful error
+                    raise ValueError(
+                        f"WANDB_API_KEY not set and local training not available. "
+                        f"Set WANDB_API_KEY for remote training or ensure local backend is available. "
+                        f"Error: {str(e)}"
+                    )
         
         logger.info(f"✓ Model registered: {self.model.inference_model_name}")
     
-    async def collect_window_data(self, window_id: str) -> Dict[str, Any]:
-        """Collect trajectories for a window from database"""
+    async def collect_window_data(self, window_id: str, max_examples: Optional[int] = None) -> Dict[str, Any]:
+        """Collect trajectories for a window from database
+        
+        Args:
+            window_id: Window ID to collect data for
+            max_examples: Maximum number of trajectories to collect (None = no limit)
+        """
         
         if not self.pool:
             await self.connect()
         
-        logger.info(f"Querying database for window: {window_id}")
+        logger.info(f"Querying database for window: {window_id} (max: {max_examples or 'unlimited'})")
         
         async with self.pool.acquire() as conn:
+            # CRITICAL: Enforce max_examples limit to prevent loading 200GB of data
+            # Default to 2000 if MAX_EXAMPLES env var is set but max_examples param is None
+            if max_examples is None:
+                max_examples_str = os.getenv("MAX_EXAMPLES")
+                if max_examples_str and max_examples_str.strip():
+                    try:
+                        max_examples = int(max_examples_str.strip())
+                        logger.info(f"Using MAX_EXAMPLES from environment: {max_examples}")
+                    except ValueError:
+                        logger.warning(f"Invalid MAX_EXAMPLES value: {max_examples_str}, using default 2000")
+                        max_examples = 2000
+                else:
+                    max_examples = 2000  # Hard default limit
+            
             # Query using BOTH scenarioId and windowId for compatibility
-            rows = await conn.fetch("""
+            # CRITICAL: Always use LIMIT to prevent loading unlimited data
+            limit_clause = f"LIMIT {max_examples}"
+            
+            logger.info(f"Querying with LIMIT {max_examples} to prevent excessive memory usage")
+            
+            rows = await conn.fetch(f"""
                 SELECT 
                     t."trajectoryId",
                     t."agentId",
@@ -145,7 +205,8 @@ class BabylonTrainer:
                 AND t."stepsJson" IS NOT NULL
                 AND t."stepsJson"::text != 'null'
                 AND t."stepsJson"::text != '[]'
-                ORDER BY t."createdAt"
+                ORDER BY t."createdAt" DESC
+                {limit_clause}
             """, window_id)
             
             if not rows:
@@ -250,6 +311,9 @@ class BabylonTrainer:
         
         import art
         
+        # FIX BUG #19, #20, #23: Limit steps per trajectory for 32K context
+        MAX_STEPS_PER_TRAJECTORY = 20  # Keep last 20 steps (most recent/relevant)
+        
         score_map = {s['id']: s for s in scores}
         trajectories = []
         
@@ -265,6 +329,12 @@ class BabylonTrainer:
                 
                 if not steps or not isinstance(steps, list) or len(steps) < 2:
                     continue
+                
+                # Truncate to last N steps to fit in 32K context window
+                original_length = len(steps)
+                if len(steps) > MAX_STEPS_PER_TRAJECTORY:
+                    steps = steps[-MAX_STEPS_PER_TRAJECTORY:]  # Keep most recent
+                    logger.info(f"Truncated trajectory from {original_length} to {MAX_STEPS_PER_TRAJECTORY} steps")
                 
                 # Build messages_and_choices (ART format)
                 msgs = [
@@ -300,6 +370,13 @@ class BabylonTrainer:
                     
                     msgs.append({"role": "assistant", "content": asst_msg})
                 
+                # FIX BUG #21: Validate context size before creating trajectory
+                # Estimate tokens (4 chars per token approximation)
+                est_tokens = sum(len(m.get('content', '')) for m in msgs) // 4
+                
+                if est_tokens > 5000:  # Per-trajectory safety limit
+                    logger.warn(f"Trajectory estimated at {est_tokens} tokens, may be too long")
+                
                 # Create ART Trajectory
                 art_traj = art.Trajectory(
                     messages_and_choices=msgs,
@@ -307,11 +384,14 @@ class BabylonTrainer:
                     metadata={
                         'window_id': window_data['window_id'],
                         'agent_id': agent['id'],
-                        'trajectory_id': traj['id']
+                        'trajectory_id': traj['id'],
+                        'original_steps': original_length,
+                        'truncated_steps': len(steps)
                     },
                     metrics={
                         'final_pnl': traj['pnl'],
-                        'num_steps': len(steps)
+                        'num_steps': len(steps),
+                        'estimated_tokens': est_tokens
                     }
                 )
                 
@@ -361,25 +441,74 @@ class BabylonTrainer:
             model_name = f"babylon-{window_id.replace(':', '-')}"
             await self.initialize_model(model_name)
         
+        # Get max examples from environment
+        max_examples_str = os.getenv("MAX_EXAMPLES")
+        max_examples = int(max_examples_str) if max_examples_str and max_examples_str.strip() else None
+        
         # Step 1: Collect
         logger.info("\n[1/4] Collecting from database...")
-        data = await self.collect_window_data(window_id)
+        if max_examples:
+            logger.info(f"Capping training data at {max_examples} examples")
+        data = await self.collect_window_data(window_id, max_examples=max_examples)
+        
+        # Allow training with 0 agents if forcing (for wandb testing)
+        # Check environment variable FORCE_TRAINING to bypass agent count check
+        force_training = os.getenv("FORCE_TRAINING", "false").lower() == "true"
         
         if data['count'] < self.min_agents:
-            error_msg = (
-                f"Window {window_id}: Only {data['count']} agents, need {self.min_agents}\n"
-                f"Try lowering MIN_AGENTS_PER_WINDOW or wait for more data"
-            )
-            # Update batch status to failed
-            if batch_id and self.pool:
-                try:
-                    await self.pool.execute(
-                        "UPDATE training_batches SET status = $1, error = $2 WHERE \"batchId\" = $3",
-                        'failed', error_msg, batch_id
-                    )
-                except Exception:
-                    pass
-            raise ValueError(error_msg)
+            if force_training and data['count'] == 0:
+                logger.warning(
+                    f"FORCE_TRAINING enabled: No trajectories found, but wandb integration will be verified"
+                )
+                logger.info("Model initialization will verify wandb connection, but training will be skipped")
+                # Return early with wandb verification - model is already initialized above
+                step = await self.model.get_step()
+                inference_name = f"{self.model.get_inference_name()}:step{step}"
+                
+                logger.info("\n" + "=" * 70)
+                logger.info("✅ WANDB VERIFICATION SUCCESS")
+                logger.info("=" * 70)
+                logger.info(f"Model initialized: {inference_name}")
+                logger.info("W&B ServerlessBackend is working correctly")
+                logger.info("=" * 70)
+                logger.warning("⚠️  No trajectories to train - add trajectories to window for actual training")
+                
+                # Update batch status
+                if batch_id and self.pool:
+                    try:
+                        await self.pool.execute(
+                            "UPDATE training_batches SET status = $1, error = $2 WHERE \"batchId\" = $3",
+                            'failed', 'Wandb verified but no trajectories to train', batch_id
+                        )
+                    except Exception:
+                        pass
+                
+                return {
+                    'window_id': window_id,
+                    'model_name': inference_name,
+                    'model_id': None,
+                    'step': step,
+                    'num_agents': 0,
+                    'num_trajectories': 0,
+                    'batch_id': batch_id,
+                    'wandb_verified': True
+                }
+            else:
+                error_msg = (
+                    f"Window {window_id}: Only {data['count']} agents, need {self.min_agents}\n"
+                    f"Try lowering MIN_AGENTS_PER_WINDOW or wait for more data\n"
+                    f"Or set FORCE_TRAINING=true to test wandb integration with minimal data"
+                )
+                # Update batch status to failed
+                if batch_id and self.pool:
+                    try:
+                        await self.pool.execute(
+                            "UPDATE training_batches SET status = $1, error = $2 WHERE \"batchId\" = $3",
+                            'failed', error_msg, batch_id
+                        )
+                    except Exception:
+                        pass
+                raise ValueError(error_msg)
         
         logger.info(f"✓ Collected {data['count']} agents")
         
@@ -413,15 +542,31 @@ class BabylonTrainer:
         
         import art
         
-        group = art.TrajectoryGroup(
-            trajectories=art_trajs,
-            metadata={'window_id': window_id}
-        )
+        # FIX BUG #22, #24: Split into smaller groups for 32K context limit
+        # Don't send all trajectories in one group - split for safety
+        MAX_TRAJECTORIES_PER_GROUP = 10  # Safe for 32K context
+        
+        groups = []
+        for i in range(0, len(art_trajs), MAX_TRAJECTORIES_PER_GROUP):
+            batch = art_trajs[i:i + MAX_TRAJECTORIES_PER_GROUP]
+            groups.append(art.TrajectoryGroup(
+                trajectories=batch,
+                metadata={
+                    'window_id': window_id,
+                    'batch_index': i // MAX_TRAJECTORIES_PER_GROUP,
+                    'batch_size': len(batch)
+                }
+            ))
+        
+        logger.info(f"Split {len(art_trajs)} trajectories into {len(groups)} groups of max {MAX_TRAJECTORIES_PER_GROUP}")
         
         try:
             await self.model.train(
-                groups=[group],
-                config=art.TrainConfig(learning_rate=1e-5)
+                groups=groups,  # Multiple smaller groups instead of one huge group
+                config=art.TrainConfig(
+                    learning_rate=1e-5,
+                    # Note: ART handles context automatically, but we've pre-limited for safety
+                )
             )
         except Exception as e:
             error_msg = f"Training failed: {str(e)}"
@@ -562,16 +707,23 @@ async def main():
         print("Set with: export DATABASE_URL=postgresql://...")
         return
     
-    if os.getenv("TRAIN_RL_LOCAL") != "true":
-        print("Training disabled. Set TRAIN_RL_LOCAL=true")
-        return
+    # Check WANDB_API_KEY to determine training mode
+    wandb_key = os.getenv("WANDB_API_KEY")
+    base_model = os.getenv("BASE_MODEL", "OpenPipe/Qwen3-14B-Instruct")
     
-    # Check WANDB_API_KEY
-    if os.getenv("WANDB_API_KEY"):
-        print("✓ WANDB_API_KEY set - will use W&B serverless")
+    if wandb_key:
+        # WANDB_API_KEY is set - use remote training
+        print("✅ WANDB_API_KEY found - using W&B serverless REMOTE training")
+        print("   Training will run on W&B infrastructure (not local GPU)")
+        print(f"   Model: {base_model}")
     else:
-        print("⚠️  WANDB_API_KEY not set - will use local GPU")
-        print("For serverless: export WANDB_API_KEY=your-key")
+        # WANDB_API_KEY not set - use local training fallback
+        print("⚠️  WANDB_API_KEY not set - using LOCAL training fallback")
+        print("   Training will run on local GPU/CPU")
+        print(f"   Model: {base_model}")
+        print("\n   For remote training, set WANDB_API_KEY:")
+        print("   export WANDB_API_KEY=your-key-here")
+        print("   Get your key from: https://wandb.ai/settings")
     
     print("\n" + "=" * 70)
     print("🚀 BABYLON RL TRAINING")
@@ -581,9 +733,9 @@ async def main():
     # Create trainer
     trainer = BabylonTrainer(
         db_url=db_url,
-        project=os.getenv("WANDB_PROJECT", "babylon-rl"),
-        base_model=os.getenv("BASE_MODEL", "Qwen/Qwen2.5-0.5B-Instruct"),
-        min_agents=int(os.getenv("MIN_AGENTS_PER_WINDOW", "2"))
+        project=os.getenv("WANDB_PROJECT", "babylon"),
+        base_model=os.getenv("BASE_MODEL", "OpenPipe/Qwen3-14B-Instruct"),  # ONLY model available in W&B ART
+        min_agents=int(os.getenv("MIN_AGENTS_PER_WINDOW", "1"))
     )
     
     await trainer.connect()

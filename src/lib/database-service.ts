@@ -235,15 +235,22 @@ class DatabaseService {
     logger.debug('DatabaseService.getRecentPosts called', { limit, cursor, offset }, 'DatabaseService');
     
     // Build where clause with cursor or use offset
+    const now = new Date();
     const where: {
       deletedAt: null;
-      timestamp?: { lt: Date };
+      timestamp?: { lt: Date; lte: Date } | { lte: Date };
     } = {
       deletedAt: null,
     };
     
+    // Time-based filter: Only return posts up to current time (prevent future access)
     if (cursor) {
-      where.timestamp = { lt: new Date(cursor) };
+      where.timestamp = {
+        lt: new Date(cursor),
+        lte: now, // ✅ No future posts
+      };
+    } else {
+      where.timestamp = { lte: now }; // ✅ No future posts
     }
     
     // Get posts with author information to filter out test users
@@ -332,17 +339,24 @@ class DatabaseService {
     }
     
     // Build where clause with cursor or use offset
+    const now = new Date();
     const where: {
       authorId: string;
       deletedAt: null;
-      timestamp?: { lt: Date };
+      timestamp?: { lt: Date; lte: Date } | { lte: Date };
     } = {
       authorId,
       deletedAt: null,
     };
     
+    // Time-based filter: Only return posts up to current time (prevent future access)
     if (cursor) {
-      where.timestamp = { lt: new Date(cursor) };
+      where.timestamp = {
+        lt: new Date(cursor),
+        lte: now, // ✅ No future posts
+      };
+    } else {
+      where.timestamp = { lte: now }; // ✅ No future posts
     }
     
     const posts = await prisma.post.findMany({

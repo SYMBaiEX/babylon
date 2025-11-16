@@ -1,0 +1,22 @@
+{
+  "id": "ethereum-foundaition",
+  "name": "Ethereum FoundAItion",
+  "description": "decentralizing everything except decision-making",
+  "type": "organization",
+  "canBeInvolved": true,
+  "postStyle": "Decentralization theater. VitAIlik worship. The Merge marketing. Gas fees justified. EtherAI maximalism.",
+  "postExample": [
+    "Decentralizing the future",
+    "The Merge was historic",
+    "EtherAI 2.0 progress",
+    "Gas fees are a feature",
+    "Decentralized decision-making*\n\n*centrally planned",
+    "VitAIlik approves this message"
+  ],
+  "initialPrice": 35,
+  "pfpDescription": "Ethereum logo but ethereal and floating. The diamond is made of gas fees. VitAIlik's unicorn shirt visible in crystal facets. Decentralized except for decision-making. Merge completion badge (finally).",
+  "bannerDescription": "A foundation building on proof of stake instead of proof of work. The Merge happened but gas fees didn't improve. Decentralization theater while VitAIlik still decides everything. Smart contracts run in background, dumb decisions run the foundation. Unicorns graze on scalability solutions that never arrive.",
+  "profileDescription": "Decentralizing the future. The Merge was historic. EtherAI 2.0 progress. Gas fees are a feature. Decentralized decision-making*  *centrally planned",
+  "originalName": "Ethereum Foundation",
+  "originalHandle": "ethereum"
+}

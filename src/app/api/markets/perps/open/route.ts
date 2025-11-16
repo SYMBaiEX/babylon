@@ -1,7 +1,85 @@
 /**
- * API Route: /api/markets/perps/open
- * Methods: POST (open a new perpetual futures position)
+ * Perpetual Futures Open Position API
+ * 
+ * @route POST /api/markets/perps/open - Open perpetual futures position
+ * @access Authenticated
+ * 
+ * @description
+ * Opens a new perpetual futures position with specified ticker, side (long/short),
+ * size, and leverage. Calculates margin requirements, fees, and entry price.
+ * Tracks trade events for analytics.
+ * 
+ * @openapi
+ * /api/markets/perps/open:
+ *   post:
+ *     tags:
+ *       - Markets
+ *     summary: Open perpetual futures position
+ *     description: Opens a new perpetual futures position with margin and leverage
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ticker
+ *               - side
+ *               - size
+ *               - leverage
+ *             properties:
+ *               ticker:
+ *                 type: string
+ *                 description: Ticker symbol (e.g., AAPL, TSLA)
+ *               side:
+ *                 type: string
+ *                 enum: [long, short]
+ *               size:
+ *                 type: number
+ *                 description: Position size
+ *               leverage:
+ *                 type: number
+ *                 minimum: 1
+ *                 maximum: 100
+ *                 description: Leverage multiplier
+ *     responses:
+ *       200:
+ *         description: Position opened successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 position:
+ *                   type: object
+ *                 marginPaid:
+ *                   type: number
+ *                 fee:
+ *                   type: object
+ *       400:
+ *         description: Invalid input or insufficient balance
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/markets/perps/open', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     ticker: 'AAPL',
+ *     side: 'long',
+ *     size: 100,
+ *     leverage: 10
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/perp-trade-service} Perp trade service
  */
+
 import type { NextRequest } from 'next/server';
 
 import { authenticate } from '@/lib/api/auth-middleware';

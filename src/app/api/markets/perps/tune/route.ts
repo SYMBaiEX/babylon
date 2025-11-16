@@ -1,16 +1,121 @@
 /**
- * Perpetuals Prompt Tuning API
- *
- * GET /api/markets/perps/tune?ticker=AAPL
- * POST /api/markets/perps/tune
- * Manage AI agent prompt tuning parameters for perpetual futures trading
- * Used to customize Agent0 trading behavior for specific tickers or markets
- *
- * Tuning parameters include:
- * - Risk tolerance adjustments
- * - Entry/exit signal thresholds
- * - Position sizing multipliers
- * - Market sentiment overrides
+ * Perpetual Futures Tuning API
+ * 
+ * @route GET /api/markets/perps/tune - Get tuning parameters
+ * @route POST /api/markets/perps/tune - Update tuning parameters
+ * @access Authenticated
+ * 
+ * @description
+ * Manages AI agent prompt tuning parameters for perpetual futures trading. Customizes
+ * Agent0 trading behavior for specific tickers with risk tolerance, entry/exit thresholds,
+ * position sizing multipliers, and sentiment overrides.
+ * 
+ * @openapi
+ * /api/markets/perps/tune:
+ *   get:
+ *     tags:
+ *       - Markets
+ *     summary: Get tuning parameters
+ *     description: Returns current tuning parameters for specified ticker or all tickers
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: ticker
+ *         schema:
+ *           type: string
+ *         description: Ticker symbol (optional, returns all if omitted)
+ *     responses:
+ *       200:
+ *         description: Tuning parameters retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ticker:
+ *                   type: string
+ *                 riskMultiplier:
+ *                   type: number
+ *                 entryThreshold:
+ *                   type: number
+ *                 exitThreshold:
+ *                   type: number
+ *                 positionSizeMultiplier:
+ *                   type: number
+ *                 sentimentOverride:
+ *                   type: string
+ *                   enum: [bullish, bearish, neutral]
+ *                   nullable: true
+ *                 maxLeverageOverride:
+ *                   type: number
+ *                   nullable: true
+ *   post:
+ *     tags:
+ *       - Markets
+ *     summary: Update tuning parameters
+ *     description: Updates AI agent tuning parameters for perpetual futures trading
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ticker:
+ *                 type: string
+ *               riskMultiplier:
+ *                 type: number
+ *                 minimum: 0.5
+ *                 maximum: 2.0
+ *               entryThreshold:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 1
+ *               exitThreshold:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 1
+ *               positionSizeMultiplier:
+ *                 type: number
+ *                 minimum: 0.1
+ *                 maximum: 3.0
+ *               sentimentOverride:
+ *                 type: string
+ *                 enum: [bullish, bearish, neutral]
+ *                 nullable: true
+ *               maxLeverageOverride:
+ *                 type: number
+ *                 minimum: 1
+ *                 maximum: 100
+ *                 nullable: true
+ *     responses:
+ *       200:
+ *         description: Tuning parameters updated successfully
+ *       400:
+ *         description: Invalid parameters
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * // Get tuning for ticker
+ * const params = await fetch('/api/markets/perps/tune?ticker=AAPL', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * 
+ * // Update tuning
+ * await fetch('/api/markets/perps/tune', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     ticker: 'AAPL',
+ *     riskMultiplier: 1.5,
+ *     entryThreshold: 0.7
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

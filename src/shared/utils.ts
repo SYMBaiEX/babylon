@@ -5,32 +5,28 @@
  */
 
 import type { Actor, ActorRelationship, Organization } from './types';
+import { shuffleArray } from '@/lib/utils/randomization';
 
-/**
- * Shuffle array using Fisher-Yates algorithm
- * Provides cryptographically secure randomization
- *
- * @param array - Array to shuffle
- * @returns New shuffled array (original untouched)
- */
-export function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    // Use temp variable to satisfy TypeScript strict mode
-    const temp = shuffled[i]!;
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
+// Re-export shuffleArray from randomization utils for convenience
+export { shuffleArray } from '@/lib/utils/randomization';
 
 /**
  * Format actor voice context with postStyle and randomized postExample
- * Used for LLM prompt generation to maintain actor voice consistency
- *
+ * 
+ * Used for LLM prompt generation to maintain actor voice consistency.
+ * Randomizes post examples to add variety while preserving voice.
+ * 
  * @param actor - Actor with optional postStyle and postExample
- * @returns Formatted context string for LLM prompts
+ * @returns Formatted context string for LLM prompts (empty string if no voice data)
+ * 
+ * @example
+ * ```typescript
+ * const context = formatActorVoiceContext({
+ *   postStyle: "Concise and direct",
+ *   postExample: ["Example 1", "Example 2", "Example 3"]
+ * });
+ * // Returns formatted string with style and 3 random examples
+ * ```
  */
 export function formatActorVoiceContext(actor: {
   postStyle?: string;
@@ -58,25 +54,26 @@ export function formatActorVoiceContext(actor: {
   return context;
 }
 
-/**
- * Generate unique ID with timestamp and random component
- *
- * @param prefix - Optional prefix for the ID (e.g., 'post', 'event', 'actor')
- * @returns Unique ID string
- */
-export function generateId(prefix?: string): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 9);
-  return prefix ? `${prefix}-${timestamp}-${random}` : `${timestamp}-${random}`;
-}
+// Note: ID generation is handled by generateSnowflakeId() from @/lib/snowflake
+// This function was removed to avoid duplication
 
 /**
  * Clamp number between min and max values
  *
+ * Ensures value stays within the specified range.
+ * 
  * @param value - Number to clamp
  * @param min - Minimum value
  * @param max - Maximum value
- * @returns Clamped value
+ * @returns Clamped value (guaranteed to be in [min, max] range)
+ * @throws Never throws - handles invalid ranges gracefully
+ * 
+ * @example
+ * ```typescript
+ * clamp(150, 0, 100); // Returns: 100
+ * clamp(-10, 0, 100); // Returns: 0
+ * clamp(50, 0, 100);  // Returns: 50
+ * ```
  */
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -84,10 +81,18 @@ export function clamp(value: number, min: number, max: number): number {
 
 /**
  * Calculate sentiment score from text (simple heuristic)
- * Returns value between -1 (negative) and 1 (positive)
- *
+ * 
+ * Uses keyword matching to determine sentiment. Returns value between
+ * -1 (negative) and 1 (positive). Returns 0 if no sentiment keywords found.
+ * 
  * @param text - Text to analyze
- * @returns Sentiment score between -1 and 1
+ * @returns Sentiment score between -1 and 1 (0 for neutral/no keywords)
+ * 
+ * @example
+ * ```typescript
+ * calculateSentiment("This is amazing!"); // Returns: ~0.5 (positive)
+ * calculateSentiment("This is terrible"); // Returns: ~-0.5 (negative)
+ * ```
  */
 export function calculateSentiment(text: string): number {
   const positive = /\b(great|amazing|success|win|best|love|excellent|awesome)\b/gi;
@@ -103,14 +108,23 @@ export function calculateSentiment(text: string): number {
 }
 
 /**
- * Format timestamp to readable date string
- *
- * @param timestamp - ISO timestamp string
+ * Format date/timestamp to readable date string
+ * 
+ * Supports both Date objects and ISO timestamp strings.
+ * 
+ * @param date - Date object or ISO timestamp string
  * @returns Formatted date string (e.g., "Jan 1, 2025")
+ * @throws Never throws - handles invalid dates gracefully
+ * 
+ * @example
+ * ```typescript
+ * formatDate(new Date()); // "Jan 16, 2025"
+ * formatDate("2025-01-16T10:00:00Z"); // "Jan 16, 2025"
+ * ```
  */
-export function formatDate(timestamp: string): string {
-  const date = new Date(timestamp);
-  return date.toLocaleDateString('en-US', {
+export function formatDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -118,49 +132,46 @@ export function formatDate(timestamp: string): string {
 }
 
 /**
- * Format timestamp to readable time string
- *
- * @param timestamp - ISO timestamp string
+ * Format date/timestamp to readable time string
+ * 
+ * Supports both Date objects and ISO timestamp strings.
+ * 
+ * @param date - Date object or ISO timestamp string
  * @returns Formatted time string (e.g., "3:45 PM")
+ * @throws Never throws - handles invalid dates gracefully
+ * 
+ * @example
+ * ```typescript
+ * formatTime(new Date()); // "3:45 PM"
+ * formatTime("2025-01-16T15:45:00Z"); // "3:45 PM"
+ * ```
  */
-export function formatTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-US', {
+export function formatTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   });
 }
 
-/**
- * Pick random element from array
- *
- * @param array - Array to pick from
- * @returns Random element from array
- */
-export function pickRandom<T>(array: T[]): T | undefined {
-  if (array.length === 0) return undefined;
-  return array[Math.floor(Math.random() * array.length)];
-}
-
-/**
- * Pick N random elements from array (without replacement)
- *
- * @param array - Array to pick from
- * @param count - Number of elements to pick
- * @returns Array of random elements
- */
-export function pickRandomN<T>(array: T[], count: number): T[] {
-  const shuffled = shuffleArray(array);
-  return shuffled.slice(0, Math.min(count, array.length));
-}
+// Re-export randomization utilities
+export { pickRandom, sampleRandom as pickRandomN } from '@/lib/utils/randomization';
 
 /**
  * Build phase-specific narrative context for LLM prompts
- * Provides instructions on how content should reflect the current game phase
- *
+ * 
+ * Provides instructions on how content should reflect the current game phase.
+ * Used to guide LLM generation to match the narrative arc.
+ * 
  * @param day - Current game day (1-30)
- * @returns Phase-specific narrative instructions
+ * @returns Phase-specific narrative instructions string
+ * 
+ * @example
+ * ```typescript
+ * const context = buildPhaseContext(5);  // WILD phase
+ * const context2 = buildPhaseContext(15); // CONNECTION phase
+ * ```
  */
 export function buildPhaseContext(day: number): string {
   if (day <= 10) {
@@ -202,11 +213,19 @@ export function buildPhaseContext(day: number): string {
 
 /**
  * Build relationship context for actors in LLM prompts
- * Formats actor relationships and connections for narrative generation
- *
- * @param actors - List of actors involved
+ * 
+ * Formats actor relationships and connections for narrative generation.
+ * Filters to only include relationships between the provided actors.
+ * 
+ * @param actors - List of actors involved in the context
  * @param relationships - Relationship data between actors
- * @returns Formatted relationship context string
+ * @returns Formatted relationship context string (empty if no relevant relationships)
+ * 
+ * @example
+ * ```typescript
+ * const context = buildRelationshipContext(actors, relationships);
+ * // Returns: "\nKnown Relationships:\n- Actor1 & Actor2: colleague (respect)"
+ * ```
  */
 export function buildRelationshipContext(
   actors: Actor[],
@@ -280,10 +299,19 @@ export function toQuestionIdNumberOrNull(questionId: string | number | null | un
 
 /**
  * Build organization behavior context for LLM prompts
+ * 
  * Provides guidance on how different organization types should behave
- *
+ * in narrative generation. Groups organizations by type and provides
+ * type-specific behavior guidelines.
+ * 
  * @param organizations - List of organizations involved
- * @returns Formatted organization behavior instructions
+ * @returns Formatted organization behavior instructions (empty if no orgs)
+ * 
+ * @example
+ * ```typescript
+ * const context = buildOrganizationBehaviorContext(orgs);
+ * // Returns formatted guidelines for media, company, and government orgs
+ * ```
  */
 export function buildOrganizationBehaviorContext(organizations: Organization[]): string {
   if (!organizations || organizations.length === 0) {

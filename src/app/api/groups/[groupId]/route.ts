@@ -1,6 +1,138 @@
 /**
- * API Route: /api/groups/[groupId]
- * Methods: GET (get group details), PATCH (update group), DELETE (delete group)
+ * Group Management API
+ * 
+ * @route GET /api/groups/[groupId] - Get group details
+ * @route PUT /api/groups/[groupId] - Update group
+ * @route DELETE /api/groups/[groupId] - Delete group
+ * @access Authenticated (members/admins only)
+ * 
+ * @description
+ * Manages individual group details, settings, and lifecycle. GET returns group
+ * information with members and admins. PUT updates group name/description (admin only).
+ * DELETE removes the group (creator/admin only).
+ * 
+ * @openapi
+ * /api/groups/{groupId}:
+ *   get:
+ *     tags:
+ *       - Groups
+ *     summary: Get group details
+ *     description: Returns group information including members and admins
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Group details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     members:
+ *                       type: array
+ *                     admins:
+ *                       type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a group member
+ *       404:
+ *         description: Group not found
+ *   put:
+ *     tags:
+ *       - Groups
+ *     summary: Update group
+ *     description: Updates group name and description (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Group updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a group admin
+ *       404:
+ *         description: Group not found
+ *   delete:
+ *     tags:
+ *       - Groups
+ *     summary: Delete group
+ *     description: Permanently deletes group (creator/admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Group deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized to delete group
+ *       404:
+ *         description: Group not found
+ * 
+ * @example
+ * ```typescript
+ * // Get group details
+ * const group = await fetch(`/api/groups/${groupId}`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Update group
+ * await fetch(`/api/groups/${groupId}`, {
+ *   method: 'PUT',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     name: 'New Group Name',
+ *     description: 'Updated description'
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
  */
 
 import type { NextRequest } from 'next/server'

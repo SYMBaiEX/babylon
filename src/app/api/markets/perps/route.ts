@@ -10,6 +10,49 @@
  * Perpetual futures allow leveraged trading on company valuations without
  * expiration dates.
  * 
+ * @openapi
+ * /api/markets/perps:
+ *   get:
+ *     tags:
+ *       - Trading
+ *     summary: Get perpetual futures markets
+ *     description: Returns all available perp markets with real-time pricing, 24h statistics, and funding rates.
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Perp markets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 markets:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       ticker:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       currentPrice:
+ *                         type: number
+ *                       change24h:
+ *                         type: number
+ *                       changePercent24h:
+ *                         type: number
+ *                       volume24h:
+ *                         type: number
+ *                       openInterest:
+ *                         type: number
+ *                       fundingRate:
+ *                         type: object
+ *                 count:
+ *                   type: integer
+ * 
  * **Market Data Includes:**
  * - **Current Price:** Real-time company valuation
  * - **24h Statistics:** Price change, volume, high/low

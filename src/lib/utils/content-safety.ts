@@ -31,6 +31,19 @@ export interface ContentCheckResult {
 
 /**
  * Check if user input is safe
+ * 
+ * Validates user-provided content for safety, spam, profanity, and injection attempts.
+ * 
+ * @param content - User input string to validate
+ * @returns ContentCheckResult indicating safety status and reason if unsafe
+ * 
+ * @example
+ * ```typescript
+ * const result = checkUserInput(userMessage);
+ * if (!result.safe) {
+ *   console.log(`Blocked: ${result.reason}`);
+ * }
+ * ```
  */
 export function checkUserInput(content: string): ContentCheckResult {
   if (!content || content.trim().length === 0) {
@@ -81,6 +94,21 @@ export function checkUserInput(content: string): ContentCheckResult {
 
 /**
  * Check if agent-generated content is safe to return
+ * 
+ * Validates agent-generated content for profanity and system prompt leakage.
+ * Less strict than checkUserInput since agents are trusted sources.
+ * 
+ * @param content - Agent-generated content to validate
+ * @returns ContentCheckResult indicating safety status
+ * 
+ * @example
+ * ```typescript
+ * const result = checkAgentOutput(agentResponse);
+ * if (!result.safe) {
+ *   // Regenerate or sanitize
+ *   const sanitized = sanitizeContent(agentResponse);
+ * }
+ * ```
  */
 export function checkAgentOutput(content: string): ContentCheckResult {
   if (!content || content.trim().length === 0) {
@@ -114,7 +142,19 @@ export function checkAgentOutput(content: string): ContentCheckResult {
 
 /**
  * Sanitize content by removing or replacing problematic parts
- * Use this as a last resort - better to regenerate
+ * 
+ * Removes system prompt leakage and special tokens from content.
+ * Use this as a last resort - better to regenerate content.
+ * 
+ * @param content - Content to sanitize
+ * @returns Sanitized content string
+ * @throws Never throws - returns empty string if all content removed
+ * 
+ * @example
+ * ```typescript
+ * const sanitized = sanitizeContent(unsafeContent);
+ * // Removes [system] tags and special tokens
+ * ```
  */
 export function sanitizeContent(content: string): string {
   let sanitized = content

@@ -1,7 +1,122 @@
 /**
  * User Group Invite Actions API
  * 
- * Accept or decline group invites
+ * @route GET /api/user-groups/invites/[id] - Get invite details
+ * @route POST /api/user-groups/invites/[id] - Accept invite
+ * @route DELETE /api/user-groups/invites/[id] - Decline invite
+ * @access Authenticated
+ * 
+ * @description
+ * Manages group invite actions. GET returns invite details. POST accepts invite
+ * and adds user to group. DELETE declines invite. Only works for invites
+ * belonging to authenticated user.
+ * 
+ * @openapi
+ * /api/user-groups/invites/{id}:
+ *   get:
+ *     tags:
+ *       - User Groups
+ *     summary: Get invite details
+ *     description: Returns invite details with group and inviter info
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invite ID
+ *     responses:
+ *       200:
+ *         description: Invite details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 invite:
+ *                   type: object
+ *                 group:
+ *                   type: object
+ *                 inviter:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Invite not for this user
+ *       404:
+ *         description: Invite not found
+ *   post:
+ *     tags:
+ *       - User Groups
+ *     summary: Accept group invite
+ *     description: Accepts invite and adds user to group and chat
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invite ID
+ *     responses:
+ *       200:
+ *         description: Invite accepted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 groupId:
+ *                   type: string
+ *                 chatId:
+ *                   type: string
+ *       400:
+ *         description: Invite already responded to
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Invite not for this user
+ *       404:
+ *         description: Invite not found
+ *   delete:
+ *     tags:
+ *       - User Groups
+ *     summary: Decline group invite
+ *     description: Declines invite and marks notification as read
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invite ID
+ *     responses:
+ *       200:
+ *         description: Invite declined successfully
+ *       400:
+ *         description: Invite already responded to
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Invite not for this user
+ *       404:
+ *         description: Invite not found
+ * 
+ * @example
+ * ```typescript
+ * // Accept invite
+ * await fetch(`/api/user-groups/invites/${inviteId}`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

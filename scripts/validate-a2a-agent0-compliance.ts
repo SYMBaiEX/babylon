@@ -186,9 +186,13 @@ async function validateAgent0Integration() {
     addResult('Agent0', 'On-chain registration', 'pass', `Registered as ${configValue.agentId}`, true)
     
     // 2. Query Agent0 SDK
+    // Agent0 operates on Ethereum Sepolia (11155111), not Base Sepolia (84532)
+    const rpcUrl = process.env.AGENT0_RPC_URL || 
+                   process.env.ETHEREUM_SEPOLIA_RPC_URL || 
+                   'https://ethereum-sepolia-rpc.publicnode.com'
     const agent0 = new SDK({
-      chainId: configValue.chainId || 84532,
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'
+      chainId: configValue.chainId || 11155111, // Ethereum Sepolia
+      rpcUrl
     })
     
     // 3. Verify in subgraph

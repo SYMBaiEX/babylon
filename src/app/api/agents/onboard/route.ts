@@ -1,9 +1,74 @@
 /**
  * Agent On-Chain Registration API
- *
- * Registers ElizaOS agents to the EIP-8004 Identity Registry on Base Sepolia
- * Server wallet registers agents and tracks tokenId -> agentId mapping in database
- * Initial reputation (70%) is set via on-chain transactions
+ * 
+ * @route POST /api/agents/onboard - Register agent on-chain
+ * @access Authenticated
+ * 
+ * @description
+ * Registers ElizaOS agents to the EIP-8004 Identity Registry on Base Sepolia.
+ * Server wallet registers agents and tracks tokenId -> agentId mapping in database.
+ * Initial reputation (70%) is set via on-chain transactions.
+ * 
+ * @openapi
+ * /api/agents/onboard:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Register agent on-chain
+ *     description: Registers agent to EIP-8004 Identity Registry on Base Sepolia
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - agentId
+ *               - name
+ *               - endpoint
+ *             properties:
+ *               agentId:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               endpoint:
+ *                 type: string
+ *                 format: uri
+ *               capabilities:
+ *                 type: object
+ *               metadataURI:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Agent registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tokenId:
+ *                   type: string
+ *                 txHash:
+ *                   type: string
+ *       400:
+ *         description: Invalid input or already registered
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/agents/onboard', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     agentId: 'agent-id',
+ *     name: 'My Agent',
+ *     endpoint: 'https://...'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

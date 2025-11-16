@@ -41,8 +41,8 @@ test-empty
 .rl-training-status
 dev-server.log
 dev-server.pid
-benchmarks/
 __pycache__
 .env.staging
 .secrets
 exports/
+**/__pycache__/**

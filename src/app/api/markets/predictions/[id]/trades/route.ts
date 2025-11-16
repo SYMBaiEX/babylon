@@ -1,47 +1,91 @@
 /**
  * Prediction Market Trades API
  * 
- * @route GET /api/markets/predictions/[id]/trades
+ * @route GET /api/markets/predictions/[id]/trades - Get market trades
  * @access Public
  * 
  * @description
- * Get all trades for a specific prediction market with pagination and Redis caching.
- * Returns trades from positions (user buys/sells) and balance transactions related to this market.
+ * Returns all trades for a prediction market with pagination and Redis caching.
+ * Includes trades from positions (buys/sells) and balance transactions. Cached
+ * for 30 seconds for performance.
  * 
- * **Features:**
- * - Redis caching with 30s TTL for fast access
- * - Pagination support (limit/offset)
- * - Automatic cache invalidation on new trades
- * - Includes user profiles and market metadata
- * 
- * **Query Parameters:**
- * @query {number} limit - Trades per page (1-100, default: 50)
- * @query {number} offset - Pagination offset (default: 0)
- * 
- * **Response:**
- * @returns {object} Trades response
- * @property {array} trades - Array of trade objects
- * @property {number} total - Total trades count
- * @property {boolean} hasMore - Whether more trades available
- * @property {string} marketId - Market identifier
- * @property {string} question - Market question text
- * 
- * **Trade Object:**
- * @property {string} id - Trade ID
- * @property {string} type - 'position' | 'balance'
- * @property {object} user - Trader profile
- * @property {string} side - 'YES' | 'NO'
- * @property {number} shares - Number of shares
- * @property {number} amount - USD amount
- * @property {number} price - Price per share
- * @property {Date} timestamp - When trade occurred
+ * @openapi
+ * /api/markets/predictions/{id}/trades:
+ *   get:
+ *     tags:
+ *       - Markets
+ *     summary: Get prediction market trades
+ *     description: Returns all trades for a market with pagination and caching
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Market/question ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Trades per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Pagination offset
+ *     responses:
+ *       200:
+ *         description: Trades retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 trades:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                         enum: [position, balance]
+ *                       user:
+ *                         type: object
+ *                       side:
+ *                         type: string
+ *                         enum: [YES, NO]
+ *                       shares:
+ *                         type: number
+ *                       amount:
+ *                         type: number
+ *                       price:
+ *                         type: number
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                 total:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
+ *                 marketId:
+ *                   type: string
+ *                 question:
+ *                   type: string
  * 
  * @example
  * ```typescript
- * // Get recent trades for market
- * const response = await fetch('/api/markets/predictions/123/trades?limit=20');
+ * const response = await fetch(`/api/markets/predictions/${marketId}/trades?limit=20`);
  * const { trades, hasMore } = await response.json();
  * ```
+ * 
+ * @see {@link /lib/cache} Caching service
  */
 
 import type { NextRequest } from 'next/server';

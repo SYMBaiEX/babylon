@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
 import { callGroqDirect } from '../llm/direct-groq'
+import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
 
 interface PendingInteraction {
   type: 'comment_on_post' | 'comment_on_comment' | 'chat_message'
@@ -41,6 +42,17 @@ interface ResponseDecision {
 export class AutonomousBatchResponseService {
   /**
    * Gather all pending interactions that might need responses
+   * 
+   * Collects comments on agent's posts, replies to agent's comments,
+   * and new chat messages that the agent hasn't responded to.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @returns Array of pending interactions requiring potential responses
+   * 
+   * @remarks
+   * - Limited to interactions from last 24 hours
+   * - Filters out interactions agent already responded to
+   * - Includes context for each interaction
    */
   async gatherPendingInteractions(agentUserId: string): Promise<PendingInteraction[]> {
     const interactions: PendingInteraction[] = []
@@ -195,7 +207,21 @@ export class AutonomousBatchResponseService {
 
   /**
    * Evaluate which interactions warrant a response using AI
-   * Note: JSON parsing try/catch is kept as it's expected to fail sometimes with LLM output.
+   * 
+   * Uses LLM to analyze pending interactions and determine which ones
+   * warrant a response based on agent personality and interaction quality.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (used for W&B model access)
+   * @param interactions - Array of pending interactions to evaluate
+   * @returns Array of response decisions (one per interaction)
+   * @throws Error if agent not found or LLM response parsing fails
+   * 
+   * @remarks
+   * - Caps interactions at 30 to prevent context overflow
+   * - Uses small model for fast evaluation
+   * - Has 20 second timeout to prevent hanging
+   * - Returns boolean array indicating which interactions to respond to
    */
   async evaluateInteractions(
     agentUserId: string,
@@ -205,6 +231,13 @@ export class AutonomousBatchResponseService {
     if (interactions.length === 0) {
       return []
     }
+    
+    // Cap interactions to prevent context overflow (30 max)
+    const cappedInteractions = interactions.slice(0, 30)
+    if (cappedInteractions.length < interactions.length) {
+      logger.info(`Capped interactions from ${interactions.length} to 30 to prevent context overflow`, undefined, 'AutonomousBatchResponse')
+    }
+    const evaluateInteractions = cappedInteractions
 
     const agent = await prisma.user.findUnique({ 
       where: { id: agentUserId },
@@ -231,9 +264,9 @@ Guidelines:
 - Consider your energy and focus - be selective
 - Prioritize meaningful conversations
 
-Pending Interactions (${interactions.length}):
+Pending Interactions (${evaluateInteractions.length}):
 
-${interactions.map((interaction, idx) => `
+${evaluateInteractions.map((interaction, idx) => `
 [${idx}] Type: ${interaction.type}
 Author: ${interaction.author}
 Content: "${interaction.content}"
@@ -248,41 +281,77 @@ Example: [true, false, true, false, false, true, ...]
 
 Array:`
 
-    // Use small model (llama-3.1-8b-instant) for batch evaluation (frequent, small operation)
-    const decisionText = await callGroqDirect({
-      prompt,
-      system: agent.agentSystem || undefined,
-      modelSize: 'small',  // Free tier: Fast and efficient
-      temperature: 0.6,
-      maxTokens: 500
-    })
-
-    // Parse the boolean array (keep try/catch here - LLM output parsing legitimately fails)
-    try {
-      const jsonMatch = decisionText.match(/\[[\s\S]*?\]/)
-      if (!jsonMatch) {
-        logger.warn('Failed to parse decision array, defaulting to no responses', undefined, 'AutonomousBatchResponse')
-        return interactions.map(() => ({ shouldRespond: false }))
-      }
-
-      const decisions = JSON.parse(jsonMatch[0]) as boolean[]
-      
-      // Ensure we have the right number of decisions
-      if (decisions.length !== interactions.length) {
-        logger.warn(`Decision count mismatch: ${decisions.length} vs ${interactions.length}`, undefined, 'AutonomousBatchResponse')
-        return interactions.map(() => ({ shouldRespond: false }))
-      }
-
-      return decisions.map(shouldRespond => ({ shouldRespond }))
-    } catch (parseError) {
-      logger.error('Failed to parse evaluation decisions', parseError, 'AutonomousBatchResponse')
-      return interactions.map(() => ({ shouldRespond: false }))
+    // Ensure prompt fits within 32K context limit (W&B trained models)
+    const estimatedTokens = countTokensSync(prompt)
+    let finalPrompt = prompt
+    
+    if (estimatedTokens > 30000) {  // 30K with 2K safety margin
+      logger.warn(`Evaluation prompt too long: ${estimatedTokens} tokens, truncating`, undefined, 'AutonomousBatchResponse')
+      const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
+      finalPrompt = truncated.text
+      logger.info(`Truncated to ${truncated.tokens} tokens`, undefined, 'AutonomousBatchResponse')
     }
+
+    // Use small model (llama-3.1-8b-instant) for batch evaluation
+    // Add timeout to prevent hanging (20 seconds max)
+    const decisionText = await Promise.race([
+      callGroqDirect({
+        prompt: finalPrompt,
+        system: agent.agentSystem || undefined,
+        modelSize: 'small',  // Free tier: Fast and efficient
+        runtime: _runtime,  // Pass runtime to access W&B trained models
+        temperature: 0.6,
+        maxTokens: 500
+      }),
+      new Promise<string>((resolve) => {
+        setTimeout(() => {
+          logger.warn(`Interaction evaluation timeout for agent ${agentUserId}, defaulting to no responses`, undefined, 'AutonomousBatchResponse')
+          resolve('[]') // Empty array = no responses
+        }, 20000) // 20 second timeout
+      })
+    ])
+
+    // Parse the boolean array
+    const jsonMatch = decisionText.match(/\[[\s\S]*?\]/)
+    if (!jsonMatch) {
+      throw new Error(`Failed to parse decision array from LLM response: ${decisionText.substring(0, 200)}`)
+    }
+
+    let decisions: boolean[]
+    try {
+      decisions = JSON.parse(jsonMatch[0]) as boolean[]
+    } catch (parseError) {
+      throw new Error(`Failed to parse JSON decision array: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decisionText.substring(0, 200)}`)
+    }
+    
+    // Ensure we have the right number of decisions (for capped interactions)
+    if (decisions.length !== evaluateInteractions.length) {
+      throw new Error(`Decision count mismatch: ${decisions.length} vs ${evaluateInteractions.length}`)
+    }
+
+    return decisions.map(shouldRespond => ({ shouldRespond }))
   }
 
   /**
    * Generate and post responses for approved interactions
-   * Note: Inner try/catch is kept for individual response posting to continue processing on failure.
+   * 
+   * Generates responses using LLM and posts them as comments or messages
+   * based on interaction type. Continues processing even if individual
+   * responses fail.
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (used for W&B model access)
+   * @param interactions - Array of interactions to respond to
+   * @param decisions - Array of response decisions (from evaluateInteractions)
+   * @returns Number of responses successfully created
+   * @throws Error if agent not found
+   * 
+   * @remarks
+   * - Only processes interactions marked with shouldRespond: true
+   * - Uses small model for fast response generation
+   * - Has 15 second timeout per response
+   * - Adds 1 second delay between responses to avoid spam
+   * - Continues processing even if individual responses fail
    */
   async executeResponses(
     agentUserId: string,
@@ -326,14 +395,32 @@ Add value to the conversation.
 
 Generate ONLY the response text, nothing else.`
 
-      // Use small model (llama-3.1-8b-instant) for response generation (frequent operation)
-      const responseContent = await callGroqDirect({
-        prompt: responsePrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'small',  // Free tier: Fast response generation
-        temperature: 0.8,
-        maxTokens: 100
-      })
+      // Truncate if needed (unlikely for individual responses but safe)
+      const respTokens = countTokensSync(responsePrompt)
+      let finalRespPrompt = responsePrompt
+      if (respTokens > 30000) {
+        const truncated = truncateToTokenLimitSync(responsePrompt, 30000, { ellipsis: true })
+        finalRespPrompt = truncated.text
+      }
+
+      // Use small model (llama-3.1-8b-instant) for response generation
+      // Add timeout to prevent hanging (15 seconds max)
+      const responseContent = await Promise.race([
+        callGroqDirect({
+          prompt: finalRespPrompt,
+          system: agent.agentSystem || undefined,
+          modelSize: 'small',  // Free tier: Fast response generation
+          runtime: _runtime,  // Pass runtime to access W&B trained models
+          temperature: 0.8,
+          maxTokens: 100
+        }),
+        new Promise<string>((resolve) => {
+          setTimeout(() => {
+            logger.warn(`Response generation timeout for interaction ${interaction.id}, skipping`, undefined, 'AutonomousBatchResponse')
+            resolve('') // Empty response = skip
+          }, 15000) // 15 second timeout
+        })
+      ])
 
       const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '')
 
@@ -342,64 +429,59 @@ Generate ONLY the response text, nothing else.`
         continue
       }
 
-      // Post the response based on type (keep try/catch to continue on individual failures)
-      try {
-        if (interaction.type === 'comment_on_post' && interaction.postId) {
-          // Reply to comment on post
-          await prisma.comment.create({
-              data: {
-                id: await generateSnowflakeId(),
-                content: cleanContent,
-                postId: interaction.postId,
-                authorId: agentUserId,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              }
-          })
-          responsesCreated++
-          logger.info(`Agent responded to comment on post ${interaction.postId}`, undefined, 'AutonomousBatchResponse')
-        } else if (interaction.type === 'comment_on_comment' && interaction.commentId) {
-          // Reply to comment on comment
-          const parentComment = await prisma.comment.findUnique({
-            where: { id: interaction.commentId },
-            select: { postId: true }
-          })
-
-          if (parentComment) {
-            await prisma.comment.create({
-              data: {
-                id: await generateSnowflakeId(),
-                content: cleanContent,
-                postId: parentComment.postId,
-                authorId: agentUserId,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              }
-            })
-            responsesCreated++
-            logger.info(`Agent responded to comment reply ${interaction.commentId}`, undefined, 'AutonomousBatchResponse')
+      // Post the response based on type
+      if (interaction.type === 'comment_on_post' && interaction.postId) {
+        // Reply to comment on post
+        await prisma.comment.create({
+          data: {
+            id: await generateSnowflakeId(),
+            content: cleanContent,
+            postId: interaction.postId,
+            authorId: agentUserId,
+            createdAt: new Date(),
+            updatedAt: new Date()
           }
-        } else if (interaction.type === 'chat_message' && interaction.chatId) {
-          // Send chat message
-          await prisma.message.create({
+        })
+        responsesCreated++
+        logger.info(`Agent responded to comment on post ${interaction.postId}`, undefined, 'AutonomousBatchResponse')
+      } else if (interaction.type === 'comment_on_comment' && interaction.commentId) {
+        // Reply to comment on comment
+        const parentComment = await prisma.comment.findUnique({
+          where: { id: interaction.commentId },
+          select: { postId: true }
+        })
+
+        if (parentComment) {
+          await prisma.comment.create({
             data: {
               id: await generateSnowflakeId(),
-              chatId: interaction.chatId,
-              senderId: agentUserId,
               content: cleanContent,
-              createdAt: new Date()
+              postId: parentComment.postId,
+              authorId: agentUserId,
+              createdAt: new Date(),
+              updatedAt: new Date()
             }
           })
           responsesCreated++
-          logger.info(`Agent responded in chat ${interaction.chatId}`, undefined, 'AutonomousBatchResponse')
+          logger.info(`Agent responded to comment reply ${interaction.commentId}`, undefined, 'AutonomousBatchResponse')
         }
-
-        // Small delay to avoid spam
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      } catch (error) {
-        // Continue processing other responses even if one fails
-        logger.error(`Failed to post response for interaction ${interaction.id}`, error, 'AutonomousBatchResponse')
+      } else if (interaction.type === 'chat_message' && interaction.chatId) {
+        // Send chat message
+        await prisma.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: interaction.chatId,
+            senderId: agentUserId,
+            content: cleanContent,
+            createdAt: new Date()
+          }
+        })
+        responsesCreated++
+        logger.info(`Agent responded in chat ${interaction.chatId}`, undefined, 'AutonomousBatchResponse')
       }
+
+      // Small delay to avoid spam
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
 
     return responsesCreated
@@ -407,6 +489,21 @@ Generate ONLY the response text, nothing else.`
 
   /**
    * Main entry point: Process all pending interactions in batch
+   * 
+   * Orchestrates the complete batch response workflow:
+   * 1. Gathers all pending interactions
+   * 2. Evaluates which warrant responses
+   * 3. Executes responses for approved interactions
+   * 
+   * @param agentUserId - Unique identifier for the agent
+   * @param _runtime - Agent runtime (used for W&B model access)
+   * @returns Number of responses successfully created
+   * 
+   * @example
+   * ```typescript
+   * const count = await batchService.processBatch('agent-123', runtime);
+   * console.log(`Processed ${count} responses`);
+   * ```
    */
   async processBatch(agentUserId: string, _runtime: IAgentRuntime): Promise<number> {
     logger.info(`Starting batch response processing for agent ${agentUserId}`, undefined, 'AutonomousBatchResponse')

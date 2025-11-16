@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { existsSync, readFileSync } from 'fs';
 import { RelationshipManager } from './RelationshipManager';
+import { shuffleArray } from '@/lib/utils/randomization';
 
 export interface RelationshipData {
   actor1Id: string;
@@ -309,7 +310,7 @@ export class FollowInitializer {
       logger.info(`Processing ${actor.name}...`, { actorId: actor.id }, 'FollowInitializer');
       
       // Select random followers
-      const randomFollowers = this.shuffleArray(cTierActors)
+      const randomFollowers = shuffleArray(cTierActors)
         .filter(f => f.id !== actor.id)
         .slice(0, minFollowers);
 
@@ -386,16 +387,5 @@ export class FollowInitializer {
     }
   }
 
-  /**
-   * Shuffle array utility
-   */
-  private static shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-    }
-    return shuffled;
-  }
 }
 

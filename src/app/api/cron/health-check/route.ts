@@ -1,14 +1,56 @@
 /**
- * Vercel Cron Job: Health Check
+ * Health Check Cron Job API
  * 
- * Simple health check endpoint that runs every 15 minutes to:
- * - Keep serverless functions warm
- * - Verify database connectivity
- * - Log system health metrics
+ * @route GET /api/cron/health-check - System health check
+ * @access Cron (CRON_SECRET required)
  * 
- * Configuration in vercel.json:
- * - Runs every 15 minutes
- * - Max execution time: 60s (quick check)
+ * @description
+ * Simple health check endpoint that runs every 15 minutes to keep serverless
+ * functions warm, verify database connectivity, and log system health metrics.
+ * Max execution time: 60s.
+ * 
+ * @openapi
+ * /api/cron/health-check:
+ *   get:
+ *     tags:
+ *       - Cron
+ *     summary: System health check
+ *     description: Verifies database connectivity and system health (requires CRON_SECRET)
+ *     security:
+ *       - CronSecret: []
+ *     responses:
+ *       200:
+ *         description: System healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 status:
+ *                   type: string
+ *                   enum: [healthy, unhealthy]
+ *                 database:
+ *                   type: string
+ *                   enum: [connected, error]
+ *                 duration:
+ *                   type: number
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Invalid or missing CRON_SECRET
+ *       500:
+ *         description: System unhealthy
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/cron/health-check', {
+ *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
+ * });
+ * const { status, database } = await response.json();
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

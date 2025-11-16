@@ -1,8 +1,61 @@
 /**
- * Admin Management API: Promote/Demote Admin
- * POST /api/admin/admins/[userId]
+ * Admin Management Promote/Demote API
  * 
- * Promote a user to admin or demote an admin to regular user
+ * @route POST /api/admin/admins/[userId] - Promote/demote admin
+ * @access Admin
+ * 
+ * @description
+ * Promotes a user to admin or demotes an admin to regular user. Admin only.
+ * Cannot demote yourself.
+ * 
+ * @openapi
+ * /api/admin/admins/{userId}:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Promote/demote admin
+ *     description: Promotes user to admin or demotes admin to user (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to promote/demote
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [promote, demote]
+ *     responses:
+ *       200:
+ *         description: Action completed successfully
+ *       400:
+ *         description: Cannot demote yourself or invalid action
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/admin/admins/${userId}`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${adminToken}` },
+ *   body: JSON.stringify({ action: 'promote' })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

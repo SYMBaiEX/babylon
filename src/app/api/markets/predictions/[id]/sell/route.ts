@@ -1,6 +1,91 @@
 /**
- * API Route: /api/markets/predictions/[id]/sell
- * Methods: POST (sell YES or NO shares in prediction market)
+ * Prediction Market Sell API
+ * 
+ * @route POST /api/markets/predictions/[id]/sell - Sell shares from prediction market
+ * @access Authenticated
+ * 
+ * @description
+ * Sells shares from a prediction market position using Automated Market Maker (AMM)
+ * pricing. Calculates proceeds, fees, P&L, and updates position. Supports partial
+ * and full position closure. Includes price history recording.
+ * 
+ * @openapi
+ * /api/markets/predictions/{id}/sell:
+ *   post:
+ *     tags:
+ *       - Markets
+ *     summary: Sell prediction market shares
+ *     description: Sells shares from a prediction market position using AMM pricing
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Market/question ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - shares
+ *               - positionId
+ *             properties:
+ *               shares:
+ *                 type: number
+ *                 minimum: 0.01
+ *                 description: Number of shares to sell
+ *               positionId:
+ *                 type: string
+ *                 description: Position ID to sell from
+ *     responses:
+ *       200:
+ *         description: Shares sold successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 grossProceeds:
+ *                   type: number
+ *                 netProceeds:
+ *                   type: number
+ *                 pnl:
+ *                   type: number
+ *                 remainingShares:
+ *                   type: number
+ *                 positionClosed:
+ *                   type: boolean
+ *                 newBalance:
+ *                   type: number
+ *       400:
+ *         description: Invalid input or insufficient shares
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Market or position not found
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch(`/api/markets/predictions/${marketId}/sell`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     shares: 10,
+ *     positionId: 'position_123'
+ *   })
+ * });
+ * const { netProceeds, pnl } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/prediction-pricing} Prediction pricing service
+ * @see {@link /lib/services/wallet-service} Wallet service
  */
 
 import type { NextRequest } from 'next/server';

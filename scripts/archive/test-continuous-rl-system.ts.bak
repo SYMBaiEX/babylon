@@ -1,0 +1,465 @@
+/**
+ * Test Continuous RL Training System
+ * 
+ * Tests all components of the continuous RL training system:
+ * 1. Model selection logic
+ * 2. Training data collection
+ * 3. Benchmarking
+ * 4. Model comparison
+ * 5. Deployment decisions
+ */
+
+import { prisma } from '@/lib/prisma';
+import { modelSelectionService } from '@/lib/training/ModelSelectionService';
+import { benchmarkService } from '@/lib/training/BenchmarkService';
+
+interface TestResults {
+  section: string;
+  passed: boolean;
+  details: string;
+  error?: string;
+}
+
+const results: TestResults[] = [];
+
+function addResult(section: string, passed: boolean, details: string, error?: string) {
+  results.push({ section, passed, details, error });
+  const icon = passed ? '✅' : '❌';
+  console.log(`${icon} ${section}: ${details}`);
+  if (error) {
+    console.error(`   Error: ${error}`);
+  }
+}
+
+async function testModelSelection() {
+  console.log('\n🧪 Testing Model Selection Service\n');
+  
+  try {
+    // Test 1: Get bundle count
+    const bundleCount = await modelSelectionService.countTrainingBundles();
+    addResult(
+      'Bundle Count',
+      true,
+      `Found ${bundleCount} training bundles`
+    );
+    
+    // Test 2: Check if should force first model
+    const shouldForce = await modelSelectionService.shouldForceFirstModel();
+    addResult(
+      'Force First Model',
+      true,
+      shouldForce 
+        ? 'No models exist - will force first model'
+        : 'Models exist - normal selection'
+    );
+    
+    // Test 3: Get selection summary
+    const summary = await modelSelectionService.getSelectionSummary();
+    addResult(
+      'Selection Summary',
+      true,
+      `${summary.trainedModelCount} models, ${summary.bundleCount} bundles\n` +
+      `   Recommendation: ${summary.recommendation}\n` +
+      `   Best model: ${summary.bestModel || 'None'}\n` +
+      `   Best score: ${summary.bestScore?.toFixed(3) || 'N/A'}`
+    );
+    
+    // Test 4: Select base model (full logic)
+    try {
+      const selection = await modelSelectionService.selectBaseModel();
+      addResult(
+        'Base Model Selection',
+        true,
+        `Strategy: ${selection.strategy}\n` +
+        `   Model: ${selection.modelId}\n` +
+        `   Reason: ${selection.reason}`
+      );
+    } catch (error) {
+      addResult(
+        'Base Model Selection',
+        false,
+        'Selection failed',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+    
+    // Test 5: Get best performing model
+    const bestModel = await modelSelectionService.getBestPerformingModel();
+    addResult(
+      'Best Model Query',
+      true,
+      bestModel
+        ? `Found: ${bestModel.modelId} (score: ${bestModel.benchmarkScore?.toFixed(3) || 'N/A'})`
+        : 'No benchmarked models found'
+    );
+    
+  } catch (error) {
+    addResult(
+      'Model Selection',
+      false,
+      'Test suite failed',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function testDataCollection() {
+  console.log('\n🧪 Testing Data Collection\n');
+  
+  try {
+    // Test 1: Count trajectories
+    const totalTrajectories = await prisma.trajectory.count({
+      where: {
+        isTrainingData: true,
+        aiJudgeReward: { not: null }
+      }
+    });
+    
+    addResult(
+      'Trajectory Count',
+      true,
+      `Total: ${totalTrajectories} scored trajectories`
+    );
+    
+    // Test 2: Count unused trajectories
+    const unusedTrajectories = await prisma.trajectory.count({
+      where: {
+        isTrainingData: true,
+        usedInTraining: false,
+        aiJudgeReward: { not: null }
+      }
+    });
+    
+    addResult(
+      'Unused Trajectories',
+      unusedTrajectories > 0,
+      `${unusedTrajectories} trajectories ready for training`
+    );
+    
+    // Test 3: Check data quality (sample)
+    const sample = await prisma.trajectory.findMany({
+      where: {
+        isTrainingData: true,
+        aiJudgeReward: { not: null }
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    let validCount = 0;
+    for (const traj of sample) {
+      try {
+        const steps = JSON.parse(traj.stepsJson);
+        if (Array.isArray(steps) && steps.length > 0) {
+          validCount++;
+        }
+      } catch {
+        // Invalid JSON
+      }
+    }
+    
+    const quality = sample.length > 0 ? (validCount / sample.length) * 100 : 0;
+    addResult(
+      'Data Quality',
+      quality > 90,
+      `${quality.toFixed(1)}% valid trajectories (sample of ${sample.length})`
+    );
+    
+    // Test 4: Check window distribution
+    const windows = await prisma.trajectory.groupBy({
+      by: ['windowId'],
+      where: {
+        isTrainingData: true,
+        windowId: { not: null }
+      },
+      _count: true,
+      orderBy: {
+        _count: {
+          windowId: 'desc'
+        }
+      },
+      take: 5
+    });
+    
+    addResult(
+      'Window Distribution',
+      windows.length > 0,
+      `${windows.length} unique windows\n` +
+      windows.slice(0, 3).map(w => 
+        `   ${w.windowId}: ${w._count} trajectories`
+      ).join('\n')
+    );
+    
+  } catch (error) {
+    addResult(
+      'Data Collection',
+      false,
+      'Test suite failed',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function testBenchmarking() {
+  console.log('\n🧪 Testing Benchmarking Service\n');
+  
+  try {
+    // Test 1: Get benchmark summary
+    const summary = await benchmarkService.getBenchmarkSummary();
+    addResult(
+      'Benchmark Summary',
+      true,
+      `${summary.totalBenchmarked} models benchmarked\n` +
+      `   Top models: ${summary.topModels.length}\n` +
+      `   Recent models: ${summary.recentModels.length}`
+    );
+    
+    if (summary.topModels.length > 0) {
+      console.log('\n   Top 3 Models:');
+      summary.topModels.slice(0, 3).forEach((m, i) => {
+        console.log(`   ${i + 1}. ${m.modelId}: ${m.score?.toFixed(3) || 'N/A'} (${m.status})`);
+      });
+    }
+    
+    // Test 2: Check if we have a model to benchmark
+    const latestModel = await prisma.trainedModel.findFirst({
+      where: {
+        status: { in: ['ready', 'deployed'] }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (latestModel) {
+      addResult(
+        'Model Availability',
+        true,
+        `Latest model: ${latestModel.modelId} (${latestModel.status})`
+      );
+      
+      // Test 3: Check if benchmark file exists
+      try {
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const benchmarkPath = path.resolve(
+          process.cwd(), 
+          'benchmarks/benchmark-week-10080-60-10-5-8-12345.json'
+        );
+        await fs.access(benchmarkPath);
+        addResult(
+          'Benchmark File',
+          true,
+          `Found benchmark at: ${benchmarkPath}`
+        );
+        
+        // Note: We're not actually running the benchmark here as it takes time
+        // User can run it manually with: bun run tsx scripts/benchmark-model.ts
+        addResult(
+          'Benchmark Execution',
+          true,
+          'Skipped (run manually with scripts/benchmark-model.ts)'
+        );
+        
+      } catch {
+        addResult(
+          'Benchmark File',
+          false,
+          'Benchmark file not found - generate with scripts/generate-benchmark.ts'
+        );
+      }
+    } else {
+      addResult(
+        'Model Availability',
+        false,
+        'No models available to benchmark'
+      );
+    }
+    
+  } catch (error) {
+    addResult(
+      'Benchmarking',
+      false,
+      'Test suite failed',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function testModelComparison() {
+  console.log('\n🧪 Testing Model Comparison\n');
+  
+  try {
+    // Get two models for comparison
+    const models = await prisma.trainedModel.findMany({
+      where: {
+        status: { in: ['ready', 'deployed'] },
+        benchmarkScore: { not: null }
+      },
+      orderBy: { benchmarkScore: 'desc' },
+      take: 2
+    });
+    
+    if (models.length === 0) {
+      addResult(
+        'Model Comparison',
+        false,
+        'No benchmarked models available for comparison'
+      );
+      return;
+    }
+    
+    if (models.length === 1) {
+      addResult(
+        'Model Comparison',
+        true,
+        `Only one model available: ${models[0]!.modelId}\n` +
+        `   Score: ${models[0]!.benchmarkScore?.toFixed(3) || 'N/A'}\n` +
+        `   Would deploy: true (no comparison needed)`
+      );
+      return;
+    }
+    
+    // Compare the two models
+    const [, second] = models;
+    const comparison = await benchmarkService.compareModels(second!.modelId);
+    
+    addResult(
+      'Model Comparison',
+      true,
+      `Compared ${comparison.newModel} vs ${comparison.previousModel}\n` +
+      `   New score: ${comparison.newScore.toFixed(3)}\n` +
+      `   Previous score: ${comparison.previousScore?.toFixed(3) || 'N/A'}\n` +
+      `   Improvement: ${comparison.improvement?.toFixed(1) || 'N/A'}%\n` +
+      `   Should deploy: ${comparison.shouldDeploy}\n` +
+      `   Reason: ${comparison.reason}`
+    );
+    
+  } catch (error) {
+    addResult(
+      'Model Comparison',
+      false,
+      'Test suite failed',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function testDatabaseSchema() {
+  console.log('\n🧪 Testing Database Schema\n');
+  
+  try {
+    // Check if required tables exist
+    const tables = ['trajectories', 'trained_models', 'training_batches'];
+    
+    for (const table of tables) {
+      try {
+        // @ts-expect-error - Dynamic table access
+        const count = await prisma[table === 'training_batches' ? 'trainingBatch' : table === 'trained_models' ? 'trainedModel' : 'trajectory'].count();
+        addResult(
+          `Table: ${table}`,
+          true,
+          `Exists (${count} records)`
+        );
+      } catch (error) {
+        addResult(
+          `Table: ${table}`,
+          false,
+          'Not accessible',
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+    
+    // Check if required fields exist on TrainedModel
+    const sampleModel = await prisma.trainedModel.findFirst();
+    if (sampleModel) {
+      const hasRequiredFields = 
+        'benchmarkScore' in sampleModel &&
+        'storagePath' in sampleModel &&
+        'status' in sampleModel;
+      
+      addResult(
+        'TrainedModel Schema',
+        hasRequiredFields,
+        hasRequiredFields 
+          ? 'All required fields present'
+          : 'Missing required fields (benchmarkScore, storagePath, status)'
+      );
+    }
+    
+  } catch (error) {
+    addResult(
+      'Database Schema',
+      false,
+      'Test suite failed',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function printSummary() {
+  console.log('\n' + '='.repeat(80));
+  console.log('📊 TEST SUMMARY');
+  console.log('='.repeat(80) + '\n');
+  
+  const passed = results.filter(r => r.passed).length;
+  const total = results.length;
+  const percentage = total > 0 ? (passed / total) * 100 : 0;
+  
+  console.log(`Total Tests: ${total}`);
+  console.log(`Passed: ${passed} (${percentage.toFixed(1)}%)`);
+  console.log(`Failed: ${total - passed}\n`);
+  
+  const failed = results.filter(r => !r.passed);
+  if (failed.length > 0) {
+    console.log('❌ Failed Tests:\n');
+    failed.forEach(r => {
+      console.log(`   - ${r.section}: ${r.details}`);
+      if (r.error) {
+        console.log(`     Error: ${r.error}`);
+      }
+    });
+    console.log();
+  }
+  
+  console.log('='.repeat(80));
+  
+  if (percentage === 100) {
+    console.log('\n🎉 All tests passed! System is ready for continuous training.\n');
+  } else if (percentage >= 80) {
+    console.log('\n✅ Most tests passed. Review failures before deploying.\n');
+  } else {
+    console.log('\n⚠️  Multiple test failures. System needs attention.\n');
+  }
+}
+
+async function main() {
+  console.log('╔════════════════════════════════════════════════════════════════════════════╗');
+  console.log('║                  Continuous RL Training System Test                       ║');
+  console.log('╚════════════════════════════════════════════════════════════════════════════╝');
+  
+  try {
+    await testModelSelection();
+    await testDataCollection();
+    await testBenchmarking();
+    await testModelComparison();
+    await testDatabaseSchema();
+    
+    await printSummary();
+    
+    process.exit(results.every(r => r.passed) ? 0 : 1);
+    
+  } catch (error) {
+    console.error('\n❌ Test suite crashed:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  main();
+}
+
+export { main, testModelSelection, testDataCollection, testBenchmarking };
+

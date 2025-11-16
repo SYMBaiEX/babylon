@@ -1,14 +1,48 @@
 /**
- * Debug: Manual Training Trigger
+ * Debug Training Trigger API
  * 
- * Manually trigger GitHub Actions training workflow for testing.
+ * @route GET /api/debug/trigger-training - Trigger training manually
+ * @access Admin/Debug (dev or admin auth)
  * 
- * Security: Only available in development or with admin authentication
+ * @description
+ * Manually triggers GitHub Actions training workflow for testing. Only
+ * available in development or with admin authentication.
  * 
- * Usage:
- *   GET /api/debug/trigger-training
- *   GET /api/debug/trigger-training?force=true (skip readiness check)
- *   GET /api/debug/trigger-training?window=2025-11-15T10:00
+ * @openapi
+ * /api/debug/trigger-training:
+ *   get:
+ *     tags:
+ *       - Debug
+ *     summary: Trigger training manually
+ *     description: Manually triggers training workflow (admin/dev only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: force
+ *         schema:
+ *           type: boolean
+ *         description: Skip readiness check
+ *       - in: query
+ *         name: window
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Specific training window
+ *     responses:
+ *       200:
+ *         description: Training triggered successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/debug/trigger-training?force=true', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';
@@ -130,7 +164,7 @@ export async function GET(request: NextRequest) {
       message: 'Training workflow dispatched. Check GitHub Actions tab to monitor progress.',
       links: {
         githubActions: `https://github.com/${githubRepo}/actions/workflows/rl-training.yml`,
-        wandbProject: `https://wandb.ai/${process.env.WANDB_ENTITY || 'your-entity'}/${process.env.WANDB_PROJECT || 'babylon-rl'}`
+        wandbProject: `https://wandb.ai/${process.env.WANDB_ENTITY || 'your-entity'}/${process.env.WANDB_PROJECT || 'babylon'}`
       }
     });
 

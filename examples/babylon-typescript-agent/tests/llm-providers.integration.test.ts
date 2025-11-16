@@ -122,7 +122,7 @@ describe('LLM Provider Live Test', () => {
       console.log('   - GROQ_API_KEY')
       console.log('   - ANTHROPIC_API_KEY')
       console.log('   - OPENAI_API_KEY\n')
-      expect(true).toBe(true)
+      // Test skipped - no API keys configured
     })
   }
 })

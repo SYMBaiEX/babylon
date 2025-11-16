@@ -139,7 +139,7 @@ describe('Autonomous Agent - Complete E2E Test', () => {
     if (prisma) {
       // Clean up test data
       if (createdPostId) {
-        await prisma.post.delete({ where: { id: createdPostId } }).catch(() => {})
+        await prisma.post.delete({ where: { id: createdPostId } })
       }
       await prisma.$disconnect()
     }

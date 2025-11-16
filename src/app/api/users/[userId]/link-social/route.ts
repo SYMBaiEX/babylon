@@ -1,6 +1,71 @@
 /**
- * API Route: /api/users/[userId]/link-social
- * Methods: POST (link social account and award points)
+ * User Link Social API
+ * 
+ * @route POST /api/users/[userId]/link-social - Link social account
+ * @access Authenticated
+ * 
+ * @description
+ * Links a social account (Farcaster, Twitter, or wallet) to user profile.
+ * Awards points if this is the first time linking this platform.
+ * 
+ * @openapi
+ * /api/users/{userId}/link-social:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Link social account
+ *     description: Links social account and awards points if first time (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - platform
+ *             properties:
+ *               platform:
+ *                 type: string
+ *                 enum: [farcaster, twitter, wallet]
+ *               username:
+ *                 type: string
+ *                 description: Username for social platform
+ *               address:
+ *                 type: string
+ *                 pattern: '^0x[a-fA-F0-9]{40}$'
+ *                 description: Wallet address (for wallet platform)
+ *     responses:
+ *       200:
+ *         description: Account linked successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized for this user
+ *       409:
+ *         description: Account already linked
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/users/${userId}/link-social`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     platform: 'farcaster',
+ *     username: 'username'
+ *   })
+ * });
+ * ```
  */
 
 import {

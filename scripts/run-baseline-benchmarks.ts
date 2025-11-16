@@ -206,7 +206,11 @@ async function main() {
   console.log('\nUse these baselines for comparison with trained models.\n');
   
   await prisma.$disconnect();
+  process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error('Error:', error);
+  process.exit(1);
+});
 

@@ -1,8 +1,110 @@
 /**
- * User Block API Route
- * POST /api/users/[userId]/block
+ * User Block API
  * 
- * Block or unblock a user
+ * @route POST /api/users/[userId]/block - Block or unblock user
+ * @route GET /api/users/[userId]/block - Check if user is blocked
+ * @access Authenticated
+ * 
+ * @description
+ * Manages user blocking/unblocking. POST blocks or unblocks a user (also removes
+ * follow relationships). GET checks if the current user has blocked the target user.
+ * 
+ * @openapi
+ * /api/users/{userId}/block:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Block or unblock user
+ *     description: Blocks or unblocks a user and removes follow relationships
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Target user ID to block/unblock
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [block, unblock]
+ *               reason:
+ *                 type: string
+ *                 description: Optional reason for blocking
+ *     responses:
+ *       200:
+ *         description: Block/unblock action completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 block:
+ *                   type: object
+ *                   nullable: true
+ *       400:
+ *         description: Invalid action or already blocked/unblocked
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Target user not found
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Check if user is blocked
+ *     description: Returns whether the current user has blocked the target user
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Target user ID to check
+ *     responses:
+ *       200:
+ *         description: Block status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isBlocked:
+ *                   type: boolean
+ *                 block:
+ *                   type: object
+ *                   nullable: true
+ * 
+ * @example
+ * ```typescript
+ * // Block user
+ * await fetch(`/api/users/${userId}/block`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ action: 'block', reason: 'Spam' })
+ * });
+ * 
+ * // Check block status
+ * const { isBlocked } = await fetch(`/api/users/${userId}/block`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
+ * 
+ * @see {@link /lib/moderation/filters} Moderation filters
  */
 
 import type { NextRequest } from 'next/server';

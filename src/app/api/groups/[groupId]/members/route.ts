@@ -1,6 +1,138 @@
 /**
- * API Route: /api/groups/[groupId]/members
- * Methods: POST (add member), DELETE (remove member)
+ * Group Members API
+ * 
+ * @route GET /api/groups/[groupId]/members - Get group members
+ * @route POST /api/groups/[groupId]/members - Add member to group
+ * @route DELETE /api/groups/[groupId]/members - Remove member from group
+ * @access Authenticated (members can view, admins can add/remove)
+ * 
+ * @description
+ * Manages group membership. GET returns list of members. POST adds a new member
+ * (admin only, sends notification). DELETE removes a member (admin only or self-remove).
+ * 
+ * @openapi
+ * /api/groups/{groupId}/members:
+ *   get:
+ *     tags:
+ *       - Groups
+ *     summary: Get group members
+ *     description: Returns list of group members
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     responses:
+ *       200:
+ *         description: Members retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 members:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: string
+ *                       joinedAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a group member
+ *       404:
+ *         description: Group not found
+ *   post:
+ *     tags:
+ *       - Groups
+ *     summary: Add member to group
+ *     description: Adds a user to the group (admin only, sends notification)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID to add
+ *     responses:
+ *       201:
+ *         description: Member added successfully
+ *       400:
+ *         description: User already a member
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a group admin
+ *       404:
+ *         description: Group or user not found
+ *   delete:
+ *     tags:
+ *       - Groups
+ *     summary: Remove member from group
+ *     description: Removes a member from the group (admin only or self-remove)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to remove
+ *     responses:
+ *       200:
+ *         description: Member removed successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized to remove member
+ *       404:
+ *         description: Group or member not found
+ * 
+ * @example
+ * ```typescript
+ * // Get members
+ * const members = await fetch(`/api/groups/${groupId}/members`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Add member
+ * await fetch(`/api/groups/${groupId}/members`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ userId: 'user_123' })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/notification-service} Notification service
  */
 
 import type { NextRequest } from 'next/server'

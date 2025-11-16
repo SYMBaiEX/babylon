@@ -1,6 +1,106 @@
 /**
- * API Route: /api/posts/[id]/share
- * Methods: POST (share/repost), DELETE (unshare)
+ * Post Share/Repost API
+ * 
+ * @route POST /api/posts/[id]/share - Share/repost a post
+ * @route DELETE /api/posts/[id]/share - Unshare/remove repost
+ * @access Authenticated
+ * 
+ * @description
+ * Manages post sharing and reposting functionality. Creates repost posts that appear
+ * in user feeds, handles quote posts with commentary, and manages share tracking.
+ * Includes rate limiting, duplicate prevention, and automatic notifications.
+ * 
+ * @openapi
+ * /api/posts/{id}/share:
+ *   post:
+ *     tags:
+ *       - Posts
+ *     summary: Share/repost a post
+ *     description: Creates a share/repost of a post. Optionally includes quote commentary. Creates repost post in user's feed.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID to share
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               comment:
+ *                 type: string
+ *                 description: Optional quote comment/commentary
+ *     responses:
+ *       201:
+ *         description: Post shared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shareCount:
+ *                       type: integer
+ *                     isShared:
+ *                       type: boolean
+ *                     repostPost:
+ *                       type: object
+ *       400:
+ *         description: Post already shared or invalid
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post not found
+ *       429:
+ *         description: Rate limit exceeded
+ *   delete:
+ *     tags:
+ *       - Posts
+ *     summary: Unshare a post
+ *     description: Removes share and deletes associated repost post
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID to unshare
+ *     responses:
+ *       200:
+ *         description: Post unshared successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Share not found
+ * 
+ * @example
+ * ```typescript
+ * // Share with quote comment
+ * const response = await fetch(`/api/posts/${postId}/share`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     comment: 'Great analysis!'
+ *   })
+ * });
+ * 
+ * // Unshare
+ * await fetch(`/api/posts/${postId}/share`, {
+ *   method: 'DELETE',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/notification-service} Notification service
  */
 
 import type { NextRequest } from 'next/server';
@@ -55,11 +155,17 @@ export const POST = withErrorHandling(async (
   const { user: canonicalUser } = await ensureUserForAuth(user, { displayName: fallbackDisplayName });
   const canonicalUserId = canonicalUser.id;
 
-    // Check if post exists first
+    // Check if post exists first and is not in the future
+    const now = new Date();
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, deletedAt: true, authorId: true },
+      select: { id: true, deletedAt: true, authorId: true, timestamp: true },
     });
+
+    // ✅ Don't allow sharing future posts
+    if (post && post.timestamp > now) {
+      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+    }
 
     // Check if either user has blocked the other (if post exists)
     if (post) {
@@ -140,6 +246,11 @@ export const POST = withErrorHandling(async (
         timestamp: true,
       },
     });
+
+    // ✅ Don't allow reposting future posts
+    if (originalPost && originalPost.timestamp > now) {
+      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+    }
 
     let repostPostData = null;
 
@@ -321,12 +432,15 @@ export const DELETE = withErrorHandling(async (
       const windowStart = new Date(shareCreatedAt.getTime() - 1000); // 1 second before
       const windowEnd = new Date(shareCreatedAt.getTime() + 60000); // 1 minute after
 
+      // Only check for reposts up to current time
+      const currentTime = new Date();
+      const effectiveWindowEnd = windowEnd > currentTime ? currentTime : windowEnd;
       const potentialReposts = await prisma.post.findMany({
         where: {
           authorId: canonicalUserId,
           timestamp: {
             gte: windowStart,
-            lte: windowEnd,
+            lte: effectiveWindowEnd, // ✅ No future posts
           },
           deletedAt: null,
         },

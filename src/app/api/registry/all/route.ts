@@ -1,11 +1,46 @@
 /**
- * Enhanced Registry API Route
- *
- * Fetches ALL entities from the ERC8004 registry and database:
- * - Users (both regular users and those with on-chain registration)
- * - Actors (NPCs from the game)
- * - Agents (from Agent0 network)
- * - Apps (game platforms and services)
+ * Enhanced Registry API
+ * 
+ * @route GET /api/registry/all - Get all registry entities
+ * @access Public (optional authentication for RLS)
+ * 
+ * @description
+ * Fetches ALL entities from the ERC8004 registry and database including users,
+ * actors (NPCs), agents (from Agent0 network), and apps (game platforms).
+ * 
+ * @openapi
+ * /api/registry/all:
+ *   get:
+ *     tags:
+ *       - Registry
+ *     summary: Get all registry entities
+ *     description: Returns all entities from ERC8004 registry and database (optional auth for RLS)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Entities retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                 actors:
+ *                   type: array
+ *                 agents:
+ *                   type: array
+ *                 apps:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized (optional)
+ * 
+ * @example
+ * ```typescript
+ * const { users, actors, agents } = await fetch('/api/registry/all')
+ *   .then(r => r.json());
+ * ```
  */
 
 import { SubgraphClient } from '@/agents/agent0/SubgraphClient'
@@ -60,6 +95,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           profileImageUrl: true,
           walletAddress: true,
           isActor: true,
+          isBanned: true,
+          isScammer: true,
+          isCSAM: true,
           onChainRegistered: true,
           nftTokenId: true,
           agent0TokenId: true,
@@ -69,6 +107,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           createdAt: true,
           virtualBalance: true,
           reputationPoints: true,
+          AgentPerformanceMetrics: {
+            select: {
+              reputationScore: true,
+              averageFeedbackScore: true,
+              totalFeedbackCount: true,
+            },
+          },
           _count: {
             select: {
               Position: true,
@@ -90,6 +135,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         imageUrl: user.profileImageUrl,
         walletAddress: user.walletAddress,
         isActor: user.isActor,
+        isBanned: user.isBanned,
+        isScammer: user.isScammer,
+        isCSAM: user.isCSAM,
         onChainRegistered: user.onChainRegistered,
         nftTokenId: user.nftTokenId,
         agent0TokenId: user.agent0TokenId,
@@ -99,14 +147,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         createdAt: user.createdAt,
         balance: user.virtualBalance.toString(),
         reputationPoints: user.reputationPoints,
-          stats: {
-            positions: user._count.Position,
-            comments: user._count.Comment,
-            reactions: user._count.Reaction,
-            followers: user._count.Follow_Follow_followingIdToUser,
-            following: user._count.Follow_Follow_followerIdToUser,
-          },
-        }))
+        reputationScore: user.AgentPerformanceMetrics?.reputationScore ?? user.reputationPoints,
+        averageFeedbackScore: user.AgentPerformanceMetrics?.averageFeedbackScore ?? 0,
+        totalFeedbackCount: user.AgentPerformanceMetrics?.totalFeedbackCount ?? 0,
+        stats: {
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
+          followers: user._count.Follow_Follow_followingIdToUser,
+          following: user._count.Follow_Follow_followerIdToUser,
+        },
+      }))
       }
 
       return await asPublic(dbOperation)

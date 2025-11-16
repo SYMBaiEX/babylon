@@ -1,7 +1,7 @@
 /**
  * Agent Profile Generation API
  * 
- * @route POST /api/agents/generate-profile
+ * @route POST /api/agents/generate-profile - Generate agent profile
  * @access Authenticated
  * 
  * @description
@@ -9,20 +9,81 @@
  * Uses AI to create name, description, system prompt, bio points, personality, and
  * trading strategy tailored to the archetype characteristics.
  * 
- * @param {object} archetype - Archetype object with id, name, emoji, description
- * @param {object} userProfile - Optional user context (name, username, bio)
+ * @openapi
+ * /api/agents/generate-profile:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Generate agent profile
+ *     description: Generates complete agent profile from archetype using AI
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - archetype
+ *             properties:
+ *               archetype:
+ *                 type: object
+ *                 required:
+ *                   - id
+ *                   - name
+ *                   - description
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   emoji:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *               userProfile:
+ *                 type: object
+ *                 description: Optional user context
+ *     responses:
+ *       200:
+ *         description: Profile generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 name:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 system:
+ *                   type: string
+ *                 bio:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 personality:
+ *                   type: string
+ *                 tradingStrategy:
+ *                   type: string
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       429:
+ *         description: Rate limit exceeded
  * 
- * @returns {object} Generated agent profile
- * @property {string} name - Generated agent name
- * @property {string} description - Brief agent description
- * @property {string} system - System prompt
- * @property {array} bio - Array of bio points
- * @property {string} personality - Personality description
- * @property {string} tradingStrategy - Trading strategy description
- * 
- * @throws {400} Invalid input parameters
- * @throws {401} Unauthorized - authentication required
- * @throws {500} Internal server error
+ * @example
+ * ```typescript
+ * const profile = await fetch('/api/agents/generate-profile', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     archetype: { id: 'trader', name: 'Trader', description: '...' }
+ *   })
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

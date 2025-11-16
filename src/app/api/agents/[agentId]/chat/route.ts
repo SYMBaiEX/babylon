@@ -11,41 +11,117 @@
  * Includes content safety checks, automatic retry logic, and points-based
  * usage tracking.
  * 
- * **POST - Send Message to Agent**
+ * @openapi
+ * /api/agents/{agentId}/chat:
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Send message to agent
+ *     description: Initiates chat interaction with agent (owner only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - message
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 maxLength: 1000
+ *               usePro:
+ *                 type: boolean
+ *                 description: Use pro-tier model
+ *     responses:
+ *       200:
+ *         description: Agent responded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 messageId:
+ *                   type: string
+ *                 response:
+ *                   type: string
+ *                 pointsCost:
+ *                   type: number
+ *                 modelUsed:
+ *                   type: string
+ *                 balanceAfter:
+ *                   type: number
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent owner
+ *       404:
+ *         description: Agent not found
+ *   get:
+ *     tags:
+ *       - Agents
+ *     summary: Get chat history
+ *     description: Returns conversation history with agent (owner only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Maximum messages to return
+ *     responses:
+ *       200:
+ *         description: Chat history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 messages:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent owner
+ *       404:
+ *         description: Agent not found
  * 
- * Initiates a chat interaction with the agent. The agent generates a response
- * using its AI model, staying in character based on its system prompt and
- * personality configuration.
+ * @example
+ * ```typescript
+ * // Send message
+ * const response = await fetch(`/api/agents/${agentId}/chat`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ message: 'Hello!' })
+ * });
  * 
- * **Features:**
- * - Conversation context (last 10 messages)
- * - Content safety filtering (input and output)
- * - Automatic response regeneration if unsafe
- * - Points deduction (varies by tier: lite=0, standard=1, pro=2)
- * - Multi-tier model support (free: Groq 8B, pro: Groq 70B)
- * - Transaction logging and audit trail
- * 
- * **Safety:**
- * - Input validation and profanity filtering
- * - Output safety checks with automatic regeneration
- * - Points refund on error
- * - Rate limiting via points system
- * 
- * @param {string} agentId - Agent user ID (path parameter)
- * @param {string} message - User message (required, max ~1000 chars)
- * @param {boolean} usePro - Use pro-tier model (optional, default: agent's tier)
- * 
- * @returns {object} Agent response with metadata
- * @property {boolean} success - Operation success
- * @property {string} messageId - Generated message ID
- * @property {string} response - Agent's response text
- * @property {number} pointsCost - Points deducted
- * @property {string} modelUsed - Model used for generation
- * @property {number} balanceAfter - Remaining points balance
- * 
- * **GET - Retrieve Chat History**
- * 
- * Fetches conversation history with the agent, ordered chronologically.
+ * // Get history
+ * const { messages } = await fetch(`/api/agents/${agentId}/chat`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
+ */
+
+/**
+ * Agent Chat Interaction API (Legacy TSDoc)
  * 
  * @param {string} agentId - Agent user ID (path parameter)
  * @query {number} limit - Max messages to return (default: 50)
@@ -213,7 +289,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     await agentService.depositPoints(agentId, user.id, pointsCost)
     
     // Delete user message since we failed
-    await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+    await prisma.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,
@@ -225,7 +301,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
   if (!response || typeof response !== 'string' || response.trim().length === 0) {
     logger.error('Agent generated empty response', { agentId }, 'AgentChat')
     await agentService.depositPoints(agentId, user.id, pointsCost)
-    await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+    await prisma.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,
@@ -252,7 +328,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     } catch (error) {
       logger.error('Failed to regenerate response', { error, agentId }, 'AgentChat')
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+      await prisma.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -264,7 +340,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     if (!response || typeof response !== 'string' || response.trim().length === 0) {
       logger.error('Agent generated empty response after regeneration', { agentId }, 'AgentChat')
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+      await prisma.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -281,7 +357,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
       }, 'AgentChat')
       // Refund points and return error
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+      await prisma.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -296,7 +372,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
   if (response.length === 0) {
     logger.error('Response became empty after trimming', { agentId }, 'AgentChat')
     await agentService.depositPoints(agentId, user.id, pointsCost)
-    await prisma.agentMessage.delete({ where: { id: userMessageId } }).catch(() => {})
+    await prisma.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,

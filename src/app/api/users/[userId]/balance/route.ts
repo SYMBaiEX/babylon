@@ -1,3 +1,67 @@
+/**
+ * User Balance API
+ * 
+ * @route GET /api/users/[userId]/balance - Get user balance
+ * @access Authenticated (own balance only)
+ * 
+ * @description
+ * Retrieves authenticated user's balance information including virtual balance,
+ * total deposited, total withdrawn, and lifetime P&L. Uses caching for performance.
+ * Users can only view their own balance.
+ * 
+ * @openapi
+ * /api/users/{userId}/balance:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get user balance
+ *     description: Returns user's balance information (own balance only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (must match authenticated user)
+ *     responses:
+ *       200:
+ *         description: Balance retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 balance:
+ *                   type: string
+ *                   description: Current virtual balance
+ *                 totalDeposited:
+ *                   type: string
+ *                   description: Total amount deposited
+ *                 totalWithdrawn:
+ *                   type: string
+ *                   description: Total amount withdrawn
+ *                 lifetimePnL:
+ *                   type: string
+ *                   description: Lifetime profit/loss
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Cannot view another user's balance
+ *       404:
+ *         description: Balance not found
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/users/user_123/balance', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { balance, lifetimePnL } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/cached-database-service} Cached database service
+ */
 
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { cachedDb } from '@/lib/cached-database-service';

@@ -1,6 +1,74 @@
 /**
- * API Route: /api/users/[userId]/share
- * Methods: POST (track share action and award points)
+ * User Share API
+ * 
+ * @route POST /api/users/[userId]/share - Track share action
+ * @access Authenticated
+ * 
+ * @description
+ * Tracks a share action and awards points. Supports multiple platforms
+ * (Twitter, Farcaster, Link, Telegram, Discord) and content types.
+ * 
+ * @openapi
+ * /api/users/{userId}/share:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Track share action
+ *     description: Tracks share and awards points (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - platform
+ *               - contentType
+ *             properties:
+ *               platform:
+ *                 type: string
+ *                 enum: [twitter, farcaster, link, telegram, discord]
+ *               contentType:
+ *                 type: string
+ *                 enum: [post, profile, market, referral, leaderboard]
+ *               contentId:
+ *                 type: string
+ *                 description: ID of shared content
+ *               url:
+ *                 type: string
+ *                 format: uri
+ *                 description: Share URL
+ *     responses:
+ *       200:
+ *         description: Share tracked successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized for this user
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/users/${userId}/share`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     platform: 'twitter',
+ *     contentType: 'post',
+ *     contentId: 'post-id'
+ *   })
+ * });
+ * ```
  */
 
 import {

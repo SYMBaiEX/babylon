@@ -1,6 +1,45 @@
 /**
- * API Route: /api/groups/invites/[inviteId]/decline
- * Methods: POST (decline a group invite)
+ * Group Invite Decline API
+ * 
+ * @route POST /api/groups/invites/[inviteId]/decline - Decline group invite
+ * @access Authenticated
+ * 
+ * @description
+ * Declines a group invitation. Removes the invite. User must be the invitee.
+ * 
+ * @openapi
+ * /api/groups/invites/{inviteId}/decline:
+ *   post:
+ *     tags:
+ *       - Groups
+ *     summary: Decline group invite
+ *     description: Declines a group invitation (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: inviteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invite ID
+ *     responses:
+ *       200:
+ *         description: Invite declined successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not the invitee
+ *       404:
+ *         description: Invite not found
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/groups/invites/${inviteId}/decline`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

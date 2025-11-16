@@ -1,9 +1,102 @@
 /**
  * Agent Goals Management API
  * 
- * @route GET/POST /api/agents/[agentId]/goals
+ * @route GET /api/agents/[agentId]/goals - List agent goals
+ * @route POST /api/agents/[agentId]/goals - Create agent goal
+ * @access Authenticated (manager only)
  * 
- * Manage goals for an agent. Only accessible by the agent's manager.
+ * @description
+ * Manages goals for an agent. GET returns list of goals. POST creates a new goal.
+ * Only accessible by the agent's manager.
+ * 
+ * @openapi
+ * /api/agents/{agentId}/goals:
+ *   get:
+ *     tags:
+ *       - Agents
+ *     summary: List agent goals
+ *     description: Returns list of agent goals (manager only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     responses:
+ *       200:
+ *         description: Goals retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 goals:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent manager
+ *       404:
+ *         description: Agent not found
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Create agent goal
+ *     description: Creates a new goal for agent (manager only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - description
+ *             properties:
+ *               description:
+ *                 type: string
+ *               priority:
+ *                 type: integer
+ *               targetDate:
+ *                 type: string
+ *                 format: date-time
+ *     responses:
+ *       201:
+ *         description: Goal created successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent manager
+ *       404:
+ *         description: Agent not found
+ * 
+ * @example
+ * ```typescript
+ * // List goals
+ * const { goals } = await fetch(`/api/agents/${agentId}/goals`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * 
+ * // Create goal
+ * await fetch(`/api/agents/${agentId}/goals`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ description: 'Increase trading volume' })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

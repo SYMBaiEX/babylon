@@ -181,18 +181,23 @@ Decentralized metadata:
 
 ### Option 1: Agent0Client (Recommended)
 
-Use Babylon's built-in Agent0Client:
+Use Babylon's built-in Agent0Client singleton:
 
 ```typescript
+import { getAgent0Client } from '@/agents/agent0/Agent0Client'
+
+// Get singleton instance (automatically configured from environment)
+const agent0 = getAgent0Client()
+
+// Or initialize manually:
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 
-// Initialize
 const agent0 = new Agent0Client({
- network: 'sepolia', // Ethereum Sepolia
- rpcUrl: process.env.SEPOLIA_RPC_URL,
- privateKey: process.env.AGENT0_PRIVATE_KEY,
- ipfsProvider: 'pinata',
- pinataJwt: process.env.PINATA_JWT
+  network: 'sepolia', // Ethereum Sepolia (chainId: 11155111)
+  rpcUrl: process.env.AGENT0_RPC_URL || process.env.ETHEREUM_SEPOLIA_RPC_URL,
+  privateKey: process.env.AGENT0_PRIVATE_KEY || process.env.BABYLON_GAME_PRIVATE_KEY,
+  ipfsProvider: 'pinata', // or 'node' for localnet
+  pinataJwt: process.env.PINATA_JWT
 })
 
 // Register agent
@@ -214,33 +219,48 @@ console.log('Token ID:', registration.tokenId)
 console.log('Metadata CID:', registration.metadataCID)
 ```
 
-### Option 2: Agent0 SDK
+### Option 2: Agent0 SDK (Direct)
 
-Use the official Agent0 SDK:
+Use the official Agent0 SDK directly (advanced usage):
 
 ```typescript
 import { SDK } from 'agent0-sdk'
 
 const sdk = new SDK({
- privateKey: process.env.AGENT0_PRIVATE_KEY,
- network: 'sepolia',
- pinataJWT: process.env.PINATA_JWT
+ chainId: 11155111, // Ethereum Sepolia
+ rpcUrl: process.env.AGENT0_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+ signer: process.env.AGENT0_PRIVATE_KEY,
+ ipfs: 'pinata',
+ pinataJwt: process.env.PINATA_JWT
 })
 
-// Register
-const result = await sdk.registerAgent({
- name: 'My Trading Agent',
- description: 'Momentum trading specialist',
- // ...metadata
-})
+// Register using builder pattern
+const agent = sdk.createAgent(
+ 'My Trading Agent',
+ 'Momentum trading specialist',
+ undefined // imageUrl
+)
 
-// Update
-await sdk.updateAgent(result.tokenId, {
- endpoints: {
- mcp: 'https://my-new-domain.com/mcp'
+agent.setAgentWallet(walletAddress, 11155111)
+await agent.setA2A('wss://my-agent.com/a2a', '1.0.0', false)
+agent.setMetadata({
+ capabilities: {
+   strategies: ['momentum'],
+   markets: ['prediction'],
+   actions: ['trade'],
+   version: '1.0.0'
  }
 })
+agent.setActive(true)
+
+// Register on-chain and publish to IPFS
+const registrationFile = await agent.registerIPFS()
+
+console.log('Token ID:', registrationFile.agentId.split(':')[1])
+console.log('Metadata CID:', registrationFile.agentURI?.replace('ipfs://', ''))
 ```
+
+**Note:** The Agent0 SDK uses a builder pattern. For simpler usage, use Babylon's `Agent0Client` wrapper (Option 1).
 
 ### Option 3: Direct Contract Interaction
 
@@ -559,13 +579,33 @@ while (true) {
 ```bash
 # Agent0 Configuration
 AGENT0_ENABLED=true
-AGENT0_NETWORK=sepolia
-SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
-AGENT0_PRIVATE_KEY=0x...
+AGENT0_NETWORK=sepolia  # Options: 'sepolia' | 'mainnet' | 'localnet'
+AGENT0_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com  # Ethereum Sepolia RPC
+# OR use fallback:
+ETHEREUM_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+
+# Private Key (for system operations)
+AGENT0_PRIVATE_KEY=0x...  # System wallet for Agent0 operations
+# OR use fallback:
+BABYLON_GAME_PRIVATE_KEY=0x...
+
+# Feedback Private Key (for reputation sync)
+AGENT0_FEEDBACK_PRIVATE_KEY=0x...  # Optional: separate key for feedback
+# OR use fallback:
+BABYLON_AGENT0_PRIVATE_KEY=0x...
+
+# IPFS Provider
+AGENT0_IPFS_PROVIDER=pinata  # Options: 'pinata' | 'node' | 'filecoinPin'
+PINATA_JWT=eyJ...  # Required if using Pinata
+
+# Subgraph (Optional)
 AGENT0_SUBGRAPH_URL=https://api.studio.thegraph.com/query/.../agent0/...
 
-# IPFS (Optional but recommended)
-PINATA_JWT=eyJ...
+# Localnet Defaults (for testing)
+# If AGENT0_NETWORK=localnet, defaults are automatically used:
+# - RPC: http://localhost:8545
+# - Private Key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 (Anvil account 0)
+# - IPFS Provider: 'node' (no PINATA_JWT required)
 ```
 
 ### Initialization

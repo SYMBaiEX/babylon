@@ -1,5 +1,63 @@
 /**
  * User Group Admin Actions API
+ * 
+ * @route DELETE /api/user-groups/[id]/admins/[userId] - Revoke admin privileges
+ * @access Authenticated (admin only)
+ * 
+ * @description
+ * Revokes admin privileges from a group member. Cannot revoke privileges from
+ * the group creator. Admin only.
+ * 
+ * @openapi
+ * /api/user-groups/{id}/admins/{userId}:
+ *   delete:
+ *     tags:
+ *       - User Groups
+ *     summary: Revoke admin privileges
+ *     description: Revokes admin privileges from a group member (admin only, cannot revoke from creator)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to revoke admin from
+ *     responses:
+ *       200:
+ *         description: Admin privileges revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Cannot revoke from group creator
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User is not an admin
+ * 
+ * @example
+ * ```typescript
+ * await fetch(`/api/user-groups/${groupId}/admins/${userId}`, {
+ *   method: 'DELETE',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
  */
 
 import type { NextRequest} from 'next/server';

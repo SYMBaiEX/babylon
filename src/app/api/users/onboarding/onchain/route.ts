@@ -1,6 +1,58 @@
 /**
- * API Route: /api/users/onboarding/onchain
- * Methods: POST (trigger on-chain registration for a user)
+ * User On-Chain Onboarding API
+ * 
+ * @route POST /api/users/onboarding/onchain - Register user on-chain
+ * @access Authenticated
+ * 
+ * @description
+ * Triggers on-chain registration for a user. Registers user to EIP-8004
+ * Identity Registry on Base Sepolia. Supports referral codes.
+ * 
+ * @openapi
+ * /api/users/onboarding/onchain:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Register user on-chain
+ *     description: Registers user to EIP-8004 Identity Registry (authenticated user only)
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               walletAddress:
+ *                 type: string
+ *                 nullable: true
+ *               txHash:
+ *                 type: string
+ *                 nullable: true
+ *               referralCode:
+ *                 type: string
+ *                 nullable: true
+ *     responses:
+ *       200:
+ *         description: Registration completed successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       409:
+ *         description: Already registered
+ * 
+ * @example
+ * ```typescript
+ * await fetch('/api/users/onboarding/onchain', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     walletAddress: '0x...',
+ *     referralCode: 'REF123'
+ *   })
+ * });
+ * ```
  */
 
 import type { NextRequest } from 'next/server'

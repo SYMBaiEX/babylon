@@ -1,53 +1,113 @@
 /**
  * Agent Points Wallet API
  * 
- * @route GET /api/agents/[agentId]/wallet - Get balance and transaction history
- * @route POST /api/agents/[agentId]/wallet - Deposit or withdraw points
+ * @route GET /api/agents/[agentId]/wallet - Get wallet balance
+ * @route POST /api/agents/[agentId]/wallet - Deposit/withdraw points
  * @access Authenticated (owner only)
  * 
  * @description
- * Manage agent points wallet, view balance, and access transaction history.
- * Points are used for all agent operations: chat interactions, trading,
- * posting, and other autonomous actions.
+ * Manages agent points wallet, view balance, and transaction history.
+ * Points are used for all agent operations: chat, trading, posting, etc.
  * 
- * **Points System:**
- * - Chat messages: 1 point per message
- * - Trading operations: Variable based on complexity
- * - Social posts: 1-5 points depending on content
- * - Autonomous actions: Points deducted per action
+ * @openapi
+ * /api/agents/{agentId}/wallet:
+ *   get:
+ *     tags:
+ *       - Agents
+ *     summary: Get wallet balance
+ *     description: Returns wallet balance and transaction history (owner only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     responses:
+ *       200:
+ *         description: Wallet info retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 balance:
+ *                   type: object
+ *                   properties:
+ *                     current:
+ *                       type: number
+ *                     totalDeposited:
+ *                       type: number
+ *                     totalSpent:
+ *                       type: number
+ *                 transactions:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent owner
+ *       404:
+ *         description: Agent not found
+ *   post:
+ *     tags:
+ *       - Agents
+ *     summary: Deposit/withdraw points
+ *     description: Deposits or withdraws points from agent wallet (owner only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *               - amount
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [deposit, withdraw]
+ *               amount:
+ *                 type: number
+ *                 minimum: 0.01
+ *     responses:
+ *       200:
+ *         description: Transaction completed successfully
+ *       400:
+ *         description: Invalid action or amount
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent owner
+ *       404:
+ *         description: Agent not found
  * 
- * **GET - Retrieve Wallet Information**
+ * @example
+ * ```typescript
+ * // Get balance
+ * const { balance } = await fetch(`/api/agents/${agentId}/wallet`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
  * 
- * Returns complete wallet details including current balance, lifetime
- * totals, and recent transaction history.
- * 
- * @param {string} agentId - Agent user ID (path parameter)
- * 
- * @returns {object} Wallet information
- * @property {boolean} success - Operation success
- * @property {object} balance - Balance details
- * @property {number} balance.current - Current points balance
- * @property {number} balance.totalDeposited - Lifetime deposits
- * @property {number} balance.totalWithdrawn - Lifetime withdrawals
- * @property {number} balance.totalSpent - Lifetime points spent
- * @property {array} transactions - Recent transactions (last 100)
- * 
- * **POST - Deposit or Withdraw Points**
- * 
- * Add points to or remove points from agent's wallet. User must have
- * sufficient points balance for deposits.
- * 
- * @param {string} agentId - Agent user ID (path parameter)
- * @param {string} action - Transaction type: 'deposit' | 'withdraw' (required)
- * @param {number} amount - Points amount (required, must be positive)
- * 
- * @returns {object} Updated balance information
- * @property {boolean} success - Operation success
- * @property {object} balance - Updated balance details
- * @property {string} message - Confirmation message
- * 
- * @throws {400} Invalid action or amount
- * @throws {404} Agent not found or unauthorized
+ * // Deposit points
+ * await fetch(`/api/agents/${agentId}/wallet`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({ action: 'deposit', amount: 100 })
+ * });
+ * ```
  * @throws {500} Internal server error or insufficient balance
  * 
  * @example

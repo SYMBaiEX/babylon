@@ -1,7 +1,124 @@
 /**
  * Single Goal Management API
  * 
- * @route GET/PUT/DELETE /api/agents/[agentId]/goals/[goalId]
+ * @route GET /api/agents/[agentId]/goals/[goalId] - Get goal
+ * @route PUT /api/agents/[agentId]/goals/[goalId] - Update goal
+ * @route DELETE /api/agents/[agentId]/goals/[goalId] - Delete goal
+ * @access Authenticated (manager only)
+ * 
+ * @description
+ * Manages a single agent goal. GET returns goal details. PUT updates goal.
+ * DELETE removes goal. Only accessible by agent's manager.
+ * 
+ * @openapi
+ * /api/agents/{agentId}/goals/{goalId}:
+ *   get:
+ *     tags:
+ *       - Agents
+ *     summary: Get goal details
+ *     description: Returns goal details with actions (manager only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Goal ID
+ *     responses:
+ *       200:
+ *         description: Goal retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent manager
+ *       404:
+ *         description: Goal not found
+ *   put:
+ *     tags:
+ *       - Agents
+ *     summary: Update goal
+ *     description: Updates goal details (manager only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Goal ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *               priority:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Goal updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent manager
+ *       404:
+ *         description: Goal not found
+ *   delete:
+ *     tags:
+ *       - Agents
+ *     summary: Delete goal
+ *     description: Deletes a goal (manager only)
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent user ID
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Goal ID
+ *     responses:
+ *       200:
+ *         description: Goal deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not agent manager
+ *       404:
+ *         description: Goal not found
+ * 
+ * @example
+ * ```typescript
+ * // Get goal
+ * const goal = await fetch(`/api/agents/${agentId}/goals/${goalId}`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * }).then(r => r.json());
+ * ```
  */
 
 import type { NextRequest } from 'next/server';

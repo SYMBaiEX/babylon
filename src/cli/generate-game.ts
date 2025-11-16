@@ -324,7 +324,7 @@ async function main() {
     const genesis = await generator.generateGenesis();
     
     // Save genesis metadata to database
-    // Note: Full game data saved to genesis.json file, not database
+    // Note: Game metadata stored in database, full data in gameConfig
     await db().prisma.game.create({
       data: {
         id: await generateSnowflakeId(),

@@ -1,8 +1,63 @@
 /**
- * Admin API: System Statistics
- * GET /api/admin/stats
+ * Admin System Statistics API
  * 
- * Returns system-wide statistics and metrics
+ * @route GET /api/admin/stats - Get system statistics
+ * @access Admin
+ * 
+ * @description
+ * Returns comprehensive system-wide statistics including user metrics, market data,
+ * trading activity, social engagement, financial metrics, pools, and top users.
+ * Requires admin authentication.
+ * 
+ * @openapi
+ * /api/admin/stats:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get system statistics
+ *     description: Returns comprehensive system-wide statistics (admin only)
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: object
+ *                 markets:
+ *                   type: object
+ *                 trading:
+ *                   type: object
+ *                 social:
+ *                   type: object
+ *                 financial:
+ *                   type: object
+ *                 pools:
+ *                   type: object
+ *                 engagement:
+ *                   type: object
+ *                 topUsers:
+ *                   type: object
+ *                 recentSignups:
+ *                   type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/admin/stats', {
+ *   headers: { 'Authorization': `Bearer ${adminToken}` }
+ * });
+ * const { users, markets, financial } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
 import type { NextRequest } from 'next/server';

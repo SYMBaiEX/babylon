@@ -1,11 +1,71 @@
 /**
  * API Route: /api/posts/[id]
  * Methods: GET (get single post details), DELETE (soft delete post)
+ * 
+ * @openapi
+ * /api/posts/{id}:
+ *   get:
+ *     tags:
+ *       - Posts
+ *     summary: Get single post
+ *     description: Returns a single post by ID with full details including author, interactions, and repost metadata.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 content:
+ *                   type: string
+ *                 authorId:
+ *                   type: string
+ *                 likeCount:
+ *                   type: integer
+ *                 commentCount:
+ *                   type: integer
+ *                 shareCount:
+ *                   type: integer
+ *       404:
+ *         description: Post not found
+ *   delete:
+ *     tags:
+ *       - Posts
+ *     summary: Delete post
+ *     description: Soft deletes a post (author only). Post is marked as deleted but data is retained.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not the post author
+ *       404:
+ *         description: Post not found
  */
 
 import { optionalAuth, authenticate } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
-import { BusinessLogicError } from '@/lib/errors';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { gameService } from '@/lib/game-service';
 import { logger } from '@/lib/logger';
@@ -117,8 +177,13 @@ export const GET = withErrorHandling(async (
   })
     : await asPublic(async (db) => {
     // Try to get post from database first (public access)
+    // Filter out future posts
+    const now = new Date();
     return await db.post.findUnique({
-      where: { id: postId },
+      where: { 
+        id: postId,
+        timestamp: { lte: now }, // ✅ No future posts
+      },
       include: {
         _count: {
           select: {
@@ -153,6 +218,12 @@ export const GET = withErrorHandling(async (
     })
   });
 
+    // ✅ Check if post is in the future (if found in database)
+    const now = new Date();
+    if (post && post.timestamp > now) {
+      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+    }
+
     // If not in database, try to find it in game store/realtime feed first
     if (!post) {
       // Try realtime posts first (most recent)
@@ -172,6 +243,14 @@ export const GET = withErrorHandling(async (
             timestamp: foundPost.timestamp instanceof Date ? foundPost.timestamp.toISOString() : foundPost.timestamp,
             createdAt: foundPost.createdAt instanceof Date ? foundPost.createdAt.toISOString() : foundPost.createdAt,
           } as typeof realtimePost;
+        }
+      }
+
+      // ✅ Check if gamePost is in the future before returning
+      if (gamePost) {
+        const gamePostTimestamp = new Date(gamePost.timestamp);
+        if (gamePostTimestamp > now) {
+          throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
         }
       }
 

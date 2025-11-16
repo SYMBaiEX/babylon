@@ -75,10 +75,12 @@ export class SignalExtractionService {
     // Get all posts related to this question
     // Note: Signal metadata (pointsToward, clueStrength) currently stored in-memory during game
     // For now, we analyze post content and use gameId to find related posts
+    const now = new Date();
     const posts = await prisma.post.findMany({
       where: {
         gameId: question.id, // Posts associated with this question's game
         deletedAt: null,
+        timestamp: { lte: now }, // ✅ No future posts
       },
       select: {
         id: true,

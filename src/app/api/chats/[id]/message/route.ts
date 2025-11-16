@@ -1,6 +1,94 @@
 /**
- * API Route: /api/chats/[id]/message
- * Methods: POST (send message to group chat with quality and activity checks)
+ * Chat Message API
+ * 
+ * @route POST /api/chats/[id]/message - Send message to chat
+ * @access Authenticated
+ * 
+ * @description
+ * Sends a message to a group chat or DM with comprehensive quality checks, rate
+ * limiting, duplicate detection, and game mechanics integration. Includes group
+ * chat sweep mechanics, invite chances, and automatic notifications.
+ * 
+ * @openapi
+ * /api/chats/{id}/message:
+ *   post:
+ *     tags:
+ *       - Chats
+ *     summary: Send chat message
+ *     description: Sends a message to a group chat or DM with quality checks and rate limiting
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Chat ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Message content
+ *     responses:
+ *       201:
+ *         description: Message sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     content:
+ *                       type: string
+ *                     chatId:
+ *                       type: string
+ *                     authorId:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                 quality:
+ *                   type: object
+ *                 sweep:
+ *                   type: object
+ *       400:
+ *         description: Quality check failed or rate limit exceeded
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not a chat participant or blocked user
+ *       404:
+ *         description: Chat not found
+ *       429:
+ *         description: Rate limit exceeded
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch(`/api/chats/${chatId}/message`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     content: 'Hello everyone!'
+ *   })
+ * });
+ * const { message, quality } = await response.json();
+ * ```
+ * 
+ * @see {@link /lib/services/message-quality-checker} Quality checker
+ * @see {@link /lib/services/group-chat-sweep} Group chat sweep
  */
 
 import type { NextRequest } from 'next/server'

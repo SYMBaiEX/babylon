@@ -25,7 +25,7 @@ import { GameGenerator } from '@/generator/GameGenerator';
 import { logger } from '@/lib/logger';
 
 describe('Game Quality Integration Tests', () => {
-  test.skip('generated game has no undefined fields', async () => {
+  test('generated game has no undefined fields', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -113,7 +113,7 @@ describe('Game Quality Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('all actor IDs are unique', async () => {
+  test('all actor IDs are unique', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -132,7 +132,7 @@ describe('Game Quality Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('all event IDs are unique', async () => {
+  test('all event IDs are unique', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -146,7 +146,7 @@ describe('Game Quality Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('all actor references are valid', async () => {
+  test('all actor references are valid', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -186,7 +186,7 @@ describe('Game Quality Integration Tests', () => {
     timeout: 120000,
   });
   
-  test.skip('questions have metadata and arc plans', async () => {
+  test('questions have metadata and arc plans', async () => {
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     

@@ -1,6 +1,109 @@
 /**
- * API Route: /api/comments/[id]/like
- * Methods: POST (like), DELETE (unlike)
+ * Comment Like API
+ * 
+ * @route POST /api/comments/[id]/like - Like a comment
+ * @route DELETE /api/comments/[id]/like - Unlike a comment
+ * @access Authenticated
+ * 
+ * @description
+ * Manages like/unlike reactions on comments. Includes rate limiting, duplicate
+ * prevention, and automatic notifications to comment authors.
+ * 
+ * @openapi
+ * /api/comments/{id}/like:
+ *   post:
+ *     tags:
+ *       - Comments
+ *     summary: Like a comment
+ *     description: Adds a like reaction to a comment. Creates notification for comment author.
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Comment ID
+ *     responses:
+ *       201:
+ *         description: Comment liked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 commentId:
+ *                   type: string
+ *                 likeCount:
+ *                   type: integer
+ *                 isLiked:
+ *                   type: boolean
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Comment already liked
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Comment not found
+ *       429:
+ *         description: Rate limit exceeded
+ *   delete:
+ *     tags:
+ *       - Comments
+ *     summary: Unlike a comment
+ *     description: Removes a like reaction from a comment
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Comment ID
+ *     responses:
+ *       200:
+ *         description: Comment unliked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 commentId:
+ *                   type: string
+ *                 likeCount:
+ *                   type: integer
+ *                 isLiked:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Like not found
+ * 
+ * @example
+ * ```typescript
+ * // Like a comment
+ * const response = await fetch(`/api/comments/${commentId}/like`, {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { likeCount, isLiked } = await response.json();
+ * 
+ * // Unlike a comment
+ * await fetch(`/api/comments/${commentId}/like`, {
+ *   method: 'DELETE',
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/notification-service} Notification service
  */
 
 import type { NextRequest } from 'next/server';
@@ -14,9 +117,16 @@ import { logger } from '@/lib/logger';
 import { notifyReactionOnComment } from '@/lib/services/notification-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting';
+
 /**
  * POST /api/comments/[id]/like
- * Like a comment
+ * 
+ * @description Like a comment
+ * 
+ * @param {NextRequest} request - Request object
+ * @param {Promise<{id: string}>} context.params - Route parameters
+ * 
+ * @returns {Promise<NextResponse>} Like reaction data
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
@@ -113,7 +223,13 @@ export const POST = withErrorHandling(async (
 
 /**
  * DELETE /api/comments/[id]/like
- * Unlike a comment
+ * 
+ * @description Unlike a comment
+ * 
+ * @param {NextRequest} request - Request object
+ * @param {Promise<{id: string}>} context.params - Route parameters
+ * 
+ * @returns {Promise<NextResponse>} Unlike confirmation
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
