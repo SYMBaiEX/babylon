@@ -63,22 +63,51 @@ async function uploadToHuggingFace(): Promise<UploadResult> {
       logger.info('Repository may already exist', { error });
     }
     
-    // Upload all files
-    const { stdout, stderr } = await execAsync(
-      `huggingface-cli upload ${datasetName} ${dataDir} --repo-type dataset`
-    );
+    // Upload only the main JSONL files (consistent schemas)
+    // Upload metadata separately to avoid schema conflicts
+    const filesToUpload = [
+      'README.md',
+      'index.json',
+      'summary.json',
+      'trajectories.jsonl',
+      'benchmarks.jsonl',
+    ];
     
-    console.log(stdout);
-    if (stderr) console.error(stderr);
+    console.log('Uploading main dataset files...');
+    for (const file of filesToUpload) {
+      const filePath = path.join(dataDir, file);
+      try {
+        const { stdout } = await execAsync(
+          `huggingface-cli upload ${datasetName} ${filePath} ${file} --repo-type dataset`
+        );
+        console.log(`✅ Uploaded ${file}`);
+      } catch (error) {
+        logger.warn(`Failed to upload ${file}`, { error });
+      }
+    }
+    
+    // Upload monthly files to subdirectory (won't conflict with auto-detection)
+    console.log('Uploading monthly data files...');
+    const monthsDir = path.join(dataDir, 'by-month');
+    try {
+      const monthFiles = await fs.readdir(monthsDir);
+      for (const monthFile of monthFiles) {
+        const filePath = path.join(monthsDir, monthFile);
+        await execAsync(
+          `huggingface-cli upload ${datasetName} ${filePath} monthly-data/${monthFile} --repo-type dataset`
+        );
+        console.log(`✅ Uploaded monthly-data/${monthFile}`);
+      }
+    } catch (error) {
+      logger.warn('Could not upload monthly files', { error });
+    }
     
     logger.info('Upload complete');
     
     // Count files uploaded
-    const files = await fs.readdir(dataDir);
-    let fileCount = files.length;
+    let fileCount = filesToUpload.length;
     
     // Count month files
-    const monthsDir = path.join(dataDir, 'by-month');
     try {
       const monthFiles = await fs.readdir(monthsDir);
       fileCount += monthFiles.length;

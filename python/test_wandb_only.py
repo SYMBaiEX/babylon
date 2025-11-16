@@ -91,14 +91,16 @@ async def test_wandb():
         wandb_run = None  # Don't create run yet - ART will handle it
         print("✅ W&B connection verified")
         
-        # Create model with explicit entity
+        # Create model - use project name WITHOUT entity prefix when passing entity separately
+        # ART framework expects: project="project-name", entity="entity-name" (not "entity/project")
+        model_name = f"babylon-test-{int(asyncio.get_event_loop().time())}"
         model = art.TrainableModel(
-            name=f"babylon-test-{int(asyncio.get_event_loop().time())}",
-            project=full_project,
+            name=model_name,
+            project=project_name,  # Project name WITHOUT entity prefix
             entity=entity,  # CRITICAL: Pass entity separately to use personal account
             base_model='OpenPipe/Qwen3-14B-Instruct'
         )
-        print("✅ Model created")
+        print(f"✅ Model created: {model_name} in {entity}/{project_name}")
         
         # Create backend with W&B
         backend = ServerlessBackend(api_key=wandb_key)

@@ -194,12 +194,15 @@ class BabylonTrainer:
                 entity = env_entity
         
         # Create model with explicit entity (avoids permissions issues)
+        # CRITICAL: Pass project name WITHOUT entity prefix when entity is passed separately
+        # ART framework expects: project="project-name", entity="entity-name" (not "entity/project")
         self.model = art.TrainableModel(
             name=name,
-            project=project_name,
+            project=project_name,  # Project name WITHOUT entity prefix
             entity=entity,  # CRITICAL: Pass entity separately to use personal account
             base_model=self.base_model
         )
+        logger.info(f"Created model '{name}' in project '{entity}/{project_name}'")
         
         # Check if WANDB_API_KEY is set to decide backend
         # If set: use W&B remote training (preferred)
