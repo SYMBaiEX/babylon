@@ -206,10 +206,14 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         version: '1.0',
         agentId: 'agent-123',
         name: 'Test Agent',
+        description: 'A test agent for integration testing',
         endpoints: {
           a2a: 'https://agent.example.com/a2a',
         },
-        capabilities: ['text-generation', 'summarization'],
+        capabilities: {
+          actions: ['text-generation', 'summarization'],
+          version: '1.0.0',
+        },
       }
 
       ;(global.fetch as any).mockResolvedValueOnce({
@@ -234,7 +238,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         version: '1.0',
         agentId: 'agent-123',
         name: 'Test Agent',
+        description: 'A test agent for caching',
         endpoints: {},
+        capabilities: {
+          version: '1.0.0',
+        },
       }
 
       ;(global.fetch as any).mockResolvedValueOnce({
@@ -314,8 +322,12 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         version: '1.0',
         agentId: 'agent-1',
         name: 'Test Agent',
+        description: 'Test agent for trust verification',
         endpoints: {},
-        capabilities: ['text-generation'],
+        capabilities: {
+          actions: ['text-generation'],
+          version: '1.0.0',
+        },
       }
 
       ;(global.fetch as any).mockResolvedValueOnce({
@@ -466,8 +478,12 @@ describe('End-to-End Integration', () => {
       version: '1.0',
       agentId: 'external-agent-1',
       name: 'Trusted External Agent',
+      description: 'A trusted external agent for end-to-end integration testing',
       endpoints: { a2a: 'https://trusted.agent.com/a2a' },
-      capabilities: ['analysis', 'generation'],
+      capabilities: {
+        actions: ['analysis', 'generation'],
+        version: '1.0.0',
+      },
     }
 
     ;(global.fetch as any).mockImplementation((url: string) => {
