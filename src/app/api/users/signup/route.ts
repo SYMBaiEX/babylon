@@ -103,6 +103,7 @@ import { notifyNewAccount } from '@/lib/services/notification-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
+import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 
 interface SignupRequestBody {
   username: string
@@ -361,6 +362,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
     throw error;
   })
+
+  // Generate referral code for new user (ensures they can refer others immediately)
+  await getOrCreateReferralCode(result.user.id)
 
   // Award points for social account linking
   const pointsAwarded = {
