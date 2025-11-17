@@ -277,7 +277,7 @@ export interface ExternalAgentConnectionParams {
   endpoint: string
 
   /** Protocol type */
-  protocol: 'a2a' | 'mcp' | 'custom'
+  protocol: 'a2a' | 'mcp' | 'agent0' | 'custom'
 
   /** Declared capabilities */
   capabilities: AgentCapabilities

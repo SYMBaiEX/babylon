@@ -1992,10 +1992,15 @@ model ExternalAgentConnection {
 
   // Authentication
   authType        String? // 'wallet', 'apiKey', 'oauth'
-  authCredentials String? @db.Text // Encrypted credentials
+  authCredentials String? @db.Text // Encrypted credentials (can include apiKeyHash as JSON)
 
   // Agent Card (full A2A discovery metadata as JSON)
   agentCardJson Json?
+
+  // Health and connection tracking
+  isHealthy       Boolean   @default(true)
+  lastHealthCheck DateTime?
+  lastConnected   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2005,4 +2010,5 @@ model ExternalAgentConnection {
   @@index([agentRegistryId])
   @@index([externalId])
   @@index([protocol])
+  @@index([isHealthy])
 }

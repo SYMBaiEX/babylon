@@ -71,10 +71,10 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const { agentId } = params
+    const { agentId } = await params
 
     // Get agent from registry
     const agent = await agentRegistry.getAgentById(agentId)
