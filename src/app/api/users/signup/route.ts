@@ -388,19 +388,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
     }
     
-    // Auto-follow the referrer
+    // Auto-follow the referrer (new user follows the person who referred them)
     await prisma.follow.upsert({
       where: {
         followerId_followingId: {
-          followerId: result.referrerId,
-          followingId: result.user.id,
+          followerId: result.user.id,       // New user is the follower
+          followingId: result.referrerId,   // Referrer is being followed
         },
       },
       update: {},
       create: {
         id: await generateSnowflakeId(),
-        followerId: result.referrerId,
-        followingId: result.user.id,
+        followerId: result.user.id,
+        followingId: result.referrerId,
       },
     })
     

@@ -701,19 +701,19 @@ export async function processOnchainRegistration({
     await prisma.follow.upsert({
       where: {
         followerId_followingId: {
-          followerId: referrerId,
-          followingId: dbUser.id,
+          followerId: dbUser.id,      // New user is the follower
+          followingId: referrerId,     // Referrer is being followed
         },
       },
       update: {},
       create: {
         id: await generateSnowflakeId(),
-        followerId: referrerId,
-        followingId: dbUser.id,
+        followerId: dbUser.id,
+        followingId: referrerId,
       },
     })
 
-    logger.info('Referrer auto-followed new user', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
+    logger.info('New user auto-followed referrer', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
     logger.info('Awarded referral points', { referrerId, referredUserId: dbUser.id, points: referralResult.pointsAwarded }, 'OnboardingOnchain')
   }
 
