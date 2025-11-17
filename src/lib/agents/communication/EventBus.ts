@@ -7,21 +7,23 @@
  * @see agent-patch-plan.md Phase 3.2
  */
 
-export type EventHandler<T = any> = (data: T) => void | Promise<void>
+import type { JsonValue } from '@/types/common'
 
-export interface AgentEvent<T = any> {
+export type EventHandler<T extends JsonValue = JsonValue> = (data: T) => void | Promise<void>
+
+export interface AgentEvent<T extends JsonValue = JsonValue> {
   type: string
   agentId?: string
   data: T
-  timestamp: Date
-  metadata?: Record<string, any>
+  timestamp: string // ISO 8601 string for JSON serialization
+  metadata?: Record<string, JsonValue>
 }
 
-export interface Subscription {
+export interface Subscription<T extends JsonValue = JsonValue> {
   id: string
   eventType: string
-  handler: EventHandler
-  filter?: (event: AgentEvent) => boolean
+  handler: EventHandler<T>
+  filter?: (event: AgentEvent<T>) => boolean
 }
 
 /**
@@ -29,8 +31,8 @@ export interface Subscription {
  * Thread-safe pub/sub system with filtering and wildcards
  */
 export class EventBus {
-  private subscriptions: Map<string, Subscription[]> = new Map()
-  private eventHistory: AgentEvent[] = []
+  private subscriptions: Map<string, Subscription<JsonValue>[]> = new Map()
+  private eventHistory: AgentEvent<JsonValue>[] = []
   private maxHistorySize: number
 
   constructor(maxHistorySize: number = 1000) {
@@ -45,14 +47,14 @@ export class EventBus {
    * @param filter - Optional filter function
    * @returns Subscription ID for unsubscribing
    */
-  subscribe<T = any>(
+  subscribe<T extends JsonValue = JsonValue>(
     eventType: string,
     handler: EventHandler<T>,
     filter?: (event: AgentEvent<T>) => boolean,
   ): string {
     const subscriptionId = `sub-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-    const subscription: Subscription = {
+    const subscription: Subscription<T> = {
       id: subscriptionId,
       eventType,
       handler,
@@ -63,7 +65,8 @@ export class EventBus {
       this.subscriptions.set(eventType, [])
     }
 
-    this.subscriptions.get(eventType)!.push(subscription)
+    // Type cast needed since we're storing in a non-generic map
+    this.subscriptions.get(eventType)!.push(subscription as Subscription<JsonValue>)
 
     return subscriptionId
   }
@@ -94,17 +97,17 @@ export class EventBus {
    * @param agentId - Optional agent ID that triggered the event
    * @param metadata - Optional metadata
    */
-  async publish<T = any>(
+  async publish<T extends JsonValue = JsonValue>(
     eventType: string,
     data: T,
     agentId?: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, JsonValue>,
   ): Promise<void> {
     const event: AgentEvent<T> = {
       type: eventType,
       agentId,
       data,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       metadata,
     }
 

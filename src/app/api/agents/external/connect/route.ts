@@ -9,7 +9,8 @@
  * @see src/lib/services/agent-registry.service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { verifyApiKey } from '@/lib/crypto/api-keys'

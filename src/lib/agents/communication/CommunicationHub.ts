@@ -8,21 +8,23 @@
  * @see agent-patch-plan.md Phase 3.2
  */
 
-import { EventBus, getEventBus } from './EventBus'
+import type { EventBus } from './EventBus'
+import { getEventBus } from './EventBus'
 import { getExternalAgentAdapter } from '../external/ExternalAgentAdapter'
 import type { AgentEvent } from './EventBus'
 import type { AgentMessage, AgentResponse } from '../external/ExternalAgentAdapter'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { AgentType } from '@/types/agent-registry.types'
+import type { JsonValue } from '@/types/common'
 
 export interface Message {
   id: string
   from: string
   to: string
   type: string
-  content: any
-  timestamp: Date
-  metadata?: Record<string, any>
+  content: JsonValue
+  timestamp: string // ISO 8601 string for JSON serialization
+  metadata: Record<string, JsonValue>
 }
 
 export interface MessageRoute {
@@ -31,7 +33,7 @@ export interface MessageRoute {
   to: string
   protocol: 'internal' | 'a2a' | 'mcp' | 'agent0' | 'custom'
   status: 'pending' | 'sent' | 'delivered' | 'failed'
-  timestamp: Date
+  timestamp: string // ISO 8601 string for JSON serialization
   error?: string
 }
 
@@ -64,8 +66,8 @@ export class CommunicationHub {
     from: string,
     to: string,
     type: string,
-    content: any,
-    metadata?: Record<string, any>,
+    content: JsonValue,
+    metadata?: Record<string, JsonValue>,
   ): Promise<AgentResponse> {
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
@@ -75,8 +77,8 @@ export class CommunicationHub {
       to,
       type,
       content,
-      timestamp: new Date(),
-      metadata,
+      timestamp: new Date().toISOString(),
+      metadata: metadata || {},
     }
 
     // Add to history
@@ -85,8 +87,8 @@ export class CommunicationHub {
       this.messageHistory.shift()
     }
 
-    // Broadcast message sent event
-    await this.eventBus.publish('message.sent', message, from)
+    // Broadcast message sent event (serialize message to JsonValue)
+    await this.eventBus.publish('message.sent', JSON.parse(JSON.stringify(message)), from)
 
     // Determine routing strategy
     const route = await this.routeMessage(message)
@@ -99,10 +101,10 @@ export class CommunicationHub {
       route.status = response.success ? 'delivered' : 'failed'
       route.error = response.error
 
-      // Broadcast delivery event
+      // Broadcast delivery event (serialize to JsonValue)
       await this.eventBus.publish(
         response.success ? 'message.delivered' : 'message.failed',
-        { message, response },
+        JSON.parse(JSON.stringify({ message, response })),
         from,
       )
 
@@ -111,8 +113,15 @@ export class CommunicationHub {
       route.status = 'failed'
       route.error = error instanceof Error ? error.message : 'Unknown error'
 
-      // Broadcast failure event
-      await this.eventBus.publish('message.failed', { message, error }, from)
+      // Broadcast failure event (serialize to JsonValue with error message)
+      await this.eventBus.publish(
+        'message.failed',
+        JSON.parse(JSON.stringify({
+          message,
+          error: error instanceof Error ? error.message : String(error)
+        })),
+        from
+      )
 
       return {
         success: false,
@@ -140,8 +149,8 @@ export class CommunicationHub {
     from: string,
     recipients: string[],
     type: string,
-    content: any,
-    metadata?: Record<string, any>,
+    content: JsonValue,
+    metadata?: Record<string, JsonValue>,
   ): Promise<AgentResponse[]> {
     const promises = recipients.map(to =>
       this.sendMessage(from, to, type, content, metadata)
@@ -160,7 +169,7 @@ export class CommunicationHub {
       to: message.to,
       protocol: 'internal',
       status: 'pending',
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     }
 
     // Check if recipient is external agent
@@ -194,10 +203,10 @@ export class CommunicationHub {
     route: MessageRoute,
   ): Promise<AgentResponse> {
     if (route.protocol === 'internal') {
-      // Internal delivery via event bus
+      // Internal delivery via event bus (serialize message to JsonValue)
       await this.eventBus.publish(
         `agent.${message.to}.message`,
-        message,
+        JSON.parse(JSON.stringify(message)),
         message.from,
       )
 
@@ -216,7 +225,7 @@ export class CommunicationHub {
         ...message.metadata,
         from: message.from,
         messageId: message.id,
-        timestamp: message.timestamp.toISOString(),
+        timestamp: message.timestamp,
       },
     }
 
@@ -233,9 +242,10 @@ export class CommunicationHub {
     agentId: string,
     handler: (message: Message) => void | Promise<void>,
   ): string {
+    // Wrap handler to convert JsonValue back to Message type
     return this.eventBus.subscribe(
       `agent.${agentId}.message`,
-      handler,
+      (data: JsonValue) => handler(data as unknown as Message),
     )
   }
 
@@ -247,7 +257,11 @@ export class CommunicationHub {
   subscribeToAllMessages(
     handler: (message: Message) => void | Promise<void>,
   ): string {
-    return this.eventBus.subscribe('message.*', handler)
+    // Wrap handler to convert JsonValue back to Message type
+    return this.eventBus.subscribe(
+      'message.*',
+      (data: JsonValue) => handler(data as unknown as Message),
+    )
   }
 
   /**
@@ -268,7 +282,7 @@ export class CommunicationHub {
    */
   async publishEvent(
     eventType: string,
-    data: any,
+    data: JsonValue,
     agentId?: string,
   ): Promise<void> {
     await this.eventBus.publish(eventType, data, agentId)
@@ -280,7 +294,7 @@ export class CommunicationHub {
    * @param eventType - Event type (supports wildcards)
    * @param handler - Event handler
    */
-  subscribeToEvent<T = any>(
+  subscribeToEvent<T extends JsonValue = JsonValue>(
     eventType: string,
     handler: (data: T) => void | Promise<void>,
   ): string {

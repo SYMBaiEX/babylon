@@ -9,6 +9,7 @@
 
 import { AgentStatus } from '@/types/agent-registry.types'
 import { prisma } from '@/lib/prisma'
+import type { JsonValue } from '@/types/common'
 
 export type Protocol = 'a2a' | 'mcp' | 'agent0' | 'custom'
 
@@ -24,13 +25,13 @@ export interface ExternalAgentConnection {
 
 export interface AgentMessage {
   type: string
-  content: any
-  metadata?: Record<string, any>
+  content: JsonValue
+  metadata?: Record<string, JsonValue>
 }
 
 export interface AgentResponse {
   success: boolean
-  data?: any
+  data?: JsonValue
   error?: string
 }
 
@@ -285,7 +286,7 @@ export class ExternalAgentAdapter {
       })
 
       return isHealthy
-    } catch (error) {
+    } catch {
       connection.isHealthy = false
       connection.lastHealthCheck = new Date()
 
