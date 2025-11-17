@@ -15,6 +15,7 @@ import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 import type { JsonValue } from '@/types/common'
 import { POINTS } from '@/lib/constants/points'
+import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 
 // Use Base Sepolia for contract deployments (chain ID: 84532)
 export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -682,6 +683,9 @@ export async function processOnchainRegistration({
   })
 
   logger.info('Successfully awarded 1,000 points to user', undefined, 'OnboardingOnchain')
+
+  // Generate referral code for new user (ensures they can refer others immediately)
+  await getOrCreateReferralCode(dbUser.id)
 
   await notifyNewAccount(dbUser.id)
   logger.info('Welcome notification sent to new user', { userId: dbUser.id }, 'OnboardingOnchain')
