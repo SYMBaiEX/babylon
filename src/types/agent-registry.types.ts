@@ -83,8 +83,8 @@ export interface AgentCard {
   /** Human-readable name */
   name: string
 
-  /** Agent description */
-  description: string
+  /** Agent description (optional) */
+  description?: string
 
   /** Communication endpoints */
   endpoints: {
@@ -98,8 +98,8 @@ export interface AgentCard {
     rpc?: string
   }
 
-  /** Capability declaration */
-  capabilities: AgentCapabilities
+  /** Capability declaration (optional) */
+  capabilities?: AgentCapabilities | string[]
 
   /** Authentication requirements */
   authentication?: {
