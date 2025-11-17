@@ -891,7 +891,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
   logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts')
 
-  const mentions = content.match(/@(\w+)/g)!
+  const mentions = content.match(/@(\w+)/g) || []
   const usernames = [...new Set(mentions.map((m: string) => m.substring(1)))]
   
   const mentionedUsers = await prisma.user.findMany({
