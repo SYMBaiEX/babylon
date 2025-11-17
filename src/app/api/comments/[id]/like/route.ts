@@ -211,11 +211,13 @@ export const POST = withErrorHandling(async (
 
   return successResponse(
     {
-      id: reaction.id,
-      commentId,
-      likeCount,
-      isLiked: true,
-      createdAt: reaction.createdAt,
+      data: {
+        id: reaction.id,
+        commentId,
+        likeCount,
+        isLiked: true,
+        createdAt: reaction.createdAt,
+      },
     },
     201
   );
@@ -280,9 +282,11 @@ export const DELETE = withErrorHandling(async (
   logger.info('Comment unliked successfully', { commentId, userId: canonicalUserId, likeCount }, 'DELETE /api/comments/[id]/like');
 
   return successResponse({
-    commentId,
-    likeCount,
-    isLiked: false,
-    message: 'Comment unliked successfully',
+    data: {
+      commentId,
+      likeCount,
+      isLiked: false,
+      message: 'Comment unliked successfully',
+    },
   });
 });
