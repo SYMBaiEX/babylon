@@ -63,6 +63,10 @@ CREATE TABLE "AgentCapability" (
     "gameNetworkChainId" INTEGER,
     "gameNetworkRpcUrl" TEXT,
     "gameNetworkExplorerUrl" TEXT,
+    "skills" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "domains" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "a2aEndpoint" TEXT,
+    "mcpEndpoint" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

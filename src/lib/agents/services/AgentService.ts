@@ -234,7 +234,7 @@ export class AgentServiceV2 {
     await this.getAgent(agentUserId, managerUserId) // Verify ownership
 
     if (updates.system || updates.personality || updates.modelTier || updates.bio) {
-      agentRuntimeManager.clearRuntime(agentUserId)
+      await agentRuntimeManager.clearRuntime(agentUserId)
     }
 
     const userUpdates: Record<string, unknown> = {}
@@ -308,8 +308,8 @@ export class AgentServiceV2 {
     })
 
     // Clear runtime from agent runtime manager
-    agentRuntimeManager.clearRuntime(agentUserId)
-    
+    await agentRuntimeManager.clearRuntime(agentUserId)
+
     logger.info(`Agent deleted: ${agentUserId}`, undefined, 'AgentService')
   }
 

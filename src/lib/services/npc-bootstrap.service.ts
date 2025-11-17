@@ -283,7 +283,7 @@ export class NPCBootstrapService {
     )
 
     // Clear runtime from cache
-    agentRuntimeManager.clearRuntime(actorId)
+    await agentRuntimeManager.clearRuntime(actorId)
 
     // Note: We don't delete from AgentRegistry to preserve history
     // Status will be set to TERMINATED by clearRuntimeInstance
@@ -307,7 +307,7 @@ export class NPCBootstrapService {
     )
 
     // Clear existing runtime
-    agentRuntimeManager.clearRuntime(actorId)
+    await agentRuntimeManager.clearRuntime(actorId)
 
     // Bootstrap again (will use latest ActorData)
     await this.bootstrapNpc(actorId)

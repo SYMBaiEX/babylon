@@ -11,6 +11,7 @@
 import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { generateSnowflakeId } from '@/lib/snowflake'
 import { groqPlugin } from '../plugins/groq'
 import { babylonPlugin } from '../plugins/babylon'
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration'
@@ -76,7 +77,9 @@ export class AgentRuntimeManager {
       }
 
       // Update registry status to INITIALIZED
-      await agentRegistry.setRuntimeInstance(agentUserId, runtime.agentId)
+      // Generate unique runtime instance ID to track each runtime independently
+      const runtimeInstanceId = await generateSnowflakeId()
+      await agentRegistry.setRuntimeInstance(agentUserId, runtimeInstanceId)
 
       // Cache runtime
       globalRuntimes.set(agentUserId, runtime)
