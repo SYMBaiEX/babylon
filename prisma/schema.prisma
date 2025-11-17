@@ -1143,6 +1143,7 @@ model User {
   pointsAwardedForTwitter                                           Boolean                  @default(false)
   pointsAwardedForUsername                                          Boolean                  @default(false)
   pointsAwardedForWallet                                            Boolean                  @default(false)
+  pointsAwardedForReferralBonus                                     Boolean                  @default(false)
   referralCode                                                      String?                  @unique
   referralCount                                                     Int                      @default(0)
   referredBy                                                        String?
