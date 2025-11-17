@@ -153,7 +153,8 @@ export async function processOnchainRegistration({
       select: { id: true },
     })
 
-    if (referrer) {
+    // Prevent self-referral by username
+    if (referrer && referrer.id !== user.userId) {
       referrerId = referrer.id
       logger.info('Valid referral code (username) found', { referralCode, referrerId }, 'OnboardingOnchain')
     } else {
@@ -163,9 +164,12 @@ export async function processOnchainRegistration({
         select: { id: true },
       })
 
-      if (referralOwner) {
+      // Prevent self-referral by referral code
+      if (referralOwner && referralOwner.id !== user.userId) {
         referrerId = referralOwner.id
         logger.info('Valid referral code found', { referralCode, referrerId }, 'OnboardingOnchain')
+      } else if (referrer?.id === user.userId || referralOwner?.id === user.userId) {
+        logger.warn('Self-referral attempt blocked', { userId: user.userId, referralCode }, 'OnboardingOnchain')
       }
     }
   }
