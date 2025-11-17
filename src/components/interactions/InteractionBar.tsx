@@ -125,7 +125,7 @@ export function InteractionBar({
         {/* Share button */}
         <div onClick={(e) => e.stopPropagation()}>
           <RepostButton
-            postId={postId}
+            postId={postData?.originalPostId || postId}
             shareCount={shareCount}
             initialShared={isShared}
             size="sm"

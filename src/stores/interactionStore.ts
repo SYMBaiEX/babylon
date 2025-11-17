@@ -346,12 +346,12 @@ export const useInteractionStore = create<InteractionStore>()(
         setLoading(`share-${postId}`, true);
 
         const method = wasShared ? 'DELETE' : 'POST';
-        const body = !wasShared && comment ? JSON.stringify({ comment }) : undefined;
+        const body = comment ? JSON.stringify({ comment }) : JSON.stringify({});
         const response = await apiCall<{ data: { shareCount: number; isShared: boolean; repostPost?: RepostPost } }>(
           `/api/posts/${postId}/share`,
           { 
             method,
-            ...(body && { body })
+            ...(method === 'POST' && { body })
           }
         );
 
