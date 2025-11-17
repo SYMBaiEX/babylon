@@ -130,6 +130,8 @@ model AgentPerformanceMetrics {
   totalFeedbackCount    Int       @default(0)
   averageFeedbackScore  Float     @default(70)
   averageRating         Float?
+  intelFeedbackCount    Int       @default(0)
+  averageIntelScore     Float     @default(50)
   positiveCount         Int       @default(0)
   neutralCount          Int       @default(0)
   negativeCount         Int       @default(0)
