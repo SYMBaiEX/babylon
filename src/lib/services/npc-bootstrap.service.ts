@@ -75,8 +75,13 @@ export class NPCBootstrapService {
       // Bootstrap each actor in sequence (to avoid overwhelming database)
       for (const actor of actors) {
         try {
-          await this.bootstrapSingleNpc(actor)
-          result.initialized++
+          const bootstrapResult = await this.bootstrapSingleNpc(actor)
+          if (bootstrapResult.registered) {
+            result.registered++
+          }
+          if (bootstrapResult.initialized) {
+            result.initialized++
+          }
         } catch (error) {
           result.failed++
           result.errors.push({
@@ -111,57 +116,65 @@ export class NPCBootstrapService {
   /**
    * Bootstrap a single NPC agent
    * Creates registry entry and runtime instance
+   * @returns Object indicating which operations succeeded
    */
-  private async bootstrapSingleNpc(actor: Actor): Promise<void> {
+  private async bootstrapSingleNpc(actor: Actor): Promise<{ registered: boolean; initialized: boolean }> {
     logger.info(
       `Bootstrapping NPC: ${actor.name} (${actor.id})`,
       undefined,
       'NPCBootstrapService',
     )
 
+    let registered = false
+    let initialized = false
+
     // Check if already registered
     const existing = await agentRegistry.getAgentById(actor.id)
     if (existing) {
       logger.info(
-        `NPC ${actor.id} already registered, skipping`,
+        `NPC ${actor.id} already registered, initializing runtime only`,
         undefined,
         'NPCBootstrapService',
       )
-      return
+      // Skip registration but still initialize runtime
+    } else {
+      // Load ActorData from JSON files for rich configuration
+      const actorData: ActorData | null = loadActorById(actor.id)
+      if (!actorData) {
+        throw new Error(`ActorData not found for actor ${actor.id}`)
+      }
+
+      // Build NPC system prompt from ActorData
+      const systemPrompt = this.buildNpcSystemPrompt(actorData)
+
+      // Build NPC capabilities from ActorData
+      const capabilities = this.buildNpcCapabilities(actorData)
+
+      // Register NPC in AgentRegistry
+      await agentRegistry.registerNpcAgent({
+        actorId: actor.id,
+        systemPrompt,
+        capabilities,
+      })
+
+      registered = true
+      logger.info(
+        `NPC ${actor.id} registered successfully`,
+        undefined,
+        'NPCBootstrapService',
+      )
     }
-
-    // Load ActorData from JSON files for rich configuration
-    const actorData: ActorData | null = loadActorById(actor.id)
-    if (!actorData) {
-      throw new Error(`ActorData not found for actor ${actor.id}`)
-    }
-
-    // Build NPC system prompt from ActorData
-    const systemPrompt = this.buildNpcSystemPrompt(actorData)
-
-    // Build NPC capabilities from ActorData
-    const capabilities = this.buildNpcCapabilities(actorData)
-
-    // Register NPC in AgentRegistry
-    await agentRegistry.registerNpcAgent({
-      actorId: actor.id,
-      systemPrompt,
-      capabilities,
-    })
-
-    logger.info(
-      `NPC ${actor.id} registered successfully`,
-      undefined,
-      'NPCBootstrapService',
-    )
 
     // Create runtime instance (this will cache it)
     const runtime = await agentRuntimeManager.getRuntime(actor.id)
+    initialized = true
     logger.info(
       `NPC ${actor.id} runtime created (agentId: ${runtime.agentId})`,
       undefined,
       'NPCBootstrapService',
     )
+
+    return { registered, initialized }
   }
 
   /**

@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS "ExternalAgentConnection" (
     "authType" TEXT,
     "authCredentials" TEXT,
     "agentCardJson" JSONB,
+    "isHealthy" BOOLEAN NOT NULL DEFAULT true,
+    "lastHealthCheck" TIMESTAMP(3),
+    "lastConnected" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -123,6 +126,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ExternalAgentConnection_externalId_key" ON "E
 CREATE INDEX IF NOT EXISTS "ExternalAgentConnection_agentRegistryId_idx" ON "ExternalAgentConnection"("agentRegistryId");
 CREATE INDEX IF NOT EXISTS "ExternalAgentConnection_externalId_idx" ON "ExternalAgentConnection"("externalId");
 CREATE INDEX IF NOT EXISTS "ExternalAgentConnection_protocol_idx" ON "ExternalAgentConnection"("protocol");
+CREATE INDEX IF NOT EXISTS "ExternalAgentConnection_isHealthy_idx" ON "ExternalAgentConnection"("isHealthy");
 
 -- AddForeignKey (idempotent)
 DO $$ BEGIN

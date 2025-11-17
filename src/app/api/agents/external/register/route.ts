@@ -12,6 +12,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { authenticate } from '@/lib/api/auth-middleware'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import type { ExternalAgentConnectionParams } from '@/types/agent-registry.types'
 import { generateApiKey, hashApiKey } from '@/lib/crypto/api-keys'
@@ -69,6 +70,9 @@ const ExternalAgentRegisterSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  // Authenticate the request
+  await authenticate(req)
+
   try {
     // Parse and validate request body
     const body = await req.json()
