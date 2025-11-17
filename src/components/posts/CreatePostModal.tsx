@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { toast } from 'sonner'
 
 /**
  * Create post modal component for composing new posts.
@@ -93,7 +94,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     
     if (!token) {
-      alert('Please wait for authentication to complete.')
+      toast.error('Please wait for authentication to complete.')
       setIsSubmitting(false)
       return
     }
@@ -117,7 +118,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
         data = await response.json()
       } catch (error) {
         logger.error('Failed to parse create post response', { error }, 'CreatePostModal')
-        alert('Failed to parse response. Please try again.')
+        toast.error('Failed to parse response. Please try again.')
         return
       }
       setContent('')
@@ -129,7 +130,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     } else {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }))
       logger.error('Failed to create post:', error, 'CreatePostModal')
-      alert(error.error || 'Failed to create post. Please try again.')
+      toast.error(error.error || 'Failed to create post. Please try again.')
     }
     setIsSubmitting(false)
   }
