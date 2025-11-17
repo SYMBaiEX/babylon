@@ -231,15 +231,11 @@ export const POST = withErrorHandling(async (
                   const tweetText = (tweetData.data.text || '').toLowerCase();
                   const sharedUrl = shareAction.url?.toLowerCase() || '';
                   
-                  // Check if the tweet contains the shared URL or its domain
-                  const urlDomain = sharedUrl ? new URL(sharedUrl).hostname : '';
-                  const containsUrl = sharedUrl && (
-                    tweetText.includes(sharedUrl) || 
-                    tweetText.includes(urlDomain)
-                  );
+                  // Check if the tweet contains the exact shared URL
+                  const containsUrl = sharedUrl && tweetText.includes(sharedUrl);
 
                   if (!containsUrl && sharedUrl) {
-                    verificationError = `This tweet does not contain the shared link (${urlDomain}). Please paste the tweet where you actually shared the link.`;
+                    verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
                     logger.warn(
                       `Tweet does not contain shared URL: ${shareId}`,
                       { 
@@ -393,15 +389,11 @@ export const POST = withErrorHandling(async (
                 const castText = (neynarData.cast.text || '').toLowerCase();
                 const sharedUrl = shareAction.url?.toLowerCase() || '';
                 
-                // Check if the cast contains the shared URL or its domain
-                const urlDomain = sharedUrl ? new URL(sharedUrl).hostname : '';
-                const containsUrl = sharedUrl && (
-                  castText.includes(sharedUrl) || 
-                  castText.includes(urlDomain)
-                );
+                // Check if the cast contains the exact shared URL
+                const containsUrl = sharedUrl && castText.includes(sharedUrl);
 
                 if (!containsUrl && sharedUrl) {
-                  verificationError = `This cast does not contain the shared link (${urlDomain}). Please paste the cast where you actually shared the link.`;
+                  verificationError = `This cast does not contain the shared link (${sharedUrl}). Please paste the cast where you actually shared the link.`;
                   logger.warn(
                     `Cast does not contain shared URL: ${shareId}`,
                     { 
