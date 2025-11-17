@@ -75,3 +75,4 @@ export function isActorEntity(entity: CompanyEntity | UserEntity | ActorEntity):
 
 
 
+
