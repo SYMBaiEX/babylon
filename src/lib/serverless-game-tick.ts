@@ -1119,8 +1119,50 @@ async function generateArticles(
       initialMood: a.initialMood || 0,
     }));
 
+  // Check for existing articles to avoid duplicates
+  // Get articles from the last 4 hours to check for duplicates
+  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+  const recentArticles = await prisma.post.findMany({
+    where: {
+      type: 'article',
+      timestamp: { gte: fourHoursAgo },
+      deletedAt: null,
+    },
+    select: {
+      articleTitle: true,
+      content: true,
+      timestamp: true,
+    },
+  });
+
+  // Filter out events that already have articles
+  const eventsToCover = eventsTocover.filter((event) => {
+    // Check if articles already exist for this event
+    // Match by checking if recent articles mention similar topics
+    const eventKeywords = event.description.toLowerCase().split(/\s+/).slice(0, 5);
+    const hasExistingArticle = recentArticles.some((article) => {
+      const articleText = `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
+      // Check if article contains at least 2 keywords from the event
+      const matchingKeywords = eventKeywords.filter((keyword) => 
+        keyword.length > 3 && articleText.includes(keyword)
+      );
+      return matchingKeywords.length >= 2;
+    });
+
+    if (hasExistingArticle) {
+      logger.debug('Skipping event - articles already exist', { eventId: event.id }, 'GameTick');
+      return false;
+    }
+    return true;
+  });
+
+  logger.info(`Filtered events: ${eventsToCover.length}/${eventsTocover.length} events need articles`, {
+    filtered: eventsToCover.length,
+    total: eventsTocover.length,
+  }, 'GameTick');
+
   // Generate articles in parallel with Promise.allSettled to handle failures gracefully
-  const articlePromises = eventsTocover.map(async (event: {
+  const articlePromises = eventsToCover.map(async (event: {
     id: string;
     eventType: string;
     description: string;

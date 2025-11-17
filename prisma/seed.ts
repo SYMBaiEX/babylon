@@ -21,8 +21,6 @@ import { loadActorsData } from '../src/lib/data/actors-loader';
 const prisma = new PrismaClient();
 
 import type { SeedActorsDatabase } from '../src/shared/types';
-import { FollowInitializer } from '../src/lib/services/FollowInitializer';
-import { CapitalAllocationService } from '../src/lib/services/capital-allocation-service';
 
 async function main() {
   logger.info('SEEDING DATABASE', undefined, 'Script');
@@ -37,15 +35,11 @@ async function main() {
 
   // Seed actors
   logger.info('Seeding actors...', undefined, 'Script');
-  let poolActorsCount = 0;
   
   // Create actors individually (Prisma Accelerate limitation with array fields)
   for (const actor of actorsData.actors) {
-    const hasPool = actor.hasPool === true;
     const imagePath = join(process.cwd(), 'public', 'images', 'actors', `${actor.id}.jpg`);
     const profileImageUrl = existsSync(imagePath) ? `/images/actors/${actor.id}.jpg` : null;
-    
-    if (hasPool) poolActorsCount++;
     
     await prisma.actor.create({
       data: {
@@ -58,9 +52,8 @@ async function main() {
         affiliations: actor.affiliations || [],
         postStyle: actor.postStyle || null,
         postExample: actor.postExample || [],
-        hasPool: hasPool,
-        tradingBalance: hasPool ? new Prisma.Decimal(10000) : new Prisma.Decimal(0),
-        reputationPoints: hasPool ? 10000 : 0,
+        tradingBalance: new Prisma.Decimal(1000),
+        reputationPoints: 1000,
         profileImageUrl: profileImageUrl,
         updatedAt: new Date(),
       },
@@ -73,7 +66,7 @@ async function main() {
     });
   }
   
-  logger.info(`Seeded ${actorsData.actors.length} actors (${poolActorsCount} with trading pools)`, undefined, 'Script');
+  logger.info(`Seeded ${actorsData.actors.length} actors`, undefined, 'Script');
 
   // Seed organizations
   logger.info('Seeding organizations...', undefined, 'Script');
@@ -122,19 +115,29 @@ async function main() {
 
   if (!existingGame) {
     const now = new Date();
-    await prisma.game.create({
-      data: {
-        id: await generateSnowflakeId(),
-        isContinuous: true,
-        isRunning: true, // Game starts running by default
-        currentDate: now,
-        currentDay: 1,
-        speed: 60000,
-        startedAt: now, // Set startedAt timestamp
-        updatedAt: now,
-      },
-    });
-    logger.info('✅ Game state initialized (RUNNING)', undefined, 'Script');
+    const gameId = await generateSnowflakeId();
+    try {
+      await prisma.game.create({
+        data: {
+          id: gameId,
+          isContinuous: true,
+          isRunning: true, // Game starts running by default
+          currentDate: now,
+          currentDay: 1,
+          speed: 60000,
+          startedAt: now, // Set startedAt timestamp
+          updatedAt: now,
+        },
+      });
+      logger.info('✅ Game state initialized (RUNNING)', undefined, 'Script');
+    } catch (error: unknown) {
+      // If game already exists (race condition), just log and continue
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        logger.info('✅ Game state already exists', undefined, 'Script');
+      } else {
+        throw error;
+      }
+    }
   } else {
     // If game exists but is paused, start it
     if (!existingGame.isRunning) {
@@ -152,106 +155,8 @@ async function main() {
     }
   }
 
-  // Initialize pools for actors with hasPool=true WITH CAPITAL
-  logger.info('Initializing trading pools with capital...', undefined, 'Script');
-  
-  const poolActors = await prisma.actor.findMany({
-    where: { hasPool: true },
-  });
-  
-  let poolsCreated = 0;
-  let totalCapitalAllocated = 0;
-  
-  // Process pools in parallel batches
-  await Promise.all(poolActors.map(async (actor) => {
-    // Calculate realistic capital allocation
-    const actorData = actorsData.actors.find(a => a.id === actor.id);
-    if (!actorData) {
-      logger.warn(`Actor ${actor.id} not found in actors.json`, undefined, 'Script');
-      return;
-    }
-
-    const capitalAllocation = CapitalAllocationService.calculateCapital(actorData);
-    
-    try {
-      await prisma.pool.create({
-        data: {
-          id: `pool-${actor.id}`,
-          npcActorId: actor.id,
-          name: `${actor.name}'s Pool`,
-          description: `Trading pool managed by ${actor.name}`,
-          totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
-          totalDeposits: new Prisma.Decimal(0), // No user deposits yet
-          availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
-          lifetimePnL: new Prisma.Decimal(0),
-          performanceFeeRate: 0.05, // 5% performance fee
-          totalFeesCollected: new Prisma.Decimal(0),
-          isActive: true,
-          updatedAt: new Date(),
-        },
-      });
-      
-      // Also update actor's trading balance
-      await prisma.actor.update({
-        where: { id: actor.id },
-        data: {
-          tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
-          reputationPoints: capitalAllocation.reputationPoints,
-        },
-      });
-      
-      poolsCreated++;
-      totalCapitalAllocated += capitalAllocation.initialPoolBalance;
-      
-      logger.info(`✅ Created pool for ${actor.name} with $${capitalAllocation.initialPoolBalance.toLocaleString()}`, {
-        actorId: actor.id,
-        capital: capitalAllocation.initialPoolBalance,
-      }, 'Script');
-    } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        // Pool already exists - handled below
-      } else {
-        throw error;
-      }
-      
-      // Pool already exists - update with capital if needed
-      const existingPool = await prisma.pool.findFirst({ where: { npcActorId: actor.id } });
-      if (!existingPool) {
-        poolsCreated++;
-        return;
-      }
-
-      const currentBalance = Number(existingPool.availableBalance);
-      
-      // Always update to ensure proper capital allocation
-      await prisma.pool.update({
-        where: { id: existingPool.id },
-        data: {
-          totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
-          availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
-        },
-      });
-      
-      await prisma.actor.update({
-        where: { id: actor.id },
-        data: {
-          tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
-          reputationPoints: capitalAllocation.reputationPoints,
-        },
-      });
-      
-      totalCapitalAllocated += capitalAllocation.initialPoolBalance;
-      poolsCreated++;
-      
-      logger.info(`✅ Updated pool for ${actor.name}: $${currentBalance.toFixed(0)} → $${capitalAllocation.initialPoolBalance.toLocaleString()}`, {
-        actorId: actor.id,
-        oldBalance: currentBalance,
-        newBalance: capitalAllocation.initialPoolBalance,
-      }, 'Script');
-    }
-  }));
-  
-  logger.info(`Initialized ${poolsCreated} pools with $${totalCapitalAllocated.toLocaleString()} total capital`, undefined, 'Script');
+  // NOTE: Pools are no longer used in the system
+  logger.info('Pools system has been deprecated', undefined, 'Script');
 
   // NOTE: Relationships are now DYNAMIC and generated by the game engine
   // We no longer seed static relationships from JSON files
@@ -416,113 +321,13 @@ async function main() {
 
   logger.info(`Created/updated ${usersCreated} default real users for DM testing`, undefined, 'Script');
 
-  // Seed WorldFacts
-  logger.info('Seeding world facts...', undefined, 'Script');
-  
-  const worldFacts = [
-    {
-      category: 'crypto',
-      key: 'bitcoin_price',
-      label: 'Bitcoin Price',
-      value: '$45,000',
-      source: 'initial_seed',
-      priority: 10,
-    },
-    {
-      category: 'crypto',
-      key: 'ethereum_price',
-      label: 'Ethereum Price',
-      value: '$2,400',
-      source: 'initial_seed',
-      priority: 9,
-    },
-    {
-      category: 'crypto',
-      key: 'market_trend',
-      label: 'Market Trend',
-      value: 'Bullish momentum across major cryptocurrencies',
-      source: 'initial_seed',
-      priority: 8,
-    },
-    {
-      category: 'technology',
-      key: 'ai_development',
-      label: 'AI Development',
-      value: 'LLMs continue to advance with multimodal capabilities',
-      source: 'initial_seed',
-      priority: 7,
-    },
-    {
-      category: 'technology',
-      key: 'blockchain_adoption',
-      label: 'Blockchain Adoption',
-      value: 'Enterprise blockchain solutions gaining traction',
-      source: 'initial_seed',
-      priority: 6,
-    },
-    {
-      category: 'economy',
-      key: 'market_sentiment',
-      label: 'Market Sentiment',
-      value: 'Cautiously optimistic amid global uncertainty',
-      source: 'initial_seed',
-      priority: 5,
-    },
-    {
-      category: 'politics',
-      key: 'regulation_status',
-      label: 'Crypto Regulation',
-      value: 'Multiple jurisdictions working on comprehensive frameworks',
-      source: 'initial_seed',
-      priority: 4,
-    },
-    {
-      category: 'general',
-      key: 'babylon_status',
-      label: 'Babylon Game Status',
-      value: 'Live and operational',
-      source: 'initial_seed',
-      priority: 10,
-    },
-  ];
-
-  let worldFactsCreated = 0;
-  for (const fact of worldFacts) {
-    await prisma.worldFact.upsert({
-      where: {
-        category_key: {
-          category: fact.category,
-          key: fact.key,
-        },
-      },
-      update: {
-        label: fact.label,
-        value: fact.value,
-        source: fact.source,
-        priority: fact.priority,
-        lastUpdated: new Date(),
-      },
-      create: {
-        id: await generateSnowflakeId(),
-        category: fact.category,
-        key: fact.key,
-        label: fact.label,
-        value: fact.value,
-        source: fact.source,
-        priority: fact.priority,
-        lastUpdated: new Date(),
-      },
-    });
-    worldFactsCreated++;
-  }
-
-  logger.info(`Seeded ${worldFactsCreated} world facts`, undefined, 'Script');
+  // NOTE: World facts are now seeded via seed-world-facts.ts
+  // Run: bun run prisma/seed-world-facts.ts
+  logger.info('World facts seeding handled by seed-world-facts.ts', undefined, 'Script');
 
   // Stats
   const stats = {
     actors: await prisma.actor.count(),
-    poolActors: await prisma.actor.count({ where: { hasPool: true } }),
-    pools: await prisma.pool.count(),
     organizations: await prisma.organization.count(),
     companies: await prisma.organization.count({ where: { type: 'company' } }),
     relationships: await prisma.actorRelationship.count(),
@@ -535,8 +340,7 @@ async function main() {
   };
 
   logger.info('Database Summary:', {
-    actors: `${stats.actors} (${stats.poolActors} traders with pools)`,
-    pools: stats.pools,
+    actors: stats.actors,
     organizations: `${stats.organizations} (${stats.companies} companies)`,
     relationships: stats.relationships,
     npcFollows: `${stats.actorFollows} (NPC-to-NPC)`,

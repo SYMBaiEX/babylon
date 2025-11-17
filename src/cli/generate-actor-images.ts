@@ -102,8 +102,8 @@ const OrganizationSchema = z.object({
 type Organization = z.infer<typeof OrganizationSchema>;
 
 const ActorsDatabaseSchema = z.object({
-  version: z.string(),
-  description: z.string(),
+  version: z.string().optional(),
+  description: z.string().optional(),
   actors: z.array(ActorSchema),
   organizations: z.array(OrganizationSchema),
 });

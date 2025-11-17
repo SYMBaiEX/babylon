@@ -63,7 +63,7 @@ export function LatestNewsPanel() {
     }
 
     // Query posts API with type filter for articles
-    const response = await fetch('/api/posts?type=article&limit=10')
+    const response = await fetch('/api/posts?type=article&limit=5')
     
     if (!response.ok) {
       logger.error('Failed to fetch articles:', { status: response.status }, 'LatestNewsPanel')

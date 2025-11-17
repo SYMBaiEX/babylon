@@ -146,7 +146,24 @@ When generating content:
 5. Reference 2025 events and context appropriately
 6. Markets are in AI-driven boom phase, not bear market
 7. Crypto is in bull market with regulatory support, not suppression
-8. Consider actual current market prices when creating prediction questions
+
+=== FORBIDDEN PREDICTION TOPICS ===
+DO NOT create prediction questions about:
+- Cryptocurrency prices (Bitcoin, Ethereum, Solana, etc.) - prices are too volatile and unpredictable
+- Currency exchange rates (USD, EUR, etc.) - not interesting
+- Simple price movements of stocks - too boring
+- Weather predictions - not relevant to game theme
+- ANYTHING that isn't immediately relevant to the characters and companies in the game
+- Anything that is impossible to resolve without information from the game world
+- Corporate mergers or anything that changes the ownership of companies in the game
+
+Instead focus on:
+- Company announcements and product launches
+- Technology breakthroughs and failures
+- Market disruptions and scandals
+- Interpersonal drama and feuds between characters in the game
+- Mundane and silly stuff about the world, characters, and companies in the game
+- Anything relevant to the characters and companies in the game
 `.trim();
 
 /**
@@ -187,6 +204,13 @@ Key 2025 Context:
 - Taylor Swift dominates culture, Marvel fatigue
 
 CRITICAL: Ground all predictions in this reality. BTC is at $95K (not $30K). Trump is president. AI is GPT-5/Claude 4 generation.
+
+FORBIDDEN TOPICS FOR PREDICTIONS:
+- Cryptocurrency prices (BTC, ETH, SOL, DOGE, etc.) - too volatile, boring
+- Currency exchange rates - not interesting
+- Simple stock price movements - focus on events instead
+- Weather - not relevant
+Focus on: Company events, regulations, tech breakthroughs, political decisions, AI releases, mergers, scandals
 `.trim();
 }
 

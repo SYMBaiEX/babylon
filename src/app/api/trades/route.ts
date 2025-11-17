@@ -241,6 +241,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const transferUsersMap = new Map(transferUsers.map(u => [u.id, u]));
 
   // Get recent NPC trades (if not filtering by specific user, or if user is an NPC)
+  // Note: npcActorId references Actor.id, not User.id
   let npcTrades: Awaited<ReturnType<typeof prisma.nPCTrade.findMany>> = [];
   if (!params.userId) {
     npcTrades = await prisma.nPCTrade.findMany({
@@ -249,13 +250,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       orderBy: { executedAt: 'desc' },
     });
   } else {
-    // Check if the user is an NPC
-    const user = await prisma.user.findUnique({
+    // Check if the userId corresponds to an Actor (NPC)
+    const actor = await prisma.actor.findUnique({
       where: { id: params.userId },
-      select: { isActor: true },
+      select: { id: true },
     });
     
-    if (user?.isActor) {
+    if (actor) {
       npcTrades = await prisma.nPCTrade.findMany({
         take: params.limit,
         skip: params.offset,
@@ -266,18 +267,73 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Fetch NPC actors for NPC trades
+  // npcActorId references Actor.id, so query Actor table
   const npcActorIds = [...new Set(npcTrades.map(t => t.npcActorId))];
-  const actors = await prisma.user.findMany({
-    where: { id: { in: npcActorIds }, isActor: true },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      profileImageUrl: true,
-      isActor: true,
-    },
-  });
-  const actorsMap = new Map(actors.map(a => [a.id, a]));
+  
+  // Query both Actor and User tables to get complete profile information
+  // Skip queries if no NPC trades to avoid unnecessary database calls
+  const [actors, users] = npcActorIds.length > 0 ? await Promise.all([
+    prisma.actor.findMany({
+      where: { id: { in: npcActorIds } },
+      select: {
+        id: true,
+        name: true,
+        profileImageUrl: true,
+      },
+    }),
+    prisma.user.findMany({
+      where: { 
+        id: { in: npcActorIds },
+        isActor: true, // Only get users that are actors
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        profileImageUrl: true,
+        isActor: true,
+      },
+    }),
+  ]) : [[], []];
+  
+  // Create maps for both actors and users
+  const actorsDataMap = new Map(actors.map(a => [a.id, a]));
+  const usersDataMap = new Map(users.map(u => [u.id, u]));
+  
+  // Merge Actor and User data, preferring User data when available (more complete)
+  const actorsMap = new Map<string, {
+    id: string;
+    username: string;
+    displayName: string;
+    profileImageUrl: string | null;
+    isActor: boolean;
+  }>();
+  
+  for (const actorId of npcActorIds) {
+    const actor = actorsDataMap.get(actorId);
+    const user = usersDataMap.get(actorId);
+    
+    // Prefer User data if available, otherwise use Actor data
+    if (user) {
+      actorsMap.set(actorId, {
+        id: user.id,
+        username: user.username || user.displayName?.toLowerCase().replace(/\s+/g, '-') || actorId,
+        displayName: user.displayName || actor?.name || actorId,
+        profileImageUrl: user.profileImageUrl,
+        isActor: true,
+      });
+    } else if (actor) {
+      actorsMap.set(actorId, {
+        id: actor.id,
+        username: actor.name.toLowerCase().replace(/\s+/g, '-'),
+        displayName: actor.name,
+        profileImageUrl: actor.profileImageUrl,
+        isActor: true,
+      });
+    }
+    // If neither actor nor user exists, skip adding to map
+    // Trade will have user: null and will be filtered out later
+  }
 
   // Get recent position updates (significant changes)
   const positions = await prisma.position.findMany({

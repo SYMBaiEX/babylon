@@ -111,6 +111,12 @@ class InMemoryBroadcaster extends EventEmitter {
         continue;
       }
 
+      // Check if controller is closed before attempting to enqueue
+      if (client.controller.desiredSize === null) {
+        clientsToRemove.push(client.id);
+        continue;
+      }
+
       try {
         client.controller.enqueue(
           encodePayload(`event: message\ndata: ${JSON.stringify({
@@ -122,9 +128,9 @@ class InMemoryBroadcaster extends EventEmitter {
         );
         client.lastPing = Date.now();
         sentCount++;
-      } catch (error) {
+      } catch {
         // Controller is closed, mark for removal
-        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id, error }, 'InMemoryBroadcaster');
+        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id }, 'InMemoryBroadcaster');
         clientsToRemove.push(client.id);
       }
     }
@@ -326,6 +332,12 @@ class ServerlessBroadcaster extends EventEmitter {
         continue;
       }
 
+      // Check if controller is closed before attempting to enqueue
+      if (client.controller.desiredSize === null) {
+        clientsToRemove.push(client.id);
+        continue;
+      }
+
       try {
         client.controller.enqueue(
           encodePayload(`event: message\ndata: ${JSON.stringify({
@@ -337,9 +349,9 @@ class ServerlessBroadcaster extends EventEmitter {
         );
         client.lastPing = Date.now();
         sentCount++;
-      } catch (error) {
+      } catch {
         // Controller is closed, mark for removal
-        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id, error }, 'ServerlessBroadcaster');
+        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id }, 'ServerlessBroadcaster');
         clientsToRemove.push(client.id);
       }
     }
@@ -421,6 +433,23 @@ export function getEventBroadcaster(): InMemoryBroadcaster | ServerlessBroadcast
   }
 
   return broadcasterInstance;
+}
+
+// Hot Module Reload cleanup - prevent SSE connections from blocking Next.js dev server reload
+declare const module: NodeModule & {
+  hot?: {
+    dispose: (callback: () => void) => void;
+  };
+};
+
+if (typeof module !== 'undefined' && module.hot) {
+  module.hot.dispose(() => {
+    if (broadcasterInstance) {
+      logger.debug('HMR: Cleaning up SSE broadcaster before hot reload', undefined, 'event-broadcaster');
+      broadcasterInstance.cleanup();
+      broadcasterInstance = null;
+    }
+  });
 }
 
 /**

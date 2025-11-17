@@ -63,10 +63,28 @@ REQUIREMENTS:
 CRITICAL - Reality Grounding:
 ❌ NEVER ask about prices/events that already happened (e.g., "Will BTC hit $35K?" when it's at $95K)
 ❌ NEVER use outdated tech/products (e.g., "Will iPhone 14 launch?" when iPhone 17 is current)
-✅ Questions about prices should focus on our in-game meme assets, if at all
 ✅ Use current political context (Trump is president in 2025, not Biden)
 ✅ Reference current AI models (GPT-5.1, Claude 4.5, not GPT-4) or even futuristic ones
 ✅ Base questions on actual 2025 reality from the grounding context above, or avoid it and stick to the game world
+
+🚨 ABSOLUTELY FORBIDDEN QUESTION TOPICS 🚨
+❌ Real-world cryptocurrency prices (Bitcoin, Ethereum, Solana, Dogecoin, etc.) - TOO VOLATILE & BORING
+❌ Real-world currency exchange rates (USD, EUR, etc.) - NOT INTERESTING
+❌ Simple stock price movements - FOCUS ON EVENTS INSTEAD
+❌ Weather predictions - NOT RELEVANT
+These topics make BAD prediction questions - they're boring, unpredictable, and don't tell a story.
+
+✅ INSTEAD FOCUS ON:
+- Company announcements and product launches (in-game companies only)
+- Regulatory decisions and policy changes (in-game government)
+- Technology breakthroughs and failures (in-game tech)
+- Political events and decisions (in-game politics)
+- Market disruptions and scandals (in-game events)
+- AI model releases and capabilities (in-game AI)
+- Corporate partnerships and feuds (in-game companies)
+- Industry trends and adoption rates (in-game industries)
+
+If mentioning prices at all, ONLY use in-game company stocks ($OPENAGI, $METAI, $TESLAI, etc.) - NEVER real cryptocurrencies!
 
 QUESTION TYPES (in-world events only):
 
@@ -82,11 +100,11 @@ QUESTION TYPES (in-world events only):
 - "Will MetAI launch virtual reality offices before MicroAIsoft?"
 - "Will TeslAI's new Cybertruck have rocket thrusters?"
 
-3️⃣ Market & In-Game Trading:
-- "Will $DOGE (in-game) reach 50¢ by week's end?"
-- "Will AIlon Musk go long on TeslAI stock this week?"
-- "Will OpnAI stock outperform MetAI stock by 20%?"
-- "Will trading volume for $MEME exceed 10M shares?"
+3️⃣ Company Valuations & In-Game Trading (if needed):
+- "Will AIlon Musk announce a major long position in TeslAI stock this week?"
+- "Will OpnAI's valuation be announced as exceeding MetAI's?"
+- "Will trading volume for in-game $OPENAGI stock exceed 10M shares?"
+- "Will Sam AIltman claim OpnAI is now worth more than MetAI?"
 
 4️⃣ Partnerships & Collaborations:
 - "Will Sam AIltman and Mark Zuckerborg announce an AI partnership?"

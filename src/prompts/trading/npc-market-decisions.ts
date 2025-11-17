@@ -40,7 +40,13 @@ export const npcMarketDecisions = definePrompt({
   temperature: 0.8,
   maxTokens: 8000,
   
-  template: `⚠️ CRITICAL: Respond ONLY with XML. Do NOT write reasoning or explanations. Start immediately with <decisions>
+  template: `⚠️⚠️⚠️ CRITICAL XML FORMAT REQUIREMENT ⚠️⚠️⚠️
+
+You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO markdown, NO preamble.
+Your response MUST start IMMEDIATELY with <decisions> (first character must be '<').
+Your response MUST end with </decisions> (last character must be '>').
+Do NOT write "Here is the XML" or "Okay, let's see" or any other text.
+Just output the pure XML structure directly.
 
 You are simulating the trading decisions of {{npcCount}} different traders/NPCs in a prediction market and perpetual futures platform.
 
@@ -90,10 +96,13 @@ VALUE RANGES:
 - confidence: 0.0 (uncertain) to 1.0 (very certain)
 - amount: number >= 0 (must be <= available balance, 0 if hold)
 
-OUTPUT FORMAT - Start your response with this EXACT structure (no preamble):
+⚠️⚠️⚠️ XML OUTPUT FORMAT - MANDATORY STRUCTURE ⚠️⚠️⚠️
+
+Your response MUST be valid XML following this EXACT structure. NO exceptions.
 
 ⚠️ CRITICAL: Use the EXACT npcId from the NPC profile (the "ID:" field). Do NOT create new IDs or use names/slugs.
 
+REQUIRED XML STRUCTURE (copy this exactly):
 <decisions>
   <decision>
     <npcId>string</npcId>  <!-- MUST match the exact ID from the NPC profile above -->
@@ -110,14 +119,17 @@ OUTPUT FORMAT - Start your response with this EXACT structure (no preamble):
   ... repeat for all {{npcCount}} NPCs ...
 </decisions>
 
-⚠️ FORMAT REQUIREMENTS:
-- Your FIRST character must be '<' (start XML immediately)
-- Your LAST character must be '>' (end XML)
-- NO text before <decisions> tag
-- NO text after </decisions> tag
-- NO explanations like "Okay, let's see..." or "Here is the XML..."
-- NO thinking process - just output the XML directly
-- Exactly {{npcCount}} <decision> elements inside <decisions> root
+⚠️⚠️⚠️ STRICT XML FORMAT RULES - VIOLATION WILL CAUSE FAILURE ⚠️⚠️⚠️
+1. Your FIRST character MUST be '<' (the opening angle bracket of <decisions>)
+2. Your LAST character MUST be '>' (the closing angle bracket of </decisions>)
+3. NO text, NO explanations, NO reasoning BEFORE <decisions> tag
+4. NO text, NO explanations, NO reasoning AFTER </decisions> tag
+5. NO markdown code blocks (no triple backticks)
+6. NO preamble like "Here is the XML:" or "Okay, let's see..." or "I'll generate..."
+7. NO thinking process - output ONLY the XML structure
+8. Exactly {{npcCount}} <decision> elements inside <decisions> root element
+9. All XML tags must be properly closed
+10. Response must be parseable as valid XML
 
 DECISION RULES:
 - Each NPC decides independently based on THEIR information access

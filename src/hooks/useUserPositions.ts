@@ -159,22 +159,25 @@ export function useUserPositions(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/markets/positions/${encodeURIComponent(userId)}`,
-      { signal: controller.signal }
-    );
-
-    let data;
     try {
-      data = await response.json();
-    } catch (error) {
-      console.error('Failed to parse positions response', error);
-      setError(new Error('Failed to parse response'));
-      setLoading(false);
-      return;
-    }
+      const response = await fetch(
+        `/api/markets/positions/${encodeURIComponent(userId)}`,
+        { signal: controller.signal }
+      );
 
-    if (controller.signal.aborted) return;
+      if (controller.signal.aborted) return;
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Failed to parse positions response', parseError);
+        setError(new Error('Failed to parse response'));
+        setLoading(false);
+        return;
+      }
+
+      if (controller.signal.aborted) return;
 
       const perpetuals = data?.perpetuals ?? {};
       const predictions = data?.predictions ?? {};
@@ -220,14 +223,27 @@ export function useUserPositions(
         }
       ) as UserPredictionPosition[];
 
-    setState({
-      perpPositions: normalizedPerps,
-      predictionPositions: normalizedPredictions,
-      perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
-    });
+      setState({
+        perpPositions: normalizedPerps,
+        predictionPositions: normalizedPredictions,
+        perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
+      });
 
-    if (!controller.signal.aborted) {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    } catch (err) {
+      // Ignore AbortErrors - they're intentional when the component unmounts or userId changes
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      
+      console.error('Failed to fetch user positions', err);
+      
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch positions'));
+        setLoading(false);
+      }
     }
   }, [userId, enabled]);
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, Bell } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, Bell, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Suspense, useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,7 +11,7 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 /**
  * Bottom navigation content component for mobile devices.
  * 
- * Provides mobile navigation with Feed, Markets, Chats, and Notifications tabs.
+ * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
  * Shows unread message and notification badges. Automatically hides on production
  * home page unless dev mode is enabled via URL parameter.
  * 
@@ -91,6 +91,13 @@ function BottomNavContent() {
       icon: MessageCircle,
       color: '#0066FF',
       active: pathname === '/chats',
+    },
+    {
+      name: 'Agents',
+      href: '/agents',
+      icon: Bot,
+      color: '#0066FF',
+      active: pathname === '/agents' || pathname.startsWith('/agents/'),
     },
     {
       name: 'Notifications',

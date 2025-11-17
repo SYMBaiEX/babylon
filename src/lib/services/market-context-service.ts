@@ -79,6 +79,38 @@ export class MarketContextService {
       },
     });
     
+    // Fetch all NPC positions in one query (poolId = actorId for backward compatibility)
+    const npcIds = npcs.map(npc => npc.id);
+    const allPositions = npcIds.length > 0 ? await prisma.poolPosition.findMany({
+      where: {
+        poolId: { in: npcIds },
+        closedAt: null, // Only open positions
+      },
+      select: {
+        id: true,
+        poolId: true,
+        marketType: true,
+        ticker: true,
+        marketId: true,
+        side: true,
+        entryPrice: true,
+        currentPrice: true,
+        size: true,
+        shares: true,
+        unrealizedPnL: true,
+        openedAt: true,
+      },
+    }) : [];
+    
+    // Group positions by NPC ID
+    const positionsByNpc = new Map<string, typeof allPositions>();
+    for (const position of allPositions) {
+      if (!position.poolId) continue;
+      const existing = positionsByNpc.get(position.poolId) || [];
+      existing.push(position);
+      positionsByNpc.set(position.poolId, existing);
+    }
+    
     // Build context for each NPC
     const contexts = new Map<string, NPCMarketContext>();
     
@@ -103,8 +135,21 @@ export class MarketContextService {
         }))
       );
       
-      // No pool positions (pools feature removed)
-      const currentPositions: NPCPosition[] = [];
+      // Fetch positions for this NPC (poolId = actorId for backward compatibility)
+      const npcPositions = positionsByNpc.get(npc.id) || [];
+      const currentPositions: NPCPosition[] = npcPositions.map(pos => ({
+        id: pos.id,
+        marketType: pos.marketType as 'perp' | 'prediction',
+        ticker: pos.ticker || undefined,
+        marketId: pos.marketId || undefined,
+        side: pos.side,
+        entryPrice: parseFloat(pos.entryPrice.toString()),
+        currentPrice: parseFloat(pos.currentPrice.toString()),
+        size: parseFloat(pos.size.toString()),
+        shares: pos.shares ? parseFloat(pos.shares.toString()) : undefined,
+        unrealizedPnL: parseFloat(pos.unrealizedPnL.toString()),
+        openedAt: pos.openedAt.toISOString(),
+      }));
       
       // Get relationships for this NPC
       const npcRelationships = allRelationships
@@ -187,8 +232,40 @@ export class MarketContextService {
     // Use actor's trading balance (no pools)
     const availableBalance = parseFloat(npc.tradingBalance.toString());
     
-    // No pool positions (pools feature removed)
-    const currentPositions: NPCPosition[] = [];
+    // Fetch positions for this NPC (poolId = actorId for backward compatibility)
+    const npcPositions = await prisma.poolPosition.findMany({
+      where: {
+        poolId: npcId,
+        closedAt: null, // Only open positions
+      },
+      select: {
+        id: true,
+        marketType: true,
+        ticker: true,
+        marketId: true,
+        side: true,
+        entryPrice: true,
+        currentPrice: true,
+        size: true,
+        shares: true,
+        unrealizedPnL: true,
+        openedAt: true,
+      },
+    });
+    
+    const currentPositions: NPCPosition[] = npcPositions.map(pos => ({
+      id: pos.id,
+      marketType: pos.marketType as 'perp' | 'prediction',
+      ticker: pos.ticker || undefined,
+      marketId: pos.marketId || undefined,
+      side: pos.side,
+      entryPrice: parseFloat(pos.entryPrice.toString()),
+      currentPrice: parseFloat(pos.currentPrice.toString()),
+      size: parseFloat(pos.size.toString()),
+      shares: pos.shares ? parseFloat(pos.shares.toString()) : undefined,
+      unrealizedPnL: parseFloat(pos.unrealizedPnL.toString()),
+      openedAt: pos.openedAt.toISOString(),
+    }));
     
     return {
       npcId: npc.id,

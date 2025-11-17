@@ -1,17 +1,25 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, X, ArrowRight, UserCircle } from 'lucide-react'
+import { Search, X, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { useRouter } from 'next/navigation'
 
-interface ApiEntity {
+interface ApiUser {
   id: string
   name: string
   username?: string
   bio?: string
   imageUrl?: string
+}
+
+interface ApiActor {
+  id: string
+  name: string
+  description?: string
+  imageUrl?: string
+  role?: string
 }
 
 interface RegistryEntity {
@@ -20,6 +28,7 @@ interface RegistryEntity {
   username?: string
   bio?: string
   imageUrl?: string
+  type: 'user' | 'actor'
 }
 
 interface EntitySearchAutocompleteProps {
@@ -60,16 +69,26 @@ export function EntitySearchAutocomplete({
       const response = await fetch(`/api/registry/all?search=${encodeURIComponent(value)}`)
       if (response.ok) {
         const data = await response.json()
-        const users: RegistryEntity[] = (data.users || []).map((u: ApiEntity) => ({
+        const users: RegistryEntity[] = (data.users || []).map((u: ApiUser) => ({
           id: u.id,
           name: u.name,
           username: u.username,
           bio: u.bio,
           imageUrl: u.imageUrl,
+          type: 'user' as const,
         }))
-        setSuggestions(users.slice(0, 10))
+        const actors: RegistryEntity[] = (data.actors || []).map((a: ApiActor) => ({
+          id: a.id,
+          name: a.name,
+          username: undefined,
+          bio: a.description || a.role,
+          imageUrl: a.imageUrl,
+          type: 'actor' as const,
+        }))
+        const allEntities = [...users, ...actors]
+        setSuggestions(allEntities.slice(0, 10))
         setIsOpen(true)
-        setSelectedIndex(users.length ? 0 : -1)
+        setSelectedIndex(allEntities.length ? 0 : -1)
       } else {
         setSuggestions([])
         setIsOpen(false)
@@ -95,13 +114,14 @@ export function EntitySearchAutocomplete({
   }, [])
 
   const navigateToEntity = (entity: RegistryEntity) => {
-    if (entity.username) {
-      router.push(`/profile/${entity.username}`)
-      onNavigate?.()
-      setIsOpen(false)
-      setSelectedIndex(-1)
-      onChange('')
-    }
+    // For users, use username if available, otherwise use ID
+    // For actors, always use ID
+    const identifier = entity.username || entity.id
+    router.push(`/profile/${identifier}`)
+    onNavigate?.()
+    setIsOpen(false)
+    setSelectedIndex(-1)
+    onChange('')
   }
 
   const handleKeyDown = useCallback(
@@ -213,7 +233,7 @@ export function EntitySearchAutocomplete({
           {!loading && suggestions.length > 0 && (
             <div className="py-2">
               <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase">
-                Users
+                Results
               </div>
               {suggestions.map((entity, index) => (
                 <button
@@ -233,10 +253,6 @@ export function EntitySearchAutocomplete({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-semibold text-foreground truncate">{entity.name}</p>
-                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-medium bg-[#0066FF]/10 text-[#0066FF] shrink-0">
-                        <UserCircle className="w-4 h-4" />
-                        User
-                      </span>
                     </div>
                     {entity.username && (
                       <p className="text-xs text-muted-foreground truncate">@{entity.username}</p>

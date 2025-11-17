@@ -117,7 +117,7 @@ describe('Name Replacement System', () => {
 
       it('should replace "@openai" handle', () => {
         const result = replacer.replaceInText('Check @openai');
-        expect(result).toBe('Check @opnai');
+        expect(result).toBe('Check @openagi');
       });
     });
 
