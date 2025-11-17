@@ -139,7 +139,10 @@ export async function POST(request: NextRequest) {
   })
 
   await updateGameMetrics(agent.id, body.score, body.won)
-  await updateFeedbackMetrics(agent.id, body.score)
+  await updateFeedbackMetrics(agent.id, body.score, {
+    category: 'game_performance',
+    interactionType: 'game_to_agent',
+  })
 
   // Submit to Agent0 network (fire-and-forget with error handling)
   submitFeedbackToAgent0(feedback.id).catch((error) => {

@@ -1,30 +1,37 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useAuth } from '@/hooks/useAuth'
+import { useEffect, useState } from 'react'
+import { Award, Medal, Target, Trophy } from 'lucide-react'
+
 import { PageContainer } from '@/components/shared/PageContainer'
-import { Award, TrendingUp, TrendingDown, Trophy, Target, Medal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface ReputationStats {
   currentReputation: number
   totalWins: number
   totalLosses: number
   winRate: number
-  hasNft?: boolean
-  recentActivity: Array<{
-    marketId: string
-    marketTitle: string
-    outcome: 'win' | 'loss'
-    reputationChange: number
-    timestamp: Date
-  }>
+  averageGameScore: number
+  averageFeedbackScore: number
+  totalFeedbackReceived: number
+  trustLevel: string
+}
+
+const emptyStats: ReputationStats = {
+  currentReputation: 0,
+  totalWins: 0,
+  totalLosses: 0,
+  winRate: 0,
+  averageGameScore: 0,
+  averageFeedbackScore: 0,
+  totalFeedbackReceived: 0,
+  trustLevel: 'UNRATED',
 }
 
 export default function ReputationPage() {
   const { user, authenticated } = useAuth()
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<ReputationStats | null>(null)
+  const [stats, setStats] = useState<ReputationStats>(emptyStats)
 
   useEffect(() => {
     if (!authenticated || !user) {
@@ -35,44 +42,43 @@ export default function ReputationPage() {
     const fetchReputation = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/reputation`)
-
-        if (response.ok) {
-          const data = await response.json()
-
-          if (data.hasNft) {
-            setStats({
-              currentReputation: data.currentReputation || 100,
-              totalWins: data.totalWins || 0,
-              totalLosses: data.totalLosses || 0,
-              winRate: data.winRate || 0,
-              recentActivity: data.recentActivity || []
-            })
-          } else {
-            // User doesn't have NFT yet
-            setStats({
-              currentReputation: 100,
-              totalWins: 0,
-              totalLosses: 0,
-              winRate: 0,
-              recentActivity: []
-            })
-          }
+        const response = await fetch(`/api/reputation/${encodeURIComponent(user.id)}`)
+        if (!response.ok) {
+          setStats(emptyStats)
+          return
         }
-      } catch (err) {
-        console.error('Failed to fetch reputation:', err)
-        // Keep existing stats on error
+
+        const data = await response.json()
+        const gamesPlayed = data.performance?.gamesPlayed ?? 0
+        const gamesWon = data.performance?.gamesWon ?? 0
+        const wins = Math.max(0, gamesWon)
+        const losses = Math.max(0, gamesPlayed - gamesWon)
+
+        setStats({
+          currentReputation: Math.round(data.reputationPoints ?? 0),
+          totalWins: wins,
+          totalLosses: losses,
+          winRate: (data.performance?.winRate ?? 0) * 100,
+          averageGameScore: data.performance?.averageGameScore ?? 0,
+          averageFeedbackScore: data.averageFeedbackScore ?? 0,
+          totalFeedbackReceived: data.totalFeedbackReceived ?? 0,
+          trustLevel: data.trustLevel ?? 'UNRATED',
+        })
+      } catch (error) {
+        console.error('Failed to fetch reputation:', error)
+        setStats(emptyStats)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchReputation()
+    void fetchReputation()
 
-    // Refresh every 30 seconds
     const interval = setInterval(fetchReputation, 30000)
     return () => clearInterval(interval)
   }, [authenticated, user])
+
+  const hasNft = Boolean(user?.nftTokenId || user?.onChainRegistered)
 
   if (!authenticated) {
     return (
@@ -88,15 +94,14 @@ export default function ReputationPage() {
     )
   }
 
-  // Check if stats indicate no NFT after loading
-  if (!loading && stats && !stats.hasNft) {
+  if (!loading && !hasNft) {
     return (
       <PageContainer>
         <div className="max-w-4xl mx-auto text-center py-12">
           <Award className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">No Reputation NFT</h1>
+          <h1 className="text-2xl font-bold mb-2">Missing Reputation NFT</h1>
           <p className="text-muted-foreground mb-6">
-            You need to complete onboarding to receive your reputation NFT
+            Complete on-chain onboarding to activate your public scores
           </p>
         </div>
       </PageContainer>
@@ -116,97 +121,67 @@ export default function ReputationPage() {
   return (
     <PageContainer>
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
         <div className="text-center py-6">
           <h1 className="text-3xl font-bold mb-2">Reputation Dashboard</h1>
           <p className="text-muted-foreground">
-            Your on-chain trading reputation
+            Composite score = PnL (40%) + feedback (40%) + activity (20%)
           </p>
         </div>
 
-        {/* Main Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Current Reputation */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-3 mb-2">
               <Award className="w-5 h-5 text-primary" />
-              <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                Reputation
-              </span>
+              <span className="text-sm text-muted-foreground uppercase tracking-wide">Score</span>
             </div>
-            <p className="text-3xl font-bold text-foreground">
-              {stats?.currentReputation || 100}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Starting: 100
-            </p>
+            <p className="text-3xl font-bold text-foreground">{stats.currentReputation}</p>
+            <p className="text-xs text-muted-foreground mt-1">Trust: {stats.trustLevel}</p>
           </div>
 
-          {/* Total Wins */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-3 mb-2">
               <Trophy className="w-5 h-5 text-green-600" />
-              <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                Wins
-              </span>
+              <span className="text-sm text-muted-foreground uppercase tracking-wide">Wins</span>
             </div>
-            <p className="text-3xl font-bold text-green-600">
-              {stats?.totalWins || 0}
-            </p>
+            <p className="text-3xl font-bold text-green-600">{stats.totalWins}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              +10 reputation each
+              Avg game score: {stats.averageGameScore.toFixed(1)}
             </p>
           </div>
 
-          {/* Total Losses */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-3 mb-2">
               <Target className="w-5 h-5 text-red-600" />
-              <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                Losses
-              </span>
+              <span className="text-sm text-muted-foreground uppercase tracking-wide">Losses</span>
             </div>
-            <p className="text-3xl font-bold text-red-600">
-              {stats?.totalLosses || 0}
-            </p>
+            <p className="text-3xl font-bold text-red-600">{stats.totalLosses}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              -5 reputation each
+              Avg feedback: {stats.averageFeedbackScore.toFixed(1)} ({stats.totalFeedbackReceived}{' '}
+              ratings)
             </p>
           </div>
 
-          {/* Win Rate */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-3 mb-2">
               <Medal className="w-5 h-5 text-primary" />
-              <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                Win Rate
-              </span>
+              <span className="text-sm text-muted-foreground uppercase tracking-wide">Win Rate</span>
             </div>
-            <p className="text-3xl font-bold text-foreground">
-              {stats?.winRate.toFixed(1) || 0}%
-            </p>
+            <p className="text-3xl font-bold text-foreground">{stats.winRate.toFixed(1)}%</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats?.totalWins || 0}W / {stats?.totalLosses || 0}L
+              {stats.totalWins}W / {stats.totalLosses}L
             </p>
           </div>
         </div>
 
-        {/* NFT Info */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4">Your Reputation NFT</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-muted-foreground block mb-1">
-                Token ID
-              </label>
-              <p className="font-mono text-foreground">
-                #{user?.id || 'N/A'}
-              </p>
+              <label className="text-sm text-muted-foreground block mb-1">Token ID</label>
+              <p className="font-mono text-foreground">#{user?.nftTokenId ?? 'N/A'}</p>
             </div>
             <div>
-              <label className="text-sm text-muted-foreground block mb-1">
-                Contract Address
-              </label>
+              <label className="text-sm text-muted-foreground block mb-1">Contract Address</label>
               <p className="font-mono text-sm text-foreground truncate">
                 {process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA}
               </p>
@@ -214,62 +189,31 @@ export default function ReputationPage() {
           </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
-          {stats?.recentActivity && stats.recentActivity.length > 0 ? (
-            <div className="space-y-3">
-              {stats.recentActivity.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    {activity.outcome === 'win' ? (
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <TrendingDown className="w-5 h-5 text-red-600" />
-                    )}
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {activity.marketTitle}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(activity.timestamp).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className={cn(
-                    "font-bold",
-                    activity.outcome === 'win' ? 'text-green-600' : 'text-red-600'
-                  )}>
-                    {activity.reputationChange > 0 ? '+' : ''}{activity.reputationChange}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-8">
-              No market resolutions yet. Start trading to build your reputation!
-            </p>
-          )}
+          <p className="text-center text-muted-foreground py-8">
+            Detailed recaps are coming soon. Keep playing to power your metrics.
+          </p>
         </div>
 
-        {/* How It Works */}
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">How Reputation Works</h2>
+          <h2 className="text-lg font-semibold mb-4">How the Score Is Calculated</h2>
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              🏆 <strong className="text-foreground">Win a market:</strong> +10 reputation (on-chain)
+              📈 <strong className="text-foreground">Performance (40%):</strong> normalized PnL &
+              win rate.
             </p>
             <p>
-              📉 <strong className="text-foreground">Lose a market:</strong> -5 reputation (on-chain)
+              🗳️ <strong className="text-foreground">Feedback (40%):</strong> game / user / agent
+              ratings.
             </p>
             <p>
-              🎯 <strong className="text-foreground">Starting reputation:</strong> 100 points
+              ♻️ <strong className="text-foreground">Activity (20%):</strong> linear bonus on games
+              played (capped at 50).
             </p>
             <p>
-              ⛓️ <strong className="text-foreground">Blockchain verified:</strong> All reputation changes are recorded on Base Sepolia
+              ⛓️ <strong className="text-foreground">On-chain:</strong> synced via ERC-8004 (trust &
+              accuracy).
             </p>
           </div>
         </div>

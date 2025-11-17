@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
+import { createWalletClient, createPublicClient, http, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/prisma'
@@ -553,28 +553,15 @@ export async function processOnchainRegistration({
   tokenId = Number(decodedLog.args.tokenId)
   logger.info('Registered with token ID', { tokenId }, 'OnboardingOnchain')
   if (walletClient) {
-    logger.info('Setting initial reputation to 70...', undefined, 'OnboardingOnchain')
-
-    for (let i = 0; i < 10; i++) {
-      await walletClient.writeContract({
-        address: REPUTATION_SYSTEM,
-        abi: REPUTATION_SYSTEM_ABI,
-        functionName: 'recordBet',
-        args: [BigInt(tokenId), parseEther('100')],
-      })
-    }
-
-    for (let i = 0; i < 7; i++) {
-      const winTxHash = await walletClient.writeContract({
-        address: REPUTATION_SYSTEM,
-        abi: REPUTATION_SYSTEM_ABI,
-        functionName: 'recordWin',
-        args: [BigInt(tokenId), parseEther('100')],
-      })
-      await publicClient.waitForTransactionReceipt({ hash: winTxHash, confirmations: 1 })
-    }
-
-    logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'OnboardingOnchain')
+    logger.info('Bootstrapping on-chain reputation via feedback...', undefined, 'OnboardingOnchain')
+    const bootstrapTx = await walletClient.writeContract({
+      address: REPUTATION_SYSTEM,
+      abi: REPUTATION_SYSTEM_ABI,
+      functionName: 'submitFeedback',
+      args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
+    })
+    await publicClient.waitForTransactionReceipt({ hash: bootstrapTx, confirmations: 1 })
+    logger.info('Initial on-chain feedback submitted (rating=+1)', undefined, 'OnboardingOnchain')
   } else {
     logger.warn(
       'Skipping reputation bootstrap because deployer wallet is not configured',

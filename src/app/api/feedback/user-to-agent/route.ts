@@ -155,7 +155,10 @@ export async function POST(request: NextRequest) {
     rating: body.rating,
   })
 
-  await updateFeedbackMetrics(toAgent.id, body.score)
+  await updateFeedbackMetrics(toAgent.id, body.score, {
+    category: body.category,
+    interactionType: body.interactionType ?? 'user_to_agent',
+  })
 
   // Submit to Agent0 network (fire-and-forget with error handling)
   submitFeedbackToAgent0(feedback.id).catch((error) => {
