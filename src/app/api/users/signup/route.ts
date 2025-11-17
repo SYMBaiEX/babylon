@@ -92,6 +92,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { OnboardingProfileSchema } from '@/lib/validation/schemas'
 import { prisma } from '@/lib/prisma'
 import { PointsService } from '@/lib/services/points-service'
+import { POINTS } from '@/lib/constants/points'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { getPrivyClient } from '@/lib/api/auth-middleware'
@@ -362,7 +363,63 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     twitter: 0,
     wallet: 0,
     profile: 0,
+    referral: 0,
+    referralBonus: 0,
   };
+
+  // Award referral points if user was referred
+  if (result.referrerId) {
+    // Award points to REFERRER
+    const referralResult = await PointsService.awardReferralSignup(result.referrerId, result.user.id)
+    pointsAwarded.referral = referralResult.pointsAwarded
+    
+    // Award bonus to NEW USER (referee) for using referral code
+    const refereeBonus = await PointsService.awardPoints(
+      result.user.id,
+      POINTS.REFERRAL_BONUS,
+      'referral_bonus',
+      { referrerId: result.referrerId }
+    )
+    pointsAwarded.referralBonus = refereeBonus.pointsAwarded
+    
+    // Update referral status to completed
+    if (result.referralRecordId) {
+      await prisma.referral.update({
+        where: { id: result.referralRecordId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      })
+    }
+    
+    // Auto-follow the referrer
+    await prisma.follow.upsert({
+      where: {
+        followerId_followingId: {
+          followerId: result.referrerId,
+          followingId: result.user.id,
+        },
+      },
+      update: {},
+      create: {
+        id: await generateSnowflakeId(),
+        followerId: result.referrerId,
+        followingId: result.user.id,
+      },
+    })
+    
+    logger.info(
+      'Awarded referral points to both referrer and referee',
+      { 
+        referrerId: result.referrerId, 
+        referredUserId: result.user.id, 
+        referrerPoints: referralResult.pointsAwarded,
+        refereeBonus: refereeBonus.pointsAwarded,
+      },
+      'POST /api/users/signup'
+    )
+  }
 
   if (identityFarcasterUsername || importedFarcaster) {
     const farcasterUsername = parsedProfile.farcasterUsername ?? identityFarcasterUsername

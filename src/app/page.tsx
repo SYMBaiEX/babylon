@@ -55,8 +55,10 @@ function HomePageContent() {
         })
       }
 
-      // Redirect to feed
-      router.push('/feed')
+      // Redirect to feed, preserving referral code if present
+      const ref = searchParams.get('ref')
+      const feedUrl = ref ? `/feed?ref=${ref}` : '/feed'
+      router.push(feedUrl)
     }
   }, [authenticated, router, showLoginModal, searchParams])
 

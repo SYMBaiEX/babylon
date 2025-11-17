@@ -6,6 +6,7 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
+import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 
 interface PageProps {
   params: Promise<{
@@ -14,10 +15,12 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { userId } = await params
+  const { userId: rawUserId } = await params
+  // Decode URL-encoded userId (colons in Privy DIDs are encoded as %3A)
+  const userId = decodeURIComponent(rawUserId)
   
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'
-  const ogImageUrl = `${appUrl}/api/og/referral/${userId}`
+  const ogImageUrl = `${appUrl}/api/og/referral/${encodeURIComponent(userId)}`
   
   // Get user data
   const user = await prisma.user.findUnique({
@@ -67,24 +70,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function ShareReferralPage({ params }: PageProps) {
-  const { userId } = await params
-  
-  // Get user with referral code
+  const { userId: rawUserId } = await params
+  // Decode URL-encoded userId (colons in Privy DIDs are encoded as %3A)
+  const userId = decodeURIComponent(rawUserId)
+
+  // Check if user exists
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      referralCode: true,
-    },
+    select: { id: true },
   })
 
-  // Redirect to home with or without referral code
-  if (user?.referralCode) {
-    redirect(`/?ref=${user.referralCode}`)
-  } else {
-    // No user or no referral code - just go home
+  if (!user) {
     redirect('/')
   }
+
+  // Get or create referral code for the user
+  const referralCode = await getOrCreateReferralCode(userId)
+
+  // Redirect to home with referral code
+  redirect(`/?ref=${referralCode}`)
 }
 
