@@ -12,9 +12,9 @@ import { prisma } from '@/lib/prisma'
 import {
   AgentType,
   AgentStatus,
-  TrustLevel,
 } from '@/types/agent-registry.types'
 import type {
+  TrustLevel,
   UnifiedAgentRegistration,
   AgentDiscoveryFilter,
   ExternalAgentConnectionParams,
