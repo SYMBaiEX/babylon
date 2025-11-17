@@ -69,6 +69,9 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { agentRegistry } from '@/lib/services/agent-registry.service';
+import { AgentType } from '@/types/agent-registry.types';
+import { getExternalAgentAdapter } from '@/lib/agents/external/ExternalAgentAdapter';
 
 /**
  * GET /api/admin/agents
@@ -220,19 +223,85 @@ export async function GET(_req: NextRequest) {
       };
     });
 
+    // Get external agents from AgentRegistry
+    const externalAgents = await agentRegistry.discoverAgents({
+      types: [AgentType.EXTERNAL],
+    });
+
+    const externalAgentAdapter = getExternalAgentAdapter();
+
+    // Format external agents
+    const formattedExternalAgents = externalAgents.map((agent) => {
+      const connection = externalAgentAdapter.getConnectionStatus(agent.agentId);
+
+      return {
+        id: agent.agentId,
+        name: agent.name,
+        displayName: agent.name,
+        description: agent.systemPrompt,
+        profileImageUrl: null,
+        creatorId: 'external',
+        creatorName: 'External',
+        modelTier: 'external' as const,
+        pointsBalance: 0,
+
+        // External agent specific
+        type: 'EXTERNAL' as const,
+        protocol: connection?.protocol || 'unknown',
+        endpoint: connection?.endpoint || null,
+        isHealthy: connection?.isHealthy ?? false,
+        lastHealthCheck: connection?.lastHealthCheck || null,
+
+        // Autonomous status (all false for external)
+        autonomousEnabled: agent.status === 'ACTIVE',
+        autonomousTrading: false,
+        autonomousPosting: false,
+        autonomousCommenting: false,
+        autonomousDMs: false,
+        autonomousGroupChats: false,
+
+        // Performance (not tracked for external)
+        lifetimePnL: 0,
+        totalTrades: 0,
+        winRate: 0,
+        reputationScore: agent.trustLevel * 25, // Convert 0-4 scale to 0-100
+        averageFeedbackScore: 0,
+        totalFeedbackCount: 0,
+
+        // Status
+        agentStatus: agent.status.toLowerCase(),
+        errorMessage: null,
+        lastTickAt: agent.lastActiveAt,
+        lastChatAt: null,
+
+        // Timing
+        createdAt: agent.registeredAt,
+        updatedAt: agent.lastActiveAt || agent.registeredAt,
+
+        // Recent activity (not tracked for external)
+        recentLogsCount: 0,
+        recentErrorsCount: connection?.isHealthy === false ? 1 : 0,
+      };
+    });
+
+    // Combine internal and external agents
+    const allAgents = [...formattedAgents, ...formattedExternalAgents];
+
     // Calculate stats
     const stats = {
-      total: formattedAgents.length,
-      running: formattedAgents.filter(a => a.autonomousEnabled && a.agentStatus === 'running').length,
-      paused: formattedAgents.filter(a => !a.autonomousEnabled || a.agentStatus === 'paused').length,
-      error: formattedAgents.filter(a => a.agentStatus === 'error' || a.recentErrorsCount > 0).length,
+      total: allAgents.length,
+      running: allAgents.filter((a) => a.autonomousEnabled && a.agentStatus === 'running').length,
+      paused: allAgents.filter((a) => !a.autonomousEnabled || a.agentStatus === 'paused').length,
+      error: allAgents.filter((a) => a.agentStatus === 'error' || a.recentErrorsCount > 0).length,
       totalActions24h: Array.from(logCountMap.values()).reduce((sum, count) => sum + count, 0),
+      external: formattedExternalAgents.length,
+      externalHealthy: formattedExternalAgents.filter((a) => a.isHealthy).length,
     };
 
     return NextResponse.json({
       success: true,
       data: {
-        agents: formattedAgents,
+        agents: allAgents,
         stats,
       },
     });
