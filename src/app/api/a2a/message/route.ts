@@ -18,13 +18,20 @@ import { verifyApiKey } from '@/lib/crypto/api-keys'
 import { prisma } from '@/lib/prisma'
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcError } from '@/types/a2a'
 import { ErrorCode } from '@/types/a2a'
+import type { JsonValue } from '@/types/common'
+
+// Message part type for A2A protocol
+interface MessagePart {
+  type: string
+  content: string
+}
 
 // JSON-RPC 2.0 request validation
 const JsonRpcRequestSchema = z.object({
   jsonrpc: z.literal('2.0'),
   id: z.union([z.string(), z.number()]),
   method: z.string(),
-  params: z.record(z.string(), z.any()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
 })
 
 /**
@@ -71,7 +78,7 @@ function createErrorResponse(
   id: string | number | null,
   code: ErrorCode,
   message: string,
-  data?: any
+  data?: JsonValue
 ): NextResponse<JsonRpcResponse> {
   const error: JsonRpcError = {
     code,
@@ -121,11 +128,20 @@ export async function POST(req: NextRequest) {
     // Handle different A2A methods
     switch (method) {
       case 'message/send': {
+        // Type guard: params must be an object, not an array
+        if (!params || Array.isArray(params)) {
+          return createErrorResponse(
+            requestId,
+            ErrorCode.INVALID_PARAMS,
+            'Invalid params: expected object'
+          )
+        }
+
         // Extract message parameters with type-safe access
-        const to = (params as Record<string, any>).to
-        const parts = (params as Record<string, any>).parts
-        const contextId = (params as Record<string, any>).contextId
-        const metadata = (params as Record<string, any>).metadata
+        const to = params.to as string | undefined
+        const parts = params.parts as MessagePart[] | undefined
+        const contextId = params.contextId as string | undefined
+        const metadata = (params.metadata as Record<string, JsonValue>) || {}
 
         if (!to || !Array.isArray(parts) || parts.length === 0) {
           return createErrorResponse(
@@ -137,18 +153,18 @@ export async function POST(req: NextRequest) {
 
         // Extract text content from parts
         const content = parts
-          .filter((part: any) => part.type === 'text')
-          .map((part: any) => part.content)
+          .filter((part: MessagePart) => part.type === 'text')
+          .map((part: MessagePart) => part.content)
           .join('\n')
 
         // Send message via communication hub
         const response = await hub.sendMessage(
           externalId,
-          to as string,
+          to,
           'a2a-message',
           content,
-          (metadata as Record<string, any>) || {},
-          contextId as string | undefined
+          metadata,
+          contextId
         )
 
         if (!response.success) {
@@ -203,7 +219,7 @@ export async function POST(req: NextRequest) {
         requestId,
         ErrorCode.INVALID_REQUEST,
         'Invalid JSON-RPC request format',
-        error.issues
+        JSON.parse(JSON.stringify(error.issues)) as JsonValue
       )
     }
 

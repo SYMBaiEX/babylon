@@ -9,7 +9,7 @@
  * - Message routing throughput
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { ExternalAgentAdapter } from '@/lib/agents/external/ExternalAgentAdapter'
 import { CommunicationHub } from '@/lib/agents/communication/CommunicationHub'
 import { getEventBus } from '@/lib/agents/communication/EventBus'

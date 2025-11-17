@@ -15,7 +15,21 @@ import { z } from 'zod'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { verifyApiKey } from '@/lib/crypto/api-keys'
 import { prisma } from '@/lib/prisma'
-import { AgentStatus, AgentType, TrustLevel } from '@/types/agent-registry.types'
+import { AgentStatus, AgentType } from '@/types/agent-registry.types'
+import type { TrustLevel } from '@/types/agent-registry.types'
+
+// Discovery filter type
+interface DiscoveryFilter {
+  types?: AgentType[]
+  statuses?: AgentStatus[]
+  minTrustLevel?: TrustLevel
+  requiredCapabilities?: string[]
+  requiredSkills?: string[]
+  requiredDomains?: string[]
+  matchMode?: 'all' | 'any'
+  limit?: number
+  offset?: number
+}
 
 // Query parameter validation
 const DiscoveryQuerySchema = z.object({
@@ -96,7 +110,7 @@ export async function GET(req: NextRequest) {
     const validated = DiscoveryQuerySchema.parse(query)
 
     // Build discovery filter
-    const filter: any = {}
+    const filter: DiscoveryFilter = {}
 
     // Filter by agent types
     if (validated.types) {

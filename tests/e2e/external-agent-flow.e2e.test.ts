@@ -8,7 +8,7 @@
  * 4. Verify trust scoring → Trust level progression
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import type { AgentCapabilities } from '@/types/a2a'
 
 // Base URL for API calls
