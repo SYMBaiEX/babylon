@@ -352,6 +352,7 @@ export interface InteractionBarProps {
     shareCount?: number;
     isLiked?: boolean;
     isShared?: boolean;
+    originalPostId?: string | null;
   };
 }
 
