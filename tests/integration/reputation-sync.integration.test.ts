@@ -21,7 +21,6 @@ let serverAvailable = false
 describe('ERC-8004 Reputation Sync Integration', () => {
   let testUserId: string
   let testAgentUserId: string
-  let testAgent0TokenId: number | null = null
 
   beforeAll(async () => {
     // Check if server is running

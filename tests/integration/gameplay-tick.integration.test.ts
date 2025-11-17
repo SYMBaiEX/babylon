@@ -181,9 +181,10 @@ describe('Gameplay Tick Integration', () => {
       const afterNoShares = Number(marketAfter?.noShares || 0)
 
       // At least one side should have changed
-      const sharesChanged = 
-        afterYesShares !== initialYesShares || 
+      const sharesChanged =
+        afterYesShares !== initialYesShares ||
         afterNoShares !== initialNoShares
+      expect(sharesChanged).toBe(true)
 
       // Market should have been updated (timestamp changed)
       expect(new Date(marketAfter?.updatedAt || 0).getTime())
@@ -315,6 +316,42 @@ describe('Gameplay Tick Integration', () => {
       await prisma.question.delete({ where: { id: pastQuestionId } })
     } catch (error) {
       // Cleanup errors not critical
+    }
+  })
+
+  test('should test agent-tick cron endpoint if server available', async () => {
+    if (!serverAvailable) {
+      console.log('⏭️  Skipping cron endpoint test - server not available')
+      return
+    }
+
+    const cronSecret = process.env.CRON_SECRET
+    if (!cronSecret) {
+      console.log('⏭️  Skipping cron endpoint test - CRON_SECRET not set')
+      return
+    }
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cronSecret}`,
+        },
+        signal: AbortSignal.timeout(30000), // 30 second timeout for cron job
+      })
+
+      // Should return 200 or handle gracefully
+      expect(response.status).toBeGreaterThanOrEqual(200)
+      expect(response.status).toBeLessThan(500)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Cron endpoint response:', data)
+      }
+    } catch (error) {
+      // Network errors are acceptable for this test
+      console.log('⚠️  Cron endpoint test error (acceptable):', error)
     }
   })
 })

@@ -8,7 +8,6 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 const ENV_LOCAL_PATH = '.env.local';
-const TEMPLATE_PATH = 'env.wandb.example';
 
 interface EnvVar {
   key: string;
@@ -133,11 +132,11 @@ function parseEnvFile(filePath: string): Map<string, string> {
     const trimmed = line.trim();
     if (trimmed && !trimmed.startsWith('#')) {
       const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.+)$/);
-      if (match) {
+      if (match && match[1] && match[2]) {
         const key = match[1];
         let value = match[2];
         // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) || 
+        if ((value.startsWith('"') && value.endsWith('"')) ||
             (value.startsWith("'") && value.endsWith("'"))) {
           value = value.slice(1, -1);
         }

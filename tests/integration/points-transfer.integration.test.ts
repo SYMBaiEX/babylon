@@ -177,12 +177,14 @@ describe('Points Transfer - Basic Functionality', () => {
     const senderTx = senderTransactions[0];
     const recipientTx = recipientTransactions[0];
 
-    expect(senderTx.amount).toBe(-100);
-    expect(recipientTx.amount).toBe(100);
+    expect(senderTx).toBeDefined();
+    expect(recipientTx).toBeDefined();
+    expect(senderTx!.amount).toBe(-100);
+    expect(recipientTx!.amount).toBe(100);
 
     // Verify metadata
-    const senderMetadata = JSON.parse(senderTx.metadata || '{}');
-    const recipientMetadata = JSON.parse(recipientTx.metadata || '{}');
+    const senderMetadata = JSON.parse(senderTx!.metadata || '{}');
+    const recipientMetadata = JSON.parse(recipientTx!.metadata || '{}');
 
     expect(senderMetadata.recipientId).toBe(testUser2.id);
     expect(recipientMetadata.senderId).toBe(testUser1.id);

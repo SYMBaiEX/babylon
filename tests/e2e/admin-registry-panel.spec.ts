@@ -19,7 +19,7 @@ test.describe('Admin Registry Panel', () => {
     await page.goto(`${BASE_URL}/admin`)
     
     // Wait for admin panel to load
-    await page.waitForSelector('[data-testid="admin-dashboard"]', { timeout: 10000 }).catch(() => {
+    await page.waitForSelector('[data-testid="admin-dashboard"]', { timeout: 10000 }).catch(async () => {
       // If test ID doesn't exist, wait for any admin content
       await page.waitForSelector('text=Admin', { timeout: 10000 })
     })
