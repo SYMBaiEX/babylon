@@ -106,12 +106,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           registrationTimestamp: true,
           createdAt: true,
           virtualBalance: true,
-          reputationPoints: true,
           AgentPerformanceMetrics: {
             select: {
               reputationScore: true,
               averageFeedbackScore: true,
               totalFeedbackCount: true,
+              trustLevel: true,
+              onChainTrustScore: true,
+              onChainAccuracyScore: true,
             },
           },
           _count: {
@@ -126,38 +128,48 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       })
 
-      return users.map(user => ({
-        type: 'user',
-        id: user.id,
-        name: user.displayName || user.username || 'Unknown',
-        username: user.username,
-        bio: user.bio,
-        imageUrl: user.profileImageUrl,
-        walletAddress: user.walletAddress,
-        isActor: user.isActor,
-        isBanned: user.isBanned,
-        isScammer: user.isScammer,
-        isCSAM: user.isCSAM,
-        onChainRegistered: user.onChainRegistered,
-        nftTokenId: user.nftTokenId,
-        agent0TokenId: user.agent0TokenId,
-        agent0MetadataCID: user.agent0MetadataCID,
-        registrationTxHash: user.registrationTxHash,
-        registrationTimestamp: user.registrationTimestamp,
-        createdAt: user.createdAt,
-        balance: user.virtualBalance.toString(),
-        reputationPoints: user.reputationPoints,
-        reputationScore: user.AgentPerformanceMetrics?.reputationScore ?? user.reputationPoints,
-        averageFeedbackScore: user.AgentPerformanceMetrics?.averageFeedbackScore ?? 0,
-        totalFeedbackCount: user.AgentPerformanceMetrics?.totalFeedbackCount ?? 0,
-        stats: {
-          positions: user._count.Position,
-          comments: user._count.Comment,
-          reactions: user._count.Reaction,
-          followers: user._count.Follow_Follow_followingIdToUser,
-          following: user._count.Follow_Follow_followerIdToUser,
-        },
-      }))
+      return users.map((user) => {
+        const metrics = user.AgentPerformanceMetrics
+        const compositeScore = metrics?.reputationScore ?? 0
+        const averageFeedbackScore = metrics?.averageFeedbackScore ?? 0
+        const totalFeedbackCount = metrics?.totalFeedbackCount ?? 0
+
+        return {
+          type: 'user',
+          id: user.id,
+          name: user.displayName || user.username || 'Unknown',
+          username: user.username,
+          bio: user.bio,
+          imageUrl: user.profileImageUrl,
+          walletAddress: user.walletAddress,
+          isActor: user.isActor,
+          isBanned: user.isBanned,
+          isScammer: user.isScammer,
+          isCSAM: user.isCSAM,
+          onChainRegistered: user.onChainRegistered,
+          nftTokenId: user.nftTokenId,
+          agent0TokenId: user.agent0TokenId,
+          agent0MetadataCID: user.agent0MetadataCID,
+          registrationTxHash: user.registrationTxHash,
+          registrationTimestamp: user.registrationTimestamp,
+          createdAt: user.createdAt,
+          balance: user.virtualBalance.toString(),
+          reputationPoints: Math.round(compositeScore),
+          reputationScore: compositeScore,
+          trustLevel: metrics?.trustLevel ?? 'UNRATED',
+          onChainTrustScore: metrics?.onChainTrustScore ?? null,
+          onChainAccuracyScore: metrics?.onChainAccuracyScore ?? null,
+          averageFeedbackScore,
+          totalFeedbackCount,
+          stats: {
+            positions: user._count.Position,
+            comments: user._count.Comment,
+            reactions: user._count.Reaction,
+            followers: user._count.Follow_Follow_followingIdToUser,
+            following: user._count.Follow_Follow_followerIdToUser,
+          },
+        }
+      })
       }
 
       return await asPublic(dbOperation)
@@ -346,5 +358,4 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse(result)
 })
-
 

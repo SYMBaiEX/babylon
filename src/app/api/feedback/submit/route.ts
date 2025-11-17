@@ -123,7 +123,10 @@ export async function POST(request: NextRequest) {
   })
 
   // Update feedback metrics
-  await updateFeedbackMetrics(toUser.id, score)
+  await updateFeedbackMetrics(toUser.id, score, {
+    category: body.category ?? 'general',
+    interactionType: 'user_to_agent',
+  })
 
   // Submit to Agent0 network if recipient is an agent (fire-and-forget with error handling)
   // Only submit if recipient has Agent0 token ID (checked inside submitFeedbackToAgent0)

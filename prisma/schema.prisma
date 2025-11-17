@@ -154,12 +154,14 @@ model AgentPerformanceMetrics {
   averageROI            Float     @default(0)
   sharpeRatio           Float?
   totalFeedbackCount    Int       @default(0)
-  averageFeedbackScore  Float     @default(50)
+  averageFeedbackScore  Float     @default(70)
+  intelFeedbackCount    Int       @default(0)
+  averageIntelScore     Float     @default(50)
   averageRating         Float?
   positiveCount         Int       @default(0)
   neutralCount          Int       @default(0)
   negativeCount         Int       @default(0)
-  reputationScore       Float     @default(50)
+  reputationScore       Float     @default(70)
   trustLevel            String    @default("UNRATED")
   confidenceScore       Float     @default(0)
   onChainReputationSync Boolean   @default(false)

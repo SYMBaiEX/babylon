@@ -78,18 +78,21 @@ export interface TradeMetrics {
 export function calculateReputationScore(
   normalizedPnL: number,
   averageFeedbackScore: number,
-  gamesPlayed: number
+  gamesPlayed: number,
+  winRate = 0,
+  intelScore = averageFeedbackScore
 ): number {
   // Weight distribution
   const pnlWeight = 0.4
   const feedbackWeight = 0.4
   const activityWeight = 0.2
 
-  // Convert normalized PNL (0-1) to 0-100 scale
-  const pnlComponent = normalizedPnL * 100
+  // Performance component mixes normalized PnL (70%) and win rate (30%)
+  const performanceScore = normalizedPnL * 0.7 + winRate * 0.3
+  const pnlComponent = performanceScore * 100
 
-  // Feedback is already on 0-100 scale
-  const feedbackComponent = averageFeedbackScore
+  // Feedback blend: general feedback (70%) + intel-specific feedback (30%)
+  const feedbackComponent = averageFeedbackScore * 0.7 + intelScore * 0.3
 
   // Activity bonus: linear scaling, caps at 50 games = 100 points
   // 0 games = 0 points, 25 games = 50 points, 50+ games = 100 points
@@ -242,8 +245,17 @@ export async function updateTradingMetrics(
  * @param userId - User/agent receiving feedback
  * @param score - Feedback score (0-100)
  */
-export async function updateFeedbackMetrics(userId: string, score: number) {
-  logger.info('Updating feedback metrics', { userId, score }, 'ReputationService')
+interface FeedbackContext {
+  category?: string | null
+  interactionType?: string | null
+}
+
+export async function updateFeedbackMetrics(userId: string, score: number, context?: FeedbackContext) {
+  logger.info(
+    'Updating feedback metrics',
+    { userId, score, category: context?.category, interactionType: context?.interactionType },
+    'ReputationService'
+  )
 
   // Get or create metrics
   let metrics = await prisma.agentPerformanceMetrics.findUnique({
@@ -257,6 +269,8 @@ export async function updateFeedbackMetrics(userId: string, score: number) {
         userId,
         totalFeedbackCount: 0,
         averageFeedbackScore: 50, // Start at neutral
+        intelFeedbackCount: 0,
+        averageIntelScore: 50,
         updatedAt: new Date(),
       },
     })
@@ -271,12 +285,28 @@ export async function updateFeedbackMetrics(userId: string, score: number) {
   const isNeutral = score >= 40 && score < 70
   const isNegative = score < 40
 
+  const category = context?.category?.toLowerCase()
+  const interactionType = context?.interactionType?.toLowerCase()
+  const isIntel = category === 'intel' || category === 'helpful_intel' || interactionType === 'intel'
+
+  let intelFeedbackCount = metrics.intelFeedbackCount ?? 0
+  let averageIntelScore = metrics.averageIntelScore ?? 50
+
+  if (isIntel) {
+    const newIntelCount = intelFeedbackCount + 1
+    const newIntelAverage = (averageIntelScore * intelFeedbackCount + score) / newIntelCount
+    intelFeedbackCount = newIntelCount
+    averageIntelScore = newIntelAverage
+  }
+
   // Update metrics
   const updated = await prisma.agentPerformanceMetrics.update({
     where: { userId },
     data: {
       totalFeedbackCount: newCount,
       averageFeedbackScore: newAverage,
+      intelFeedbackCount,
+      averageIntelScore,
       positiveCount: isPositive ? metrics.positiveCount + 1 : metrics.positiveCount,
       neutralCount: isNeutral ? metrics.neutralCount + 1 : metrics.neutralCount,
       negativeCount: isNegative ? metrics.negativeCount + 1 : metrics.negativeCount,
@@ -311,7 +341,9 @@ export async function recalculateReputation(userId: string) {
   const reputationScore = calculateReputationScore(
     metrics.normalizedPnL,
     metrics.averageFeedbackScore,
-    metrics.gamesPlayed
+    metrics.gamesPlayed,
+    metrics.winRate ?? 0,
+    metrics.averageIntelScore ?? metrics.averageFeedbackScore
   )
 
   // Determine trust level
@@ -347,12 +379,18 @@ export async function recalculateReputation(userId: string) {
  * @returns Reputation score with component breakdown
  */
 export async function getReputationBreakdown(userId: string): Promise<ReputationScoreBreakdown | null> {
-  const metrics = await prisma.agentPerformanceMetrics.findUnique({
+  let metrics = await prisma.agentPerformanceMetrics.findUnique({
     where: { userId },
   })
 
   if (!metrics) {
-    return null
+    metrics = await prisma.agentPerformanceMetrics.create({
+      data: {
+        id: await generateSnowflakeId(),
+        userId,
+        updatedAt: new Date(),
+      },
+    })
   }
 
   // Calculate components
@@ -553,6 +591,11 @@ export async function generateGameCompletionFeedback(
   // Update game metrics (this will trigger reputation recalculation)
   await updateGameMetrics(agentId, score, performanceMetrics.won)
 
+  await updateFeedbackMetrics(agentId, score, {
+    category: 'game_performance',
+    interactionType: 'game_to_agent',
+  })
+
   logger.info('Generated game feedback', { feedbackId: feedback.id, score }, 'AutoFeedback')
 
   return feedback
@@ -610,7 +653,10 @@ export async function CompletionFormat(
   })
 
   // Update feedback metrics
-  await updateFeedbackMetrics(agentId, score)
+  await updateFeedbackMetrics(agentId, score, {
+    category: 'trade_performance',
+    interactionType: 'trade_to_agent',
+  })
 
   logger.info('Generated trade feedback', { feedbackId: feedback.id, score }, 'AutoFeedback')
 
