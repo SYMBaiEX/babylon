@@ -106,6 +106,8 @@ export function CommentCard({
           id={comment.userId}
           name={comment.userName}
           size="sm"
+          src={comment.userAvatar || undefined}
+          imageUrl={comment.userAvatar || undefined}
         />
       </div>
 
