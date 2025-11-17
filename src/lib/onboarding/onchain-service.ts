@@ -699,13 +699,24 @@ export async function processOnchainRegistration({
     )
 
     if (referralCode) {
-      // Create a new referral record for this signup (one record per referred user)
-      await prisma.referral.create({
-        data: {
+      // Create or update referral record (idempotent for retries)
+      await prisma.referral.upsert({
+        where: {
+          referralCode_referredUserId: {
+            referralCode,
+            referredUserId: dbUser.id,
+          },
+        },
+        create: {
           id: await generateSnowflakeId(),
           referrerId,
           referralCode,
           referredUserId: dbUser.id,
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        update: {
+          // On retry, ensure status is completed
           status: 'completed',
           completedAt: new Date(),
         },

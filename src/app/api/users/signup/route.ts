@@ -230,14 +230,24 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }
         }
 
-        // Create a NEW referral record for this signup (one record per referred user)
+        // Create or update referral record (idempotent for retries)
         if (resolvedReferrerId) {
-          const newReferralRecord = await tx.referral.create({
-            data: {
+          const newReferralRecord = await tx.referral.upsert({
+            where: {
+              referralCode_referredUserId: {
+                referralCode: normalizedCode,
+                referredUserId: canonicalUserId,
+              },
+            },
+            create: {
               id: await generateSnowflakeId(),
               referrerId: resolvedReferrerId,
               referralCode: normalizedCode,
               referredUserId: canonicalUserId,
+              status: 'pending',
+            },
+            update: {
+              // On retry, keep existing record but ensure status is pending
               status: 'pending',
             },
             select: { id: true },
