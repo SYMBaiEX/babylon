@@ -6,7 +6,6 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
 
 /**
@@ -83,22 +82,6 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
     { userId, code },
     'ReferralService'
   )
-
-  // Create referral entry if doesn't exist
-  const existingReferral = await prisma.referral.findUnique({
-    where: { referralCode: code },
-  })
-
-  if (!existingReferral) {
-    await prisma.referral.create({
-      data: {
-        id: await generateSnowflakeId(),
-        referrerId: userId,
-        referralCode: code,
-        status: 'pending',
-      },
-    })
-  }
 
   return code
 }

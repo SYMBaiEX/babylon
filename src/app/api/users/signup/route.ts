@@ -210,6 +210,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       if (referralCode) {
         const normalizedCode = referralCode.trim()
 
+        // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
           select: { id: true },
@@ -217,38 +218,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
           resolvedReferrerId = referrerByUsername.id
-
-          const referralRecord = await tx.referral.upsert({
+        } else {
+          // If not found by username, look up who owns this referral code
+          const referralOwner = await tx.user.findUnique({
             where: { referralCode: normalizedCode },
-            update: {
-              referredUserId: canonicalUserId,
-              status: 'pending',
-            },
-            create: {
+            select: { id: true },
+          })
+
+          if (referralOwner && referralOwner.id !== canonicalUserId) {
+            resolvedReferrerId = referralOwner.id
+          }
+        }
+
+        // Create a NEW referral record for this signup (one record per referred user)
+        if (resolvedReferrerId) {
+          const newReferralRecord = await tx.referral.create({
+            data: {
               id: await generateSnowflakeId(),
-              referrerId: referrerByUsername.id,
+              referrerId: resolvedReferrerId,
               referralCode: normalizedCode,
               referredUserId: canonicalUserId,
               status: 'pending',
             },
             select: { id: true },
           })
-
-          resolvedReferralRecordId = referralRecord.id
-        } else {
-          const referralRecord = await tx.referral.findUnique({
-            where: { referralCode: normalizedCode },
-            select: { id: true, referrerId: true, referredUserId: true },
-          })
-
-          if (
-            referralRecord &&
-            referralRecord.referrerId !== canonicalUserId &&
-            (!referralRecord.referredUserId || referralRecord.referredUserId === canonicalUserId)
-          ) {
-            resolvedReferrerId = referralRecord.referrerId
-            resolvedReferralRecordId = referralRecord.id
-          }
+          
+          resolvedReferralRecordId = newReferralRecord.id
         }
       }
 

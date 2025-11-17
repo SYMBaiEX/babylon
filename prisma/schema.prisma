@@ -980,16 +980,17 @@ model Referral {
   id                                 String    @id
   referrerId                         String
   referredUserId                     String?
-  referralCode                       String    @unique
+  referralCode                       String
   status                             String    @default("pending")
   createdAt                          DateTime  @default(now())
   completedAt                        DateTime?
   User_Referral_referredUserIdToUser User?     @relation("Referral_referredUserIdToUser", fields: [referredUserId], references: [id])
   User_Referral_referrerIdToUser     User      @relation("Referral_referrerIdToUser", fields: [referrerId], references: [id], onDelete: Cascade)
 
+  @@unique([referralCode, referredUserId])
   @@index([referralCode])
-  @@index([referredUserId])
   @@index([referrerId])
+  @@index([referredUserId])
   @@index([status, createdAt(sort: Desc)])
 }
 

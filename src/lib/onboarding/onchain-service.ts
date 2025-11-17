@@ -156,14 +156,15 @@ export async function processOnchainRegistration({
       referrerId = referrer.id
       logger.info('Valid referral code (username) found', { referralCode, referrerId }, 'OnboardingOnchain')
     } else {
-      const referral = await prisma.referral.findUnique({
+      // Look up who owns this referral code
+      const referralOwner = await prisma.user.findUnique({
         where: { referralCode },
-        include: { User_Referral_referrerIdToUser: true },
+        select: { id: true },
       })
 
-      if (referral && referral.status === 'pending') {
-        referrerId = referral.referrerId
-        logger.info('Valid referral code (legacy) found', { referralCode, referrerId }, 'OnboardingOnchain')
+      if (referralOwner) {
+        referrerId = referralOwner.id
+        logger.info('Valid referral code found', { referralCode, referrerId }, 'OnboardingOnchain')
       }
     }
   }
@@ -684,14 +685,9 @@ export async function processOnchainRegistration({
     const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
 
     if (referralCode) {
-      await prisma.referral.upsert({
-        where: { referralCode },
-        update: {
-          status: 'completed',
-          referredUserId: dbUser.id,
-          completedAt: new Date(),
-        },
-        create: {
+      // Create a new referral record for this signup (one record per referred user)
+      await prisma.referral.create({
+        data: {
           id: await generateSnowflakeId(),
           referrerId,
           referralCode,
