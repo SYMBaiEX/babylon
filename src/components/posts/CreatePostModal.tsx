@@ -143,16 +143,16 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
       />
 
       {/* Modal - Mobile */}
-      <div className="fixed inset-x-4 top-20 bottom-auto z-50 md:hidden rounded-2xl border border-white/10 bg-[#050816] shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
+      <div className="fixed inset-x-4 top-20 bottom-auto z-50 md:hidden rounded-2xl border border-border bg-card shadow-2xl overflow-hidden max-h-[60vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h2 className="text-xl font-semibold text-primary-foreground">Create Post</h2>
-            <p className="text-xs text-primary-foreground/60">Share your thoughts with Babylon</p>
+            <h2 className="text-xl font-semibold text-foreground">Create Post</h2>
+            <p className="text-xs text-muted-foreground">Share your thoughts with Babylon</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
             aria-label="Close create post modal"
           >
             <X className="h-5 w-5" />
@@ -167,12 +167,12 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             placeholder="What's happening in Babylon?"
             className={cn(
               'flex-1 w-full px-4 py-3 rounded-xl',
-              'border border-white/10 bg-white/5',
-              'text-primary-foreground placeholder:text-primary-foreground/40',
-              'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
+              'border border-border bg-background',
+              'text-foreground placeholder:text-muted-foreground',
+              'resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring',
               'transition-colors'
             )}
-            rows={8}
+            rows={5}
             maxLength={280}
           />
 
@@ -180,7 +180,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
           <div className="flex items-center justify-between mt-3 mb-4">
             <span className={cn(
               'text-sm',
-              content.length > 260 ? 'text-red-400' : 'text-primary-foreground/50'
+              content.length > 260 ? 'text-red-400' : 'text-muted-foreground'
             )}>
               {content.length}/280
             </span>
@@ -192,8 +192,8 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             disabled={!content.trim() || isSubmitting}
             className={cn(
               'w-full py-3 px-4 rounded-xl font-semibold',
-              'bg-white text-[#050816]',
-              'hover:bg-white/90',
+              'bg-primary text-primary-foreground',
+              'hover:bg-primary/90',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'transition-all duration-200',
               'flex items-center justify-center gap-3'
@@ -201,7 +201,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
           >
             {isSubmitting ? (
               <>
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#050816]/20 border-t-[#050816]" />
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground/20 border-t-primary-foreground" />
                 <span>Posting...</span>
               </>
             ) : (
@@ -216,16 +216,16 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
 
       {/* Modal - Desktop */}
       <div className="hidden md:flex fixed inset-0 z-50 items-center justify-center p-4">
-        <div className="rounded-2xl border border-white/10 bg-[#050816] shadow-2xl w-full max-w-feed max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card shadow-2xl w-full max-w-lg max-h-[60vh] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <div>
-              <h2 className="text-xl font-semibold text-primary-foreground">Create Post</h2>
-              <p className="text-xs text-primary-foreground/60">Share your thoughts with Babylon</p>
+              <h2 className="text-xl font-semibold text-foreground">Create Post</h2>
+              <p className="text-xs text-muted-foreground">Share your thoughts with Babylon</p>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
+              className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
               aria-label="Close create post modal"
             >
               <X className="h-5 w-5" />
@@ -240,12 +240,12 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               placeholder="What's happening in Babylon?"
               className={cn(
                 'flex-1 w-full px-4 py-3 rounded-xl',
-                'border border-white/10 bg-white/5',
-                'text-primary-foreground placeholder:text-primary-foreground/40',
-                'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
+                'border border-border bg-background',
+                'text-foreground placeholder:text-muted-foreground',
+                'resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring',
                 'transition-colors'
               )}
-              rows={8}
+              rows={5}
               maxLength={280}
             />
 
@@ -253,7 +253,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             <div className="flex items-center justify-between mt-3 mb-4">
               <span className={cn(
                 'text-sm',
-                content.length > 260 ? 'text-red-400' : 'text-primary-foreground/50'
+                content.length > 260 ? 'text-red-400' : 'text-muted-foreground'
               )}>
                 {content.length}/280
               </span>
@@ -265,8 +265,8 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               disabled={!content.trim() || isSubmitting}
               className={cn(
                 'w-full py-3 px-4 rounded-xl font-semibold',
-                'bg-white text-[#050816]',
-                'hover:bg-white/90',
+                'bg-primary text-primary-foreground',
+                'hover:bg-primary/90',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-all duration-200',
                 'flex items-center justify-center gap-3'
@@ -274,7 +274,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             >
               {isSubmitting ? (
                 <>
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#050816]/20 border-t-[#050816]" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground/20 border-t-primary-foreground" />
                   <span>Posting...</span>
                 </>
               ) : (
