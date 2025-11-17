@@ -172,7 +172,7 @@ export function useSignupTracking() {
 export function useMarketTracking() {
   const { track } = usePostHog()
 
-  const trackMarketView = useCallback((marketId: string, marketType: 'prediction' | 'perp' | 'pool') => {
+  const trackMarketView = useCallback((marketId: string, marketType: 'prediction' | 'perp') => {
     track('market_view', {
       marketId,
       marketType,

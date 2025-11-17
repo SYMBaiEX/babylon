@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, X, ArrowRight, UserCircle, Bot } from 'lucide-react'
+import { Search, X, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { useRouter } from 'next/navigation'
@@ -219,20 +219,6 @@ export function EntitySearchAutocomplete({
 
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden max-h-[400px] overflow-y-auto">
-          <div className="px-4 py-3 flex items-center gap-3 border-b border-border">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-              <Search className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground">
-                Search for &quot;{value}&quot;
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Select a profile to view
-              </p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          </div>
 
           {loading && (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">Searching…</div>
@@ -240,7 +226,7 @@ export function EntitySearchAutocomplete({
 
           {!loading && suggestions.length === 0 && (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No matching users or NPCs found
+              No matching users found
             </div>
           )}
 
@@ -267,17 +253,6 @@ export function EntitySearchAutocomplete({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-semibold text-foreground truncate">{entity.name}</p>
-                      {entity.type === 'user' ? (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-medium bg-[#0066FF]/10 text-[#0066FF] shrink-0">
-                          <UserCircle className="w-4 h-4" />
-                          User
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
-                          <Bot className="w-4 h-4" />
-                          NPC
-                        </span>
-                      )}
                     </div>
                     {entity.username && (
                       <p className="text-xs text-muted-foreground truncate">@{entity.username}</p>

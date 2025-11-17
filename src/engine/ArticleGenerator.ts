@@ -269,8 +269,8 @@ export class ArticleGenerator {
    * and multiple perspectives in news coverage.
    * 
    * **Coverage Selection:**
-   * - Random 50-80% of news organizations cover each event
-   * - Major events get more coverage
+   * - 1-2 articles per event maximum (prevents duplicate coverage)
+   * - Random selection of news organizations
    * - Each outlet provides unique perspective
    * 
    * **Bias Determination:**
@@ -301,9 +301,10 @@ export class ArticleGenerator {
   ): Promise<Article[]> {
     const articles: Article[] = [];
 
-    // Select news organizations to cover this event (50-80% coverage)
-    const coveragePercentage = 0.5 + Math.random() * 0.3;
-    const numCovering = Math.ceil(newsOrganizations.length * coveragePercentage);
+    // Limit to 1-2 articles per event (instead of 50-80% of orgs)
+    // This prevents overwhelming the feed with duplicate coverage
+    const maxArticles = Math.min(2, newsOrganizations.length);
+    const numCovering = Math.min(maxArticles, Math.floor(1 + Math.random() * 2)); // 1-2 articles
     const coveringOrgs = this.selectNewsOrgs(newsOrganizations, numCovering);
 
     for (const org of coveringOrgs) {

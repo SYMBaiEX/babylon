@@ -159,7 +159,11 @@ export function ShareEarnModal({
       twitter: { ...prev.twitter, loading: true }
     }))
 
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+    // Check if shareText already contains the URL to avoid duplication
+    const textContainsUrl = shareText.includes(shareUrl)
+    const twitterUrl = textContainsUrl
+      ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+      : `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
     window.open(twitterUrl, '_blank', 'width=550,height=420')
     
     const earned = await trackShare('twitter')

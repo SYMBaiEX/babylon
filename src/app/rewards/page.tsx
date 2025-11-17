@@ -586,6 +586,7 @@ export default function RewardsPage() {
               <ShareButton
                 contentType="profile"
                 contentId={user?.id || ''}
+                url={user?.username && typeof window !== 'undefined' ? `${window.location.origin}/profile/${user.username.startsWith('@') ? user.username.slice(1) : user.username}` : undefined}
                 text="Check out my Babylon profile! 🎮"
                 className="w-full"
               />

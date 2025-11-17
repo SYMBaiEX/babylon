@@ -435,6 +435,23 @@ export function getEventBroadcaster(): InMemoryBroadcaster | ServerlessBroadcast
   return broadcasterInstance;
 }
 
+// Hot Module Reload cleanup - prevent SSE connections from blocking Next.js dev server reload
+declare const module: NodeModule & {
+  hot?: {
+    dispose: (callback: () => void) => void;
+  };
+};
+
+if (typeof module !== 'undefined' && module.hot) {
+  module.hot.dispose(() => {
+    if (broadcasterInstance) {
+      logger.debug('HMR: Cleaning up SSE broadcaster before hot reload', undefined, 'event-broadcaster');
+      broadcasterInstance.cleanup();
+      broadcasterInstance = null;
+    }
+  });
+}
+
 /**
  * Broadcast a message to a channel
  * 

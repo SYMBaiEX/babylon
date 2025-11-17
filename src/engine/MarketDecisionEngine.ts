@@ -440,11 +440,25 @@ export class MarketDecisionEngine {
     
     while (retryCount <= maxRetries) {
       try {
+        // On retry after string response, make prompt stricter
+        const retryPrompt = retryCount > 0 
+          ? `⚠️⚠️⚠️ CRITICAL FORMAT REQUIREMENT - RETRY ATTEMPT ${retryCount + 1} ⚠️⚠️⚠️
+
+You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO markdown.
+Your response MUST start with <decisions> and end with </decisions>.
+Your FIRST character MUST be '<' and your LAST character MUST be '>'.
+
+${prompt}`
+          : prompt;
+        
+        // Lower temperature on retry for more deterministic output
+        const temperature = retryCount > 0 ? Math.max(0.3, 0.7 - (retryCount * 0.1)) : 0.7;
+        
         rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] }>(
-          prompt,
+          retryPrompt,
           undefined,
           { 
-            temperature: 0.7, // Reduced from 0.8 for more deterministic output
+            temperature,
             maxTokens: maxOutputTokens,
             model: this.tokenConfig.model,
             format: 'xml', // Use XML for robustness
@@ -460,13 +474,22 @@ export class MarketDecisionEngine {
           
           if (retryCount < maxRetries) {
             retryCount++;
-            continue; // Retry
+            continue; // Retry with stricter prompt
           }
           
           // Last retry - try to salvage by extracting XML/JSON from the string
           logger.error('LLM consistently ignoring format instructions, attempting to extract data', {
             attempts: retryCount + 1
           }, 'MarketDecisionEngine');
+          
+          // Try to extract XML from the string response
+          const { parseXML } = await import('@/generator/llm/xml-parser');
+          const xmlResult = parseXML(rawResponse as string);
+          if (xmlResult.success && xmlResult.data) {
+            logger.info('Successfully extracted XML from string response', {}, 'MarketDecisionEngine');
+            rawResponse = xmlResult.data as typeof rawResponse;
+            break;
+          }
         }
         
         break; // Success, exit retry loop
@@ -745,7 +768,16 @@ export class MarketDecisionEngine {
     const rejectionReasons: Record<string, number> = {};
     
     for (const decision of decisions) {
-      let context = contexts.get(decision.npcId);
+      // Skip decisions missing required fields early
+      if (!decision.npcId && !decision.npcName) {
+        rejectionReasons['missing_identifiers'] = (rejectionReasons['missing_identifiers'] || 0) + 1;
+        logger.warn(`Decision missing both npcId and npcName`, {
+          decision: JSON.stringify(decision),
+        }, 'MarketDecisionEngine');
+        continue;
+      }
+      
+      let context = contexts.get(decision.npcId || '');
       
       // Fallback: try to find by name if ID doesn't match
       if (!context && decision.npcName) {
@@ -768,8 +800,20 @@ export class MarketDecisionEngine {
       
       if (!context) {
         rejectionReasons['no_context'] = (rejectionReasons['no_context'] || 0) + 1;
-        logger.warn(`Decision for unknown NPC: ${decision.npcId} (name: ${decision.npcName})`, {}, 'MarketDecisionEngine');
+        logger.warn(`Decision for unknown NPC: ${decision.npcId || 'missing'} (name: ${decision.npcName || 'missing'})`, {
+          decision: JSON.stringify(decision),
+        }, 'MarketDecisionEngine');
         continue;
+      }
+      
+      // Ensure npcName is set from context if missing
+      if (!decision.npcName) {
+        decision.npcName = context.npcName;
+      }
+      
+      // Ensure npcId is set from context if missing
+      if (!decision.npcId) {
+        decision.npcId = context.npcId;
       }
       
       // Validate hold action
@@ -822,9 +866,23 @@ export class MarketDecisionEngine {
         continue;
       }
       
-      // Validate market type
+      // Validate market type (only 'perp' or 'prediction' are valid, 'pool' was removed)
       if (!decision.marketType) {
-        logger.warn(`Trading decision missing marketType for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+        rejectionReasons['missing_market_type'] = (rejectionReasons['missing_market_type'] || 0) + 1;
+        logger.warn(`Trading decision missing marketType for ${decision.npcName || decision.npcId || 'unknown'}`, {
+          decision: JSON.stringify(decision),
+        }, 'MarketDecisionEngine');
+        continue;
+      }
+      
+      // Validate marketType is one of the allowed values (reject 'pool' and any other invalid values)
+      const marketTypeStr = String(decision.marketType);
+      if (marketTypeStr !== 'perp' && marketTypeStr !== 'prediction') {
+        rejectionReasons['invalid_market_type'] = (rejectionReasons['invalid_market_type'] || 0) + 1;
+        const isPool = marketTypeStr === 'pool';
+        logger.warn(`Invalid marketType '${marketTypeStr}' for ${decision.npcName || decision.npcId || 'unknown'} - ${isPool ? 'pools market type was removed, ' : ''}must be 'perp' or 'prediction'`, {
+          decision: JSON.stringify(decision),
+        }, 'MarketDecisionEngine');
         continue;
       }
       

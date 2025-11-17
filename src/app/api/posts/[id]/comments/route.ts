@@ -488,7 +488,7 @@ export const POST = withErrorHandling(async (
       }
     }
 
-    const mentions = content.match(/@(\w+)/g)!
+    const mentions = content.match(/@(\w+)/g) || []
     const usernames = [...new Set(mentions.map(m => m.substring(1)))]
     
     const mentionedUsers = await prisma.user.findMany({
