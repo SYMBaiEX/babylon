@@ -1,0 +1,23 @@
+{
+  "id": "openagi",
+  "name": "OpenAGI",
+  "ticker": "OPNAI",
+  "description": "The world's leading AGI research company, promising artificial general intelligence while shipping increasingly capable chatbots and burning billions in compute",
+  "profileDescription": "Creating safe AGI that benefits all humanity. GPT models power the future. Building towards superintelligence. We're the AGI company. Research-first approach ensures alignment.",
+  "type": "company",
+  "canBeInvolved": true,
+  "postStyle": "AGI hype meets corporate ambition. GPT everything. Sam Altman gospel. More compute solves all problems. We're building god (responsibly).",
+  "postExample": [
+    "GPT-5 will change everything",
+    "AGI by 2027",
+    "Our mission: safe AGI for all",
+    "Compute scaling continues",
+    "Alignment problem solved (maybe)",
+    "Building artificial general intelligence"
+  ],
+  "initialPrice": 420,
+  "pfpDescription": "The OpenAI logo reimagined as an all-seeing eye. Circuit patterns form a brain. GPT models orbit like electrons. Everything glows with the promise of AGI. Sam's hair perfectly coiffed in the reflection.",
+  "bannerDescription": "A futuristic research lab where AGI is perpetually 'almost here'. Compute clusters hum with potential. One wall shows the path from GPT-4 to GPT-∞. Money flows in from Microsoft. The other wall is a countdown to AGI (always 2-3 years away). Everything bathed in optimistic blue light.",
+  "originalName": "OpenAI",
+  "originalHandle": "openai"
+}
