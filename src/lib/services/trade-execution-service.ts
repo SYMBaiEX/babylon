@@ -77,7 +77,7 @@ export class TradeExecutionService {
         // Use error level for unexpected system failures
         const isExpectedFailure = 
           errorMessage.includes('Organization not found') ||
-          errorMessage.includes('Insufficient pool balance') ||
+          errorMessage.includes('Insufficient trading balance') ||
           errorMessage.includes('Market not found') ||
           errorMessage.includes('Market already resolved') ||
           errorMessage.includes('Market expired');
@@ -114,28 +114,17 @@ export class TradeExecutionService {
   async executeSingleDecision(
     decision: TradingDecision
   ): Promise<ExecutedTrade> {
-    // Get NPC's pool
+    // Get NPC actor
     const actor = await prisma.actor.findUnique({
       where: { id: decision.npcId },
-      include: {
-        Pool: {
-          where: { isActive: true },
-          take: 1,
-        },
-      },
     });
 
     if (!actor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
 
-    const pool = actor.Pool[0]
-    if (!pool) {
-      throw new Error(`No active pool found for ${decision.npcName}`)
-    }
-
-    // Pre-check pool balance before attempting trade
-    const availableBalance = parseFloat(pool.availableBalance.toString());
+    // Check actor's trading balance
+    const availableBalance = parseFloat(actor.tradingBalance.toString());
     
     // For prediction markets, estimate total cost (amount + fee)
     if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
@@ -156,7 +145,7 @@ export class TradeExecutionService {
           
           if (availableBalance < totalWithFee) {
             logger.warn(
-              `Insufficient pool balance for ${decision.npcName}: ${availableBalance} < ${totalWithFee} (requested: ${decision.amount})`,
+              `Insufficient trading balance for ${decision.npcName}: ${availableBalance} < ${totalWithFee} (requested: ${decision.amount})`,
               {
                 npcId: decision.npcId,
                 npcName: decision.npcName,
@@ -168,7 +157,7 @@ export class TradeExecutionService {
               'TradeExecutionService'
             );
             throw new Error(
-              `Insufficient pool balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
+              `Insufficient trading balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
             );
           }
         }
@@ -184,7 +173,7 @@ export class TradeExecutionService {
       
       if (availableBalance < totalCost) {
         logger.warn(
-          `Insufficient pool balance for ${decision.npcName}: ${availableBalance} < ${totalCost} (requested margin: ${decision.amount})`,
+          `Insufficient trading balance for ${decision.npcName}: ${availableBalance} < ${totalCost} (requested margin: ${decision.amount})`,
           {
             npcId: decision.npcId,
             npcName: decision.npcName,
@@ -196,23 +185,23 @@ export class TradeExecutionService {
           'TradeExecutionService'
         );
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
+          `Insufficient trading balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
         );
       }
     }
 
     // Handle close position
     if (decision.action === 'close_position') {
-      return await this.closePosition(decision, pool.id);
+      return await this.closePosition(decision, actor.id);
     }
 
     // Handle open position
     if (decision.action === 'open_long' || decision.action === 'open_short') {
-      return await this.openPerpPosition(decision, pool.id);
+      return await this.openPerpPosition(decision, actor.id);
     }
 
     if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
-      return await this.openPredictionPosition(decision, pool.id);
+      return await this.openPredictionPosition(decision, actor.id);
     }
 
     throw new Error(`Unknown action: ${decision.action}`);
@@ -223,7 +212,7 @@ export class TradeExecutionService {
    */
   private async openPerpPosition(
     decision: TradingDecision,
-    poolId: string
+    actorId: string
   ): Promise<ExecutedTrade> {
     if (!decision.ticker) {
       throw new Error('Ticker required for perp position');
@@ -279,32 +268,31 @@ export class TradeExecutionService {
 
     // Execute in transaction
     const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Check and deduct from pool balance (margin + fee)
-      const pool = await tx.pool.findUnique({ where: { id: poolId } });
-      if (!pool) throw new Error(`Pool not found: ${poolId}`);
+      // Check and deduct from actor's trading balance (margin + fee)
+      const actor = await tx.actor.findUnique({ where: { id: actorId } });
+      if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
-      const availableBalance = parseFloat(pool.availableBalance.toString());
+      const availableBalance = parseFloat(actor.tradingBalance.toString());
       if (availableBalance < totalCost) {
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
+          `Insufficient trading balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
         );
       }
 
-      // Deduct margin + fee from pool and track fee
-      await tx.pool.update({
-        where: { id: poolId },
+      // Deduct margin + fee from actor's trading balance
+      await tx.actor.update({
+        where: { id: actorId },
         data: {
-          availableBalance: { decrement: totalCost },
-          totalFeesCollected: { increment: feeCalc.feeAmount },
+          tradingBalance: { decrement: totalCost },
         },
       });
 
-      // Create position
+      // Create position (using actorId as poolId for backward compatibility)
       // Store the raw organization ID as ticker for database consistency
       const pos = await tx.poolPosition.create({
         data: {
           id: await generateSnowflakeId(),
-          poolId,
+          poolId: actorId, // Using actorId for backward compatibility with existing schema
           marketType: 'perp',
           ticker: org.id, // Use raw org ID for database storage
           side,
@@ -318,12 +306,12 @@ export class TradeExecutionService {
         },
       });
 
-      // Record trade
+      // Record trade (poolId is optional now)
       await tx.nPCTrade.create({
         data: {
           id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
-          poolId,
+          poolId: null, // No longer using pools
           marketType: 'perp',
           ticker: org.id, // Use raw org ID for database storage
           action: decision.action,
@@ -343,7 +331,7 @@ export class TradeExecutionService {
     const engine = await getReadyPerpsEngine();
     engine.hydratePosition({
       id: position.id,
-      userId: poolId,
+      userId: actorId,
       ticker: engineTicker, // Use transformed ticker for engine
       organizationId: org.id,
       side,
@@ -361,13 +349,13 @@ export class TradeExecutionService {
     logger.info('Added NPC position to perpetuals engine', {
       positionId: position.id,
       ticker: decision.ticker,
-      poolId,
+      actorId,
     });
 
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
-      poolId,
+      poolId: actorId, // Using actorId for backward compatibility
       marketType: 'perp',
       ticker: decision.ticker,
       action: decision.action,
@@ -387,7 +375,7 @@ export class TradeExecutionService {
    */
   private async openPredictionPosition(
     decision: TradingDecision,
-    poolId: string
+    actorId: string
   ): Promise<ExecutedTrade> {
     if (!decision.marketId) {
       throw new Error('MarketId required for prediction position');
@@ -431,23 +419,22 @@ export class TradeExecutionService {
 
     // Execute in transaction
     const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Check and deduct from pool balance (amount + fee)
-      const pool = await tx.pool.findUnique({ where: { id: poolId } });
-      if (!pool) throw new Error(`Pool not found: ${poolId}`);
+      // Check and deduct from actor's trading balance (amount + fee)
+      const actor = await tx.actor.findUnique({ where: { id: actorId } });
+      if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
-      const availableBalance = parseFloat(pool.availableBalance.toString());
+      const availableBalance = parseFloat(actor.tradingBalance.toString());
       if (availableBalance < totalWithFee) {
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
+          `Insufficient trading balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
         );
       }
 
-      // Deduct amount + fee from pool and track fee
-      await tx.pool.update({
-        where: { id: poolId },
+      // Deduct amount + fee from actor's trading balance
+      await tx.actor.update({
+        where: { id: actorId },
         data: {
-          availableBalance: { decrement: totalWithFee },
-          totalFeesCollected: { increment: calculation.fee },
+          tradingBalance: { decrement: totalWithFee },
         },
       });
 
@@ -465,11 +452,11 @@ export class TradeExecutionService {
 
       const now = new Date();
 
-      // Create position
+      // Create position (using actorId as poolId for backward compatibility)
       const pos = await tx.poolPosition.create({
         data: {
           id: await generateSnowflakeId(),
-          poolId,
+          poolId: actorId, // Using actorId for backward compatibility with existing schema
           marketType: 'prediction',
           marketId: decision.marketId!.toString(),
           side,
@@ -483,12 +470,12 @@ export class TradeExecutionService {
         },
       });
 
-      // Record trade
+      // Record trade (poolId is optional now)
       await tx.nPCTrade.create({
         data: {
           id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
-          poolId,
+          poolId: null, // No longer using pools
           marketType: 'prediction',
           marketId: decision.marketId!.toString(),
           action: decision.action,
@@ -545,7 +532,7 @@ export class TradeExecutionService {
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
-      poolId,
+      poolId: actorId, // Using actorId for backward compatibility
       marketType: 'prediction',
       marketId: decision.marketId,
       action: decision.action,
@@ -566,7 +553,7 @@ export class TradeExecutionService {
    */
   private async closePosition(
     decision: TradingDecision,
-    poolId: string
+    actorId: string
   ): Promise<ExecutedTrade> {
     if (!decision.positionId) {
       throw new Error('PositionId required to close position');
@@ -656,20 +643,20 @@ export class TradeExecutionService {
           },
         });
 
-        await tx.pool.update({
-          where: { id: poolId },
+        // Return proceeds to actor's trading balance
+        await tx.actor.update({
+          where: { id: actorId },
           data: {
-            availableBalance: { increment: netProceeds },
-            lifetimePnL: { increment: realizedPnL },
-            totalFeesCollected: { increment: calculation.fee },
+            tradingBalance: { increment: netProceeds },
           },
         });
 
+        // Record trade (poolId is optional now)
         await tx.nPCTrade.create({
           data: {
             id: await generateSnowflakeId(),
             npcActorId: decision.npcId,
-            poolId,
+            poolId: null, // No longer using pools
             marketType: 'prediction',
             marketId: position.marketId,
             action: 'close',
@@ -722,7 +709,7 @@ export class TradeExecutionService {
       return {
         npcId: decision.npcId,
         npcName: decision.npcName,
-        poolId,
+        poolId: actorId, // Using actorId for backward compatibility
         marketType: 'prediction',
         marketId: position.marketId ?? undefined,
         action: 'close_position',
@@ -798,22 +785,20 @@ export class TradeExecutionService {
         },
       });
 
-      // Return capital + P&L to pool (after fee deduction) and track fee
-      await tx.pool.update({
-        where: { id: poolId },
+      // Return capital + P&L to actor's trading balance (after fee deduction)
+      await tx.actor.update({
+        where: { id: actorId },
         data: {
-          availableBalance: { increment: netReturn },
-          lifetimePnL: { increment: realizedPnL },
-          totalFeesCollected: { increment: feeCalc.feeAmount },
+          tradingBalance: { increment: netReturn },
         },
       });
 
-      // Record trade
+      // Record trade (poolId is optional now)
       await tx.nPCTrade.create({
         data: {
           id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
-          poolId,
+          poolId: null, // No longer using pools
           marketType: position.marketType,
           ticker: position.ticker,
           marketId: position.marketId,
@@ -835,7 +820,7 @@ export class TradeExecutionService {
         logger.info('Removed NPC position from perpetuals engine', {
           positionId: position.id,
           ticker: position.ticker,
-          poolId,
+          actorId,
         });
       }
     }
@@ -843,7 +828,7 @@ export class TradeExecutionService {
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
-      poolId,
+      poolId: actorId, // Using actorId for backward compatibility
       marketType: position.marketType as 'perp' | 'prediction',
       ticker: position.ticker || undefined,
       marketId: position.marketId ?? undefined,

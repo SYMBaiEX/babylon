@@ -147,7 +147,7 @@ export function MarketsPanel() {
   }, [registerRefresh, unregisterRefresh, fetchMarkets])
 
   const handleMarketClick = (marketId: string) => {
-    router.push(`/markets/${marketId}`)
+    router.push(`/markets/predictions/${marketId}`)
   }
 
   // Get top movers (markets with biggest price changes)

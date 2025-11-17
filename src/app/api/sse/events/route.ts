@@ -199,11 +199,14 @@ export async function GET(request: NextRequest) {
       }
 
       const send = (payload: string) => {
+        if (streamClosed || controller.desiredSize === null) {
+          return false
+        }
         try {
           controller.enqueue(encoder.encode(payload))
           return true
-        } catch (error) {
-          logger.warn('Failed to enqueue SSE payload', { clientId, error }, 'SSE')
+        } catch {
+          logger.debug('Failed to enqueue SSE payload (client likely disconnected)', { clientId }, 'SSE')
           cleanup('enqueue_error')
           return false
         }

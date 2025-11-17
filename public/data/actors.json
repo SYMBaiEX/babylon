@@ -355,10 +355,6 @@
       "file": "./organizations/faix-news.json"
     },
     {
-      "id": "feaid",
-      "file": "./organizations/feaid.json"
-    },
-    {
       "id": "financial-taimes",
       "file": "./organizations/financial-taimes.json"
     },
@@ -375,28 +371,24 @@
       "file": "./organizations/maicrosoft.json"
     },
     {
-      "id": "mall-street-journal",
-      "file": "./organizations/mall-street-journal.json"
+      "id": "wall-street-journai",
+      "file": "./organizations/wall-street-journai.json"
     },
     {
       "id": "mckainsey",
       "file": "./organizations/mckainsey.json"
     },
     {
-      "id": "met",
-      "file": "./organizations/met.json"
+      "id": "metai",
+      "file": "./organizations/metai.json"
     },
     {
-      "id": "microstraitegy",
-      "file": "./organizations/microstraitegy.json"
+      "id": "straitegy",
+      "file": "./organizations/straitegy.json"
     },
     {
       "id": "msainbc",
       "file": "./organizations/msainbc.json"
-    },
-    {
-      "id": "network-ai-state",
-      "file": "./organizations/network-ai-state.json"
     },
     {
       "id": "neurailink",
@@ -407,8 +399,8 @@
       "file": "./organizations/nvidai.json"
     },
     {
-      "id": "opnai",
-      "file": "./organizations/opnai.json"
+      "id": "openagi",
+      "file": "./organizations/openagi.json"
     },
     {
       "id": "palaintir",
@@ -453,14 +445,6 @@
     {
       "id": "the-terminal-organization",
       "file": "./organizations/the-terminal-organization.json"
-    },
-    {
-      "id": "truth-socail",
-      "file": "./organizations/truth-socail.json"
-    },
-    {
-      "id": "tucker-carlon-tonaight",
-      "file": "./organizations/tucker-carlon-tonaight.json"
     },
     {
       "id": "ubair",
