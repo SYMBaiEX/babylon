@@ -105,9 +105,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const metadata = {
-    ...(payload.metadata as Prisma.InputJsonValue | undefined),
-    tags: payload.tags,
+  const metadataBase: Prisma.JsonObject =
+    payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
+      ? (payload.metadata as Prisma.JsonObject)
+      : {}
+
+  const metadata: Prisma.JsonObject = {
+    ...metadataBase,
+    ...(payload.tags ? { tags: payload.tags } : {}),
   }
 
   const feedback = await prisma.feedback.create({
@@ -121,6 +126,7 @@ export async function POST(request: NextRequest) {
       gameId: payload.gameId,
       interactionType: 'agent_to_game',
       metadata,
+      updatedAt: new Date(),
     },
   })
 
