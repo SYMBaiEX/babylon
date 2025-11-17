@@ -16,6 +16,8 @@ export const CapabilitiesSchema = z.object({
   markets: z.array(z.string()).optional(),
   actions: z.array(z.string()).optional(),
   version: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  domains: z.array(z.string()).optional(),
 })
 
 /**
@@ -28,24 +30,30 @@ export function parseCapabilities(
     markets: [] as string[],
     actions: [] as string[],
     version: '1.0.0',
+    skills: [] as string[],
+    domains: [] as string[],
   }
 ): {
   strategies: string[]
   markets: string[]
   actions: string[]
   version: string
+  skills: string[]
+  domains: string[]
 } {
   const validation = CapabilitiesSchema.safeParse(capabilities)
-  
+
   if (!validation.success) {
     return defaults
   }
-  
+
   return {
     strategies: validation.data.strategies ?? defaults.strategies,
     markets: validation.data.markets ?? defaults.markets,
     actions: validation.data.actions ?? defaults.actions,
     version: validation.data.version ?? defaults.version,
+    skills: validation.data.skills ?? defaults.skills,
+    domains: validation.data.domains ?? defaults.domains,
   }
 }
 

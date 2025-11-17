@@ -51,6 +51,8 @@ describe('Agent0 SDK Complete Integration', () => {
           markets: ['prediction'],
           actions: ['test'],
           version: '1.0.0',
+          skills: [],
+          domains: [],
         },
       })
 
@@ -76,6 +78,8 @@ describe('Agent0 SDK Complete Integration', () => {
           markets: ['prediction'],
           actions: ['test'],
           version: '1.0.0',
+          skills: [],
+          domains: [],
         },
       })
 
@@ -99,6 +103,8 @@ describe('Agent0 SDK Complete Integration', () => {
           actions: ['test'],
           version: '1.0.0',
           x402Support: true,
+          skills: [],
+          domains: [],
         },
       })
 

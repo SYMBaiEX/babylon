@@ -1,8 +1,11 @@
 /**
  * Multi-Agent Runtime Manager
- * 
+ *
+ * Unified runtime factory for all agent types (USER_CONTROLLED, NPC, EXTERNAL).
  * Manages multiple concurrent Eliza agent runtimes in a serverless environment.
  * Each agent gets its own isolated runtime instance with its own character configuration.
+ *
+ * Integrates with AgentRegistry for lifecycle management and agent discovery.
  */
 
 import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/core'
@@ -16,6 +19,10 @@ import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src'
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService'
 import { wrapPluginActions, wrapPluginProviders } from '../plugins/plugin-trajectory-logger/src/action-interceptor'
 import type { JsonValue } from '@/types/common'
+import { agentRegistry } from '@/lib/services/agent-registry.service'
+import { AgentType, type UnifiedAgentRegistration } from '@/types/agent-registry.types'
+import { loadActorById } from '@/lib/data/actors-loader'
+import type { ActorData } from '@/shared/types'
 
 // Global runtime cache for warm container reuse
 const globalRuntimes = new Map<string, AgentRuntime>()
@@ -37,7 +44,8 @@ export class AgentRuntimeManager {
   }
 
   /**
-   * Get or create a runtime for a specific agent (agent is a User with isAgent=true)
+   * Get or create a runtime for any agent type
+   * Routes to type-specific factory based on registry entry (if exists) or falls back to legacy USER_CONTROLLED
    */
   public async getRuntime(agentUserId: string): Promise<AgentRuntime> {
     // Check cache first
@@ -47,7 +55,43 @@ export class AgentRuntimeManager {
       return runtime
     }
 
-    // Fetch agent user from database
+    // Try to load from registry first (new unified approach)
+    const registration = await agentRegistry.getAgentById(agentUserId)
+
+    if (registration) {
+      // Route to type-specific factory based on registry
+      let runtime: AgentRuntime
+      switch (registration.type) {
+        case AgentType.USER_CONTROLLED:
+          runtime = await this.createUserAgentRuntime(registration)
+          break
+        case AgentType.NPC:
+          runtime = await this.createNpcRuntime(registration)
+          break
+        case AgentType.EXTERNAL:
+          runtime = await this.createExternalRuntime(registration)
+          break
+        default:
+          throw new Error(`Unknown agent type: ${registration.type}`)
+      }
+
+      // Update registry status to INITIALIZED
+      await agentRegistry.setRuntimeInstance(agentUserId, runtime.agentId)
+
+      // Cache runtime
+      globalRuntimes.set(agentUserId, runtime)
+
+      logger.info(
+        `Runtime created for ${registration.type} agent ${agentUserId}`,
+        undefined,
+        'AgentRuntimeManager',
+      )
+
+      return runtime
+    }
+
+    // Fallback: Legacy behavior for USER_CONTROLLED agents not yet in registry
+    // This maintains backward compatibility with existing code
     const agentUser = await prisma.user.findUnique({
       where: { id: agentUserId }
     })
@@ -311,6 +355,378 @@ export class AgentRuntimeManager {
   }
 
   /**
+   * Create runtime for USER_CONTROLLED agent
+   * Uses registry data or falls back to User model
+   */
+  private async createUserAgentRuntime(
+    registration: UnifiedAgentRegistration,
+  ): Promise<AgentRuntime> {
+    if (!registration.userId) {
+      throw new Error(
+        `USER_CONTROLLED agent ${registration.agentId} missing userId`,
+      )
+    }
+
+    // Fetch full user data
+    const agentUser = await prisma.user.findUnique({
+      where: { id: registration.userId },
+    })
+
+    if (!agentUser) {
+      throw new Error(`User ${registration.userId} not found`)
+    }
+
+    // Parse bio from agentMessageExamples or bio field
+    const parseBio = (): string[] => {
+      if (!agentUser.agentMessageExamples) {
+        return [agentUser.bio || '']
+      }
+
+      try {
+        const parsed = JSON.parse(agentUser.agentMessageExamples as string)
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        return [agentUser.bio || '']
+      } catch {
+        return [agentUser.bio || '']
+      }
+    }
+
+    // Parse style
+    const parseStyle = (): Record<string, JsonValue> | undefined => {
+      if (!agentUser.agentStyle) {
+        return undefined
+      }
+
+      try {
+        return JSON.parse(agentUser.agentStyle as string) as Record<
+          string,
+          JsonValue
+        >
+      } catch {
+        return undefined
+      }
+    }
+
+    // Build Character configuration
+    const character: Character = {
+      name: registration.name,
+      system: registration.systemPrompt,
+      bio: parseBio(),
+      messageExamples: [],
+      style: parseStyle(),
+      plugins: [],
+      settings: await this.getModelSettings(registration.agentId),
+    }
+
+    // Create runtime with standard plugins
+    return this.createRuntimeWithPlugins(registration.agentId, character)
+  }
+
+  /**
+   * Create runtime for NPC agent
+   * Loads ActorData and creates Character from NPC configuration
+   */
+  private async createNpcRuntime(
+    registration: UnifiedAgentRegistration,
+  ): Promise<AgentRuntime> {
+    // Verify actor exists in database
+    const actor = await prisma.actor.findUnique({
+      where: { id: registration.agentId },
+    })
+
+    if (!actor) {
+      throw new Error(`Actor ${registration.agentId} not found in database`)
+    }
+
+    // Load full ActorData from JSON files
+    const actorData: ActorData | null = loadActorById(actor.id)
+    if (!actorData) {
+      throw new Error(`ActorData ${actor.id} not found in data files`)
+    }
+
+    // Build Character configuration from ActorData
+    // Use ActorData fields for rich NPC personality
+    const bio: string[] = []
+    if (actorData.description) {
+      bio.push(actorData.description)
+    }
+    if (actorData.physicalDescription) {
+      bio.push(`Physical: ${actorData.physicalDescription}`)
+    }
+    if (actorData.role) {
+      bio.push(`Role: ${actorData.role}`)
+    }
+
+    const character: Character = {
+      name: registration.name,
+      system: registration.systemPrompt,
+      bio,
+      messageExamples: [],
+      plugins: [],
+      settings: await this.getModelSettings(registration.agentId),
+    }
+
+    // Create runtime with standard plugins
+    return this.createRuntimeWithPlugins(registration.agentId, character)
+  }
+
+  /**
+   * Create runtime for EXTERNAL agent
+   * Minimal Character config for external agents using A2A/MCP protocols
+   */
+  private async createExternalRuntime(
+    registration: UnifiedAgentRegistration,
+  ): Promise<AgentRuntime> {
+    // External agents may not have full Character config
+    // Use minimal viable configuration
+    const character: Character = {
+      name: registration.name,
+      system: registration.systemPrompt,
+      bio: [registration.systemPrompt],
+      messageExamples: [],
+      plugins: [],
+      settings: await this.getModelSettings(registration.agentId),
+    }
+
+    // External agents may use different plugins
+    // For now, use standard plugins (can be extended later)
+    return this.createRuntimeWithPlugins(registration.agentId, character)
+  }
+
+  /**
+   * Create AgentRuntime with standard plugin configuration
+   * Shared logic for all agent types
+   */
+  private async createRuntimeWithPlugins(
+    agentId: string,
+    character: Character,
+  ): Promise<AgentRuntime> {
+    // Database configuration
+    const dbPort = process.env.POSTGRES_DEV_PORT || 5432
+    const postgresUrl =
+      process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      `postgres://postgres:password@localhost:${dbPort}/babylon`
+
+    // Create trajectory logger service
+    const trajectoryLogger = new TrajectoryLoggerService()
+    trajectoryLoggers.set(agentId, trajectoryLogger)
+
+    // Create runtime with standard plugins
+    const plugins: Plugin[] = [
+      groqPlugin as Plugin,
+      experiencePlugin as Plugin,
+      trajectoryLoggerPlugin as Plugin,
+    ]
+
+    const runtimeConfig = {
+      character,
+      agentId: agentId as UUID,
+      plugins,
+      settings: {
+        ...character.settings,
+        POSTGRES_URL: postgresUrl,
+      },
+    }
+
+    const runtime = new AgentRuntime(runtimeConfig)
+
+    // Store model version on runtime for LLM call logging
+    if (character.settings?.MODEL_VERSION) {
+      ;(runtime as unknown as { currentModelVersion?: string }).currentModelVersion =
+        character.settings.MODEL_VERSION as string
+    }
+    ;(runtime as unknown as { currentModel?: string }).currentModel =
+      (character.settings?.WANDB_MODEL as string) ||
+      (character.settings?.WANDB_ENABLED === 'true' ? 'wandb' : 'groq')
+
+    // Configure logger
+    this.configureLogger(runtime, character.name)
+
+    // Register Groq model handlers
+    this.registerModelHandlers(runtime, agentId)
+
+    // Wrap and enhance with Babylon plugin
+    await this.enhanceWithBabylon(runtime, agentId, trajectoryLogger)
+
+    // Store trajectory logger reference on runtime
+    ;(runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger =
+      trajectoryLogger
+
+    return runtime
+  }
+
+  /**
+   * Get model settings (WANDB RL model or Groq fallback)
+   * Shared logic for model configuration
+   */
+  private async getModelSettings(agentId: string): Promise<Record<string, string>> {
+    let wandbModel: string | undefined
+    let useWandb = false
+    let modelVersion: string | undefined
+
+    if (process.env.WANDB_API_KEY) {
+      try {
+        // First check system settings for configured WANDB model
+        const { getAIModelConfig } = await import('@/lib/ai-model-config')
+        const aiConfig = await getAIModelConfig()
+        if (aiConfig.wandbEnabled) {
+          wandbModel = aiConfig.wandbModel || process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct'
+          useWandb = true
+          logger.info(`Agent will use configured WANDB model: ${wandbModel}`, { agentId }, 'AgentRuntimeManager')
+        }
+        if (!useWandb) {
+          // Check for latest trained RL model from database
+          const { getLatestRLModel } = await import('@/lib/training/WandbModelFetcher')
+          const latestModel = await getLatestRLModel()
+          if (latestModel && latestModel.modelPath) {
+            wandbModel = latestModel.modelPath
+            modelVersion = latestModel.version
+            useWandb = true
+            logger.info(`Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`, {
+              agentId,
+              modelId: latestModel.modelPath,
+              version: latestModel.version,
+              avgReward: latestModel.metadata.avgReward
+            }, 'AgentRuntimeManager')
+          }
+        }
+        // Fall back to env model if no DB/systems entry but WANDB key exists
+        if (!useWandb && process.env.WANDB_MODEL) {
+          wandbModel = process.env.WANDB_MODEL
+          useWandb = true
+          logger.info(`Agent will use WANDB model from env: ${wandbModel}`, { agentId }, 'AgentRuntimeManager')
+        }
+      } catch (error) {
+        logger.warn('Could not load WANDB model config, falling back to Groq', { error }, 'AgentRuntimeManager')
+      }
+    }
+
+    // Log model usage for verification
+    if (useWandb && wandbModel) {
+      logger.info('Agent using trained RL model', {
+        agentId,
+        modelPath: wandbModel,
+        modelVersion,
+      }, 'AgentRuntimeManager')
+    } else {
+      logger.info('Agent using base model (not trained RL model)', {
+        agentId,
+        model: wandbModel || 'groq-qwen-32b',
+        reason: useWandb ? 'W&B model not available' : 'W&B disabled',
+      }, 'AgentRuntimeManager')
+    }
+
+    return {
+      // WANDB configuration (if available)
+      WANDB_API_KEY: useWandb ? (process.env.WANDB_API_KEY || '') : '',
+      ...(wandbModel ? { WANDB_MODEL: wandbModel } : {}),
+      WANDB_ENABLED: useWandb ? 'true' : 'false',
+      // Model version for tracking
+      ...(modelVersion ? { MODEL_VERSION: modelVersion } : {}),
+      // GROQ fallback (always available)
+      GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+      LARGE_GROQ_MODEL: useWandb
+        ? (wandbModel || process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct')
+        : 'qwen/qwen3-32b',
+      SMALL_GROQ_MODEL: useWandb
+        ? (wandbModel || process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct')
+        : 'llama-3.1-8b-instant',
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+    }
+  }
+
+  /**
+   * Configure runtime logger
+   */
+  private configureLogger(runtime: AgentRuntime, agentName: string): void {
+    if (!runtime.logger || !runtime.logger.log) {
+      const customLogger = {
+        log: (msg: string) =>
+          logger.info(msg, undefined, `Agent[${agentName}]`),
+        info: (msg: string) =>
+          logger.info(msg, undefined, `Agent[${agentName}]`),
+        warn: (msg: string) =>
+          logger.warn(msg, undefined, `Agent[${agentName}]`),
+        error: (msg: string) =>
+          logger.error(msg, new Error(msg), `Agent[${agentName}]`),
+        debug: (msg: string) =>
+          logger.debug(msg, undefined, `Agent[${agentName}]`),
+        success: (msg: string) =>
+          logger.info(`✓ ${msg}`, undefined, `Agent[${agentName}]`),
+        notice: (msg: string) =>
+          logger.info(msg, undefined, `Agent[${agentName}]`),
+        level: 'info' as const,
+        trace: (msg: string) =>
+          logger.debug(msg, undefined, `Agent[${agentName}]`),
+        fatal: (msg: string) =>
+          logger.error(msg, new Error(msg), `Agent[${agentName}]`),
+        progress: (msg: string) =>
+          logger.info(msg, undefined, `Agent[${agentName}]`),
+        clear: () => (console.clear ? console.clear() : undefined),
+        child: () => customLogger,
+      }
+      runtime.logger = customLogger as unknown as typeof runtime.logger
+    }
+  }
+
+  /**
+   * Register Groq model handlers on runtime
+   */
+  private registerModelHandlers(
+    runtime: AgentRuntime,
+    agentId: string,
+  ): void {
+    if (groqPlugin.models) {
+      const modelDelegates =
+        ((runtime as unknown as Record<string, unknown>)
+          .modelDelegates as Record<string, unknown>) || {}
+      for (const [type, handler] of Object.entries(groqPlugin.models)) {
+        modelDelegates[type] = handler
+      }
+      ;(runtime as unknown as Record<string, unknown>).modelDelegates =
+        modelDelegates
+      logger.info(
+        `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
+        {
+          agentId,
+          types: Object.keys(modelDelegates),
+        },
+        'AgentRuntimeManager',
+      )
+    }
+  }
+
+  /**
+   * Enhance runtime with Babylon plugin (wrapped for trajectory logging)
+   */
+  private async enhanceWithBabylon(
+    runtime: AgentRuntime,
+    agentId: string,
+    trajectoryLogger: TrajectoryLoggerService,
+  ): Promise<void> {
+    // Wrap Babylon plugin BEFORE registering (so wrapped version is used)
+    let wrappedBabylonPlugin = babylonPlugin
+    if (babylonPlugin.actions) {
+      wrappedBabylonPlugin = wrapPluginActions(
+        wrappedBabylonPlugin,
+        trajectoryLogger,
+      )
+    }
+    if (babylonPlugin.providers) {
+      wrappedBabylonPlugin = wrapPluginProviders(
+        wrappedBabylonPlugin,
+        trajectoryLogger,
+      )
+    }
+
+    // Enhance with wrapped Babylon plugin
+    await enhanceRuntimeWithBabylon(runtime, agentId, wrappedBabylonPlugin)
+  }
+
+  /**
    * Get trajectory logger for an agent
    */
   public getTrajectoryLogger(agentUserId: string): TrajectoryLoggerService | null {
@@ -320,10 +736,19 @@ export class AgentRuntimeManager {
   /**
    * Remove runtime from cache
    */
-  public clearRuntime(agentUserId: string): void {
+  public async clearRuntime(agentUserId: string): Promise<void> {
     if (globalRuntimes.has(agentUserId)) {
       globalRuntimes.delete(agentUserId)
       trajectoryLoggers.delete(agentUserId)
+
+      // Update registry status if agent exists in registry
+      try {
+        await agentRegistry.clearRuntimeInstance(agentUserId)
+      } catch {
+        // Agent may not be in registry (legacy agents), ignore error
+        logger.debug(`Could not clear registry for ${agentUserId}, likely legacy agent`, undefined, 'AgentRuntimeManager')
+      }
+
       logger.info(`Runtime cleared for agent ${agentUserId}`, undefined, 'AgentRuntimeManager')
     }
   }
@@ -363,7 +788,7 @@ export const agentRuntimeManager = {
   getTrajectoryLogger(agentUserId: string) {
     return getManagerInstance().getTrajectoryLogger(agentUserId)
   },
-  clearRuntime(agentUserId: string) {
+  async clearRuntime(agentUserId: string) {
     return getManagerInstance().clearRuntime(agentUserId)
   },
   clearAllRuntimes() {

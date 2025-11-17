@@ -59,7 +59,7 @@ export class AgentIdentityService {
 
     const agent0Client = getAgent0Client()
     const capabilities = {
-      strategies: agentUser.agentTradingStrategy 
+      strategies: agentUser.agentTradingStrategy
         ? ['autonomous-trading', 'prediction-markets', 'social-interaction']
         : ['chat', 'analysis'],
       markets: ['prediction', 'perp', 'crypto'],
@@ -71,6 +71,8 @@ export class AgentIdentityService {
       moderationEscrowSupport: true,
       autonomousTrading: agentUser.autonomousTrading,
       autonomousPosting: agentUser.autonomousPosting,
+      skills: [],
+      domains: [],
     }
 
     // Use individual agent's A2A endpoint, not the game's endpoint

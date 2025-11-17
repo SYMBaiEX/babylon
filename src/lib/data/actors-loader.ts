@@ -339,3 +339,4 @@ export function getOrganizationIds(): string[] {
   const indexData = loadIndex();
   return indexData.organizations.map(ref => ref.id);
 }
+

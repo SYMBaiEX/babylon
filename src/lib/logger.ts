@@ -48,18 +48,45 @@ class Logger {
     const contextStr = entry.context ? `[${entry.context}]` : ''
     let dataStr = ''
     if (entry.data) {
-      // Handle cyclic structures and errors
-      dataStr = ` ${JSON.stringify(entry.data, (_key, value) => {
-        // Handle Error objects specially
-        if (value instanceof Error) {
-          return {
-            name: value.name,
-            message: value.message,
-            stack: value.stack,
+      // Handle cyclic structures and errors safely
+      try {
+        // Create a replacer function with persistent seen set
+        const seen = new Set<unknown>()
+        const replacer = (_key: string, value: unknown): unknown => {
+          // Handle Error objects specially
+          if (value instanceof Error) {
+            return {
+              name: value.name,
+              message: value.message,
+              stack: value.stack,
+            }
+          }
+          // Handle cyclic references
+          if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) {
+              return '[Circular]'
+            }
+            seen.add(value)
+          }
+          return value
+        }
+        dataStr = ` ${JSON.stringify(entry.data, replacer)}`
+      } catch (error) {
+        // If JSON.stringify fails (cyclic structure), use a safe fallback
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        dataStr = ` [SerializationError: ${errorMessage}]`
+        // Try to extract basic info from the data
+        if (entry.data instanceof Error) {
+          dataStr = ` {name: "${entry.data.name}", message: "${entry.data.message}"}`
+        } else if (typeof entry.data === 'object' && entry.data !== null) {
+          try {
+            const keys = Object.keys(entry.data).slice(0, 5)
+            dataStr = ` {keys: [${keys.join(', ')}]}`
+          } catch {
+            dataStr = ` [Object - cannot serialize]`
           }
         }
-        return value
-      })}`
+      }
     }
     return `[${entry.timestamp}] ${contextStr} [${entry.level.toUpperCase()}] ${entry.message}${dataStr}`
   }

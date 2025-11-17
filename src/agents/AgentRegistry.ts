@@ -65,7 +65,9 @@ export class AgentRegistry {
           strategies: [],
           markets: [],
           actions: [],
-          version: '1.0.0'
+          version: '1.0.0',
+          skills: [],
+          domains: [],
         },
         reputation: {
           totalBets: 0,

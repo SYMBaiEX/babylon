@@ -9,11 +9,31 @@
  */
 
 import { $ } from 'bun'
+import { existsSync, unlinkSync } from 'fs'
+import { join } from 'path'
 import { logger } from '../src/lib/logger'
+import { killPort } from './utils/kill-port'
 import concurrently from 'concurrently'
 
 async function main() {
   try {
+    // Step 0: Clean up port 3000 and Next.js lock file
+    logger.info('Cleaning up port 3000 and Next.js lock files...', undefined, 'DevRunner')
+    const killedCount = await killPort(3000, process.pid)
+    if (killedCount > 0) {
+      logger.info(`✅ Killed ${killedCount} process(es) on port 3000`, undefined, 'DevRunner')
+    }
+    
+    const nextLockPath = join(process.cwd(), '.next', 'dev', 'lock')
+    if (existsSync(nextLockPath)) {
+      try {
+        unlinkSync(nextLockPath)
+        logger.info('✅ Removed Next.js lock file', undefined, 'DevRunner')
+      } catch (error) {
+        logger.warn('Could not remove Next.js lock file', undefined, 'DevRunner')
+      }
+    }
+    
     // Step 1: Run pre-dev setup
     logger.info('Running pre-dev setup...', undefined, 'DevRunner')
     
@@ -64,7 +84,7 @@ async function main() {
       ],
       {
         prefix: 'name',
-        killOthers: ['failure'], // Only kill others on failure, not on success
+        killOthersOn: ['failure'], // Only kill others on failure, not on success
         restartTries: 0,
         raw: false, // Don't use raw mode - let concurrently handle output
       }
@@ -84,7 +104,13 @@ async function main() {
     await result
     
   } catch (error) {
-    logger.error('Failed to start dev server', error, 'DevRunner')
+    // Safely log error without causing cyclic structure issues
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    logger.error('Failed to start dev server', { 
+      message: errorMessage,
+      stack: errorStack 
+    }, 'DevRunner')
     process.exit(1)
   }
 }
