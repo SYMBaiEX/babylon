@@ -32,8 +32,6 @@ model Actor {
   ActorFollow_ActorFollow_followingIdToActor          ActorFollow[]       @relation("ActorFollow_followingIdToActor")
   ActorRelationship_ActorRelationship_actor1IdToActor ActorRelationship[] @relation("ActorRelationship_actor1IdToActor")
   ActorRelationship_ActorRelationship_actor2IdToActor ActorRelationship[] @relation("ActorRelationship_actor2IdToActor")
-  NPCInteraction_NPCInteraction_actor1IdToActor       NPCInteraction[]    @relation("NPCInteraction_actor1IdToActor")
-  NPCInteraction_NPCInteraction_actor2IdToActor       NPCInteraction[]    @relation("NPCInteraction_actor2IdToActor")
   NPCTrade                                            NPCTrade[]
   Pool                                                Pool[]
   UserActorFollow                                     UserActorFollow[]
@@ -60,22 +58,19 @@ model ActorFollow {
 }
 
 model ActorRelationship {
-  id                                      String    @id
+  id                                      String   @id
   actor1Id                                String
   actor2Id                                String
   relationshipType                        String
   strength                                Float
   sentiment                               Float
-  isPublic                                Boolean   @default(true)
+  isPublic                                Boolean  @default(true)
   history                                 String?
   affects                                 Json?
-  createdAt                               DateTime  @default(now())
+  createdAt                               DateTime @default(now())
   updatedAt                               DateTime
-  lastInteraction                         DateTime?
-  interactionCount                        Int       @default(0)
-  evolutionCount                          Int       @default(0)
-  Actor_ActorRelationship_actor1IdToActor Actor     @relation("ActorRelationship_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
-  Actor_ActorRelationship_actor2IdToActor Actor     @relation("ActorRelationship_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
+  Actor_ActorRelationship_actor1IdToActor Actor    @relation("ActorRelationship_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
+  Actor_ActorRelationship_actor2IdToActor Actor    @relation("ActorRelationship_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
 
   @@unique([actor1Id, actor2Id])
   @@index([actor1Id])
@@ -83,26 +78,6 @@ model ActorRelationship {
   @@index([relationshipType])
   @@index([sentiment])
   @@index([strength])
-  @@index([lastInteraction])
-}
-
-model NPCInteraction {
-  id                                    String   @id
-  actor1Id                              String
-  actor2Id                              String
-  interactionType                       String
-  sentiment                             Float    @default(0)
-  context                               String
-  metadata                              Json?
-  timestamp                             DateTime @default(now())
-  Actor_NPCInteraction_actor1IdToActor  Actor    @relation("NPCInteraction_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
-  Actor_NPCInteraction_actor2IdToActor  Actor    @relation("NPCInteraction_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
-
-  @@index([actor1Id, actor2Id, timestamp])
-  @@index([timestamp])
-  @@index([actor1Id])
-  @@index([actor2Id])
-  @@index([interactionType])
 }
 
 model AgentLog {
@@ -153,12 +128,12 @@ model AgentPerformanceMetrics {
   averageROI            Float     @default(0)
   sharpeRatio           Float?
   totalFeedbackCount    Int       @default(0)
-  averageFeedbackScore  Float     @default(50)
+  averageFeedbackScore  Float     @default(70)
   averageRating         Float?
   positiveCount         Int       @default(0)
   neutralCount          Int       @default(0)
   negativeCount         Int       @default(0)
-  reputationScore       Float     @default(50)
+  reputationScore       Float     @default(70)
   trustLevel            String    @default("UNRATED")
   confidenceScore       Float     @default(0)
   onChainReputationSync Boolean   @default(false)
@@ -210,8 +185,8 @@ model AgentGoalAction {
   impact      Float
   metadata    Json?
   createdAt   DateTime  @default(now())
-  Goal        AgentGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
   User        User      @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  Goal        AgentGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId])
   @@index([agentUserId, createdAt(sort: Desc)])
@@ -255,6 +230,7 @@ model AgentTrade {
   @@index([agentUserId, executedAt(sort: Desc)])
   @@index([marketType, marketId])
   @@index([ticker])
+  @@index([marketType, marketId], map: "idx_agent_trade_market")
 }
 
 model BalanceTransaction {
@@ -276,92 +252,30 @@ model BalanceTransaction {
 model Chat {
   id              String            @id
   name            String?
-  description     String?
   isGroup         Boolean           @default(false)
-  
-  // Creator tracking (for user-created groups and NPC-managed groups)
-  createdBy       String?           // User who created (for user groups)
-  npcAdminId      String?           // NPC admin (for NPC groups)
-  
-  // Game context
   gameId          String?
   dayNumber       Int?
-  relatedQuestion Int?
-  
-  // Timestamps
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  
-  // Legacy field (deprecated - use createdBy/npcAdminId instead)
   groupId         String?
-  
   ChatParticipant ChatParticipant[]
-  ChatAdmin       ChatAdmin[]
   Message         Message[]
 
   @@index([gameId, dayNumber])
   @@index([groupId])
   @@index([isGroup])
-  @@index([createdBy])
-  @@index([npcAdminId])
-  @@index([relatedQuestion])
 }
 
 model ChatParticipant {
-  id              String    @id
-  chatId          String
-  userId          String
-  joinedAt        DateTime  @default(now())
-  
-  // Fields from GroupChatMembership (for NPC-managed groups)
-  invitedBy       String?
-  isActive        Boolean   @default(true)
-  lastMessageAt   DateTime?
-  messageCount    Int       @default(0)
-  qualityScore    Float     @default(1.0)
-  kickedAt        DateTime?
-  kickReason      String?
-  
-  // Fields from UserGroupMember (for user-created groups)
-  addedBy         String?
-  
-  Chat            Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  id       String   @id
+  chatId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  Chat     Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, userId])
   @@index([chatId])
   @@index([userId])
-  @@index([chatId, isActive])
-  @@index([lastMessageAt])
-  @@index([userId, isActive])
-}
-
-model ChatAdmin {
-  id        String   @id
-  chatId    String
-  userId    String
-  grantedAt DateTime @default(now())
-  grantedBy String
-  Chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-
-  @@unique([chatId, userId])
-  @@index([chatId])
-  @@index([userId])
-}
-
-model ChatInvite {
-  id            String    @id
-  chatId        String
-  invitedUserId String
-  invitedBy     String
-  status        String    @default("pending")
-  message       String?
-  invitedAt     DateTime  @default(now())
-  respondedAt   DateTime?
-
-  @@unique([chatId, invitedUserId])
-  @@index([chatId])
-  @@index([invitedUserId, status])
-  @@index([status])
 }
 
 model Comment {
@@ -522,46 +436,30 @@ model GroupChatMembership {
 }
 
 model Market {
-  id                      String                   @id
+  id                      String     @id
   question                String
   description             String?
   gameId                  String?
   dayNumber               Int?
-  yesShares               Decimal                  @default(0) @db.Decimal(18, 6)
-  noShares                Decimal                  @default(0) @db.Decimal(18, 6)
-  liquidity               Decimal                  @db.Decimal(18, 6)
-  resolved                Boolean                  @default(false)
+  yesShares               Decimal    @default(0) @db.Decimal(18, 6)
+  noShares                Decimal    @default(0) @db.Decimal(18, 6)
+  liquidity               Decimal    @db.Decimal(18, 6)
+  resolved                Boolean    @default(false)
   resolution              Boolean?
   endDate                 DateTime
-  createdAt               DateTime                 @default(now())
+  createdAt               DateTime   @default(now())
   updatedAt               DateTime
   onChainMarketId         String?
   onChainResolutionTxHash String?
-  onChainResolved         Boolean                  @default(false)
+  onChainResolved         Boolean    @default(false)
   oracleAddress           String?
   Position                Position[]
-  PredictionPriceHistory  PredictionPriceHistory[]
 
   @@index([createdAt(sort: Desc)])
   @@index([gameId, dayNumber])
   @@index([onChainMarketId])
   @@index([resolved, endDate])
-}
-
-model PredictionPriceHistory {
-  id        String   @id
-  marketId  String
-  yesPrice  Float
-  noPrice   Float
-  yesShares Decimal  @db.Decimal(24, 8)
-  noShares  Decimal  @db.Decimal(24, 8)
-  liquidity Decimal  @db.Decimal(24, 8)
-  eventType String
-  source    String
-  createdAt DateTime @default(now())
-  Market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
-
-  @@index([marketId, createdAt(sort: Desc)])
+  @@index([gameId, dayNumber], map: "idx_market_game_day")
 }
 
 model Message {
@@ -574,6 +472,7 @@ model Message {
 
   @@index([chatId, createdAt(sort: Desc)])
   @@index([senderId])
+  @@index([chatId, createdAt(sort: Desc)], map: "idx_message_chat_created")
 }
 
 model NPCTrade {
@@ -598,6 +497,7 @@ model NPCTrade {
   @@index([marketType, ticker])
   @@index([npcActorId, executedAt(sort: Desc)])
   @@index([poolId, executedAt(sort: Desc)])
+  @@index([npcActorId, executedAt(sort: Desc)], map: "idx_npc_trade_actor_time")
 }
 
 model Notification {
@@ -622,6 +522,7 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, read, createdAt(sort: Desc)])
   @@index([userId, type, read])
+  @@index([userId, createdAt(sort: Desc)], map: "idx_notification_user_created")
 }
 
 model OAuthState {
@@ -692,7 +593,6 @@ model OracleTransaction {
 model Organization {
   id            String       @id
   name          String
-  ticker        String?      // 4-6 character trading ticker (e.g., METAI, NVDAI, AINDRL)
   description   String
   type          String
   canBeInvolved Boolean      @default(true)
@@ -705,7 +605,6 @@ model Organization {
 
   @@index([currentPrice])
   @@index([type])
-  @@index([ticker])
 }
 
 model PerpPosition {
@@ -787,6 +686,7 @@ model Pool {
   @@index([status])
   @@index([totalValue])
   @@index([volume24h])
+  @@index([npcActorId], map: "idx_pool_actor")
 }
 
 model PoolDeposit {
@@ -857,6 +757,7 @@ model Position {
   @@index([userId])
   @@index([userId, marketId])
   @@index([userId, status])
+  @@index([userId, status], map: "idx_position_user_status")
 }
 
 model Post {
@@ -882,10 +783,10 @@ model Post {
   Comment                               Comment[]
   Post_Post_commentOnPostIdToPost       Post?      @relation("Post_commentOnPostIdToPost", fields: [commentOnPostId], references: [id], onDelete: Cascade)
   other_Post_Post_commentOnPostIdToPost Post[]     @relation("Post_commentOnPostIdToPost")
+  Post_Post_originalPostIdToPost        Post?      @relation("Post_originalPostIdToPost", fields: [originalPostId], references: [id])
+  other_Post_Post_originalPostIdToPost  Post[]     @relation("Post_originalPostIdToPost")
   Post_Post_parentCommentIdToPost       Post?      @relation("Post_parentCommentIdToPost", fields: [parentCommentId], references: [id], onDelete: Cascade)
   other_Post_Post_parentCommentIdToPost Post[]     @relation("Post_parentCommentIdToPost")
-  Post_Post_originalPostIdToPost        Post?      @relation("Post_originalPostIdToPost", fields: [originalPostId], references: [id], onDelete: SetNull)
-  other_Post_Post_originalPostIdToPost  Post[]     @relation("Post_originalPostIdToPost")
   PostTag                               PostTag[]
   Reaction                              Reaction[]
   Share                                 Share[]
@@ -900,6 +801,7 @@ model Post {
   @@index([timestamp(sort: Desc)])
   @@index([type, deletedAt, timestamp(sort: Desc)])
   @@index([type, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)], map: "idx_post_timestamp_desc")
 }
 
 model PostTag {
@@ -1169,16 +1071,6 @@ model User {
   farcasterVerifiedAt                                               DateTime?
   isAdmin                                                           Boolean                  @default(false)
   isBanned                                                          Boolean                  @default(false)
-  isScammer                                                         Boolean                  @default(false)
-  isCSAM                                                            Boolean                  @default(false)
-  appealCount                                                       Int                      @default(0)
-  appealStaked                                                      Boolean                  @default(false)
-  appealStakeAmount                                                 Decimal?                 @db.Decimal(18, 2)
-  appealStakeTxHash                                                 String?
-  appealStatus                                                      String? // 'pending', 'strict_review', 'lenient_review', 'human_review', 'approved', 'denied', 'false_positive'
-  appealSubmittedAt                                                 DateTime?
-  appealReviewedAt                                                  DateTime?
-  falsePositiveHistory                                              Json? // Array of { date, reason, reviewedBy }
   privyId                                                           String?                  @unique
   registrationBlockNumber                                           BigInt?
   registrationGasUsed                                               BigInt?
@@ -1229,16 +1121,15 @@ model User {
   autonomousGroupChats                                              Boolean                  @default(false)
   autonomousPosting                                                 Boolean                  @default(false)
   autonomousTrading                                                 Boolean                  @default(false)
-  a2aEnabled                                                        Boolean                  @default(false)
   isAgent                                                           Boolean                  @default(false)
   managedBy                                                         String?
-  agentGoals                                                        Json?
-  agentDirectives                                                   Json?
   agentConstraints                                                  Json?
+  agentDirectives                                                   Json?
+  agentGoals                                                        Json?
+  agentMaxActionsPerTick                                            Int                      @default(3)
   agentPersonaPrompt                                                String?
   agentPlanningHorizon                                              String                   @default("single")
   agentRiskTolerance                                                String                   @default("medium")
-  agentMaxActionsPerTick                                            Int                      @default(3)
   AgentGoal                                                         AgentGoal[]
   AgentGoalAction                                                   AgentGoalAction[]
   AgentLog                                                          AgentLog[]
@@ -1264,6 +1155,9 @@ model User {
   Reaction                                                          Reaction[]
   Referral_Referral_referredUserIdToUser                            Referral[]               @relation("Referral_referredUserIdToUser")
   Referral_Referral_referrerIdToUser                                Referral[]               @relation("Referral_referrerIdToUser")
+  Report_Report_reportedUserIdToUser                                Report[]                 @relation("Report_reportedUserIdToUser")
+  Report_Report_reporterIdToUser                                    Report[]                 @relation("Report_reporterIdToUser")
+  Report_Report_resolvedByToUser                                    Report[]                 @relation("Report_resolvedByToUser")
   Share                                                             Share[]
   ShareAction                                                       ShareAction[]
   TradingFee_TradingFee_referrerIdToUser                            TradingFee[]             @relation("TradingFee_referrerIdToUser")
@@ -1272,17 +1166,11 @@ model User {
   User                                                              User?                    @relation("UserToUser", fields: [managedBy], references: [id])
   other_User                                                        User[]                   @relation("UserToUser")
   UserActorFollow                                                   UserActorFollow[]
-  trajectories                                                      Trajectory[]             @relation("AgentTrajectories")
-  UserBlock_UserBlock_blockerIdToUser                               UserBlock[]              @relation("UserBlock_blockerIdToUser")
   UserBlock_UserBlock_blockedIdToUser                               UserBlock[]              @relation("UserBlock_blockedIdToUser")
-  UserMute_UserMute_muterIdToUser                                   UserMute[]               @relation("UserMute_muterIdToUser")
+  UserBlock_UserBlock_blockerIdToUser                               UserBlock[]              @relation("UserBlock_blockerIdToUser")
   UserMute_UserMute_mutedIdToUser                                   UserMute[]               @relation("UserMute_mutedIdToUser")
-  Report_Report_reporterIdToUser                                    Report[]                 @relation("Report_reporterIdToUser")
-  Report_Report_reportedUserIdToUser                                Report[]                 @relation("Report_reportedUserIdToUser")
-  Report_Report_resolvedByToUser                                    Report[]                 @relation("Report_resolvedByToUser")
-  ModerationEscrow_ModerationEscrow_recipientIdToUser               ModerationEscrow[]
-  ModerationEscrow_ModerationEscrow_adminIdToUser                   ModerationEscrow[]       @relation("ModerationEscrowAdmin")
-  ModerationEscrow_ModerationEscrow_refundedByToUser                ModerationEscrow[]       @relation("ModerationEscrowRefundedBy")
+  UserMute_UserMute_muterIdToUser                                   UserMute[]               @relation("UserMute_muterIdToUser")
+  trajectories                                                      Trajectory[]             @relation("AgentTrajectories")
 
   @@index([agentCount(sort: Desc)])
   @@index([autonomousTrading])
@@ -1293,8 +1181,6 @@ model User {
   @@index([isAgent])
   @@index([isAgent, managedBy])
   @@index([isBanned, isActor])
-  @@index([isScammer])
-  @@index([isCSAM])
   @@index([managedBy])
   @@index([profileComplete, createdAt(sort: Desc)])
   @@index([referralCode])
@@ -1427,18 +1313,18 @@ model LlmCallLog {
   model            String
   purpose          String
   actionType       String?
-  systemPrompt     String   @db.Text
-  userPrompt       String   @db.Text
-  messagesJson     String?  @db.Text
-  response         String   @db.Text
-  reasoning        String?  @db.Text
+  systemPrompt     String
+  userPrompt       String
+  messagesJson     String?
+  response         String
+  reasoning        String?
   temperature      Float
   maxTokens        Int
   topP             Float?
   promptTokens     Int?
   completionTokens Int?
   totalTokens      Int?
-  metadata         String?  @db.Text
+  metadata         String?
   createdAt        DateTime @default(now())
 
   @@index([callId])
@@ -1483,18 +1369,14 @@ model TrainedModel {
   evalMetrics     Json?
   wandbRunId      String?
   wandbArtifactId String?
-  huggingFaceRepo String?
   agentsUsing     Int       @default(0)
   totalInferences Int       @default(0)
-  lastBenchmarked DateTime?
-  benchmarkCount  Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([status])
   @@index([version])
   @@index([deployedAt])
-  @@index([lastBenchmarked])
   @@map("trained_models")
 }
 
@@ -1504,13 +1386,13 @@ model TrainingBatch {
   scenarioId        String?
   baseModel         String
   modelVersion      String
-  trajectoryIds     String    @db.Text
-  rankingsJson      String?   @db.Text
-  rewardsJson       String    @db.Text
+  trajectoryIds     String
+  rankingsJson      String?
+  rewardsJson       String
   trainingLoss      Float?
   policyImprovement Float?
   status            String    @default("pending")
-  error             String?   @db.Text
+  error             String?
   createdAt         DateTime  @default(now())
   startedAt         DateTime?
   completedAt       DateTime?
@@ -1518,30 +1400,6 @@ model TrainingBatch {
   @@index([scenarioId])
   @@index([status, createdAt])
   @@map("training_batches")
-}
-
-model BenchmarkResult {
-  id                    String   @id
-  modelId               String
-  benchmarkId           String
-  benchmarkPath         String
-  runAt                 DateTime @default(now())
-  totalPnl              Float
-  predictionAccuracy    Float
-  perpWinRate           Float
-  optimalityScore       Float
-  detailedMetrics       Json
-  baselinePnlDelta      Float?
-  baselineAccuracyDelta Float?
-  improved              Boolean?
-  duration              Int
-  createdAt             DateTime @default(now())
-
-  @@index([modelId])
-  @@index([benchmarkId])
-  @@index([runAt])
-  @@index([optimalityScore])
-  @@map("benchmark_results")
 }
 
 model Trajectory {
@@ -1556,10 +1414,10 @@ model Trajectory {
   episodeId            String?         @db.VarChar(100)
   scenarioId           String?         @db.VarChar(100)
   batchId              String?         @db.VarChar(100)
-  stepsJson            String          @db.Text
-  rewardComponentsJson String          @db.Text
-  metricsJson          String          @db.Text
-  metadataJson         String          @db.Text
+  stepsJson            String
+  rewardComponentsJson String
+  metricsJson          String
+  metadataJson         String
   totalReward          Float
   episodeLength        Int
   finalStatus          String
@@ -1568,7 +1426,7 @@ model Trajectory {
   tradesExecuted       Int?
   postsCreated         Int?
   aiJudgeReward        Float?
-  aiJudgeReasoning     String?         @db.Text
+  aiJudgeReasoning     String?
   judgedAt             DateTime?
   isTrainingData       Boolean         @default(true)
   isEvaluation         Boolean         @default(false)
@@ -1576,8 +1434,8 @@ model Trajectory {
   trainedInBatch       String?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
-  agent                User            @relation("AgentTrajectories", fields: [agentId], references: [id], onDelete: Cascade)
   rewardJudgment       RewardJudgment?
+  agent                User            @relation("AgentTrajectories", fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([agentId, startTime])
   @@index([aiJudgeReward])
@@ -1595,14 +1453,14 @@ model RewardJudgment {
   judgeModel          String
   judgeVersion        String
   overallScore        Float
-  componentScoresJson String?    @db.Text
+  componentScoresJson String?
   rank                Int?
   normalizedScore     Float?
   groupId             String?
-  reasoning           String     @db.Text
-  strengthsJson       String?    @db.Text
-  weaknessesJson      String?    @db.Text
-  criteriaJson        String     @db.Text
+  reasoning           String
+  strengthsJson       String?
+  weaknessesJson      String?
+  criteriaJson        String
   judgedAt            DateTime   @default(now())
   trajectory          Trajectory @relation(fields: [trajectoryId], references: [trajectoryId], onDelete: Cascade)
 
@@ -1616,11 +1474,10 @@ model UserBlock {
   id        String   @id
   blockerId String
   blockedId String
-  reason    String? // Optional reason for blocking
+  reason    String?
   createdAt DateTime @default(now())
-
-  blocker User @relation("UserBlock_blockerIdToUser", fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked User @relation("UserBlock_blockedIdToUser", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("UserBlock_blockedIdToUser", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker   User     @relation("UserBlock_blockerIdToUser", fields: [blockerId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -1633,11 +1490,10 @@ model UserMute {
   id        String   @id
   muterId   String
   mutedId   String
-  reason    String? // Optional reason for muting
+  reason    String?
   createdAt DateTime @default(now())
-
-  muter User @relation("UserMute_muterIdToUser", fields: [muterId], references: [id], onDelete: Cascade)
-  muted User @relation("UserMute_mutedIdToUser", fields: [mutedId], references: [id], onDelete: Cascade)
+  muted     User     @relation("UserMute_mutedIdToUser", fields: [mutedId], references: [id], onDelete: Cascade)
+  muter     User     @relation("UserMute_muterIdToUser", fields: [muterId], references: [id], onDelete: Cascade)
 
   @@unique([muterId, mutedId])
   @@index([muterId])
@@ -1649,23 +1505,22 @@ model UserMute {
 model Report {
   id             String    @id
   reporterId     String
-  reportedUserId String? // User being reported (for user reports)
-  reportedPostId String? // Post being reported (for post reports)
-  reportType     String // 'user' | 'post'
-  category       String // 'spam', 'harassment', 'hate_speech', 'violence', 'misinformation', 'inappropriate', 'other'
-  reason         String // Detailed reason for the report
-  evidence       String? // Optional evidence (URLs, screenshots, etc.)
-  status         String    @default("pending") // 'pending', 'reviewing', 'resolved', 'dismissed'
-  priority       String    @default("normal") // 'low', 'normal', 'high', 'critical'
-  resolution     String? // Action taken (if resolved)
-  resolvedBy     String? // Admin user ID who resolved
+  reportedUserId String?
+  reportedPostId String?
+  reportType     String
+  category       String
+  reason         String
+  evidence       String?
+  status         String    @default("pending")
+  priority       String    @default("normal")
+  resolution     String?
+  resolvedBy     String?
   resolvedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
-  reporter     User  @relation("Report_reporterIdToUser", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedUser User? @relation("Report_reportedUserIdToUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
-  resolver     User? @relation("Report_resolvedByToUser", fields: [resolvedBy], references: [id], onDelete: SetNull)
+  reportedUser   User?     @relation("Report_reportedUserIdToUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  reporter       User      @relation("Report_reporterIdToUser", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolver       User?     @relation("Report_resolvedByToUser", fields: [resolvedBy], references: [id])
 
   @@index([reporterId])
   @@index([reportedUserId])
@@ -1678,21 +1533,11 @@ model Report {
   @@index([reportedPostId, status])
 }
 
-enum OnboardingStatus {
-  PENDING_PROFILE
-  PENDING_ONCHAIN
-  ONCHAIN_IN_PROGRESS
-  ONCHAIN_FAILED
-  COMPLETED
-}
-
 /// System-wide settings and configurations
 model SystemSettings {
-  id           String   @id @default("system") // Singleton record
-  // AI Model Configuration
-  wandbModel   String? // Selected wandb model for agents
-  wandbEnabled Boolean  @default(false) // Whether to use wandb
-  // Timestamps
+  id           String   @id @default("system")
+  wandbModel   String?
+  wandbEnabled Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -1700,14 +1545,14 @@ model SystemSettings {
 /// World facts for game context - general information about the world state
 model WorldFact {
   id          String   @id
-  category    String // 'crypto', 'politics', 'economy', 'technology', 'general'
-  key         String // 'bitcoin_price', 'eth_price', 'president', 'ai_state', 'eth_etf'
-  label       String // Human-readable label
-  value       String // The fact content (can be JSON for complex data)
-  source      String? // Where this fact came from
+  category    String
+  key         String
+  label       String
+  value       String
+  source      String?
   lastUpdated DateTime
   isActive    Boolean  @default(true)
-  priority    Int      @default(0) // Higher priority facts shown first
+  priority    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1720,9 +1565,9 @@ model WorldFact {
 /// RSS feed sources for pulling real news headlines
 model RSSFeedSource {
   id          String        @id
-  name        String // 'New York Times', 'LA Times', etc.
-  feedUrl     String // RSS feed URL
-  category    String // 'news', 'tech', 'finance', etc.
+  name        String
+  feedUrl     String
+  category    String
   isActive    Boolean       @default(true)
   lastFetched DateTime?
   fetchErrors Int           @default(0)
@@ -1742,11 +1587,11 @@ model RSSHeadline {
   link           String?
   publishedAt    DateTime
   summary        String?
-  content        String?         @db.Text
-  rawData        Json? // Store full RSS item
+  content        String?
+  rawData        Json?
   fetchedAt      DateTime
-  source         RSSFeedSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   parodyHeadline ParodyHeadline?
+  source         RSSFeedSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([sourceId, publishedAt(sort: Desc)])
   @@index([publishedAt(sort: Desc)])
@@ -1758,12 +1603,12 @@ model ParodyHeadline {
   originalHeadlineId   String      @unique
   originalTitle        String
   originalSource       String
-  parodyTitle          String // Transformed with parody characters
-  parodyContent        String?     @db.Text
-  characterMappings    Json // Map of real name -> parody name used
-  organizationMappings Json // Map of real org -> parody org used
+  parodyTitle          String
+  parodyContent        String?
+  characterMappings    Json
+  organizationMappings Json
   generatedAt          DateTime
-  isUsed               Boolean     @default(false) // Whether it's been injected into game context
+  isUsed               Boolean     @default(false)
   usedAt               DateTime?
   createdAt            DateTime    @default(now())
   originalHeadline     RSSHeadline @relation(fields: [originalHeadlineId], references: [id], onDelete: Cascade)
@@ -1775,12 +1620,12 @@ model ParodyHeadline {
 /// Character name mappings for find/replace (real -> parody)
 model CharacterMapping {
   id         String   @id
-  realName   String   @unique // 'Elon Musk', 'Sam Altman', etc.
-  parodyName String // 'AIlon Musk', 'Sam AIltman', etc.
-  category   String // 'tech', 'politics', 'crypto', etc.
-  aliases    String[] // Alternative real names to search for
+  realName   String   @unique
+  parodyName String
+  category   String
+  aliases    String[]
   isActive   Boolean  @default(true)
-  priority   Int      @default(0) // Higher priority = replace first (for substring issues)
+  priority   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -1791,12 +1636,12 @@ model CharacterMapping {
 /// Organization name mappings for find/replace (real -> parody)
 model OrganizationMapping {
   id         String   @id
-  realName   String   @unique // 'OpenAI', 'Meta', etc.
-  parodyName String // 'OpenLIE', 'Fakebook', etc.
-  category   String // 'tech', 'media', 'government', etc.
-  aliases    String[] // Alternative real names to search for
+  realName   String   @unique
+  parodyName String
+  category   String
+  aliases    String[]
   isActive   Boolean  @default(true)
-  priority   Int      @default(0) // Higher priority = replace first
+  priority   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -1804,43 +1649,10 @@ model OrganizationMapping {
   @@index([priority(sort: Desc)])
 }
 
-/// Moderation escrow payments - Admin can send money to users via X402, with refund capability
-model ModerationEscrow {
-  id                String   @id
-  recipientId       String   // User receiving the payment
-  adminId           String   // Admin who initiated the payment
-  amountUSD         Decimal  @db.Decimal(18, 2) // Amount in USD
-  amountWei         String   // Amount in wei for blockchain transaction
-  status            String   @default("pending") // pending, paid, refunded, expired
-  reason            String?  // Reason for payment (compensation, refund, etc.)
-  paymentRequestId  String?  @unique // X402 payment request ID
-  paymentTxHash     String?  @unique // Blockchain transaction hash
-  refundTxHash      String?  @unique // Refund transaction hash (if refunded)
-  refundedBy        String?  // Admin who refunded
-  refundedAt        DateTime?
-  metadata          Json?    // Additional metadata
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  expiresAt         DateTime // Payment request expiration
-  User              User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  Admin             User     @relation("ModerationEscrowAdmin", fields: [adminId], references: [id], onDelete: Cascade)
-  RefundedByUser    User?    @relation("ModerationEscrowRefundedBy", fields: [refundedBy], references: [id], onDelete: SetNull)
-
-  @@index([recipientId, createdAt(sort: Desc)])
-  @@index([adminId])
-  @@index([status])
-  @@index([paymentRequestId])
-  @@index([paymentTxHash])
-  @@index([createdAt(sort: Desc)])
-}
-
-/// Generation lock for preventing concurrent tick generation
-model GenerationLock {
-  id        String   @id @default("game-tick-lock")
-  lockedBy  String   // Process/server identifier
-  lockedAt  DateTime @default(now())
-  expiresAt DateTime // Lock expires after 5 minutes (stale lock recovery)
-  operation String   @default("game-tick") // What operation is locked
-  
-  @@index([expiresAt])
+enum OnboardingStatus {
+  PENDING_PROFILE
+  PENDING_ONCHAIN
+  ONCHAIN_IN_PROGRESS
+  ONCHAIN_FAILED
+  COMPLETED
 }
