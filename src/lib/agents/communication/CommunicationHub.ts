@@ -25,6 +25,8 @@ export interface Message {
   content: JsonValue
   timestamp: string // ISO 8601 string for JSON serialization
   metadata: Record<string, JsonValue>
+  contextId?: string
+  streaming?: boolean
 }
 
 export interface MessageRoute {
@@ -61,6 +63,8 @@ export class CommunicationHub {
    * @param type - Message type
    * @param content - Message content
    * @param metadata - Optional metadata
+   * @param contextId - Optional context ID for conversation continuity
+   * @param streaming - Optional streaming flag for long-running responses
    */
   async sendMessage(
     from: string,
@@ -68,6 +72,8 @@ export class CommunicationHub {
     type: string,
     content: JsonValue,
     metadata?: Record<string, JsonValue>,
+    contextId?: string,
+    streaming?: boolean,
   ): Promise<AgentResponse> {
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
@@ -79,6 +85,8 @@ export class CommunicationHub {
       content,
       timestamp: new Date().toISOString(),
       metadata: metadata || {},
+      contextId,
+      streaming,
     }
 
     // Add to history
@@ -144,6 +152,7 @@ export class CommunicationHub {
    * @param type - Message type
    * @param content - Message content
    * @param metadata - Optional metadata
+   * @param contextId - Optional context ID for conversation continuity
    */
   async broadcastMessage(
     from: string,
@@ -151,9 +160,10 @@ export class CommunicationHub {
     type: string,
     content: JsonValue,
     metadata?: Record<string, JsonValue>,
+    contextId?: string,
   ): Promise<AgentResponse[]> {
     const promises = recipients.map(to =>
-      this.sendMessage(from, to, type, content, metadata)
+      this.sendMessage(from, to, type, content, metadata, contextId)
     )
 
     return Promise.all(promises)
@@ -227,6 +237,8 @@ export class CommunicationHub {
         messageId: message.id,
         timestamp: message.timestamp,
       },
+      contextId: message.contextId,
+      streaming: message.streaming,
     }
 
     return await externalAdapter.sendMessage(message.to, agentMessage)

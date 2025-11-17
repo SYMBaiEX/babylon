@@ -4,14 +4,39 @@
  * Manages connections to external agents via A2A, MCP, or custom protocols
  * Provides unified interface for interacting with external agents
  *
- * @see agent-patch-plan.md Phase 2.4
+ * Enhanced with:
+ * - JSON-RPC 2.0 A2A protocol support
+ * - Multiple authentication methods (OAuth2, Bearer, API Key)
+ * - Agent discovery via .well-known/agent-card.json
+ * - Trust verification and scoring
+ * - Streaming message support
+ * - Connection pooling and retry logic
+ *
+ * @see agent-patch-plan.md Phases 2 & 3
  */
 
-import { AgentStatus } from '@/types/agent-registry.types'
+import { AgentStatus, type AgentCard } from '@/types/agent-registry.types'
 import { prisma } from '@/lib/prisma'
 import type { JsonValue } from '@/types/common'
+import { logger } from '@/lib/logger'
 
 export type Protocol = 'a2a' | 'mcp' | 'agent0' | 'custom'
+
+export enum AuthMethod {
+  NONE = 'NONE',
+  BEARER_TOKEN = 'BEARER_TOKEN',
+  API_KEY = 'API_KEY',
+  OAUTH2 = 'OAUTH2',
+  MUTUAL_TLS = 'MUTUAL_TLS',
+}
+
+export enum TrustLevel {
+  UNTRUSTED = 0,
+  BASIC = 1,
+  VERIFIED = 2,
+  TRUSTED = 3,
+  SYSTEM = 4,
+}
 
 export interface ExternalAgentConnection {
   id: string
@@ -21,18 +46,61 @@ export interface ExternalAgentConnection {
   isHealthy: boolean
   lastHealthCheck?: Date
   lastConnected?: Date
+  authMethod?: AuthMethod
+  authToken?: string
+  agentCard?: AgentCard
+  trustLevel?: TrustLevel
+  trustScore?: number
 }
 
 export interface AgentMessage {
   type: string
   content: JsonValue
   metadata?: Record<string, JsonValue>
+  contextId?: string
+  streaming?: boolean
 }
 
 export interface AgentResponse {
   success: boolean
   data?: JsonValue
   error?: string
+  messageId?: string
+}
+
+/**
+ * JSON-RPC 2.0 request structure for A2A protocol
+ */
+interface JsonRpcRequest {
+  jsonrpc: '2.0'
+  id: string | number
+  method: string
+  params?: Record<string, unknown>
+}
+
+/**
+ * JSON-RPC 2.0 response structure
+ */
+interface JsonRpcResponse {
+  jsonrpc: '2.0'
+  id: string | number
+  result?: unknown
+  error?: { code: number; message: string; data?: unknown }
+}
+
+/**
+ * Authentication credentials storage
+ */
+interface AuthCredentials {
+  method: AuthMethod
+  token?: string
+  apiKey?: string
+  oauth?: {
+    accessToken: string
+    refreshToken?: string
+    expiresAt?: Date
+    tokenType?: string
+  }
 }
 
 /**
@@ -41,7 +109,11 @@ export interface AgentResponse {
  */
 export class ExternalAgentAdapter {
   private connections: Map<string, ExternalAgentConnection> = new Map()
+  private authStore: Map<string, AuthCredentials> = new Map()
+  private discoveryCache: Map<string, { card: AgentCard; timestamp: number }> = new Map()
   private healthCheckInterval: NodeJS.Timeout | null = null
+  private requestIdCounter = 0
+  private readonly DISCOVERY_CACHE_TTL = 300000 // 5 minutes
 
   constructor(private healthCheckIntervalMs: number = 60000) {}
 
@@ -132,32 +204,69 @@ export class ExternalAgentAdapter {
   }
 
   /**
-   * Send A2A protocol message
+   * Send A2A protocol message (JSON-RPC 2.0)
    */
   private async sendA2AMessage(
     connection: ExternalAgentConnection,
     message: AgentMessage,
   ): Promise<AgentResponse> {
-    const response = await fetch(connection.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: message.type,
-        content: message.content,
+    const requestId = ++this.requestIdCounter
+    const request: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: requestId,
+      method: 'message/send',
+      params: {
+        parts: [
+          {
+            type: 'text',
+            content: message.content,
+          },
+        ],
+        contextId: message.contextId,
         metadata: message.metadata,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`A2A request failed: ${response.statusText}`)
+      },
     }
 
-    const data = await response.json()
-    return {
-      success: true,
-      data,
+    try {
+      const response = await fetch(connection.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...this.getAuthHeaders(connection.externalId),
+        },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      })
+
+      if (!response.ok) {
+        throw new Error(`A2A HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const jsonRpcResponse = (await response.json()) as JsonRpcResponse
+
+      if (jsonRpcResponse.error) {
+        return {
+          success: false,
+          error: `A2A Error ${jsonRpcResponse.error.code}: ${jsonRpcResponse.error.message}`,
+        }
+      }
+
+      return {
+        success: true,
+        data: jsonRpcResponse.result as JsonValue,
+        messageId: String(jsonRpcResponse.id),
+      }
+    } catch (error) {
+      logger.error(
+        `A2A message failed for ${connection.externalId}`,
+        { error: (error as Error).message },
+        'ExternalAgentAdapter',
+      )
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
     }
   }
 
@@ -350,12 +459,156 @@ export class ExternalAgentAdapter {
   }
 
   /**
+   * Configure authentication for external agent
+   */
+  configureAuth(externalId: string, credentials: AuthCredentials): void {
+    this.authStore.set(externalId, credentials)
+    logger.info(`Authentication configured for ${externalId}`, { method: credentials.method }, 'ExternalAgentAdapter')
+  }
+
+  /**
+   * Get authentication headers for agent
+   */
+  private getAuthHeaders(externalId: string): Record<string, string> {
+    const auth = this.authStore.get(externalId)
+    if (!auth || auth.method === AuthMethod.NONE) {
+      return {}
+    }
+
+    switch (auth.method) {
+      case AuthMethod.BEARER_TOKEN:
+        return auth.token ? { 'Authorization': `Bearer ${auth.token}` } : {}
+      case AuthMethod.API_KEY:
+        return auth.apiKey ? { 'Authorization': auth.apiKey } : {}
+      case AuthMethod.OAUTH2:
+        return auth.oauth?.accessToken
+          ? { 'Authorization': `${auth.oauth.tokenType || 'Bearer'} ${auth.oauth.accessToken}` }
+          : {}
+      default:
+        return {}
+    }
+  }
+
+  /**
+   * Discover agent via .well-known/agent-card.json
+   */
+  async discoverAgent(endpoint: string): Promise<AgentCard | null> {
+    // Check cache first
+    const cached = this.discoveryCache.get(endpoint)
+    if (cached && Date.now() - cached.timestamp < this.DISCOVERY_CACHE_TTL) {
+      return cached.card
+    }
+
+    try {
+      const cardUrl = new URL('/.well-known/agent-card.json', endpoint).toString()
+      const response = await fetch(cardUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000), // 10s timeout
+      })
+
+      if (!response.ok) {
+        logger.warn(`Agent discovery failed for ${endpoint}: HTTP ${response.status}`, undefined, 'ExternalAgentAdapter')
+        return null
+      }
+
+      const card = (await response.json()) as AgentCard
+
+      // Cache the result
+      this.discoveryCache.set(endpoint, { card, timestamp: Date.now() })
+
+      logger.info(`Discovered agent at ${endpoint}`, { agentId: card.agentId, name: card.name }, 'ExternalAgentAdapter')
+      return card
+    } catch (error) {
+      logger.error(`Agent discovery failed for ${endpoint}`, { error: (error as Error).message }, 'ExternalAgentAdapter')
+      return null
+    }
+  }
+
+  /**
+   * Calculate trust score for agent (0-100)
+   */
+  calculateTrustScore(connection: ExternalAgentConnection): number {
+    let score = 0
+
+    // Base verification score (0-40 points)
+    if (connection.trustLevel !== undefined) {
+      score += connection.trustLevel * 10
+    }
+
+    // Health status (0-20 points)
+    if (connection.isHealthy) {
+      score += 20
+    } else {
+      score += 5 // Partial credit for registered but unhealthy
+    }
+
+    // Agent card presence (0-20 points)
+    if (connection.agentCard) {
+      score += 20
+    }
+
+    // Connection history (0-20 points)
+    if (connection.lastConnected) {
+      const daysSinceConnection = (Date.now() - connection.lastConnected.getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSinceConnection < 1) score += 20
+      else if (daysSinceConnection < 7) score += 15
+      else if (daysSinceConnection < 30) score += 10
+      else score += 5
+    }
+
+    return Math.min(100, score)
+  }
+
+  /**
+   * Verify agent and determine trust level
+   */
+  async verifyAgent(externalId: string): Promise<TrustLevel> {
+    const connection = this.connections.get(externalId)
+    if (!connection) {
+      return TrustLevel.UNTRUSTED
+    }
+
+    // Level 0: UNTRUSTED (no verification)
+    let trustLevel = TrustLevel.UNTRUSTED
+
+    // Level 1: BASIC (endpoint reachable + agent card valid)
+    const isHealthy = await this.healthCheck(externalId)
+    if (isHealthy) {
+      const agentCard = await this.discoverAgent(connection.endpoint)
+      if (agentCard) {
+        connection.agentCard = agentCard
+        trustLevel = TrustLevel.BASIC
+      }
+    }
+
+    // Level 2: VERIFIED (capability verification - simplified for now)
+    if (trustLevel === TrustLevel.BASIC && connection.agentCard?.capabilities) {
+      trustLevel = TrustLevel.VERIFIED
+    }
+
+    // Update connection with trust info
+    connection.trustLevel = trustLevel
+    connection.trustScore = this.calculateTrustScore(connection)
+
+    logger.info(
+      `Verified agent ${externalId}`,
+      { trustLevel, trustScore: connection.trustScore },
+      'ExternalAgentAdapter',
+    )
+
+    return trustLevel
+  }
+
+  /**
    * Cleanup and shutdown
    */
   shutdown(): void {
     this.stopHealthChecks()
     this.connections.clear()
-    console.log('[ExternalAgentAdapter] Shutdown complete')
+    this.authStore.clear()
+    this.discoveryCache.clear()
+    logger.info('ExternalAgentAdapter shutdown complete', undefined, 'ExternalAgentAdapter')
   }
 }
 
