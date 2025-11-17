@@ -58,14 +58,14 @@ async function installPythonDeps(): Promise<void> {
   
   try {
     console.log('   📦 Installing Python dependencies with uv...')
-    execSync('uv sync', {
+    execSync('uv sync --prerelease=allow', {
       cwd: PYTHON_AGENT_DIR,
       stdio: 'inherit'
     })
     console.log('   ✅ Python dependencies installed')
   } catch (error) {
     console.log('   ⚠️  Failed to install Python dependencies:', error)
-    console.log('   💡 Run manually: cd examples/babylon-langgraph-agent && uv sync')
+    console.log('   💡 Run manually: cd examples/babylon-langgraph-agent && uv sync --prerelease=allow')
   }
 }
 

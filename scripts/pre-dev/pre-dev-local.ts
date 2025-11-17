@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Pre-Development Setup for Localnet
- * 
+ *
  * Sets up complete local development environment:
  * - Kills any processes on port 3000
  * - Starts Anvil (local blockchain)
@@ -19,6 +19,7 @@ import { logger } from '../../src/lib/logger'
 import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'
 import { loadDeployment } from '../../src/lib/deployment/validation'
 import { killPort } from '../utils/kill-port'
+import '../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
 const ANVIL_CONTAINER = 'babylon-anvil'
 const POSTGRES_CONTAINER = 'babylon-postgres'
