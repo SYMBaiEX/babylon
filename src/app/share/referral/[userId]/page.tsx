@@ -28,12 +28,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     select: {
       username: true,
       displayName: true,
-      referralCode: true,
     },
   })
 
-  const displayName = user?.displayName || user?.username || 'A Babylon Trader'
-  const referralLink = user?.referralCode ? `${appUrl}/?ref=${user.referralCode}` : appUrl
+  if (!user) {
+    // User not found - return default metadata
+    return {
+      title: 'Join Babylon',
+      description: 'Trade narratives, share the upside',
+    }
+  }
+
+  // Generate referral code if it doesn't exist (ensures OG metadata always has ref param)
+  const referralCode = await getOrCreateReferralCode(userId)
+  
+  const displayName = user.displayName || user.username || 'A Babylon Trader'
+  const referralLink = `${appUrl}/?ref=${referralCode}`
 
   return {
     title: `${displayName} invited you to Babylon`,

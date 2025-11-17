@@ -14,6 +14,7 @@ import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 import type { JsonValue } from '@/types/common'
+import { POINTS } from '@/lib/constants/points'
 
 // Use Base Sepolia for contract deployments (chain ID: 84532)
 export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -682,7 +683,16 @@ export async function processOnchainRegistration({
   logger.info('Welcome notification sent to new user', { userId: dbUser.id }, 'OnboardingOnchain')
 
   if (referrerId) {
+    // Award points to REFERRER
     const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
+
+    // Award bonus to NEW USER (referee) for using referral code
+    const refereeBonus = await PointsService.awardPoints(
+      dbUser.id,
+      POINTS.REFERRAL_BONUS,
+      'referral_bonus',
+      { referrerId }
+    )
 
     if (referralCode) {
       // Create a new referral record for this signup (one record per referred user)
@@ -714,7 +724,12 @@ export async function processOnchainRegistration({
     })
 
     logger.info('New user auto-followed referrer', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
-    logger.info('Awarded referral points', { referrerId, referredUserId: dbUser.id, points: referralResult.pointsAwarded }, 'OnboardingOnchain')
+    logger.info('Awarded referral points to both referrer and referee', { 
+      referrerId, 
+      referredUserId: dbUser.id, 
+      referrerPoints: referralResult.pointsAwarded,
+      refereeBonus: refereeBonus.pointsAwarded,
+    }, 'OnboardingOnchain')
   }
 
   return {
