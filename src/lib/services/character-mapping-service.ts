@@ -85,14 +85,18 @@ export class CharacterMappingService {
             regex,
             (match) => {
               // Preserve leading/trailing punctuation or whitespace
-              const leadingChar = match[0] !== searchName[0] ? match[0] : '';
-              const trailingChar = match[match.length - 1] !== searchName[searchName.length - 1]
+              // Use case-insensitive comparison since we're doing case-insensitive matching
+              const matchLower = match.toLowerCase();
+              const searchLower = searchName.toLowerCase();
+
+              const leadingChar = !matchLower.startsWith(searchLower[0] ?? '') ? match[0] : '';
+              const trailingChar = !matchLower.endsWith(searchLower[searchLower.length - 1] ?? '')
                 ? match[match.length - 1]
                 : '';
-              
+
               characterMappings[searchName] = mapping.parodyName;
               replacementCount++;
-              
+
               return `${leadingChar}${mapping.parodyName}${trailingChar}`;
             }
           );
@@ -115,14 +119,19 @@ export class CharacterMappingService {
           transformedText = transformedText.replace(
             regex,
             (match) => {
-              const leadingChar = match[0] !== searchName[0] ? match[0] : '';
-              const trailingChar = match[match.length - 1] !== searchName[searchName.length - 1]
+              // Preserve leading/trailing punctuation or whitespace
+              // Use case-insensitive comparison since we're doing case-insensitive matching
+              const matchLower = match.toLowerCase();
+              const searchLower = searchName.toLowerCase();
+
+              const leadingChar = !matchLower.startsWith(searchLower[0] ?? '') ? match[0] : '';
+              const trailingChar = !matchLower.endsWith(searchLower[searchLower.length - 1] ?? '')
                 ? match[match.length - 1]
                 : '';
-              
+
               organizationMappings[searchName] = mapping.parodyName;
               replacementCount++;
-              
+
               return `${leadingChar}${mapping.parodyName}${trailingChar}`;
             }
           );

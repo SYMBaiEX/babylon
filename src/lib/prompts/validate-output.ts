@@ -17,21 +17,73 @@ export interface ValidationResult {
 }
 
 /**
+ * Forbidden real-name patterns that should NEVER appear in generated content.
+ * These patterns catch common variations and misspellings.
+ */
+const FORBIDDEN_PATTERNS = [
+  // OpenAI variations
+  /\bopenai\b/i,
+  /\bopen\s*ai\b/i,
+  /\bopen-ai\b/i,
+  /\bopen_ai\b/i,
+
+  // People
+  /\belon\s*musk\b/i,
+  /\bsam\s*altman\b/i,
+  /\bmark\s*zuckerberg\b/i,
+  /\bjeff\s*bezos\b/i,
+  /\bbill\s*gates\b/i,
+  /\bsteve\s*jobs\b/i,
+  /\btim\s*cook\b/i,
+  /\bsatya\s*nadella\b/i,
+  /\bsundar\s*pichai\b/i,
+  /\bjensen\s*huang\b/i,
+  /\bvitalik\s*buterin\b/i,
+
+  // Companies (exact matches with word boundaries)
+  /\bmeta\s*platforms\b/i,
+  /\bfacebook\s*inc\b/i,
+  /\bmicrosoft\s*corp/i,
+  /\bgoogle\s*llc/i,
+  /\bamazon\s*com/i,
+  /\bapple\s*inc/i,
+  /\btesla\s*inc/i,
+  /\banthropic\s*ai/i,
+  /\bnvidia\s*corp/i,
+];
+
+/**
  * Validates that text doesn't contain real names
  */
 export function validateNoRealNames(text: string): string[] {
-  const forbiddenNames = getForbiddenRealNames();
   const violations: string[] = [];
 
+  // Pattern-based detection (catches variations and common misspellings)
+  FORBIDDEN_PATTERNS.forEach((pattern) => {
+    const match = pattern.exec(text);
+    if (match) {
+      violations.push(`FORBIDDEN: Contains real-name pattern "${match[0]}" (matched by ${pattern})`);
+    }
+  });
+
+  // Original exact-match detection from database
+  const forbiddenNames = getForbiddenRealNames();
   forbiddenNames.forEach((realName: string) => {
     // Case insensitive check to catch variations
-    const regex = new RegExp(`\\b${realName}\\b`, 'i');
+    const regex = new RegExp(`\\b${escapeRegex(realName)}\\b`, 'i');
     if (regex.test(text)) {
       violations.push(`FORBIDDEN: Contains real name "${realName}"`);
     }
   });
 
   return violations;
+}
+
+/**
+ * Escape special regex characters
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

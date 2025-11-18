@@ -34,6 +34,7 @@ import { worldFactsService } from './services/world-facts-service';
 import { rssFeedService } from './services/rss-feed-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
+import { characterMappingService } from './services/character-mapping-service';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -124,8 +125,8 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       logger.info('Loaded wandb model from config', { model: wandbModel }, 'GameTick');
     }
 
-    // Initialize LLM client - force Groq for game NPCs (wandb is only for Eliza agents)
-    const llmClient = new BabylonLLMClient(undefined, undefined, 'groq');
+    // Initialize LLM client - uses auto-priority: Wandb > Groq > Claude > OpenAI
+    const llmClient = new BabylonLLMClient();
     const stats = llmClient.getStats();
     logger.info('LLM client initialized for game NPCs', { 
       provider: stats.provider, 
@@ -619,12 +620,21 @@ async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<vo
     
     const hoursAgo = Math.floor((i / count) * 24);
     const articleTimestamp = new Date(timestamp.getTime() - hoursAgo * 60 * 60 * 1000);
-    
+
+    // Transform content to replace real names with parody names
+    const transformedSummary = await characterMappingService.transformText(article.summary);
+    if (transformedSummary.replacementCount > 0) {
+      logger.warn(`Fixed ${transformedSummary.replacementCount} real name(s) in bootstrap article`, {
+        org: org.name,
+        title: article.title,
+      }, 'GameTick');
+    }
+
     await db().createPostWithAllFields({
       id: await generateSnowflakeId(),
       type: 'article',
-      content: article.summary,
-      fullContent: article.summary, // Bootstrap articles use summary as full content
+      content: transformedSummary.transformedText,
+      fullContent: transformedSummary.transformedText, // Bootstrap articles use summary as full content
       articleTitle: article.title,
       category: article.category,
       sentiment: article.sentiment,
@@ -853,9 +863,19 @@ Return your response as XML in this exact format:
         return { posts: 0, articles: 0 };
       }
 
+      // Transform content to replace real names with parody names
+      const transformed = await characterMappingService.transformText(postContent);
+      if (transformed.replacementCount > 0) {
+        logger.warn(`Fixed ${transformed.replacementCount} real name(s) in NPC post`, {
+          actor: creator.name,
+          original: postContent.substring(0, 100),
+          fixed: transformed.transformedText.substring(0, 100)
+        }, 'GameTick');
+      }
+
       await db().createPostWithAllFields({
         id: await generateSnowflakeId(),
-        content: postContent,
+        content: transformed.transformedText,
         authorId: creator.id,
         gameId: 'continuous',
         dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
@@ -920,11 +940,21 @@ Return your response as XML in this exact format:
             return { posts: 0, articles: 0 };
           }
 
+          // Transform content to replace real names with parody names
+          const transformedSummary = await characterMappingService.transformText(summary);
+          const transformedBody = await characterMappingService.transformText(articleBody);
+          if (transformedSummary.replacementCount > 0 || transformedBody.replacementCount > 0) {
+            logger.warn(`Fixed ${transformedSummary.replacementCount + transformedBody.replacementCount} real name(s) in org article`, {
+              org: creator.name,
+              title: articleTitle,
+            }, 'GameTick');
+          }
+
           await db().createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'article',
-            content: summary,
-            fullContent: articleBody,
+            content: transformedSummary.transformedText,
+            fullContent: transformedBody.transformedText,
             articleTitle: articleTitle,
             authorId: creator.id,
             gameId: 'continuous',
@@ -971,10 +1001,18 @@ Return your response as XML in this exact format:
             return { posts: 0, articles: 0 };
           }
 
+          // Transform content to replace real names with parody names
+          const transformedPost = await characterMappingService.transformText(orgPostContent);
+          if (transformedPost.replacementCount > 0) {
+            logger.warn(`Fixed ${transformedPost.replacementCount} real name(s) in org post`, {
+              org: creator.name,
+            }, 'GameTick');
+          }
+
           await db().createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'post', // Regular post, not article
-            content: orgPostContent,
+            content: transformedPost.transformedText,
             authorId: creator.id,
             gameId: 'continuous',
             dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
@@ -1205,12 +1243,23 @@ async function generateArticles(
           continue;
         }
 
+        // Transform content to replace real names with parody names
+        const transformedSummary = await characterMappingService.transformText(article.summary || '');
+        const transformedContent = await characterMappingService.transformText(article.content || '');
+        const transformedTitle = await characterMappingService.transformText(article.title || 'Untitled');
+        if (transformedSummary.replacementCount > 0 || transformedContent.replacementCount > 0 || transformedTitle.replacementCount > 0) {
+          logger.warn(`Fixed ${transformedSummary.replacementCount + transformedContent.replacementCount + transformedTitle.replacementCount} real name(s) in event article`, {
+            eventId: event.id,
+            title: article.title,
+          }, 'GameTick');
+        }
+
         await db().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
-          content: article.summary || '',
-          fullContent: article.content || '',
-          articleTitle: article.title || 'Untitled',
+          content: transformedSummary.transformedText,
+          fullContent: transformedContent.transformedText,
+          articleTitle: transformedTitle.transformedText,
           byline: article.byline || undefined,
           biasScore: article.biasScore || undefined,
           sentiment: article.sentiment || undefined,
@@ -1332,13 +1381,24 @@ Return your response as XML in this exact format:
       const slotOffset = i * timeSlotMs;
       const randomJitter = Math.random() * timeSlotMs * 0.8;
       const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-      
+
+      // Transform content to replace real names with parody names
+      const transformedSummary = await characterMappingService.transformText(summary);
+      const transformedBody = await characterMappingService.transformText(articleBody);
+      const transformedTitle = await characterMappingService.transformText(articleTitle);
+      if (transformedSummary.replacementCount > 0 || transformedBody.replacementCount > 0 || transformedTitle.replacementCount > 0) {
+        logger.warn(`Fixed ${transformedSummary.replacementCount + transformedBody.replacementCount + transformedTitle.replacementCount} real name(s) in baseline article`, {
+          org: org.name,
+          topic: topicData.topic,
+        }, 'GameTick');
+      }
+
       await db().createPostWithAllFields({
         id: await generateSnowflakeId(),
         type: 'article',
-        content: summary,
-        fullContent: articleBody,
-        articleTitle: articleTitle,
+        content: transformedSummary.transformedText,
+        fullContent: transformedBody.transformedText,
+        articleTitle: transformedTitle.transformedText,
         category: topicData.category,
         authorId: org.id,
         gameId: 'continuous',

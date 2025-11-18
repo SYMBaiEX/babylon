@@ -282,8 +282,8 @@ async function seedOrganizationMappings() {
 
   const organizationMappings = [
     // Tech Companies
-    { realName: 'OpenAI', parodyName: 'OpenLIE', category: 'tech', aliases: [], priority: 100 },
-    { realName: 'Meta', parodyName: 'Fakebook', category: 'tech', aliases: ['Facebook'], priority: 99 },
+    { realName: 'OpenAI', parodyName: 'OpenAGI', category: 'tech', aliases: ['openai', 'Open AI', 'open ai', 'OPENAI', 'open-ai', 'OpnAI'], priority: 100 },
+    { realName: 'Meta', parodyName: 'MetAI', category: 'tech', aliases: ['Facebook', 'meta', 'META'], priority: 99 },
     { realName: 'Google', parodyName: 'Giggle', category: 'tech', aliases: ['Alphabet'], priority: 98 },
     { realName: 'Microsoft', parodyName: 'Macrohard', category: 'tech', aliases: [], priority: 97 },
     { realName: 'Apple', parodyName: 'Snapple', category: 'tech', aliases: [], priority: 96 },

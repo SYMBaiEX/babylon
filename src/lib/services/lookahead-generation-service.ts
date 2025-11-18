@@ -24,6 +24,7 @@ import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import db from '@/lib/database-service';
+import { characterMappingService } from './character-mapping-service';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
@@ -248,12 +249,21 @@ async function generateContentWindow(
     // Generate post content (simplified - reserved for future LLM generation)
     // For now, create a simple post. Full generation should use generateMixedPosts logic
     const content = `Post about: ${question.text}`;
-    
+
+    // Transform content to replace real names with parody names
+    const transformed = await characterMappingService.transformText(content);
+    if (transformed.replacementCount > 0) {
+      logger.warn(`Fixed ${transformed.replacementCount} real name(s) in lookahead post`, {
+        questionId: question.id,
+        creator: creator.id,
+      }, 'LookaheadGeneration');
+    }
+
     try {
       // Store post with future timestamp
       await db().createPostWithAllFields({
         id: await generateSnowflakeId(),
-        content,
+        content: transformed.transformedText,
         authorId: creator.id,
         gameId: 'continuous',
         dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
