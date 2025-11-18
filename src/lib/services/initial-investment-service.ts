@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { Prisma } from '@prisma/client';
-import { readFile } from 'fs/promises';
+import { loadActorById } from '@/lib/data/actors-loader';
 
 /**
  * Initial investment specification
@@ -186,14 +186,8 @@ export class InitialInvestmentService {
     
     // Build NPC profiles for prompt
     const npcProfiles = await Promise.all(npcs.map(async (npc) => {
-      // Try to load actor JSON for more context
-      let actorData: { description?: string; affiliations?: string[] } = {};
-      try {
-        const actorJson = await readFile(`./public/data/actors/${npc.id}.json`, 'utf-8');
-        actorData = JSON.parse(actorJson);
-      } catch {
-        // Use database data if JSON doesn't exist
-      }
+      // Load actor JSON for more context (handles missing files gracefully)
+      const actorData = loadActorById(npc.id) || {};
       
       const availableBalance = Number(npc.tradingBalance);
       const targetInvestment = Math.floor(availableBalance * (0.5 + Math.random() * 0.25)); // 50-75% of balance
