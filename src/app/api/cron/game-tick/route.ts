@@ -177,29 +177,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       lastTickAt: gameState.lastTickAt?.toISOString(),
     }, 'Cron');
 
-    // if (!isRunningValue) {
-    //   logger.info('⏸️  Game is paused - skipping tick', {
-    //     gameId: gameState.id,
-    //     isRunning: gameState.isRunning,
-    //     isRunningValue,
-    //     currentDay: gameState.currentDay,
-    //     pausedAt: gameState.pausedAt?.toISOString(),
-    //     lastTickAt: gameState.lastTickAt?.toISOString(),
-    //     message: 'To start the game, use POST /api/game/control with action: "start"',
-    //   }, 'Cron');
-    //   return successResponse({
-    //     success: true,
-    //     skipped: true,
-    //     reason: 'Game paused',
-    //     gameState: {
-    //       id: gameState.id,
-    //       isRunning: gameState.isRunning,
-    //       currentDay: gameState.currentDay,
-    //       pausedAt: gameState.pausedAt?.toISOString(),
-    //       lastTickAt: gameState.lastTickAt?.toISOString(),
-    //     },
-    //   });
-    // }
+    if (isRunningValue === false) {
+      logger.info('⏸️  Game is paused - skipping tick', {
+        gameId: gameState.id,
+        isRunning: gameState.isRunning,
+        isRunningValue,
+        currentDay: gameState.currentDay,
+        pausedAt: gameState.pausedAt?.toISOString(),
+        lastTickAt: gameState.lastTickAt?.toISOString(),
+        message: 'To start the game, use POST /api/game/control with action: "start"',
+      }, 'Cron');
+      return successResponse({
+        success: true,
+        skipped: true,
+        reason: 'Game paused',
+        gameState: {
+          id: gameState.id,
+          isRunning: gameState.isRunning,
+          currentDay: gameState.currentDay,
+          pausedAt: gameState.pausedAt?.toISOString(),
+          lastTickAt: gameState.lastTickAt?.toISOString(),
+        },
+      });
+    }
 
     // 4. Check buffer status - only generate if buffer < 15 minutes
     const bufferStatus = await checkLookaheadStatus();
@@ -250,15 +250,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }, 'Cron');
 
     // 6. Execute normal tick operations (NPC trading, market updates, etc.)
-    // Note: Content generation is handled by lookahead, this handles operational tasks
-    const result = await executeGameTick();
+    // Note: Content generation is handled by lookahead service, this handles operational tasks only
+    // We pass true to skipContentGeneration to avoid duplicate posts for the current time window
+    const result = await executeGameTick(true);
 
     const duration = Date.now() - startTime;
     logger.info('✅ Game tick completed', {
       duration: `${duration}ms`,
       bufferMinutes: bufferStatus.minutesAhead,
       windowsGenerated: lookaheadResult.windowsGenerated,
-      posts: result.postsCreated,
+      posts: result.postsCreated, // Will be 0 from this call, but lookahead generated them
       events: result.eventsCreated,
       marketsUpdated: result.marketsUpdated,
     }, 'Cron');

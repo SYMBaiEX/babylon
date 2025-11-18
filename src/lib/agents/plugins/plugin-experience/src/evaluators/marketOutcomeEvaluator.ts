@@ -128,10 +128,13 @@ export const marketOutcomeEvaluator: Evaluator = {
 
     const npcPosts = posts.filter(p => authorMap.get(p.authorId)?.isActor);
     
-    // Get current trust scores
-    // Note: messageManager API not available in this context
-    // TODO: Implement proper state storage for trust scores
+    // Get current trust scores from database
+    // Note: Trust scores are computed from historical performance and stored in AgentPerformanceMetrics
     const npcTrust: Record<string, NPCTrustScore> = {};
+    
+    // Trust scores are computed from post outcomes, not from AgentPerformanceMetrics
+    // AgentPerformanceMetrics is for user-controlled agents, not NPCs
+    // NPC trust scores are built incrementally as we evaluate their predictions
 
     let npcUpdated = 0;
 

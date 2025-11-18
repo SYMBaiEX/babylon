@@ -2,6 +2,8 @@
  * Babylon Game Simulator - Autonomous Prediction Market Simulator
  * 
  * @module engine/GameSimulator
+ * @deprecated Use GameLoop instead for high-fidelity simulations using the real engine.
+ * This simulator uses simplified logic ("larp") and does not reflect actual game mechanics.
  * 
  * @description
  * Fully autonomous simulation of prediction market games from start to finish.
@@ -288,6 +290,7 @@ export interface ReputationChange {
  * 
  * @usage
  * Used for testing, simulation, and research. Not used in production gameplay.
+ * @deprecated Use GameLoop instead.
  * 
  * @example
  * ```typescript
@@ -352,6 +355,8 @@ export class GameSimulator extends EventEmitter implements TypedGameSimulatorEmi
       liquidityB: config.liquidityB || 100,
       insiderPercentage: config.insiderPercentage || 0.3,
     };
+    
+    console.warn('⚠️ GameSimulator is deprecated. Use GameLoop for accurate simulations.');
   }
 
   /**

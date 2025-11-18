@@ -55,6 +55,7 @@ describe('Trending Topics & News Integration', () => {
   beforeEach(() => {
     // Mock LLM with realistic responses
     mockLLM = {
+      getProvider: () => 'openai',
       generateJSON: mock(async (prompt: string) => {
         // Different responses based on prompt content
         if (prompt.includes('TRENDING TOPICS')) {

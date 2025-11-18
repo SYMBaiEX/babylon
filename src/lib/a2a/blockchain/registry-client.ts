@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers'
 import type { AgentProfile, AgentReputation } from '@/types/a2a'
-import { Logger } from '../utils/logger'
+import { Logger } from '@/lib/logger'
 import type { IdentityRegistryContract, ReputationSystemContract } from '@/types/contracts'
 import type { JsonValue } from '@/types/common'
 import { z } from 'zod'

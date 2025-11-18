@@ -153,6 +153,12 @@ export async function getCache<T>(
           logger.debug('Cache hit (Redis, object)', { key: fullKey }, 'CacheService');
           return cached as T;
         }
+
+        // Handle primitive values that might be returned directly by Upstash
+        if (typeof cached === 'number' || typeof cached === 'boolean') {
+          logger.debug(`Cache hit (Redis, ${typeof cached})`, { key: fullKey }, 'CacheService');
+          return cached as T;
+        }
         
         // Handle string values (standard Redis behavior)
         if (typeof cached === 'string') {
@@ -182,7 +188,7 @@ export async function getCache<T>(
         }
         
         // Log warning - will fetch from DB and refresh cache
-        logger.warn('Failed to parse cached value', { 
+        logger.warn(`Failed to parse cached value: ${preview}`, { 
           key: fullKey, 
           error: error instanceof Error ? {
             name: error.name,

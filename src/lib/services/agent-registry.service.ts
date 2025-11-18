@@ -23,6 +23,13 @@ import type {
   AgentCapabilities,
 } from '@/types/agent-registry.types'
 import type { Prisma } from '@prisma/client'
+import { createCipheriv, randomBytes } from 'crypto'
+
+const ENCRYPTION_KEY = process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY || 
+  (process.env.NODE_ENV === 'production' 
+    ? (() => { throw new Error('AGENT_CREDENTIALS_ENCRYPTION_KEY must be set in production') })()
+    : 'dev-key-change-in-production-32-chars!!')
+const ALGORITHM = 'aes-256-cbc'
 
 /**
  * Unified Agent Registry Service Class
@@ -271,7 +278,9 @@ export class AgentRegistryService {
             endpoint,
             protocol,
             authType: authentication?.type,
-            authCredentials: authentication?.credentials, // TODO: Encrypt in production
+            authCredentials: authentication?.credentials 
+              ? this.encryptCredentials(authentication.credentials)
+              : null,
             agentCardJson: agentCard as unknown as Prisma.InputJsonValue,
           },
         },
@@ -708,6 +717,22 @@ export class AgentRegistryService {
       terminatedAt: registry.terminatedAt,
     }
   }
+
+  /**
+   * Encrypt credentials for secure storage
+   * Uses AES-256-CBC encryption with random IV
+   */
+  private encryptCredentials(credentials: string): string {
+    const iv = randomBytes(16)
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32))
+    const cipher = createCipheriv(ALGORITHM, key, iv)
+    
+    let encrypted = cipher.update(credentials, 'utf8', 'hex')
+    encrypted += cipher.final('hex')
+    
+    return `${iv.toString('hex')}:${encrypted}`
+  }
+
 }
 
 // Export singleton instance

@@ -288,7 +288,13 @@ export class SignalExtractionService {
 
   /**
    * Get default reliability score based on actor role
-   * TODO: Replace with actual tracked reliability from database
+   * 
+   * @description Returns default reliability scores based on actor roles.
+   * In production, this should be replaced with actual tracked reliability metrics
+   * from the database (e.g., historical prediction accuracy, trust scores).
+   * 
+   * @param role - Actor role (e.g., 'insider', 'expert', 'analyst')
+   * @returns Default reliability score (0-1)
    */
   private static getDefaultReliability(role: string | null): number {
     if (!role) return 0.5;

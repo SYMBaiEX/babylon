@@ -64,63 +64,64 @@ export async function acquireGenerationLock(processId?: string): Promise<boolean
   // Don't rely on process.pid in serverless environments
   const lockHolder = processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
   
-  // First, check if lock exists and is still valid
-  const existingLock = await prisma.generationLock.findUnique({
-    where: { id: LOCK_ID },
-  });
-  
-  // If lock exists and is not expired, someone else has it
-  if (existingLock && existingLock.expiresAt > now) {
-    logger.info('Generation lock held by another process', {
-      holder: existingLock.lockedBy,
-      expiresAt: existingLock.expiresAt,
-      expiresIn: Math.round((existingLock.expiresAt.getTime() - now.getTime()) / 1000),
-    }, 'GenerationLock');
-    return false;
-  }
-  
-  // Lock doesn't exist or is expired - try to acquire it
-  // Use upsert to atomically create or update
-  // If lock exists but expired, update it
-  // If lock doesn't exist, create it
-  await prisma.generationLock.upsert({
-    where: { id: LOCK_ID },
-    create: {
+  // First, try to claim an existing expired lock atomically
+  // This handles the case where a lock exists but is stale
+  const claimedExpired = await prisma.generationLock.updateMany({
+    where: {
       id: LOCK_ID,
+      expiresAt: { lt: now }
+    },
+    data: {
       lockedBy: lockHolder,
       lockedAt: now,
       expiresAt: expiry,
       operation: 'game-tick',
-    },
-    update: {
-      lockedBy: lockHolder,
-      lockedAt: now,
-      expiresAt: expiry,
-    },
+    }
   });
-  
-  // Verify we actually got the lock (check if we're the holder)
-  // This handles race conditions where multiple processes try to acquire simultaneously
-  const lock = await prisma.generationLock.findUnique({
-    where: { id: LOCK_ID },
-  });
-  
-  if (lock && lock.lockedBy === lockHolder) {
-    logger.info('Generation lock acquired', {
+
+  if (claimedExpired.count > 0) {
+    logger.info('Generation lock acquired (reclaimed expired)', {
       lockHolder,
-      expiresAt: lock.expiresAt,
-      expiresIn: Math.round((lock.expiresAt.getTime() - now.getTime()) / 1000),
+      previousExpiry: 'expired',
     }, 'GenerationLock');
     return true;
   }
-  
-  // Someone else got it between our check and upsert (race condition)
-  logger.info('Generation lock acquired by another process (race condition)', {
-    holder: lock?.lockedBy,
-    ourHolder: lockHolder,
-    expiresAt: lock?.expiresAt,
-  }, 'GenerationLock');
-  return false;
+
+  // If we couldn't claim an expired lock, try to create a new one
+  // This handles the case where no lock exists
+  try {
+    await prisma.generationLock.create({
+      data: {
+        id: LOCK_ID,
+        lockedBy: lockHolder,
+        lockedAt: now,
+        expiresAt: expiry,
+        operation: 'game-tick',
+      }
+    });
+    
+    logger.info('Generation lock acquired (new)', {
+      lockHolder,
+      expiresAt: expiry,
+    }, 'GenerationLock');
+    return true;
+  } catch {
+    // Create failed, meaning lock exists and is likely valid (not expired)
+    // Check one last time to log who holds it
+    const existingLock = await prisma.generationLock.findUnique({
+      where: { id: LOCK_ID },
+    });
+    
+    if (existingLock) {
+      logger.info('Generation lock held by another process', {
+        holder: existingLock.lockedBy,
+        expiresAt: existingLock.expiresAt,
+        expiresIn: Math.round((existingLock.expiresAt.getTime() - now.getTime()) / 1000),
+      }, 'GenerationLock');
+    }
+    
+    return false;
+  }
 }
 
 /**

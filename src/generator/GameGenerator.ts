@@ -12,6 +12,11 @@
  * - 100-200 group messages
  * - Predetermined outcomes
  * 
+ * 
+ * ⚠️ LIMITATION: This generator creates narrative history but does NOT simulate
+ * market mechanics (trading, prices, volume). For full market history,
+ * use the GameLoop to run a proper simulation.
+ * 
  * ✅ OPTIMIZED: Batched LLM calls (90% reduction)
  * - Before: ~300 event calls + ~150 group message calls = 450 calls
  * - After: ~30 event calls + ~30 group message calls = 60 calls
@@ -549,8 +554,20 @@ export class GameGenerator {
         allActors
       );
 
-      // Generate group messages (function signature: day, events, groupChats, allActors)
-      const groupMessages = await this.generateGroupMessages(day, events, groupChats, allActors);
+      // Generate group messages using batched method
+      // Genesis has no previous days, scenarios, or questions
+      const groupMessages = await this.generateDayGroupMessagesBatch(
+        day,
+        events,
+        groupChats,
+        allActors,
+        [], // previousDays - empty for genesis
+        luckMood,
+        connections,
+        [], // scenarios - empty for genesis
+        [], // questions - empty for genesis
+        '' // fullContext - empty for genesis
+      );
 
       timeline.push({
         day,
@@ -1838,29 +1855,6 @@ ${req.members.map((m, idx) => {
     throw new Error(`Failed to generate group messages batch for day ${day} after ${maxRetries} attempts`);
   }
 
-  /**
-   * DEPRECATED: Old individual message generation - kept for reference
-   * Use generateDayGroupMessagesBatch instead
-   */
-  private async generateGroupMessages(
-    day: number,
-    events: WorldEvent[],
-    groupChats: GroupChat[],
-    allActors: SelectedActor[]
-  ): Promise<Record<string, ChatMessage[]>> {
-    return this.generateDayGroupMessagesBatch(
-      day, 
-      events, 
-      groupChats, 
-      allActors, 
-      [], 
-      new Map(), 
-      [], 
-      [], 
-      [], 
-      ''
-    );
-  }
 
   /**
    * Get group activity chance based on day

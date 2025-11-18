@@ -84,6 +84,11 @@ export { priceAnnouncement } from './game/price-announcement';
 export { priceImpact } from './game/price-impact';
 export { groupChatNames } from './game/group-chat-names';
 export { questionGeneration } from './game/question-generation';
+export { npcPredictionPost } from './game/npc-prediction-post';
+export { orgPredictionArticle } from './game/org-prediction-article';
+export { orgPredictionPost } from './game/org-prediction-post';
+export { baselineArticle } from './game/baseline-article';
+export { biasedArticle } from './game/biased-article';
 
 // Image prompts
 export { actorPortrait, actorBanner } from './image/actor-portrait';

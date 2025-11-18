@@ -61,6 +61,7 @@ import type { Actor, Organization, WorldEvent, Question } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { shuffleArray } from '@/lib/utils/randomization';
+import { biasedArticle, renderPrompt } from '@/prompts';
 
 type ArticleStage = 'breaking' | 'commentary' | 'resolution';
 
@@ -421,7 +422,7 @@ export class ArticleGenerator {
       const responseStr = typeof response === 'string' ? response : String(response);
       logger.error('LLM returned non-object response for article generation', {
         responseType: typeof response,
-        responsePreview: responseStr.substring(0, 200),
+        responsePreview: responseStr.length > 200 ? responseStr.substring(0, 200) : responseStr,
         eventId: event.id,
         organizationId: organization.id,
       }, 'ArticleGenerator');
@@ -549,46 +550,23 @@ BIAS INSTRUCTIONS:
     }
 
     const recentContext = recentEvents.length > 0
-      ? `\n\nRECENT CONTEXT (for background):\n${recentEvents.map(e => `- ${e.description}`).join('\n')}`
+      ? `RECENT CONTEXT (for background):\n${recentEvents.map(e => `- ${e.description}`).join('\n')}`
       : '';
 
-    return `You are a journalist writing for ${organization.name}, a ${organization.type} organization.
-Style: ${organization.postStyle || 'Professional journalism'}
+    const relatedQuestionContext = event.relatedQuestion 
+      ? `Related to Prediction Market Question #${event.relatedQuestion}` 
+      : '';
 
-EVENT TO COVER:
-${event.description}
-Type: ${event.type}
-${event.relatedQuestion ? `Related to Prediction Market Question #${event.relatedQuestion}` : ''}
-${recentContext}
-
-${biasInstructions}
-
-REQUIREMENTS:
-1. Write a LONG-FORM investigative article (800-1500 words)
-2. Include specific details and "insider information" (make it feel like you have sources)
-3. Use the bias instructions to shape your narrative and tone
-4. Include direct quotes (fabricated but realistic)
-5. Have a clear slant/angle that reflects the organization's position
-6. Make it feel like REAL news with depth, not just a summary
-7. Use journalistic writing style appropriate for ${organization.name}
-8. Create a compelling headline that hints at your angle
-9. Write a 2-3 sentence summary for listings
-
-FORMAT YOUR RESPONSE AS XML:
-<response>
-  <title>Compelling headline that hints at your angle</title>
-  <summary>2-3 sentence summary for article listings</summary>
-  <content>Full long-form article (800-1500 words, use \\n\\n for paragraph breaks)</content>
-  <slant>Brief description of your article's angle/bias (e.g., 'Critical of leadership decisions' or 'Sympathetic to company position')</slant>
-  <sentiment>positive | negative | neutral</sentiment>
-  <category>tech | politics | finance | scandal | business | etc.</category>
-  <tags>
-    <tag>relevant</tag>
-    <tag>tags</tag>
-    <tag>for</tag>
-    <tag>article</tag>
-  </tags>
-</response>`;
+    return renderPrompt(biasedArticle, {
+      orgName: organization.name,
+      orgType: organization.type || 'media',
+      orgStyle: organization.postStyle || 'Professional journalism',
+      eventDescription: event.description,
+      eventType: event.type,
+      relatedQuestionContext,
+      recentContext,
+      biasInstructions
+    });
   }
 
   /**

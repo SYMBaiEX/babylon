@@ -312,69 +312,69 @@ export function useAuth(): UseAuthReturn {
     try {
       // Only link accounts that aren't already linked
       if (userWithFarcaster.farcaster && !user.hasFarcaster) {
-        const farcaster = userWithFarcaster.farcaster;
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'farcaster',
-              username: farcaster.username || farcaster.displayName,
-            }),
-          }
-        );
-        logger.info(
-          'Linked Farcaster account during auth sync',
-          { username: farcaster.username },
-          'useAuth'
-        );
-      }
+      const farcaster = userWithFarcaster.farcaster;
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'farcaster',
+            username: farcaster.username || farcaster.displayName,
+          }),
+        }
+      );
+      logger.info(
+        'Linked Farcaster account during auth sync',
+        { username: farcaster.username },
+        'useAuth'
+      );
+    }
 
       if (userWithTwitter.twitter && !user.hasTwitter) {
-        const twitter = userWithTwitter.twitter;
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'twitter',
-              username: twitter.username,
-            }),
-          }
-        );
-        logger.info(
-          'Linked Twitter account during auth sync',
-          { username: twitter.username },
-          'useAuth'
-        );
-      }
+      const twitter = userWithTwitter.twitter;
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'twitter',
+            username: twitter.username,
+          }),
+        }
+      );
+      logger.info(
+        'Linked Twitter account during auth sync',
+        { username: twitter.username },
+        'useAuth'
+      );
+    }
 
       // Only link wallet if it's different from the stored wallet address
       if (wallet?.address && user.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()) {
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'wallet',
-              address: wallet.address.toLowerCase(),
-            }),
-          }
-        );
-        logger.info(
-          'Linked wallet during auth sync',
-          { address: wallet.address },
-          'useAuth'
-        );
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'wallet',
+            address: wallet.address.toLowerCase(),
+          }),
+        }
+      );
+      logger.info(
+        'Linked wallet during auth sync',
+        { address: wallet.address },
+        'useAuth'
+      );
       }
     } finally {
       // Mark as completed and remove from in-progress set

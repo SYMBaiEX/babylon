@@ -34,9 +34,19 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
   async discoverAgents(filters: DiscoveryFilters): Promise<AgentProfile[]> {
     const results: AgentProfile[] = []
     
-    const localAgents = this.localRegistry.search({
-      strategies: filters.strategies,
-      minReputation: filters.minReputation
+    // Use getAllAgents() since search() is not implemented (returns empty array)
+    // Filter locally for strategies and reputation
+    const allLocalAgents = await this.localRegistry.getAllAgents()
+    const localAgents = allLocalAgents.filter(agent => {
+      if (filters.strategies && filters.strategies.length > 0) {
+        const agentStrategies = agent.profile.capabilities?.strategies || []
+        const hasMatchingStrategy = filters.strategies.some(s => agentStrategies.includes(s))
+        if (!hasMatchingStrategy) return false
+      }
+      if (filters.minReputation !== undefined) {
+        if (agent.profile.reputation.trustScore < filters.minReputation) return false
+      }
+      return true
     })
     
     results.push(...localAgents.map((r: { profile: AgentProfile }) => r.profile))
@@ -135,8 +145,13 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
       return this.transformAgent0Profile(agent0Data, this.reputationBridge)
     }
     
-    const localAgent = this.localRegistry.getAgent(agentId)
-    return localAgent!.profile
+    // Use getAllAgents() and find by ID since getAgent() is not implemented
+    const allAgents = await this.localRegistry.getAllAgents()
+    const localAgent = allAgents.find(a => a.profile.agentId === agentId)
+    if (!localAgent) {
+      throw new Error(`Agent not found: ${agentId}`)
+    }
+    return localAgent.profile
   }
 }
 

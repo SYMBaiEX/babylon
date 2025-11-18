@@ -19,6 +19,13 @@ import { AgentStatus, type AgentCard } from '@/types/agent-registry.types'
 import { prisma } from '@/lib/prisma'
 import type { JsonValue } from '@/types/common'
 import { logger } from '@/lib/logger'
+import { createDecipheriv } from 'crypto'
+
+const ENCRYPTION_KEY = process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY || 
+  (process.env.NODE_ENV === 'production' 
+    ? (() => { throw new Error('AGENT_CREDENTIALS_ENCRYPTION_KEY must be set in production') })()
+    : 'dev-key-change-in-production-32-chars!!')
+const ALGORITHM = 'aes-256-cbc'
 
 export type Protocol = 'a2a' | 'mcp' | 'agent0' | 'custom'
 
@@ -149,9 +156,29 @@ export class ExternalAgentAdapter {
         isHealthy: agent.isHealthy,
         lastConnected: agent.lastConnected ?? undefined,
       })
+      
+      // Load and decrypt authentication credentials if present
+      if (agent.authType && agent.authCredentials) {
+        try {
+          const decryptedCredentials = this.decryptCredentials(agent.authCredentials)
+          // Map authType to AuthMethod and create appropriate credentials structure
+          const authMethod = agent.authType as AuthMethod
+          const credentials: AuthCredentials = {
+            method: authMethod,
+            ...(authMethod === AuthMethod.BEARER_TOKEN || authMethod === AuthMethod.API_KEY
+              ? { token: decryptedCredentials, apiKey: decryptedCredentials }
+              : {}),
+          }
+          this.configureAuth(agent.externalId, credentials)
+        } catch (error) {
+          logger.warn(`Failed to decrypt credentials for ${agent.externalId}`, {
+            error: error instanceof Error ? error.message : String(error),
+          }, 'ExternalAgentAdapter')
+        }
+      }
     }
 
-    console.log(`[ExternalAgentAdapter] Loaded ${this.connections.size} external agent connections`)
+    logger.info(`Loaded ${this.connections.size} external agent connections`, {}, 'ExternalAgentAdapter')
   }
 
   /**
@@ -464,6 +491,25 @@ export class ExternalAgentAdapter {
   configureAuth(externalId: string, credentials: AuthCredentials): void {
     this.authStore.set(externalId, credentials)
     logger.info(`Authentication configured for ${externalId}`, { method: credentials.method }, 'ExternalAgentAdapter')
+  }
+
+  /**
+   * Decrypt credentials from storage
+   */
+  private decryptCredentials(encrypted: string): string {
+    const [ivHex, encryptedData] = encrypted.split(':')
+    if (!ivHex || !encryptedData) {
+      throw new Error('Invalid encrypted credentials format')
+    }
+    
+    const iv = Buffer.from(ivHex, 'hex')
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32))
+    const decipher = createDecipheriv(ALGORITHM, key, iv)
+    
+    let decrypted = decipher.update(encryptedData, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    
+    return decrypted
   }
 
   /**

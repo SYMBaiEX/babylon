@@ -23,7 +23,8 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { worldFactsService } from './world-facts-service';
-import { generateNPCPost, generateOrgPost } from './post-generation-helpers';
+import { generateNPCPost, generateOrgPost, generateOrgArticle } from './post-generation-helpers';
+import { generateEvents } from './event-generation-helpers';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
@@ -236,6 +237,27 @@ async function generateContentWindow(
   const numPosts = 8;
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
   
+  // Generate events if needed (every 3rd window or so, based on probability)
+  const shouldGenerateEvents = Math.random() < 0.3;
+  if (shouldGenerateEvents && activeQuestions.length > 0) {
+    // Generate events at random times within the window
+    const randomOffset = Math.random() * windowDuration;
+    const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
+    
+    try {
+      const eventsCreated = await generateEvents(activeQuestions, eventTimestamp);
+      if (eventsCreated > 0) {
+        logger.info(`Generated ${eventsCreated} events in lookahead window`, { 
+          timestamp: eventTimestamp.toISOString() 
+        }, 'LookaheadGeneration');
+      }
+    } catch (error) {
+      logger.warn('Failed to generate events in lookahead', { 
+        error: error instanceof Error ? error.message : String(error) 
+      }, 'LookaheadGeneration');
+    }
+  }
+
   // Get actors, organizations, and world facts in parallel
   const [actors, organizations, worldFactsContext] = await Promise.all([
     prisma.actor.findMany({
@@ -259,25 +281,25 @@ async function generateContentWindow(
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
     try {
-      // Distribute timestamps naturally across window
-      const randomOffset = Math.random() * windowDuration;
-      const postTimestamp = new Date(windowStart.getTime() + randomOffset);
-      
-      // Alternate between actors and organizations
-      const useActor = i % 2 === 0 && actors.length > 0;
-      const creator = useActor 
-        ? actors[i % actors.length]
-        : organizations[i % organizations.length];
-      
+    // Distribute timestamps naturally across window
+    const randomOffset = Math.random() * windowDuration;
+    const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+    
+    // Alternate between actors and organizations
+    const useActor = i % 2 === 0 && actors.length > 0;
+    const creator = useActor 
+      ? actors[i % actors.length]
+      : organizations[i % organizations.length];
+    
       if (!creator) {
         return 0;
       }
-      
-      const question = activeQuestions[i % activeQuestions.length];
+    
+    const question = activeQuestions[i % activeQuestions.length];
       if (!question || !question.text) {
         return 0;
       }
-      
+    
       // Generate post content using LLM
       if (useActor) {
         const actor = creator as typeof actors[number];
@@ -298,20 +320,43 @@ async function generateContentWindow(
         return success ? 1 : 0;
       } else {
         const org = creator as typeof organizations[number];
-        const success = await generateOrgPost(
-          llmClient,
-          org,
-          question,
-          worldFactsContext,
-          postTimestamp
-        );
-        if (success) {
-          logger.debug('Created lookahead org post', { 
-            org: org.name, 
-            timestamp: postTimestamp.toISOString(),
-            questionId: question.id
-          }, 'LookaheadGeneration');
+        
+        // 10% chance to generate a full article instead of a short post
+        const shouldCreateArticle = Math.random() < 0.1;
+        let success = false;
+
+        if (shouldCreateArticle) {
+          success = await generateOrgArticle(
+            llmClient,
+            org,
+            question,
+            worldFactsContext,
+            postTimestamp
+          );
+          if (success) {
+            logger.debug('Created lookahead org article', { 
+              org: org.name, 
+              timestamp: postTimestamp.toISOString(),
+              questionId: question.id
+            }, 'LookaheadGeneration');
+          }
+        } else {
+          success = await generateOrgPost(
+            llmClient,
+            org,
+            question,
+            worldFactsContext,
+            postTimestamp
+          );
+          if (success) {
+            logger.debug('Created lookahead org post', { 
+              org: org.name, 
+              timestamp: postTimestamp.toISOString(),
+              questionId: question.id
+            }, 'LookaheadGeneration');
+          }
         }
+        
         return success ? 1 : 0;
       }
     } catch (error) {

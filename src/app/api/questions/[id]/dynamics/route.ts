@@ -82,18 +82,64 @@ export async function GET(
       where: {
         marketId: market.id
       },
-      orderBy: { resolvedAt: 'asc' },
+      orderBy: { createdAt: 'asc' },
       take: 1000  // Last 1000 positions
     });
 
-    // For now, use simple price calculation from current market state
-    // TODO: Implement full trade history tracking
+    // Build price history from positions (grouped by creation time)
+    // Each position represents a trade at a specific price point
     const priceHistory: Array<{
       timestamp: string;
       yesPrice: number;
       noPrice: number;
       volume: number;
     }> = [];
+    
+    // Group positions by time buckets (hourly) to build price history
+    const positionGroups = new Map<string, typeof positions>();
+    for (const pos of positions) {
+      // Use createdAt for when the position was opened (trade executed)
+      const hourKey = new Date(pos.createdAt).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+      if (!positionGroups.has(hourKey)) {
+        positionGroups.set(hourKey, []);
+      }
+      positionGroups.get(hourKey)!.push(pos);
+    }
+    
+    // Calculate price for each time bucket based on positions
+    for (const [hourKey, hourPositions] of positionGroups.entries()) {
+      let yesShares = 0;
+      let noShares = 0;
+      let volume = 0;
+      
+      for (const pos of hourPositions) {
+        const shares = Number(pos.shares);
+        const price = Number(pos.avgPrice);
+        volume += shares * price;
+        
+        if (pos.side) {
+          yesShares += shares;
+        } else {
+          noShares += shares;
+        }
+      }
+      
+      const totalShares = yesShares + noShares;
+      const yesPrice = totalShares > 0 
+        ? PredictionPricing.getCurrentPrice(yesShares, noShares, 'yes')
+        : 0.5;
+      const noPrice = 1 - yesPrice;
+      
+      priceHistory.push({
+        timestamp: `${hourKey}:00:00Z`,
+        yesPrice,
+        noPrice,
+        volume,
+      });
+    }
+    
+    // Sort by timestamp
+    priceHistory.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
     // Current prices:
     const yesShares = Number(market.yesShares);

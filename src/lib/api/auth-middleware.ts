@@ -8,7 +8,7 @@
 
 import { verifyAgentSession } from '@/lib/auth/agent-auth';
 import { prisma } from '@/lib/prisma';
-// import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -144,7 +144,13 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
       email: undefined,
       isAgent: false,
     };
-  } catch {
+  } catch (error) {
+    // Log the specific error for debugging purposes
+    // "signature verification failed" often means expired token or key mismatch
+    logger.warn('Privy authentication failed', {
+      error: extractErrorMessage(error)
+    }, 'auth-middleware');
+
     // Privy token verification failed - convert to AuthenticationError
     const authError = new Error('Invalid or expired authentication token') as AuthenticationError;
     authError.code = 'AUTH_FAILED';

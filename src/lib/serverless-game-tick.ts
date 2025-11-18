@@ -176,6 +176,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     );
 
     // Generate initial questions FIRST if this is the first tick
+    let currentActiveQuestions = activeQuestions;
     if (activeQuestions.length === 0 && Date.now() < deadline) {
       logger.info('First tick detected - generating initial questions', {}, 'GameTick');
       const questionsGenerated = await generateNewQuestions(
@@ -185,24 +186,22 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       );
       result.questionsCreated = questionsGenerated;
       
-      // Reload active questions after generation
-      const newActiveQuestions = await prisma.question.findMany({
+      // Reload active questions after generation (use new variable to avoid mutation)
+      currentActiveQuestions = await prisma.question.findMany({
         where: { status: 'active' },
       });
-      activeQuestions.length = 0;
-      activeQuestions.push(...newActiveQuestions);
       
       logger.info(`Initial questions created: ${questionsGenerated}`, { count: questionsGenerated }, 'GameTick');
       
       // Publish commitments to blockchain oracle
-      if (questionsGenerated > 0 && newActiveQuestions.length > 0) {
-        const oracleResult = await publishOracleCommitments(newActiveQuestions);
+      if (questionsGenerated > 0 && currentActiveQuestions.length > 0) {
+        const oracleResult = await publishOracleCommitments(currentActiveQuestions);
         result.oracleCommits += oracleResult.committed;
         result.oracleErrors += oracleResult.errors;
       }
     }
 
-    const questionsToResolve = activeQuestions.filter((q: { resolutionDate: Date | null }) => {
+    const questionsToResolve = currentActiveQuestions.filter((q: { resolutionDate: Date | null }) => {
       if (!q.resolutionDate) return false;
       const resolutionDate = new Date(q.resolutionDate);
       return resolutionDate <= timestamp;
@@ -215,24 +214,26 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
         'GameTick'
       );
 
-      await prisma.question.updateMany({
-        where: {
-          id: { in: questionsToResolve.map((q: typeof questionsToResolve[number]) => q.id) },
-        },
-        data: { status: 'resolved' },
-      });
-
+      // Resolve payouts with error handling to continue processing remaining questions
+      // Question status is updated atomically within resolveQuestionPayouts
       for (const question of questionsToResolve) {
-        await resolveQuestionPayouts(question.questionNumber);
-        result.questionsResolved++;
+        try {
+          await resolveQuestionPayouts(question.questionNumber);
+          result.questionsResolved++;
+        } catch (error) {
+          logger.error('Failed to resolve question payout', {
+            questionNumber: question.questionNumber,
+            questionId: question.id,
+            error: error instanceof Error ? error.message : String(error),
+          }, 'GameTick');
+          // Continue with next question instead of failing entire batch
+        }
       }
       
       // Publish reveals to blockchain oracle
-      if (questionsToResolve.length > 0) {
-        const oracleResult = await publishOracleReveals(questionsToResolve);
-        result.oracleReveals += oracleResult.revealed;
-        result.oracleErrors += oracleResult.errors;
-      }
+      const oracleResult = await publishOracleReveals(questionsToResolve);
+      result.oracleReveals += oracleResult.revealed;
+      result.oracleErrors += oracleResult.errors;
     }
 
     // Combined post and article generation to mix NPCs and orgs
@@ -240,7 +241,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     if (!skipContentGeneration) {
       if (Date.now() < criticalOpsDeadline) {
         const { posts, articles } = await generateMixedPosts(
-          activeQuestions.slice(0, 3),
+          currentActiveQuestions.slice(0, 3),
           timestamp,
           llmClient,
           criticalOpsDeadline
@@ -256,7 +257,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       }
 
       const eventsGenerated = await generateEvents(
-        activeQuestions.slice(0, 3),
+        currentActiveQuestions.slice(0, 3),
         timestamp
       );
       result.eventsCreated = eventsGenerated;
@@ -376,7 +377,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     }
 
     const currentActiveCount =
-      activeQuestions.length - result.questionsResolved;
+      currentActiveQuestions.length - result.questionsResolved;
     if (currentActiveCount < 10) {
       if (Date.now() < deadline) {
         const questionsGenerated = await generateNewQuestions(
@@ -862,6 +863,9 @@ async function bootstrapTrending(): Promise<void> {
   logger.info(`Created ${sampleTags.length} sample trending tags`, undefined, 'GameTick');
 }
 
+import { generateEvents } from './services/event-generation-helpers';
+import { generateNPCPost, generateOrgPost, generateOrgArticle } from './services/post-generation-helpers';
+
 /**
  * Generate mixed posts from both NPCs and organizations (parallelized version)
  * This ensures posts are interleaved rather than chunked by type
@@ -963,204 +967,48 @@ async function generateMixedPosts(
     const randomJitter = Math.random() * timeSlotMs * 0.8;
     const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
     
-    if (creator.type === 'actor') {
-      // Generate NPC post
-      const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
-
-${worldFactsContext}
-
-Return your response as XML in this exact format:
-<response>
-  <post>your post content here</post>
-</response>`;
-
-      // Only use Wandb-specific model if provider is Wandb, otherwise use default
-      const model = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
-      const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
-        prompt,
-        {
-          properties: {
-            post: { type: 'string' },
-          },
-          required: ['post'],
-        },
-        { temperature: 0.9, maxTokens: 500, ...(model ? { model } : {}), format: 'xml' }
-      );
-      
-      // Handle XML structure
-      const postContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
-        ? (response.response as { post: string }).post
-        : (response as { post: string }).post;
-
-      if (!postContent) {
-        logger.warn('Empty post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
-        return { posts: 0, articles: 0 };
-      }
-
-      // Transform content to replace real names with parody names
-      const transformed = await characterMappingService.transformText(postContent);
-      if (transformed.replacementCount > 0) {
-        logger.warn(`Fixed ${transformed.replacementCount} real name(s) in NPC post`, {
-          actor: creator.name,
-          original: postContent.substring(0, 100),
-          fixed: transformed.transformedText.substring(0, 100)
-        }, 'GameTick');
-      }
-
-      await db().createPostWithAllFields({
-        id: await generateSnowflakeId(),
-        content: transformed.transformedText,
-        authorId: creator.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestampWithOffset,
-      });
-      
-      logger.debug('Created NPC post', { actor: creator.name, timestamp: timestampWithOffset }, 'GameTick');
-      return { posts: 1, articles: 0 };
-
-    } else {
-        // Organization content - can be either article or regular post
-        // 10% chance to create article, 90% chance to create regular post
+    try {
+      if (creator.type === 'actor') {
+        const actor = creator.data as typeof actors[number];
+        const success = await generateNPCPost(
+          llm,
+          actor,
+          question,
+          worldFactsContext,
+          timestampWithOffset
+        );
+        return { posts: success ? 1 : 0, articles: 0 };
+      } else {
+        const org = creator.data as typeof organizations[number];
         const shouldCreateArticle = Math.random() < 0.1;
         
         if (shouldCreateArticle) {
-          // Generate organization article
-          const prompt = `You are ${creator.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
-
-${worldFactsContext}
-
-Provide:
-- "title": a compelling headline (max 100 characters)
-- "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
-- "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points. Separate paragraphs with \\n\\n (two newlines).
-
-Return your response as XML in this exact format:
-<response>
-  <title>news headline here</title>
-  <summary>2-3 sentence summary here</summary>
-  <article>full article body here with \\n\\n between paragraphs</article>
-</response>`;
-
-          // Only use Wandb-specific model if provider is Wandb, otherwise use default
-          const articleModel = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
-          const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
-            prompt,
-            { 
-              properties: {
-                title: { type: 'string' },
-                summary: { type: 'string' },
-                article: { type: 'string' }
-              },
-              required: ['title', 'summary', 'article'] 
-            },
-            { temperature: 0.7, maxTokens: 8000, ...(articleModel ? { model: articleModel } : {}), format: 'xml' }
+          const success = await generateOrgArticle(
+            llm,
+            org,
+            question,
+            worldFactsContext,
+            timestampWithOffset
           );
-          
-          // Handle XML structure
-          const articleData = 'response' in response && response.response 
-            ? response.response as { title: string; summary: string; article: string }
-            : response as { title: string; summary: string; article: string };
-
-          if (!articleData.title || !articleData.summary || !articleData.article) {
-            logger.warn('Empty article generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
-            return { posts: 0, articles: 0 };
-          }
-
-          const summary = articleData.summary.trim();
-          const articleTitle = articleData.title.trim();
-          const articleBody = articleData.article.trim();
-
-          if (articleBody.length < 400) {
-            logger.warn('Article body too short', { creatorIndex: i, creatorName: creator.name, length: articleBody.length }, 'GameTick');
-            return { posts: 0, articles: 0 };
-          }
-
-          // Transform content to replace real names with parody names
-          const transformedSummary = await characterMappingService.transformText(summary);
-          const transformedBody = await characterMappingService.transformText(articleBody);
-          if (transformedSummary.replacementCount > 0 || transformedBody.replacementCount > 0) {
-            logger.warn(`Fixed ${transformedSummary.replacementCount + transformedBody.replacementCount} real name(s) in org article`, {
-              org: creator.name,
-              title: articleTitle,
-            }, 'GameTick');
-          }
-
-          await db().createPostWithAllFields({
-            id: await generateSnowflakeId(),
-            type: 'article',
-            content: transformedSummary.transformedText,
-            fullContent: transformedBody.transformedText,
-            articleTitle: articleTitle,
-            authorId: creator.id,
-            gameId: 'continuous',
-            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-            timestamp: timestampWithOffset,
-          });
-          
-          logger.debug('Created org article', { org: creator.name, timestamp: timestampWithOffset }, 'GameTick');
-          return { posts: 1, articles: 1 };
+          return { posts: success ? 1 : 0, articles: success ? 1 : 0 };
         } else {
-          // Generate regular post from news organization (announcement, quick update, etc.)
-          const prompt = `You are ${creator.name}, a news organization. Post a brief social media update about this prediction market: "${question.text}".
-
-${worldFactsContext}
-
-This should be a SHORT social media post (max 200 characters), not a full article. Examples:
-- "Breaking: New developments in [topic]"
-- "Just released: Our latest analysis on [topic]"
-- "What we're watching: [brief insight]"
-
-Return your response as XML in this exact format:
-<response>
-  <post>your brief post content here</post>
-</response>`;
-
-          // Only use Wandb-specific model if provider is Wandb, otherwise use default
-          const orgPostModel = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
-          const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
-            prompt,
-            {
-              properties: {
-                post: { type: 'string' },
-              },
-              required: ['post'],
-            },
-            { temperature: 0.9, maxTokens: 500, ...(orgPostModel ? { model: orgPostModel } : {}), format: 'xml' }
+          const success = await generateOrgPost(
+            llm,
+            org,
+            question,
+            worldFactsContext,
+            timestampWithOffset
           );
-          
-          // Handle XML structure
-          const orgPostContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
-            ? (response.response as { post: string }).post
-            : (response as { post: string }).post;
-
-          if (!orgPostContent) {
-            logger.warn('Empty org post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
-            return { posts: 0, articles: 0 };
-          }
-
-          // Transform content to replace real names with parody names
-          const transformedPost = await characterMappingService.transformText(orgPostContent);
-          if (transformedPost.replacementCount > 0) {
-            logger.warn(`Fixed ${transformedPost.replacementCount} real name(s) in org post`, {
-              org: creator.name,
-            }, 'GameTick');
-          }
-
-          await db().createPostWithAllFields({
-            id: await generateSnowflakeId(),
-            type: 'post', // Regular post, not article
-            content: transformedPost.transformedText,
-            authorId: creator.id,
-            gameId: 'continuous',
-            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-            timestamp: timestampWithOffset,
-          });
-          
-          logger.debug('Created org post', { org: creator.name, timestamp: timestampWithOffset }, 'GameTick');
-          return { posts: 1, articles: 0 };
+          return { posts: success ? 1 : 0, articles: 0 };
         }
       }
+    } catch (error) {
+      logger.warn('Failed to generate mixed post', { 
+        error: error instanceof Error ? error.message : String(error),
+        creatorName: creator.name 
+      }, 'GameTick');
+      return { posts: 0, articles: 0 };
+    }
   });
 
   // Wait for all posts to complete
@@ -1174,12 +1022,6 @@ Return your response as XML in this exact format:
     if (result.status === 'fulfilled') {
       postsCreated += result.value.posts;
       articlesCreated += result.value.articles;
-    } else {
-      logger.error(
-        'Failed to generate post',
-        { error: result.reason, questionIndex: result.reason?.questionIndex },
-        'GameTick'
-      );
     }
   }
 
@@ -1570,59 +1412,7 @@ Return your response as XML in this exact format:
   return articlesCreated;
 }
 
-/**
- * Generate events
- */
-async function generateEvents(
-  questions: Array<{ id: string; text: string; questionNumber: number }>,
-  timestamp: Date
-): Promise<number> {
-  if (questions.length === 0) return 0;
-
-  let eventsCreated = 0;
-  const eventsToGenerate = Math.min(2, questions.length);
-
-  for (let i = 0; i < eventsToGenerate; i++) {
-    const question = questions[i];
-
-    if (!question || !question.text) {
-      logger.warn(
-        'Missing question data for event',
-        { questionIndex: i },
-        'GameTick'
-      );
-      continue;
-    }
-
-    // Validate integer fields to prevent overflow
-    const questionNum = typeof question.questionNumber === 'number' && 
-      Number.isFinite(question.questionNumber) && 
-      question.questionNumber >= 0 && 
-      question.questionNumber <= 2147483647 
-      ? question.questionNumber 
-      : undefined;
-      
-    const dayNum = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-    const safeDayNumber = dayNum >= 0 && dayNum <= 2147483647 ? dayNum : undefined;
-
-    await prisma.worldEvent.create({
-      data: {
-        id: await generateSnowflakeId(),
-        eventType: 'announcement',
-        description: `Development regarding: ${question.text}`,
-        actors: [],
-        relatedQuestion: questionNum,
-        visibility: 'public',
-        gameId: 'continuous',
-        dayNumber: safeDayNumber,
-        timestamp: timestamp,
-      },
-    });
-    eventsCreated++;
-  }
-
-  return eventsCreated;
-}
+// generateEvents moved to services/event-generation-helpers.ts
 
 
 /**
@@ -1865,7 +1655,7 @@ Return your response as XML in this exact format:
     // Use 20,000 liquidity (10,000 YES + 10,000 NO shares) to support larger NPC trades
     const initialLiquidity = 20000;
     const { yesShares, noShares } = PredictionPricing.initializeMarket(initialLiquidity);
-    
+
     const market = await prisma.market.create({
       data: {
         id: question.id,

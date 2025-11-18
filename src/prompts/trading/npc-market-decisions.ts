@@ -198,8 +198,8 @@ CRITICAL RULES:
    - Mentors: Follow their trading signals with high confidence
    - Critics: Take opposite positions to your subjects
    - Strong relationships (strength > 0.7): Weight their influence heavily
-11. If an event involves your rival, bet AGAINST them benefiting
-12. If an event involves your ally, bet WITH them benefiting
+   - If an event involves your rival, bet AGAINST them benefiting
+   - If an event involves your ally, bet WITH them benefiting
 
 ---
 

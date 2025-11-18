@@ -63,6 +63,12 @@ import { EventEmitter } from 'events';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { FeedGenerator, type FeedEvent } from './FeedGenerator';
+import type { PerpMarket } from '@/shared/perps-types'; // Add this import
+
+export interface MarketContext {
+  markets: PerpMarket[];
+  significantMoves: { ticker: string; change: number }[];
+}
 
 /**
  * GameWorld Event Types
@@ -930,6 +936,74 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
     this.emit(type, event);
     this.emit('event', event);
+  }
+
+
+  /**
+   * Generate events for a specific tick, incorporating market feedback
+   * This replaces/augments the static daily generation
+   */
+  public async generateTickEvents(
+    day: number, 
+    hour: number, 
+    marketContext?: MarketContext
+  ): Promise<WorldEvent[]> {
+    const events: WorldEvent[] = [];
+
+    // 1. Check for Market-Driven Events (Emergence)
+    if (marketContext && marketContext.significantMoves.length > 0) {
+      for (const move of marketContext.significantMoves) {
+        // If market crashes > 20%
+        if (move.change < -20) {
+           events.push({
+             id: await generateSnowflakeId(),
+             day,
+             type: 'scandal',
+             visibility: 'public',
+             description: `Market crash for ${move.ticker} triggers emergency board meeting. Rumors of insolvency circulate.`,
+             actors: [], // Fill with relevant actors
+             pointsToward: 'NO'
+           });
+        }
+        // If market pumps > 20%
+        else if (move.change > 20) {
+           events.push({
+             id: await generateSnowflakeId(),
+             day,
+             type: 'development',
+             visibility: 'public',
+             description: `${move.ticker} stock surges to record highs amidst acquisition rumors.`,
+             actors: [], 
+             pointsToward: 'YES'
+           });
+        }
+      }
+    }
+
+    // 2. Standard Narrative Events (from existing logic)
+    // Simple probabilistic event generation for non-market hours
+    // Events mostly happen during day hours (8am - 8pm)
+    const isDaytime = hour >= 8 && hour <= 20;
+    const eventChance = isDaytime ? 0.1 : 0.02; // 10% chance per hour during day, 2% at night
+    
+    if (Math.random() < eventChance) {
+        // Generate a random event appropriate for the game phase
+        let newEvent: WorldEvent[] = [];
+        if (day <= 10) {
+            newEvent = await this.generateEarlyWorldEvents(day);
+        } else if (day <= 20) {
+            newEvent = await this.generateMidWorldEvents(day);
+        } else {
+            newEvent = await this.generateLateWorldEvents(day);
+        }
+        
+        // Add if we got one
+        if (newEvent.length > 0) {
+            events.push(...newEvent);
+        }
+    }
+    
+    return events;
   }
 
   /**

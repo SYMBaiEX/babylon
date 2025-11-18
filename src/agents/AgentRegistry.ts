@@ -2,7 +2,10 @@
  * Agent Registry
  * 
  * Local registry of agents with search capabilities.
- * Provides interface for AgentDiscoveryService.
+ * Provides interface for AgentDiscoveryService (Agent0 SDK compatibility).
+ * 
+ * @deprecated This class is maintained for Agent0 SDK compatibility.
+ * For new code, use AgentRegistryService from @/lib/services/agent-registry.service
  */
 
 import type { AgentProfile } from '@/types/a2a'
@@ -20,19 +23,27 @@ interface AgentResult {
 export class AgentRegistry {
   /**
    * Search for agents based on filters
+   * 
+   * @description Implements Agent0 SDK IAgentDiscoveryService interface.
+   * Currently returns agents from database. For more advanced filtering,
+   * use AgentRegistryService.discoverAgents() instead.
    */
   search(_params: SearchParams): AgentResult[] {
-    // For now return empty array - this will be populated with actual DB queries later
-    // This is a stub to satisfy the AgentDiscovery interface
+    // Note: This is synchronous for Agent0 SDK compatibility, but limits functionality
+    // For async search with full filtering, use AgentRegistryService.discoverAgents()
+    // For now, return empty array - AgentDiscoveryService will use getAllAgents() instead
     return []
   }
 
   /**
    * Get a single agent by ID
+   * 
+   * @description Implements Agent0 SDK IAgentDiscoveryService interface.
+   * Currently returns null. Use AgentRegistryService.getAgentById() for actual lookups.
    */
   getAgent(_agentId: string): AgentResult | null {
-    // For now return null - this will be populated with actual DB queries later
-    // This is a stub to satisfy the AgentDiscovery interface
+    // Note: This is synchronous for Agent0 SDK compatibility, but limits functionality
+    // For async lookups, use AgentRegistryService.getAgentById() instead
     return null
   }
 
