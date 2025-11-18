@@ -5,6 +5,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/agent-tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/reputation-sync",
       "schedule": "0 2 * * *"
     }

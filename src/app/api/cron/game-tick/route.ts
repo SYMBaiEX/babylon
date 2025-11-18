@@ -183,7 +183,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       latestTimestamp: bufferStatus.latestTimestamp?.toISOString(),
     }, 'Cron');
 
-    const llmClient = new BabylonLLMClient(undefined, undefined, 'groq');
+    // Uses auto-priority: Wandb > Groq > Claude > OpenAI
+    const llmClient = new BabylonLLMClient();
     const lookaheadResult = await generateAheadIfNeeded(llmClient, 15);
     
     logger.info('Lookahead generation complete', {

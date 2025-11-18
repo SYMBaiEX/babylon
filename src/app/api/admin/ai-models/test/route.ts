@@ -66,9 +66,9 @@ export async function POST(_req: NextRequest) {
   try {
     // Load wandb model from config
     const wandbModel = await getWandbModel();
-    
+
     // Initialize client
-    const client = new BabylonLLMClient(undefined, wandbModel);
+    const client = wandbModel ? BabylonLLMClient.forWandb(wandbModel) : new BabylonLLMClient();
     const stats = client.getStats();
     
     logger.info('Testing AI model', { 
