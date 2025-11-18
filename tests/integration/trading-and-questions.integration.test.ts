@@ -82,9 +82,9 @@ describe('Trading and Question Generation Integration', () => {
         data: {
           id: testMarketId,
           question: 'Test: Will trading work?',
-          yesShares: 100,
-          noShares: 100,
-          liquidity: 200,
+          yesShares: 10000,
+          noShares: 10000,
+          liquidity: 20000,
           resolved: false,
           endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           createdAt: new Date(),
