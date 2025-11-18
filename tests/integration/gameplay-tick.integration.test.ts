@@ -10,8 +10,71 @@
  * - Market pricing is reasonable (0-100% for predictions)
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test'
 import { prisma } from '@/lib/prisma'
+
+// Mock LLM client BEFORE importing serverless-game-tick
+// This ensures executeGameTick uses the mock
+mock.module('@/generator/llm/openai-client', () => {
+  return {
+    BabylonLLMClient: {
+      forGameTick: () => ({
+        getStats: () => ({ provider: 'mock', model: 'mock-model' }),
+        getProvider: () => 'mock',
+        generateJSON: async (prompt: string, schema: any) => {
+          // Return mock responses based on schema properties
+          if (schema.properties && schema.properties.question) {
+            return {
+              question: "Will testing succeed?",
+              resolutionCriteria: "If tests pass"
+            };
+          }
+          
+          // Article mock
+          if (schema.properties && schema.properties.title && schema.properties.article) {
+             return {
+              title: "Mock Article Title",
+              summary: "Mock article summary for testing.",
+              article: "Mock article body content that is long enough.\n\nIt has multiple paragraphs.\n\nTo satisfy length requirements.\n\nAnd validation checks."
+            };
+          }
+
+          // NPC Post mock
+          if (schema.properties && schema.properties.post) {
+            return {
+              post: "This is a mock post content."
+            };
+          }
+          
+          return {};
+        },
+        complete: async () => "Mock completion response"
+      }),
+      forGroq: () => ({ 
+        getStats: () => ({ provider: 'mock', model: 'mock-model' }),
+        getProvider: () => 'mock',
+        generateJSON: async () => {
+           // Market decisions mock
+           return {
+             decisions: [
+               {
+                 npcId: "test-npc",
+                 npcName: "Test NPC",
+                 reasoning: "Mock reasoning",
+                 action: "hold",
+                 confidence: 0.5
+               }
+             ]
+           };
+        },
+        complete: async () => "Mock completion"
+      }),
+      forClaude: () => ({ /* same mock */ }),
+      forOpenAI: () => ({ /* same mock */ })
+    }
+  };
+});
+
 import { executeGameTick } from '@/lib/serverless-game-tick'
 import { asSystem } from '@/lib/db/context'
 import { generateSnowflakeId } from '@/lib/snowflake'

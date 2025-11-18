@@ -21,9 +21,9 @@ import type { JsonValue } from '@/types/common'
 import { logger } from '@/lib/logger'
 import { createDecipheriv } from 'crypto'
 
-const ENCRYPTION_KEY = process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY || 
+const ENCRYPTION_KEY = process.env.CRON_SECRET || 
   (process.env.NODE_ENV === 'production' 
-    ? (() => { throw new Error('AGENT_CREDENTIALS_ENCRYPTION_KEY must be set in production') })()
+    ? (() => { throw new Error('CRON_SECRET must be set in production') })()
     : 'dev-key-change-in-production-32-chars!!')
 const ALGORITHM = 'aes-256-cbc'
 

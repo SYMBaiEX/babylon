@@ -296,7 +296,7 @@ async def main():
     model = art.TrainableModel(
         name="agent-2048-local-art", 
         project="babylon", 
-        base_model="Qwen/Qwen2.5-0.5B-Instruct",
+        base_model="Qwen/Qwen2.5-14B-Instruct",
     )
 
     # Initialize the server

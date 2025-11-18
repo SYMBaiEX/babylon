@@ -311,7 +311,16 @@ describe('Settings Page Integration Tests', () => {
 
   describe('Authentication Requirements', () => {
     test('should require authentication for profile updates', async () => {
-      if (!serverAvailable) return;
+      if (!serverAvailable) {
+        console.log('⏭️  Skipping - server not available');
+        return;
+      }
+      
+      if (!testUserId) {
+        console.log('⏭️  Skipping - test user ID not available');
+        return;
+      }
+      
       const response = await fetch(`${API_URL}/users/${testUserId}/update-profile`, {
         method: 'POST',
         headers: {
@@ -328,7 +337,11 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should require authentication for data export', async () => {
-      if (!serverAvailable) return;
+      if (!serverAvailable) {
+        console.log('⏭️  Skipping - server not available');
+        return;
+      }
+      
       const response = await fetch(`${API_URL}/users/export-data`, {
         headers: {
           // No Authorization header
@@ -340,6 +353,11 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should require authentication for account deletion', async () => {
+      if (!serverAvailable) {
+        console.log('⏭️  Skipping - server not available');
+        return;
+      }
+      
       const response = await fetch(`${API_URL}/users/delete-account`, {
         method: 'POST',
         headers: {
