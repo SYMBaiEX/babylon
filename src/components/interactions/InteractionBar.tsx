@@ -61,23 +61,20 @@ export function InteractionBar({
   const isLiked = storeData?.isLiked ?? initialInteractions?.isLiked ?? false;
   const isShared = storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
-  // Register this post in the store so polling picks it up
+  // Always sync store with latest initial values from API
   useEffect(() => {
-    if (!storeData) {
-      // Initialize in store with provided initial values
-      const store = useInteractionStore.getState();
-      const updatedInteractions = new Map(store.postInteractions);
-      updatedInteractions.set(postId, {
-        postId,
-        likeCount: initialInteractions?.likeCount ?? 0,
-        commentCount: initialInteractions?.commentCount ?? 0,
-        shareCount: initialInteractions?.shareCount ?? 0,
-        isLiked: initialInteractions?.isLiked ?? false,
-        isShared: initialInteractions?.isShared ?? false,
-      });
-      useInteractionStore.setState({ postInteractions: updatedInteractions });
-    }
-  }, [postId, storeData, initialInteractions]);
+    const store = useInteractionStore.getState();
+    const updatedInteractions = new Map(store.postInteractions);
+    updatedInteractions.set(postId, {
+      postId,
+      likeCount: initialInteractions?.likeCount ?? 0,
+      commentCount: initialInteractions?.commentCount ?? 0,
+      shareCount: initialInteractions?.shareCount ?? 0,
+      isLiked: initialInteractions?.isLiked ?? false,
+      isShared: initialInteractions?.isShared ?? false,
+    });
+    useInteractionStore.setState({ postInteractions: updatedInteractions });
+  }, [postId, initialInteractions?.likeCount, initialInteractions?.commentCount, initialInteractions?.shareCount, initialInteractions?.isLiked, initialInteractions?.isShared]);
 
   const handleCommentClick = () => {
     if (!authenticated) {
