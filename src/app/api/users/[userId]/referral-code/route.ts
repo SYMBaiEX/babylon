@@ -56,23 +56,13 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/prisma';
-import { AuthorizationError, InternalServerError, NotFoundError } from '@/lib/errors';
+import { AuthorizationError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { generateSnowflakeId } from '@/lib/snowflake';
-
-/**
- * Generate a unique referral code
- */
-function generateReferralCode(userId: string): string {
-  // Use first 8 chars of user ID + random 4 chars
-  const userPrefix = userId.slice(0, 8);
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${userPrefix}-${random}`;
-}
+import { getOrCreateReferralCode } from '@/lib/services/referral-service';
 
 /**
  * GET /api/users/[userId]/referral-code
@@ -95,11 +85,12 @@ export const GET = withErrorHandling(async (
   }
 
   // Get or create referral code
-  let user = await prisma.user.findUnique({
+  const referralCode = await getOrCreateReferralCode(canonicalUserId);
+
+  // Get user stats
+  const user = await prisma.user.findUnique({
     where: { id: canonicalUserId },
     select: {
-      id: true,
-      referralCode: true,
       referralCount: true,
     },
   });
@@ -108,69 +99,11 @@ export const GET = withErrorHandling(async (
     throw new NotFoundError('User', canonicalUserId);
   }
 
-  // Generate referral code if doesn't exist
-  if (!user.referralCode) {
-    let code = generateReferralCode(canonicalUserId);
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    // Ensure code is unique
-    while (attempts < maxAttempts) {
-      const existing = await prisma.user.findUnique({
-        where: { referralCode: code },
-      });
-
-      if (!existing) {
-        break;
-      }
-
-      code = generateReferralCode(canonicalUserId);
-      attempts++;
-    }
-
-    if (attempts >= maxAttempts) {
-      throw new InternalServerError('Failed to generate unique referral code');
-    }
-
-    // Update user with new referral code
-    user = await prisma.user.update({
-      where: { id: canonicalUserId },
-      data: { referralCode: code },
-      select: {
-        id: true,
-        referralCode: true,
-        referralCount: true,
-      },
-    });
-
-    logger.info(
-      `Generated referral code for user ${canonicalUserId}: ${code}`,
-      { userId: canonicalUserId, code },
-      'GET /api/users/[userId]/referral-code'
-    );
-  }
-
-  // Create referral entry if doesn't exist
-  const existingReferral = await prisma.referral.findUnique({
-    where: { referralCode: user.referralCode! },
-  });
-
-  if (!existingReferral) {
-    await prisma.referral.create({
-      data: {
-        id: await generateSnowflakeId(),
-        referrerId: canonicalUserId,
-        referralCode: user.referralCode!,
-        status: 'pending',
-      },
-    });
-  }
-
-  logger.info('Referral code fetched successfully', { userId: canonicalUserId, referralCode: user.referralCode }, 'GET /api/users/[userId]/referral-code');
+  logger.info('Referral code fetched successfully', { userId: canonicalUserId, referralCode }, 'GET /api/users/[userId]/referral-code');
 
   return successResponse({
-    referralCode: user.referralCode,
+    referralCode,
     referralCount: user.referralCount,
-    referralUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'}?ref=${user.referralCode}`,
+    referralUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'}?ref=${referralCode}`,
   });
 });

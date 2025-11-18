@@ -14,7 +14,8 @@ export const POINTS = {
   WALLET_CONNECT: 1000,
   SHARE_ACTION: 1000,
   SHARE_TO_TWITTER: 1000,
-  REFERRAL_SIGNUP: 250,
+  REFERRAL_SIGNUP: 250, // Reward for referrer
+  REFERRAL_BONUS: 250,  // Bonus for new user who used a referral code
 } as const;
 
 export type PointsReason =
@@ -26,6 +27,7 @@ export type PointsReason =
   | 'share_action'
   | 'share_to_twitter'
   | 'referral_signup'
+  | 'referral_bonus'
   | 'admin_award'
   | 'admin_deduction'
   | 'purchase'
