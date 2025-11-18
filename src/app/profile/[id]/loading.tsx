@@ -1,3 +1,12 @@
+/**
+ * Profile Loading Component
+ * 
+ * @description Loading skeleton for the user profile page, displaying skeleton
+ * loaders for the profile header and feed sections. Supports both desktop and
+ * mobile layouts.
+ * 
+ * @returns {JSX.Element} Profile loading skeleton
+ */
 import { PageContainer } from '@/components/shared/PageContainer'
 import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
 

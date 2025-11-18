@@ -54,32 +54,27 @@ function generateLabel(value: string): string {
  * Parse facts from markdown file
  */
 function parseFactsFromMarkdown(filePath: string): string[] {
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    const facts: string[] = [];
+  const content = readFileSync(filePath, 'utf-8');
+  const facts: string[] = [];
 
-    // Parse markdown: extract lines that start with - or * (markdown list items)
-    const lines = content.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      // Skip empty lines, headers, and comments
-      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('<!--')) {
-        continue;
-      }
-      // Extract list items (lines starting with - or *)
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        const fact = trimmed.substring(2).trim();
-        if (fact) {
-          facts.push(fact);
-        }
+  // Parse markdown: extract lines that start with - or * (markdown list items)
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip empty lines, headers, and comments
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('<!--')) {
+      continue;
+    }
+    // Extract list items (lines starting with - or *)
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      const fact = trimmed.substring(2).trim();
+      if (fact) {
+        facts.push(fact);
       }
     }
-
-    return facts;
-  } catch (error) {
-    logger.error(`Failed to read ${filePath}, using empty array`, { error }, 'SeedWorldFacts');
-    return [];
   }
+
+  return facts;
 }
 
 async function seedWorldFacts() {
@@ -434,19 +429,14 @@ async function seedOrganizationMappings() {
 }
 
 async function main() {
-  try {
-    await seedWorldFacts();
-    await seedRSSFeeds();
-    await seedCharacterMappings();
-    await seedOrganizationMappings();
-    
-    logger.info('✅ World facts seed complete!', undefined, 'SeedWorldFacts');
-  } catch (error) {
-    logger.error('Failed to seed world facts', { error }, 'SeedWorldFacts');
-    throw error;
-  } finally {
-    await prisma.$disconnect();
-  }
+  await seedWorldFacts();
+  await seedRSSFeeds();
+  await seedCharacterMappings();
+  await seedOrganizationMappings();
+  
+  logger.info('✅ World facts seed complete!', undefined, 'SeedWorldFacts');
+  
+  await prisma.$disconnect();
 }
 
 main();

@@ -180,14 +180,14 @@ class BabylonTrainer:
                 entity = "eliza-labs"
                 logger.info(f"Using default entity: {entity}")
         
-        # Create model - ART pattern: just project name, no entity parameter
-        # ART reads WANDB_ENTITY from environment automatically
+        # Create model - pass entity explicitly (backend.register() uses model.entity)
         self.model = art.TrainableModel(
             name=name,
-            project=project_name,  # Just project name - ART reads entity from WANDB_ENTITY env var
+            project=project_name,
+            entity=entity,  # CRITICAL: Backend uses model.entity in register()
             base_model=self.base_model
         )
-        logger.info(f"Created model '{name}' in project '{project_name}'")
+        logger.info(f"Created model '{name}' in project '{entity}/{project_name}'")
         
         # Check if WANDB_API_KEY is set to decide backend
         # If set: use W&B remote training (preferred)
@@ -197,12 +197,10 @@ class BabylonTrainer:
         force_local = os.getenv('FORCE_LOCAL_TRAINING', 'false').lower() == 'true'
         
         if wandb_key:
-            # ART pattern: pass API key directly to ServerlessBackend (matches train.py)
-            if not wandb_key:
-                raise ValueError("WANDB_API_KEY is required for inference, training, and logging to Weights & Biases.")
-            
-            self.backend = ServerlessBackend(api_key=wandb_key)
-            logger.info("✓ Created W&B ServerlessBackend")
+            # ART Colab pattern: ServerlessBackend() with no arguments - reads from environment
+            # WANDB_API_KEY must be set in os.environ (which it is, since we checked above)
+            self.backend = ServerlessBackend()  # Reads WANDB_API_KEY from os.environ automatically
+            logger.info("✓ Created W&B ServerlessBackend (reads from environment)")
             
             # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
             # Increased delays for plan upgrade propagation

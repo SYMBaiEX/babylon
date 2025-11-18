@@ -29,7 +29,7 @@ Context:
 
 IMPORTANT RULES:
 - Use ONLY the exact participant names provided above ({{participants}})
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - NEVER "correct" or change parody names - use them exactly as shown
 - When referencing other actors mentioned in events, use their exact parody names
 

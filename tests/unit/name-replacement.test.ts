@@ -79,7 +79,7 @@ describe('Name Replacement System', () => {
     describe('Mark Zuckerberg → Mark Zuckerborg', () => {
       it('should replace "Mark Zuckerberg"', () => {
         const result = replacer.replaceInText('Mark Zuckerberg from Meta');
-        expect(result).toBe('Mark Zuckerborg from Met');
+        expect(result).toBe('Mark Zuckerborg from MetAI');
       });
 
       it('should replace "ZUCKERBERG" (uppercase)', () => {
@@ -104,9 +104,9 @@ describe('Name Replacement System', () => {
   });
 
   describe('Organization Name Replacement', () => {
-    describe('OpenAGI → OpenAGI', () => {
-      it('should replace "OpenAGI"', () => {
-        const result = replacer.replaceInText('OpenAGI released GPT-5');
+    describe('OpenAI → OpenAGI', () => {
+      it('should replace "OpenAI"', () => {
+        const result = replacer.replaceInText('OpenAI released GPT-5');
         expect(result).toBe('OpenAGI released GPT-5');
       });
 
@@ -121,10 +121,10 @@ describe('Name Replacement System', () => {
       });
     });
 
-    describe('Meta → Met', () => {
+    describe('Meta → MetAI', () => {
       it('should replace "Meta"', () => {
         const result = replacer.replaceInText('Meta owns Facebook');
-        expect(result).toBe('Met owns Facebook');
+        expect(result).toBe('MetAI owns Facebook');
       });
 
       it('should not replace "metadata"', () => {
@@ -311,14 +311,14 @@ describe('Validation: No Original Names Leaked', () => {
         }
       });
 
-      it(`${file} should not contain "OpenAGI"`, () => {
+      it(`${file} should not contain "OpenAI"`, () => {
         const fullPath = path.join(process.cwd(), file);
         if (fs.existsSync(fullPath)) {
           const content = fs.readFileSync(fullPath, 'utf-8');
           // Allow in comments or for comparison
           const contentNoComments = content.replace(/\/\/.*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-          const hasOpenAGI = contentNoComments.includes('OpenAGI') && !contentNoComments.includes('OpenAGI');
-          expect(hasOpenAGI).toBe(false);
+          const hasOpenAI = contentNoComments.includes('OpenAI') && !contentNoComments.includes('OpenAGI');
+          expect(hasOpenAI).toBe(false);
         }
       });
     }

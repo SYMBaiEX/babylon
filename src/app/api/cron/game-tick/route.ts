@@ -60,7 +60,8 @@ import { checkLookaheadStatus, generateAheadIfNeeded } from '@/lib/services/look
 import { BabylonLLMClient } from '@/generator/llm/openai-client'
 
 // Vercel function configuration
-export const maxDuration = 300; // 5 minutes max for game tick
+// Note: vercel.json overrides this with 800 seconds (13.3 minutes)
+export const maxDuration = 800; // 13.3 minutes max for game tick (matches vercel.json)
 
 // Verify this is a legitimate Vercel Cron request
 function verifyVercelCronRequest(request: NextRequest): boolean {
@@ -183,7 +184,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       latestTimestamp: bufferStatus.latestTimestamp?.toISOString(),
     }, 'Cron');
 
-    const llmClient = new BabylonLLMClient(undefined, undefined, 'groq');
+    // Uses auto-priority: Wandb > Groq > Claude > OpenAI
+    const llmClient = new BabylonLLMClient();
     const lookaheadResult = await generateAheadIfNeeded(llmClient, 15);
     
     logger.info('Lookahead generation complete', {

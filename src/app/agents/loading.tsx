@@ -1,3 +1,11 @@
+/**
+ * Agents Loading Component
+ * 
+ * @description Loading skeleton for the agents page, displaying skeleton loaders
+ * for the header, filter tabs, and agent cards grid.
+ * 
+ * @returns {JSX.Element} Agents loading skeleton
+ */
 import { Card } from '@/components/ui/card'
 
 export default function AgentsLoading() {

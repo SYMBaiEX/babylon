@@ -132,7 +132,7 @@ async function testAutomationPipeline() {
     addResult('AutomationPipeline', 'Model Selection Integration', selectionInfo.success,
       selectionInfo.success 
         ? `Strategy: ${selectionInfo.selection?.strategy}`
-        : selectionInfo.error || 'Failed');
+        : 'Failed');
     
     // Test 3: System status
     const status = await automationPipeline.getStatus();

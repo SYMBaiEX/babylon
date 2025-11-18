@@ -294,10 +294,10 @@ Generate the parody now.`;
 }
 
 /**
- * Create instance with default LLM client
+ * Create instance with default LLM client - uses auto-priority: Wandb > Groq > Claude > OpenAI
  */
 export function createParodyHeadlineGenerator(): ParodyHeadlineGenerator {
-  const llm = new BabylonLLMClient(undefined, undefined, 'groq');
+  const llm = new BabylonLLMClient();
   return new ParodyHeadlineGenerator(llm);
 }
 

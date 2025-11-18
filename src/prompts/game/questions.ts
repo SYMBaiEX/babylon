@@ -27,7 +27,7 @@ SCENARIOS:
 
 IMPORTANT RULES:
 - Use ONLY the exact actor and organization names from the scenarios above
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - NEVER "correct" or change parody names - use them exactly as shown in scenarios
 - Reference actors and organizations by their exact names from the scenarios
 

@@ -109,7 +109,7 @@
     "@prisma/adapter-neon": "^6.19.0",
     "@prisma/client": "^6.19.0",
     "@prisma/extension-accelerate": "^2.0.2",
-    "@privy-io/react-auth": "^3.6.1",
+    "@privy-io/react-auth": "^3.7.0",
     "@privy-io/server-auth": "^1.32.5",
     "@privy-io/wagmi": "^2.0.2",
     "@radix-ui/react-avatar": "^1.1.11",

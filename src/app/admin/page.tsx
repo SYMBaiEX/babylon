@@ -1,3 +1,33 @@
+/**
+ * Admin Dashboard Page
+ * 
+ * @description Main admin dashboard providing access to various administrative tabs for managing
+ * system statistics, game control, fees, users, groups, notifications, reports, AI models,
+ * training data, agents, and escrow. Requires admin authentication.
+ * 
+ * @page /admin
+ * @access Admin only
+ * 
+ * @features
+ * - Admin authentication check
+ * - Tabbed interface for different admin functions
+ * - System statistics and monitoring
+ * - Game engine control
+ * - User management
+ * - Moderation tools (reports, human review)
+ * - AI model configuration
+ * - Training data management
+ * - Agent management
+ * - Escrow management
+ * 
+ * @example
+ * ```tsx
+ * // Accessible at /admin
+ * // Requires admin privileges
+ * <AdminDashboard />
+ * ```
+ */
+
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -23,8 +53,18 @@ import { AgentsTab } from '@/components/admin/AgentsTab'
 import { GameControlTab } from '@/components/admin/GameControlTab'
 import { EscrowManagementTab } from '@/components/admin/EscrowManagementTab'
 
+/**
+ * Available admin dashboard tabs
+ */
 type Tab = 'stats' | 'game-control' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'human-review' | 'ai-models' | 'training-data' | 'agents' | 'escrow'
 
+/**
+ * Admin Dashboard Component
+ * 
+ * @description Main admin dashboard with tabbed interface for system management
+ * 
+ * @returns {JSX.Element} Admin dashboard page
+ */
 export default function AdminDashboard() {
   const router = useRouter()
   const { authenticated, user } = useAuth()

@@ -38,7 +38,39 @@ export class BabylonLLMClient {
   private claudeKey: string | undefined;
   private openaiKey: string | undefined;
   private wandbModel: string | undefined;
-  
+
+  /**
+   * Create a BabylonLLMClient configured to use Groq provider (Priority #1 for game NPCs)
+   * This is a convenience factory method for forcing Groq without passing undefined parameters
+   */
+  static forGroq(): BabylonLLMClient {
+    return new BabylonLLMClient('', '', 'groq');
+  }
+
+  /**
+   * Create a BabylonLLMClient configured to use Anthropic/Claude provider (Priority #2)
+   * This is a convenience factory method for forcing Claude without passing undefined parameters
+   */
+  static forClaude(): BabylonLLMClient {
+    return new BabylonLLMClient('', '', 'claude');
+  }
+
+  /**
+   * Create a BabylonLLMClient configured to use OpenAI provider (Priority #3 - fallback)
+   * This is a convenience factory method for forcing OpenAI without passing undefined parameters
+   */
+  static forOpenAI(apiKey?: string): BabylonLLMClient {
+    return new BabylonLLMClient(apiKey || '', '', 'openai');
+  }
+
+  /**
+   * Create a BabylonLLMClient configured to use a specific Wandb model
+   * This is a convenience factory method for testing Wandb models
+   */
+  static forWandb(modelName: string): BabylonLLMClient {
+    return new BabylonLLMClient('', modelName, undefined);
+  }
+
   constructor(apiKey?: string, wandbModelOverride?: string, forceProvider?: LLMProvider) {
     // Priority: Wandb > Groq > Claude > OpenAI (unless forceProvider is set)
     this.wandbKey = process.env.WANDB_API_KEY;
@@ -47,9 +79,9 @@ export class BabylonLLMClient {
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
     this.wandbModel = wandbModelOverride || process.env.WANDB_MODEL || undefined; // Can be configured via admin
     
-    // Force specific provider if requested (for game NPCs to use Groq even when wandb is available)
+    // Force specific provider if requested (only for special cases, e.g., testing specific providers)
     if (forceProvider === 'groq' && this.groqKey) {
-      logger.info('Using Groq (forced for game NPCs)', undefined, 'BabylonLLMClient');
+      logger.info('Using Groq (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
         apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',

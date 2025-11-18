@@ -1,30 +1,31 @@
 #!/usr/bin/env bun
 /**
  * Local Cron Simulator
- * 
- * Simulates Vercel Cron locally by calling the game-tick endpoint every minute.
- * Use this if you don't want to run the full daemon but want content generation.
- * 
+ *
+ * Simulates Vercel Cron locally by calling game-tick and agent-tick endpoints every minute.
+ * Use this if you don't want to run the full daemon but want content generation and agent activity.
+ *
  * Usage:
  *   bun run cron:local      (start local cron)
  *   bun run dev             (in another terminal - web app)
- * 
+ *
  * Or use dev:full to run both automatically.
  */
 
 import { logger } from '../src/lib/logger';
 
 const CRON_INTERVAL = 60000; // 60 seconds
-const API_URL = 'http://localhost:3000/api/cron/game-tick';
+const GAME_TICK_URL = 'http://localhost:3000/api/cron/game-tick';
+const AGENT_TICK_URL = 'http://localhost:3000/api/cron/agent-tick';
 
 let intervalId: NodeJS.Timeout | null = null;
 let tickCount = 0;
 
-async function executeTick() {
+async function executeGameTick() {
   tickCount++;
   logger.info(`🎮 Triggering game tick #${tickCount}...`, undefined, 'LocalCron');
-  
-  const response = await fetch(API_URL, {
+
+  const response = await fetch(GAME_TICK_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.CRON_SECRET || 'development'}`,
@@ -32,8 +33,8 @@ async function executeTick() {
     },
   }).catch((error: Error) => {
     const errorMessage = error.message;
-    logger.error(`Tick #${tickCount} error: ${errorMessage}`, { error }, 'LocalCron');
-    
+    logger.error(`Game tick #${tickCount} error: ${errorMessage}`, { error }, 'LocalCron');
+
     if (errorMessage.includes('ECONNREFUSED')) {
       logger.error('❌ Next.js dev server not running!', undefined, 'LocalCron');
       logger.error('   Start it first: bun run dev', undefined, 'LocalCron');
@@ -45,21 +46,56 @@ async function executeTick() {
   const data = await response.json();
 
   if (!response.ok) {
-    logger.error(`Tick #${tickCount} failed (HTTP ${response.status})`, data, 'LocalCron');
+    logger.error(`Game tick #${tickCount} failed (HTTP ${response.status})`, data, 'LocalCron');
     return;
   }
 
   if (data.skipped) {
-    logger.warn(`Tick #${tickCount} skipped: ${data.reason}`, undefined, 'LocalCron');
+    logger.warn(`Game tick #${tickCount} skipped: ${data.reason}`, undefined, 'LocalCron');
     return;
   }
 
-  logger.info(`✅ Tick #${tickCount} completed`, {
+  logger.info(`✅ Game tick #${tickCount} completed`, {
     duration: data.duration,
     posts: data.result?.postsCreated || 0,
     events: data.result?.eventsCreated || 0,
     markets: data.result?.marketsUpdated || 0,
   }, 'LocalCron');
+}
+
+async function executeAgentTick() {
+  logger.info(`🤖 Triggering agent tick #${tickCount}...`, undefined, 'LocalCron');
+
+  const response = await fetch(AGENT_TICK_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.CRON_SECRET || 'development'}`,
+      'Content-Type': 'application/json',
+    },
+  }).catch((error: Error) => {
+    const errorMessage = error.message;
+    logger.error(`Agent tick #${tickCount} error: ${errorMessage}`, { error }, 'LocalCron');
+    return null;
+  });
+
+  if (!response) return;
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    logger.error(`Agent tick #${tickCount} failed (HTTP ${response.status})`, data, 'LocalCron');
+    return;
+  }
+
+  logger.info(`✅ Agent tick #${tickCount} completed`, {
+    agentsProcessed: data.agentsProcessed || 0,
+    errors: data.errors || 0,
+  }, 'LocalCron');
+}
+
+async function executeTick() {
+  await executeGameTick();
+  await executeAgentTick();
 }
 
 async function waitForServer(maxAttempts = 30, delayMs = 2000): Promise<boolean> {
@@ -92,7 +128,7 @@ async function waitForServer(maxAttempts = 30, delayMs = 2000): Promise<boolean>
 async function main() {
   logger.info('🔄 LOCAL CRON SIMULATOR', undefined, 'LocalCron');
   logger.info('======================', undefined, 'LocalCron');
-  logger.info('Simulating Vercel Cron by calling /api/cron/game-tick every minute', undefined, 'LocalCron');
+  logger.info('Simulating Vercel Cron by calling game-tick and agent-tick every minute', undefined, 'LocalCron');
   logger.info('Press Ctrl+C to stop', undefined, 'LocalCron');
   logger.info('', undefined, 'LocalCron');
 

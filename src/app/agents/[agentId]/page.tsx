@@ -1,3 +1,31 @@
+/**
+ * Agent Detail Page
+ * 
+ * @description Detailed view for a single AI agent, displaying agent profile,
+ * chat interface, wallet, logs, performance metrics, and settings. Allows the
+ * agent owner to manage the agent's configuration and monitor its activity.
+ * 
+ * @page /agents/[agentId]
+ * @access Authenticated (agent owner)
+ * 
+ * @features
+ * - Agent profile display (name, description, avatar, bio, personality, trading strategy)
+ * - Real-time chat interface with the agent
+ * - Wallet management (balance, deposit, withdraw, transaction history)
+ * - Activity logs (autonomous actions, AI interactions, trading decisions)
+ * - Performance metrics (P&L, win rate, total trades, profitable trades)
+ * - Agent settings (autonomous mode, model tier, on-chain registration)
+ * - Agent deletion
+ * - Error handling and status display
+ * 
+ * @example
+ * ```tsx
+ * // Accessible at /agents/[agentId]
+ * // Requires authentication and agent ownership
+ * <AgentDetailPage />
+ * ```
+ */
+
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -18,6 +46,9 @@ import { AgentLogs } from '@/components/agents/AgentLogs'
 import { AgentSettings } from '@/components/agents/AgentSettings'
 import { AgentPerformance } from '@/components/agents/AgentPerformance'
 
+/**
+ * Agent data structure
+ */
 interface Agent {
   id: string
   name: string
@@ -50,6 +81,15 @@ interface Agent {
   updatedAt: string
 }
 
+/**
+ * Agent Detail Page Component
+ * 
+ * @description Main component for displaying and managing a single agent.
+ * Fetches agent data, displays it in a tabbed interface, and provides
+ * management capabilities.
+ * 
+ * @returns {JSX.Element} Agent detail page
+ */
 export default function AgentDetailPage() {
   const params = useParams()
   const router = useRouter()

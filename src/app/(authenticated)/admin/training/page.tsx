@@ -1,7 +1,30 @@
 /**
  * Training Dashboard Admin Panel
  * 
- * Complete monitoring and control for RL training system
+ * @description Complete monitoring and control interface for the RL training system.
+ * Provides real-time status updates, training readiness checks, job management,
+ * and system health monitoring. Allows admins to trigger training jobs and view
+ * training metrics.
+ * 
+ * @page /admin/training
+ * @access Admin only
+ * 
+ * @features
+ * - Real-time training status updates (refreshes every 5 seconds)
+ * - Data collection statistics (24h, 7d, rate per hour)
+ * - Training readiness checks (trajectories, scenario groups, data quality)
+ * - Current model version tracking
+ * - Training job management
+ * - System health monitoring (database, storage, W&B)
+ * - Manual training trigger
+ * - W&B integration links
+ * 
+ * @example
+ * ```tsx
+ * // Accessible at /admin/training
+ * // Requires admin privileges
+ * <TrainingDashboard />
+ * ```
  */
 
 'use client';
@@ -12,6 +35,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, PlayCircle, Database, Cpu, TrendingUp, AlertCircle } from 'lucide-react';
 
+/**
+ * Training job information
+ */
 interface TrainingJob {
   id: string;
   modelVersion: string;
@@ -19,12 +45,18 @@ interface TrainingJob {
   createdAt: string | Date;
 }
 
+/**
+ * Training model information
+ */
 interface TrainingModel {
   id: string;
   version: string;
   status: string;
 }
 
+/**
+ * Complete training system status
+ */
 interface TrainingStatus {
   status: string;
   automation: {
@@ -55,19 +87,28 @@ interface TrainingStatus {
     stats: {
       totalTrajectories: number;
       unscoredTrajectories: number;
-    scenarioGroups: number;
-    dataQuality: number;
+      scenarioGroups: number;
+      dataQuality: number;
+    };
   };
-};
-recentJobs: TrainingJob[];
-models: TrainingModel[];
-trajectoryStats: {
-  last1h?: number;
-  last24h?: number;
-  last7d?: number;
-};
+  recentJobs: TrainingJob[];
+  models: TrainingModel[];
+  trajectoryStats: {
+    last1h?: number;
+    last24h?: number;
+    last7d?: number;
+  };
 }
 
+/**
+ * Training Dashboard Component
+ * 
+ * @description Main component for the RL training dashboard admin panel.
+ * Displays training status, readiness metrics, job history, and system health.
+ * Allows admins to trigger training jobs manually.
+ * 
+ * @returns {JSX.Element} Training dashboard page
+ */
 export default function TrainingDashboard() {
   const [status, setStatus] = useState<TrainingStatus | null>(null);
   const [loading, setLoading] = useState(true);

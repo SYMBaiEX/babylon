@@ -115,23 +115,23 @@ export class AutomationPipeline {
       };
     }
 
-    // Removed strict group requirement - train even with few groups
-    // if (validGroups.length < 10) {
-    //   return {
-    //     ready: false,
-    //     reason: `Need more scenario groups (${validGroups.length}/10 minimum)`,
-    //     stats
-    //   };
-    // }
+    // Check minimum scenario groups for diversity
+    if (validGroups.length < 10) {
+      return {
+        ready: false,
+        reason: `Need more scenario groups (${validGroups.length}/10 minimum)`,
+        stats
+      };
+    }
 
-    // Removed strict quality threshold - train even with lower quality for bootstrapping
-    // if (quality < this.config.dataQualityThreshold) {
-    //   return {
-    //     ready: false,
-    //     reason: `Data quality too low (${(quality * 100).toFixed(1)}% < ${this.config.dataQualityThreshold * 100}%)`,
-    //     stats
-    //   };
-    // }
+    // Check data quality threshold
+    if (quality < this.config.dataQualityThreshold) {
+      return {
+        ready: false,
+        reason: `Data quality too low (${(quality * 100).toFixed(1)}% < ${this.config.dataQualityThreshold * 100}%)`,
+        stats
+      };
+    }
 
     return {
       ready: true,

@@ -1,55 +1,55 @@
 /**
- * Score Trajectories with RULER
+ * Score Trajectories with RULER (LLM-as-judge)
  * 
- * Runs RULER scoring on unscored trajectories to make them ready for training
+ * Runs proper RULER scoring on unscored trajectories using LLM judge.
+ * Groups trajectories by scenarioId for relative comparison.
+ * 
+ * This uses the proper RULER implementation - not simple heuristics!
  */
 
 import { prisma } from '@/lib/prisma';
 import { rulerScoringService } from '@/lib/training/RulerScoringService';
 
 async function main() {
-  console.log('━━━ RULER SCORING ━━━\n');
+  console.log('━━━ RULER SCORING (LLM-as-judge) ━━━\n');
   
-  // Get unscored trajectories
-  const unscored = await prisma.trajectory.findMany({
-    where: { aiJudgeReward: null },
-    select: { trajectoryId: true, windowId: true },
-    take: 100
+  // Get unscored trajectories count
+  const unscoredCount = await prisma.trajectory.count({
+    where: { 
+      aiJudgeReward: null,
+      isTrainingData: true,
+      stepsJson: { not: null },
+      NOT: {
+        OR: [
+          { stepsJson: 'null' },
+          { stepsJson: '[]' }
+        ]
+      }
+    }
   });
   
-  console.log(`Found ${unscored.length} unscored trajectories\n`);
+  console.log(`Found ${unscoredCount} unscored trajectories\n`);
   
-  if (unscored.length === 0) {
+  if (unscoredCount === 0) {
     console.log('✅ All trajectories already scored!');
     await prisma.$disconnect();
     return;
   }
   
-  let scored = 0;
-  let failed = 0;
+  console.log('Scoring trajectories in groups by scenarioId...');
+  console.log('(RULER compares trajectories relative to each other)\n');
   
-  console.log(`Scoring ${unscored.length} trajectories...\n`);
+  const startTime = Date.now();
   
-  for (const traj of unscored) {
-    try {
-      const score = await rulerScoringService.scoreTrajectory(traj.trajectoryId);
-      if (score && score.overallScore !== null) {
-        console.log(`✅ ${traj.trajectoryId.substring(0, 12)}... scored: ${score.overallScore.toFixed(3)}`);
-        scored++;
-      } else {
-        console.log(`⚠️  ${traj.trajectoryId.substring(0, 12)}... no score returned`);
-        failed++;
-      }
-    } catch (error) {
-      console.log(`❌ ${traj.trajectoryId.substring(0, 12)}... error: ${error instanceof Error ? error.message : 'Failed'}`);
-      failed++;
-    }
-  }
+  // Use batch scoring - groups trajectories by scenarioId automatically
+  const scored = await rulerScoringService.scoreTrajectories();
+  
+  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   
   console.log(`\n━━━ SCORING COMPLETE ━━━`);
-  console.log(`✅ Scored: ${scored}`);
-  console.log(`❌ Failed: ${failed}`);
-  console.log(`📊 Success Rate: ${((scored / unscored.length) * 100).toFixed(1)}%\n`);
+  console.log(`✅ Scored: ${scored} trajectories`);
+  console.log(`⏱️  Duration: ${duration}s`);
+  console.log(`📊 Success Rate: ${((scored / unscoredCount) * 100).toFixed(1)}%\n`);
   
   // Check readiness for training
   const readyForTraining = await prisma.trajectory.count({
@@ -67,7 +67,7 @@ async function main() {
   });
   
   console.log(`✅ ${readyForTraining} trajectories ready for training`);
-  console.log(`${readyForTraining >= 100 ? '✅ READY' : '⏳ NOT READY'} (need 100+ for training)\n`);
+  console.log(`${readyForTraining >= 100 ? '✅ READY FOR TRAINING!' : '⏳ NOT READY'} (need 100+ for training)\n`);
   
   await prisma.$disconnect();
 }

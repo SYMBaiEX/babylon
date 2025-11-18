@@ -43,7 +43,7 @@ WORLD CONTEXT:
 {{recentTrades}}
 
 Write an ambient post about your thoughts, activities, or opinions unrelated to major events.
-Max 280 chars. Stay in character. No hashtags or emojis. NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames.
+Max 280 chars. Stay in character. No hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)

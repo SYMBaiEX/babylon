@@ -35,7 +35,7 @@ This is a {{postType}}.
 
 Write ONE corporate post (max 140 chars).
 Professional, on-brand corporate speak.
-NO hashtags or emojis. NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames.
+NO hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events mentioned in the event description

@@ -60,14 +60,17 @@ import { agentService } from '@/lib/agents/services/AgentService'
 import { autonomousCoordinator } from '@/lib/agents/autonomous'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
 import type { User } from '@prisma/client'
+import { acquireAgentLock, releaseAgentLock } from '@/lib/services/agent-lock-service'
 
 // Vercel function configuration
-export const maxDuration = 300; // 5 minutes max for agent tick
+// Note: vercel.json overrides this with 800 seconds (13.3 minutes)
+export const maxDuration = 800; // 13.3 minutes max for agent tick (matches vercel.json)
 export const dynamic = 'force-dynamic';
 
 export async function POST(_req: NextRequest) {
   const startTime = Date.now()
-  logger.info('Agent tick started', undefined, 'AgentTick')
+  const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  logger.info('Agent tick started', { processId }, 'AgentTick')
 
   // NEW: Query via unified AgentRegistry to include both USER agents and NPCs
   const registeredAgents = await agentRegistry.discoverAgents({
@@ -138,9 +141,33 @@ export async function POST(_req: NextRequest) {
   const results = []
   let totalActionsExecuted = 0
   let errors = 0
+  let skippedDueToLock = 0
 
   for (const eligibleAgent of eligibleAgents) {
     const agentStartTime = Date.now()
+
+    // Try to acquire lock for this agent - skip if already running
+    const lockAcquired = await acquireAgentLock(eligibleAgent.agentId, processId)
+    
+    if (!lockAcquired) {
+      // Agent is still running from previous tick - skip it
+      skippedDueToLock++
+      logger.info(`Skipping agent ${eligibleAgent.name} - still running from previous tick`, {
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type
+      }, 'AgentTick')
+      
+      results.push({
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type,
+        name: eligibleAgent.name,
+        status: 'skipped',
+        reason: 'locked',
+        duration: Date.now() - agentStartTime
+      })
+      
+      continue
+    }
 
     try {
       // Always 1pt per tick for USER agents (NPCs don't use points)
@@ -266,6 +293,9 @@ export async function POST(_req: NextRequest) {
         error: error instanceof Error ? error.message : String(error),
         duration: Date.now() - agentStartTime
       })
+    } finally {
+      // Always release the lock, even on error
+      await releaseAgentLock(eligibleAgent.agentId, processId)
     }
   }
 
@@ -273,10 +303,12 @@ export async function POST(_req: NextRequest) {
   
   // Validation: Log summary metrics
   logger.info(`Agent tick completed in ${duration}ms`, {
-    agentsProcessed: results.length,
+    agentsEligible: eligibleAgents.length,
+    agentsProcessed: results.length - skippedDueToLock,
+    agentsSkippedLocked: skippedDueToLock,
     totalActions: totalActionsExecuted,
     errors,
-    averageActionsPerAgent: results.length > 0 ? (totalActionsExecuted / results.length).toFixed(2) : 0
+    averageActionsPerAgent: results.length > 0 ? (totalActionsExecuted / (results.length - skippedDueToLock || 1)).toFixed(2) : 0
   }, 'AgentTick')
 
   // Validation: Warn if no actions were executed
@@ -302,7 +334,9 @@ export async function POST(_req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    processed: results.length,
+    eligible: eligibleAgents.length,
+    processed: results.length - skippedDueToLock,
+    skippedLocked: skippedDueToLock,
     duration,
     totalActions: totalActionsExecuted,
     errors,

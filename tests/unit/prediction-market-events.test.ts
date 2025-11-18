@@ -7,11 +7,12 @@ describe('PredictionMarketEventService', () => {
   let broadcastSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
-    broadcastSpy = spyOn(broadcaster, 'broadcastToChannel').mockImplementation(() => {});
+    broadcastSpy = spyOn(broadcaster, 'broadcastToChannel');
+    broadcastSpy.mockReturnValue(undefined);
   });
 
   afterEach(() => {
-    broadcastSpy.mockRestore();
+    broadcastSpy.restore();
   });
 
   test('emitTradeUpdate broadcasts prediction trade event', () => {

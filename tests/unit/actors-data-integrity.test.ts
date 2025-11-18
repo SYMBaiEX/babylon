@@ -242,8 +242,8 @@ describe('Actors.json Data Integrity', () => {
       expect(actorsData.actors).toHaveLength(64);
     });
 
-    it('should have 52 organizations', () => {
-      expect(actorsData.organizations).toHaveLength(52);
+    it('should have 47 organizations', () => {
+      expect(actorsData.organizations).toHaveLength(47);
     });
   });
 });

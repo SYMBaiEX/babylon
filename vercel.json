@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "api/cron/agent-tick.ts": {
+      "maxDuration": 800
+    },
+    "api/cron/game-tick.ts": {
+      "maxDuration": 800
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/game-tick",
@@ -6,7 +14,7 @@
     },
     {
       "path": "/api/cron/agent-tick",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/reputation-sync",

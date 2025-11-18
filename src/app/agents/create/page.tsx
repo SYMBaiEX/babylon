@@ -1,3 +1,31 @@
+/**
+ * Create Agent Page
+ * 
+ * @description Interface for creating new AI agents with profile configuration,
+ * personality settings, system prompts, and trading strategies. Supports AI-powered
+ * field generation, image uploads, and draft saving.
+ * 
+ * @page /agents/create
+ * @access Authenticated
+ * 
+ * @features
+ * - Agent profile creation (username, display name, bio, images)
+ * - AI-powered field generation (name, description, system prompt, bio, personality, trading strategy)
+ * - Agent configuration (system prompt, personality, trading strategy)
+ * - Image selection (profile and cover images from asset library)
+ * - Draft saving to localStorage
+ * - Initial deposit configuration
+ * - Form validation
+ * - Agent creation with API integration
+ * 
+ * @example
+ * ```tsx
+ * // Accessible at /agents/create
+ * // Requires authentication
+ * <CreateAgentPage />
+ * ```
+ */
+
 'use client'
 
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -12,9 +40,19 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import Image from 'next/image'
 
+/**
+ * Local storage key for saving agent drafts
+ */
 const STORAGE_KEY = 'babylon_agent_draft'
+
+/**
+ * Total number of profile pictures available in the asset library
+ */
 const TOTAL_PROFILE_PICTURES = 100
 
+/**
+ * Agent template structure for pre-configured archetypes
+ */
 type AgentTemplate = {
   archetype: string
   name: string
@@ -25,6 +63,9 @@ type AgentTemplate = {
   tradingStrategy: string
 }
 
+/**
+ * Profile form data structure
+ */
 type ProfileFormData = {
   username: string
   displayName: string
@@ -33,6 +74,9 @@ type ProfileFormData = {
   coverImageUrl: string
 }
 
+/**
+ * Edit modal state for profile editing
+ */
 type EditModalState = {
   isOpen: boolean
   formData: ProfileFormData
@@ -41,6 +85,14 @@ type EditModalState = {
   error: string | null
 }
 
+/**
+ * Create Agent Page Component
+ * 
+ * @description Main component for creating new AI agents with comprehensive
+ * configuration options and AI-powered assistance.
+ * 
+ * @returns {JSX.Element} Create agent page
+ */
 export default function CreateAgentPage() {
   const router = useRouter()
   const { user, authenticated, ready, getAccessToken } = useAuth()

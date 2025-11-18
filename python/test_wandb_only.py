@@ -47,19 +47,29 @@ async def test_wandb():
         
         print("✅ W&B API key found in environment")
         
-        # Create model - ART pattern: just project name, no entity parameter
-        # ART will use WANDB_ENTITY from environment if set, otherwise defaults to user's personal account
+        # Verify project exists and is accessible (like Colab example)
+        print(f"🔗 Verifying project '{project_name}' exists under entity '{entity}'...")
+        try:
+            api = wandb.Api()
+            proj = api.project(project_name, entity=entity)
+            print(f"✅ Project '{project_name}' verified at https://wandb.ai/{entity}/{project_name}/")
+        except Exception as e:
+            print(f"⚠️  Could not verify project: {e}")
+            print(f"   Will try to create during registration")
+        
+        # Create model - pass entity explicitly (backend.register() uses model.entity)
         model_name = f"babylon-test-{int(asyncio.get_event_loop().time())}"
         model = art.TrainableModel(
             name=model_name,
-            project=project_name,  # Just project name - ART reads entity from WANDB_ENTITY env var
+            project=project_name,
+            entity=entity,  # CRITICAL: Backend uses model.entity in register()
             base_model='OpenPipe/Qwen3-14B-Instruct'
         )
-        print(f"✅ Model created: {model_name} in project '{project_name}'")
+        print(f"✅ Model created: {model_name} in project '{entity}/{project_name}'")
         
-        # Create backend - pass API key directly (matches train.py pattern)
-        backend = ServerlessBackend(api_key=wandb_key)
-        print("✅ ServerlessBackend created")
+        # Create backend - ART Colab pattern: no arguments, reads from environment
+        backend = ServerlessBackend()
+        print("✅ ServerlessBackend created (reads WANDB_API_KEY from environment)")
         
         # Register model (this connects to W&B)
         # CRITICAL: Add retry logic for 524 timeouts (W&B infrastructure can be slow)
