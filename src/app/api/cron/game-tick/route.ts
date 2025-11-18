@@ -130,7 +130,24 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   try {
     logger.info('🎮 Game tick started', { lockId }, 'Cron');
 
-    // 3. Check if we should skip (maintenance mode, etc.) - system operation
+    // 3. Check GAME_START environment variable for manual control
+    const gameStartEnv = process.env.GAME_START?.toLowerCase();
+    const isGameStartEnabled = gameStartEnv === 'start' || gameStartEnv === 'running' || gameStartEnv === 'true';
+
+    if (!isGameStartEnabled) {
+      logger.info('⏸️  Game paused via GAME_START environment variable', {
+        GAME_START: process.env.GAME_START,
+        message: 'Set GAME_START=start in Vercel to resume game ticks',
+      }, 'Cron');
+      return successResponse({
+        success: true,
+        skipped: true,
+        reason: 'Game paused (GAME_START env var)',
+        GAME_START: process.env.GAME_START,
+      });
+    }
+
+    // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
       const result = await db.game.findFirst({
         where: { isContinuous: true },
@@ -201,7 +218,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // });
     }
 
-    // 4. Check buffer status - only generate if buffer < 15 minutes
+    // 5. Check buffer status - only generate if buffer < 15 minutes
     const bufferStatus = await checkLookaheadStatus();
     
     if (!bufferStatus.needsGeneration) {
@@ -232,7 +249,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       });
     }
 
-    // 5. Buffer is low - generate ahead to maintain 15-minute buffer
+    // 6. Buffer is low - generate ahead to maintain 15-minute buffer
     logger.info('Buffer low - generating ahead', {
       currentAhead: bufferStatus.minutesAhead,
       target: 15,
@@ -249,7 +266,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newLatestTimestamp: lookaheadResult.newLatestTimestamp?.toISOString(),
     }, 'Cron');
 
-    // 6. Execute normal tick operations (NPC trading, market updates, etc.)
+    // 7. Execute normal tick operations (NPC trading, market updates, etc.)
     // Note: Content generation is handled by lookahead service, this handles operational tasks only
     // We pass true to skipContentGeneration to avoid duplicate posts for the current time window
     const result = await executeGameTick(true);
