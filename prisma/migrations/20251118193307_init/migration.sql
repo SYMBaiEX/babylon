@@ -1,9 +1,11 @@
 -- CreateEnum
-DO $$ BEGIN
-    CREATE TYPE "OnboardingStatus" AS ENUM ('PENDING_PROFILE', 'PENDING_ONCHAIN', 'ONCHAIN_IN_PROGRESS', 'ONCHAIN_FAILED', 'COMPLETED');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "OnboardingStatus" AS ENUM ('PENDING_PROFILE', 'PENDING_ONCHAIN', 'ONCHAIN_IN_PROGRESS', 'ONCHAIN_FAILED', 'COMPLETED');
+
+-- CreateEnum
+CREATE TYPE "AgentType" AS ENUM ('USER_CONTROLLED', 'NPC', 'EXTERNAL');
+
+-- CreateEnum
+CREATE TYPE "AgentStatus" AS ENUM ('REGISTERED', 'INITIALIZED', 'ACTIVE', 'PAUSED', 'TERMINATED');
 
 -- CreateTable
 CREATE TABLE "Actor" (
@@ -54,8 +56,25 @@ CREATE TABLE "ActorRelationship" (
     "affects" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "lastInteraction" TIMESTAMP(3),
+    "interactionCount" INTEGER NOT NULL DEFAULT 0,
+    "evolutionCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "ActorRelationship_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "NPCInteraction" (
+    "id" TEXT NOT NULL,
+    "actor1Id" TEXT NOT NULL,
+    "actor2Id" TEXT NOT NULL,
+    "interactionType" TEXT NOT NULL,
+    "sentiment" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "context" TEXT NOT NULL,
+    "metadata" JSONB,
+    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "NPCInteraction_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -104,12 +123,14 @@ CREATE TABLE "AgentPerformanceMetrics" (
     "averageROI" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "sharpeRatio" DOUBLE PRECISION,
     "totalFeedbackCount" INTEGER NOT NULL DEFAULT 0,
-    "averageFeedbackScore" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "averageFeedbackScore" DOUBLE PRECISION NOT NULL DEFAULT 70,
+    "intelFeedbackCount" INTEGER NOT NULL DEFAULT 0,
+    "averageIntelScore" DOUBLE PRECISION NOT NULL DEFAULT 50,
     "averageRating" DOUBLE PRECISION,
     "positiveCount" INTEGER NOT NULL DEFAULT 0,
     "neutralCount" INTEGER NOT NULL DEFAULT 0,
     "negativeCount" INTEGER NOT NULL DEFAULT 0,
-    "reputationScore" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "reputationScore" DOUBLE PRECISION NOT NULL DEFAULT 70,
     "trustLevel" TEXT NOT NULL DEFAULT 'UNRATED',
     "confidenceScore" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "onChainReputationSync" BOOLEAN NOT NULL DEFAULT false,
@@ -553,6 +574,7 @@ CREATE TABLE "OracleTransaction" (
 CREATE TABLE "Organization" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "ticker" TEXT,
     "description" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "canBeInvolved" BOOLEAN NOT NULL DEFAULT true,
@@ -926,6 +948,7 @@ CREATE TABLE "User" (
     "pointsAwardedForTwitter" BOOLEAN NOT NULL DEFAULT false,
     "pointsAwardedForUsername" BOOLEAN NOT NULL DEFAULT false,
     "pointsAwardedForWallet" BOOLEAN NOT NULL DEFAULT false,
+    "pointsAwardedForReferralBonus" BOOLEAN NOT NULL DEFAULT false,
     "referralCode" TEXT,
     "referralCount" INTEGER NOT NULL DEFAULT 0,
     "referredBy" TEXT,
@@ -1191,8 +1214,11 @@ CREATE TABLE "trained_models" (
     "evalMetrics" JSONB,
     "wandbRunId" TEXT,
     "wandbArtifactId" TEXT,
+    "huggingFaceRepo" TEXT,
     "agentsUsing" INTEGER NOT NULL DEFAULT 0,
     "totalInferences" INTEGER NOT NULL DEFAULT 0,
+    "lastBenchmarked" TIMESTAMP(3),
+    "benchmarkCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1218,6 +1244,27 @@ CREATE TABLE "training_batches" (
     "completedAt" TIMESTAMP(3),
 
     CONSTRAINT "training_batches_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "benchmark_results" (
+    "id" TEXT NOT NULL,
+    "modelId" TEXT NOT NULL,
+    "benchmarkId" TEXT NOT NULL,
+    "benchmarkPath" TEXT NOT NULL,
+    "runAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "totalPnl" DOUBLE PRECISION NOT NULL,
+    "predictionAccuracy" DOUBLE PRECISION NOT NULL,
+    "perpWinRate" DOUBLE PRECISION NOT NULL,
+    "optimalityScore" DOUBLE PRECISION NOT NULL,
+    "detailedMetrics" JSONB NOT NULL,
+    "baselinePnlDelta" DOUBLE PRECISION,
+    "baselineAccuracyDelta" DOUBLE PRECISION,
+    "improved" BOOLEAN,
+    "duration" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "benchmark_results_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1448,6 +1495,101 @@ CREATE TABLE "ModerationEscrow" (
     CONSTRAINT "ModerationEscrow_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "GenerationLock" (
+    "id" TEXT NOT NULL DEFAULT 'game-tick-lock',
+    "lockedBy" TEXT NOT NULL,
+    "lockedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "operation" TEXT NOT NULL DEFAULT 'game-tick',
+
+    CONSTRAINT "GenerationLock_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AgentRegistry" (
+    "id" TEXT NOT NULL,
+    "agentId" TEXT NOT NULL,
+    "type" "AgentType" NOT NULL,
+    "status" "AgentStatus" NOT NULL DEFAULT 'REGISTERED',
+    "trustLevel" INTEGER NOT NULL DEFAULT 0,
+    "userId" TEXT,
+    "actorId" TEXT,
+    "name" TEXT NOT NULL,
+    "systemPrompt" TEXT NOT NULL,
+    "discoveryCardVersion" TEXT,
+    "discoveryEndpointA2a" TEXT,
+    "discoveryEndpointMcp" TEXT,
+    "discoveryEndpointRpc" TEXT,
+    "discoveryAuthRequired" BOOLEAN NOT NULL DEFAULT false,
+    "discoveryAuthMethods" TEXT[],
+    "discoveryRateLimit" INTEGER,
+    "discoveryCostPerAction" DOUBLE PRECISION,
+    "onChainTokenId" INTEGER,
+    "onChainTxHash" TEXT,
+    "onChainServerWallet" TEXT,
+    "onChainReputationScore" INTEGER DEFAULT 0,
+    "onChainChainId" INTEGER,
+    "onChainIdentityRegistry" TEXT,
+    "onChainReputationSystem" TEXT,
+    "agent0TokenId" TEXT,
+    "agent0MetadataCID" TEXT,
+    "agent0SubgraphOwner" TEXT,
+    "agent0SubgraphMetadataURI" TEXT,
+    "agent0SubgraphTimestamp" INTEGER,
+    "agent0DiscoveryEndpoint" TEXT,
+    "runtimeInstanceId" TEXT,
+    "registeredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastActiveAt" TIMESTAMP(3),
+    "terminatedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "AgentRegistry_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AgentCapability" (
+    "id" TEXT NOT NULL,
+    "agentRegistryId" TEXT NOT NULL,
+    "strategies" TEXT[],
+    "markets" TEXT[],
+    "actions" TEXT[],
+    "version" TEXT NOT NULL DEFAULT '1.0.0',
+    "x402Support" BOOLEAN NOT NULL DEFAULT false,
+    "platform" TEXT,
+    "userType" TEXT,
+    "gameNetworkChainId" INTEGER,
+    "gameNetworkRpcUrl" TEXT,
+    "gameNetworkExplorerUrl" TEXT,
+    "skills" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "domains" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "a2aEndpoint" TEXT,
+    "mcpEndpoint" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "AgentCapability_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ExternalAgentConnection" (
+    "id" TEXT NOT NULL,
+    "agentRegistryId" TEXT NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "endpoint" TEXT NOT NULL,
+    "protocol" TEXT NOT NULL,
+    "authType" TEXT,
+    "authCredentials" TEXT,
+    "agentCardJson" JSONB,
+    "isHealthy" BOOLEAN NOT NULL DEFAULT true,
+    "lastHealthCheck" TIMESTAMP(3),
+    "lastConnected" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ExternalAgentConnection_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "Actor_hasPool_idx" ON "Actor"("hasPool");
 
@@ -1488,7 +1630,25 @@ CREATE INDEX "ActorRelationship_sentiment_idx" ON "ActorRelationship"("sentiment
 CREATE INDEX "ActorRelationship_strength_idx" ON "ActorRelationship"("strength");
 
 -- CreateIndex
+CREATE INDEX "ActorRelationship_lastInteraction_idx" ON "ActorRelationship"("lastInteraction");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "ActorRelationship_actor1Id_actor2Id_key" ON "ActorRelationship"("actor1Id", "actor2Id");
+
+-- CreateIndex
+CREATE INDEX "NPCInteraction_actor1Id_actor2Id_timestamp_idx" ON "NPCInteraction"("actor1Id", "actor2Id", "timestamp");
+
+-- CreateIndex
+CREATE INDEX "NPCInteraction_timestamp_idx" ON "NPCInteraction"("timestamp");
+
+-- CreateIndex
+CREATE INDEX "NPCInteraction_actor1Id_idx" ON "NPCInteraction"("actor1Id");
+
+-- CreateIndex
+CREATE INDEX "NPCInteraction_actor2Id_idx" ON "NPCInteraction"("actor2Id");
+
+-- CreateIndex
+CREATE INDEX "NPCInteraction_interactionType_idx" ON "NPCInteraction"("interactionType");
 
 -- CreateIndex
 CREATE INDEX "AgentLog_agentUserId_createdAt_idx" ON "AgentLog"("agentUserId", "createdAt" DESC);
@@ -1827,6 +1987,9 @@ CREATE INDEX "Organization_currentPrice_idx" ON "Organization"("currentPrice");
 CREATE INDEX "Organization_type_idx" ON "Organization"("type");
 
 -- CreateIndex
+CREATE INDEX "Organization_ticker_idx" ON "Organization"("ticker");
+
+-- CreateIndex
 CREATE INDEX "PerpPosition_organizationId_idx" ON "PerpPosition"("organizationId");
 
 -- CreateIndex
@@ -1983,19 +2146,19 @@ CREATE UNIQUE INDEX "Reaction_commentId_userId_type_key" ON "Reaction"("commentI
 CREATE UNIQUE INDEX "Reaction_postId_userId_type_key" ON "Reaction"("postId", "userId", "type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Referral_referralCode_key" ON "Referral"("referralCode");
-
--- CreateIndex
 CREATE INDEX "Referral_referralCode_idx" ON "Referral"("referralCode");
-
--- CreateIndex
-CREATE INDEX "Referral_referredUserId_idx" ON "Referral"("referredUserId");
 
 -- CreateIndex
 CREATE INDEX "Referral_referrerId_idx" ON "Referral"("referrerId");
 
 -- CreateIndex
+CREATE INDEX "Referral_referredUserId_idx" ON "Referral"("referredUserId");
+
+-- CreateIndex
 CREATE INDEX "Referral_status_createdAt_idx" ON "Referral"("status", "createdAt" DESC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Referral_referralCode_referredUserId_key" ON "Referral"("referralCode", "referredUserId");
 
 -- CreateIndex
 CREATE INDEX "Share_createdAt_idx" ON "Share"("createdAt" DESC);
@@ -2241,6 +2404,9 @@ CREATE INDEX "trained_models_version_idx" ON "trained_models"("version");
 CREATE INDEX "trained_models_deployedAt_idx" ON "trained_models"("deployedAt");
 
 -- CreateIndex
+CREATE INDEX "trained_models_lastBenchmarked_idx" ON "trained_models"("lastBenchmarked");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "training_batches_batchId_key" ON "training_batches"("batchId");
 
 -- CreateIndex
@@ -2248,6 +2414,18 @@ CREATE INDEX "training_batches_scenarioId_idx" ON "training_batches"("scenarioId
 
 -- CreateIndex
 CREATE INDEX "training_batches_status_createdAt_idx" ON "training_batches"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "benchmark_results_modelId_idx" ON "benchmark_results"("modelId");
+
+-- CreateIndex
+CREATE INDEX "benchmark_results_benchmarkId_idx" ON "benchmark_results"("benchmarkId");
+
+-- CreateIndex
+CREATE INDEX "benchmark_results_runAt_idx" ON "benchmark_results"("runAt");
+
+-- CreateIndex
+CREATE INDEX "benchmark_results_optimalityScore_idx" ON "benchmark_results"("optimalityScore");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "trajectories_trajectoryId_key" ON "trajectories"("trajectoryId");
@@ -2411,6 +2589,63 @@ CREATE INDEX "ModerationEscrow_paymentTxHash_idx" ON "ModerationEscrow"("payment
 -- CreateIndex
 CREATE INDEX "ModerationEscrow_createdAt_idx" ON "ModerationEscrow"("createdAt" DESC);
 
+-- CreateIndex
+CREATE INDEX "GenerationLock_expiresAt_idx" ON "GenerationLock"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AgentRegistry_agentId_key" ON "AgentRegistry"("agentId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AgentRegistry_userId_key" ON "AgentRegistry"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AgentRegistry_actorId_key" ON "AgentRegistry"("actorId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AgentRegistry_runtimeInstanceId_key" ON "AgentRegistry"("runtimeInstanceId");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_type_status_idx" ON "AgentRegistry"("type", "status");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_trustLevel_idx" ON "AgentRegistry"("trustLevel");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_userId_idx" ON "AgentRegistry"("userId");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_actorId_idx" ON "AgentRegistry"("actorId");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_status_lastActiveAt_idx" ON "AgentRegistry"("status", "lastActiveAt");
+
+-- CreateIndex
+CREATE INDEX "AgentRegistry_type_trustLevel_idx" ON "AgentRegistry"("type", "trustLevel");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AgentCapability_agentRegistryId_key" ON "AgentCapability"("agentRegistryId");
+
+-- CreateIndex
+CREATE INDEX "AgentCapability_agentRegistryId_idx" ON "AgentCapability"("agentRegistryId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ExternalAgentConnection_agentRegistryId_key" ON "ExternalAgentConnection"("agentRegistryId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ExternalAgentConnection_externalId_key" ON "ExternalAgentConnection"("externalId");
+
+-- CreateIndex
+CREATE INDEX "ExternalAgentConnection_agentRegistryId_idx" ON "ExternalAgentConnection"("agentRegistryId");
+
+-- CreateIndex
+CREATE INDEX "ExternalAgentConnection_externalId_idx" ON "ExternalAgentConnection"("externalId");
+
+-- CreateIndex
+CREATE INDEX "ExternalAgentConnection_protocol_idx" ON "ExternalAgentConnection"("protocol");
+
+-- CreateIndex
+CREATE INDEX "ExternalAgentConnection_isHealthy_idx" ON "ExternalAgentConnection"("isHealthy");
+
 -- AddForeignKey
 ALTER TABLE "ActorFollow" ADD CONSTRAINT "ActorFollow_followerId_fkey" FOREIGN KEY ("followerId") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -2422,6 +2657,12 @@ ALTER TABLE "ActorRelationship" ADD CONSTRAINT "ActorRelationship_actor1Id_fkey"
 
 -- AddForeignKey
 ALTER TABLE "ActorRelationship" ADD CONSTRAINT "ActorRelationship_actor2Id_fkey" FOREIGN KEY ("actor2Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor1Id_fkey" FOREIGN KEY ("actor1Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor2Id_fkey" FOREIGN KEY ("actor2Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AgentLog" ADD CONSTRAINT "AgentLog_agentUserId_fkey" FOREIGN KEY ("agentUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2641,3 +2882,15 @@ ALTER TABLE "ModerationEscrow" ADD CONSTRAINT "ModerationEscrow_adminId_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "ModerationEscrow" ADD CONSTRAINT "ModerationEscrow_refundedBy_fkey" FOREIGN KEY ("refundedBy") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AgentRegistry" ADD CONSTRAINT "AgentRegistry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AgentRegistry" ADD CONSTRAINT "AgentRegistry_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AgentCapability" ADD CONSTRAINT "AgentCapability_agentRegistryId_fkey" FOREIGN KEY ("agentRegistryId") REFERENCES "AgentRegistry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ExternalAgentConnection" ADD CONSTRAINT "ExternalAgentConnection_agentRegistryId_fkey" FOREIGN KEY ("agentRegistryId") REFERENCES "AgentRegistry"("id") ON DELETE CASCADE ON UPDATE CASCADE;

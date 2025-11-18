@@ -399,8 +399,8 @@
       "file": "./organizations/nvidai.json"
     },
     {
-      "id": "opnai",
-      "file": "./organizations/opnai.json"
+      "id": "openagi",
+      "file": "./organizations/openagi.json"
     },
     {
       "id": "palaintir",
@@ -427,8 +427,8 @@
       "file": "./organizations/teslai.json"
     },
     {
-      "id": "the-baizos-gazette",
-      "file": "./organizations/the-baizos-gazette.json"
+      "id": "wall-street-journai",
+      "file": "./organizations/wall-street-journai.json"
     },
     {
       "id": "the-daily-wire",
