@@ -14,7 +14,34 @@
  *   bun run scripts/admin.ts list
  */
 
-import { prisma } from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client'
+import { prisma as sharedPrisma } from '@/lib/prisma'
+
+/**
+ * Prefer a direct database URL for admin scripts to avoid Prisma Data Proxy
+ */
+const directDatabaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL
+
+const prisma = (() => {
+  if (directDatabaseUrl) {
+    console.log('ℹ️  Using direct database URL for admin operations')
+    return new PrismaClient({
+      datasources: {
+        db: {
+          url: directDatabaseUrl,
+        },
+      },
+    })
+  }
+
+  if (process.env.PRISMA_DATABASE_URL) {
+    console.warn(
+      '⚠️  DIRECT_DATABASE_URL not set. Falling back to Prisma Data Proxy connection (raw queries may fail).'
+    )
+  }
+
+  return sharedPrisma
+})()
 
 const command = process.argv[2]
 const identifier = process.argv[3]
@@ -240,4 +267,3 @@ async function main() {
 }
 
 main()
-
