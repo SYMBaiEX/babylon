@@ -26,29 +26,133 @@ describe('Agent Actions Persistence Integration', () => {
 
   beforeAll(async () => {
     // Mock fetch to handle A2A client initialization
-    global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = input.toString()
       if (url.includes('.well-known/agent-card.json')) {
-        return new Response(JSON.stringify({
+        // Return a valid A2A agent card structure with required fields
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BABYLON_A2A_ENDPOINT || 'http://localhost:3000'
+        const agentCard = {
+          protocolVersion: '0.3.0',
           name: "Test Agent",
-          description: "A test agent",
-          version: "1.0.0",
-          capabilities: ["trading", "posting"]
-        }), { status: 200 })
+          description: "A test agent for integration testing",
+          url: `${baseUrl}/api/agents/test-agent/a2a`,
+          preferredTransport: 'JSONRPC' as const,
+          additionalInterfaces: [
+            {
+              url: `${baseUrl}/api/agents/test-agent/a2a`,
+              transport: 'JSONRPC' as const
+            }
+          ],
+          provider: {
+            organization: 'Babylon',
+            url: 'https://babylon.game'
+          },
+          iconUrl: `${baseUrl}/logo.svg`,
+          version: '1.0.0',
+          documentationUrl: `${baseUrl}/docs`,
+          capabilities: {
+            streaming: false,
+            pushNotifications: false,
+            stateTransitionHistory: true
+          },
+          securitySchemes: {},
+          security: [],
+          defaultInputModes: ['text/plain', 'application/json'],
+          defaultOutputModes: ['application/json'],
+          skills: [],
+          supportsAuthenticatedExtendedCard: false
+        }
+        return new Response(JSON.stringify(agentCard), { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
       }
-      // Allow other requests (like to other services if needed, or mock them too)
-      // For local connection refused, we might want to catch it?
-      // But originalFetch will throw if connection refused.
+      // Mock A2A endpoint calls to prevent actual HTTP requests during tests
+      if (url.includes('/api/agents/') && url.includes('/a2a')) {
+        // Parse the request body to get the RPC ID and method
+        let rpcId = 1
+        let method = ''
+        let params: { id?: string } = {}
+        
+        if (init?.body) {
+          try {
+            const body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body
+            if (body.id !== undefined) {
+              rpcId = body.id
+            }
+            if (body.method) {
+              method = body.method
+            }
+            if (body.params) {
+              params = body.params
+            }
+          } catch {
+            // If parsing fails, use defaults
+          }
+        }
+        
+        // Handle different A2A methods
+        if (method === 'tasks/get' || method === 'tasks.get') {
+          // Return completed task for polling with proper structure
+          return new Response(JSON.stringify({
+            jsonrpc: '2.0',
+            id: rpcId,
+            result: {
+              task: {
+                id: params.id || `mock-task-${Date.now()}`,
+                status: {
+                  state: 'completed'
+                },
+                artifacts: [{
+                  parts: [{
+                    kind: 'data',
+                    data: {
+                      success: false,
+                      error: 'A2A endpoint mocked for testing'
+                    }
+                  }]
+                }]
+              }
+            }
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+        
+        // For message/send, return a task that will be polled
+        return new Response(JSON.stringify({
+          jsonrpc: '2.0',
+          id: rpcId,
+          result: {
+            kind: 'task',
+            task: {
+              id: `mock-task-${Date.now()}`,
+              status: {
+                state: 'pending'
+              }
+            }
+          }
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      // Allow other requests to pass through
       try {
         return await originalFetch(input, init)
       } catch (error) {
-        // If it's a connection error to localhost, just return 404 or 500 to avoid crashing
+        // If it's a connection error to localhost, return 503 to avoid crashing
         if (url.includes('localhost')) {
            return new Response(null, { status: 503, statusText: "Service Unavailable" })
         }
         throw error
       }
     }
+    
+    // Assign mock with all required fetch properties
+    global.fetch = mockFetch as typeof fetch
 
     // Create test agent with autonomous features enabled
     const agentResult = await createTestAgent('integration-test-agent-actions', {

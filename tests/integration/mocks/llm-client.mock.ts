@@ -8,7 +8,7 @@ mock.module('@/generator/llm/openai-client', () => {
     BabylonLLMClient: {
       forGameTick: () => ({
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
-        generateJSON: async (prompt: string, schema: any, options: any) => {
+        generateJSON: async (_prompt: string, schema: any, _options: any) => {
           // Return mock responses based on schema properties
           if (schema.properties.question) {
             return {

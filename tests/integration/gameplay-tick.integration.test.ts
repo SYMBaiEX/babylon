@@ -21,7 +21,7 @@ mock.module('@/generator/llm/openai-client', () => {
       forGameTick: () => ({
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
-        generateJSON: async (prompt: string, schema: any) => {
+        generateJSON: async (_prompt: string, schema: any) => {
           // Return mock responses based on schema properties
           if (schema.properties && schema.properties.question) {
             return {
