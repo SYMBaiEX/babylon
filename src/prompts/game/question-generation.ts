@@ -41,7 +41,7 @@ Generate {{numToGenerate}} NEW prediction market questions that:
 IMPORTANT RULES:
 - Use ONLY the exact actor names from KEY ACTORS list above
 - Use ONLY the exact company names from KEY COMPANIES list above
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - ALWAYS use the parody names of the characters and companies (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.)
 - NEVER "correct" or change parody names - use them exactly as shown in the lists
 - Reference actors and companies by their exact names from the provided lists

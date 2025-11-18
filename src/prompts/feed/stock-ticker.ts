@@ -41,7 +41,7 @@ Requirements:
 - Max 150 characters
 - No hashtags or emojis
 - Professional but can be subtly satirical
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames
+- NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events related to the price movement

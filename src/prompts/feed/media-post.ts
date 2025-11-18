@@ -32,7 +32,7 @@ WORLD CONTEXT:
 As a {{mediaName}}, break this story with your organizational bias.
 {{sourceHint}}
 
-Write a breaking news post (max 140 chars) in your organization's style. No hashtags or emojis. NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames.
+Write a breaking news post (max 140 chars) in your organization's style. No hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events mentioned in the event description

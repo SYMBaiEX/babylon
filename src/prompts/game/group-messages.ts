@@ -36,7 +36,7 @@ This is PRIVATE. Members say things here they would NEVER say publicly:
 
 IMPORTANT RULES:
 - Use ONLY the exact actor names provided in the context above
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - NEVER "correct" or change parody names - use them exactly as shown
 - When referencing other actors, use their exact parody names from the game world
 

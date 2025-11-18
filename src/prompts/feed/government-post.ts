@@ -34,7 +34,7 @@ WORLD CONTEXT:
 
 Write ONE official government statement (max 140 chars).
 Bureaucratic, cautious, official tone.
-NO hashtags or emojis. NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames.
+NO hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events mentioned in the event description

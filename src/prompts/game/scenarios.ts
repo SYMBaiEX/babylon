@@ -29,7 +29,7 @@ MAIN ACTORS:
 
 IMPORTANT RULES:
 - Use ONLY the exact actor names provided in MAIN ACTORS list above
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - NEVER "correct" or change the provided parody names - use them exactly as shown
 - Use ONLY the exact organization names provided in ORGANIZATIONS IN PLAY (if any)
 

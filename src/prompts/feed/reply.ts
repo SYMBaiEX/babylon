@@ -29,7 +29,7 @@ WORLD CONTEXT:
 {{activePredictions}}
 {{recentTrades}}
 
-Write a reply (max 140 chars) responding to this post. No hashtags or emojis. NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.) - ALWAYS use ONLY parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.) or @usernames.
+Write a reply (max 140 chars) responding to this post. No hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events from the original post or WORLD CONTEXT

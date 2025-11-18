@@ -37,8 +37,8 @@ WORLD CONTEXT:
 
 IMPORTANT RULES:
 - NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
-- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.)
+- NEVER use real-world person or organization names
+- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
 - Use @username or parody name/nickname/alias ONLY
 
 CONTENT REQUIREMENTS:

@@ -27,7 +27,7 @@ Context:
 - Recent events: {{recentEvents}}
 
 IMPORTANT RULES:
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, Vitalik Buterin, etc.)
+- NEVER use real-world person or organization names
 - When referencing actors or companies from recent events, use their exact parody names
 - NEVER "correct" or change parody names - use them exactly as shown in events
 
