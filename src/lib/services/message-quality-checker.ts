@@ -1,19 +1,19 @@
 /**
  * Message Quality Checker Service
  * 
- * Validates message quality based on:
- * - Length (not too short, not too long)
- * - Uniqueness (not duplicate of recent messages)
- * - Content quality (not spam, not gibberish)
- * 
- * Returns a quality score (0-1) that affects:
- * - Following chances
- * - Group chat invite chances
- * - Risk of being booted from group chats
+ * @description Validates message quality based on length, uniqueness, and content
+ * quality. Returns a quality score (0-1) that affects following chances, group
+ * chat invite chances, and risk of being booted from group chats.
  */
 
 import { prisma } from '@/lib/prisma';
 
+/**
+ * Message quality check result
+ * 
+ * @description Contains quality score, pass/fail status, warnings, errors,
+ * and detailed factor scores for length, uniqueness, and content quality.
+ */
 export interface QualityCheckResult {
   score: number; // 0-1, where 1 is perfect
   passed: boolean; // Whether message meets minimum standards
@@ -26,18 +26,55 @@ export interface QualityCheckResult {
   };
 }
 
+/**
+ * Message Quality Checker Class
+ * 
+ * @description Static service class for validating message quality. Provides
+ * methods for checking length, uniqueness, and content quality, returning
+ * comprehensive quality scores.
+ */
 export class MessageQualityChecker {
-  // Length thresholds
+  /**
+   * Minimum message length (10 characters)
+   * @private
+   */
   private static readonly MIN_LENGTH = 10;
+  
+  /**
+   * Ideal minimum message length (30 characters)
+   * @private
+   */
   private static readonly IDEAL_MIN_LENGTH = 30;
+  
+  /**
+   * Ideal maximum message length (200 characters)
+   * @private
+   */
   private static readonly IDEAL_MAX_LENGTH = 200;
+  
+  /**
+   * Maximum message length (500 characters)
+   * @private
+   */
   private static readonly MAX_LENGTH = 500;
 
-  // Similarity threshold for duplicate detection
+  /**
+   * Similarity threshold for duplicate detection (0.85)
+   * @private
+   */
   private static readonly DUPLICATE_THRESHOLD = 0.85;
 
   /**
    * Check message quality
+   * 
+   * @description Validates message quality across multiple dimensions (length,
+   * uniqueness, content quality) and returns a comprehensive quality score.
+   * 
+   * @param {string} message - Message text to check
+   * @param {string} userId - User ID who sent the message
+   * @param {'reply' | 'groupchat' | 'dm'} contextType - Context type
+   * @param {string} contextId - Context ID (postId, chatId, or empty for game chats)
+   * @returns {Promise<QualityCheckResult>} Quality check result with score and details
    */
   static async checkQuality(
     message: string,

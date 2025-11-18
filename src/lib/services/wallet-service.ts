@@ -1,7 +1,11 @@
 /**
  * Virtual Wallet Service
- *
- * Manages user's virtual USD balance for trading:
+ * 
+ * @description Manages user's virtual USD balance for trading. Provides
+ * methods for checking balances, debiting/crediting funds, and tracking
+ * transaction history. All users start with $1,000 virtual balance.
+ * 
+ * Features:
  * - Starting balance: $1,000
  * - Tracks all transactions
  * - Validates sufficient funds
@@ -15,6 +19,11 @@ import { prisma } from '@/lib/prisma';
 import { EarnedPointsService } from '@/lib/services/earned-points-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
+/**
+ * User balance information
+ * 
+ * @description Contains current balance and lifetime statistics.
+ */
 export interface BalanceInfo {
   balance: number;
   totalDeposited: number;
@@ -22,6 +31,12 @@ export interface BalanceInfo {
   lifetimePnL: number;
 }
 
+/**
+ * Transaction history item
+ * 
+ * @description Represents a single balance transaction with before/after
+ * balances and metadata.
+ */
 export interface TransactionHistoryItem {
   id: string;
   type: string;
@@ -33,9 +48,36 @@ export interface TransactionHistoryItem {
   createdAt: Date;
 }
 
+/**
+ * Wallet Service Class
+ * 
+ * @description Static service class for managing user virtual balances.
+ * Provides methods for checking balances, debiting/crediting funds, and
+ * retrieving transaction history.
+ */
 export class WalletService {
+  /**
+   * Starting balance for new users ($1,000 USD)
+   * 
+   * @private
+   */
   private static readonly STARTING_BALANCE = 1000; // $1,000 USD
 
+  /**
+   * Apply balance change atomically
+   * 
+   * @description Internal method to apply a balance change and create a
+   * transaction record. Used by debit and credit methods.
+   * 
+   * @param {Prisma.TransactionClient} tx - Prisma transaction client
+   * @param {string} userId - User ID
+   * @param {number} delta - Amount to change (positive for credit, negative for debit)
+   * @param {string} type - Transaction type identifier
+   * @param {string} description - Transaction description
+   * @param {string} [relatedId] - Optional related entity ID
+   * @returns {Promise<void>}
+   * @private
+   */
   private static async applyBalanceChange(
     tx: Prisma.TransactionClient,
     userId: string,
@@ -79,6 +121,18 @@ export class WalletService {
 
   /**
    * Get user's current balance
+   * 
+   * @description Retrieves user's current balance and lifetime statistics.
+   * 
+   * @param {string} userId - User ID
+   * @returns {Promise<BalanceInfo>} Balance information
+   * @throws {Error} If user not found
+   * 
+   * @example
+   * ```typescript
+   * const balance = await WalletService.getBalance(userId);
+   * console.log(`Balance: $${balance.balance}`);
+   * ```
    */
   static async getBalance(userId: string): Promise<BalanceInfo> {
     const user = await prisma.user.findUnique({
@@ -105,6 +159,19 @@ export class WalletService {
 
   /**
    * Check if user has sufficient balance
+   * 
+   * @description Checks if user has enough balance for a transaction.
+   * 
+   * @param {string} userId - User ID
+   * @param {number} requiredAmount - Required amount
+   * @returns {Promise<boolean>} True if user has sufficient balance
+   * 
+   * @example
+   * ```typescript
+   * if (await WalletService.hasSufficientBalance(userId, 100)) {
+   *   // Proceed with transaction
+   * }
+   * ```
    */
   static async hasSufficientBalance(
     userId: string,
@@ -124,6 +191,23 @@ export class WalletService {
 
   /**
    * Debit from user's balance (opening position, buying shares)
+   * 
+   * @description Debits an amount from user's balance. Used when opening
+   * positions or buying shares. Creates a transaction record.
+   * 
+   * @param {string} userId - User ID
+   * @param {number} amount - Amount to debit
+   * @param {string} type - Transaction type identifier
+   * @param {string} description - Transaction description
+   * @param {string} [relatedId] - Optional related entity ID
+   * @param {Prisma.TransactionClient} [tx] - Optional transaction client for atomic operations
+   * @returns {Promise<void>}
+   * @throws {Error} If user not found or insufficient balance
+   * 
+   * @example
+   * ```typescript
+   * await WalletService.debit(userId, 100, 'pred_buy', 'Buying shares', tradeId);
+   * ```
    */
   static async debit(
     userId: string,

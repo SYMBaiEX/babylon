@@ -1,7 +1,20 @@
+/**
+ * User Management Utilities
+ * 
+ * @description Utilities for ensuring users exist in the database and managing
+ * canonical user IDs. Handles user creation and updates based on authentication
+ * information.
+ */
+
 import { prisma } from '@/lib/prisma'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import type { Prisma } from '@prisma/client'
 
+/**
+ * Options for ensuring user exists
+ * 
+ * @description Configuration options for user creation/update.
+ */
 interface EnsureUserOptions {
   displayName?: string
   username?: string | null
@@ -22,6 +35,25 @@ type CanonicalUserWithPrivy = Prisma.UserGetPayload<{ select: typeof selectWithP
 
 type CanonicalUser = CanonicalUserWithPrivy
 
+/**
+ * Ensure user exists in database for authenticated user
+ * 
+ * @description Creates or updates a user record based on authenticated user
+ * information. Uses upsert to handle both new and existing users. Updates
+ * dbUserId on the authenticated user object.
+ * 
+ * @param {AuthenticatedUser} user - Authenticated user information
+ * @param {EnsureUserOptions} [options={}] - Options for user creation/update
+ * @returns {Promise<{user: CanonicalUser}>} Canonical user object
+ * 
+ * @example
+ * ```typescript
+ * const { user } = await ensureUserForAuth(authUser, {
+ *   username: 'alice',
+ *   displayName: 'Alice'
+ * });
+ * ```
+ */
 export async function ensureUserForAuth(
   user: AuthenticatedUser,
   options: EnsureUserOptions = {}
@@ -79,6 +111,21 @@ export async function ensureUserForAuth(
   return { user: canonicalUser }
 }
 
+/**
+ * Get canonical user ID
+ * 
+ * @description Returns the database user ID if available, otherwise falls
+ * back to the authentication user ID. Ensures a consistent user ID format.
+ * 
+ * @param {Pick<AuthenticatedUser, 'userId' | 'dbUserId'>} user - User object with IDs
+ * @returns {string} Canonical user ID
+ * 
+ * @example
+ * ```typescript
+ * const userId = getCanonicalUserId(authUser);
+ * // Returns dbUserId if set, otherwise userId
+ * ```
+ */
 export function getCanonicalUserId(user: Pick<AuthenticatedUser, 'userId' | 'dbUserId'>): string {
   return user.dbUserId ?? user.userId
 }

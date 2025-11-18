@@ -1,3 +1,10 @@
+/**
+ * API Fetch Options
+ * 
+ * @description Extended fetch options with authentication and retry configuration.
+ * Extends standard RequestInit with Babylon-specific options for automatic token
+ * attachment and 401 retry logic.
+ */
 export interface ApiFetchOptions extends RequestInit {
   /**
    * When true (default), the current Privy access token is attached if available.
@@ -11,6 +18,13 @@ export interface ApiFetchOptions extends RequestInit {
 
 /**
  * Get a fresh Privy access token
+ * 
+ * @description Retrieves a fresh Privy access token from the window object.
+ * Uses the Privy hook's getAccessToken if available, otherwise falls back
+ * to cached token. Returns null in server-side environments.
+ * 
+ * @returns {Promise<string | null>} Access token or null if unavailable
+ * @private
  */
 async function getPrivyAccessToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
@@ -28,12 +42,32 @@ async function getPrivyAccessToken(): Promise<string | null> {
 }
 
 /**
- * Lightweight wrapper around fetch that decorates requests with the latest
- * Privy access token stored on window. Centralising this logic avoids
- * sprinkling direct window lookups across the codebase and keeps future
- * Privy integration changes localised.
+ * Lightweight wrapper around fetch that decorates requests with authentication
  * 
- * Automatically retries requests with a fresh token if a 401 error is received.
+ * @description Wrapper around fetch that automatically adds Privy access tokens
+ * to requests. Centralizes authentication logic and avoids direct window lookups
+ * across the codebase. Automatically retries requests with a fresh token if a
+ * 401 error is received.
+ * 
+ * @param {RequestInfo} input - Request URL or Request object
+ * @param {ApiFetchOptions} [init] - Fetch options with auth configuration
+ * @param {boolean} [init.auth=true] - Whether to attach auth token (default: true)
+ * @param {boolean} [init.autoRetryOn401=true] - Whether to retry on 401 (default: true)
+ * @returns {Promise<Response>} Fetch response
+ * 
+ * @example
+ * ```typescript
+ * // With authentication (default)
+ * const response = await apiFetch('/api/posts');
+ * 
+ * // Without authentication
+ * const response = await apiFetch('/api/public', { auth: false });
+ * 
+ * // Custom headers
+ * const response = await apiFetch('/api/data', {
+ *   headers: { 'Custom-Header': 'value' }
+ * });
+ * ```
  */
 export async function apiFetch(input: RequestInfo, init: ApiFetchOptions = {}) {
   const { auth = true, autoRetryOn401 = true, headers, ...rest } = init;

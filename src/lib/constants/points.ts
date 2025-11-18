@@ -1,11 +1,18 @@
 /**
  * Points Constants
  * 
- * Point award amounts for various actions in the rewards system.
- * Extracted to avoid bundling Prisma into client components.
+ * @description Point award amounts for various actions in the rewards system.
+ * Extracted to avoid bundling Prisma into client components. These constants
+ * define the point values awarded for user actions like signup, profile completion,
+ * social account linking, and referrals.
  */
 
-// Point award amounts
+/**
+ * Point award amounts for various user actions
+ * 
+ * @description Defines the number of points awarded for different user actions
+ * in the rewards system. Used by the points service to calculate rewards.
+ */
 export const POINTS = {
   INITIAL_SIGNUP: 1000,
   PROFILE_COMPLETION: 1000, // Username + Profile Image + Bio (consolidated)
@@ -18,6 +25,12 @@ export const POINTS = {
   REFERRAL_BONUS: 250,  // Bonus for new user who used a referral code
 } as const;
 
+/**
+ * Valid reasons for point transactions
+ * 
+ * @description Enumeration of all valid reasons for awarding or deducting points.
+ * Used in balance transactions and points service to track point movements.
+ */
 export type PointsReason =
   | 'initial_signup'
   | 'profile_completion'

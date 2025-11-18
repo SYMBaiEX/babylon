@@ -79,6 +79,19 @@ export const redisClientType = redisType
 
 /**
  * Check if Redis is available
+ * 
+ * @description Determines if a Redis client has been successfully initialized
+ * and is available for use. Returns false if Redis is not configured or failed
+ * to initialize.
+ * 
+ * @returns {boolean} True if Redis is available, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * if (isRedisAvailable()) {
+ *   await redis.set('key', 'value');
+ * }
+ * ```
  */
 export function isRedisAvailable(): boolean {
   return redis !== null
@@ -86,7 +99,19 @@ export function isRedisAvailable(): boolean {
 
 /**
  * Safely publish to Redis (no-op if not available)
- * Works with both Upstash and standard Redis
+ * 
+ * @description Publishes a message to a Redis channel. Works with both Upstash
+ * REST API and standard Redis protocol. Returns false if Redis is not available.
+ * Automatically sets channel expiration to 60 seconds.
+ * 
+ * @param {string} channel - Redis channel name
+ * @param {string} message - Message to publish
+ * @returns {Promise<boolean>} True if published successfully, false if Redis unavailable
+ * 
+ * @example
+ * ```typescript
+ * await safePublish('events', JSON.stringify({ type: 'user_login', userId: '123' }));
+ * ```
  */
 export async function safePublish(channel: string, message: string): Promise<boolean> {
   if (!redis) return false
@@ -103,7 +128,20 @@ export async function safePublish(channel: string, message: string): Promise<boo
 
 /**
  * Safely poll Redis for messages (returns empty array if not available)
- * Works with both Upstash and standard Redis
+ * 
+ * @description Polls a Redis channel for messages, removing them from the queue.
+ * Works with both Upstash REST API and standard Redis protocol. Returns empty
+ * array if Redis is not available or no messages found.
+ * 
+ * @param {string} channel - Redis channel name to poll
+ * @param {number} count - Maximum number of messages to retrieve (default: 10)
+ * @returns {Promise<string[]>} Array of messages, or empty array if none found/unavailable
+ * 
+ * @example
+ * ```typescript
+ * const messages = await safePoll('events', 20);
+ * messages.forEach(msg => processMessage(JSON.parse(msg)));
+ * ```
  */
 export async function safePoll(channel: string, count: number = 10): Promise<string[]> {
   if (!redis) return []
@@ -133,6 +171,18 @@ export async function safePoll(channel: string, count: number = 10): Promise<str
 
 /**
  * Cleanup Redis connection on shutdown
+ * 
+ * @description Gracefully closes the Redis connection. Only closes standard Redis
+ * connections (not Upstash REST API). Safe to call multiple times. Used during
+ * application shutdown to clean up resources.
+ * 
+ * @returns {Promise<void>} Promise that resolves when connection is closed
+ * 
+ * @example
+ * ```typescript
+ * // On application shutdown
+ * await closeRedis();
+ * ```
  */
 export async function closeRedis(): Promise<void> {
   if (isClosing) return

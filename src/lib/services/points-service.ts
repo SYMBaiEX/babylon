@@ -1,8 +1,9 @@
 /**
  * Points Service
- *
- * Centralized service for managing reputation points and rewards
- * Tracks all point transactions and ensures no duplicate awards
+ * 
+ * @description Centralized service for managing reputation points and rewards.
+ * Tracks all point transactions and ensures no duplicate awards. Handles different
+ * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -11,8 +12,19 @@ import { POINTS, type PointsReason } from '@/lib/constants/points';
 
 import type { JsonValue } from '@/types/common';
 
+/**
+ * Leaderboard category type
+ * 
+ * @description Categories for filtering leaderboard results.
+ */
 type LeaderboardCategory = 'all' | 'earned' | 'referral';
 
+/**
+ * Result of awarding points to a user
+ * 
+ * @description Contains success status, points awarded, new total, and optional
+ * error information.
+ */
 interface AwardPointsResult {
   success: boolean;
   pointsAwarded: number;
@@ -21,9 +33,36 @@ interface AwardPointsResult {
   error?: string;
 }
 
+/**
+ * Points Service Class
+ * 
+ * @description Static service class for managing user points and rewards.
+ * Provides methods for awarding points, checking duplicates, and retrieving
+ * leaderboards.
+ */
 export class PointsService {
   /**
    * Award points to a user with transaction tracking
+   * 
+   * @description Awards points to a user for a specific reason. Prevents duplicate
+   * awards by checking if points were already awarded for this reason. Creates a
+   * transaction record and updates user's point totals atomically.
+   * 
+   * @param {string} userId - User ID to award points to
+   * @param {number} amount - Points amount to award
+   * @param {PointsReason} reason - Reason for awarding points
+   * @param {Record<string, JsonValue>} [metadata] - Optional metadata for the transaction
+   * @returns {Promise<AwardPointsResult>} Result with success status and point totals
+   * 
+   * @example
+   * ```typescript
+   * const result = await PointsService.awardPoints(
+   *   userId,
+   *   POINTS.PROFILE_COMPLETION,
+   *   'profile_completion',
+   *   { source: 'onboarding' }
+   * );
+   * ```
    */
   static async awardPoints(
     userId: string,

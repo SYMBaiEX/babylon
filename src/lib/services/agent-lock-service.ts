@@ -1,18 +1,20 @@
 /**
  * Agent Lock Service
  * 
- * @description
- * Per-agent distributed locks to prevent concurrent agent tick execution.
- * Each agent gets its own lock to prevent double-ticking or stacking ticks.
+ * @description Per-agent distributed locks to prevent concurrent agent tick execution.
+ * Each agent gets its own lock to prevent double-ticking or stacking ticks. Uses
+ * database-based locking that works across multiple servers with automatic stale
+ * lock recovery (15 minutes expiry).
  * 
- * **Features**:
+ * Features:
  * - Per-agent locking (independent locks for each agent)
  * - Database-based locking (works across multiple servers)
- * - Automatic stale lock recovery (10 minutes expiry)
+ * - Automatic stale lock recovery (15 minutes expiry)
  * - Simple acquire/release pattern
  * - No external dependencies (uses Prisma)
+ * - Serverless-safe (uses timestamp + random bytes instead of process.pid)
  * 
- * **Usage**:
+ * Usage:
  * ```typescript
  * if (!await acquireAgentLock(agentId)) {
  *   return; // Skip this agent, still running from previous tick
@@ -21,7 +23,7 @@
  * try {
  *   await runAgentTick(agentId);
  * } finally {
- *   await releaseAgentLock(agentId);
+ *   await releaseAgentLock(agentId, processId);
  * }
  * ```
  */
@@ -36,6 +38,12 @@ const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes - stale lock recovery
 
 /**
  * Get lock ID for an agent
+ * 
+ * @description Generates a unique lock ID for an agent based on agent ID.
+ * 
+ * @param {string} agentId - Agent identifier
+ * @returns {string} Lock ID
+ * @private
  */
 function getAgentLockId(agentId: string): string {
   return `agent-tick-${agentId}`;
@@ -44,17 +52,24 @@ function getAgentLockId(agentId: string): string {
 /**
  * Acquire agent lock
  * 
- * @param agentId - Agent identifier
- * @param processId - Identifier for this process (default: random)
- * @returns true if lock acquired, false if already held
- * 
- * @description
- * Attempts to acquire a distributed lock for an agent's tick execution.
+ * @description Attempts to acquire a distributed lock for an agent's tick execution.
  * If lock is already held and not expired, returns false (agent still running).
  * If lock is expired (>15 minutes old), automatically acquires it (stale lock recovery).
  * 
- * **Serverless Safety**: Uses database-based locks with unique serverless-safe IDs.
+ * Serverless Safety: Uses database-based locks with unique serverless-safe IDs.
  * Lock expiry (15min) is longer than Vercel maxDuration (13.3min) to prevent premature expiry.
+ * 
+ * @param {string} agentId - Agent identifier
+ * @param {string} [processId] - Identifier for this process (default: random serverless-safe ID)
+ * @returns {Promise<boolean>} True if lock acquired, false if already held
+ * 
+ * @example
+ * ```typescript
+ * const acquired = await acquireAgentLock(agentId, processId);
+ * if (!acquired) {
+ *   return; // Skip, agent still running
+ * }
+ * ```
  */
 export async function acquireAgentLock(agentId: string, processId?: string): Promise<boolean> {
   const now = new Date();
@@ -140,12 +155,18 @@ export async function acquireAgentLock(agentId: string, processId?: string): Pro
 /**
  * Release agent lock
  * 
- * @param agentId - Agent identifier
- * @param processId - Identifier for this process (must match acquire)
+ * @description Releases the agent lock. Only the process that acquired the lock
+ * can release it (prevents accidental releases). Requires processId to match
+ * the lock holder for safety.
  * 
- * @description
- * Releases the agent lock. Only the process that acquired the lock
- * can release it (prevents accidental releases).
+ * @param {string} agentId - Agent identifier
+ * @param {string} [processId] - Identifier for this process (must match acquire)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * await releaseAgentLock(agentId, processId);
+ * ```
  */
 export async function releaseAgentLock(agentId: string, processId?: string): Promise<void> {
   if (!processId) {
@@ -186,8 +207,11 @@ export async function releaseAgentLock(agentId: string, processId?: string): Pro
 /**
  * Check if agent lock is held
  * 
- * @param agentId - Agent identifier
- * @returns Lock info if held, null if free
+ * @description Checks if an agent lock is currently held. Returns lock information
+ * if held and not expired, null if free or expired.
+ * 
+ * @param {string} agentId - Agent identifier
+ * @returns {Promise<object | null>} Lock info if held, null if free or expired
  */
 export async function checkAgentLock(agentId: string) {
   const lockId = getAgentLockId(agentId);

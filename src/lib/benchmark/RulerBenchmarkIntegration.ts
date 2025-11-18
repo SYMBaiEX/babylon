@@ -30,7 +30,7 @@ export function extractMarketOutcomesFromBenchmark(
   const gt = snapshot.groundTruth;
   
   // Extract prediction market outcomes
-  const predictions = Object.entries(gt.marketOutcomes).map(([marketId, outcome]) => ({
+  const predictions: Array<{ marketId: string; outcome: 'YES' | 'NO' }> = Object.entries(gt.marketOutcomes).map(([marketId, outcome]) => ({
     marketId,
     outcome: outcome ? 'YES' : 'NO',
   }));

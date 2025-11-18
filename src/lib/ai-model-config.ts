@@ -1,10 +1,18 @@
 /**
  * AI Model Configuration Helper
- * Loads system-wide AI model settings from database
+ * 
+ * @description Loads system-wide AI model settings from database with in-memory
+ * caching to avoid excessive database queries. Provides access to WANDB model
+ * configuration and enables/disables WANDB integration.
  */
 
 import { prisma } from './prisma';
 
+/**
+ * AI Model Configuration
+ * 
+ * @description Contains WANDB model configuration and enabled status.
+ */
 interface AIModelConfig {
   wandbModel: string | null;
   wandbEnabled: boolean;
@@ -16,7 +24,20 @@ const CACHE_TTL_MS = 60000; // 1 minute cache
 
 /**
  * Get the current AI model configuration
- * Uses in-memory cache to avoid excessive database queries
+ * 
+ * @description Retrieves AI model configuration from database with 1-minute
+ * in-memory caching. Falls back to environment variables if database config
+ * is not available.
+ * 
+ * @returns {Promise<AIModelConfig>} Current AI model configuration
+ * 
+ * @example
+ * ```typescript
+ * const config = await getAIModelConfig();
+ * if (config.wandbEnabled && config.wandbModel) {
+ *   // Use WANDB model
+ * }
+ * ```
  */
 export async function getAIModelConfig(): Promise<AIModelConfig> {
   const now = Date.now();
@@ -48,7 +69,11 @@ export async function getAIModelConfig(): Promise<AIModelConfig> {
 
 /**
  * Clear the configuration cache
- * Call this after updating the configuration
+ * 
+ * @description Clears the in-memory cache for AI model configuration. Call this
+ * after updating the configuration in the database to force a fresh fetch.
+ * 
+ * @returns {void}
  */
 export function clearAIModelConfigCache(): void {
   cachedConfig = null;
@@ -57,6 +82,20 @@ export function clearAIModelConfigCache(): void {
 
 /**
  * Get the wandb model to use (from config or environment)
+ * 
+ * @description Returns the WANDB model identifier if WANDB is enabled and
+ * a model is configured. Falls back to environment variable if database config
+ * is not available.
+ * 
+ * @returns {Promise<string | undefined>} WANDB model identifier or undefined
+ * 
+ * @example
+ * ```typescript
+ * const model = await getWandbModel();
+ * if (model) {
+ *   // Use WANDB model for inference
+ * }
+ * ```
  */
 export async function getWandbModel(): Promise<string | undefined> {
   const config = await getAIModelConfig();

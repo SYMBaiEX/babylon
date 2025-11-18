@@ -1,10 +1,28 @@
 /**
- * Wallet utility functions for embedded wallet detection and validation
+ * Wallet Utility Functions
+ * 
+ * @description Utility functions for detecting and validating Privy embedded wallets
+ * vs external wallets. Provides error message helpers for wallet-related operations.
  */
+
 import type { ConnectedWallet } from '@privy-io/react-auth';
 
 /**
  * Check if a wallet is a Privy embedded wallet
+ * 
+ * @description Determines if a connected wallet is a Privy-managed embedded wallet
+ * (smart wallet) as opposed to an external wallet like MetaMask or Coinbase Wallet.
+ * 
+ * @param {ConnectedWallet | null | undefined} wallet - The wallet to check
+ * @returns {boolean} True if the wallet is a Privy embedded wallet
+ * 
+ * @example
+ * ```typescript
+ * const isEmbedded = isEmbeddedPrivyWallet(connectedWallet);
+ * if (isEmbedded) {
+ *   // Use smart wallet features
+ * }
+ * ```
  */
 export function isEmbeddedPrivyWallet(
   wallet?: ConnectedWallet | null
@@ -18,6 +36,20 @@ export function isEmbeddedPrivyWallet(
 
 /**
  * Check if a wallet is an external wallet (not Privy embedded)
+ * 
+ * @description Determines if a connected wallet is an external wallet (e.g., MetaMask,
+ * Coinbase Wallet) rather than a Privy embedded smart wallet.
+ * 
+ * @param {ConnectedWallet | null | undefined} wallet - The wallet to check
+ * @returns {boolean} True if the wallet is an external wallet
+ * 
+ * @example
+ * ```typescript
+ * const isExternal = isExternalWallet(connectedWallet);
+ * if (isExternal) {
+ *   // Handle external wallet differently
+ * }
+ * ```
  */
 export function isExternalWallet(wallet?: ConnectedWallet | null): boolean {
   if (!wallet) return false;
@@ -26,6 +58,20 @@ export function isExternalWallet(wallet?: ConnectedWallet | null): boolean {
 
 /**
  * Find the embedded wallet from a list of wallets
+ * 
+ * @description Searches through an array of connected wallets and returns the first
+ * Privy embedded wallet found, if any.
+ * 
+ * @param {ConnectedWallet[]} wallets - Array of connected wallets to search
+ * @returns {ConnectedWallet | undefined} The embedded wallet, or undefined if not found
+ * 
+ * @example
+ * ```typescript
+ * const embeddedWallet = findEmbeddedWallet(allWallets);
+ * if (embeddedWallet) {
+ *   // Use embedded wallet for transactions
+ * }
+ * ```
  */
 export function findEmbeddedWallet(
   wallets: ConnectedWallet[]
@@ -35,6 +81,20 @@ export function findEmbeddedWallet(
 
 /**
  * Find an external wallet from a list of wallets
+ * 
+ * @description Searches through an array of connected wallets and returns the first
+ * external wallet found (not Privy embedded), if any.
+ * 
+ * @param {ConnectedWallet[]} wallets - Array of connected wallets to search
+ * @returns {ConnectedWallet | undefined} The external wallet, or undefined if not found
+ * 
+ * @example
+ * ```typescript
+ * const externalWallet = findExternalWallet(allWallets);
+ * if (externalWallet) {
+ *   // Handle external wallet
+ * }
+ * ```
  */
 export function findExternalWallet(
   wallets: ConnectedWallet[]
@@ -44,6 +104,9 @@ export function findExternalWallet(
 
 /**
  * Error messages for wallet-related issues
+ * 
+ * @description Predefined user-friendly error messages for common wallet-related
+ * errors. Used to provide consistent error messaging across the application.
  */
 export const WALLET_ERROR_MESSAGES = {
   NO_EMBEDDED_WALLET:
@@ -60,6 +123,22 @@ export const WALLET_ERROR_MESSAGES = {
 
 /**
  * Get a user-friendly error message for wallet-related errors
+ * 
+ * @description Analyzes an error and returns a user-friendly message based on
+ * common wallet error patterns. Maps technical errors to readable messages.
+ * 
+ * @param {unknown} error - The error to analyze
+ * @returns {string} User-friendly error message
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await sendTransaction();
+ * } catch (error) {
+ *   const message = getWalletErrorMessage(error);
+ *   showToast(message);
+ * }
+ * ```
  */
 export function getWalletErrorMessage(error: unknown): string {
   const message =

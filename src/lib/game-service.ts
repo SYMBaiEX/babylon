@@ -1,16 +1,23 @@
 /**
  * Game Service - API Wrapper
  * 
- * Provides access to game data for API routes.
- * Game tick runs automatically via cron (production) or local simulator (development).
- * 
- * Note: All operations query the database directly, which is updated by game tick.
+ * @description Provides access to game data for API routes. Wraps database
+ * operations with a clean service interface. Game tick runs automatically via
+ * cron (production) or local simulator (development). All operations query the
+ * database directly, which is updated by game tick.
  * 
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
 import db from './database-service';
 
+/**
+ * Game Service Class
+ * 
+ * @description Service class for accessing game data. Provides methods for
+ * retrieving posts, companies, questions, and game statistics. Singleton
+ * pattern ensures single instance across the application.
+ */
 class GameService {
   async getRecentPosts(limit = 100, offset = 0) {
     return await db().getRecentPosts(limit, offset);

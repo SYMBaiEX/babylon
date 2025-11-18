@@ -1,12 +1,21 @@
 /**
  * Serverless Game Tick Logic
- *
- * Lightweight game content generation for Vercel Cron Jobs.
+ * 
+ * @description Lightweight game content generation for Vercel Cron Jobs.
  * Executes a single "tick" of game logic without persistent processes.
- *
  * This replaces the continuous daemon with stateless, scheduled execution.
- *
- * ✅ Vercel-compatible: No filesystem access, completes in <60s
+ * 
+ * Features:
+ * - Content generation (posts, articles, events)
+ * - Market decisions and trading execution
+ * - Question generation and resolution
+ * - Widget cache updates
+ * - Trending calculation
+ * - Reputation synchronization
+ * - World facts updates
+ * - NPC group dynamics
+ * 
+ * ✅ Vercel-compatible: No filesystem access, completes in <180s
  */
 
 import { Prisma } from '@prisma/client';
@@ -36,6 +45,12 @@ import { createParodyHeadlineGenerator } from './services/parody-headline-genera
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 import { characterMappingService } from './services/character-mapping-service';
 
+/**
+ * Game tick execution result
+ * 
+ * @description Contains statistics about what was accomplished during a game tick,
+ * including content generation counts, market updates, and system operations.
+ */
 export interface GameTickResult {
   postsCreated: number;
   eventsCreated: number;
@@ -75,11 +90,22 @@ export interface GameTickResult {
 
 /**
  * Execute a single game tick
- * Designed to complete within 3 minutes (180 seconds)
- * Uses parallelization for posts, articles, and other operations to maximize throughput
- * Guarantees critical operations (market decisions) always execute via budget reserve
  * 
- * @param skipContentGeneration - If true, skips post/event/article generation (for buffer management)
+ * @description Executes a complete game tick including content generation, market
+ * decisions, question resolution, and system updates. Designed to complete within
+ * 3 minutes (180 seconds). Uses parallelization for posts, articles, and other
+ * operations to maximize throughput. Guarantees critical operations (market decisions)
+ * always execute via budget reserve.
+ * 
+ * @param {boolean} [skipContentGeneration=false] - If true, skips post/event/article
+ * generation (for buffer management when content buffer is sufficient)
+ * @returns {Promise<GameTickResult>} Result statistics for the tick
+ * 
+ * @example
+ * ```typescript
+ * const result = await executeGameTick();
+ * console.log(`Created ${result.postsCreated} posts, ${result.articlesCreated} articles`);
+ * ```
  */
 export async function executeGameTick(skipContentGeneration: boolean = false): Promise<GameTickResult> {
   const timestamp = new Date();

@@ -1,6 +1,9 @@
 /**
  * OASF (Open Agentic Schema Framework) Skill Mapping Utility
- * Maps Babylon NPC types and characteristics to OASF taxonomy skills/domains
+ * 
+ * @description Maps Babylon NPC types and characteristics to OASF taxonomy skills/domains
+ * for agent discovery and capability matching. Integrates with Agent0 SDK v0.31.0 for
+ * standardized agent capability representation.
  *
  * Based on: https://schema.oasf.outshift.com/skill_categories
  * Agent0 SDK v0.31.0 Integration
@@ -12,7 +15,10 @@ import type { ActorData } from '@/shared/types'
 
 /**
  * OASF Skill Categories
- * Primary taxonomy categories for agent capabilities
+ * 
+ * @description Primary taxonomy categories for agent capabilities. Used to classify
+ * agent skills for discovery and matching. Follows hierarchical format:
+ * category/subcategory/skill.
  */
 export const OASFSkillCategories = {
   // Natural Language & Communication
@@ -57,7 +63,10 @@ export const OASFSkillCategories = {
 
 /**
  * OASF Domain Categories
- * Business/application domains where agents operate
+ * 
+ * @description Business/application domains where agents operate. Used to classify
+ * agents by their application domain for discovery. Follows hierarchical format:
+ * domain/subdomain.
  */
 export const OASFDomainCategories = {
   FINANCE: 'finance_and_business',
@@ -210,8 +219,22 @@ export const NPCTypeDomainMap: Record<string, string[]> = {
 
 /**
  * Map ActorData to OASF skills based on NPC characteristics
- * @param actorData - The NPC's ActorData from JSON files
- * @returns Array of OASF skill paths
+ * 
+ * @description Analyzes an NPC's role and description to determine relevant OASF
+ * skill categories. Uses role-based mapping and keyword analysis from description.
+ * Returns deduplicated array of skill paths.
+ * 
+ * @param {ActorData} actorData - The NPC's ActorData from JSON files
+ * @returns {string[]} Array of OASF skill paths matching the NPC's capabilities
+ * 
+ * @example
+ * ```typescript
+ * const skills = mapActorToOASFSkills({
+ *   role: 'trader',
+ *   description: 'Expert in prediction markets and risk analysis'
+ * });
+ * // Returns: ['finance_and_business/trading', 'finance_and_business/risk_analysis', ...]
+ * ```
  */
 export function mapActorToOASFSkills(actorData: ActorData): string[] {
   const skills: string[] = []
@@ -258,8 +281,22 @@ export function mapActorToOASFSkills(actorData: ActorData): string[] {
 
 /**
  * Map ActorData to OASF domains based on NPC characteristics
- * @param actorData - The NPC's ActorData from JSON files
- * @returns Array of OASF domain paths
+ * 
+ * @description Analyzes an NPC's role and description to determine relevant OASF
+ * domain categories. Uses role-based mapping and keyword analysis from description.
+ * Returns deduplicated array of domain paths.
+ * 
+ * @param {ActorData} actorData - The NPC's ActorData from JSON files
+ * @returns {string[]} Array of OASF domain paths matching the NPC's application domain
+ * 
+ * @example
+ * ```typescript
+ * const domains = mapActorToOASFDomains({
+ *   role: 'trader',
+ *   description: 'Active in prediction markets'
+ * });
+ * // Returns: ['finance_and_business/trading_and_markets', 'entertainment_and_media/gaming', ...]
+ * ```
  */
 export function mapActorToOASFDomains(actorData: ActorData): string[] {
   const domains: string[] = []
@@ -303,9 +340,18 @@ export function mapActorToOASFDomains(actorData: ActorData): string[] {
 
 /**
  * Validate OASF skill path format
- * Skills should follow hierarchical format: category/subcategory/skill
- * @param skillPath - The skill path to validate
- * @returns True if valid OASF skill path format
+ * 
+ * @description Validates that a skill path follows the OASF hierarchical format:
+ * category/subcategory/skill. Uses regex to ensure proper formatting.
+ * 
+ * @param {string} skillPath - The skill path to validate
+ * @returns {boolean} True if valid OASF skill path format
+ * 
+ * @example
+ * ```typescript
+ * validateOASFSkillPath('finance_and_business/trading') // Returns true
+ * validateOASFSkillPath('invalid path!') // Returns false
+ * ```
  */
 export function validateOASFSkillPath(skillPath: string): boolean {
   // Basic format validation: alphanumeric + underscores, separated by forward slashes
@@ -315,9 +361,18 @@ export function validateOASFSkillPath(skillPath: string): boolean {
 
 /**
  * Validate OASF domain path format
- * Domains should follow hierarchical format: category/subcategory
- * @param domainPath - The domain path to validate
- * @returns True if valid OASF domain path format
+ * 
+ * @description Validates that a domain path follows the OASF hierarchical format:
+ * category/subcategory. Uses regex to ensure proper formatting.
+ * 
+ * @param {string} domainPath - The domain path to validate
+ * @returns {boolean} True if valid OASF domain path format
+ * 
+ * @example
+ * ```typescript
+ * validateOASFDomainPath('finance_and_business/trading_and_markets') // Returns true
+ * validateOASFDomainPath('invalid!') // Returns false
+ * ```
  */
 export function validateOASFDomainPath(domainPath: string): boolean {
   // Same format as skill paths
@@ -327,7 +382,11 @@ export function validateOASFDomainPath(domainPath: string): boolean {
 
 /**
  * Get all available OASF skill categories
- * @returns Array of skill category identifiers
+ * 
+ * @description Returns all available OASF skill category identifiers defined
+ * in the skill mapping system.
+ * 
+ * @returns {string[]} Array of skill category identifiers
  */
 export function getAllSkillCategories(): string[] {
   return Object.values(OASFSkillCategories)
@@ -335,7 +394,11 @@ export function getAllSkillCategories(): string[] {
 
 /**
  * Get all available OASF domain categories
- * @returns Array of domain category identifiers
+ * 
+ * @description Returns all available OASF domain category identifiers defined
+ * in the domain mapping system.
+ * 
+ * @returns {string[]} Array of domain category identifiers
  */
 export function getAllDomainCategories(): string[] {
   return Object.values(OASFDomainCategories)
@@ -343,8 +406,19 @@ export function getAllDomainCategories(): string[] {
 
 /**
  * Suggest OASF skills based on keywords
- * @param keywords - Array of keywords to match against
- * @returns Array of suggested OASF skill paths
+ * 
+ * @description Analyzes keywords and suggests relevant OASF skill categories
+ * based on keyword matching. Useful for auto-tagging agents or suggesting
+ * capabilities during agent creation.
+ * 
+ * @param {string[]} keywords - Array of keywords to match against
+ * @returns {string[]} Array of suggested OASF skill paths
+ * 
+ * @example
+ * ```typescript
+ * const skills = suggestSkillsFromKeywords(['trading', 'analysis', 'prediction']);
+ * // Returns: ['finance_and_business/trading', 'data_analysis', 'predictive_analytics']
+ * ```
  */
 export function suggestSkillsFromKeywords(keywords: string[]): string[] {
   const suggestions = new Set<string>()
@@ -383,8 +457,19 @@ export function suggestSkillsFromKeywords(keywords: string[]): string[] {
 
 /**
  * Suggest OASF domains based on keywords
- * @param keywords - Array of keywords to match against
- * @returns Array of suggested OASF domain paths
+ * 
+ * @description Analyzes keywords and suggests relevant OASF domain categories
+ * based on keyword matching. Useful for auto-tagging agents or suggesting
+ * application domains during agent creation.
+ * 
+ * @param {string[]} keywords - Array of keywords to match against
+ * @returns {string[]} Array of suggested OASF domain paths
+ * 
+ * @example
+ * ```typescript
+ * const domains = suggestDomainsFromKeywords(['finance', 'markets', 'trading']);
+ * // Returns: ['finance_and_business', 'finance_and_business/trading_and_markets']
+ * ```
  */
 export function suggestDomainsFromKeywords(keywords: string[]): string[] {
   const suggestions = new Set<string>()

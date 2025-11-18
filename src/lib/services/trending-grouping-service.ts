@@ -1,8 +1,10 @@
 /**
  * Trending Grouping Service
  * 
- * Uses LLM to intelligently group related trending tags together.
+ * @description Uses LLM to intelligently group related trending tags together.
  * For example, "OpenAGI", "Sam Altman", and "GPT-5" become a single grouped trend.
+ * Generates summaries for grouped trends and handles fallback logic when LLM
+ * is unavailable.
  */
 
 import { logger } from '@/lib/logger'
@@ -32,6 +34,12 @@ if (hasApiKey) {
   logger.warn('No LLM API key configured (GROQ_API_KEY or OPENAI_API_KEY) - trending grouping will use fallback logic', undefined, 'TrendingGroupingService')
 }
 
+/**
+ * Trending tag information
+ * 
+ * @description Contains information about a single trending tag including
+ * ID, display name, slug, category, post count, summary, and rank.
+ */
 export interface TrendingTag {
   id: string
   tag: string
@@ -42,6 +50,12 @@ export interface TrendingTag {
   rank: number
 }
 
+/**
+ * Grouped trend information
+ * 
+ * @description Contains information about a grouped trend including primary
+ * tag ID, related tags, total post count, summary, and rank.
+ */
 export interface GroupedTrend {
   id: string // ID of the primary tag
   tags: string[] // Array of related tag display names
@@ -53,6 +67,12 @@ export interface GroupedTrend {
   rank: number
 }
 
+/**
+ * LLM grouping instruction
+ * 
+ * @description Structure for LLM response containing grouping decisions.
+ * @private
+ */
 interface GroupingInstruction {
   groupId: number
   tagNames: string[]
@@ -61,6 +81,14 @@ interface GroupingInstruction {
 
 /**
  * Calculate estimated cost for LLM call (rough estimates)
+ * 
+ * @description Estimates the cost of an LLM API call based on model and token count.
+ * Uses approximate pricing for Groq (free) and OpenAI models.
+ * 
+ * @param {string} model - Model identifier
+ * @param {number} tokens - Number of tokens
+ * @returns {number} Estimated cost in USD
+ * @private
  */
 function calculateCost(model: string, tokens: number): number {
   // Groq pricing (as of 2024): free tier, so $0
@@ -82,6 +110,16 @@ function calculateCost(model: string, tokens: number): number {
 
 /**
  * Retry helper for LLM calls
+ * 
+ * @description Retries an LLM call with exponential backoff on failure.
+ * 
+ * @template T - Return type
+ * @param {() => Promise<T>} fn - Function to retry
+ * @param {number} [retries=LLM_MAX_RETRIES] - Number of retries
+ * @param {string} [context='LLM call'] - Context for logging
+ * @returns {Promise<T>} Result of the function
+ * @throws {Error} If all retries fail
+ * @private
  */
 async function withRetry<T>(
   fn: () => Promise<T>,

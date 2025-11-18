@@ -1,11 +1,26 @@
 /**
- * Profile URL utility functions
- * Handles generating profile URLs with username preference
+ * Profile URL Utility Functions
+ * 
+ * @description Utility functions for generating profile URLs and identifying
+ * usernames vs user IDs. Handles username preference and identifier parsing.
  */
 
 /**
  * Generate a profile URL for a user
- * Prefers username if available, falls back to user ID
+ * 
+ * @description Creates a profile URL preferring username if available, falling
+ * back to user ID. Automatically strips @ prefix from usernames.
+ * 
+ * @param {string} userId - User ID to use as fallback
+ * @param {string | null | undefined} username - Optional username (preferred)
+ * @returns {string} Profile URL path (e.g., "/profile/username" or "/profile/userId")
+ * 
+ * @example
+ * ```typescript
+ * getProfileUrl('user_123', 'alice') // Returns "/profile/alice"
+ * getProfileUrl('user_123', null) // Returns "/profile/user_123"
+ * getProfileUrl('user_123', '@alice') // Returns "/profile/alice"
+ * ```
  */
 export function getProfileUrl(userId: string, username?: string | null): string {
   if (username) {
@@ -18,7 +33,21 @@ export function getProfileUrl(userId: string, username?: string | null): string 
 
 /**
  * Check if a profile identifier is a username (not a user ID)
- * User IDs are typically long (like "did:privy:...") or contain dashes/UUIDs
+ * 
+ * @description Determines if an identifier string is a username rather than
+ * a user ID. User IDs are typically DIDs (did:privy:...), UUIDs, or contain
+ * dashes. Usernames are shorter strings without special patterns.
+ * 
+ * @param {string} identifier - The identifier to check
+ * @returns {boolean} True if the identifier appears to be a username
+ * 
+ * @example
+ * ```typescript
+ * isUsername('alice') // Returns true
+ * isUsername('did:privy:abc123') // Returns false
+ * isUsername('@alice') // Returns true
+ * isUsername('550e8400-e29b-41d4-a716-446655440000') // Returns false (UUID)
+ * ```
  */
 export function isUsername(identifier: string): boolean {
   // If it starts with @, it's definitely a username
@@ -50,6 +79,18 @@ export function isUsername(identifier: string): boolean {
 
 /**
  * Extract username from identifier (removes @ prefix if present)
+ * 
+ * @description Extracts a clean username from an identifier string, removing
+ * the @ prefix if present. Useful for normalizing username inputs.
+ * 
+ * @param {string} identifier - The identifier to extract username from
+ * @returns {string} Clean username without @ prefix
+ * 
+ * @example
+ * ```typescript
+ * extractUsername('@alice') // Returns "alice"
+ * extractUsername('alice') // Returns "alice"
+ * ```
  */
 export function extractUsername(identifier: string): string {
   return identifier.startsWith('@') ? identifier.slice(1) : identifier

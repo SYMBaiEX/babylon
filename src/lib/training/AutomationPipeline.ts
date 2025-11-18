@@ -332,6 +332,7 @@ export class AutomationPipeline {
       BASE_MODEL: modelSelection.modelPath,  // Use selected model from ModelSelectionService
       MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000',  // CRITICAL: Hard limit to prevent 200GB usage
       WANDB_PROJECT: this.config.wandbProject || 'babylon-training',
+      WANDB_ENTITY: process.env.WANDB_ENTITY || 'elizaos',  // Default to personal account (has write access)
       DATABASE_URL: process.env.DATABASE_URL || '',
       // Training logic:
       // - If WANDB_API_KEY is set: Use remote training (preferred)

@@ -18,7 +18,6 @@ async function main() {
     where: { 
       aiJudgeReward: null,
       isTrainingData: true,
-      stepsJson: { not: null },
       NOT: {
         OR: [
           { stepsJson: 'null' },

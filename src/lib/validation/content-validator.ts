@@ -1,17 +1,16 @@
 /**
  * Content Validator
  * 
- * @description
- * Canonical validation service for all generated content.
+ * @description Canonical validation service for all generated content.
  * Consolidates scattered validation logic into fail-fast assertions.
  * 
- * **Purpose**:
+ * Purpose:
  * - Prevent invalid data from propagating through system
  * - Fail immediately with clear errors
  * - Consistent validation across all generators
  * - Replace copy-pasted null checks everywhere
  * 
- * **Usage**:
+ * Usage:
  * ```typescript
  * // Before:
  * if (!post.content || post.content.trim().length === 0) {
@@ -28,23 +27,48 @@
 
 import { logger } from '@/lib/logger';
 
+/**
+ * Content Validator Class
+ * 
+ * @description Static class providing validation methods for various content
+ * types. Uses type assertions to ensure type safety after validation.
+ */
 export class ContentValidator {
-  // Content length limits
+  /**
+   * Maximum post content length (5000 characters)
+   * @private
+   */
   private static readonly MAX_POST_LENGTH = 5000;
+  
+  /**
+   * Maximum event description length (250 characters)
+   * @private
+   */
   private static readonly MAX_EVENT_DESCRIPTION = 250;
+  
+  /**
+   * Maximum question text length (500 characters)
+   * @private
+   */
   private static readonly MAX_QUESTION_TEXT = 500;
 
   /**
    * Validate post content
    * 
-   * @param content - Post content to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if content is invalid
+   * @description Validates that post content is a non-empty string within
+   * length limits. Throws error if validation fails. Uses type assertion
+   * to narrow type after validation.
+   * 
+   * @param {unknown} content - Post content to validate
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If content is null, undefined, empty, or exceeds max length
    * 
    * @example
    * ```typescript
    * ContentValidator.validatePostContent(post.content, 'media post');
    * // Throws if empty or too long
+   * // After this, TypeScript knows content is string
    * ```
    */
   static validatePostContent(content: unknown, context?: string): asserts content is string {
@@ -74,9 +98,14 @@ export class ContentValidator {
   /**
    * Validate event description
    * 
-   * @param description - Event description to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if description is invalid
+   * @description Validates that event description is a non-empty string.
+   * Warns but doesn't throw if description exceeds max length (truncation
+   * happens later).
+   * 
+   * @param {unknown} description - Event description to validate
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If description is null, undefined, or empty
    */
   static validateEventDescription(description: unknown, context?: string): asserts description is string {
     const ctx = context || 'event';
@@ -105,9 +134,13 @@ export class ContentValidator {
   /**
    * Validate question text
    * 
-   * @param text - Question text to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if text is invalid
+   * @description Validates that question text is a non-empty string within
+   * length limits. Throws error if validation fails.
+   * 
+   * @param {unknown} text - Question text to validate
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If text is null, undefined, empty, or exceeds max length
    */
   static validateQuestionText(text: unknown, context?: string): asserts text is string {
     const ctx = context || 'question';
@@ -132,9 +165,12 @@ export class ContentValidator {
   /**
    * Validate entity name (actor, organization)
    * 
-   * @param name - Entity name to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if name is invalid
+   * @description Validates that entity name is a non-empty string.
+   * 
+   * @param {unknown} name - Entity name to validate
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If name is null, undefined, or empty
    */
   static validateEntityName(name: unknown, context?: string): asserts name is string {
     const ctx = context || 'entity';
@@ -155,9 +191,12 @@ export class ContentValidator {
   /**
    * Validate day number (1-30)
    * 
-   * @param day - Day number to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if day is invalid
+   * @description Validates that day is a finite number between 1 and 30.
+   * 
+   * @param {unknown} day - Day number to validate
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If day is not a number or outside valid range
    */
   static validateDayNumber(day: unknown, context?: string): asserts day is number {
     const ctx = context || 'day';
@@ -178,9 +217,12 @@ export class ContentValidator {
   /**
    * Validate timestamp
    * 
-   * @param timestamp - Timestamp to validate
-   * @param context - Context for error messages (optional)
-   * @throws Error if timestamp is invalid
+   * @description Validates that timestamp is a valid Date object or ISO string.
+   * 
+   * @param {unknown} timestamp - Timestamp to validate (Date or ISO string)
+   * @param {string} [context] - Context for error messages (optional)
+   * @returns {void}
+   * @throws {Error} If timestamp is invalid or cannot be parsed
    */
   static validateTimestamp(timestamp: unknown, context?: string): void {
     const ctx = context || 'timestamp';
@@ -207,9 +249,12 @@ export class ContentValidator {
   /**
    * Validate array is not empty
    * 
-   * @param arr - Array to validate
-   * @param context - Context for error messages
-   * @throws Error if array is empty
+   * @description Validates that an array exists and is not empty.
+   * 
+   * @param {T[]} arr - Array to validate
+   * @param {string} context - Context for error messages
+   * @returns {void}
+   * @throws {Error} If array is not an array or is empty
    */
   static validateNotEmpty<T>(arr: T[], context: string): void {
     if (!Array.isArray(arr)) {
@@ -224,9 +269,12 @@ export class ContentValidator {
   /**
    * Truncate content to maximum length
    * 
-   * @param content - Content to truncate
-   * @param maxLength - Maximum length
-   * @returns Truncated content
+   * @description Truncates content to maximum length, adding ellipsis if
+   * truncated. Logs a warning when truncation occurs.
+   * 
+   * @param {string} content - Content to truncate
+   * @param {number} maxLength - Maximum length
+   * @returns {string} Truncated content with ellipsis if needed
    */
   static truncateContent(content: string, maxLength: number): string {
     if (content.length <= maxLength) {
@@ -244,8 +292,11 @@ export class ContentValidator {
   /**
    * Sanitize content (remove invalid characters, trim)
    * 
-   * @param content - Content to sanitize
-   * @returns Sanitized content
+   * @description Removes null bytes and control characters from content,
+   * then trims whitespace. Ensures content is safe for storage and display.
+   * 
+   * @param {string} content - Content to sanitize
+   * @returns {string} Sanitized content
    */
   static sanitizeContent(content: string): string {
     return content

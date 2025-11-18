@@ -1,7 +1,9 @@
 /**
  * Fee Service
  * 
- * Manages trading fees and referral fee distribution
+ * @description Manages trading fees and referral fee distribution. Calculates
+ * fees for trades, processes fee payments, and distributes referral earnings.
+ * Handles both platform fees and referrer share distribution.
  */
 
 import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
@@ -12,6 +14,11 @@ import { Prisma } from '@prisma/client'
 
 // Force TypeScript server reload after Prisma regeneration
 
+/**
+ * Fee calculation result
+ * 
+ * @description Contains calculated fee amounts and distribution breakdown.
+ */
 export interface FeeCalculation {
   feeAmount: number
   netAmount: number // Amount after fee deduction
@@ -19,6 +26,12 @@ export interface FeeCalculation {
   referrerShare: number
 }
 
+/**
+ * Fee distribution result
+ * 
+ * @description Result of processing a trading fee, including amounts charged
+ * and distributed to platform and referrer.
+ */
 export interface FeeDistributionResult {
   feeCharged: number
   referrerPaid: number
@@ -26,6 +39,12 @@ export interface FeeDistributionResult {
   referrerId: string | null
 }
 
+/**
+ * Referral earnings information
+ * 
+ * @description Comprehensive referral earnings data including totals, top
+ * referrals, and recent fee history.
+ */
 export interface ReferralEarnings {
   totalEarned: number
   totalReferrals: number
@@ -47,9 +66,28 @@ export interface ReferralEarnings {
   }>
 }
 
+/**
+ * Fee Service Class
+ * 
+ * @description Static service class for managing trading fees and referral
+ * distributions. Provides methods for calculating fees, processing payments,
+ * and retrieving referral earnings.
+ */
 export class FeeService {
   /**
    * Calculate fee for a trade amount
+   * 
+   * @description Calculates trading fee based on configured fee rate (0.1%).
+   * Returns fee amount, net amount after fee, and distribution breakdown.
+   * 
+   * @param {number} tradeAmount - Trade amount to calculate fee for
+   * @returns {FeeCalculation} Fee calculation with amounts and distribution
+   * 
+   * @example
+   * ```typescript
+   * const calc = FeeService.calculateFee(1000);
+   * // Returns: { feeAmount: 1, netAmount: 999, platformShare: 0.5, referrerShare: 0.5 }
+   * ```
    */
   static calculateFee(tradeAmount: number): FeeCalculation {
     const feeAmount = tradeAmount * FEE_CONFIG.TRADING_FEE_RATE
@@ -67,6 +105,12 @@ export class FeeService {
   
   /**
    * Calculate fee on proceeds (for selling)
+   * 
+   * @description Calculates fee on sale proceeds. Alias for calculateFee
+   * for semantic clarity when processing sell transactions.
+   * 
+   * @param {number} proceeds - Sale proceeds amount
+   * @returns {FeeCalculation} Fee calculation with amounts and distribution
    */
   static calculateFeeOnProceeds(proceeds: number): FeeCalculation {
     return this.calculateFee(proceeds)
@@ -74,6 +118,28 @@ export class FeeService {
   
   /**
    * Process trading fee - charge user and distribute to platform/referrer
+   * 
+   * @description Processes a trading fee by charging the user, creating a fee
+   * record, and distributing referral fees if applicable. Skips fees below
+   * minimum threshold. Executes atomically in a transaction.
+   * 
+   * @param {string} userId - User ID who made the trade
+   * @param {FeeType} tradeType - Type of trade (pred_buy, pred_sell, etc.)
+   * @param {number} tradeAmount - Trade amount
+   * @param {string} [tradeId] - Optional trade ID for reference
+   * @param {string} [marketId] - Optional market ID for reference
+   * @returns {Promise<FeeDistributionResult>} Fee distribution result
+   * 
+   * @example
+   * ```typescript
+   * const result = await FeeService.processTradingFee(
+   *   userId,
+   *   'pred_buy',
+   *   1000,
+   *   tradeId,
+   *   marketId
+   * );
+   * ```
    */
   static async processTradingFee(
     userId: string,

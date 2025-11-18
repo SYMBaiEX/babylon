@@ -1,10 +1,9 @@
 /**
  * Parody Headline Generator
  * 
- * Transforms real news headlines into satirical parody versions set in
- * the futuristic AI world with parody characters.
- * 
- * @module services/parody-headline-generator
+ * @description Transforms real news headlines into satirical parody versions
+ * set in the futuristic AI world with parody characters. Uses LLM to generate
+ * over-the-top satirical content and applies character mappings.
  */
 
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
@@ -14,6 +13,12 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import type { RSSHeadline, ParodyHeadline } from '@prisma/client';
 import { characterMappingService } from './character-mapping-service';
 
+/**
+ * Generated parody content
+ * 
+ * @description Contains generated parody headline and content with applied
+ * character and organization mappings.
+ */
 export interface GeneratedParody {
   parodyTitle: string;
   parodyContent?: string;
@@ -22,8 +27,11 @@ export interface GeneratedParody {
 }
 
 /**
- * Parody Headline Generator
- * Uses LLM to create satirical, over-the-top versions of real headlines
+ * Parody Headline Generator Class
+ * 
+ * @description Uses LLM to create satirical, over-the-top versions of real
+ * headlines. Applies character mappings before and after generation to ensure
+ * consistent parody character usage.
  */
 export class ParodyHeadlineGenerator {
   private llm: BabylonLLMClient;
@@ -34,6 +42,24 @@ export class ParodyHeadlineGenerator {
 
   /**
    * Generate a parody headline from a real headline
+   * 
+   * @description Generates a satirical parody version of a real headline using
+   * LLM. Applies character mappings before generation and post-processes to ensure
+   * all real names are replaced with parody equivalents.
+   * 
+   * @param {string} originalTitle - Original headline title
+   * @param {string} [originalContent] - Optional original content
+   * @param {string} [sourceName] - Optional source name
+   * @returns {Promise<GeneratedParody>} Generated parody with mappings
+   * 
+   * @example
+   * ```typescript
+   * const parody = await generator.generateParody(
+   *   'OpenAI announces GPT-5',
+   *   'Full article content...',
+   *   'TechCrunch'
+   * );
+   * ```
    */
   async generateParody(
     originalTitle: string,

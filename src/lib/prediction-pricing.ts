@@ -1,12 +1,21 @@
 /**
  * Prediction Market AMM Pricing
- * Pure math - no dependencies, can be used client or server side
  * 
- * Uses Constant Product Market Maker (CPMM): k = yesShares * noShares
+ * @description Pure math implementation of Automated Market Maker (AMM) pricing
+ * for prediction markets. Uses Constant Product Market Maker (CPMM) formula:
+ * k = yesShares * noShares. No dependencies, can be used client or server side.
+ * 
+ * Provides functions for calculating share purchases, sales, prices, and fees.
  */
 
 import { FEE_CONFIG } from '@/lib/config/fees'
 
+/**
+ * Share calculation result
+ * 
+ * @description Contains the results of a share purchase or sale calculation,
+ * including shares bought/sold, prices, price impact, and new market state.
+ */
 export interface ShareCalculation {
   sharesBought: number;
   avgPrice: number;
@@ -18,6 +27,12 @@ export interface ShareCalculation {
   newNoShares: number;
 }
 
+/**
+ * Share calculation result with fees
+ * 
+ * @description Extends ShareCalculation with fee information, including fee
+ * amount, net amount after fees, and total cost/proceeds.
+ */
 export interface ShareCalculationWithFees extends ShareCalculation {
   fee: number;
   netAmount: number; // Amount after fee
@@ -25,9 +40,33 @@ export interface ShareCalculationWithFees extends ShareCalculation {
   netProceeds?: number; // Net proceeds after fee (for selling)
 }
 
+/**
+ * Prediction Market Pricing Class
+ * 
+ * @description Provides static methods for calculating prediction market
+ * pricing using CPMM (Constant Product Market Maker) formula. Handles both
+ * buying and selling shares with fee calculations.
+ */
 export class PredictionPricing {
   /**
    * Calculate shares when buying (CPMM: k = yesShares * noShares)
+   * 
+   * @description Calculates how many shares can be purchased for a given USD
+   * amount using CPMM pricing. User pays USD which increases opposite side
+   * reserves, and receives shares from same side reserves.
+   * 
+   * @param {number} currentYesShares - Current YES shares in market
+   * @param {number} currentNoShares - Current NO shares in market
+   * @param {'yes' | 'no'} side - Side to buy (YES or NO)
+   * @param {number} usdAmount - USD amount to spend
+   * @returns {ShareCalculation} Calculation result with shares, prices, and impact
+   * @throws {Error} If amount is invalid or market has insufficient liquidity
+   * 
+   * @example
+   * ```typescript
+   * const calc = PredictionPricing.calculateBuy(1000, 1000, 'yes', 100);
+   * // Returns: { sharesBought: ~90, avgPrice: ~1.11, newYesPrice: ~0.55, ... }
+   * ```
    */
   static calculateBuy(
     currentYesShares: number,
@@ -95,6 +134,23 @@ export class PredictionPricing {
 
   /**
    * Calculate proceeds when selling shares (CPMM: k = yesShares * noShares)
+   * 
+   * @description Calculates how much USD can be received for selling shares
+   * using CPMM pricing. User returns shares which increases same side reserves,
+   * and receives USD from opposite side reserves.
+   * 
+   * @param {number} currentYesShares - Current YES shares in market
+   * @param {number} currentNoShares - Current NO shares in market
+   * @param {'yes' | 'no'} side - Side to sell (YES or NO)
+   * @param {number} sharesToSell - Number of shares to sell
+   * @returns {ShareCalculation} Calculation result with proceeds, prices, and impact
+   * @throws {Error} If shares amount is invalid or market has insufficient liquidity
+   * 
+   * @example
+   * ```typescript
+   * const calc = PredictionPricing.calculateSell(1000, 1000, 'yes', 100);
+   * // Returns: { sharesBought: -100, avgPrice: ~0.91, totalCost: ~91, ... }
+   * ```
    */
   static calculateSell(
     currentYesShares: number,
@@ -161,6 +217,23 @@ export class PredictionPricing {
     };
   }
 
+  /**
+   * Get current price for a side
+   * 
+   * @description Calculates the current market price (odds) for YES or NO
+   * based on share distribution. Price represents the probability/odds.
+   * 
+   * @param {number} yesShares - Current YES shares
+   * @param {number} noShares - Current NO shares
+   * @param {'yes' | 'no'} side - Side to get price for
+   * @returns {number} Current price (0-1, representing probability)
+   * 
+   * @example
+   * ```typescript
+   * const yesPrice = PredictionPricing.getCurrentPrice(1000, 1000, 'yes');
+   * // Returns: 0.5 (50% probability)
+   * ```
+   */
   static getCurrentPrice(yesShares: number, noShares: number, side: 'yes' | 'no'): number {
     const total = yesShares + noShares;
     return side === 'yes' ? noShares / total : yesShares / total;
@@ -168,12 +241,41 @@ export class PredictionPricing {
 
   /**
    * Calculate expected payout if position wins
+   * 
+   * @description Calculates the expected payout if a position resolves in the
+   * holder's favor. In prediction markets, winning shares pay their stake
+   * plus principal (1 unit per share).
+   * 
+   * @param {number} shares - Number of shares held
+   * @param {number} avgPrice - Average purchase price per share
+   * @returns {number} Expected payout if position wins
+   * 
+   * @example
+   * ```typescript
+   * const payout = PredictionPricing.calculateExpectedPayout(100, 0.6);
+   * // Returns: 160 (100 shares × (1 + 0.6))
+   * ```
    */
   static calculateExpectedPayout(shares: number, avgPrice: number): number {
     // Liquidity shares pay their stake plus principal when the market resolves in their favor
     return shares * (1 + avgPrice);
   }
 
+  /**
+   * Initialize a new prediction market
+   * 
+   * @description Creates initial market state with equal YES/NO shares for
+   * a new prediction market. Sets up initial liquidity.
+   * 
+   * @param {number} [initialLiquidity=1000] - Initial total liquidity
+   * @returns {object} Initial market state with yesShares and noShares
+   * 
+   * @example
+   * ```typescript
+   * const market = PredictionPricing.initializeMarket(2000);
+   * // Returns: { yesShares: 1000, noShares: 1000 }
+   * ```
+   */
   static initializeMarket(initialLiquidity = 1000) {
     return {
       yesShares: initialLiquidity / 2,
@@ -183,7 +285,22 @@ export class PredictionPricing {
 
   /**
    * Calculate buy with trading fees
-   * User provides total amount to spend, fees are deducted, then shares are calculated
+   * 
+   * @description Calculates share purchase with trading fees included. User
+   * provides total amount to spend, fees are deducted, then shares are
+   * calculated from the net amount.
+   * 
+   * @param {number} currentYesShares - Current YES shares in market
+   * @param {number} currentNoShares - Current NO shares in market
+   * @param {'yes' | 'no'} side - Side to buy (YES or NO)
+   * @param {number} totalAmount - Total USD amount to spend (including fees)
+   * @returns {ShareCalculationWithFees} Calculation result with fees included
+   * 
+   * @example
+   * ```typescript
+   * const calc = PredictionPricing.calculateBuyWithFees(1000, 1000, 'yes', 100);
+   * // Fee deducted from 100, then shares calculated from net amount
+   * ```
    */
   static calculateBuyWithFees(
     currentYesShares: number,
@@ -214,7 +331,21 @@ export class PredictionPricing {
 
   /**
    * Calculate sell with trading fees
-   * Calculates proceeds, then deducts fee from proceeds
+   * 
+   * @description Calculates share sale proceeds with trading fees included.
+   * Calculates gross proceeds first, then deducts fee to get net proceeds.
+   * 
+   * @param {number} currentYesShares - Current YES shares in market
+   * @param {number} currentNoShares - Current NO shares in market
+   * @param {'yes' | 'no'} side - Side to sell (YES or NO)
+   * @param {number} sharesToSell - Number of shares to sell
+   * @returns {ShareCalculationWithFees} Calculation result with fees included
+   * 
+   * @example
+   * ```typescript
+   * const calc = PredictionPricing.calculateSellWithFees(1000, 1000, 'yes', 100);
+   * // Calculates gross proceeds, deducts fee, returns net proceeds
+   * ```
    */
   static calculateSellWithFees(
     currentYesShares: number,
@@ -246,6 +377,13 @@ export class PredictionPricing {
 
 /**
  * Standalone helper function for expected payout calculation
+ * 
+ * @description Convenience function for calculating expected payout. Wraps
+ * PredictionPricing.calculateExpectedPayout for easier usage.
+ * 
+ * @param {number} shares - Number of shares held
+ * @param {number} avgPrice - Average purchase price per share
+ * @returns {number} Expected payout if position wins
  */
 export function calculateExpectedPayout(shares: number, avgPrice: number): number {
   return PredictionPricing.calculateExpectedPayout(shares, avgPrice);

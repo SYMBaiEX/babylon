@@ -1,5 +1,9 @@
 /**
  * Central export point for all error-related utilities
+ * 
+ * @description Provides centralized access to all error classes, error codes,
+ * type guards, and error response utilities. Re-exports base errors, domain
+ * errors, and error handlers for consistent error handling across the application.
  */
 
 // Base error classes
@@ -63,6 +67,9 @@ export {
 
 /**
  * Error code constants for consistency across the application
+ * 
+ * @description Standardized error codes used throughout the application
+ * for consistent error identification and handling.
  */
 export const ErrorCodes = {
   // General errors
@@ -109,6 +116,12 @@ export const ErrorCodes = {
 
 /**
  * Type guard to check if an error is a Babylon error
+ * 
+ * @description Determines if an error is an instance of BabylonError,
+ * allowing type-safe error handling.
+ * 
+ * @param {unknown} error - Error to check
+ * @returns {boolean} True if error is a BabylonError
  */
 export function isBabylonError(error: unknown): error is BabylonError {
   return error instanceof BabylonError;
@@ -116,6 +129,12 @@ export function isBabylonError(error: unknown): error is BabylonError {
 
 /**
  * Type guard to check if an error is operational (expected)
+ * 
+ * @description Determines if an error is operational (expected and handled)
+ * vs programming errors (unexpected bugs).
+ * 
+ * @param {unknown} error - Error to check
+ * @returns {boolean} True if error is operational
  */
 export function isOperationalError(error: unknown): boolean {
   if (isBabylonError(error)) {
@@ -125,7 +144,10 @@ export function isOperationalError(error: unknown): boolean {
 }
 
 /**
- * Helper to create a standard error response object
+ * Standard error response object
+ * 
+ * @description Structure for API error responses, including error message,
+ * code, validation violations, and optional context.
  */
 export interface ErrorResponse {
   error: {
@@ -138,6 +160,13 @@ export interface ErrorResponse {
 
 /**
  * Create a standardized error response object
+ * 
+ * @description Converts a BabylonError to a standardized ErrorResponse
+ * format suitable for API responses. Includes validation violations if present
+ * and context in development mode.
+ * 
+ * @param {BabylonError} error - Babylon error to convert
+ * @returns {ErrorResponse} Standardized error response
  */
 export function createErrorResponse(error: BabylonError): ErrorResponse {
   return {

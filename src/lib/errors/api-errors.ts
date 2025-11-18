@@ -1,8 +1,10 @@
 /**
  * API Error Handling Utilities
- *
- * Provides standardized error classes and handling for API routes.
- * Ensures consistent error responses across all endpoints.
+ * 
+ * @description Provides standardized error classes and handling for API routes.
+ * Ensures consistent error responses across all endpoints. Includes HTTP status
+ * code mapping, Zod validation integration, and helper functions for common
+ * validation scenarios.
  */
 
 import { NextResponse } from 'next/server'
@@ -11,6 +13,9 @@ import { z } from 'zod'
 
 /**
  * Base API Error class
+ * 
+ * @description Base class for all API errors. Extends Error with HTTP status
+ * code and error code for consistent error handling.
  */
 export class ApiError extends Error {
   constructor(
@@ -25,6 +30,8 @@ export class ApiError extends Error {
 
 /**
  * Bad Request Error (400)
+ * 
+ * @description Error for malformed or invalid requests.
  */
 export class BadRequestError extends ApiError {
   constructor(message: string, code?: string) {
@@ -35,6 +42,8 @@ export class BadRequestError extends ApiError {
 
 /**
  * Unauthorized Error (401)
+ * 
+ * @description Error for authentication failures.
  */
 export class UnauthorizedError extends ApiError {
   constructor(message: string = 'Unauthorized', code?: string) {
@@ -45,6 +54,8 @@ export class UnauthorizedError extends ApiError {
 
 /**
  * Forbidden Error (403)
+ * 
+ * @description Error for authorization/permission failures.
  */
 export class ForbiddenError extends ApiError {
   constructor(message: string = 'Forbidden', code?: string) {
@@ -55,6 +66,8 @@ export class ForbiddenError extends ApiError {
 
 /**
  * Not Found Error (404)
+ * 
+ * @description Error for missing resources.
  */
 export class NotFoundError extends ApiError {
   constructor(resource: string = 'Resource', code?: string) {
@@ -65,6 +78,8 @@ export class NotFoundError extends ApiError {
 
 /**
  * Conflict Error (409)
+ * 
+ * @description Error for duplicate resources or conflicting operations.
  */
 export class ConflictError extends ApiError {
   constructor(message: string, code?: string) {
@@ -75,6 +90,8 @@ export class ConflictError extends ApiError {
 
 /**
  * Unprocessable Entity Error (422)
+ * 
+ * @description Error for validation failures with field-level error details.
  */
 export class ValidationError extends ApiError {
   constructor(
@@ -89,6 +106,8 @@ export class ValidationError extends ApiError {
 
 /**
  * Rate Limit Error (429)
+ * 
+ * @description Error for rate limit violations with retry-after information.
  */
 export class RateLimitError extends ApiError {
   constructor(
@@ -103,6 +122,8 @@ export class RateLimitError extends ApiError {
 
 /**
  * Internal Server Error (500)
+ * 
+ * @description Error for unexpected server failures.
  */
 export class InternalServerError extends ApiError {
   constructor(message: string = 'Internal server error', code?: string) {
@@ -113,6 +134,8 @@ export class InternalServerError extends ApiError {
 
 /**
  * Service Unavailable Error (503)
+ * 
+ * @description Error for temporary service unavailability.
  */
 export class ServiceUnavailableError extends ApiError {
   constructor(message: string = 'Service temporarily unavailable', code?: string) {
@@ -130,10 +153,14 @@ import type { ErrorResponse } from './index';
 
 /**
  * Create standardized error response
- *
- * @param error - Error object
- * @param request - Optional request object for path logging
- * @returns NextResponse with error details
+ * 
+ * @description Converts any error (ApiError, ZodError, or generic Error)
+ * to a standardized NextResponse with appropriate status code and error details.
+ * Handles different error types and extracts validation errors from Zod.
+ * 
+ * @param {unknown} error - Error object to convert
+ * @param {Request} [request] - Optional request object for path logging
+ * @returns {NextResponse<ErrorResponse>} NextResponse with error details
  */
 export function createErrorResponse(
   error: unknown,
@@ -209,9 +236,20 @@ export function createErrorResponse(
 
 /**
  * Async error handler wrapper for API routes
- *
- * @param handler - Async API route handler
- * @returns Wrapped handler with error handling
+ * 
+ * @description Wraps an async API route handler with automatic error handling.
+ * Catches errors and converts them to standardized error responses.
+ * 
+ * @param {Function} handler - Async API route handler function
+ * @returns {Function} Wrapped handler with error handling
+ * 
+ * @example
+ * ```typescript
+ * export const GET = withErrorHandling(async (request: NextRequest) => {
+ *   // Handler code - errors automatically caught and converted
+ *   return NextResponse.json({ data: 'success' });
+ * });
+ * ```
  */
 export function withErrorHandling<T extends unknown[]>(
   handler: (...args: T) => Promise<NextResponse>
@@ -227,11 +265,21 @@ export function withErrorHandling<T extends unknown[]>(
 
 /**
  * Validate request body against Zod schema
- *
- * @param request - Request object
- * @param schema - Zod schema
- * @returns Validated data
- * @throws ValidationError if validation fails
+ * 
+ * @description Validates JSON request body against a Zod schema. Throws
+ * ValidationError if validation fails or if body is not valid JSON.
+ * 
+ * @param {Request} request - Request object
+ * @param {z.ZodType} schema - Zod schema to validate against
+ * @returns {Promise<z.infer<T>>} Validated data
+ * @throws {BadRequestError} If body is not valid JSON
+ * @throws {ValidationError} If validation fails
+ * 
+ * @example
+ * ```typescript
+ * const data = await validateRequestBody(request, createPostSchema);
+ * // data is now typed and validated
+ * ```
  */
 export async function validateRequestBody<T extends z.ZodType>(
   request: Request,
@@ -256,11 +304,20 @@ export async function validateRequestBody<T extends z.ZodType>(
 
 /**
  * Validate query parameters against Zod schema
- *
- * @param searchParams - URLSearchParams object
- * @param schema - Zod schema
- * @returns Validated data
- * @throws ValidationError if validation fails
+ * 
+ * @description Validates URL query parameters against a Zod schema. Throws
+ * ValidationError if validation fails.
+ * 
+ * @param {URLSearchParams} searchParams - URLSearchParams object
+ * @param {z.ZodType} schema - Zod schema to validate against
+ * @returns {z.infer<T>} Validated data
+ * @throws {ValidationError} If validation fails
+ * 
+ * @example
+ * ```typescript
+ * const params = validateQueryParams(searchParams, paginationSchema);
+ * // params is now typed and validated
+ * ```
  */
 export function validateQueryParams<T extends z.ZodType>(
   searchParams: URLSearchParams,
@@ -272,9 +329,18 @@ export function validateQueryParams<T extends z.ZodType>(
 
 /**
  * Assert user is authenticated
- *
- * @param userId - User ID from session
- * @throws UnauthorizedError if not authenticated
+ * 
+ * @description Type guard that asserts a user ID is present. Throws
+ * UnauthorizedError if userId is null or undefined.
+ * 
+ * @param {string | null | undefined} userId - User ID from session
+ * @throws {UnauthorizedError} If not authenticated
+ * 
+ * @example
+ * ```typescript
+ * requireAuth(userId); // Throws if userId is null/undefined
+ * // After this, TypeScript knows userId is string
+ * ```
  */
 export function requireAuth(userId: string | null | undefined): asserts userId is string {
   if (!userId) {
@@ -284,10 +350,19 @@ export function requireAuth(userId: string | null | undefined): asserts userId i
 
 /**
  * Assert user has required permission
- *
- * @param hasPermission - Permission check result
- * @param resource - Resource being accessed
- * @throws ForbiddenError if permission denied
+ * 
+ * @description Type guard that asserts a user has permission. Throws
+ * ForbiddenError if permission is denied.
+ * 
+ * @param {boolean} hasPermission - Permission check result
+ * @param {string} [resource='this resource'] - Resource being accessed
+ * @throws {ForbiddenError} If permission denied
+ * 
+ * @example
+ * ```typescript
+ * requirePermission(user.isAdmin, 'admin panel');
+ * // Throws if user is not admin
+ * ```
  */
 export function requirePermission(
   hasPermission: boolean,
@@ -300,10 +375,21 @@ export function requirePermission(
 
 /**
  * Assert resource exists
- *
- * @param resource - Resource to check
- * @param name - Resource name for error message
- * @throws NotFoundError if resource is null/undefined
+ * 
+ * @description Type guard that asserts a resource exists. Throws NotFoundError
+ * if resource is null or undefined.
+ * 
+ * @param {T | null | undefined} resource - Resource to check
+ * @param {string} [name='Resource'] - Resource name for error message
+ * @returns {void}
+ * @throws {NotFoundError} If resource is null/undefined
+ * 
+ * @example
+ * ```typescript
+ * requireResource(user, 'User');
+ * // Throws if user is null/undefined
+ * // After this, TypeScript knows user is T
+ * ```
  */
 export function requireResource<T>(
   resource: T | null | undefined,

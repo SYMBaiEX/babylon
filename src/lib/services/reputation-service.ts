@@ -1,9 +1,10 @@
 /**
  * Reputation Service
- *
- * Handles on-chain reputation updates based on prediction market outcomes
- * Winners get +10 reputation, losers get -5 reputation
- * Requires users to have NFT token IDs from on-chain registration
+ * 
+ * @description Handles on-chain reputation updates based on prediction market
+ * outcomes. Winners get +10 reputation, losers get -5 reputation. Requires users
+ * to have NFT token IDs from on-chain registration. Interacts with the reputation
+ * system smart contract on Base Sepolia.
  */
 
 import { createPublicClient, createWalletClient, http, parseEther, type Address } from 'viem'
@@ -21,11 +22,22 @@ const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
 
 
+/**
+ * Market resolution information
+ * 
+ * @description Contains market ID and outcome for reputation updates.
+ */
 interface MarketResolution {
   marketId: string
   outcome: boolean // true = YES, false = NO
 }
 
+/**
+ * Reputation update result
+ * 
+ * @description Result of updating reputation for a user, including change
+ * amount and optional transaction hash or error.
+ */
 interface ReputationUpdate {
   userId: string
   tokenId: number
@@ -34,10 +46,31 @@ interface ReputationUpdate {
   error?: string
 }
 
+/**
+ * Reputation Service Class
+ * 
+ * @description Static service class for managing on-chain reputation updates.
+ * Provides methods for updating reputation based on market outcomes and retrieving
+ * current reputation values.
+ */
 export class ReputationService {
   /**
    * Update reputation for all users who had positions in a resolved market
-   * Called after a prediction market question resolves
+   * 
+   * @description Updates on-chain reputation for all users who had positions
+   * in a resolved prediction market. Winners get +10 reputation, losers get -5.
+   * Called after a prediction market question resolves.
+   * 
+   * @param {MarketResolution} resolution - Market resolution with ID and outcome
+   * @returns {Promise<ReputationUpdate[]>} Array of reputation update results
+   * 
+   * @example
+   * ```typescript
+   * const updates = await ReputationService.updateReputationForResolvedMarket({
+   *   marketId: 'market_123',
+   *   outcome: true // YES won
+   * });
+   * ```
    */
   static async updateReputationForResolvedMarket(
     resolution: MarketResolution
@@ -141,6 +174,21 @@ export class ReputationService {
 
   /**
    * Get current on-chain reputation for a user
+   * 
+   * @description Retrieves the current on-chain reputation value for a user
+   * by querying the reputation system contract. Returns null if user is not
+   * registered on-chain.
+   * 
+   * @param {string} userId - User ID
+   * @returns {Promise<number | null>} Current reputation value or null if not registered
+   * 
+   * @example
+   * ```typescript
+   * const reputation = await ReputationService.getOnChainReputation(userId);
+   * if (reputation !== null) {
+   *   console.log(`Reputation: ${reputation}`);
+   * }
+   * ```
    */
   static async getOnChainReputation(userId: string): Promise<number | null> {
     // Get user's NFT token ID

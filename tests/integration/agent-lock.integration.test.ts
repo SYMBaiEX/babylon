@@ -266,7 +266,8 @@ describe('Agent Lock Service Integration', () => {
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lock).toBeTruthy()
-    expect(processes).toContain(lock?.lockedBy)
+    expect(lock?.lockedBy).toBeDefined()
+    expect(processes).toContain(lock!.lockedBy)
 
     // Cleanup
     await releaseAgentLock(testAgentId1, lock!.lockedBy)

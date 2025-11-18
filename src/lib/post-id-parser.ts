@@ -1,12 +1,17 @@
 /**
  * Post ID Parser
  * 
- * Type-safe parser for extracting metadata from various post ID formats.
- * Supports multiple formats used throughout the application.
+ * @description Type-safe parser for extracting metadata from various post ID formats.
+ * Supports multiple formats used throughout the application, including game-generated
+ * posts, user posts, and legacy formats. Automatically detects format and extracts
+ * game ID, author ID, and timestamp.
  */
 
 /**
  * Parsed post metadata from post ID
+ * 
+ * @description Contains extracted metadata from a parsed post ID, including the game
+ * context, author information, and timestamp.
  */
 export interface ParsedPostMetadata {
   gameId: string;
@@ -16,6 +21,9 @@ export interface ParsedPostMetadata {
 
 /**
  * Parse result with success indicator
+ * 
+ * @description Result of parsing a post ID, indicating whether parsing was successful
+ * and containing the extracted metadata (or default values if parsing failed).
  */
 export interface ParseResult {
   metadata: ParsedPostMetadata;
@@ -126,8 +134,24 @@ function parseGameFormat(postId: string): ParsedPostMetadata | null {
 /**
  * Parse post ID and extract metadata
  * 
- * @param postId - The post ID to parse
- * @returns ParseResult with metadata and success indicator
+ * @description Parses a post ID string and extracts metadata (gameId, authorId, timestamp).
+ * Supports multiple post ID formats:
+ * - Format 1: gameId-gameTimestamp-authorId-isoTimestamp
+ * - Format 2/3: post-{timestamp}-{actorId?}-{random}
+ * - Format 4: game-{gameId}-{timestamp} (legacy)
+ * 
+ * Returns default metadata if parsing fails, allowing graceful degradation.
+ * 
+ * @param {string} postId - The post ID to parse
+ * @returns {ParseResult} Parse result with metadata and success indicator
+ * 
+ * @example
+ * ```typescript
+ * const result = parsePostId('babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z');
+ * if (result.success) {
+ *   console.log(`Post by ${result.metadata.authorId} at ${result.metadata.timestamp}`);
+ * }
+ * ```
  */
 export function parsePostId(postId: string): ParseResult {
   const format1 = parseFormat1(postId);

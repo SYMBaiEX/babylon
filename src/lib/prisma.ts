@@ -1,14 +1,17 @@
 /**
  * Prisma Client Singleton - Serverless Optimized
  * 
- * Ensures only one Prisma Client instance exists across the application.
- * Prevents connection pool exhaustion in serverless environments.
+ * @description Ensures only one Prisma Client instance exists across the application.
+ * Prevents connection pool exhaustion in serverless environments. Provides automatic
+ * retry with exponential backoff, connection pooling optimized for serverless, and
+ * graceful connection lifecycle management.
  * 
  * Features:
  * - Automatic retry with exponential backoff on connection failures
  * - Connection pooling optimized for serverless (limited connections)
  * - Automatic connection cleanup and timeout handling
  * - Detailed error logging
+ * - Lazy initialization via Proxy for Edge Runtime compatibility
  * 
  * Serverless Best Practices:
  * - Limits connection pool size to prevent exhaustion
@@ -44,7 +47,14 @@ const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
 
 /**
  * Enforce optimal connection pool parameters
- * Adds or overrides connection pool settings to ensure optimal performance
+ * 
+ * @description Adds or overrides connection pool settings in DATABASE_URL to ensure
+ * optimal performance for high concurrency. Enforces connection_limit=50, pool_timeout=30,
+ * and connect_timeout=10.
+ * 
+ * @param {string} url - Database URL to optimize
+ * @returns {string} Optimized database URL with connection pool parameters
+ * @private
  */
 function enforceConnectionPoolParams(url: string): string {
   if (!url) return url;
@@ -71,6 +81,14 @@ function enforceConnectionPoolParams(url: string): string {
 
 /**
  * Create a new Prisma Client with serverless-optimized settings
+ * 
+ * @description Creates a new Prisma Client instance with optimized connection pool
+ * settings. Supports both PRISMA_DATABASE_URL (Vercel) and DATABASE_URL. Wraps with
+ * monitoring in development/test environments.
+ * 
+ * @returns {PrismaClient} New Prisma Client instance
+ * @throws {Error} If DATABASE_URL is required but not set (test environments)
+ * @private
  */
 function createPrismaClient() {
   // Support Vercel Prisma integration: prefer PRISMA_DATABASE_URL, fallback to DATABASE_URL
@@ -124,8 +142,13 @@ function createPrismaClient() {
 
 /**
  * Check if we're in a test environment using Node.js-specific APIs
- * This function should ONLY be called when we know we're NOT in Edge Runtime
+ * 
+ * @description Checks process.argv and require.main to detect test environment.
+ * This function should ONLY be called when we know we're NOT in Edge Runtime.
+ * 
+ * @returns {boolean} True if in test environment
  * @internal - Do not call directly, use isTestEnvironment() instead
+ * @private
  */
 function checkNodeJsTestEnvironment(): boolean {
   if (typeof process === 'undefined') {
@@ -182,8 +205,13 @@ function checkNodeJsTestEnvironment(): boolean {
 
 /**
  * Detect if we're in a test environment
- * Bun doesn't always set NODE_ENV=test, so we check multiple indicators
- * Note: Edge Runtime doesn't support Node.js APIs like process.argv
+ * 
+ * @description Detects test environment by checking NODE_ENV, BUN_ENV, and Node.js-specific
+ * APIs. Bun doesn't always set NODE_ENV=test, so we check multiple indicators. Edge Runtime
+ * doesn't support Node.js APIs like process.argv, so we skip those checks in Edge Runtime.
+ * 
+ * @returns {boolean} True if in test environment
+ * @private
  */
 function isTestEnvironment(): boolean {
   // Check explicit environment variables first (most reliable, works in all runtimes)
@@ -209,6 +237,14 @@ function isTestEnvironment(): boolean {
 
 /**
  * Get or create the base Prisma client
+ * 
+ * @description Returns the singleton Prisma Client instance, creating it if necessary.
+ * Skips initialization during Next.js build time (but not during tests). Returns null
+ * if DATABASE_URL is not set (except in test environments where it throws).
+ * 
+ * @returns {PrismaClient | null} Prisma Client instance or null if not initialized
+ * @throws {Error} In test environments if DATABASE_URL is not set
+ * @private
  */
 function getPrismaClient(): PrismaClient | null {
   // Skip Prisma initialization during Next.js build time (but not during tests)
@@ -263,13 +299,28 @@ if (isTestEnv && !basePrismaClient) {
   throw new Error('Prisma client is not initialized in test environment. Check DATABASE_URL environment variable.');
 }
 
-// Export base client for operations that need full type inference
-// (e.g., when retry proxy loses type information for complex union types)
-// During build time, this will be null but won't be called
+/**
+ * Base Prisma Client (without retry proxy)
+ * 
+ * @description Exported base client for operations that need full type inference
+ * (e.g., when retry proxy loses type information for complex union types).
+ * During build time, this will be null but won't be called.
+ * 
+ * @warning Use prisma (with retry) instead unless you need direct type inference.
+ */
 export const prismaBase = basePrismaClient as PrismaClient;
 
-// Lazy initialization wrapper for prisma that ensures client is created on first access
-// This is important for tests where DATABASE_URL might be set after module load
+/**
+ * Get Prisma Client with retry proxy
+ * 
+ * @description Returns the Prisma Client wrapped with retry proxy for automatic
+ * retry on connection failures. Creates retry proxy on first call. Uses fewer
+ * retries in test environments for faster failure detection.
+ * 
+ * @returns {PrismaClient} Prisma Client with retry proxy
+ * @throws {Error} If DATABASE_URL is not set and not in build time
+ * @private
+ */
 function getPrismaWithRetry(): PrismaClient {
   const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
   let client = getPrismaClient();
@@ -333,9 +384,17 @@ function getPrismaWithRetry(): PrismaClient {
   return globalForPrisma.prismaWithRetry as unknown as PrismaClient;
 }
 
-// Create a Proxy that lazily initializes the Prisma client on first access
-// This ensures tests can access prisma even if DATABASE_URL is set after module load
-// The Proxy preserves full type information by properly typing the handler
+/**
+ * Create a Proxy that lazily initializes the Prisma client on first access
+ * 
+ * @description Creates a Proxy that lazily initializes the Prisma Client on first
+ * property access. This ensures tests can access prisma even if DATABASE_URL is set
+ * after module load. The Proxy preserves full type information by properly typing
+ * the handler.
+ * 
+ * @returns {PrismaClient} Proxy that lazily initializes Prisma Client
+ * @private
+ */
 function createLazyPrismaProxy(): PrismaClient {
   return new Proxy({} as PrismaClient, {
     get<K extends keyof PrismaClient>(_target: PrismaClient, prop: K): PrismaClient[K] {
@@ -395,8 +454,19 @@ function createLazyPrismaProxy(): PrismaClient {
 
 const prismaProxy = createLazyPrismaProxy();
 
-// Export prisma with lazy initialization
-// The Proxy preserves all PrismaClient types including compound unique constraints
+/**
+ * Prisma Client with lazy initialization and retry proxy
+ * 
+ * @description Main Prisma Client export. Uses a Proxy for lazy initialization and
+ * includes automatic retry on connection failures. The Proxy preserves all PrismaClient
+ * types including compound unique constraints. Safe to use in Edge Runtime.
+ * 
+ * @example
+ * ```typescript
+ * import { prisma } from '@/lib/prisma';
+ * const user = await prisma.user.findUnique({ where: { id: '123' } });
+ * ```
+ */
 export const prisma: PrismaClient = prismaProxy;
 
 /**

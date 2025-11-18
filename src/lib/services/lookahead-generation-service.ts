@@ -1,17 +1,17 @@
 /**
  * Lookahead Generation Service
  * 
- * @description
- * Ensures content is always generated 15 minutes ahead of current time.
- * Simple approach: Check latest timestamp, generate more if needed.
+ * @description Ensures content is always generated 15 minutes ahead of current time.
+ * Uses a simple approach: check latest timestamp, generate more if needed. Distributes
+ * timestamps naturally across future windows. Users only see content with timestamp <= now().
  * 
- * **How It Works**:
+ * How It Works:
  * 1. Check latest post/event timestamp in database
  * 2. If < 15 minutes ahead: Generate more content
  * 3. Distribute timestamps naturally across future windows
  * 4. Users only see content with timestamp <= now() (time filter)
  * 
- * **Benefits**:
+ * Benefits:
  * - Simpler than full queue
  * - No race conditions (uses locking)
  * - Smooth content distribution
@@ -32,7 +32,19 @@ const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
 /**
  * Check how far ahead content is generated
  * 
- * @returns Minutes ahead content is generated (negative if behind)
+ * @description Checks the latest post timestamp in the database and calculates
+ * how many minutes ahead content is generated. Returns negative if content is
+ * behind current time.
+ * 
+ * @returns {Promise<object>} Lookahead status with minutes ahead, latest timestamp, and needs generation flag
+ * 
+ * @example
+ * ```typescript
+ * const status = await checkLookaheadStatus();
+ * if (status.needsGeneration) {
+ *   await generateAheadIfNeeded(llmClient);
+ * }
+ * ```
  */
 export async function checkLookaheadStatus(): Promise<{
   minutesAhead: number;
@@ -69,9 +81,18 @@ export async function checkLookaheadStatus(): Promise<{
 /**
  * Generate content ahead of current time
  * 
- * @param llmClient - LLM client for content generation
- * @param targetMinutesAhead - How far ahead to generate (default: 15)
- * @returns Number of time windows generated
+ * @description Generates content in 5-minute windows until target lookahead is reached.
+ * Distributes timestamps naturally across windows. Skips windows that already have content.
+ * 
+ * @param {BabylonLLMClient} llmClient - LLM client for content generation
+ * @param {number} [targetMinutesAhead=15] - How far ahead to generate (default: 15)
+ * @returns {Promise<object>} Generation result with success flag, windows generated, and new latest timestamp
+ * 
+ * @example
+ * ```typescript
+ * const result = await generateAheadIfNeeded(llmClient, 20);
+ * console.log(`Generated ${result.windowsGenerated} windows`);
+ * ```
  */
 export async function generateAheadIfNeeded(
   llmClient: BabylonLLMClient,
@@ -149,7 +170,14 @@ export async function generateAheadIfNeeded(
 
 /**
  * Check if content already exists for a time window
- * Prevents duplicate generation for the same time window
+ * 
+ * @description Prevents duplicate generation for the same time window by checking
+ * if at least 5 posts exist in the window. Allows natural variation while preventing duplicates.
+ * 
+ * @param {Date} windowStart - Start of time window
+ * @param {Date} windowEnd - End of time window
+ * @returns {Promise<boolean>} True if window already has content
+ * @private
  */
 async function checkTimeWindowHasContent(windowStart: Date, windowEnd: Date): Promise<boolean> {
   const existingPosts = await prisma.post.count({
@@ -170,16 +198,16 @@ async function checkTimeWindowHasContent(windowStart: Date, windowEnd: Date): Pr
 /**
  * Generate content for a specific time window
  * 
- * @param llmClient - LLM client
- * @param windowStart - Start of 5-minute window
- * @param windowEnd - End of 5-minute window
+ * @description Generates posts with timestamps distributed across the window.
+ * This makes content feel continuous instead of chunky. Currently uses simplified
+ * generation. Full LLM-based generation should be integrated by calling the generation
+ * functions from serverless-game-tick.ts.
  * 
- * @description
- * Generates posts, events, etc. with timestamps distributed across the window.
- * This makes content feel continuous instead of chunky.
- * 
- * Note: Currently uses simplified generation. Full LLM-based generation
- * should be integrated by calling the generation functions from serverless-game-tick.ts
+ * @param {BabylonLLMClient} _llmClient - LLM client (reserved for future use)
+ * @param {Date} windowStart - Start of 5-minute window
+ * @param {Date} windowEnd - End of 5-minute window
+ * @returns {Promise<void>}
+ * @private
  */
 async function generateContentWindow(
   _llmClient: BabylonLLMClient, // Reserved for future use

@@ -4,13 +4,10 @@
  * @deprecated This keyword-based trading system has been replaced by LLM-driven market decisions.
  * See: MarketDecisionEngine, TradeExecutionService, MarketContextService
  * 
- * The new system generates trading decisions using the LLM based on:
- * - Feed posts
- * - Group chat messages (insider info)
- * - Market conditions
- * - NPC personality and tier
- * 
- * This file is kept for reference but should not be used.
+ * @description Legacy keyword-based trading system for NPCs. The new system generates
+ * trading decisions using the LLM based on feed posts, group chat messages (insider info),
+ * market conditions, and NPC personality and tier. This file is kept for reference
+ * but should not be used in new code.
  */
 
 import { prisma } from './prisma';

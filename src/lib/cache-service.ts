@@ -1,15 +1,16 @@
 /**
  * Cache Service
  * 
- * Provides intelligent caching layer for frequently accessed data.
- * Uses Redis when available, falls back to in-memory cache.
+ * @description Provides intelligent caching layer for frequently accessed data.
+ * Uses Redis when available, falls back to in-memory cache. Supports automatic
+ * TTL management, cache invalidation patterns, and graceful degradation.
  * 
  * Features:
  * - Automatic TTL management
  * - Cache invalidation patterns
- * - Compression for large objects
  * - Fallback to database on cache miss
  * - Graceful degradation if Redis unavailable
+ * - Support for both Upstash (REST API) and standard Redis
  */
 
 import { redis, redisClientType } from './redis';
@@ -18,12 +19,22 @@ import type { Redis as UpstashRedis } from '@upstash/redis';
 import type IORedis from 'ioredis';
 // import { performanceMonitor } from './monitoring/performance-monitor';
 
+/**
+ * Cache options
+ * 
+ * @description Configuration options for cache operations.
+ */
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
-  compress?: boolean; // Compress large objects
+  compress?: boolean; // Compress large objects (not currently implemented)
   namespace?: string; // Cache key prefix
 }
 
+/**
+ * Cache entry structure
+ * 
+ * @description Internal structure for in-memory cache entries.
+ */
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;
@@ -32,7 +43,12 @@ interface CacheEntry<T> {
 // In-memory fallback cache (for when Redis is unavailable)
 const memoryCache = new Map<string, CacheEntry<unknown>>();
 
-// Cache key prefixes for different data types
+/**
+ * Cache key prefixes for different data types
+ * 
+ * @description Standardized cache key prefixes used throughout the application
+ * for consistent cache key naming.
+ */
 export const CACHE_KEYS = {
   POST: 'post',
   POSTS_LIST: 'posts:list',
@@ -48,7 +64,13 @@ export const CACHE_KEYS = {
   WIDGET: 'widget',
 } as const;
 
-// Default TTLs for different data types (in seconds)
+/**
+ * Default TTLs for different data types (in seconds)
+ * 
+ * @description Default time-to-live values for different data types based on
+ * their change frequency. Real-time data has short TTLs, rarely changing data
+ * has long TTLs.
+ */
 export const DEFAULT_TTLS = {
   // Real-time data - very short TTL
   POSTS_LIST: 10, // 10 seconds
@@ -73,6 +95,11 @@ export const DEFAULT_TTLS = {
 
 /**
  * Clean expired entries from memory cache
+ * 
+ * @description Removes expired entries from the in-memory cache. Called periodically
+ * to prevent memory leaks.
+ * 
+ * @private
  */
 function cleanMemoryCache(): void {
   const now = Date.now();
@@ -92,6 +119,21 @@ setInterval(cleanMemoryCache, 60000);
 
 /**
  * Get value from cache
+ * 
+ * @description Retrieves a value from cache (Redis or in-memory). Returns null
+ * if not found or expired. Handles both Upstash REST API and standard Redis protocols.
+ * 
+ * @param {string} key - Cache key
+ * @param {CacheOptions} [options={}] - Cache options (namespace, etc.)
+ * @returns {Promise<T | null>} Cached value or null if not found
+ * 
+ * @example
+ * ```typescript
+ * const user = await getCache<User>('user:123', { namespace: CACHE_KEYS.USER });
+ * if (user) {
+ *   // Use cached user
+ * }
+ * ```
  */
 export async function getCache<T>(
   key: string,
@@ -178,6 +220,22 @@ export async function getCache<T>(
 
 /**
  * Set value in cache
+ * 
+ * @description Stores a value in cache (Redis or in-memory) with optional TTL.
+ * Serializes the value to JSON before storing.
+ * 
+ * @param {string} key - Cache key
+ * @param {T} value - Value to cache
+ * @param {CacheOptions} [options={}] - Cache options (ttl, namespace, etc.)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * await setCache('user:123', userData, { 
+ *   namespace: CACHE_KEYS.USER, 
+ *   ttl: DEFAULT_TTLS.USER 
+ * });
+ * ```
  */
 export async function setCache<T>(
   key: string,
@@ -212,6 +270,17 @@ export async function setCache<T>(
 
 /**
  * Invalidate cache entry
+ * 
+ * @description Removes a specific cache entry from both Redis and in-memory cache.
+ * 
+ * @param {string} key - Cache key to invalidate
+ * @param {CacheOptions} [options={}] - Cache options (namespace, etc.)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * await invalidateCache('user:123', { namespace: CACHE_KEYS.USER });
+ * ```
  */
 export async function invalidateCache(
   key: string,
@@ -230,6 +299,18 @@ export async function invalidateCache(
 
 /**
  * Invalidate cache entries matching a pattern
+ * 
+ * @description Removes all cache entries matching a pattern. Uses SCAN for standard
+ * Redis, but pattern matching is limited with Upstash REST API.
+ * 
+ * @param {string} pattern - Pattern to match (e.g., 'user:*')
+ * @param {CacheOptions} [options={}] - Cache options (namespace, etc.)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * await invalidateCachePattern('user:*', { namespace: CACHE_KEYS.USER });
+ * ```
  */
 export async function invalidateCachePattern(
   pattern: string,
@@ -288,6 +369,23 @@ export async function invalidateCachePattern(
 
 /**
  * Get or set pattern - fetch from cache or execute function and cache result
+ * 
+ * @description Implements the cache-aside pattern. Checks cache first, and if
+ * not found, executes the fetch function and caches the result.
+ * 
+ * @param {string} key - Cache key
+ * @param {() => Promise<T>} fetchFn - Function to fetch data if cache miss
+ * @param {CacheOptions} [options={}] - Cache options (ttl, namespace, etc.)
+ * @returns {Promise<T>} Cached or freshly fetched value
+ * 
+ * @example
+ * ```typescript
+ * const posts = await getCacheOrFetch(
+ *   'posts:recent',
+ *   () => db().getRecentPosts(100),
+ *   { namespace: CACHE_KEYS.POSTS_LIST, ttl: DEFAULT_TTLS.POSTS_LIST }
+ * );
+ * ```
  */
 export async function getCacheOrFetch<T>(
   key: string,
@@ -313,6 +411,13 @@ export async function getCacheOrFetch<T>(
 
 /**
  * Warm up cache with data
+ * 
+ * @description Pre-populates cache with data. Alias for setCache for semantic clarity.
+ * 
+ * @param {string} key - Cache key
+ * @param {T} value - Value to cache
+ * @param {CacheOptions} [options={}] - Cache options
+ * @returns {Promise<void>}
  */
 export async function warmCache<T>(
   key: string,
@@ -324,6 +429,12 @@ export async function warmCache<T>(
 
 /**
  * Get cache statistics (memory cache only)
+ * 
+ * @description Returns statistics about the in-memory cache, including entry counts
+ * and Redis availability. Useful for monitoring and debugging.
+ * 
+ * @returns {object} Cache statistics including totalEntries, activeEntries, expiredEntries,
+ * redisAvailable, and redisType
  */
 export function getCacheStats() {
   const now = Date.now();
@@ -349,6 +460,14 @@ export function getCacheStats() {
 
 /**
  * Clear all cache (use with caution!)
+ * 
+ * @description Clears all in-memory cache entries. Redis cache clearing is not
+ * implemented for safety reasons (to avoid clearing other application data).
+ * 
+ * @returns {Promise<void>}
+ * 
+ * @warning Use with extreme caution! This will clear all cached data and may
+ * impact application performance.
  */
 export async function clearAllCache(): Promise<void> {
   logger.warn('Clearing all cache', undefined, 'CacheService');

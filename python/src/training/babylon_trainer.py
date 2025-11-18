@@ -71,7 +71,7 @@ class BabylonTrainer:
     def __init__(
         self,
         db_url: str,
-        project: str = "babylon",  # Project name (will use eliza-labs/babylon)
+        project: str = "babylon",  # Project name (will use elizaos/babylon by default)
         base_model: str = "OpenPipe/Qwen3-14B-Instruct",  # ONLY model available in W&B ART
         min_agents: int = 1  # Lowered to 1 - always train even with minimal data
     ):
@@ -171,14 +171,14 @@ class BabylonTrainer:
             env_entity = os.getenv("WANDB_ENTITY")
             
             # Use WANDB_ENTITY from environment if set, otherwise use default
-            # CRITICAL: Use eliza-labs org (has proper permissions configured)
+            # CRITICAL: Default to personal account (elizaos) which has write access
             if env_entity:
                 entity = env_entity
                 logger.info(f"Using WANDB_ENTITY from environment: {entity}")
             else:
-                # Default to eliza-labs org (project is eliza-labs/babylon)
-                entity = "eliza-labs"
-                logger.info(f"Using default entity: {entity}")
+                # Default to personal account (has write permissions)
+                entity = "elizaos"
+                logger.info(f"Using default entity: {entity} (personal account)")
         
         # Create model - pass entity explicitly (backend.register() uses model.entity)
         self.model = art.TrainableModel(
@@ -197,10 +197,9 @@ class BabylonTrainer:
         force_local = os.getenv('FORCE_LOCAL_TRAINING', 'false').lower() == 'true'
         
         if wandb_key:
-            # ART Colab pattern: ServerlessBackend() with no arguments - reads from environment
-            # WANDB_API_KEY must be set in os.environ (which it is, since we checked above)
-            self.backend = ServerlessBackend()  # Reads WANDB_API_KEY from os.environ automatically
-            logger.info("✓ Created W&B ServerlessBackend (reads from environment)")
+            # Pass API key explicitly for consistency and reliability
+            self.backend = ServerlessBackend(api_key=wandb_key)
+            logger.info("✓ Created W&B ServerlessBackend with explicit API key")
             
             # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
             # Increased delays for plan upgrade propagation
@@ -920,9 +919,9 @@ async def main():
     print("=" * 70)
     print()
     
-    # Use eliza-labs/babylon project (configured in W&B)
+    # Use personal account (elizaos) for babylon project
     project_name = os.getenv("WANDB_PROJECT", "babylon")
-    entity = os.getenv("WANDB_ENTITY", "eliza-labs")  # Default to eliza-labs org
+    entity = os.getenv("WANDB_ENTITY", "elizaos")  # Default to personal account (has write access)
     
     print(f"✅ Using W&B project: {entity}/{project_name}")
     print(f"   ART ServerlessBackend will handle wandb initialization")

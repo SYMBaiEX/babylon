@@ -1,7 +1,8 @@
 /**
  * Snowflake ID Generator
  * 
- * Generates unique 64-bit IDs similar to Twitter's Snowflake system.
+ * @description Generates unique 64-bit IDs similar to Twitter's Snowflake system.
+ * Provides distributed ID generation with timestamp ordering and worker isolation.
  * 
  * Structure (64 bits total):
  * - 1 bit: Always 0 (sign bit for compatibility)
@@ -31,6 +32,13 @@ const MAX_SEQUENCE = (1n << SEQUENCE_BITS) - 1n; // 4095
 const TIMESTAMP_SHIFT = WORKER_BITS + SEQUENCE_BITS; // 22
 const WORKER_SHIFT = SEQUENCE_BITS; // 12
 
+/**
+ * Snowflake ID Generator Class
+ * 
+ * @description Generates unique, ordered IDs using the Snowflake algorithm.
+ * Thread-safe with async queue for concurrent ID generation. Ensures IDs are
+ * always increasing and unique across workers.
+ */
 class SnowflakeGenerator {
   private workerId: bigint;
   private sequence: bigint = 0n;
@@ -47,6 +55,18 @@ class SnowflakeGenerator {
 
   /**
    * Generate a new Snowflake ID (async with mutex for concurrency safety)
+   * 
+   * @description Generates a unique Snowflake ID asynchronously. Uses a queue
+   * to ensure thread-safe generation even with concurrent requests.
+   * 
+   * @returns {Promise<string>} Unique Snowflake ID as string
+   * 
+   * @example
+   * ```typescript
+   * const generator = new SnowflakeGenerator(1);
+   * const id = await generator.generate();
+   * // Returns: "1234567890123456789"
+   * ```
    */
   async generate(): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -57,6 +77,11 @@ class SnowflakeGenerator {
 
   /**
    * Process the queue of ID generation requests
+   * 
+   * @description Internal method that processes queued ID generation requests
+   * one at a time to ensure thread safety. Uses a mutex pattern.
+   * 
+   * @private
    */
   private processQueue(): void {
     if (this.generating || this.queue.length === 0) {
@@ -80,6 +105,13 @@ class SnowflakeGenerator {
 
   /**
    * Generate a new Snowflake ID (synchronous internal method)
+   * 
+   * @description Internal synchronous method that performs the actual ID generation.
+   * Handles sequence overflow and clock skew detection.
+   * 
+   * @returns {string} Unique Snowflake ID as string
+   * @throws {Error} If clock moves backwards
+   * @private
    */
   private generateSync(): string {
     let timestamp = BigInt(Date.now()) - EPOCH;
@@ -114,6 +146,13 @@ class SnowflakeGenerator {
 
   /**
    * Wait for the next millisecond
+   * 
+   * @description Blocks until the next millisecond when sequence overflow occurs.
+   * Ensures unique IDs even at high generation rates.
+   * 
+   * @param {bigint} lastTimestamp - Last timestamp used
+   * @returns {bigint} New timestamp in next millisecond
+   * @private
    */
   private waitNextMillis(lastTimestamp: bigint): bigint {
     let timestamp = BigInt(Date.now()) - EPOCH;
@@ -125,6 +164,18 @@ class SnowflakeGenerator {
 
   /**
    * Parse a Snowflake ID to extract its components
+   * 
+   * @description Extracts timestamp, worker ID, and sequence from a Snowflake ID.
+   * Useful for debugging and understanding ID structure.
+   * 
+   * @param {string | bigint} id - Snowflake ID to parse
+   * @returns {object} Parsed components with timestamp, workerId, and sequence
+   * 
+   * @example
+   * ```typescript
+   * const parsed = SnowflakeGenerator.parse('1234567890123456789');
+   * // Returns: { timestamp: Date, workerId: 1, sequence: 0 }
+   * ```
    */
   static parse(id: string | bigint): {
     timestamp: Date;
@@ -146,6 +197,18 @@ class SnowflakeGenerator {
 
   /**
    * Check if a string is a valid Snowflake ID
+   * 
+   * @description Validates that a string represents a valid Snowflake ID format.
+   * Checks that it can be parsed and is within valid range.
+   * 
+   * @param {string} id - String to validate
+   * @returns {boolean} True if valid Snowflake ID
+   * 
+   * @example
+   * ```typescript
+   * SnowflakeGenerator.isValid('1234567890123456789'); // Returns: true
+   * SnowflakeGenerator.isValid('invalid'); // Returns: false
+   * ```
    */
   static isValid(id: string): boolean {
     const idBigInt = BigInt(id);
@@ -162,6 +225,12 @@ let instance: SnowflakeGenerator | null = null;
 
 /**
  * Get or create the global Snowflake generator instance
+ * 
+ * @description Returns the singleton Snowflake generator instance. Creates
+ * a new instance on first call using WORKER_ID environment variable or 0.
+ * 
+ * @returns {SnowflakeGenerator} Global Snowflake generator instance
+ * @private
  */
 function getGenerator(): SnowflakeGenerator {
   if (!instance) {
@@ -177,6 +246,17 @@ function getGenerator(): SnowflakeGenerator {
 
 /**
  * Generate a new Snowflake ID (convenience function)
+ * 
+ * @description Convenience function for generating Snowflake IDs using the
+ * global singleton instance. Most common way to generate IDs.
+ * 
+ * @returns {Promise<string>} Unique Snowflake ID as string
+ * 
+ * @example
+ * ```typescript
+ * const id = await generateSnowflakeId();
+ * // Returns: "1234567890123456789"
+ * ```
  */
 export async function generateSnowflakeId(): Promise<string> {
   return await getGenerator().generate();
@@ -184,6 +264,12 @@ export async function generateSnowflakeId(): Promise<string> {
 
 /**
  * Parse a Snowflake ID (convenience function)
+ * 
+ * @description Convenience function for parsing Snowflake IDs. Extracts
+ * timestamp, worker ID, and sequence components.
+ * 
+ * @param {string | bigint} id - Snowflake ID to parse
+ * @returns {object} Parsed components with timestamp, workerId, and sequence
  */
 export function parseSnowflakeId(id: string | bigint) {
   return SnowflakeGenerator.parse(id);
@@ -191,6 +277,11 @@ export function parseSnowflakeId(id: string | bigint) {
 
 /**
  * Check if a string is a valid Snowflake ID (convenience function)
+ * 
+ * @description Convenience function for validating Snowflake IDs.
+ * 
+ * @param {string} id - String to validate
+ * @returns {boolean} True if valid Snowflake ID
  */
 export function isValidSnowflakeId(id: string): boolean {
   return SnowflakeGenerator.isValid(id);

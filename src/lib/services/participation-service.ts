@@ -1,19 +1,20 @@
 /**
  * Participation Service
- *
- * Tracks off-chain user participation metrics:
- * - Posts created
- * - Comments made
- * - Shares made
- * - Reactions given
- * - Markets participated
- * - Total activity score
- * - Last activity timestamp
+ * 
+ * @description Tracks off-chain user participation metrics including posts,
+ * comments, shares, reactions, and market participation. Calculates total
+ * activity scores and tracks last activity timestamps.
  */
 
 import { prisma } from '@/lib/prisma'
 
 
+/**
+ * Participation statistics for a user
+ * 
+ * @description Contains aggregated participation metrics including counts
+ * for various activity types and last activity timestamp.
+ */
 export interface ParticipationStats {
   postsCreated: number
   commentsMade: number
@@ -24,9 +25,23 @@ export interface ParticipationStats {
   lastActivityAt: Date
 }
 
+/**
+ * Participation Service Class
+ * 
+ * @description Static service class for tracking user participation metrics.
+ * Provides methods for retrieving participation statistics and calculating
+ * activity scores.
+ */
 export class ParticipationService {
   /**
    * Get participation statistics for a user
+   * 
+   * @description Retrieves comprehensive participation statistics for a user
+   * including posts, comments, shares, reactions, and market participation.
+   * Calculates total activity score and last activity timestamp.
+   * 
+   * @param {string} userId - User ID to get stats for
+   * @returns {Promise<ParticipationStats | null>} Participation stats or null if user not found
    */
   static async getStats(userId: string): Promise<ParticipationStats | null> {
     // Get all counts in parallel

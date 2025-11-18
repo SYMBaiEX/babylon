@@ -1,16 +1,21 @@
 /**
  * Character Mapping Service
  * 
- * Handles find/replace of real names with parody names in text.
- * Uses database-backed mappings that can be edited via admin panel.
- * 
- * @module services/character-mapping-service
+ * @description Handles find/replace of real names with parody names in text.
+ * Uses database-backed mappings that can be edited via admin panel. Supports
+ * both character and organization mappings with priority-based replacement.
  */
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import type { CharacterMapping, OrganizationMapping } from '@prisma/client';
 
+/**
+ * Text replacement result
+ * 
+ * @description Contains transformed text with applied mappings and metadata
+ * about which mappings were used.
+ */
 export interface TextReplacementResult {
   transformedText: string;
   characterMappings: Record<string, string>; // real -> parody
@@ -19,8 +24,11 @@ export interface TextReplacementResult {
 }
 
 /**
- * Character Mapping Service
- * Transforms text by replacing real names with parody equivalents
+ * Character Mapping Service Class
+ * 
+ * @description Transforms text by replacing real names with parody equivalents.
+ * Uses cached mappings from database with 5-minute TTL. Supports case-insensitive
+ * whole-word matching with priority-based replacement.
  */
 export class CharacterMappingService {
   private characterMappingsCache: CharacterMapping[] = [];
@@ -30,6 +38,13 @@ export class CharacterMappingService {
 
   /**
    * Load mappings from database (with caching)
+   * 
+   * @description Loads character and organization mappings from database with
+   * 5-minute cache TTL. Orders by priority (higher priority first) for proper
+   * replacement order.
+   * 
+   * @returns {Promise<void>}
+   * @private
    */
   private async loadMappings(): Promise<void> {
     const now = Date.now();
@@ -57,7 +72,20 @@ export class CharacterMappingService {
 
   /**
    * Transform text by replacing real names with parody names
-   * Uses case-insensitive matching and preserves original text structure
+   * 
+   * @description Transforms text by replacing real names with parody equivalents.
+   * Uses case-insensitive whole-word matching and preserves original text structure
+   * (punctuation, whitespace). Processes character mappings first, then organization
+   * mappings.
+   * 
+   * @param {string} text - Text to transform
+   * @returns {Promise<TextReplacementResult>} Transformation result with mappings applied
+   * 
+   * @example
+   * ```typescript
+   * const result = await characterMappingService.transformText('Sam Altman announced GPT-5');
+   * // Returns: { transformedText: 'Sam Altman announced GPT-5', characterMappings: {...}, ... }
+   * ```
    */
   async transformText(text: string): Promise<TextReplacementResult> {
     await this.loadMappings();

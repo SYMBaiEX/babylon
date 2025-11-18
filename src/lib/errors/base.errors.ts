@@ -1,11 +1,17 @@
 /**
  * Base error classes for the Babylon application
- * Provides structured error handling with proper context and metadata
+ * 
+ * @description Provides structured error handling with proper context and metadata.
+ * All application errors extend BabylonError, which includes timestamp, context,
+ * error codes, and operational flags for consistent error handling.
  */
 
 /**
  * Base error class for all Babylon errors
- * Extends the native Error class with additional context and metadata
+ * 
+ * @description Extends the native Error class with additional context and metadata.
+ * All application errors should extend this class for consistent error handling,
+ * logging, and API responses.
  */
 export abstract class BabylonError extends Error {
   public readonly timestamp: Date;
@@ -31,6 +37,11 @@ export abstract class BabylonError extends Error {
 
   /**
    * Convert error to JSON for logging and API responses
+   * 
+   * @description Serializes the error to a JSON object suitable for logging
+   * and API responses. Includes stack trace in development mode.
+   * 
+   * @returns {object} JSON representation of the error
    */
   toJSON() {
     return {
@@ -47,6 +58,9 @@ export abstract class BabylonError extends Error {
 
 /**
  * Validation error for input validation failures
+ * 
+ * @description Error thrown when input validation fails. Includes field-level
+ * violations for detailed error reporting.
  */
 export class ValidationError extends BabylonError {
   constructor(
@@ -60,6 +74,9 @@ export class ValidationError extends BabylonError {
 
 /**
  * Authentication error for auth failures
+ * 
+ * @description Error thrown when authentication fails. Includes reason code
+ * for different failure types (NO_TOKEN, INVALID_TOKEN, etc.).
  */
 export class AuthenticationError extends BabylonError {
   constructor(
@@ -72,6 +89,9 @@ export class AuthenticationError extends BabylonError {
 
 /**
  * Authorization error for permission failures
+ * 
+ * @description Error thrown when authorization/permission checks fail.
+ * Includes resource and action context for detailed error messages.
  */
 export class AuthorizationError extends BabylonError {
   constructor(
@@ -91,6 +111,9 @@ export class AuthorizationError extends BabylonError {
 
 /**
  * Not found error for missing resources
+ * 
+ * @description Error thrown when a requested resource is not found.
+ * Supports custom messages and resource identifiers.
  */
 export class NotFoundError extends BabylonError {
   constructor(resource: string, identifier?: string | number, customMessage?: string) {
@@ -110,6 +133,9 @@ export class NotFoundError extends BabylonError {
 
 /**
  * Conflict error for duplicate resources or conflicting operations
+ * 
+ * @description Error thrown when an operation conflicts with existing state,
+ * such as duplicate resources or concurrent modifications.
  */
 export class ConflictError extends BabylonError {
   constructor(message: string, public readonly conflictingResource?: string) {
@@ -119,6 +145,9 @@ export class ConflictError extends BabylonError {
 
 /**
  * Database error for Prisma/database issues
+ * 
+ * @description Error thrown when database operations fail. Includes operation
+ * context and original error information for debugging.
  */
 export class DatabaseError extends BabylonError {
   constructor(
@@ -142,6 +171,9 @@ export class DatabaseError extends BabylonError {
 
 /**
  * External service error for third-party service failures
+ * 
+ * @description Error thrown when external service calls fail. Includes service
+ * name and original status code for debugging.
  */
 export class ExternalServiceError extends BabylonError {
   constructor(
@@ -161,6 +193,9 @@ export class ExternalServiceError extends BabylonError {
 
 /**
  * Rate limit error for rate limiting
+ * 
+ * @description Error thrown when rate limits are exceeded. Includes limit,
+ * window duration, and optional retry-after information.
  */
 export class RateLimitError extends BabylonError {
   constructor(
@@ -180,6 +215,9 @@ export class RateLimitError extends BabylonError {
 
 /**
  * Business logic error for domain-specific errors
+ * 
+ * @description Error thrown for domain-specific business logic violations.
+ * Allows custom error codes and context for specific business rules.
  */
 export class BusinessLogicError extends BabylonError {
   constructor(
@@ -193,6 +231,9 @@ export class BusinessLogicError extends BabylonError {
 
 /**
  * Bad request error for malformed requests
+ * 
+ * @description Error thrown for malformed or invalid requests. Includes
+ * optional details for debugging.
  */
 export class BadRequestError extends BabylonError {
   constructor(message: string, details?: Record<string, unknown>) {
@@ -202,6 +243,9 @@ export class BadRequestError extends BabylonError {
 
 /**
  * Internal server error for unexpected failures
+ * 
+ * @description Error thrown for unexpected server failures. Marked as
+ * non-operational (programming errors) rather than expected errors.
  */
 export class InternalServerError extends BabylonError {
   constructor(message: string = 'An unexpected error occurred', details?: Record<string, unknown>) {
@@ -211,6 +255,9 @@ export class InternalServerError extends BabylonError {
 
 /**
  * Service unavailable error for temporary outages
+ * 
+ * @description Error thrown when a service is temporarily unavailable.
+ * Includes optional retry-after information for clients.
  */
 export class ServiceUnavailableError extends BabylonError {
   constructor(

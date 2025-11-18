@@ -1,7 +1,9 @@
 /**
  * API Authentication Middleware
- *
- * Supports both Privy user authentication and agent session tokens
+ * 
+ * @description Middleware for authenticating API requests. Supports both Privy
+ * user authentication (via tokens/cookies) and agent session tokens. Provides
+ * helper functions for authentication, optional authentication, and error responses.
  */
 
 import { verifyAgentSession } from '@/lib/auth/agent-auth';
@@ -60,6 +62,12 @@ export function getPrivyClient(): PrivyClient {
   return privyClient;
 }
 
+/**
+ * Authenticated user information
+ * 
+ * @description Contains information about an authenticated user, including
+ * user IDs, wallet address, and whether the user is an agent.
+ */
 export interface AuthenticatedUser {
   userId: string;
   dbUserId?: string;
@@ -71,8 +79,26 @@ export interface AuthenticatedUser {
 
 /**
  * Authenticate request and return user info
- * Supports both Privy user tokens and agent session tokens
- * Checks both Authorization header and privy-token cookie
+ * 
+ * @description Authenticates an API request by checking for authentication tokens
+ * in the Authorization header or privy-token cookie. Supports both Privy user
+ * tokens and agent session tokens. Throws AuthenticationError if authentication fails.
+ * 
+ * @param {NextRequest} request - Next.js request object
+ * @returns {Promise<AuthenticatedUser>} Authenticated user information
+ * @throws {AuthenticationError} If authentication fails
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   const user = await authenticate(request);
+ *   // Use user.userId, user.dbUserId, etc.
+ * } catch (error) {
+ *   if (isAuthenticationError(error)) {
+ *     return authErrorResponse(error.message);
+ *   }
+ * }
+ * ```
  */
 export async function authenticate(request: NextRequest): Promise<AuthenticatedUser> {
   const authHeader = request.headers.get('authorization');
@@ -128,7 +154,14 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
 
 /**
  * Authenticate and require that the user has a database record
- * Throws an error if the user hasn't completed onboarding
+ * 
+ * @description Authenticates the request and ensures the user has completed
+ * onboarding (has a database record). Throws AuthenticationError if user
+ * hasn't completed onboarding.
+ * 
+ * @param {NextRequest} request - Next.js request object
+ * @returns {Promise<AuthenticatedUser & { dbUserId: string }>} Authenticated user with guaranteed dbUserId
+ * @throws {AuthenticationError} If authentication fails or user hasn't completed onboarding
  */
 export async function authenticateWithDbUser(request: NextRequest): Promise<AuthenticatedUser & { dbUserId: string }> {
   const authUser = await authenticate(request);
@@ -144,6 +177,13 @@ export async function authenticateWithDbUser(request: NextRequest): Promise<Auth
 
 /**
  * Optional authentication - returns user if authenticated, null otherwise
+ * 
+ * @description Attempts to authenticate the request but returns null instead
+ * of throwing if authentication fails. Useful for endpoints that work for
+ * both authenticated and unauthenticated users.
+ * 
+ * @param {NextRequest} request - Next.js request object
+ * @returns {Promise<AuthenticatedUser | null>} Authenticated user or null
  */
 export async function optionalAuth(request: NextRequest): Promise<AuthenticatedUser | null> {
   const authHeader = request.headers.get('authorization');

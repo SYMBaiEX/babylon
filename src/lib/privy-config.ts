@@ -1,10 +1,22 @@
+/**
+ * Privy Configuration
+ * 
+ * @description Configuration for Privy authentication and wallet management.
+ * Includes theme settings, login methods, embedded wallet configuration, and
+ * supported blockchain networks. Optimized for Farcaster Mini Apps compatibility
+ * with manual embedded wallet creation and Farcaster-first login.
+ */
+
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 
 /**
- * Extended Privy client config that includes "system" theme support
- * Privy supports "system" theme at runtime, but the types don't reflect this yet
+ * Extended Privy appearance config with system theme support
+ * 
+ * @description Privy supports "system" theme at runtime, but the types don't
+ * reflect this yet. This type extends the appearance config to include system theme
+ * for automatic light/dark mode switching.
  */
 type ExtendedAppearance = Omit<
   NonNullable<PrivyClientConfig['appearance']>,
@@ -13,6 +25,13 @@ type ExtendedAppearance = Omit<
   theme?: 'light' | 'dark' | `#${string}` | 'system';
 };
 
+/**
+ * Extended Privy Client Configuration
+ * 
+ * @description Extended Privy configuration with system theme support and
+ * custom embedded wallet settings for Farcaster Mini Apps compatibility. Allows
+ * manual embedded wallet creation and Farcaster-first login flow.
+ */
 export interface ExtendedPrivyClientConfig
   extends Omit<PrivyClientConfig, 'appearance' | 'embeddedWallets'> {
   appearance?: ExtendedAppearance;
@@ -28,7 +47,14 @@ export interface ExtendedPrivyClientConfig
   };
 }
 
-// Privy configuration
+/**
+ * Privy configuration object
+ * 
+ * @description Complete Privy configuration with app ID and client settings.
+ * Configured for Farcaster-first login, Base Sepolia default chain, and manual
+ * embedded wallet creation for Mini Apps compatibility. Uses system theme for
+ * automatic light/dark mode.
+ */
 export const privyConfig: {
   appId: string;
   config: ExtendedPrivyClientConfig;

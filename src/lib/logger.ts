@@ -1,12 +1,25 @@
 /**
  * Shared Logger Utility
- * Production-ready logging with configurable levels and environment awareness
+ * 
+ * @description Production-ready logging with configurable levels and environment
+ * awareness. Provides structured logging with context, data serialization, and
+ * automatic level filtering based on environment.
  */
 
 import type { LogData } from '@/types/common'
 
+/**
+ * Log level type
+ * 
+ * @description Valid log levels ordered by severity: debug < info < warn < error
+ */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
+/**
+ * Log entry structure
+ * 
+ * @description Internal structure for log entries before formatting.
+ */
 interface LogEntry {
   timestamp: string
   level: LogLevel
@@ -15,6 +28,13 @@ interface LogEntry {
   context?: string
 }
 
+/**
+ * Logger Class
+ * 
+ * @description Provides structured logging with configurable levels, context
+ * support, and safe serialization of complex objects. Handles cyclic references
+ * and Error objects gracefully.
+ */
 class Logger {
   private level: LogLevel
   private levelPriority: Record<LogLevel, number> = {
@@ -120,35 +140,97 @@ class Logger {
     }
   }
 
+  /**
+   * Log a debug message
+   * 
+   * @description Logs a debug-level message. Only shown if log level is set to debug.
+   * 
+   * @param {string} message - Log message
+   * @param {LogData} [data] - Optional data object
+   * @param {string} [context] - Optional context identifier
+   */
   debug(message: string, data?: LogData, context?: string): void {
     this.log('debug', message, data, context)
   }
 
+  /**
+   * Log an info message
+   * 
+   * @description Logs an info-level message. Shown for info, warn, and error levels.
+   * 
+   * @param {string} message - Log message
+   * @param {LogData} [data] - Optional data object
+   * @param {string} [context] - Optional context identifier
+   */
   info(message: string, data?: LogData, context?: string): void {
     this.log('info', message, data, context)
   }
 
+  /**
+   * Log a warning message
+   * 
+   * @description Logs a warning-level message. Shown for warn and error levels.
+   * 
+   * @param {string} message - Log message
+   * @param {LogData} [data] - Optional data object
+   * @param {string} [context] - Optional context identifier
+   */
   warn(message: string, data?: LogData, context?: string): void {
     this.log('warn', message, data, context)
   }
 
+  /**
+   * Log an error message
+   * 
+   * @description Logs an error-level message. Always shown regardless of log level.
+   * 
+   * @param {string} message - Log message
+   * @param {LogData} [data] - Optional data object (often an Error)
+   * @param {string} [context] - Optional context identifier
+   */
   error(message: string, data?: LogData, context?: string): void {
     this.log('error', message, data, context)
   }
 
+  /**
+   * Set the log level
+   * 
+   * @description Changes the minimum log level. Messages below this level
+   * will be filtered out.
+   * 
+   * @param {LogLevel} level - New log level
+   */
   setLevel(level: LogLevel): void {
     this.level = level
   }
 
+  /**
+   * Get the current log level
+   * 
+   * @description Returns the current minimum log level.
+   * 
+   * @returns {LogLevel} Current log level
+   */
   getLevel(): LogLevel {
     return this.level
   }
 }
 
-// Export singleton instance
+/**
+ * Singleton logger instance
+ * 
+ * @description Default logger instance used throughout the application.
+ * Configured based on LOG_LEVEL environment variable or defaults to 'debug'
+ * in development and 'info' in production.
+ */
 export const logger = new Logger()
 
-// Export class for testing or custom instances
+/**
+ * Logger class export
+ * 
+ * @description Export the Logger class for creating custom instances in tests
+ * or specialized use cases.
+ */
 export { Logger }
 
 

@@ -1,3 +1,11 @@
+/**
+ * Perpetual Futures Trade Service
+ * 
+ * @description Service for opening and closing perpetual futures positions.
+ * Handles position validation, margin calculations, fee processing, wallet updates,
+ * and trade impact application. Integrates with perps engine, wallet service, and fee service.
+ */
+
 import { type AuthenticatedUser } from '@/lib/api/auth-middleware';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { asUser } from '@/lib/db/context';
@@ -20,8 +28,16 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
+/**
+ * Trade side type
+ */
 type TradeSide = 'long' | 'short';
 
+/**
+ * Input for opening a perpetual futures position
+ * 
+ * @description Contains ticker, side, size, and leverage for opening a position.
+ */
 export interface OpenPerpPositionInput {
   ticker: string;
   side: TradeSide;
@@ -29,6 +45,11 @@ export interface OpenPerpPositionInput {
   leverage: number;
 }
 
+/**
+ * Result of opening a perpetual futures position
+ * 
+ * @description Contains position details, margin paid, fee breakdown, and new balance.
+ */
 export interface OpenPerpPositionResult {
   position: PerpPosition;
   marginPaid: number;
@@ -41,6 +62,12 @@ export interface OpenPerpPositionResult {
   newBalance: number;
 }
 
+/**
+ * Result of closing a perpetual futures position
+ * 
+ * @description Contains position details, realized P&L, margin returned, settlement amounts,
+ * liquidation status, fee breakdown, and new balance.
+ */
 export interface ClosePerpPositionResult {
   position: PerpPosition;
   realizedPnL: number;
@@ -57,6 +84,22 @@ export interface ClosePerpPositionResult {
   newBalance: number;
 }
 
+/**
+ * Resolve exit price for closing a position
+ * 
+ * @description Determines exit price from multiple sources with fallback priority:
+ * 1. Engine price (most accurate)
+ * 2. Position price (from database)
+ * 3. Organization price (from organization record)
+ * 4. Entry price (fallback)
+ * 
+ * @param {object} options - Price resolution options
+ * @param {number | null} [options.enginePrice] - Price from perps engine
+ * @param {number | null} [options.organizationPrice] - Price from organization record
+ * @param {number | null} [options.positionPrice] - Price from position record
+ * @param {number} options.entryPrice - Entry price (fallback)
+ * @returns {number} Resolved exit price
+ */
 export function resolveExitPrice(options: {
   enginePrice?: number | null;
   organizationPrice?: number | null;
@@ -77,7 +120,27 @@ export function resolveExitPrice(options: {
   );
 }
 
+/**
+ * Perpetual Futures Trade Service Class
+ * 
+ * @description Static service class for opening and closing perpetual futures positions.
+ * Provides methods for position management, validation, and settlement.
+ */
 export class PerpTradeService {
+  /**
+   * Open a perpetual futures position
+   * 
+   * @description Opens a new perpetual futures position. Validates market exists,
+   * checks position size limits, verifies sufficient funds, opens position in engine,
+   * updates database, processes fees, applies trade impacts, and returns result.
+   * 
+   * @param {AuthenticatedUser} authUser - Authenticated user
+   * @param {OpenPerpPositionInput} input - Position opening parameters
+   * @returns {Promise<OpenPerpPositionResult>} Position opening result
+   * @throws {NotFoundError} If market not found
+   * @throws {BusinessLogicError} If position size invalid
+   * @throws {InsufficientFundsError} If insufficient funds
+   */
   static async openPosition(
     authUser: AuthenticatedUser,
     input: OpenPerpPositionInput
@@ -240,6 +303,20 @@ export class PerpTradeService {
     };
   }
 
+  /**
+   * Close a perpetual futures position
+   * 
+   * @description Closes an existing perpetual futures position. Validates position
+   * exists and belongs to user, resolves exit price, closes position in engine, calculates
+   * P&L, updates wallet, processes fees, applies trade impacts, and returns result.
+   * 
+   * @param {AuthenticatedUser} authUser - Authenticated user
+   * @param {string} positionId - Position ID to close
+   * @returns {Promise<ClosePerpPositionResult>} Position closing result
+   * @throws {NotFoundError} If position not found
+   * @throws {AuthorizationError} If position does not belong to user
+   * @throws {BusinessLogicError} If position already closed
+   */
   static async closePosition(
     authUser: AuthenticatedUser,
     positionId: string

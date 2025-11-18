@@ -1,18 +1,40 @@
 /**
  * Earned Points Service
- * Converts P&L from trading into earned points
+ * 
+ * @description Converts P&L from trading into earned points. Provides methods
+ * for calculating points from P&L, syncing earned points, and awarding incremental
+ * points for trades.
  */
 
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
+/**
+ * Earned Points Service Class
+ * 
+ * @description Static service class for managing earned points from trading P&L.
+ * Provides methods for converting P&L to points and syncing earned points.
+ */
 export class EarnedPointsService {
   /**
    * Convert P&L to earned points
+   * 
+   * @description Converts trading P&L to earned points using formula: 1 point
+   * per $10 of realized P&L. Minimum is -100 points to limit downside risk and
+   * encourage trading.
+   * 
    * Formula: 1 point per $10 of realized P&L
    * Minimum: -100 points (can't go below -100)
-   * This encourages trading but limits downside risk
+   * 
+   * @param {number} pnl - Profit and loss amount
+   * @returns {number} Earned points (capped at -100 minimum)
+   * 
+   * @example
+   * ```typescript
+   * const points = EarnedPointsService.pnlToPoints(100); // Returns: 10
+   * const negative = EarnedPointsService.pnlToPoints(-2000); // Returns: -100 (capped)
+   * ```
    */
   static pnlToPoints(pnl: number): number {
     const points = Math.floor(pnl / 10)
@@ -22,7 +44,14 @@ export class EarnedPointsService {
 
   /**
    * Update earned points based on current lifetime P&L
-   * This recalculates earned points from scratch based on lifetimePnL
+   * 
+   * @description Recalculates earned points from scratch based on lifetimePnL.
+   * Updates user's earned points and total reputation points. Only updates if
+   * earned points have changed.
+   * 
+   * @param {string} userId - User ID to sync points for
+   * @returns {Promise<void>}
+   * @throws {Error} If user not found
    */
   static async syncEarnedPointsFromPnL(userId: string): Promise<void> {
     const user = await prisma.user.findUnique({
@@ -71,7 +100,20 @@ export class EarnedPointsService {
 
   /**
    * Award earned points for a specific P&L amount (for incremental updates)
-   * Use this when recording a trade's P&L
+   * 
+   * @description Awards earned points incrementally when recording a trade's P&L.
+   * Calculates the difference between previous and new P&L and updates earned
+   * points accordingly. Creates a points transaction record.
+   * 
+   * Use this when recording a trade's P&L for incremental updates.
+   * 
+   * @param {string} userId - User ID
+   * @param {number} previousLifetimePnL - Previous lifetime P&L
+   * @param {number} newLifetimePnL - New lifetime P&L
+   * @param {string} tradeType - Type of trade (for transaction record)
+   * @param {string} [relatedId] - Optional related entity ID (trade ID, etc.)
+   * @returns {Promise<number>} Points awarded (can be negative)
+   * @throws {Error} If user not found
    */
   static async awardEarnedPointsForPnL(
     userId: string,

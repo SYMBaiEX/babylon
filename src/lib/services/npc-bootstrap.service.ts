@@ -1,13 +1,16 @@
 /**
  * NPC Bootstrap Service
- * Initializes NPC agents at server startup
- *
+ * 
+ * @description Initializes NPC agents at server startup. Loads all Actor records
+ * from database, registers each NPC in AgentRegistry (if not already registered),
+ * creates runtime instances using AgentRuntimeManager, and sets up NPC-specific configurations.
+ * 
  * Responsibilities:
  * 1. Load all Actor records from database
  * 2. Register each NPC in AgentRegistry (if not already registered)
  * 3. Create runtime instances using AgentRuntimeManager
  * 4. Set up NPC-specific configurations
- *
+ * 
  * Based on: agent-unified-architecture.md
  */
 
@@ -22,6 +25,12 @@ import type { ActorData } from '@/shared/types'
 import type { AgentCapabilities } from '@/types/a2a'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
 
+/**
+ * NPC bootstrap result
+ * 
+ * @description Contains summary of NPC bootstrap operation including total NPCs,
+ * registration counts, initialization counts, failures, and error details.
+ */
 export interface NPCBootstrapResult {
   totalNpcs: number
   registered: number
@@ -30,13 +39,35 @@ export interface NPCBootstrapResult {
   errors: Array<{ actorId: string; error: string }>
 }
 
+/**
+ * NPC Bootstrap Service Class
+ * 
+ * @description Singleton service class for bootstrapping NPC agents. Provides
+ * methods to bootstrap all NPCs, bootstrap individual NPCs, remove NPCs, refresh
+ * NPC configurations, and get bootstrap status.
+ */
 export class NPCBootstrapService {
+  /**
+   * Singleton instance
+   * @private
+   */
   private static instance: NPCBootstrapService
 
+  /**
+   * Private constructor for singleton pattern
+   * @private
+   */
   private constructor() {
     logger.info('NPCBootstrapService initialized', undefined, 'NPCBootstrapService')
   }
 
+  /**
+   * Get singleton instance
+   * 
+   * @description Returns the singleton instance of NPCBootstrapService.
+   * 
+   * @returns {NPCBootstrapService} Singleton instance
+   */
   public static getInstance(): NPCBootstrapService {
     if (!NPCBootstrapService.instance) {
       NPCBootstrapService.instance = new NPCBootstrapService()
@@ -46,7 +77,12 @@ export class NPCBootstrapService {
 
   /**
    * Bootstrap all NPC agents from Actor database
-   * Called at server startup
+   * 
+   * @description Bootstraps all NPC agents from the Actor database. Called at server
+   * startup. Processes NPCs sequentially to avoid overwhelming the database. Returns
+   * summary with total NPCs, registration counts, initialization counts, failures, and errors.
+   * 
+   * @returns {Promise<NPCBootstrapResult>} Bootstrap result summary
    */
   public async bootstrapAllNpcs(): Promise<NPCBootstrapResult> {
     logger.info('Starting NPC bootstrap', undefined, 'NPCBootstrapService')
@@ -115,8 +151,14 @@ export class NPCBootstrapService {
 
   /**
    * Bootstrap a single NPC agent
-   * Creates registry entry and runtime instance
-   * @returns Object indicating which operations succeeded
+   * 
+   * @description Creates registry entry and runtime instance for a single NPC.
+   * Loads ActorData from JSON files, builds system prompt and capabilities, registers
+   * in AgentRegistry, and creates runtime instance.
+   * 
+   * @param {Actor} actor - Actor database record
+   * @returns {Promise<object>} Object indicating which operations succeeded
+   * @private
    */
   private async bootstrapSingleNpc(actor: Actor): Promise<{ registered: boolean; initialized: boolean }> {
     logger.info(
@@ -179,7 +221,14 @@ export class NPCBootstrapService {
 
   /**
    * Build system prompt for NPC from ActorData
-   * Uses bio, category, and other rich fields
+   * 
+   * @description Builds system prompt using bio, category, physical description,
+   * role, and other rich fields from ActorData. Adds game context about prediction
+   * markets and social interactions.
+   * 
+   * @param {ActorData} actorData - Actor data from JSON files
+   * @returns {string} System prompt for NPC
+   * @private
    */
   private buildNpcSystemPrompt(actorData: ActorData): string {
     const parts: string[] = []
@@ -212,7 +261,14 @@ export class NPCBootstrapService {
 
   /**
    * Build capabilities for NPC from ActorData
-   * NPCs have standard game capabilities plus OASF taxonomy skills/domains
+   * 
+   * @description Builds agent capabilities including standard NPC strategies, markets,
+   * actions, OASF taxonomy skills/domains, and game network configuration. NPCs have
+   * standard game capabilities plus OASF taxonomy skills/domains mapped from ActorData.
+   * 
+   * @param {ActorData} actorData - Actor data from JSON files
+   * @returns {AgentCapabilities} Agent capabilities
+   * @private
    */
   private buildNpcCapabilities(actorData: ActorData): AgentCapabilities {
     // Map ActorData to OASF skills and domains using the skill mapper
@@ -270,7 +326,13 @@ export class NPCBootstrapService {
 
   /**
    * Bootstrap a specific NPC by ID
-   * Useful for adding new NPCs at runtime
+   * 
+   * @description Bootstraps a specific NPC by ID. Useful for adding new NPCs
+   * at runtime or refreshing existing NPCs.
+   * 
+   * @param {string} actorId - Actor ID to bootstrap
+   * @returns {Promise<void>}
+   * @throws {Error} If actor not found
    */
   public async bootstrapNpc(actorId: string): Promise<void> {
     const actor = await prisma.actor.findUnique({
@@ -286,7 +348,13 @@ export class NPCBootstrapService {
 
   /**
    * Remove NPC from registry and clear runtime
-   * Useful for removing NPCs at runtime
+   * 
+   * @description Removes NPC from runtime cache and clears runtime instance.
+   * Note: Does not delete from AgentRegistry to preserve history. Status will
+   * be set to TERMINATED by clearRuntimeInstance.
+   * 
+   * @param {string} actorId - Actor ID to remove
+   * @returns {Promise<void>}
    */
   public async removeNpc(actorId: string): Promise<void> {
     logger.info(
@@ -310,7 +378,12 @@ export class NPCBootstrapService {
 
   /**
    * Refresh NPC configuration
-   * Reloads ActorData and recreates runtime
+   * 
+   * @description Reloads ActorData and recreates runtime. Clears existing runtime
+   * and bootstraps again with latest ActorData.
+   * 
+   * @param {string} actorId - Actor ID to refresh
+   * @returns {Promise<void>}
    */
   public async refreshNpc(actorId: string): Promise<void> {
     logger.info(
@@ -334,6 +407,11 @@ export class NPCBootstrapService {
 
   /**
    * Get bootstrap status for all NPCs
+   * 
+   * @description Returns bootstrap status including total NPCs, registered count,
+   * initialized count, and active count.
+   * 
+   * @returns {Promise<object>} Bootstrap status summary
    */
   public async getBootstrapStatus(): Promise<{
     totalNpcs: number

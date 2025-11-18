@@ -1,12 +1,16 @@
 /**
  * Cached Database Service
  * 
- * Wraps database-service with intelligent caching layer.
- * Provides cached versions of frequently accessed queries.
+ * @description Wraps database-service with intelligent caching layer using Redis
+ * and in-memory cache. Provides cached versions of frequently accessed queries
+ * with automatic TTL management and cache invalidation. Reduces database load
+ * for read-heavy operations.
  * 
- * Usage:
- *   import { cachedDb } from '@/lib/cached-database-service'
- *   const posts = await cachedDb.getRecentPosts(100)
+ * @usage
+ * ```typescript
+ * import { cachedDb } from '@/lib/cached-database-service'
+ * const posts = await cachedDb.getRecentPosts(100)
+ * ```
  */
 
 import db from './database-service';
@@ -21,11 +25,23 @@ import { logger } from './logger';
 import type { Post } from '@prisma/client';
 
 /**
- * Cached wrapper for database service
+ * Cached Database Service Class
+ * 
+ * @description Wrapper class that adds caching to database operations.
+ * Automatically caches query results with appropriate TTLs and provides
+ * cache invalidation methods.
  */
 class CachedDatabaseService {
   /**
    * Get recent posts with caching (cursor-based or offset-based pagination)
+   * 
+   * @description Retrieves recent posts with caching. Supports both cursor-based
+   * and offset-based pagination. Filters out posts from test users. Cache TTL
+   * is short (10 seconds) due to real-time nature of posts.
+   * 
+   * @param {number} limit - Number of posts to fetch (default: 100)
+   * @param {string | number} [cursorOrOffset] - Cursor (ISO string) or offset (number)
+   * @returns {Promise<Post[]>} Array of posts
    */
   async getRecentPosts(limit = 100, cursorOrOffset?: string | number): Promise<Post[]> {
     const isCursor = typeof cursorOrOffset === 'string';

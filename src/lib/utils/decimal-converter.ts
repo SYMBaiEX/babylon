@@ -1,17 +1,21 @@
 /**
  * Decimal Converter Utilities
  * 
- * Handles safe conversion of Prisma Decimal values to strings,
- * accounting for serialization from cache (Redis) where Decimal
- * objects may be converted to strings, numbers, or plain objects.
+ * @description Handles safe conversion of Prisma Decimal values to strings and numbers,
+ * accounting for serialization from cache (Redis) where Decimal objects may be converted
+ * to strings, numbers, or plain objects. Provides type-safe conversion with fallbacks.
  */
 
 /**
  * Safely convert a value (Decimal, number, string, or unknown) to string
  * 
- * @param value - Value that might be a Prisma Decimal, number, string, or serialized object
- * @param defaultValue - Default value if conversion fails (default: '0')
- * @returns String representation of the value
+ * @description Converts Prisma Decimal, number, string, or serialized objects to strings
+ * safely. Handles null/undefined, Decimal objects, and cached values that may have been
+ * serialized differently.
+ * 
+ * @param {unknown} value - Value that might be a Prisma Decimal, number, string, or serialized object
+ * @param {string} [defaultValue='0'] - Default value if conversion fails
+ * @returns {string} String representation of the value
  * 
  * @example
  * ```typescript
@@ -61,9 +65,13 @@ export function toSafeString(value: unknown, defaultValue = '0'): string {
 /**
  * Safely convert a value to number
  * 
- * @param value - Value that might be a Prisma Decimal, number, string, or serialized object
- * @param defaultValue - Default value if conversion fails (default: 0)
- * @returns Numeric representation of the value
+ * @description Converts Prisma Decimal, number, string, or serialized objects to numbers
+ * safely. Handles null/undefined, Decimal objects, and cached values. Uses parseFloat
+ * for string conversion with NaN fallback.
+ * 
+ * @param {unknown} value - Value that might be a Prisma Decimal, number, string, or serialized object
+ * @param {number} [defaultValue=0] - Default value if conversion fails
+ * @returns {number} Numeric representation of the value
  * 
  * @example
  * ```typescript
@@ -112,8 +120,11 @@ export function toSafeNumber(value: unknown, defaultValue = 0): number {
 /**
  * Convert multiple balance-related fields to strings safely
  * 
- * @param balanceData - Object containing balance fields
- * @returns Object with all balance fields as strings
+ * @description Converts all balance-related fields in an object to strings using
+ * toSafeString. Useful for preparing user balance data for API responses or caching.
+ * 
+ * @param {object} balanceData - Object containing balance fields (virtualBalance, totalDeposited, etc.)
+ * @returns {object} Object with all balance fields as strings
  * 
  * @example
  * ```typescript

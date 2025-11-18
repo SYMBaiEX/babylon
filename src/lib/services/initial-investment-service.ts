@@ -1,9 +1,10 @@
 /**
  * Initial Investment Service
  * 
- * Generates character-appropriate initial investments for NPCs during seed.
- * NPCs start with existing positions in companies that make sense for their
- * character (AIlon Musk → SpAIceX/TeslAI, Sam AIltman → OpnAI, etc.)
+ * @description Generates character-appropriate initial investments for NPCs
+ * during seed. NPCs start with existing positions in companies that make sense
+ * for their character (AIlon Musk → SpAIceX/TeslAI, Sam AIltman → OpnAI, etc.).
+ * Uses LLM to determine appropriate investments based on NPC characteristics.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -13,6 +14,12 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { Prisma } from '@prisma/client';
 import { readFile } from 'fs/promises';
 
+/**
+ * Initial investment specification
+ * 
+ * @description Contains NPC investment details including company, amount,
+ * and reasoning for the investment decision.
+ */
 interface InitialInvestment {
   npcId: string;
   npcName: string;
@@ -22,15 +29,26 @@ interface InitialInvestment {
   reasoning: string;
 }
 
+/**
+ * Initial Investment Service Class
+ * 
+ * @description Static service class for generating and executing initial
+ * investments for NPCs. Uses LLM to determine character-appropriate investments.
+ */
 export class InitialInvestmentService {
   /**
    * Generate and execute initial investments for all NPCs
    * 
-   * Uses LLM to determine character-appropriate investments based on:
+   * @description Uses LLM to determine character-appropriate investments based on:
    * - NPC affiliations (e.g., AIlon → TeslAI, SpAIceX)
    * - NPC relationships and connections
    * - NPC personality and domain expertise
    * - Available balance (invests 50-75% of total balance)
+   * 
+   * Processes NPCs in batches to optimize LLM calls and executes all investments
+   * atomically.
+   * 
+   * @returns {Promise<object>} Summary with total NPCs, investments, and volume
    */
   static async generateAndExecuteInitialInvestments(): Promise<{
     totalNPCs: number;

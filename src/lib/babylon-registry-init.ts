@@ -1,8 +1,9 @@
 /**
  * Babylon Game Registration
  * 
- * Registers Babylon as a discoverable entity in ERC-8004 + Agent0 registry.
- * Called on server startup to ensure Babylon is discoverable by agents.
+ * @description Registers Babylon as a discoverable entity in ERC-8004 + Agent0
+ * registry. Called on server startup to ensure Babylon is discoverable by agents.
+ * Publishes game metadata, capabilities, and endpoints for agent discovery.
  */
 
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
@@ -12,6 +13,12 @@ import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { JsonValue } from '@/types/common'
 
+/**
+ * Babylon registration result
+ * 
+ * @description Contains registration information after successfully registering
+ * Babylon in the Agent0 registry.
+ */
 export interface BabylonRegistrationResult {
   tokenId: number
   metadataCID: string
@@ -20,6 +27,21 @@ export interface BabylonRegistrationResult {
 
 /**
  * Register Babylon game in ERC-8004 + Agent0 registry
+ * 
+ * @description Registers Babylon as a discoverable game platform in the Agent0
+ * registry on Ethereum Sepolia. Publishes game metadata, capabilities, MCP/A2A
+ * endpoints, and tool definitions. Skips registration if already registered or
+ * if Agent0 integration is disabled.
+ * 
+ * @returns {Promise<BabylonRegistrationResult | null>} Registration result or null if skipped
+ * 
+ * @example
+ * ```typescript
+ * const result = await registerBabylonGame();
+ * if (result) {
+ *   console.log(`Registered with token ID: ${result.tokenId}`);
+ * }
+ * ```
  */
 export async function registerBabylonGame(): Promise<BabylonRegistrationResult | null> {
   if (process.env.BABYLON_REGISTRY_REGISTERED === 'true') {

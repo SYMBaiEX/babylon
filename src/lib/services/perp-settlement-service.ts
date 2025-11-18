@@ -1,12 +1,14 @@
 /**
  * Perpetuals Settlement Service
- *
- * Bridges off-chain trading engine (PR #128) with on-chain contracts (PR #129)
- *
+ * 
+ * @description Bridges off-chain trading engine with on-chain contracts for
+ * perpetual futures positions. Supports multiple settlement modes for different
+ * use cases.
+ * 
  * Modes:
  * - offchain: No blockchain settlement (fast MVP)
  * - onchain: Every trade settles to blockchain (decentralized)
- * - hybrid: Periodic batch settlement (best of both)
+ * - hybrid: Periodic batch settlement (best of both worlds)
  */
 
 import { logger } from '@/lib/logger';
@@ -45,6 +47,12 @@ const PERP_FACET_ABI = [
   }
 ] as const;
 
+/**
+ * Settlement result
+ * 
+ * @description Contains settlement operation result including success status,
+ * transaction hash, error information, and gas usage.
+ */
 export interface SettlementResult {
   success: boolean;
   transactionHash?: string;
@@ -52,12 +60,33 @@ export interface SettlementResult {
   gasUsed?: bigint;
 }
 
+/**
+ * Perpetuals Settlement Service Class
+ * 
+ * @description Static service class for settling perpetual futures positions
+ * to blockchain. Handles position opening/closing settlement and batch processing
+ * for hybrid mode.
+ */
 export class PerpSettlementService {
+  /**
+   * Batch timer for hybrid mode periodic settlement
+   * @private
+   */
   private static batchTimer: NodeJS.Timeout | null = null;
+  
+  /**
+   * Set of unsettled position IDs for hybrid mode
+   * @private
+   */
   private static unsettledPositions: Set<string> = new Set();
 
   /**
    * Initialize settlement service (for hybrid mode)
+   * 
+   * @description Initializes periodic batch settlement for hybrid mode.
+   * Sets up interval timer to process unsettled positions periodically.
+   * 
+   * @returns {void}
    */
   static initialize(): void {
     if (!isHybridMode()) {
@@ -78,6 +107,11 @@ export class PerpSettlementService {
 
   /**
    * Shutdown settlement service
+   * 
+   * @description Cleans up batch timer for hybrid mode. Should be called
+   * on application shutdown.
+   * 
+   * @returns {void}
    */
   static shutdown(): void {
     if (this.batchTimer) {
@@ -88,6 +122,13 @@ export class PerpSettlementService {
 
   /**
    * Settle position opening to blockchain
+   * 
+   * @description Settles a position opening to the blockchain. In offchain mode,
+   * returns success immediately. In hybrid mode, queues for batch settlement.
+   * In onchain mode, immediately settles to blockchain.
+   * 
+   * @param {PerpPosition} position - Position to settle
+   * @returns {Promise<SettlementResult>} Settlement result
    */
   static async settleOpenPosition(
     position: PerpPosition

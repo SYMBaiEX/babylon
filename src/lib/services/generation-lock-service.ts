@@ -1,26 +1,28 @@
 /**
  * Generation Lock Service
  * 
- * @description
- * Simple distributed lock to prevent concurrent tick generation.
- * Prevents race conditions when multiple cron jobs trigger simultaneously.
+ * @description Simple distributed lock to prevent concurrent tick generation.
+ * Prevents race conditions when multiple cron jobs trigger simultaneously. Uses
+ * database-based locking that works across multiple servers with automatic stale
+ * lock recovery (15 minutes expiry).
  * 
- * **Features**:
+ * Features:
  * - Database-based locking (works across multiple servers)
- * - Automatic expiry (5 minutes for stale lock recovery)
+ * - Automatic expiry (15 minutes for stale lock recovery)
  * - Simple acquire/release pattern
  * - No external dependencies (uses Prisma)
+ * - Serverless-safe (uses timestamp + random bytes instead of process.pid)
  * 
- * **Usage**:
+ * Usage:
  * ```typescript
- * if (!await acquireGenerationLock()) {
+ * if (!await acquireGenerationLock(processId)) {
  *   return; // Skip this run, another process has the lock
  * }
  * 
  * try {
  *   await generateContent();
  * } finally {
- *   await releaseGenerationLock();
+ *   await releaseGenerationLock(processId);
  * }
  * ```
  */
@@ -37,16 +39,23 @@ const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 /**
  * Acquire generation lock
  * 
- * @param processId - Identifier for this process (default: random)
- * @returns true if lock acquired, false if already held
+ * @description Attempts to acquire a distributed lock for content generation.
+ * If lock is already held and not expired, returns false. If lock is expired
+ * (stale), automatically acquires it.
  * 
- * @description
- * Attempts to acquire a distributed lock for content generation.
- * If lock is already held and not expired, returns false.
- * If lock is expired (stale), automatically acquires it.
- * 
- * **Serverless Safety**: Uses database-based locks with unique serverless-safe IDs.
+ * Serverless Safety: Uses database-based locks with unique serverless-safe IDs.
  * Lock expiry (15min) is longer than Vercel maxDuration (13.3min) to prevent premature expiry.
+ * 
+ * @param {string} [processId] - Identifier for this process (default: random serverless-safe ID)
+ * @returns {Promise<boolean>} True if lock acquired, false if already held
+ * 
+ * @example
+ * ```typescript
+ * const acquired = await acquireGenerationLock(processId);
+ * if (!acquired) {
+ *   return; // Skip, another process has the lock
+ * }
+ * ```
  */
 export async function acquireGenerationLock(processId?: string): Promise<boolean> {
   const now = new Date();
@@ -117,11 +126,17 @@ export async function acquireGenerationLock(processId?: string): Promise<boolean
 /**
  * Release generation lock
  * 
- * @param processId - Identifier for this process (must match acquire)
+ * @description Releases the generation lock. Only the process that acquired
+ * the lock can release it (prevents accidental releases). Requires processId
+ * to match the lock holder for safety.
  * 
- * @description
- * Releases the generation lock. Only the process that acquired the lock
- * can release it (prevents accidental releases).
+ * @param {string} [processId] - Identifier for this process (must match acquire)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * await releaseGenerationLock(processId);
+ * ```
  */
 export async function releaseGenerationLock(processId?: string): Promise<void> {
   if (!processId) {
@@ -159,7 +174,10 @@ export async function releaseGenerationLock(processId?: string): Promise<void> {
 /**
  * Check if lock is held
  * 
- * @returns Lock info if held, null if free
+ * @description Checks if the generation lock is currently held. Returns lock
+ * information if held and not expired, null if free or expired.
+ * 
+ * @returns {Promise<object | null>} Lock info if held, null if free or expired
  */
 export async function checkGenerationLock() {
   const lock = await prisma.generationLock.findUnique({

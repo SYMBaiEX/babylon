@@ -1,9 +1,17 @@
 /**
  * Trading Fee Configuration
  * 
- * Centralized fee configuration for all trading activities
+ * @description Centralized fee configuration for all trading activities.
+ * Defines trading fee rates, fee distribution, minimum fees, and fee types
+ * for prediction markets and perpetual futures.
  */
 
+/**
+ * Fee configuration constants
+ * 
+ * @description Contains all fee-related configuration including rates,
+ * distribution shares, minimum amounts, and fee type identifiers.
+ */
 export const FEE_CONFIG = {
   // Trading fees
   TRADING_FEE_RATE: 0.001, // 0.1% on all trades
@@ -30,7 +38,18 @@ export const FEE_CONFIG = {
   } as const,
 } as const
 
+/**
+ * Fee type identifier
+ * 
+ * @description Type representing valid fee types for trading operations.
+ */
 export type FeeType = typeof FEE_CONFIG.FEE_TYPES[keyof typeof FEE_CONFIG.FEE_TYPES]
+
+/**
+ * Fee transaction type identifier
+ * 
+ * @description Type representing valid balance transaction types for fees.
+ */
 export type FeeTransactionType = typeof FEE_CONFIG.TRANSACTION_TYPES[keyof typeof FEE_CONFIG.TRANSACTION_TYPES]
 
 

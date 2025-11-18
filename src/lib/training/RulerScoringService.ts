@@ -17,14 +17,21 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { callGroqDirect } from '@/lib/agents/llm/direct-groq';
 import { toARTMessages } from '@/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
-import type { TrajectoryStep } from './types';
-import type { Trajectory as RichTrajectory } from '@/lib/agents/plugins/plugin-trajectory-logger/src/types';
+import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
+import type { Trajectory as RichTrajectory, TrajectoryStep } from '@/lib/agents/plugins/plugin-trajectory-logger/src/types';
+import { v4 as uuidv4 } from 'uuid';
+import { asUUID } from '@elizaos/core';
 
 export interface RulerScore {
   trajectoryId: string;
-  overallScore: number; // 0-1 normalized score from LLM judge
-  reasoning: string; // Judge's explanation
+  overallScore: number;
+  reasoning: string;
   scoredAt: Date;
+}
+
+export interface MarketOutcomes {
+  stocks: Array<{ ticker: string; changePercent: number }>;
+  predictions: Array<{ marketId: string; outcome: 'YES' | 'NO' }>;
 }
 
 interface TrajectoryScore {
@@ -48,15 +55,8 @@ const DEFAULT_RUBRIC = `
 `;
 
 export class RulerScoringService {
-  private readonly judgeModel: string;
-  private readonly minGroupSize: number = 2; // Minimum trajectories per group for comparison
-  private readonly maxGroupSize: number = 8; // Optimal group size per RULER docs
-
-  constructor(judgeModel?: string) {
-    // Default to fast, cost-effective judge model
-    // Can use qwen3-32b for better quality, llama-3.1-8b-instant for speed
-    this.judgeModel = judgeModel || process.env.RULER_JUDGE_MODEL || 'llama-3.1-8b-instant';
-  }
+  private readonly minGroupSize = 2; // Minimum trajectories per group for comparison
+  private readonly maxGroupSize = 8; // Optimal group size per RULER docs
 
   /**
    * Score trajectories using RULER (LLM-as-judge with relative comparison)
@@ -68,56 +68,47 @@ export class RulerScoringService {
    * @returns Number of trajectories successfully scored
    */
   async scoreTrajectories(trajectoryIds?: string[]): Promise<number> {
-    try {
-      // Get trajectories to score
-      const trajectories = await this.getTrajectoriesToScore(trajectoryIds);
-      
-      if (trajectories.length === 0) {
-        logger.info('No trajectories to score', {}, 'RulerScoring');
-        return 0;
-      }
-
-      // Group by scenarioId
-      const groups = this.groupByScenario(trajectories);
-      
-      logger.info('Grouped trajectories for RULER scoring', {
-        totalTrajectories: trajectories.length,
-        groups: groups.length,
-        avgGroupSize: groups.length > 0 ? trajectories.length / groups.length : 0
-      }, 'RulerScoring');
-
-      let totalScored = 0;
-
-      // Score each group
-      for (const group of groups) {
-        if (group.trajectories.length < this.minGroupSize) {
-          logger.warn('Skipping group with insufficient trajectories', {
-            scenarioId: group.scenarioId,
-            count: group.trajectories.length,
-            minRequired: this.minGroupSize
-          }, 'RulerScoring');
-          continue;
-        }
-
-        // Split large groups into smaller batches (optimal size: 4-8)
-        const batches = this.splitIntoBatches(group.trajectories, this.maxGroupSize);
-        
-        for (const batch of batches) {
-          const scored = await this.scoreGroup(batch, group.scenarioId);
-          totalScored += scored;
-        }
-      }
-
-      logger.info('RULER scoring complete', {
-        totalScored,
-        totalTrajectories: trajectories.length
-      }, 'RulerScoring');
-
-      return totalScored;
-    } catch (error) {
-      logger.error('RULER scoring failed', { error }, 'RulerScoring');
-      throw error;
+    const trajectories = await this.getTrajectoriesToScore(trajectoryIds);
+    
+    if (trajectories.length === 0) {
+      logger.info('No trajectories to score', {}, 'RulerScoring');
+      return 0;
     }
+
+    const groups = this.groupByScenario(trajectories);
+    
+    logger.info('Grouped trajectories for RULER scoring', {
+      totalTrajectories: trajectories.length,
+      groups: groups.length,
+      avgGroupSize: groups.length > 0 ? trajectories.length / groups.length : 0
+    }, 'RulerScoring');
+
+    let totalScored = 0;
+
+    for (const group of groups) {
+      if (group.trajectories.length < this.minGroupSize) {
+        logger.warn('Skipping group with insufficient trajectories', {
+          scenarioId: group.scenarioId,
+          count: group.trajectories.length,
+          minRequired: this.minGroupSize
+        }, 'RulerScoring');
+        continue;
+      }
+
+      const batches = this.splitIntoBatches(group.trajectories, this.maxGroupSize);
+      
+      for (const batch of batches) {
+        const scored = await this.scoreGroup(batch, group.scenarioId);
+        totalScored += scored;
+      }
+    }
+
+    logger.info('RULER scoring complete', {
+      totalScored,
+      totalTrajectories: trajectories.length
+    }, 'RulerScoring');
+
+    return totalScored;
   }
 
   /**
@@ -127,58 +118,11 @@ export class RulerScoringService {
    * in the same scenario and scores them together.
    */
   async scoreTrajectory(trajectoryId: string): Promise<RulerScore | null> {
-    const trajectory = await prisma.trajectory.findUnique({
-      where: { trajectoryId },
-      include: {
-        agent: {
-          select: {
-            id: true,
-            displayName: true
-          }
-        }
-      }
-    });
-
-    if (!trajectory) {
-      logger.warn('Trajectory not found for scoring', { trajectoryId }, 'RulerScoring');
-      return null;
-    }
-
-    // Skip if already scored
-    if (trajectory.aiJudgeReward !== null) {
-      return null;
-    }
-
-    // Find other trajectories in the same scenario
-    const scenarioId = trajectory.scenarioId || 'default';
-    const groupTrajectories = await prisma.trajectory.findMany({
-      where: {
-        scenarioId,
-        aiJudgeReward: null, // Only unscored
-        trajectoryId: { not: trajectoryId } // Exclude self
-      },
-      take: this.maxGroupSize - 1 // -1 because we'll add the target trajectory
-    });
-
-    // Create group with target trajectory + others
-    const group = [trajectory, ...groupTrajectories];
-    
-    if (group.length < this.minGroupSize) {
-      logger.warn('Insufficient trajectories in scenario for RULER', {
-        scenarioId,
-        count: group.length
-      }, 'RulerScoring');
-      return null;
-    }
-
-    // Score the group
-    const scored = await this.scoreGroup(group, scenarioId);
-    
+    const scored = await this.scoreTrajectories([trajectoryId]);
     if (scored === 0) {
       return null;
     }
 
-    // Return score for the requested trajectory
     const updated = await prisma.trajectory.findUnique({
       where: { trajectoryId },
       select: {
@@ -215,121 +159,169 @@ export class RulerScoringService {
     trajectories: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>,
     scenarioId: string
   ): Promise<number> {
-    try {
-      // Convert to rich trajectory format and extract messages
-      const richTrajectories: Array<{ traj: RichTrajectory; messages: Array<{ role: string; content: string }> }> = [];
-      
-      for (const dbTraj of trajectories) {
-        if (!dbTraj.stepsJson || dbTraj.stepsJson === 'null' || dbTraj.stepsJson === '[]') {
-          logger.warn('Skipping trajectory with invalid stepsJson', {
-            trajectoryId: dbTraj.trajectoryId
-          }, 'RulerScoring');
-          continue;
-        }
+    const richTrajectories: Array<{ traj: RichTrajectory; messages: Array<{ role: string; content: string }> }> = [];
+    
+    for (const dbTraj of trajectories) {
+      if (!dbTraj.stepsJson || dbTraj.stepsJson === 'null' || dbTraj.stepsJson === '[]') {
+        logger.warn('Skipping trajectory with invalid stepsJson', {
+          trajectoryId: dbTraj.trajectoryId
+        }, 'RulerScoring');
+        continue;
+      }
 
-        const steps: TrajectoryStep[] = JSON.parse(dbTraj.stepsJson) as TrajectoryStep[];
-        
-        // Convert to rich trajectory format
-        const richTraj: RichTrajectory = {
+      let steps: TrainingTrajectoryStep[];
+      try {
+        steps = JSON.parse(dbTraj.stepsJson) as TrainingTrajectoryStep[];
+      } catch (error) {
+        logger.error('Failed to parse stepsJson', {
           trajectoryId: dbTraj.trajectoryId,
-          agentId: '', // Not needed for scoring
-          startTime: 0,
-          endTime: 0,
-          durationMs: 0,
-          scenarioId: dbTraj.scenarioId || undefined,
-          steps: steps.map((s, idx) => ({
-            stepNumber: idx,
-            timestamp: Date.now(),
-            environmentState: s.environmentState,
-            providerAccesses: s.providerAccesses || [],
-            llmCalls: s.llmCalls || [],
-            action: s.action,
-            reward: s.reward,
-            metadata: {}
-          })),
-          totalReward: steps.reduce((sum, s) => sum + s.reward, 0),
-          rewardComponents: {},
-          metrics: {
-            episodeLength: dbTraj.episodeLength || steps.length,
-            finalStatus: 'completed',
-            finalPnL: dbTraj.finalPnL || undefined
+          error: error instanceof Error ? error.message : String(error)
+        }, 'RulerScoring');
+        continue;
+      }
+
+      const stepTimestamp = Date.now();
+      const richTraj: RichTrajectory = {
+        trajectoryId: asUUID(dbTraj.trajectoryId),
+        agentId: asUUID(uuidv4()),
+        startTime: 0,
+        endTime: 0,
+        durationMs: 0,
+        scenarioId: dbTraj.scenarioId || undefined,
+        steps: steps.map((s, idx): TrajectoryStep => ({
+          stepId: asUUID(uuidv4()),
+          stepNumber: idx,
+          timestamp: s.timestamp || stepTimestamp + idx,
+          environmentState: {
+            ...s.environmentState,
+            timestamp: s.timestamp || stepTimestamp + idx,
+            agentPoints: (s.environmentState as { agentPoints?: number }).agentPoints ?? 0
           },
-          metadata: {
-            isTrainingData: true
-          }
-        };
+          observation: {},
+          providerAccesses: (s.providerAccesses || []).map(p => ({
+            providerId: uuidv4(),
+            providerName: p.providerName,
+            timestamp: s.timestamp || stepTimestamp + idx,
+            query: p.data as Record<string, unknown>,
+            data: p.data,
+            purpose: p.purpose
+          })),
+          llmCalls: (s.llmCalls || []).map(l => ({
+            callId: uuidv4(),
+            timestamp: s.timestamp || stepTimestamp + idx,
+            model: l.model,
+            modelVersion: l.modelVersion,
+            systemPrompt: l.systemPrompt,
+            userPrompt: l.userPrompt,
+            response: l.response,
+            reasoning: l.reasoning,
+            temperature: l.temperature,
+            maxTokens: l.maxTokens,
+            latencyMs: l.latencyMs,
+            purpose: l.purpose as 'action' | 'reasoning' | 'evaluation' | 'response' | 'other',
+            actionType: l.actionType
+          })),
+          action: {
+            attemptId: uuidv4(),
+            timestamp: s.timestamp || stepTimestamp + idx,
+            actionType: s.action.actionType,
+            actionName: s.action.actionType,
+            parameters: s.action.parameters,
+            reasoning: s.action.reasoning,
+            success: s.action.success,
+            result: s.action.result,
+            error: s.action.error
+          },
+          reward: s.reward,
+          done: idx === steps.length - 1,
+          metadata: {}
+        })),
+        totalReward: steps.reduce((sum, s) => sum + s.reward, 0),
+        rewardComponents: {
+          environmentReward: steps.reduce((sum, s) => sum + s.reward, 0)
+        },
+        metrics: {
+          episodeLength: dbTraj.episodeLength || steps.length,
+          finalStatus: 'completed',
+          finalPnL: dbTraj.finalPnL || undefined
+        },
+        metadata: {
+          isTrainingData: true
+        }
+      };
 
-        // Convert to ART message format
-        const messages = toARTMessages(richTraj);
-        richTrajectories.push({ traj: richTraj, messages });
-      }
+      const messages = toARTMessages(richTraj);
+      richTrajectories.push({ traj: richTraj, messages });
+    }
 
-      if (richTrajectories.length < this.minGroupSize) {
-        logger.warn('Insufficient valid trajectories in group', {
-          scenarioId,
-          validCount: richTrajectories.length
-        }, 'RulerScoring');
-        return 0;
-      }
-
-      // Extract common prefix (deduplication)
-      const commonPrefix = this.extractCommonPrefix(
-        richTrajectories.map(rt => rt.messages)
-      );
-
-      // Build judge prompt with context
-      const judgePrompt = this.buildJudgePrompt(
-        richTrajectories,
-        commonPrefix,
-        scenarioId
-      );
-
-      // Call LLM judge
-      const judgeResponse = await this.callJudge(judgePrompt);
-
-      if (!judgeResponse || judgeResponse.scores.length !== richTrajectories.length) {
-        logger.error('Invalid judge response', {
-          expectedScores: richTrajectories.length,
-          receivedScores: judgeResponse?.scores.length || 0
-        }, 'RulerScoring');
-        return 0;
-      }
-
-      // Save scores to database
-      let scored = 0;
-      for (let i = 0; i < richTrajectories.length; i++) {
-        const scoreData = judgeResponse.scores[i];
-        if (!scoreData) continue;
-
-        const trajectoryId = richTrajectories[i]!.traj.trajectoryId;
-        
-        await prisma.trajectory.update({
-          where: { trajectoryId },
-          data: {
-            aiJudgeReward: Math.max(0, Math.min(1, scoreData.score)), // Clamp to 0-1
-            aiJudgeReasoning: scoreData.explanation,
-            judgedAt: new Date(),
-            isTrainingData: true
-          }
-        });
-
-        scored++;
-      }
-
-      logger.info('Scored trajectory group', {
+    if (richTrajectories.length < this.minGroupSize) {
+      logger.warn('Insufficient valid trajectories in group', {
         scenarioId,
-        scored,
-        groupSize: richTrajectories.length
-      }, 'RulerScoring');
-
-      return scored;
-    } catch (error) {
-      logger.error('Failed to score trajectory group', {
-        scenarioId,
-        error: error instanceof Error ? error.message : String(error)
+        validCount: richTrajectories.length
       }, 'RulerScoring');
       return 0;
     }
+
+    const commonPrefix = this.extractCommonPrefix(
+      richTrajectories.map(rt => rt.messages)
+    );
+
+    const judgePrompt = this.buildJudgePrompt(
+      richTrajectories,
+      commonPrefix,
+      scenarioId
+    );
+
+    const judgeResponse = await this.callJudge(judgePrompt);
+
+    if (!judgeResponse || judgeResponse.scores.length !== richTrajectories.length) {
+      logger.error('Invalid judge response', {
+        expectedScores: richTrajectories.length,
+        receivedScores: judgeResponse?.scores.length || 0
+      }, 'RulerScoring');
+      return 0;
+    }
+
+    const scoreMap = new Map<string, TrajectoryScore>();
+    for (const score of judgeResponse.scores) {
+      scoreMap.set(score.trajectory_id, score);
+    }
+
+    let scored = 0;
+    for (let i = 0; i < richTrajectories.length; i++) {
+      const expectedTrajId = `trajectory-${i + 1}`;
+      const scoreData = scoreMap.get(expectedTrajId);
+      
+      if (!scoreData) {
+        logger.warn('Judge did not return score for trajectory', {
+          expectedTrajId,
+          receivedIds: judgeResponse.scores.map(s => s.trajectory_id)
+        }, 'RulerScoring');
+        continue;
+      }
+
+      const trajectoryId = richTrajectories[i]!.traj.trajectoryId;
+      
+      await prisma.trajectory.update({
+        where: { trajectoryId },
+        data: {
+          aiJudgeReward: Math.max(0, Math.min(1, scoreData.score)),
+          aiJudgeReasoning: scoreData.explanation,
+          judgedAt: new Date(),
+          isTrainingData: true
+        }
+      });
+
+      scored++;
+    }
+
+    logger.info('Scored trajectory group', {
+      scenarioId,
+      scored,
+      groupSize: richTrajectories.length
+    }, 'RulerScoring');
+
+    return scored;
   }
 
   /**
@@ -417,11 +409,17 @@ Important: Use the performance context provided (P&L, episode length, success ra
    * Uses structured output format to ensure valid JSON response.
    */
   private async callJudge(promptJson: string): Promise<RulerResponse | null> {
+    let promptData: { system: string; user: string };
     try {
-      const promptData = JSON.parse(promptJson);
-      
-      // Build structured prompt that forces JSON output
-      const structuredPrompt = `${promptData.user}
+      promptData = JSON.parse(promptJson);
+    } catch (error) {
+      logger.error('Failed to parse judge prompt JSON', {
+        error: error instanceof Error ? error.message : String(error)
+      }, 'RulerScoring');
+      return null;
+    }
+    
+    const structuredPrompt = `${promptData.user}
 
 Please respond with ONLY a valid JSON object in this exact format:
 {
@@ -441,59 +439,48 @@ Please respond with ONLY a valid JSON object in this exact format:
 
 Return ONLY the JSON, no other text.`;
 
-      // Use Groq for judging (fast and cost-effective)
-      // Use larger model for better judgment quality
-      const response = await callGroqDirect({
-        prompt: structuredPrompt,
-        system: promptData.system,
-        modelSize: 'large', // qwen3-32b for better quality
-        temperature: 0.3, // Lower temperature for more consistent scoring
-        maxTokens: 2000 // Enough for scores + explanations
-      });
+    const response = await callGroqDirect({
+      prompt: structuredPrompt,
+      system: promptData.system,
+      modelSize: 'large',
+      temperature: 0.3,
+      maxTokens: 2000
+    });
 
-      // Extract JSON from response (handle markdown code blocks)
-      let jsonText = response.trim();
-      
-      // Remove markdown code blocks if present
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      
-      // Try to find JSON object
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.error('Judge response does not contain JSON', {
-          response: response.substring(0, 500)
-        }, 'RulerScoring');
-        return null;
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
-      
-      // Validate response structure
-      if (!parsed.scores || !Array.isArray(parsed.scores)) {
-        logger.error('Invalid judge response structure', {
-          parsed
-        }, 'RulerScoring');
-        return null;
-      }
-
-      // Validate all scores are in valid range
-      for (const score of parsed.scores) {
-        if (score.score < 0 || score.score > 1) {
-          logger.warn('Judge returned score outside 0-1 range, clamping', {
-            trajectoryId: score.trajectory_id,
-            score: score.score
-          }, 'RulerScoring');
-          score.score = Math.max(0, Math.min(1, score.score));
-        }
-      }
-
-      return parsed;
-    } catch (error) {
-      logger.error('Judge API call failed', {
-        error: error instanceof Error ? error.message : String(error)
+    let jsonText = response.trim();
+    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      logger.error('Judge response does not contain JSON', {
+        response: response.substring(0, 500)
       }, 'RulerScoring');
       return null;
     }
+
+    let parsed: RulerResponse;
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
+    } catch (error) {
+      logger.error('Failed to parse judge response JSON', {
+        error: error instanceof Error ? error.message : String(error),
+        jsonText: jsonText.substring(0, 500)
+      }, 'RulerScoring');
+      return null;
+    }
+    
+    if (!parsed.scores || !Array.isArray(parsed.scores)) {
+      logger.error('Invalid judge response structure', { parsed }, 'RulerScoring');
+      return null;
+    }
+
+    for (const score of parsed.scores) {
+      if (score.score < 0 || score.score > 1) {
+        score.score = Math.max(0, Math.min(1, score.score));
+      }
+    }
+
+    return parsed;
   }
 
   /**
@@ -531,7 +518,7 @@ Return ONLY the JSON, no other text.`;
    * Group trajectories by scenarioId
    */
   private groupByScenario(
-    trajectories: Array<{ trajectoryId: string; scenarioId: string | null }>
+    trajectories: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>
   ): Array<{ scenarioId: string; trajectories: typeof trajectories }> {
     const groups = new Map<string, typeof trajectories>();
     
@@ -585,7 +572,12 @@ Return ONLY the JSON, no other text.`;
       where: {
         aiJudgeReward: null,
         isTrainingData: true,
-        stepsJson: { not: null }
+        NOT: {
+          OR: [
+            { stepsJson: 'null' },
+            { stepsJson: '[]' }
+          ]
+        }
       },
       select: {
         trajectoryId: true,
@@ -608,7 +600,13 @@ Return ONLY the JSON, no other text.`;
       where: {
         windowId,
         isTrainingData: true,
-        aiJudgeReward: null
+        aiJudgeReward: null,
+        NOT: {
+          OR: [
+            { stepsJson: 'null' },
+            { stepsJson: '[]' }
+          ]
+        }
       },
       select: {
         trajectoryId: true

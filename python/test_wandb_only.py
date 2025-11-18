@@ -34,9 +34,9 @@ async def test_wandb():
     
     print("✅ ART framework imported")
     
-    # Use eliza-labs/babylon project (configured in W&B)
+    # Use personal account (elizaos) for babylon project
     project_name = os.getenv('WANDB_PROJECT', 'babylon')
-    entity = os.getenv('WANDB_ENTITY', 'eliza-labs')  # Default to eliza-labs org
+    entity = os.getenv('WANDB_ENTITY', 'elizaos')  # Default to personal account (has write access)
     
     print(f"✅ Using W&B project: {entity}/{project_name}")
     
@@ -67,35 +67,50 @@ async def test_wandb():
         )
         print(f"✅ Model created: {model_name} in project '{entity}/{project_name}'")
         
-        # Create backend - ART Colab pattern: no arguments, reads from environment
-        backend = ServerlessBackend()
-        print("✅ ServerlessBackend created (reads WANDB_API_KEY from environment)")
+        # Create backend - pass API key explicitly for better debugging
+        backend = ServerlessBackend(api_key=wandb_key)
+        print("✅ ServerlessBackend created with explicit API key")
         
         # Register model (this connects to W&B)
         # CRITICAL: Add retry logic for 524 timeouts (W&B infrastructure can be slow)
         print("\n🔗 Registering model with W&B...")
         print("   (This may take 1-2 minutes - W&B training API can be slow)")
+        print(f"   Entity: {entity}, Project: {project_name}, Model: {model_name}")
         
         max_retries = 5
         retry_delay = 30  # seconds - longer delay for plan upgrade propagation
         
         for attempt in range(1, max_retries + 1):
             try:
-                print(f"   Attempt {attempt}/{max_retries}...")
+                print(f"\n   Attempt {attempt}/{max_retries}...")
                 if attempt > 1:
                     print(f"   Waiting {retry_delay}s before retry...")
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                 
-                # Wrap in asyncio.wait_for to add our own timeout
-                # Increased timeout for plan upgrade - first registration can be slow
-                print(f"   Calling model.register() (timeout: 300s)...")
-                await asyncio.wait_for(
-                    model.register(backend),
-                    timeout=300.0  # 5 minute timeout per attempt
-                )
-                print("✅ Model registered with W&B!")
-                break
+                # Add a progress indicator task
+                async def show_progress():
+                    dots = 0
+                    while True:
+                        await asyncio.sleep(5)
+                        dots = (dots + 1) % 4
+                        print(f"   ... still waiting{'.' * dots}", end='\r', flush=True)
+                
+                progress_task = asyncio.create_task(show_progress())
+                
+                try:
+                    # Wrap in asyncio.wait_for to add our own timeout
+                    # Increased timeout for plan upgrade - first registration can be slow
+                    print(f"   Calling model.register() (timeout: 300s)...")
+                    await asyncio.wait_for(
+                        model.register(backend),
+                        timeout=300.0  # 5 minute timeout per attempt
+                    )
+                    progress_task.cancel()
+                    print("\n✅ Model registered with W&B!")
+                    break
+                finally:
+                    progress_task.cancel()
                 
             except asyncio.TimeoutError:
                 print(f"   ⏱️  asyncio.TimeoutError after 5 minutes (attempt {attempt}/{max_retries})")

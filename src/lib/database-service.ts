@@ -1,13 +1,17 @@
 /**
  * Database Service
  * 
- * Wrapper for all database operations.
- * Handles posts, questions, organizations, stock prices, events, actors.
+ * @description Wrapper for all database operations. Provides a clean interface
+ * for interacting with the Prisma database, handling posts, questions, organizations,
+ * stock prices, events, and actors. Includes game state management and automatic
+ * post tagging.
  * 
- * Usage:
- *   import db from '@/lib/database-service'
- *   await db().createPost({...})
- *   const posts = await db().getRecentPosts(100)
+ * @usage
+ * ```typescript
+ * import db from '@/lib/database-service'
+ * await db().createPost({...})
+ * const posts = await db().getRecentPosts(100)
+ * ```
  */
 
 import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
@@ -17,13 +21,34 @@ import { generateTagsForPosts } from './services/tag-generation-service';
 import { storeTagsForPost } from './services/tag-storage-service';
 import { generateSnowflakeId } from './snowflake';
 
+/**
+ * Database Service Class
+ * 
+ * @description Main service class for database operations. Provides methods
+ * for game state, posts, questions, organizations, stock prices, events, and actors.
+ * Singleton pattern ensures single instance across the application.
+ */
 class DatabaseService {
-  // Expose prisma for direct queries - use getter to avoid issues if prisma isn't initialized
+  /**
+   * Expose prisma for direct queries
+   * 
+   * @description Getter that exposes the Prisma client for direct queries.
+   * Uses getter to avoid issues if prisma isn't initialized.
+   * 
+   * @returns {PrismaClient} Prisma client instance
+   */
   get prisma() {
     return prisma;
   }
+  
   /**
    * Initialize game state in database
+   * 
+   * @description Creates the main continuous game if it doesn't exist.
+   * Returns existing game if already initialized. Sets up initial game
+   * configuration with 1-minute tick speed.
+   * 
+   * @returns {Promise<Game>} The game instance (new or existing)
    */
   async initializeGame() {
     // Check if game already exists
@@ -54,6 +79,11 @@ class DatabaseService {
 
   /**
    * Get current game state
+   * 
+   * @description Retrieves the current continuous game state from the database.
+   * Returns null if no game has been initialized.
+   * 
+   * @returns {Promise<Game | null>} Current game state or null if not initialized
    */
   async getGameState() {
     return await prisma.game.findFirst({
@@ -63,6 +93,18 @@ class DatabaseService {
 
   /**
    * Update game state (currentDay, currentDate, lastTickAt, etc.)
+   * 
+   * @description Updates the current game state with new values. Throws error
+   * if game hasn't been initialized.
+   * 
+   * @param {object} data - Game state update data
+   * @param {number} [data.currentDay] - Current game day
+   * @param {Date} [data.currentDate] - Current game date
+   * @param {Date} [data.lastTickAt] - Last tick timestamp
+   * @param {Date} [data.lastSnapshotAt] - Last snapshot timestamp
+   * @param {number} [data.activeQuestions] - Number of active questions
+   * @returns {Promise<Game>} Updated game state
+   * @throws {Error} If game not initialized
    */
   async updateGameState(data: {
     currentDay?: number;

@@ -1,18 +1,27 @@
 /**
  * Prisma Retry Wrapper
  * 
- * Wraps Prisma operations with exponential backoff retry logic.
+ * @description Wraps Prisma operations with exponential backoff retry logic.
  * Automatically retries on connection failures, timeouts, and transient errors.
+ * Provides a Proxy-based wrapper that transparently adds retry logic to all
+ * Prisma operations while preserving type safety.
  * 
  * Features:
  * - Exponential backoff with jitter
  * - Configurable max retries
  * - Detailed logging
  * - Error classification (retryable vs non-retryable)
+ * - Type-safe Proxy wrapper preserving Prisma types
  */
 
 import { logger } from './logger';
 
+/**
+ * Retry configuration options
+ * 
+ * @description Configuration for retry behavior including max retries, delays,
+ * and backoff strategy.
+ */
 export interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;
@@ -54,7 +63,20 @@ const RETRYABLE_ERROR_MESSAGES = [
 
 /**
  * Check if error is retryable based on error code and message
- * Exported for testing
+ * 
+ * @description Determines if an error should trigger a retry. Checks Prisma
+ * error codes (P1001, P1002, etc.) and error messages for connection/timeout
+ * patterns. Only retries initialization errors, not validation/logic errors.
+ * 
+ * @param {unknown} error - Error to check
+ * @returns {boolean} True if error is retryable
+ * 
+ * @example
+ * ```typescript
+ * if (isRetryableError(error)) {
+ *   // Retry the operation
+ * }
+ * ```
  */
 export function isRetryableError(error: unknown): boolean {
   if (!(error instanceof Error)) {
@@ -86,6 +108,14 @@ export function isRetryableError(error: unknown): boolean {
 
 /**
  * Calculate delay with exponential backoff and optional jitter
+ * 
+ * @description Calculates retry delay using exponential backoff formula with
+ * optional jitter to prevent thundering herd. Caps at maxDelayMs.
+ * 
+ * @param {number} attempt - Current retry attempt (0-indexed)
+ * @param {Required<RetryOptions>} options - Retry options
+ * @returns {number} Delay in milliseconds
+ * @private
  */
 function calculateDelay(
   attempt: number,
@@ -106,6 +136,13 @@ function calculateDelay(
 
 /**
  * Sleep for specified milliseconds
+ * 
+ * @description Creates a promise that resolves after the specified delay.
+ * Used for retry delays between attempts.
+ * 
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>} Promise that resolves after delay
+ * @private
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -113,6 +150,15 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Extract error details for logging (without Symbol properties)
+ * 
+ * @description Extracts error information for logging, excluding Symbol
+ * properties that can't be serialized. Includes operation name, error message,
+ * error name, and error code if available.
+ * 
+ * @param {Error} error - Error to extract details from
+ * @param {string} operation - Operation name that failed
+ * @returns {Record<string, string | number>} Error details for logging
+ * @private
  */
 function extractErrorDetails(error: Error, operation: string): Record<string, string | number> {
   const details: Record<string, string | number> = {
@@ -131,6 +177,25 @@ function extractErrorDetails(error: Error, operation: string): Record<string, st
 
 /**
  * Execute operation with retry logic
+ * 
+ * @description Executes an async operation with automatic retry on retryable errors.
+ * Uses exponential backoff with jitter. Logs retry attempts and final success/failure.
+ * 
+ * @template T - Return type of the operation
+ * @param {() => Promise<T>} operation - Async operation to retry
+ * @param {string} operationName - Name of operation for logging
+ * @param {RetryOptions} [options={}] - Retry configuration options
+ * @returns {Promise<T>} Result of the operation
+ * @throws {Error} If operation fails after all retries
+ * 
+ * @example
+ * ```typescript
+ * const users = await withRetry(
+ *   () => prisma.user.findMany(),
+ *   'user.findMany',
+ *   { maxRetries: 3 }
+ * );
+ * ```
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
@@ -221,9 +286,20 @@ export async function withRetry<T>(
 /**
  * Create a retry-wrapped Prisma client proxy
  * 
- * Usage:
- *   const prismaWithRetry = createRetryProxy(prisma);
- *   const users = await prismaWithRetry.user.findMany();
+ * @description Creates a Proxy wrapper around a Prisma Client that automatically
+ * adds retry logic to all database operations. Preserves full type safety and excludes
+ * special methods like $transaction and $queryRaw that shouldn't be retried.
+ * 
+ * @template T - Type of the Prisma Client (must extend object)
+ * @param {T} prismaClient - Prisma Client instance to wrap
+ * @param {RetryOptions} [defaultOptions] - Default retry options for all operations
+ * @returns {T} Proxy-wrapped Prisma Client with retry logic
+ * 
+ * @example
+ * ```typescript
+ * const prismaWithRetry = createRetryProxy(prisma, { maxRetries: 3 });
+ * const users = await prismaWithRetry.user.findMany(); // Automatically retries on connection errors
+ * ```
  */
 export function createRetryProxy<T extends object>(
   prismaClient: T,

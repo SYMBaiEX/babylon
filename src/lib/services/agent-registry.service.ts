@@ -1,10 +1,12 @@
 /**
  * Unified Agent Registry Service
- * Single source of truth for all agent types: USER_CONTROLLED, NPC, EXTERNAL
- *
+ * 
+ * @description Single source of truth for all agent types: USER_CONTROLLED, NPC, EXTERNAL.
+ * Provides unified registration, discovery, and management for all agent types. Supports
+ * ERC-8004, Agent0 SDK, and A2A Protocol.
+ * 
  * Based on: agent-unified-architecture.md
- * Supports: ERC-8004, Agent0 SDK, A2A Protocol
- *
+ * 
  * @see src/types/agent-registry.types.ts for type definitions
  */
 
@@ -22,10 +24,27 @@ import type {
 } from '@/types/agent-registry.types'
 import type { Prisma } from '@prisma/client'
 
+/**
+ * Unified Agent Registry Service Class
+ * 
+ * @description Service class for managing unified agent registry. Provides methods
+ * for registering, discovering, and managing agents of all types (USER_CONTROLLED, NPC, EXTERNAL).
+ */
 export class AgentRegistryService {
   /**
    * Register a USER_CONTROLLED agent from User record
-   * Creates registry entry linked to existing User
+   * 
+   * @description Creates registry entry linked to existing User. Verifies user exists
+   * and is not already registered. Creates registry entry with USER_CONTROLLED type.
+   * 
+   * @param {object} params - Registration parameters
+   * @param {string} params.userId - User ID
+   * @param {string} params.name - Agent name
+   * @param {string} params.systemPrompt - System prompt
+   * @param {AgentCapabilities} params.capabilities - Agent capabilities
+   * @param {TrustLevel} [params.trustLevel=0] - Trust level (default: 0)
+   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
+   * @throws {Error} If user not found or already registered
    */
   async registerUserAgent(params: {
     userId: string
@@ -100,7 +119,16 @@ export class AgentRegistryService {
 
   /**
    * Register an NPC agent from Actor record
-   * Creates registry entry linked to existing Actor
+   * 
+   * @description Creates registry entry linked to existing Actor. Verifies actor exists
+   * and is not already registered. Creates registry entry with NPC type and SYSTEM trust level.
+   * 
+   * @param {object} params - Registration parameters
+   * @param {string} params.actorId - Actor ID
+   * @param {string} params.systemPrompt - System prompt
+   * @param {AgentCapabilities} params.capabilities - Agent capabilities
+   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
+   * @throws {Error} If actor not found or already registered
    */
   async registerNpcAgent(params: {
     actorId: string
@@ -173,7 +201,14 @@ export class AgentRegistryService {
 
   /**
    * Register an EXTERNAL agent (ElizaOS, MCP, Agent0, custom)
-   * Creates registry entry with connection parameters
+   * 
+   * @description Creates registry entry with connection parameters for external agents.
+   * Verifies external agent is not already registered. Creates registry entry with EXTERNAL
+   * type and UNTRUSTED trust level by default.
+   * 
+   * @param {ExternalAgentConnectionParams} params - External agent connection parameters
+   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
+   * @throws {Error} If external agent already registered
    */
   async registerExternalAgent(
     params: ExternalAgentConnectionParams,
@@ -261,7 +296,12 @@ export class AgentRegistryService {
 
   /**
    * Discover agents using flexible filters
-   * Supports querying by type, status, trust level, capabilities, OASF skills/domains
+   * 
+   * @description Supports querying by type, status, trust level, capabilities,
+   * OASF skills/domains. Returns paginated results ordered by trust level and registration date.
+   * 
+   * @param {AgentDiscoveryFilter} [filter={}] - Discovery filter options
+   * @returns {Promise<UnifiedAgentRegistration[]>} Array of matching agents
    */
   async discoverAgents(
     filter: AgentDiscoveryFilter = {},
@@ -359,7 +399,13 @@ export class AgentRegistryService {
   }
 
   /**
-   * Get agent by agentId (userId for USER_CONTROLLED, actorId for NPC, externalId for EXTERNAL)
+   * Get agent by agentId
+   * 
+   * @description Gets agent by agentId (userId for USER_CONTROLLED, actorId for NPC,
+   * externalId for EXTERNAL). Returns null if not found.
+   * 
+   * @param {string} agentId - Agent ID
+   * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration or null
    */
   async getAgentById(agentId: string): Promise<UnifiedAgentRegistration | null> {
     const registry = await prisma.agentRegistry.findUnique({
@@ -378,7 +424,14 @@ export class AgentRegistryService {
   }
 
   /**
-   * Update agent status (lifecycle: REGISTERED → INITIALIZED → ACTIVE → PAUSED → TERMINATED)
+   * Update agent status
+   * 
+   * @description Updates agent status in lifecycle: REGISTERED → INITIALIZED → ACTIVE → PAUSED → TERMINATED.
+   * Updates lastActiveAt for ACTIVE status and terminatedAt for TERMINATED status.
+   * 
+   * @param {string} agentId - Agent ID
+   * @param {AgentStatus} status - New status
+   * @returns {Promise<UnifiedAgentRegistration>} Updated agent registration
    */
   async updateAgentStatus(
     agentId: string,
@@ -404,6 +457,13 @@ export class AgentRegistryService {
 
   /**
    * Set runtime instance ID when AgentRuntime is created
+   * 
+   * @description Sets runtime instance ID and updates status to INITIALIZED when
+   * AgentRuntime is created.
+   * 
+   * @param {string} agentId - Agent ID
+   * @param {string} runtimeInstanceId - Runtime instance ID
+   * @returns {Promise<void>}
    */
   async setRuntimeInstance(
     agentId: string,
@@ -420,6 +480,12 @@ export class AgentRegistryService {
 
   /**
    * Clear runtime instance ID when AgentRuntime is destroyed
+   * 
+   * @description Clears runtime instance ID and updates status to REGISTERED when
+   * AgentRuntime is destroyed.
+   * 
+   * @param {string} agentId - Agent ID
+   * @returns {Promise<void>}
    */
   async clearRuntimeInstance(agentId: string): Promise<void> {
     await prisma.agentRegistry.update({
@@ -432,7 +498,13 @@ export class AgentRegistryService {
   }
 
   /**
-   * Update trust level (requires verification)
+   * Update trust level
+   * 
+   * @description Updates agent trust level. Requires verification before calling.
+   * 
+   * @param {string} agentId - Agent ID
+   * @param {TrustLevel} trustLevel - New trust level
+   * @returns {Promise<void>}
    */
   async updateTrustLevel(
     agentId: string,
@@ -446,7 +518,15 @@ export class AgentRegistryService {
 
   /**
    * Link external agent to User account
-   * Allows EXTERNAL agents to gain USER_CONTROLLED capabilities after verification
+   * 
+   * @description Allows EXTERNAL agents to gain USER_CONTROLLED capabilities after verification.
+   * Verifies agent is EXTERNAL type and user is not already linked to another agent.
+   * Updates trust level to at least BASIC when linked.
+   * 
+   * @param {string} agentId - External agent ID
+   * @param {string} userId - User ID to link
+   * @returns {Promise<UnifiedAgentRegistration>} Updated agent registration
+   * @throws {Error} If agent not found, not EXTERNAL type, user not found, or user already linked
    */
   async linkExternalAgentToUser(
     agentId: string,
@@ -503,6 +583,13 @@ export class AgentRegistryService {
 
   /**
    * Map Prisma model to UnifiedAgentRegistration type
+   * 
+   * @description Maps Prisma AgentRegistry model with relations to UnifiedAgentRegistration
+   * type. Handles capabilities, discovery metadata, on-chain data, and Agent0 data mapping.
+   * 
+   * @param {object} registry - Prisma AgentRegistry model with relations
+   * @returns {UnifiedAgentRegistration} Unified agent registration
+   * @private
    */
   private mapToUnifiedRegistration(
     registry: Prisma.AgentRegistryGetPayload<{

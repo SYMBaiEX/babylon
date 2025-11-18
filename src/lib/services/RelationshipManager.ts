@@ -1,11 +1,9 @@
 /**
  * Relationship Manager Service
  * 
- * Handles all actor relationship logic including:
- * - Relationship queries and lookups
- * - Follow relationship management
- * - Relationship context for LLM prompts
- * - Related actor selection for events and content
+ * @description Handles all actor relationship logic including relationship queries,
+ * follow management, relationship context for LLM prompts, and related actor selection
+ * for events and content. Provides comprehensive relationship management for NPCs.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -14,6 +12,9 @@ import type { Prisma } from '@prisma/client';
 
 /**
  * Relationship context for LLM prompts
+ * 
+ * @description Contains relationship information formatted for use in LLM prompts.
+ * Includes actor relationships with types, strengths, sentiments, and history.
  */
 export interface RelationshipContext {
   actorId: string;
@@ -30,6 +31,9 @@ export interface RelationshipContext {
 
 /**
  * Relationship statistics for an actor
+ * 
+ * @description Contains aggregated relationship statistics including follower
+ * counts, relationship counts, and breakdowns by relationship type.
  */
 export interface RelationshipStats {
   actorId: string;
@@ -40,9 +44,22 @@ export interface RelationshipStats {
   relationshipsByType: Record<string, number>;
 }
 
+/**
+ * Relationship Manager Class
+ * 
+ * @description Static service class for managing actor relationships. Provides
+ * methods for querying relationships, managing follows, generating relationship
+ * context, and selecting related actors.
+ */
 export class RelationshipManager {
   /**
    * Get all relationships for an actor
+   * 
+   * @description Retrieves all relationships for an actor, including both
+   * directions (actor1 and actor2). Returns formatted ActorRelationship objects.
+   * 
+   * @param {string} actorId - Actor ID to get relationships for
+   * @returns {Promise<ActorRelationship[]>} Array of relationships
    */
   static async getActorRelationships(actorId: string): Promise<ActorRelationship[]> {
     const relationships = await prisma.actorRelationship.findMany({
@@ -89,6 +106,13 @@ export class RelationshipManager {
 
   /**
    * Get specific relationship between two actors
+   * 
+   * @description Retrieves the relationship between two specific actors, checking
+   * both directions (actor1->actor2 and actor2->actor1).
+   * 
+   * @param {string} actor1Id - First actor ID
+   * @param {string} actor2Id - Second actor ID
+   * @returns {Promise<ActorRelationship | null>} Relationship or null if not found
    */
   static async getRelationship(
     actor1Id: string,

@@ -1,8 +1,10 @@
 /**
  * Token Counter Utility
  * 
- * Provides accurate token counting for different LLM models
- * Uses tiktoken for OpenAGI models and approximations for others
+ * @description Provides accurate token counting for different LLM models.
+ * Uses tiktoken for OpenAI-compatible models and character-based approximations
+ * for others. Includes utilities for truncating text to token limits and
+ * model-specific token limit definitions.
  */
 
 import type { Tiktoken } from 'tiktoken';
@@ -12,6 +14,12 @@ let encoding: Tiktoken | null = null;
 
 /**
  * Get the tiktoken encoding (lazy-loaded)
+ * 
+ * @description Lazy-loads the tiktoken encoding to avoid startup overhead.
+ * Uses GPT-4 encoding which works for most OpenAI-compatible models.
+ * 
+ * @returns {Promise<Tiktoken>} Tiktoken encoding instance
+ * @private
  */
 async function getEncoding(): Promise<Tiktoken> {
   if (!encoding) {
@@ -23,7 +31,18 @@ async function getEncoding(): Promise<Tiktoken> {
 
 /**
  * Count tokens in text
- * Falls back to character-based approximation if tiktoken is unavailable
+ * 
+ * @description Counts tokens in text using tiktoken for accurate counting.
+ * Falls back to character-based approximation if tiktoken is unavailable.
+ * 
+ * @param {string} text - Text to count tokens for
+ * @returns {Promise<number>} Number of tokens
+ * 
+ * @example
+ * ```typescript
+ * const tokens = await countTokens('Hello, world!');
+ * // Returns: ~3 tokens
+ * ```
  */
 export async function countTokens(text: string): Promise<number> {
   const enc = await getEncoding();
@@ -33,7 +52,19 @@ export async function countTokens(text: string): Promise<number> {
 
 /**
  * Count tokens in text (synchronous approximation)
- * Use this when you need a quick estimate without async overhead
+ * 
+ * @description Provides a quick token count estimate using character-based
+ * approximation (1 token per 4 characters). Use when async overhead is
+ * not acceptable. Less accurate than countTokens but faster.
+ * 
+ * @param {string} text - Text to count tokens for
+ * @returns {number} Approximate number of tokens
+ * 
+ * @example
+ * ```typescript
+ * const tokens = countTokensSync('Hello, world!');
+ * // Returns: ~4 tokens (approximation)
+ * ```
  */
 export function countTokensSync(text: string): number {
   // Approximation: 1 token per 4 characters (conservative)
@@ -42,7 +73,22 @@ export function countTokensSync(text: string): number {
 
 /**
  * Truncate text to fit within token limit
- * Returns truncated text and actual token count
+ * 
+ * @description Truncates text to fit within a token limit using binary search
+ * for optimal truncation. Can preserve the beginning or end of text.
+ * 
+ * @param {string} text - Text to truncate
+ * @param {number} maxTokens - Maximum token limit
+ * @param {object} [options] - Truncation options
+ * @param {boolean} [options.ellipsis=true] - Add ellipsis to truncated text
+ * @param {boolean} [options.preserveEnd=false] - Preserve end instead of beginning
+ * @returns {Promise<{text: string, tokens: number}>} Truncated text and token count
+ * 
+ * @example
+ * ```typescript
+ * const result = await truncateToTokenLimit(longText, 1000);
+ * // Returns: { text: 'truncated...', tokens: 1000 }
+ * ```
  */
 export async function truncateToTokenLimit(
   text: string,
@@ -95,6 +141,16 @@ export async function truncateToTokenLimit(
 
 /**
  * Truncate text to fit within token limit (synchronous approximation)
+ * 
+ * @description Truncates text using character-based approximation. Faster
+ * than truncateToTokenLimit but less accurate.
+ * 
+ * @param {string} text - Text to truncate
+ * @param {number} maxTokens - Maximum token limit
+ * @param {object} [options] - Truncation options
+ * @param {boolean} [options.ellipsis=true] - Add ellipsis to truncated text
+ * @param {boolean} [options.preserveEnd=false] - Preserve end instead of beginning
+ * @returns {{text: string, tokens: number}} Truncated text and approximate token count
  */
 export function truncateToTokenLimitSync(
   text: string,
@@ -130,7 +186,10 @@ export function truncateToTokenLimitSync(
 
 /**
  * Model-specific INPUT CONTEXT token limits
- * Note: Output limits are separate (see comments for each model)
+ * 
+ * @description Defines input context token limits for various LLM models.
+ * Note: Output limits are separate from input limits on modern models.
+ * See individual model comments for output limits.
  */
 export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   // OpenAGI (input context)
@@ -175,7 +234,18 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
 
 /**
  * Get maximum token limit for a model
- * Returns a safe default if model is unknown
+ * 
+ * @description Returns the configured input token limit for a model, or a
+ * conservative default (8192) if the model is unknown.
+ * 
+ * @param {string} model - Model identifier
+ * @returns {number} Maximum input token limit
+ * 
+ * @example
+ * ```typescript
+ * const limit = getModelTokenLimit('gpt-4o');
+ * // Returns: 128000
+ * ```
  */
 export function getModelTokenLimit(model: string): number {
   return MODEL_TOKEN_LIMITS[model] || 8192; // Conservative default
@@ -183,10 +253,21 @@ export function getModelTokenLimit(model: string): number {
 
 /**
  * Calculate safe context limit with safety margin
- * Note: Input and output are SEPARATE limits on modern models
- * @param model Model name
- * @param outputTokens Expected output tokens (unused - kept for backwards compatibility)
- * @param safetyMargin Safety margin to reserve (default: 2% - very small since input/output are separate)
+ * 
+ * @description Calculates a safe input context limit by applying a safety margin
+ * to the model's maximum token limit. Note: Input and output are SEPARATE limits
+ * on modern models, so the safety margin is minimal (2% default).
+ * 
+ * @param {string} model - Model name
+ * @param {number} [_outputTokens=8000] - Expected output tokens (unused, kept for compatibility)
+ * @param {number} [safetyMargin=0.02] - Safety margin to reserve (default: 2%)
+ * @returns {number} Safe input context limit (minimum 1000 tokens)
+ * 
+ * @example
+ * ```typescript
+ * const safeLimit = getSafeContextLimit('gpt-4o', 8000, 0.05);
+ * // Returns: ~121600 (128000 * 0.95)
+ * ```
  */
 export function getSafeContextLimit(
   model: string,
@@ -202,7 +283,24 @@ export function getSafeContextLimit(
 
 /**
  * Budget tokens across multiple sections
- * Returns token allocation per section
+ * 
+ * @description Allocates tokens across multiple sections based on priority.
+ * First allocates minimum tokens to each section, then distributes remaining
+ * tokens proportionally by priority.
+ * 
+ * @param {number} totalTokens - Total tokens available
+ * @param {Array<{name: string, priority: number, minTokens?: number}>} sections - Sections to budget
+ * @returns {Record<string, number>} Token allocation per section
+ * 
+ * @example
+ * ```typescript
+ * const budget = budgetTokens(10000, [
+ *   { name: 'system', priority: 1, minTokens: 1000 },
+ *   { name: 'user', priority: 3, minTokens: 500 },
+ *   { name: 'context', priority: 2 }
+ * ]);
+ * // Returns: { system: 2000, user: 6000, context: 2000 }
+ * ```
  */
 export function budgetTokens(
   totalTokens: number,
