@@ -177,29 +177,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       lastTickAt: gameState.lastTickAt?.toISOString(),
     }, 'Cron');
 
-    if (!isRunningValue) {
-      logger.info('⏸️  Game is paused - skipping tick', {
-        gameId: gameState.id,
-        isRunning: gameState.isRunning,
-        isRunningValue,
-        currentDay: gameState.currentDay,
-        pausedAt: gameState.pausedAt?.toISOString(),
-        lastTickAt: gameState.lastTickAt?.toISOString(),
-        message: 'To start the game, use POST /api/game/control with action: "start"',
-      }, 'Cron');
-      return successResponse({
-        success: true,
-        skipped: true,
-        reason: 'Game paused',
-        gameState: {
-          id: gameState.id,
-          isRunning: gameState.isRunning,
-          currentDay: gameState.currentDay,
-          pausedAt: gameState.pausedAt?.toISOString(),
-          lastTickAt: gameState.lastTickAt?.toISOString(),
-        },
-      });
-    }
+    // if (!isRunningValue) {
+    //   logger.info('⏸️  Game is paused - skipping tick', {
+    //     gameId: gameState.id,
+    //     isRunning: gameState.isRunning,
+    //     isRunningValue,
+    //     currentDay: gameState.currentDay,
+    //     pausedAt: gameState.pausedAt?.toISOString(),
+    //     lastTickAt: gameState.lastTickAt?.toISOString(),
+    //     message: 'To start the game, use POST /api/game/control with action: "start"',
+    //   }, 'Cron');
+    //   return successResponse({
+    //     success: true,
+    //     skipped: true,
+    //     reason: 'Game paused',
+    //     gameState: {
+    //       id: gameState.id,
+    //       isRunning: gameState.isRunning,
+    //       currentDay: gameState.currentDay,
+    //       pausedAt: gameState.pausedAt?.toISOString(),
+    //       lastTickAt: gameState.lastTickAt?.toISOString(),
+    //     },
+    //   });
+    // }
 
     // 4. Check buffer status - only generate if buffer < 15 minutes
     const bufferStatus = await checkLookaheadStatus();
