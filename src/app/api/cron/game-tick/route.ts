@@ -58,6 +58,7 @@ import { executeGameTick } from '@/lib/serverless-game-tick'
 import { acquireGenerationLock, releaseGenerationLock } from '@/lib/services/generation-lock-service'
 import { checkLookaheadStatus, generateAheadIfNeeded } from '@/lib/services/lookahead-generation-service'
 import { BabylonLLMClient } from '@/generator/llm/openai-client'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -132,7 +133,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
-      const result = await db.game.findFirst({
+      let result = await db.game.findFirst({
         where: { isContinuous: true },
       });
       
@@ -150,17 +151,41 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         rawIsRunningType: typeof result?.isRunning,
       }, 'Cron');
       
+      if (!result) {
+        logger.info('⚠️  No game found - creating continuous game', undefined, 'Cron');
+        const now = new Date();
+        try {
+          result = await db.game.create({
+            data: {
+              id: await generateSnowflakeId(),
+              isContinuous: true,
+              isRunning: true, // Game starts running by default
+              currentDate: now,
+              currentDay: 1,
+              speed: 60000,
+              startedAt: now, // Set startedAt timestamp
+              updatedAt: now,
+            },
+          });
+          logger.info('✅ Created continuous game', { id: result.id }, 'Cron');
+        } catch (e) {
+          logger.error('Failed to create game', { error: e }, 'Cron');
+          // Try one more time to find it in case of race condition
+          result = await db.game.findFirst({
+            where: { isContinuous: true },
+          });
+        }
+      }
+
       return result;
     });
 
     if (!gameState) {
-      logger.warn('⚠️  No game found - skipping tick. Create a game via POST /api/game/control', {
-        isContinuous: true,
-      }, 'Cron');
+      logger.error('❌ Failed to find or create game state', undefined, 'Cron');
       return successResponse({
-        success: true,
+        success: false,
         skipped: true,
-        reason: 'No game found',
+        reason: 'Failed to initialize game',
       });
     }
 
@@ -310,4 +335,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Forward to POST handler
   return POST(request);
 });
-
