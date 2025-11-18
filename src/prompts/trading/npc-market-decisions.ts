@@ -174,16 +174,25 @@ CRITICAL OUTPUT RULES:
 - Comparative questions require NPCs to actively trade BOTH stocks based on which they think will win
 
 CRITICAL RULES:
-1. ⚠️ BALANCE CONSTRAINT: NPCs can ONLY trade with their available balance. If balance is $10,000, max trade is $10,000. NEVER exceed this.
-2. Group chat messages are INSIDER INFORMATION - NPCs in those chats have an information edge
-3. Different NPCs have different information access - don't assume they all know everything
-4. Personality matters: aggressive traders take bigger positions, conservative traders are cautious
-5. Tier matters: S_TIER and A_TIER actors have better judgment and make smarter decisions
-6. NO RANDOM DECISIONS - every trade must have a clear reason based on information they've seen
-7. "hold" is a valid and common action - NPCs don't have to trade every tick (most should hold)
-8. Consider existing positions - NPCs may want to close losing positions or take profits
-9. Conservative position sizing: Use 10-30% of available balance per trade, not 100%
-10. RELATIONSHIPS MATTER:
+1. ⚠️⚠️⚠️ BALANCE CONSTRAINT (CRITICAL - VIOLATIONS WILL REJECT DECISION) ⚠️⚠️⚠️
+   - NPCs can ONLY trade with their available balance shown in their profile
+   - If balance is $3,420, MAX trade is $1,026 (30% of balance)
+   - If balance is $10,000, MAX trade is $3,000 (30% of balance)
+   - NEVER exceed the "MAX TRADE AMOUNT" shown in each NPC's profile
+   - Check the balance BEFORE setting amount - violations will cause rejection
+2. ⚠️⚠️⚠️ MARKETTYPE REQUIRED ⚠️⚠️⚠️
+   - For open_long/open_short: marketType MUST be "perp"
+   - For buy_yes/buy_no: marketType MUST be "prediction"
+   - Missing marketType will cause rejection
+3. Group chat messages are INSIDER INFORMATION - NPCs in those chats have an information edge
+4. Different NPCs have different information access - don't assume they all know everything
+5. Personality matters: aggressive traders take bigger positions, conservative traders are cautious
+6. Tier matters: S_TIER and A_TIER actors have better judgment and make smarter decisions
+7. NO RANDOM DECISIONS - every trade must have a clear reason based on information they've seen
+8. "hold" is a valid and common action - NPCs don't have to trade every tick (most should hold)
+9. Consider existing positions - NPCs may want to close losing positions or take profits
+10. Conservative position sizing: Use 10-30% of available balance per trade, not 100%
+11. RELATIONSHIPS MATTER:
    - Rivals (sentiment < -0.5): Take OPPOSITE positions to them. If rival bets YES, you bet NO.
    - Allies (sentiment > 0.5): Take SAME positions as them. If ally bets YES, you bet YES.
    - Mentors: Follow their trading signals with high confidence
@@ -238,7 +247,10 @@ FIELD SPECIFICATIONS & VALUE RANGES:
 
 <amount> (REQUIRED - number >= 0)
   - Dollar amount to trade (e.g., 5000, 3000.50)
-  - MUST be <= available balance shown in NPC profile
+  - ⚠️ CRITICAL: MUST be <= "MAX TRADE AMOUNT" shown in NPC profile (typically 30% of balance)
+  - If balance is $3,420, MAX amount is $1,026 (NOT $3,420 or higher!)
+  - If balance is $10,000, MAX amount is $3,000 (NOT $10,000 or higher!)
+  - Check the "MAX TRADE AMOUNT" field in each NPC's profile before setting amount
   - For hold: 0
   - For close_position: 0 (position is closed fully)
 
@@ -258,18 +270,19 @@ ACTION-SPECIFIC REQUIREMENTS:
 ===================================================================
 
 For open_long or open_short:
-  - marketType MUST be "perp"
+  - ⚠️ marketType MUST be "perp" (REQUIRED - missing will cause rejection)
   - ticker MUST be provided (e.g., "OPENAGI")
   - marketId MUST be null
   - positionId MUST be null
-  - amount MUST be > 0 and <= available balance
+  - amount MUST be > 0 and <= MAX TRADE AMOUNT shown in NPC profile
 
 For buy_yes or buy_no:
-  - marketType MUST be "prediction"
+  - ⚠️ marketType MUST be "prediction" (REQUIRED - missing will cause rejection)
   - marketId MUST be provided (e.g., "248821457163911168")
+  - ⚠️ marketId must be a SINGLE number - if multiple IDs appear, use ONLY the first one
   - ticker MUST be null
   - positionId MUST be null
-  - amount MUST be > 0 and <= available balance
+  - amount MUST be > 0 and <= MAX TRADE AMOUNT shown in NPC profile
 
 For close_position:
   - positionId MUST be the EXACT UUID from positions list
@@ -294,18 +307,21 @@ FINAL REMINDERS BEFORE OUTPUT:
 3. Generate exactly {{npcCount}} <decision> elements (one per NPC)
 4. Use EXACT npcId from each NPC's profile (copy from "🆔 **REQUIRED NPC ID:**" field)
 5. For close_position: Use EXACT positionId UUID from positions list (copy from "ID:" field)
-6. Validate all amounts are <= available balance
-7. Most NPCs should hold if no clear opportunity (don't force trades)
-8. Each decision should reference specific information the NPC has seen
+6. ⚠️ CRITICAL: Validate all amounts are <= "MAX TRADE AMOUNT" shown in each NPC's profile
+7. ⚠️ CRITICAL: Include marketType for ALL trading actions (perp/prediction) - missing will cause rejection
+8. ⚠️ CRITICAL: Use ONLY the FIRST marketId if multiple appear (remove newlines/whitespace)
+9. Most NPCs should hold if no clear opportunity (don't force trades)
+10. Each decision should reference specific information the NPC has seen
 
 DECISION RULES:
 - Each NPC decides independently based on THEIR information access
-- Respect available balance (amount <= balance shown)
+- ⚠️ CRITICAL: Respect MAX TRADE AMOUNT (amount <= MAX TRADE AMOUNT shown in profile, NOT full balance)
+- ⚠️ CRITICAL: Always include marketType ("perp" or "prediction") for trading actions
 - Group chat = insider info edge
 - Relationships matter: rivals bet opposite, allies bet same
 - "hold" is valid - most NPCs should hold if no clear opportunity
 - Personality and tier affect risk-taking
-- Conservative position sizing: Use 10-30% of available balance per trade
+- Conservative position sizing: Use 10-30% of available balance per trade (check MAX TRADE AMOUNT field)
 
 
 {{npcsList}}

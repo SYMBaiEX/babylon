@@ -179,10 +179,7 @@ async function main() {
       logger.info('✅ Game state already exists and is RUNNING', undefined, 'Script');
     }
   }
-
-  // NOTE: Pools are no longer used in the system
-  logger.info('Pools system has been deprecated', undefined, 'Script');
-
+  
   // Generate initial NPC investments
   // NPCs should start with existing positions in companies they'd naturally invest in
   logger.info('Generating initial NPC investments...', undefined, 'Script');

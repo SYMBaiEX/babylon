@@ -984,7 +984,7 @@ Return your response as XML in this exact format:
           },
           required: ['post'],
         },
-        { temperature: 0.9, maxTokens: 200, ...(model ? { model } : {}), format: 'xml' }
+        { temperature: 0.9, maxTokens: 500, ...(model ? { model } : {}), format: 'xml' }
       );
       
       // Handle XML structure
@@ -1054,7 +1054,7 @@ Return your response as XML in this exact format:
               },
               required: ['title', 'summary', 'article'] 
             },
-            { temperature: 0.7, maxTokens: 1000, ...(articleModel ? { model: articleModel } : {}), format: 'xml' }
+            { temperature: 0.7, maxTokens: 8000, ...(articleModel ? { model: articleModel } : {}), format: 'xml' }
           );
           
           // Handle XML structure
@@ -1126,7 +1126,7 @@ Return your response as XML in this exact format:
               },
               required: ['post'],
             },
-            { temperature: 0.9, maxTokens: 200, ...(orgPostModel ? { model: orgPostModel } : {}), format: 'xml' }
+            { temperature: 0.9, maxTokens: 500, ...(orgPostModel ? { model: orgPostModel } : {}), format: 'xml' }
           );
           
           // Handle XML structure
@@ -1497,7 +1497,7 @@ Return your response as XML in this exact format:
       const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
         prompt,
         { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 1100, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml' }
+        { temperature: 0.7, maxTokens: 8000, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml' }
       );
       
       // Handle XML structure
@@ -1787,6 +1787,13 @@ ${worldFactsContext}
 
 Use the world context above to make relevant, timely questions that reflect current reality (in our satirical universe).
 
+CRITICAL RULES:
+- DO NOT ask about Bitcoin/Crypto prices (e.g. "Will BTC hit $100k?").
+- DO NOT ask about events that already happened (e.g. Bitcoin ETF approval).
+- DO NOT ask about "Spot Bitcoin ETF" (this is 2024 news).
+- Focus on NEW developments: product launches, specific political outcomes, or tech drama.
+- Questions must be about FUTURE events resolvable in the next 7 days.
+
 Return your response as XML in this exact format:
 <response>
   <question>Will X happen?</question>
@@ -1809,7 +1816,7 @@ Return your response as XML in this exact format:
           },
           required: ['question', 'resolutionCriteria'],
         },
-        { temperature: 0.8, maxTokens: 300, ...(llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}), format: 'xml' }
+        { temperature: 0.8, maxTokens: 8000, ...(llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}), format: 'xml' }
       );
       
       // Handle XML structure - extract question data from response
@@ -1854,12 +1861,19 @@ Return your response as XML in this exact format:
       },
     });
 
+    // Initialize market with sufficient liquidity for trading
+    // Use 20,000 liquidity (10,000 YES + 10,000 NO shares) to support larger NPC trades
+    const initialLiquidity = 20000;
+    const { yesShares, noShares } = PredictionPricing.initializeMarket(initialLiquidity);
+    
     const market = await prisma.market.create({
       data: {
         id: question.id,
         question: questionData.question,
         description: questionData.resolutionCriteria,
-        liquidity: 1000,
+        yesShares: new Prisma.Decimal(yesShares),
+        noShares: new Prisma.Decimal(noShares),
+        liquidity: initialLiquidity,
         endDate: resolutionDate,
         gameId: 'continuous',
         updatedAt: now,

@@ -872,13 +872,32 @@ export class PerpetualsEngine extends EventEmitter {
     this.dirtyPositions.clear();
 
     // Batch update positions in database
-    const updates = positionsToSync
-      .map((positionId) => {
+    // Check existence first to avoid Prisma error logging for missing records
+    const updates = await Promise.all(
+      positionsToSync.map(async (positionId) => {
         const position = this.positions.get(positionId);
         if (!position) return null;
 
-        return prisma.perpPosition
-          .update({
+        // Check if position exists in database before updating
+        const exists = await prisma.perpPosition.findUnique({
+          where: { id: positionId },
+          select: { id: true },
+        });
+
+        if (!exists) {
+          // Position doesn't exist - remove from memory
+          this.positions.delete(positionId);
+          logger.debug(
+            `Position ${positionId} not found in database, removed from memory`,
+            undefined,
+            'PerpetualsEngine'
+          );
+          return null;
+        }
+
+        // Position exists, proceed with update
+        try {
+          return await prisma.perpPosition.update({
             where: { id: positionId },
             data: {
               currentPrice: position.currentPrice,
@@ -887,34 +906,25 @@ export class PerpetualsEngine extends EventEmitter {
               fundingPaid: position.fundingPaid,
               lastUpdated: new Date(position.lastUpdated),
             },
-          })
-          .catch((error: unknown) => {
-            // Handle case where position doesn't exist in database
-            // This can happen if position was deleted or never persisted
-            if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2025') {
-              // Position doesn't exist - remove from memory
-              this.positions.delete(positionId);
-              logger.debug(
-                `Position ${positionId} not found in database, removed from memory`,
-                undefined,
-                'PerpetualsEngine'
-              );
-              return null;
-            }
-            // Re-throw other errors
-            throw error;
           });
+        } catch (error: unknown) {
+          // Handle any other errors (shouldn't happen after existence check, but be safe)
+          if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2025') {
+            this.positions.delete(positionId);
+            logger.debug(
+              `Position ${positionId} not found during update, removed from memory`,
+              undefined,
+              'PerpetualsEngine'
+            );
+            return null;
+          }
+          // Re-throw other errors
+          throw error;
+        }
       })
-      .filter(
-        (update): update is Promise<PrismaPerpPosition | null> => Boolean(update)
-      );
+    );
 
-    if (updates.length === 0) {
-      return;
-    }
-
-    const results = await Promise.allSettled(updates);
-    const successful = results.filter((r) => r.status === 'fulfilled' && r.value !== null).length;
+    const successful = updates.filter((update): update is PrismaPerpPosition => update !== null).length;
 
     if (successful > 0) {
       logger.debug(

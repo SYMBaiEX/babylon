@@ -22,9 +22,8 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import db from '@/lib/database-service';
-import { characterMappingService } from './character-mapping-service';
+import { worldFactsService } from './world-facts-service';
+import { generateNPCPost, generateOrgPost } from './post-generation-helpers';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
@@ -199,18 +198,16 @@ async function checkTimeWindowHasContent(windowStart: Date, windowEnd: Date): Pr
  * Generate content for a specific time window
  * 
  * @description Generates posts with timestamps distributed across the window.
- * This makes content feel continuous instead of chunky. Currently uses simplified
- * generation. Full LLM-based generation should be integrated by calling the generation
- * functions from serverless-game-tick.ts.
+ * Uses LLM to generate real post content based on active questions and world context.
  * 
- * @param {BabylonLLMClient} _llmClient - LLM client (reserved for future use)
+ * @param {BabylonLLMClient} llmClient - LLM client for post generation
  * @param {Date} windowStart - Start of 5-minute window
  * @param {Date} windowEnd - End of 5-minute window
  * @returns {Promise<void>}
  * @private
  */
 async function generateContentWindow(
-  _llmClient: BabylonLLMClient, // Reserved for future use
+  llmClient: BabylonLLMClient,
   windowStart: Date,
   windowEnd: Date
 ): Promise<void> {
@@ -239,8 +236,8 @@ async function generateContentWindow(
   const numPosts = 8;
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
   
-  // Get actors and organizations for content generation
-  const [actors, organizations] = await Promise.all([
+  // Get actors, organizations, and world facts in parallel
+  const [actors, organizations, worldFactsContext] = await Promise.all([
     prisma.actor.findMany({
       take: 15,
       orderBy: { reputationPoints: 'desc' },
@@ -249,6 +246,7 @@ async function generateContentWindow(
       where: { type: 'media' },
       take: 5,
     }),
+    worldFactsService.generatePromptContext(),
   ]);
 
   if (actors.length === 0 && organizations.length === 0) {
@@ -258,51 +256,85 @@ async function generateContentWindow(
 
   let postsCreated = 0;
   
-  for (let i = 0; i < numPosts; i++) {
-    // Distribute timestamps naturally across window
-    const randomOffset = Math.random() * windowDuration;
-    const postTimestamp = new Date(windowStart.getTime() + randomOffset);
-    
-    // Alternate between actors and organizations
-    const useActor = i % 2 === 0 && actors.length > 0;
-    const creator = useActor 
-      ? actors[i % actors.length]
-      : organizations[i % organizations.length];
-    
-    if (!creator) continue;
-    
-    const question = activeQuestions[i % activeQuestions.length];
-    if (!question) continue;
-    
-    // Generate post content (simplified - reserved for future LLM generation)
-    // For now, create a simple post. Full generation should use generateMixedPosts logic
-    const content = `Post about: ${question.text}`;
-
-    // Transform content to replace real names with parody names
-    const transformed = await characterMappingService.transformText(content);
-    if (transformed.replacementCount > 0) {
-      logger.warn(`Fixed ${transformed.replacementCount} real name(s) in lookahead post`, {
-        questionId: question.id,
-        creator: creator.id,
-      }, 'LookaheadGeneration');
-    }
-
+  // Generate posts in parallel for better performance
+  const postPromises = Array.from({ length: numPosts }, async (_, i) => {
     try {
-      // Store post with future timestamp
-      await db().createPostWithAllFields({
-        id: await generateSnowflakeId(),
-        content: transformed.transformedText,
-        authorId: creator.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: postTimestamp,
-      });
-      postsCreated++;
+      // Distribute timestamps naturally across window
+      const randomOffset = Math.random() * windowDuration;
+      const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+      
+      // Alternate between actors and organizations
+      const useActor = i % 2 === 0 && actors.length > 0;
+      const creator = useActor 
+        ? actors[i % actors.length]
+        : organizations[i % organizations.length];
+      
+      if (!creator) {
+        return 0;
+      }
+      
+      const question = activeQuestions[i % activeQuestions.length];
+      if (!question || !question.text) {
+        return 0;
+      }
+      
+      // Generate post content using LLM
+      if (useActor) {
+        const actor = creator as typeof actors[number];
+        const success = await generateNPCPost(
+          llmClient,
+          actor,
+          question,
+          worldFactsContext,
+          postTimestamp
+        );
+        if (success) {
+          logger.debug('Created lookahead NPC post', { 
+            actor: actor.name, 
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id
+          }, 'LookaheadGeneration');
+        }
+        return success ? 1 : 0;
+      } else {
+        const org = creator as typeof organizations[number];
+        const success = await generateOrgPost(
+          llmClient,
+          org,
+          question,
+          worldFactsContext,
+          postTimestamp
+        );
+        if (success) {
+          logger.debug('Created lookahead org post', { 
+            org: org.name, 
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id
+          }, 'LookaheadGeneration');
+        }
+        return success ? 1 : 0;
+      }
     } catch (error) {
-      logger.warn('Failed to create post in lookahead window', {
+      logger.warn('Failed to generate post in lookahead window', {
         error: error instanceof Error ? error.message : String(error),
         windowStart: windowStart.toISOString(),
         windowEnd: windowEnd.toISOString(),
+        postIndex: i,
+      }, 'LookaheadGeneration');
+      return 0;
+    }
+  });
+  
+  // Wait for all posts to complete
+  const results = await Promise.allSettled(postPromises);
+  
+  // Count successful posts
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value > 0) {
+      postsCreated += result.value;
+    } else if (result.status === 'rejected') {
+      logger.warn('Post generation failed in lookahead window', {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
       }, 'LookaheadGeneration');
     }
   }

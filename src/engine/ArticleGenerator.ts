@@ -414,8 +414,21 @@ export class ArticleGenerator {
       }
     );
     
-    // Handle XML structure
-    const articleData = 'response' in response && response.response
+    // Handle XML structure - check if response is an object before using 'in' operator
+    if (typeof response !== 'object' || response === null) {
+      // Import logger dynamically to avoid circular dependencies
+      const { logger } = await import('@/lib/logger');
+      const responseStr = typeof response === 'string' ? response : String(response);
+      logger.error('LLM returned non-object response for article generation', {
+        responseType: typeof response,
+        responsePreview: responseStr.substring(0, 200),
+        eventId: event.id,
+        organizationId: organization.id,
+      }, 'ArticleGenerator');
+      throw new Error('LLM returned invalid response format - expected object, got ' + typeof response);
+    }
+    
+    const articleData = 'response' in response && response.response && typeof response.response === 'object'
       ? response.response
       : response as {
           title: string | string[];

@@ -404,10 +404,35 @@ export class MarketDecisionEngine {
     // Get recent events with caching
     const recentEventsText = await this.getCachedRecentEvents();
     
+    // Build lists of valid NPC IDs and tickers to restrict LLM output
+    const validNpcIds = contexts.map(ctx => ctx.npcId).join(', ');
+    const validTickers = contexts[0]?.perpMarkets.map(m => m.ticker).join(', ') || '';
+    
+    // Add restrictions to npcsList to prevent LLM from generating invalid NPCs/tickers
+    const restrictedNpcsList = `${npcsList}
+
+===================================================================
+🚨 CRITICAL RESTRICTIONS - YOU MUST FOLLOW THESE EXACTLY:
+===================================================================
+
+VALID NPC IDs (ONLY use these - DO NOT create new ones):
+${validNpcIds}
+
+VALID TICKERS (ONLY use these for perp markets - DO NOT create new ones like "BIT"):
+${validTickers || 'No perpetual markets available'}
+
+⚠️ FORBIDDEN:
+- DO NOT create NPC IDs that are not in the valid list above
+- DO NOT use tickers that are not in the valid list above (especially "BIT" which doesn't exist)
+- DO NOT invent new NPC names or ticker symbols
+- ONLY use the EXACT IDs and tickers shown above
+
+===================================================================`;
+    
     // Build the full prompt
     let prompt = renderPrompt(npcMarketDecisions, {
       npcCount: contexts.length.toString(),
-      npcsList,
+      npcsList: restrictedNpcsList,
       realityGrounding: worldContext.realityGrounding,
       activeQuestions: activeQuestionsText,
       recentEvents: recentEventsText,
@@ -840,8 +865,11 @@ ${prompt}`
       }
       
       section += `\n**DECISION:**\n`;
-      section += `Balance: $${ctx.availableBalance.toLocaleString()} (MAX)\n`;
-      section += `Actions: open_long, open_short, buy_yes, buy_no, close_position, hold\n\n`;
+      const maxAmount = Math.floor(ctx.availableBalance * 0.3); // 30% max per trade
+      section += `💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
+      section += `⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance - NEVER exceed this!)\n`;
+      section += `Actions: open_long, open_short, buy_yes, buy_no, close_position, hold\n`;
+      section += `⚠️ REQUIRED: marketType must be "perp" for open_long/open_short, "prediction" for buy_yes/buy_no\n\n`;
       
       return section;
     }).join('\n\n');
@@ -1382,7 +1410,7 @@ ${prompt}`
         // LLM sometimes puts marketId in ticker field, extract it
         if (!decision.marketId && decision.ticker) {
           // Check if ticker looks like a marketId (e.g., "Q248821457163911168")
-          const tickerStr = String(decision.ticker);
+          const tickerStr = String(decision.ticker).trim();
           if (tickerStr.startsWith('Q') || /^\d+$/.test(tickerStr)) {
             decision.marketId = tickerStr.startsWith('Q') ? tickerStr.substring(1) : tickerStr;
             logger.debug(`Extracted marketId ${decision.marketId} from ticker field`, undefined, 'MarketDecisionEngine');
@@ -1399,11 +1427,36 @@ ${prompt}`
           continue;
         }
         
-        // Clean up marketId: remove "Q" prefix if present, ensure it's a string
-        const marketIdStr = String(decision.marketId);
+        // Clean up marketId: handle multiple IDs, newlines, whitespace, and "Q" prefix
+        let marketIdStr = String(decision.marketId);
+        
+        // First, handle newlines and split by whitespace to get individual IDs
+        const parts = marketIdStr.split(/\s+/).filter(p => p.trim().length > 0);
+        
+        if (parts.length > 1) {
+          // Multiple IDs detected - take the first one
+          marketIdStr = parts[0]!;
+          logger.debug(`Extracted first marketId from multi-value: "${decision.marketId}" -> "${marketIdStr}"`, undefined, 'MarketDecisionEngine');
+        } else if (parts.length === 1) {
+          marketIdStr = parts[0]!;
+        }
+        
+        // Remove "Q" prefix if present and clean up
+        marketIdStr = marketIdStr.trim();
         if (marketIdStr.startsWith('Q')) {
-          decision.marketId = marketIdStr.substring(1);
-          logger.debug(`Cleaned marketId: ${marketIdStr} -> ${decision.marketId}`, undefined, 'MarketDecisionEngine');
+          decision.marketId = marketIdStr.substring(1).trim();
+          logger.debug(`Removed Q prefix from marketId: "${marketIdStr}" -> "${decision.marketId}"`, undefined, 'MarketDecisionEngine');
+        } else {
+          // Extract only numeric characters (in case LLM added extra text)
+          const numericMatch = marketIdStr.match(/^\d+/);
+          if (numericMatch) {
+            decision.marketId = numericMatch[0]!;
+            if (decision.marketId !== marketIdStr) {
+              logger.debug(`Extracted numeric marketId: "${marketIdStr}" -> "${decision.marketId}"`, undefined, 'MarketDecisionEngine');
+            }
+          } else {
+            decision.marketId = marketIdStr;
+          }
         }
         
         // Verify market exists

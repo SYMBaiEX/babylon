@@ -55,6 +55,8 @@ let globalTokenRetryTimeout: number | null = null;
 
 // Track users for whom social accounts have been linked in this session
 const linkedSocialUsers = new Set<string>();
+// Track in-flight linking operations to prevent race conditions
+const linkingInProgress = new Set<string>();
 
 /**
  * Main authentication hook for managing user authentication state.
@@ -289,12 +291,16 @@ export function useAuth(): UseAuthReturn {
     if (isLoadingProfile) return; // Wait for profile to load
     if (needsOnboarding || needsOnchain) return;
     if (!user) return; // Don't link social accounts if user doesn't exist yet
+    
+    // Prevent duplicate calls - check both sets synchronously
     if (linkedSocialUsers.has(privyUser.id)) return;
+    if (linkingInProgress.has(privyUser.id)) return;
 
     const token = await getAccessToken();
     if (!token) return;
 
-    linkedSocialUsers.add(privyUser.id);
+    // Mark as in progress immediately to prevent race conditions
+    linkingInProgress.add(privyUser.id);
 
     const userWithFarcaster = privyUser as PrivyUser & {
       farcaster?: { username?: string; displayName?: string };
@@ -303,69 +309,77 @@ export function useAuth(): UseAuthReturn {
       twitter?: { username?: string };
     };
 
-    if (userWithFarcaster.farcaster) {
-      const farcaster = userWithFarcaster.farcaster;
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'farcaster',
-            username: farcaster.username || farcaster.displayName,
-          }),
-        }
-      );
-      logger.info(
-        'Linked Farcaster account during auth sync',
-        { username: farcaster.username },
-        'useAuth'
-      );
-    }
+    try {
+      // Only link accounts that aren't already linked
+      if (userWithFarcaster.farcaster && !user.hasFarcaster) {
+        const farcaster = userWithFarcaster.farcaster;
+        await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'farcaster',
+              username: farcaster.username || farcaster.displayName,
+            }),
+          }
+        );
+        logger.info(
+          'Linked Farcaster account during auth sync',
+          { username: farcaster.username },
+          'useAuth'
+        );
+      }
 
-    if (userWithTwitter.twitter) {
-      const twitter = userWithTwitter.twitter;
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'twitter',
-            username: twitter.username,
-          }),
-        }
-      );
-      logger.info(
-        'Linked Twitter account during auth sync',
-        { username: twitter.username },
-        'useAuth'
-      );
-    }
+      if (userWithTwitter.twitter && !user.hasTwitter) {
+        const twitter = userWithTwitter.twitter;
+        await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'twitter',
+              username: twitter.username,
+            }),
+          }
+        );
+        logger.info(
+          'Linked Twitter account during auth sync',
+          { username: twitter.username },
+          'useAuth'
+        );
+      }
 
-    if (wallet?.address) {
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'wallet',
-            address: wallet.address.toLowerCase(),
-          }),
-        }
-      );
-      logger.info(
-        'Linked wallet during auth sync',
-        { address: wallet.address },
-        'useAuth'
-      );
+      // Only link wallet if it's different from the stored wallet address
+      if (wallet?.address && user.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()) {
+        await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'wallet',
+              address: wallet.address.toLowerCase(),
+            }),
+          }
+        );
+        logger.info(
+          'Linked wallet during auth sync',
+          { address: wallet.address },
+          'useAuth'
+        );
+      }
+    } finally {
+      // Mark as completed and remove from in-progress set
+      linkingInProgress.delete(privyUser.id);
+      linkedSocialUsers.add(privyUser.id);
     }
   };
 
@@ -405,6 +419,7 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     if (!authenticated || !privyUser) {
       linkedSocialUsers.delete(privyUser?.id ?? '');
+      linkingInProgress.delete(privyUser?.id ?? '');
       lastSyncedWalletAddress = null;
       clearAuth();
       // Clear any stale localStorage cache
@@ -435,12 +450,17 @@ export function useAuth(): UseAuthReturn {
     void fetchCurrentUser();
   }, [authenticated, privyUser?.id]);
 
+  // Link social accounts only once per user session
+  // Removed wallet?.address from dependencies to prevent spam
+  // The wallet linking logic checks if the address changed before making API calls
   useEffect(() => {
     void linkSocialAccounts();
   }, [
     authenticated,
     privyUser?.id,
-    wallet?.address,
+    user?.hasFarcaster,
+    user?.hasTwitter,
+    user?.walletAddress,
     needsOnboarding,
     isLoadingProfile,
   ]);
@@ -489,6 +509,7 @@ export function useAuth(): UseAuthReturn {
     
     // Clear module-level state
     linkedSocialUsers.clear();
+    linkingInProgress.clear();
     lastSyncedWalletAddress = null;
     globalFetchInFlight = null;
     if (globalTokenRetryTimeout !== null) {

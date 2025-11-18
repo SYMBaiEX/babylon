@@ -80,7 +80,7 @@ const prompt = renderPrompt(newsPosts, {
 
 // Get LLM parameters from prompt definition
 const params = getPromptParams(newsPosts);
-// { temperature: 0.8, maxTokens: 2000 }
+// { temperature: 0.8, maxTokens: 8000 }
 
 // Use with LLM client
 const response = await llm.generateJSON(prompt, undefined, params);
