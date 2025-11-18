@@ -16,7 +16,6 @@ next-env.d.ts
 .serena/
 cache/*
 broadcast/
-bun.lock
 plugin-babylon/.eliza/
 claudedocs/
 package-lock.json
