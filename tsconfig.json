@@ -87,6 +87,7 @@
   "include": [
     "src/**/*",
     "scripts/**/*",
+    "tests/**/*",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "types/**/*.d.ts"
@@ -96,7 +97,6 @@
     "dist",
     "**/*.disabled",
     "examples/**/*",
-    "tests/**/*",
     "src/**/__tests__/**/*"
   ]
 }

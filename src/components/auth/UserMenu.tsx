@@ -42,8 +42,12 @@ export function UserMenu() {
       return
     }
 
+    let isMounted = true
+    let currentFetchController: AbortController | null = null
+
     const fetchData = async () => {
-      if (!user?.id) {
+      if (!user?.id || !isMounted) {
+        if (!isMounted) return
         setPointsData(null)
         setReferralCode(null)
         lastFetchedUserIdRef.current = null
@@ -65,25 +69,68 @@ export function UserMenu() {
         'Authorization': `Bearer ${token}`
       }
 
-      // Fetch points
-      const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
-      if (balanceResponse.ok) {
-        const data = await balanceResponse.json()
-        setPointsData({
-          available: Number(data.balance || 0),
-          total: Number(data.totalDeposited || 0),
+      // Create a new controller for this specific fetch call
+      currentFetchController = new AbortController()
+      const fetchController = currentFetchController
+
+      try {
+        // Fetch points
+        const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { 
+          headers,
+          signal: fetchController.signal
         })
-      }
+        
+        if (!isMounted || fetchController.signal.aborted) {
+          userMenuFetchInFlight = false
+          return
+        }
 
-      // Fetch referral code
-      const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
-      if (referralResponse.ok) {
-        const data = await referralResponse.json()
-        setReferralCode(data.user?.referralCode || null)
-      }
+        if (balanceResponse.ok) {
+          const data = await balanceResponse.json()
+          if (isMounted && !fetchController.signal.aborted) {
+            setPointsData({
+              available: Number(data.balance || 0),
+              total: Number(data.totalDeposited || 0),
+            })
+          }
+        }
 
-      lastFetchedUserIdRef.current = user.id
-      userMenuFetchInFlight = false
+        // Fetch referral code
+        const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { 
+          headers,
+          signal: fetchController.signal
+        })
+        
+        if (!isMounted || fetchController.signal.aborted) {
+          userMenuFetchInFlight = false
+          return
+        }
+
+        if (referralResponse.ok) {
+          const data = await referralResponse.json()
+          if (isMounted && !fetchController.signal.aborted) {
+            setReferralCode(data.user?.referralCode || null)
+          }
+        }
+
+        if (isMounted && !fetchController.signal.aborted) {
+          lastFetchedUserIdRef.current = user.id
+        }
+      } catch (error) {
+        // Ignore abort errors
+        if (error instanceof Error && error.name === 'AbortError') {
+          return
+        }
+        // Silently handle network errors - component will show previous state or null
+        if (isMounted) {
+          console.warn('Failed to fetch user menu data:', error)
+        }
+      } finally {
+        if (isMounted) {
+          userMenuFetchInFlight = false
+        }
+        currentFetchController = null
+      }
     }
 
     // Clear any existing interval
@@ -96,9 +143,17 @@ export function UserMenu() {
     fetchData()
     
     // Set up interval for refresh
-    userMenuIntervalId = setInterval(fetchData, 30000)
+    userMenuIntervalId = setInterval(() => {
+      if (isMounted) {
+        fetchData()
+      }
+    }, 30000)
 
     return () => {
+      isMounted = false
+      if (currentFetchController) {
+        currentFetchController.abort()
+      }
       if (userMenuIntervalId) {
         clearInterval(userMenuIntervalId)
         userMenuIntervalId = null

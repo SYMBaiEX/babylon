@@ -54,9 +54,12 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { autonomousCoordinator } from '@/lib/agents/autonomous'
+import { AgentType, AgentStatus } from '@/types/agent-registry.types'
+import type { User } from '@prisma/client'
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for agent tick
@@ -66,98 +69,243 @@ export async function POST(_req: NextRequest) {
   const startTime = Date.now()
   logger.info('Agent tick started', undefined, 'AgentTick')
 
-  const agents = await prisma.user.findMany({
-    where: {
-      isAgent: true,
-      agentPointsBalance: { gte: 1 },
-      OR: [
-        { autonomousTrading: true },
-        { autonomousPosting: true },
-        { autonomousCommenting: true },
-        { autonomousDMs: true },
-        { autonomousGroupChats: true }
-      ]
-    }
+  // NEW: Query via unified AgentRegistry to include both USER agents and NPCs
+  const registeredAgents = await agentRegistry.discoverAgents({
+    types: [AgentType.USER_CONTROLLED, AgentType.NPC],
+    statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED],
   })
 
-  logger.info(`Found ${agents.length} autonomous agents to run`, undefined, 'AgentTick')
+  // Filter agents with sufficient points and autonomous features enabled
+  const eligibleAgents: Array<{
+    agentId: string
+    type: AgentType
+    name: string
+    user: User | null
+  }> = []
+
+  for (const agent of registeredAgents) {
+    if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
+      // Check User-specific autonomous settings and points
+      const user = await prisma.user.findUnique({
+        where: { id: agent.userId }
+      })
+
+      if (user &&
+          user.isAgent &&
+          user.agentPointsBalance >= 1 &&
+          (user.autonomousTrading || user.autonomousPosting ||
+           user.autonomousCommenting || user.autonomousDMs ||
+           user.autonomousGroupChats)) {
+        eligibleAgents.push({
+          agentId: agent.agentId,
+          type: agent.type,
+          name: agent.name,
+          user
+        })
+      }
+    } else if (agent.type === AgentType.NPC) {
+      // NPCs are always eligible if registered and active
+      eligibleAgents.push({
+        agentId: agent.agentId,
+        type: agent.type,
+        name: agent.name,
+        user: null
+      })
+    }
+  }
+
+  // Validation: Check if agents were found
+  if (eligibleAgents.length === 0) {
+    logger.warn('No eligible agents found to run', {
+      totalRegistered: registeredAgents.length,
+      criteria: 'USER agents with autonomous features + points >= 1, or active NPCs'
+    }, 'AgentTick')
+
+    return NextResponse.json({
+      success: true,
+      processed: 0,
+      duration: Date.now() - startTime,
+      results: [],
+      warning: 'No agents found with autonomous features enabled and sufficient points'
+    })
+  }
+
+  logger.info(`Found ${eligibleAgents.length} eligible autonomous agents (${registeredAgents.length} total registered)`, {
+    userAgents: eligibleAgents.filter(a => a.type === AgentType.USER_CONTROLLED).length,
+    npcAgents: eligibleAgents.filter(a => a.type === AgentType.NPC).length
+  }, 'AgentTick')
 
   const results = []
+  let totalActionsExecuted = 0
+  let errors = 0
 
-  for (const agent of agents) {
+  for (const eligibleAgent of eligibleAgents) {
     const agentStartTime = Date.now()
-    
-    // Always 1pt per tick (no tiers)
-    const pointsCost = 1
-    
-    await agentService.deductPoints(agent.id, pointsCost, 'Autonomous tick')
 
-    const runtime = await agentRuntimeManager.getRuntime(agent.id)
+    try {
+      // Always 1pt per tick for USER agents (NPCs don't use points)
+      const pointsCost = eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0
 
-    const enabledFeatures = []
-    if (agent.autonomousTrading) enabledFeatures.push('trading')
-    if (agent.autonomousPosting) enabledFeatures.push('posting')
-    if (agent.autonomousCommenting) enabledFeatures.push('commenting')
-    if (agent.autonomousDMs) enabledFeatures.push('DMs')
-    if (agent.autonomousGroupChats) enabledFeatures.push('group chats')
+      if (eligibleAgent.type === AgentType.USER_CONTROLLED && eligibleAgent.user) {
+        await agentService.deductPoints(eligibleAgent.user.id, pointsCost, 'Autonomous tick')
+      }
 
-    // Enable trajectory recording for RL training data collection
-    // Can be toggled via environment variable
-    const recordTrajectories = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-    
-    const tickResult = await autonomousCoordinator.executeAutonomousTick(agent.id, runtime, recordTrajectories)
+      // Use agent runtime manager for both USER and NPC agents
+      const runtime = await agentRuntimeManager.getRuntime(eligibleAgent.agentId)
 
-    const actions = {
-      trades: tickResult.actionsExecuted.trades,
-      posts: tickResult.actionsExecuted.posts,
-      comments: tickResult.actionsExecuted.comments,
-      dms: tickResult.actionsExecuted.messages,
-      groupMessages: tickResult.actionsExecuted.groupMessages
-    }
+      // Determine enabled features based on agent type
+      const enabledFeatures = []
+      if (eligibleAgent.type === AgentType.USER_CONTROLLED && eligibleAgent.user) {
+        if (eligibleAgent.user.autonomousTrading) enabledFeatures.push('trading')
+        if (eligibleAgent.user.autonomousPosting) enabledFeatures.push('posting')
+        if (eligibleAgent.user.autonomousCommenting) enabledFeatures.push('commenting')
+        if (eligibleAgent.user.autonomousDMs) enabledFeatures.push('DMs')
+        if (eligibleAgent.user.autonomousGroupChats) enabledFeatures.push('group chats')
+      } else if (eligibleAgent.type === AgentType.NPC) {
+        // NPCs have all autonomous features enabled by default
+        enabledFeatures.push('trading', 'posting', 'commenting', 'DMs', 'group chats')
+      }
 
-    const modelUsed = process.env.WANDB_API_KEY
-      ? (process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct')
-      : 'qwen/qwen3-32b'
+      // Enable trajectory recording for RL training data collection
+      // Can be toggled via environment variable
+      const recordTrajectories = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
 
-    await agentService.createLog(agent.id, {
-      type: 'tick',
-      level: 'info',
-      message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
-      metadata: {
-        pointsCost,
+
+      const tickResult = await autonomousCoordinator.executeAutonomousTick(eligibleAgent.agentId, runtime, recordTrajectories)
+
+      // Validation: Verify tick executed successfully
+      if (!tickResult.success) {
+        logger.warn(`Agent ${eligibleAgent.name} tick completed but was not successful`, {
+          agentId: eligibleAgent.agentId,
+          agentType: eligibleAgent.type,
+          method: tickResult.method,
+          duration: tickResult.duration
+        }, 'AgentTick')
+      }
+
+      const actions = {
+        trades: tickResult.actionsExecuted.trades,
+        posts: tickResult.actionsExecuted.posts,
+        comments: tickResult.actionsExecuted.comments,
+        dms: tickResult.actionsExecuted.messages,
+        groupMessages: tickResult.actionsExecuted.groupMessages
+      }
+
+      // Calculate total actions
+      const agentActionCount = Object.values(actions).reduce((sum, count) => sum + count, 0)
+      totalActionsExecuted += agentActionCount
+
+      // Validation: Warn if agent has features enabled but took no actions
+      if (enabledFeatures.length > 0 && agentActionCount === 0) {
+        logger.warn(`Agent ${eligibleAgent.name} has features enabled but took no actions`, {
+          agentId: eligibleAgent.agentId,
+          agentType: eligibleAgent.type,
+          enabledFeatures,
+          method: tickResult.method
+        }, 'AgentTick')
+      }
+
+      const modelUsed = process.env.WANDB_API_KEY
+        ? (process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct')
+        : 'qwen/qwen3-32b'
+
+      // Log tick for USER agents only (NPCs don't have agentService logs yet)
+      if (eligibleAgent.type === AgentType.USER_CONTROLLED && eligibleAgent.user) {
+        await agentService.createLog(eligibleAgent.user.id, {
+          type: 'tick',
+          level: 'info',
+          message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
+          metadata: {
+            pointsCost,
+            duration: Date.now() - agentStartTime,
+            modelUsed,
+            enabledFeatures,
+            actions,
+            success: tickResult.success,
+            method: tickResult.method
+          }
+        })
+
+        // Update User status for USER agents
+        await prisma.user.update({
+          where: { id: eligibleAgent.user.id },
+          data: {
+            agentLastTickAt: new Date(),
+            agentStatus: 'running'
+          }
+        })
+      }
+
+      results.push({
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type,
+        name: eligibleAgent.name,
+        status: tickResult.success ? 'success' : 'completed_without_actions',
+        pointsDeducted: pointsCost,
         duration: Date.now() - agentStartTime,
-        modelUsed,
-        enabledFeatures,
-        actions
-      }
-    })
+        actions: agentActionCount,
+        method: tickResult.method
+      })
 
-    await prisma.user.update({
-      where: { id: agent.id },
-      data: {
-        agentLastTickAt: new Date(),
-        agentStatus: 'running'
-      }
-    })
+      logger.info(`Agent ${eligibleAgent.name} (${eligibleAgent.type}) tick completed in ${Date.now() - agentStartTime}ms`, {
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type,
+        actions: agentActionCount,
+        method: tickResult.method,
+        success: tickResult.success
+      }, 'AgentTick')
+    } catch (error) {
+      errors++
+      logger.error(`Failed to process agent ${eligibleAgent.name} (${eligibleAgent.type})`, error, 'AgentTick')
 
-    results.push({
-      agentId: agent.id,
-      name: agent.displayName,
-      status: 'success',
-      pointsDeducted: pointsCost,
-      duration: Date.now() - agentStartTime
-    })
-
-    logger.info(`Agent ${agent.displayName} tick completed in ${Date.now() - agentStartTime}ms`, undefined, 'AgentTick')
+      results.push({
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type,
+        name: eligibleAgent.name,
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        duration: Date.now() - agentStartTime
+      })
+    }
   }
 
   const duration = Date.now() - startTime
-  logger.info(`Agent tick completed in ${duration}ms`, undefined, 'AgentTick')
+  
+  // Validation: Log summary metrics
+  logger.info(`Agent tick completed in ${duration}ms`, {
+    agentsProcessed: results.length,
+    totalActions: totalActionsExecuted,
+    errors,
+    averageActionsPerAgent: results.length > 0 ? (totalActionsExecuted / results.length).toFixed(2) : 0
+  }, 'AgentTick')
+
+  // Validation: Warn if no actions were executed
+  if (totalActionsExecuted === 0 && results.length > 0) {
+    // Count agents with autonomous features enabled
+    const agentsWithFeatures = eligibleAgents.filter(a => {
+      if (a.type === AgentType.NPC) return true // NPCs always have features enabled
+      if (a.type === AgentType.USER_CONTROLLED && a.user) {
+        return a.user.autonomousTrading || a.user.autonomousPosting ||
+               a.user.autonomousCommenting || a.user.autonomousDMs ||
+               a.user.autonomousGroupChats
+      }
+      return false
+    }).length
+
+    logger.warn('Agent tick completed but no actions were executed', {
+      agentsProcessed: results.length,
+      agentsWithFeatures,
+      userAgents: eligibleAgents.filter(a => a.type === AgentType.USER_CONTROLLED).length,
+      npcAgents: eligibleAgents.filter(a => a.type === AgentType.NPC).length
+    }, 'AgentTick')
+  }
 
   return NextResponse.json({
     success: true,
     processed: results.length,
     duration,
+    totalActions: totalActionsExecuted,
+    errors,
     results
   })
 }

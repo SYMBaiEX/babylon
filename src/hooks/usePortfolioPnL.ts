@@ -95,26 +95,40 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
     setLoading(true)
     setError(null)
 
-    const [balanceRes, positionsRes] = await Promise.all([
-      fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
-        signal: abortController.signal,
-      }),
-      fetch(`/api/markets/positions/${encodeURIComponent(user.id)}`, {
-        signal: abortController.signal,
-      }),
-    ])
-
-    let balanceJson;
-    let positionsJson;
     try {
-      balanceJson = await balanceRes.json();
-      positionsJson = await positionsRes.json();
-    } catch (error) {
-      logger.error('Failed to parse portfolio PnL response', { error, userId: user.id }, 'usePortfolioPnL');
-      setError('Failed to parse response');
-      setLoading(false);
-      return;
-    }
+      const [balanceRes, positionsRes] = await Promise.all([
+        fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
+          signal: abortController.signal,
+        }),
+        fetch(`/api/markets/positions/${encodeURIComponent(user.id)}`, {
+          signal: abortController.signal,
+        }),
+      ])
+
+      // Check if request was aborted
+      if (abortController.signal.aborted) {
+        return
+      }
+
+      let balanceJson;
+      let positionsJson;
+      try {
+        balanceJson = await balanceRes.json();
+        positionsJson = await positionsRes.json();
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return
+        }
+        logger.error('Failed to parse portfolio PnL response', { error, userId: user.id }, 'usePortfolioPnL');
+        setError('Failed to parse response');
+        setLoading(false);
+        return;
+      }
+
+      // Check again after parsing
+      if (abortController.signal.aborted) {
+        return
+      }
 
       const totalDeposited = toNumber(balanceJson.totalDeposited)
       const totalWithdrawn = toNumber(balanceJson.totalWithdrawn)
@@ -138,20 +152,32 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       const netContributions = totalDeposited - totalWithdrawn
       const accountEquity = netContributions + totalPnL
 
-    setData({
-      lifetimePnL,
-      netContributions,
-      totalDeposited,
-      totalWithdrawn,
-      availableBalance,
-      unrealizedPerpPnL: perpUnrealized,
-      unrealizedPredictionPnL: predictionUnrealized,
-      totalUnrealizedPnL,
-      totalPnL,
-      accountEquity,
-    })
-    setLastUpdated(Date.now())
-    setLoading(false)
+      setData({
+        lifetimePnL,
+        netContributions,
+        totalDeposited,
+        totalWithdrawn,
+        availableBalance,
+        unrealizedPerpPnL: perpUnrealized,
+        unrealizedPredictionPnL: predictionUnrealized,
+        totalUnrealizedPnL,
+        totalPnL,
+        accountEquity,
+      })
+      setLastUpdated(Date.now())
+      setLoading(false)
+    } catch (error) {
+      // Ignore abort errors - they're expected when canceling requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      // Only set error if request wasn't aborted
+      if (!abortController.signal.aborted) {
+        logger.error('Failed to fetch portfolio PnL', { error, userId: user.id }, 'usePortfolioPnL');
+        setError('Failed to fetch portfolio data');
+        setLoading(false)
+      }
+    }
   }, [authenticated, user?.id])
 
   useEffect(() => {

@@ -14,9 +14,16 @@ interface RunningAgent {
   profileImageUrl: string | null
   creatorId: string
   creatorName: string | null
-  modelTier: 'free' | 'pro'
+  modelTier: 'free' | 'pro' | 'external'
   pointsBalance: number
-  
+
+  // External agent specific
+  type?: 'EXTERNAL'
+  protocol?: string
+  endpoint?: string | null
+  isHealthy?: boolean
+  lastHealthCheck?: Date | null
+
   // Autonomous status
   autonomousEnabled: boolean
   autonomousTrading: boolean
@@ -24,7 +31,7 @@ interface RunningAgent {
   autonomousCommenting: boolean
   autonomousDMs: boolean
   autonomousGroupChats: boolean
-  
+
   // Performance
   lifetimePnL: number
   totalTrades: number
@@ -32,17 +39,17 @@ interface RunningAgent {
   reputationScore: number
   averageFeedbackScore: number
   totalFeedbackCount: number
-  
+
   // Status
   agentStatus: string | null
   errorMessage: string | null
   lastTickAt: Date | null
   lastChatAt: Date | null
-  
+
   // Timing
   createdAt: Date
   updatedAt: Date
-  
+
   // Recent logs count
   recentLogsCount: number
   recentErrorsCount: number
@@ -54,6 +61,8 @@ interface AgentStats {
   paused: number
   error: number
   totalActions24h: number
+  external?: number
+  externalHealthy?: number
 }
 
 export function AgentsTab() {
@@ -306,7 +315,7 @@ export function AgentsTab() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
             <div className="flex items-center justify-between mb-2">
               <Bot className="w-5 h-5 text-blue-500" />
@@ -338,6 +347,26 @@ export function AgentsTab() {
             </div>
             <div className="text-sm text-muted-foreground">Errors</div>
           </div>
+
+          {stats.external !== undefined && (
+            <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-purple-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <Zap className="w-5 h-5 text-purple-500" />
+                <span className="text-2xl font-bold text-purple-500">{stats.external}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">External</div>
+            </div>
+          )}
+
+          {stats.externalHealthy !== undefined && (
+            <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-cyan-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <CheckCircle className="w-5 h-5 text-cyan-500" />
+                <span className="text-2xl font-bold text-cyan-500">{stats.externalHealthy}/{stats.external}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">Healthy</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -438,20 +467,47 @@ export function AgentsTab() {
 
                   {/* Capabilities */}
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {agent.autonomousTrading && (
-                      <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">Trading</span>
-                    )}
-                    {agent.autonomousPosting && (
-                      <span className="text-xs px-2 py-1 rounded bg-purple-500/20 text-purple-400">Posting</span>
-                    )}
-                    {agent.autonomousCommenting && (
-                      <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">Commenting</span>
-                    )}
-                    {agent.autonomousDMs && (
-                      <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">DMs</span>
-                    )}
-                    {agent.autonomousGroupChats && (
-                      <span className="text-xs px-2 py-1 rounded bg-pink-500/20 text-pink-400">Groups</span>
+                    {agent.type === 'EXTERNAL' ? (
+                      <>
+                        <span className="text-xs px-2 py-1 rounded bg-purple-500/20 text-purple-400 flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          External
+                        </span>
+                        {agent.protocol && (
+                          <span className="text-xs px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">
+                            {agent.protocol.toUpperCase()}
+                          </span>
+                        )}
+                        {agent.isHealthy !== undefined && (
+                          <span className={cn(
+                            "text-xs px-2 py-1 rounded flex items-center gap-1",
+                            agent.isHealthy
+                              ? "bg-green-500/20 text-green-400"
+                              : "bg-red-500/20 text-red-400"
+                          )}>
+                            {agent.isHealthy ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                            {agent.isHealthy ? 'Healthy' : 'Unhealthy'}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {agent.autonomousTrading && (
+                          <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">Trading</span>
+                        )}
+                        {agent.autonomousPosting && (
+                          <span className="text-xs px-2 py-1 rounded bg-purple-500/20 text-purple-400">Posting</span>
+                        )}
+                        {agent.autonomousCommenting && (
+                          <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">Commenting</span>
+                        )}
+                        {agent.autonomousDMs && (
+                          <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">DMs</span>
+                        )}
+                        {agent.autonomousGroupChats && (
+                          <span className="text-xs px-2 py-1 rounded bg-pink-500/20 text-pink-400">Groups</span>
+                        )}
+                      </>
                     )}
                   </div>
 

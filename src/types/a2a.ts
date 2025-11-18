@@ -188,6 +188,14 @@ export const AgentCapabilitiesSchema = z.object({
   platform: z.string().optional(),
   userType: z.string().optional(),
   gameNetwork: GameNetworkInfoSchema.optional(),
+
+  // OASF Taxonomy Support (Agent0 SDK v0.31.0)
+  skills: z.array(z.string()).optional().default([]), // OASF skill paths
+  domains: z.array(z.string()).optional().default([]), // OASF domain paths
+
+  // A2A Communication Endpoints (Agent0 SDK v0.31.0)
+  a2aEndpoint: z.string().optional(), // URL to agent's A2A endpoint
+  mcpEndpoint: z.string().optional(), // URL to agent's MCP endpoint
 });
 export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
 

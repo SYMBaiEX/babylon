@@ -197,10 +197,20 @@ export default function ChatsPage() {
     setLoading(true)
 
     try {
+      // Skip token check in debug mode
+      if (!isDebugMode) {
+        // Ensure Privy is ready before getting token
+        if (!ready || !authenticated) {
+          console.log('[ChatsPage] Privy not ready or not authenticated, skipping loadChats')
+          setLoading(false)
+          return
+        }
+      }
+
       const token = await getAccessToken()
       console.log('[ChatsPage] Got access token:', token ? 'yes' : 'no')
-      if (!token) {
-        console.error('Failed to get access token for loadChats')
+      if (!token && !isDebugMode) {
+        console.warn('[ChatsPage] No access token available, skipping loadChats')
         setLoading(false)
         return
       }
@@ -256,7 +266,7 @@ export default function ChatsPage() {
     } finally {
       setLoading(false)
     }
-  }, [getAccessToken, isDebugMode])
+  }, [getAccessToken, isDebugMode, ready, authenticated])
 
   // Define loadChatDetails BEFORE it's used in handleGroupUpdated
   const loadChatDetails = useCallback(async (chatId: string) => {
@@ -448,10 +458,10 @@ export default function ChatsPage() {
   
   // Load user's chats from database
   useEffect(() => {
-    if (authenticated || isDebugMode) {
+    if ((ready && authenticated) || isDebugMode) {
       loadChats()
     }
-  }, [authenticated, isDebugMode, loadChats])
+  }, [ready, authenticated, isDebugMode, loadChats])
 
   // Load selected chat details from database
   useEffect(() => {

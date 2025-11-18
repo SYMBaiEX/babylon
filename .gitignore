@@ -21,6 +21,7 @@ plugin-babylon/.eliza/
 claudedocs/
 package-lock.json
 test-results/
+.playwright/
 
 # Uploaded user files - keep directory structure but ignore actual files
 .eliza/

@@ -165,19 +165,27 @@ export function useUserPositions(
         { signal: controller.signal }
       );
 
-      if (controller.signal.aborted) return;
+      // Check if request was aborted
+      if (controller.signal.aborted) {
+        return;
+      }
 
       let data;
       try {
         data = await response.json();
-      } catch (parseError) {
-        console.error('Failed to parse positions response', parseError);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error('Failed to parse positions response', error);
         setError(new Error('Failed to parse response'));
         setLoading(false);
         return;
       }
 
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        return;
+      }
 
       const perpetuals = data?.perpetuals ?? {};
       const predictions = data?.predictions ?? {};
@@ -232,16 +240,15 @@ export function useUserPositions(
       if (!controller.signal.aborted) {
         setLoading(false);
       }
-    } catch (err) {
-      // Ignore AbortErrors - they're intentional when the component unmounts or userId changes
-      if (err instanceof Error && err.name === 'AbortError') {
+    } catch (error) {
+      // Ignore abort errors - they're expected when canceling requests
+      if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
-      
-      console.error('Failed to fetch user positions', err);
-      
+      // Only set error if request wasn't aborted
       if (!controller.signal.aborted) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch positions'));
+        console.error('Failed to fetch user positions', error);
+        setError(error instanceof Error ? error : new Error('Failed to fetch positions'));
         setLoading(false);
       }
     }

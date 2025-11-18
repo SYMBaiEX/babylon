@@ -37,6 +37,7 @@ model Actor {
   NPCTrade                                            NPCTrade[]
   Pool                                                Pool[]
   UserActorFollow                                     UserActorFollow[]
+  AgentRegistry                                       AgentRegistry?      @relation("AgentRegistryActor")
 
   @@index([hasPool])
   @@index([reputationPoints(sort: Desc)])
@@ -87,16 +88,16 @@ model ActorRelationship {
 }
 
 model NPCInteraction {
-  id                                    String   @id
-  actor1Id                              String
-  actor2Id                              String
-  interactionType                       String
-  sentiment                             Float    @default(0)
-  context                               String
-  metadata                              Json?
-  timestamp                             DateTime @default(now())
-  Actor_NPCInteraction_actor1IdToActor  Actor    @relation("NPCInteraction_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
-  Actor_NPCInteraction_actor2IdToActor  Actor    @relation("NPCInteraction_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
+  id                                   String   @id
+  actor1Id                             String
+  actor2Id                             String
+  interactionType                      String
+  sentiment                            Float    @default(0)
+  context                              String
+  metadata                             Json?
+  timestamp                            DateTime @default(now())
+  Actor_NPCInteraction_actor1IdToActor Actor    @relation("NPCInteraction_actor1IdToActor", fields: [actor1Id], references: [id], onDelete: Cascade)
+  Actor_NPCInteraction_actor2IdToActor Actor    @relation("NPCInteraction_actor2IdToActor", fields: [actor2Id], references: [id], onDelete: Cascade)
 
   @@index([actor1Id, actor2Id, timestamp])
   @@index([timestamp])
@@ -276,27 +277,27 @@ model BalanceTransaction {
 }
 
 model Chat {
-  id              String            @id
-  name            String?
-  description     String?
-  isGroup         Boolean           @default(false)
-  
+  id          String  @id
+  name        String?
+  description String?
+  isGroup     Boolean @default(false)
+
   // Creator tracking (for user-created groups and NPC-managed groups)
-  createdBy       String?           // User who created (for user groups)
-  npcAdminId      String?           // NPC admin (for NPC groups)
-  
+  createdBy  String? // User who created (for user groups)
+  npcAdminId String? // NPC admin (for NPC groups)
+
   // Game context
   gameId          String?
   dayNumber       Int?
   relatedQuestion Int?
-  
+
   // Timestamps
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
   // Legacy field (deprecated - use createdBy/npcAdminId instead)
-  groupId         String?
-  
+  groupId String?
+
   ChatParticipant ChatParticipant[]
   ChatAdmin       ChatAdmin[]
   Message         Message[]
@@ -310,24 +311,24 @@ model Chat {
 }
 
 model ChatParticipant {
-  id              String    @id
-  chatId          String
-  userId          String
-  joinedAt        DateTime  @default(now())
-  
+  id       String   @id
+  chatId   String
+  userId   String
+  joinedAt DateTime @default(now())
+
   // Fields from GroupChatMembership (for NPC-managed groups)
-  invitedBy       String?
-  isActive        Boolean   @default(true)
-  lastMessageAt   DateTime?
-  messageCount    Int       @default(0)
-  qualityScore    Float     @default(1.0)
-  kickedAt        DateTime?
-  kickReason      String?
-  
+  invitedBy     String?
+  isActive      Boolean   @default(true)
+  lastMessageAt DateTime?
+  messageCount  Int       @default(0)
+  qualityScore  Float     @default(1.0)
+  kickedAt      DateTime?
+  kickReason    String?
+
   // Fields from UserGroupMember (for user-created groups)
-  addedBy         String?
-  
-  Chat            Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  addedBy String?
+
+  Chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, userId])
   @@index([chatId])
@@ -1285,6 +1286,7 @@ model User {
   ModerationEscrow_ModerationEscrow_recipientIdToUser               ModerationEscrow[]
   ModerationEscrow_ModerationEscrow_adminIdToUser                   ModerationEscrow[]       @relation("ModerationEscrowAdmin")
   ModerationEscrow_ModerationEscrow_refundedByToUser                ModerationEscrow[]       @relation("ModerationEscrowRefundedBy")
+  AgentRegistry                                                     AgentRegistry?           @relation("AgentRegistryUser")
 
   @@index([agentCount(sort: Desc)])
   @@index([autonomousTrading])
@@ -1808,25 +1810,25 @@ model OrganizationMapping {
 
 /// Moderation escrow payments - Admin can send money to users via X402, with refund capability
 model ModerationEscrow {
-  id                String   @id
-  recipientId       String   // User receiving the payment
-  adminId           String   // Admin who initiated the payment
-  amountUSD         Decimal  @db.Decimal(18, 2) // Amount in USD
-  amountWei         String   // Amount in wei for blockchain transaction
-  status            String   @default("pending") // pending, paid, refunded, expired
-  reason            String?  // Reason for payment (compensation, refund, etc.)
-  paymentRequestId  String?  @unique // X402 payment request ID
-  paymentTxHash     String?  @unique // Blockchain transaction hash
-  refundTxHash      String?  @unique // Refund transaction hash (if refunded)
-  refundedBy        String?  // Admin who refunded
-  refundedAt        DateTime?
-  metadata          Json?    // Additional metadata
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  expiresAt         DateTime // Payment request expiration
-  User              User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  Admin             User     @relation("ModerationEscrowAdmin", fields: [adminId], references: [id], onDelete: Cascade)
-  RefundedByUser    User?    @relation("ModerationEscrowRefundedBy", fields: [refundedBy], references: [id], onDelete: SetNull)
+  id               String    @id
+  recipientId      String // User receiving the payment
+  adminId          String // Admin who initiated the payment
+  amountUSD        Decimal   @db.Decimal(18, 2) // Amount in USD
+  amountWei        String // Amount in wei for blockchain transaction
+  status           String    @default("pending") // pending, paid, refunded, expired
+  reason           String? // Reason for payment (compensation, refund, etc.)
+  paymentRequestId String?   @unique // X402 payment request ID
+  paymentTxHash    String?   @unique // Blockchain transaction hash
+  refundTxHash     String?   @unique // Refund transaction hash (if refunded)
+  refundedBy       String? // Admin who refunded
+  refundedAt       DateTime?
+  metadata         Json? // Additional metadata
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  expiresAt        DateTime // Payment request expiration
+  User             User      @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  Admin            User      @relation("ModerationEscrowAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  RefundedByUser   User?     @relation("ModerationEscrowRefundedBy", fields: [refundedBy], references: [id], onDelete: SetNull)
 
   @@index([recipientId, createdAt(sort: Desc)])
   @@index([adminId])
@@ -1839,10 +1841,176 @@ model ModerationEscrow {
 /// Generation lock for preventing concurrent tick generation
 model GenerationLock {
   id        String   @id @default("game-tick-lock")
-  lockedBy  String   // Process/server identifier
+  lockedBy  String // Process/server identifier
   lockedAt  DateTime @default(now())
   expiresAt DateTime // Lock expires after 5 minutes (stale lock recovery)
   operation String   @default("game-tick") // What operation is locked
-  
+
   @@index([expiresAt])
+}
+
+// ===================================================
+// Unified Agent Registry System
+// Based on: src/types/agent-registry.types.ts
+// Architecture: ERC-8004 + Agent0 SDK + A2A Protocol
+// @see agent-unified-architecture.md for design details
+// ===================================================
+
+/// Agent type classification for unified registry
+enum AgentType {
+  USER_CONTROLLED // User-controlled agents via /api/agents
+  NPC // Internal NPC agents from ActorData
+  EXTERNAL // External agents (ElizaOS, MCP, Agent0, custom)
+}
+
+/// Agent lifecycle status mapping to AgentRuntime states
+enum AgentStatus {
+  REGISTERED // Registry entry created, runtime not initialized
+  INITIALIZED // AgentRuntime instance created and cached
+  ACTIVE // Agent actively participating in game ticks
+  PAUSED // Temporarily paused, runtime cached but inactive
+  TERMINATED // Runtime destroyed, agent no longer operational
+}
+
+/// Unified agent registration - single source of truth for all agent types
+/// Links USER_CONTROLLED to User, NPC to Actor, EXTERNAL to connection params
+model AgentRegistry {
+  id         String      @id
+  agentId    String      @unique // userId for USER_CONTROLLED, actorId for NPC, externalId for EXTERNAL
+  type       AgentType
+  status     AgentStatus @default(REGISTERED)
+  trustLevel Int         @default(0) // 0=UNTRUSTED, 1=BASIC, 2=VERIFIED, 3=TRUSTED, 4=SYSTEM
+
+  // Relations to existing models
+  userId  String? @unique // Link to User for USER_CONTROLLED (null for EXTERNAL before link)
+  actorId String? @unique // Link to Actor for NPC type
+
+  // Core metadata
+  name         String
+  systemPrompt String @db.Text
+
+  // Capability declaration (A2A Protocol format)
+  capabilities AgentCapability?
+
+  // Discovery metadata (A2A Agent Card)
+  discoveryCardVersion   String?
+  discoveryEndpointA2a   String?
+  discoveryEndpointMcp   String?
+  discoveryEndpointRpc   String?
+  discoveryAuthRequired  Boolean  @default(false)
+  discoveryAuthMethods   String[] // ['apiKey', 'oauth', 'wallet']
+  discoveryRateLimit     Int?
+  discoveryCostPerAction Float?
+
+  // On-chain registration (ERC-8004 on Base Sepolia)
+  onChainTokenId          Int?
+  onChainTxHash           String?
+  onChainServerWallet     String?
+  onChainReputationScore  Int?    @default(0)
+  onChainChainId          Int? // 84532 = Base Sepolia, 31337 = Local
+  onChainIdentityRegistry String?
+  onChainReputationSystem String?
+
+  // Agent0 SDK registration (Ethereum Sepolia)
+  agent0TokenId             String?
+  agent0MetadataCID         String?
+  agent0SubgraphOwner       String?
+  agent0SubgraphMetadataURI String?
+  agent0SubgraphTimestamp   Int?
+  agent0DiscoveryEndpoint   String?
+
+  // External agent connection
+  externalConnection ExternalAgentConnection?
+
+  // Runtime management
+  runtimeInstanceId String? @unique
+
+  // Timestamps
+  registeredAt DateTime  @default(now())
+  lastActiveAt DateTime?
+  terminatedAt DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  User  User?  @relation("AgentRegistryUser", fields: [userId], references: [id], onDelete: Cascade)
+  Actor Actor? @relation("AgentRegistryActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([type, status])
+  @@index([trustLevel])
+  @@index([userId])
+  @@index([actorId])
+  @@index([status, lastActiveAt])
+  @@index([type, trustLevel])
+}
+
+/// Agent capabilities in A2A Protocol format
+/// Declares what strategies, markets, and actions an agent supports
+model AgentCapability {
+  id              String @id
+  agentRegistryId String @unique
+
+  // A2A capability arrays
+  strategies String[] // Trading strategies the agent can execute
+  markets    String[] // Market types the agent participates in
+  actions    String[] // Actions the agent can perform
+
+  // Protocol metadata
+  version     String  @default("1.0.0")
+  x402Support Boolean @default(false)
+  platform    String?
+  userType    String?
+
+  // Game network info (optional)
+  gameNetworkChainId     Int?
+  gameNetworkRpcUrl      String?
+  gameNetworkExplorerUrl String?
+
+  // OASF Taxonomy Support (Agent0 SDK v0.31.0)
+  skills  String[] @default([]) // OASF skill paths (e.g., 'natural_language_processing/summarization')
+  domains String[] @default([]) // OASF domain paths (e.g., 'finance_and_business/investment_services')
+
+  // A2A Communication Endpoints (Agent0 SDK v0.31.0)
+  a2aEndpoint String? // URL to agent's A2A endpoint
+  mcpEndpoint String? // URL to agent's MCP endpoint
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  AgentRegistry AgentRegistry @relation(fields: [agentRegistryId], references: [id], onDelete: Cascade)
+
+  @@index([agentRegistryId])
+}
+
+/// External agent connection parameters for A2A/MCP/custom protocols
+/// Used when type = EXTERNAL in AgentRegistry
+model ExternalAgentConnection {
+  id              String @id
+  agentRegistryId String @unique
+
+  // Connection details
+  externalId String @unique
+  endpoint   String // A2A WebSocket, MCP HTTP, or custom RPC endpoint
+  protocol   String // 'a2a', 'mcp', 'custom'
+
+  // Authentication
+  authType        String? // 'wallet', 'apiKey', 'oauth'
+  authCredentials String? @db.Text // Encrypted credentials (can include apiKeyHash as JSON)
+
+  // Agent Card (full A2A discovery metadata as JSON)
+  agentCardJson Json?
+
+  // Health and connection tracking
+  isHealthy       Boolean   @default(true)
+  lastHealthCheck DateTime?
+  lastConnected   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  AgentRegistry AgentRegistry @relation(fields: [agentRegistryId], references: [id], onDelete: Cascade)
+
+  @@index([agentRegistryId])
+  @@index([externalId])
+  @@index([protocol])
+  @@index([isHealthy])
 }

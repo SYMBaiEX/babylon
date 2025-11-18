@@ -393,7 +393,9 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
           markets: babylonCard.capabilities.markets,
           actions: babylonCard.capabilities.actions,
           version: '1.0.0',
-          x402Support: true // Babylon supports ERC-402 micropayments for premium actions
+          x402Support: true, // Babylon supports ERC-402 micropayments for premium actions
+          skills: [],
+          domains: [],
         }
       })
 
