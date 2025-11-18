@@ -187,7 +187,7 @@ export class InitialInvestmentService {
     // Build NPC profiles for prompt
     const npcProfiles = await Promise.all(npcs.map(async (npc) => {
       // Load actor JSON for more context (handles missing files gracefully)
-      const actorData = loadActorById(npc.id) || {};
+      const actorData = loadActorById(npc.id);
       
       const availableBalance = Number(npc.tradingBalance);
       const targetInvestment = Math.floor(availableBalance * (0.5 + Math.random() * 0.25)); // 50-75% of balance
@@ -200,7 +200,7 @@ export class InitialInvestmentService {
 - Domain: ${npc.domain.join(', ')}
 - Personality: ${npc.personality || 'Unknown'}
 - Tier: ${npc.tier || 'Unknown'}
-${actorData.description ? `- Background: ${actorData.description.substring(0, 200)}...` : ''}`;
+${actorData?.description ? `- Background: ${actorData.description.substring(0, 200)}...` : ''}`;
     }));
     
     // Build companies list
