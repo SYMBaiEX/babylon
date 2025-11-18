@@ -72,6 +72,24 @@ export async function POST(_req: NextRequest) {
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`
   logger.info('Agent tick started', { processId }, 'AgentTick')
 
+  // Check GAME_START environment variable for manual control
+  const gameStartEnv = process.env.GAME_START?.toLowerCase();
+  const isGameStartEnabled = gameStartEnv === 'start' || gameStartEnv === 'running' || gameStartEnv === 'true';
+
+  if (!isGameStartEnabled) {
+    logger.info('⏸️  Agent tick paused via GAME_START environment variable', {
+      GAME_START: process.env.GAME_START,
+      message: 'Set GAME_START=start in Vercel to resume agent ticks',
+    }, 'AgentTick');
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Agents paused (GAME_START env var)',
+      GAME_START: process.env.GAME_START,
+      duration: Date.now() - startTime,
+    });
+  }
+
   // NEW: Query via unified AgentRegistry to include both USER agents and NPCs
   const registeredAgents = await agentRegistry.discoverAgents({
     types: [AgentType.USER_CONTROLLED, AgentType.NPC],
