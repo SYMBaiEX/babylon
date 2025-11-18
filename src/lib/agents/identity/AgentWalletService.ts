@@ -121,108 +121,49 @@ export class AgentWalletService {
     // Try Privy wallet creation
     logger.info(`Creating Privy embedded wallet for agent ${agentUserId}`, undefined, 'AgentWalletService')
     
-    try {
-      
-      // Step 1: Create Privy user for the agent (server-side)
-      // Privy allows server-side user creation without user interaction
-      const privyUser = await (privy as unknown as { createUser: (params: PrivyCreateUserParams) => Promise<PrivyUser> }).createUser({
-        create_embedded_wallet: true,
-        linked_accounts: []
-      })
+    // Step 1: Create Privy user for the agent (server-side)
+    // Privy allows server-side user creation without user interaction
+    const privyUser = await (privy as unknown as { createUser: (params: PrivyCreateUserParams) => Promise<PrivyUser> }).createUser({
+      create_embedded_wallet: true,
+      linked_accounts: []
+    })
 
-      if (!privyUser.wallet) {
-        throw new Error('Failed to create embedded wallet')
-      }
-
-      const walletAddress = privyUser.wallet.address
-      const privyUserId = privyUser.id
-      const privyWalletId = privyUser.wallet.id
-
-      // Step 2: Update agent user with wallet info
-      await prisma.user.update({
-        where: { id: agentUserId },
-        data: {
-          walletAddress,
-          privyId: privyUserId
-        }
-      })
-
-      // Step 3: Log wallet creation
-      await prisma.agentLog.create({
-        data: {
-          id: uuidv4(),
-          agentUserId,
-          type: 'system',
-          level: 'info',
-          message: `Privy embedded wallet created: ${walletAddress}`,
-          metadata: {
-            privyUserId,
-            privyWalletId,
-            walletAddress
-          }
-        }
-      })
-
-      logger.info(`Privy wallet created for agent ${agentUserId}: ${walletAddress}`, undefined, 'AgentWalletService')
-      
-      return { walletAddress, privyUserId, privyWalletId }
-      
-    } catch (error) {
-      logger.error(`Failed to create Privy wallet for agent ${agentUserId}`, error, 'AgentWalletService')
-      
-      // Fallback: Create deterministic wallet address for development/testing
-      // Always use fallback in development or if Privy is not configured
-      const isDevelopment = process.env.NODE_ENV === 'development' || 
-                           process.env.NODE_ENV !== 'production' ||
-                           !hasPrivyConfig ||
-                           !hasCreateUserMethod;
-      
-      if (isDevelopment) {
-        logger.warn('Using development wallet (Privy not available or not configured)', {
-          hasPrivyConfig,
-          hasCreateUserMethod,
-          error: error instanceof Error ? error.message : String(error)
-        }, 'AgentWalletService')
-        
-        // Check if agent already has a wallet address
-        const existingAgent = await prisma.user.findUnique({
-          where: { id: agentUserId },
-          select: { walletAddress: true, privyId: true }
-        });
-        
-        if (existingAgent?.walletAddress) {
-          // Agent already has a wallet, use it
-          logger.info(`Agent already has wallet address, skipping creation`, {
-            agentUserId,
-            walletAddress: existingAgent.walletAddress
-          }, 'AgentWalletService');
-          
-          return {
-            walletAddress: existingAgent.walletAddress,
-            privyUserId: existingAgent.privyId || `dev_${agentUserId}`,
-            privyWalletId: `dev_wallet_${agentUserId}`
-          };
-        }
-        
-        // Create new dev wallet
-        const devWallet = ethers.Wallet.createRandom()
-        const walletAddress = devWallet.address
-        const privyUserId = `dev_${agentUserId}`
-        const privyWalletId = `dev_wallet_${agentUserId}`
-        
-        await prisma.user.update({
-          where: { id: agentUserId },
-          data: {
-            walletAddress,
-            privyId: privyUserId
-          }
-        })
-        
-        return { walletAddress, privyUserId, privyWalletId }
-      }
-      
-      throw error
+    if (!privyUser.wallet) {
+      throw new Error('Failed to create embedded wallet')
     }
+
+    const walletAddress = privyUser.wallet.address
+    const privyUserId = privyUser.id
+    const privyWalletId = privyUser.wallet.id
+
+    // Step 2: Update agent user with wallet info
+    await prisma.user.update({
+      where: { id: agentUserId },
+      data: {
+        walletAddress,
+        privyId: privyUserId
+      }
+    })
+
+    // Step 3: Log wallet creation
+    await prisma.agentLog.create({
+      data: {
+        id: uuidv4(),
+        agentUserId,
+        type: 'system',
+        level: 'info',
+        message: `Privy embedded wallet created: ${walletAddress}`,
+        metadata: {
+          privyUserId,
+          privyWalletId,
+          walletAddress
+        }
+      }
+    })
+
+    logger.info(`Privy wallet created for agent ${agentUserId}: ${walletAddress}`, undefined, 'AgentWalletService')
+    
+    return { walletAddress, privyUserId, privyWalletId }
   }
 
   /**
@@ -327,24 +268,12 @@ export class AgentWalletService {
     const wallet = await this.createAgentEmbeddedWallet(agentUserId)
     
     // Step 2: Register on-chain (server signs and pays gas)
-    // Keep try/catch - on-chain registration is optional
-    try {
-      const registration = await this.registerAgentOnChain(agentUserId)
-      
-      return {
-        walletAddress: wallet.walletAddress,
-        tokenId: registration.tokenId,
-        onChainRegistered: true
-      }
-    } catch (registrationError) {
-      // Wallet created successfully but on-chain registration failed
-      // Agent can still function without on-chain identity
-      logger.warn(`Agent ${agentUserId} has wallet but on-chain registration failed`, registrationError, 'AgentWalletService')
-      
-      return {
-        walletAddress: wallet.walletAddress,
-        onChainRegistered: false
-      }
+    const registration = await this.registerAgentOnChain(agentUserId)
+    
+    return {
+      walletAddress: wallet.walletAddress,
+      tokenId: registration.tokenId,
+      onChainRegistered: true
     }
   }
 
@@ -396,17 +325,11 @@ export class AgentWalletService {
       return false
     }
 
-    // Keep try/catch - verification should return false, not throw
-    try {
-      // Verify with Agent0 network
-      const agent0Client = getAgent0Client()
-      const profile = await agent0Client.getAgentProfile(agent.agent0TokenId)
-      
-      return profile !== null
-    } catch (error) {
-      logger.error(`Failed to verify agent identity for ${agentUserId}`, error, 'AgentWalletService')
-      return false
-    }
+    // Verify with Agent0 network
+    const agent0Client = getAgent0Client()
+    const profile = await agent0Client.getAgentProfile(agent.agent0TokenId)
+    
+    return profile !== null
   }
 }
 

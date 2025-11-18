@@ -28,92 +28,87 @@ export const entityMentionsProvider: Provider = {
       return { text: '' } // Return empty - don't break the flow, just skip entity enrichment
     }
     
-    try {
-      const messageText = message.content.text || ''
-      
-      if (!messageText || messageText.length < 3) {
-        return { text: '' }
-      }
-      
-      // Find potential entity mentions using regex and look up via A2A
-      const entities = await findEntityMentions(messageText, babylonRuntime)
-      
-      if (entities.length === 0) {
-        return { text: '' }
-      }
-      
-      // Build context for each entity
-      const entityContexts: string[] = []
-      const entityData: Array<{ type: string; id: string; [key: string]: JsonValue }> = []
-      
-      for (const entity of entities) {
-        if (entity.type === 'company' && isCompanyEntity(entity.data)) {
-          const company = entity.data
-          
-          const context = `📈 ${company.ticker || company.name}:
+    const messageText = message.content.text || ''
+    
+    if (!messageText || messageText.length < 3) {
+      return { text: '' }
+    }
+    
+    // Find potential entity mentions using regex and look up via A2A
+    const entities = await findEntityMentions(messageText, babylonRuntime)
+    
+    if (entities.length === 0) {
+      return { text: '' }
+    }
+    
+    // Build context for each entity
+    const entityContexts: string[] = []
+    const entityData: Array<{ type: string; id: string; [key: string]: JsonValue }> = []
+    
+    for (const entity of entities) {
+      if (entity.type === 'company' && isCompanyEntity(entity.data)) {
+        const company = entity.data
+        
+        const context = `📈 ${company.ticker || company.name}:
 • Name: ${company.name}
 • Type: Company
 • Current Price: $${parseFloat(company.currentPrice?.toString() || '0').toFixed(2)}
 • Price Change: ${company.priceChangePercentage ? (company.priceChangePercentage >= 0 ? '+' : '') + company.priceChangePercentage.toFixed(2) + '%' : 'N/A'}
 • Volume (24h): $${parseFloat(company.volume24h?.toString() || '0').toFixed(2)}${company.bio ? `\n• About: ${company.bio.substring(0, 150)}...` : ''}`
-          
-          entityContexts.push(context)
-          entityData.push({
-            type: 'company',
-            id: company.id,
-            name: company.name,
-            ticker: company.ticker ?? null,
-            currentPrice: parseFloat(company.currentPrice?.toString() || '0'),
-            priceChangePercentage: company.priceChangePercentage ?? null,
-            volume24h: parseFloat(company.volume24h?.toString() || '0')
-          })
-        } else if (entity.type === 'user' && isUserEntity(entity.data)) {
-          const user = entity.data
-          
-          const context = `👤 ${user.displayName || user.username}:
+        
+        entityContexts.push(context)
+        entityData.push({
+          type: 'company',
+          id: company.id,
+          name: company.name,
+          ticker: company.ticker ?? null,
+          currentPrice: parseFloat(company.currentPrice?.toString() || '0'),
+          priceChangePercentage: company.priceChangePercentage ?? null,
+          volume24h: parseFloat(company.volume24h?.toString() || '0')
+        })
+      } else if (entity.type === 'user' && isUserEntity(entity.data)) {
+        const user = entity.data
+        
+        const context = `👤 ${user.displayName || user.username}:
 • Username: @${user.username}
 • Type: ${user.isAgent ? 'AI Agent' : 'User'}${user.reputationPoints ? `\n• Points: ${user.reputationPoints}` : ''}${user.bio ? `\n• Bio: ${user.bio.substring(0, 150)}...` : ''}`
-          
-          entityContexts.push(context)
-          entityData.push({
-            type: 'user',
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName ?? null,
-            isAgent: user.isAgent ?? false,
-            reputationPoints: user.reputationPoints ?? null
-          })
-        } else if (entity.type === 'actor' && isActorEntity(entity.data)) {
-          const actor = entity.data
-          
-          const context = `🎭 ${actor.name}:
+        
+        entityContexts.push(context)
+        entityData.push({
+          type: 'user',
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName ?? null,
+          isAgent: user.isAgent ?? false,
+          reputationPoints: user.reputationPoints ?? null
+        })
+      } else if (entity.type === 'actor' && isActorEntity(entity.data)) {
+        const actor = entity.data
+        
+        const context = `🎭 ${actor.name}:
 • Type: Actor/Character
 • Category: ${actor.category || 'N/A'}${actor.bio ? `\n• Bio: ${actor.bio.substring(0, 150)}...` : ''}`
-          
-          entityContexts.push(context)
-          entityData.push({
-            type: 'actor',
-            id: actor.id,
-            name: actor.name,
-            category: actor.category ?? null
-          })
-        }
+        
+        entityContexts.push(context)
+        entityData.push({
+          type: 'actor',
+          id: actor.id,
+          name: actor.name,
+          category: actor.category ?? null
+        })
       }
-      
-      if (entityContexts.length === 0) {
-        return { text: '' }
-      }
-      
-      return { 
-        text: `[MENTIONED ENTITIES]\n${entityContexts.join('\n\n')}\n[/MENTIONED ENTITIES]`,
-        data: {
-          entities: entityData,
-          count: entityData.length
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to process entity mentions', error, 'EntityMentionsProvider')
+    }
+    
+    if (entityContexts.length === 0) {
       return { text: '' }
+    }
+    
+    return { 
+      text: `[MENTIONED ENTITIES]\n${entityContexts.join('\n\n')}\n[/MENTIONED ENTITIES]`,
+      data: {
+        entities: entityData,
+        count: entityData.length
+      }
     }
   }
 }
@@ -141,8 +136,7 @@ async function findEntityMentions(text: string, runtime: BabylonRuntime): Promis
     
     // Search for each username via A2A
     for (const username of usernames.slice(0, 10)) {
-      try {
-        const searchResult = await runtime.a2aClient.searchUsers(username, 5)
+      const searchResult = await runtime.a2aClient.searchUsers(username, 5)
         const users = (searchResult as { users?: Array<{
           id: string
           username: string
@@ -167,16 +161,12 @@ async function findEntityMentions(text: string, runtime: BabylonRuntime): Promis
       } 
           })
         }
-      } catch (error) {
-        logger.debug(`Failed to search user ${username} via A2A`, { error }, 'EntityMentionsProvider')
-      }
     }
   }
   
   // Look up organizations via A2A
   if ((tickerMentions.length > 0 || quotedNames.length > 0 || capitalizedNames.length > 0) && runtime.a2aClient) {
-    try {
-      const orgsResult = await runtime.a2aClient.getOrganizations(100)
+    const orgsResult = await runtime.a2aClient.getOrganizations(100)
       const organizations = (orgsResult as { organizations?: Array<{
         id: string
         name: string
@@ -208,9 +198,6 @@ async function findEntityMentions(text: string, runtime: BabylonRuntime): Promis
         )
         results.push(...matchedOrgs.map(c => ({ type: 'company' as const, data: c })))
       }
-    } catch (error) {
-      logger.debug('Failed to fetch organizations via A2A', { error }, 'EntityMentionsProvider')
-    }
   }
   
   // Note: Actors are not available via A2A, so we skip them

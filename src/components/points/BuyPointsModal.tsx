@@ -26,14 +26,51 @@ import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
 
 import { CHAIN } from '@/constants/chains';
 
+/**
+ * Buy points modal component for purchasing points with ETH.
+ * 
+ * Provides a multi-step payment flow for buying points using ETH from
+ * smart wallet. Handles wallet funding, payment processing, and point
+ * award verification. Includes balance checking and automatic wallet
+ * funding if needed.
+ * 
+ * Features:
+ * - USD amount input
+ * - ETH conversion
+ * - Smart wallet funding (if needed)
+ * - Payment processing
+ * - Point award verification
+ * - Multi-step flow (input → payment → verifying → success/error)
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - BuyPointsModal component props
+ * @returns Buy points modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <BuyPointsModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   onSuccess={() => refreshBalance()}
+ * />
+ * ```
+ */
 interface BuyPointsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
+/**
+ * Payment step type for buy points flow.
+ */
 type PaymentStep = 'input' | 'payment' | 'verifying' | 'success' | 'error';
 
+/**
+ * Payment request structure for point purchase.
+ */
 interface PaymentRequest {
   requestId: string;
   to: string;

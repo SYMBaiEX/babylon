@@ -45,7 +45,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events from WORLD CONTEXT
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names when relevant
 - MUST reference specific trades or market movements when discussing trading
 - Use @username format when mentioning users (e.g., "@ailonmusk said...")
@@ -71,7 +71,7 @@ Respond with ONLY this XML format (example for 2 reactions):
       <pointsToward>true</pointsToward>
     </reaction>
     <reaction>
-      <post>Another OpnAI GPT-6 consciousness claim from @samailtman? Cool story bro. Wake me when it actually passes a real Turing test.</post>
+      <post>Another OpenAGI GPT-6 consciousness claim from @samailtman? Cool story bro. Wake me when it actually passes a real Turing test.</post>
       <sentiment>-0.4</sentiment>
       <clueStrength>0.3</clueStrength>
       <pointsToward>false</pointsToward>

@@ -1,12 +1,33 @@
 /**
- * FeedbackHistory Component
- *
- * Displays user's received feedback with ratings and comments
- * Shows feedback from games, trades, and user interactions
- *
- * Pattern based on: TrendingPostsPanel.tsx
+ * Feedback history component for displaying user's received feedback.
+ * 
+ * Displays a list of feedback items received by a user including ratings,
+ * comments, and metadata. Shows feedback from games, trades, and user
+ * interactions. Includes star ratings, category icons, and timestamps.
+ * Auto-refreshes every 60 seconds.
+ * 
+ * Features:
+ * - Feedback list with ratings
+ * - Star rating display
+ * - Category icons
+ * - Timestamp formatting
+ * - Auto-refresh (60s interval)
+ * - Filtering (auto-generated feedback)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - FeedbackHistory component props
+ * @returns Feedback history element
+ * 
+ * @example
+ * ```tsx
+ * <FeedbackHistory
+ *   userId="user-123"
+ *   limit={10}
+ *   showAutoFeedback={true}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -15,6 +36,9 @@ import { formatDistanceToNow } from 'date-fns'
 import { getProfileUrl } from '@/lib/profile-utils'
 import Link from 'next/link'
 
+/**
+ * Feedback item structure for feedback history.
+ */
 interface FeedbackItem {
   id: string
   fromUserId: string | null

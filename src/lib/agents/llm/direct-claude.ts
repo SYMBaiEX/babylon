@@ -26,38 +26,33 @@ export async function callClaudeDirect(params: {
 
   const startTime = Date.now()
   
-  try {
-    const message = await anthropic.messages.create({
-      model,
-      max_tokens: params.maxTokens || 8192,
-      temperature: params.temperature ?? 0.3,
-      system: params.system,
-      messages: [
-        {
-          role: 'user',
-          content: params.prompt,
-        },
-      ],
-    })
+  const message = await anthropic.messages.create({
+    model,
+    max_tokens: params.maxTokens || 8192,
+    temperature: params.temperature ?? 0.3,
+    system: params.system,
+    messages: [
+      {
+        role: 'user',
+        content: params.prompt,
+      },
+    ],
+  })
 
-    const latencyMs = Date.now() - startTime
+  const latencyMs = Date.now() - startTime
 
-    const firstContent = message.content[0]
-    if (!firstContent || firstContent.type !== 'text') {
-      throw new Error('Unexpected response format from Claude')
-    }
-
-    logger.debug('Claude API call completed', {
-      model,
-      latencyMs,
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-    }, 'ClaudeDirect')
-
-    return firstContent.text
-  } catch (error) {
-    logger.error('Claude API call failed', { error, model }, 'ClaudeDirect')
-    throw error
+  const firstContent = message.content[0]
+  if (!firstContent || firstContent.type !== 'text') {
+    throw new Error('Unexpected response format from Claude')
   }
+
+  logger.debug('Claude API call completed', {
+    model,
+    latencyMs,
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  }, 'ClaudeDirect')
+
+  return firstContent.text
 }
 

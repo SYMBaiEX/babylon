@@ -160,7 +160,7 @@ export function FollowButton({
       onFollowerCountChange?.(-delta) // Revert follower count
       
       // Try to get error message, but don't show generic errors for 404s
-      const errorData = await response.json().catch(() => ({ error: null }))
+      const errorData = await response.json()
       if (response.status === 404) {
         // If profile not found, silently fail or show a more helpful message
         logger.warn('Profile not found for follow:', { userId }, 'FollowButton')

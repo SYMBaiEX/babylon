@@ -9,6 +9,9 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 
+/**
+ * Price point structure for prediction chart data.
+ */
 interface PricePoint {
   time: number;
   yesPrice: number;
@@ -16,6 +19,33 @@ interface PricePoint {
   volume: number;
 }
 
+/**
+ * Prediction probability chart component for displaying YES/NO probability history.
+ * 
+ * Displays an area chart showing the historical probability of YES vs NO outcomes
+ * for a prediction market. Shows both YES and NO probability lines, current
+ * probability percentages, and includes zoom functionality.
+ * 
+ * Features:
+ * - Dual area chart (YES and NO probabilities)
+ * - Current probability display
+ * - Zoom and brush controls
+ * - Color-coded by favored outcome
+ * - Responsive tooltips
+ * - Loading state handling
+ * 
+ * @param props - PredictionProbabilityChart component props
+ * @returns Prediction probability chart element
+ * 
+ * @example
+ * ```tsx
+ * <PredictionProbabilityChart
+ *   data={probabilityHistory}
+ *   marketId="market-123"
+ *   showBrush={false}
+ * />
+ * ```
+ */
 interface PredictionProbabilityChartProps {
   data: PricePoint[];
   marketId: string;

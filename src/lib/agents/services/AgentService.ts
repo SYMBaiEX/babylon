@@ -42,7 +42,7 @@ export class AgentServiceV2 {
     // 1. WANDB RL model (if WANDB_API_KEY available and model exists)
     // 2. Qwen 32b from Groq (if GROQ_API_KEY available)
     // 3. Claude (if ANTHROPIC_API_KEY available)
-    // 4. OpenAI (if OPENAI_API_KEY available)
+    // 4. OpenAGI (if OPENAI_API_KEY available)
 
     const agent = await prisma.$transaction(async (tx) => {
       const newAgent = await tx.user.create({

@@ -61,7 +61,7 @@ RECENT EVENTS & NARRATIVES:
 {{recentEvents}}
 
 ⚠️ TRADING MUST ALIGN WITH ACTIVE QUESTIONS:
-- If question asks "Will OpnAI stock outperform MetAI stock?" and events favor OpnAI, NPCs should trade OpnAI higher
+- If question asks "Will OpenAGI stock outperform MetAI stock?" and events favor OpenAGI, NPCs should trade OpenAGI higher
 - If question asks "Will TeslAI reach $500?" and events suggest it will, NPCs should buy TeslAI
 - Stock prices MUST reflect the narrative - if events are positive for a company, its stock should rise
 - NPCs with access to positive insider info should trade accordingly

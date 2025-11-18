@@ -8,6 +8,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
+/**
+ * Transaction structure for agent wallet.
+ */
 interface Transaction {
   id: string
   type: string
@@ -18,6 +21,33 @@ interface Transaction {
   createdAt: string
 }
 
+/**
+ * Agent wallet component for managing agent points balance.
+ * 
+ * Provides interface for depositing and withdrawing points to/from agent
+ * wallet. Displays current balance, transaction history, and wallet
+ * statistics. Handles balance transfers from user's reputation points.
+ * 
+ * Features:
+ * - Balance display
+ * - Deposit functionality
+ * - Withdraw functionality
+ * - Transaction history
+ * - Wallet statistics
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - AgentWallet component props
+ * @returns Agent wallet element
+ * 
+ * @example
+ * ```tsx
+ * <AgentWallet
+ *   agent={agentData}
+ *   onUpdate={() => refreshAgent()}
+ * />
+ * ```
+ */
 interface AgentWalletProps {
   agent: {
     id: string

@@ -74,18 +74,14 @@ export class BabylonA2AClient {
    * Connect to Babylon and fetch agent card
    */
   async connect(): Promise<void> {
-    try {
-      // Initialize client
-      const client = await this.getClient()
-      
-      // Get agent card
-      this.agentCard = await (client as unknown as { agentCardPromise?: Promise<AgentCard> }).agentCardPromise || null
+    // Initialize client
+    const client = await this.getClient()
+    
+    // Get agent card
+    this.agentCard = await (client as unknown as { agentCardPromise?: Promise<AgentCard> }).agentCardPromise || null
 
-      // Verify connection by sending a test message
-      await this.sendMessage('ping', { operation: 'stats.system', params: {} })
-    } catch (error) {
-      throw new Error(`Failed to connect to Babylon A2A: ${error instanceof Error ? error.message : String(error)}`)
-    }
+    // Verify connection by sending a test message
+    await this.sendMessage('ping', { operation: 'stats.system', params: {} })
   }
 
   /**

@@ -11,6 +11,37 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
 
+/**
+ * Agent settings component for configuring agent properties.
+ * 
+ * Provides a comprehensive form for editing agent settings including
+ * name, description, profile image, system prompt, personality, trading
+ * strategy, model tier, and autonomous capabilities. Includes save and
+ * delete functionality.
+ * 
+ * Features:
+ * - Agent profile editing
+ * - System prompt editing
+ * - Personality/bio editing
+ * - Trading strategy editing
+ * - Model tier selection
+ * - Autonomous capability toggles
+ * - Save functionality
+ * - Delete functionality
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - AgentSettings component props
+ * @returns Agent settings element
+ * 
+ * @example
+ * ```tsx
+ * <AgentSettings
+ *   agent={agentData}
+ *   onUpdate={() => refreshAgent()}
+ * />
+ * ```
+ */
 interface AgentSettingsProps {
   agent: {
     id: string
@@ -83,7 +114,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
       })
 
       if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: 'Failed to update agent' })) as { error?: string }
+        const error = await res.json() as { error?: string }
         toast.error(error.error || 'Failed to update agent')
         setSaving(false)
         return

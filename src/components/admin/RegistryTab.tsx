@@ -26,6 +26,9 @@ import { cn } from '@/lib/utils'
 import { z } from 'zod'
 import { toast } from 'sonner'
 
+/**
+ * Registry entity schema for validation.
+ */
 const RegistryEntitySchema = z.object({
   type: z.enum(['user', 'actor', 'agent', 'app']),
   id: z.string(),
@@ -77,6 +80,9 @@ const RegistryEntitySchema = z.object({
 });
 type RegistryEntity = z.infer<typeof RegistryEntitySchema>;
 
+/**
+ * Registry data schema for validation.
+ */
 const RegistryDataSchema = z.object({
   users: z.array(RegistryEntitySchema),
   actors: z.array(RegistryEntitySchema),
@@ -92,6 +98,27 @@ const RegistryDataSchema = z.object({
 });
 type RegistryData = z.infer<typeof RegistryDataSchema>;
 
+/**
+ * Registry tab component for viewing and managing registry entities.
+ * 
+ * Displays all entities in the registry (users, actors, agents, apps) with
+ * filtering, search, and on-chain filtering. Shows entity details including
+ * reputation, statistics, and on-chain registration status. Includes feedback
+ * form integration.
+ * 
+ * Features:
+ * - Entity list display (users, actors, agents, apps)
+ * - Search functionality
+ * - On-chain filter
+ * - Entity details view
+ * - Reputation display
+ * - Statistics display
+ * - Feedback form integration
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Registry tab element
+ */
 export function RegistryTab() {
   const [data, setData] = useState<RegistryData | null>(null)
   const [loading, setLoading] = useState(true)

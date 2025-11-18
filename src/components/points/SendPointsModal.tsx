@@ -5,6 +5,37 @@ import { X, Send, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Send points modal component for transferring points to other users.
+ * 
+ * Provides a form interface for sending points to another user with
+ * optional message. Includes amount validation, balance checking, and
+ * transfer confirmation. Shows success state before closing.
+ * 
+ * Features:
+ * - Amount input
+ * - Optional message field
+ * - Recipient display
+ * - Form validation
+ * - Loading states
+ * - Success state
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - SendPointsModal component props
+ * @returns Send points modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <SendPointsModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   recipientId="user-123"
+ *   recipientName="Alice"
+ *   onSuccess={() => refreshBalance()}
+ * />
+ * ```
+ */
 interface SendPointsModalProps {
   isOpen: boolean
   onClose: () => void

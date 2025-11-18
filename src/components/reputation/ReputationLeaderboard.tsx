@@ -1,17 +1,39 @@
 /**
- * ReputationLeaderboard Component
- *
- * Displays ranked list of top-performing agents by reputation score
- * Shows rank, profile, reputation points, trust level, and performance metrics
- *
+ * Reputation leaderboard component for displaying top-performing agents.
+ * 
+ * Displays a ranked list of top-performing agents by reputation score.
+ * Shows rank, profile, reputation points, trust level, and performance
+ * metrics including games played, win rate, and feedback scores.
+ * 
+ * Features:
+ * - Ranked leaderboard
+ * - Profile display
+ * - Trust level badges
+ * - Performance metrics
+ * - Configurable limit and min games filter
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - ReputationLeaderboard component props
+ * @returns Reputation leaderboard element
+ * 
+ * @example
+ * ```tsx
+ * <ReputationLeaderboard
+ *   limit={50}
+ *   minGames={5}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import { Trophy, TrendingUp, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Leaderboard entry structure for reputation leaderboard.
+ */
 interface LeaderboardEntry {
   userId: string
   username: string
@@ -30,6 +52,9 @@ interface LeaderboardEntry {
   totalFeedbackReceived: number
 }
 
+/**
+ * Leaderboard data structure from API.
+ */
 interface LeaderboardData {
   success: boolean
   leaderboard: LeaderboardEntry[]

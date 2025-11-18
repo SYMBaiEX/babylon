@@ -9,6 +9,9 @@ import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { logger } from '@/lib/logger'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+/**
+ * Imported profile data structure from social platforms.
+ */
 export interface ImportedProfileData {
   platform: 'twitter' | 'farcaster'
   username: string
@@ -21,6 +24,41 @@ export interface ImportedProfileData {
   farcasterFid?: string
 }
 
+/**
+ * Onboarding modal component for user onboarding flow.
+ * 
+ * Provides a multi-stage onboarding interface including profile creation,
+ * on-chain registration, and completion. Supports social account import,
+ * profile picture/banner selection, and username validation. Handles
+ * form submission and error states.
+ * 
+ * Features:
+ * - Multi-stage flow (PROFILE, ONCHAIN, COMPLETED)
+ * - Profile form (name, username, bio)
+ * - Profile picture selection
+ * - Banner selection
+ * - Social account import
+ * - Username validation
+ * - On-chain registration
+ * - Terms acceptance
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - OnboardingModal component props
+ * @returns Onboarding modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <OnboardingModal
+ *   isOpen={needsOnboarding}
+ *   stage="PROFILE"
+ *   isSubmitting={isSubmitting}
+ *   onSubmitProfile={handleSubmitProfile}
+ *   onClose={() => {}}
+ * />
+ * ```
+ */
 interface OnboardingModalProps {
   isOpen: boolean
   stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
@@ -41,21 +79,44 @@ interface OnboardingModalProps {
   importedData?: ImportedProfileData | null
 }
 
+/**
+ * Generated profile response structure from API.
+ */
 interface GeneratedProfileResponse {
   name: string
   username: string
   bio: string
 }
 
+/**
+ * Random assets response structure from API.
+ */
 interface RandomAssetsResponse {
   profilePictureIndex: number
   bannerIndex: number
 }
 
+/**
+ * Total number of available profile pictures.
+ */
 const TOTAL_PROFILE_PICTURES = 100
+/**
+ * Total number of available banners.
+ */
 const TOTAL_BANNERS = 100
+/**
+ * Pattern for matching absolute URLs.
+ */
 const ABSOLUTE_URL_PATTERN = /^(https?:|data:|blob:)/i
 
+/**
+ * Resolve asset URL to absolute URL if needed.
+ * 
+ * Converts relative URLs to absolute URLs for proper image loading.
+ * 
+ * @param value - URL value to resolve
+ * @returns Resolved absolute URL or undefined
+ */
 function resolveAssetUrl(value?: string | null): string | undefined {
   if (!value) return undefined
   if (ABSOLUTE_URL_PATTERN.test(value)) {
@@ -214,7 +275,7 @@ export function OnboardingModal({
         status = result.available ? 'available' : 'taken'
         suggestion = result.available ? null : result.suggestion ?? null
       } else if (response) {
-        const body = await response.json().catch(() => null)
+        const body = await response.json()
         logger.warn('Username availability check failed', { status: response.status, body }, 'OnboardingModal')
       }
 

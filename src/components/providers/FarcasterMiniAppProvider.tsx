@@ -7,7 +7,8 @@ import { sdk } from '@farcaster/miniapp-sdk'
 import { logger } from '@/lib/logger'
 
 /**
- * Consolidated Farcaster Mini App Provider
+ * Consolidated Farcaster Mini App Provider.
+ * 
  * Handles:
  * 1. Mini App detection
  * 2. SDK initialization (calling ready())
@@ -15,9 +16,12 @@ import { logger } from '@/lib/logger'
  * 4. Wallet creation
  * 5. Share functionality
  * 
- * Works seamlessly in both Mini App and standalone modes
+ * Works seamlessly in both Mini App and standalone modes.
  */
 
+/**
+ * Mini App context structure from Farcaster SDK.
+ */
 interface MiniAppContext {
   user?: {
     fid: number
@@ -25,6 +29,9 @@ interface MiniAppContext {
   }
 }
 
+/**
+ * Farcaster Mini App context type for provider.
+ */
 interface FarcasterMiniAppContextType {
   isMiniApp: boolean
   isLoading: boolean
@@ -37,6 +44,15 @@ interface FarcasterMiniAppContextType {
 
 const FarcasterMiniAppContext = createContext<FarcasterMiniAppContextType | null>(null)
 
+/**
+ * Hook to access Farcaster Mini App context.
+ * 
+ * Must be used within FarcasterMiniAppProvider. Returns Mini App
+ * state including detection, user info, and share functionality.
+ * 
+ * @returns Farcaster Mini App context
+ * @throws Error if used outside FarcasterMiniAppProvider
+ */
 export function useFarcasterMiniApp() {
   const context = useContext(FarcasterMiniAppContext)
   if (!context) {
@@ -45,6 +61,24 @@ export function useFarcasterMiniApp() {
   return context
 }
 
+/**
+ * Farcaster Mini App provider component for Mini App integration.
+ * 
+ * Detects Farcaster Mini App context, initializes SDK, handles auto-authentication
+ * with Privy, creates wallets, and provides share functionality. Works in both
+ * Mini App and standalone browser modes.
+ * 
+ * Features:
+ * - Mini App detection
+ * - SDK initialization (ready())
+ * - Auto-authentication
+ * - Wallet creation
+ * - Share functionality
+ * - Context provider
+ * 
+ * @param props - FarcasterMiniAppProvider component props
+ * @returns Farcaster Mini App provider element
+ */
 export function FarcasterMiniAppProvider({ children }: { children: React.ReactNode }) {
   const [isMiniApp, setIsMiniApp] = useState(false)
   const [isLoading, setIsLoading] = useState(true)

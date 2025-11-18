@@ -43,7 +43,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
 - MUST reference specific trades or market movements when relevant
 - Use @username format when mentioning users (e.g., "@ailonmusk said...")
@@ -69,7 +69,7 @@ Respond with ONLY this XML format (example for 2 posts):
       <pointsToward>null</pointsToward>
     </post>
     <post>
-      <content>OpnAI's consciousness claims are getting wild. Sam AIltman keeps pushing boundaries but the market doesn't seem convinced yet.</content>
+      <content>OpenAGI's consciousness claims are getting wild. Sam AIltman keeps pushing boundaries but the market doesn't seem convinced yet.</content>
       <sentiment>-0.1</sentiment>
       <clueStrength>0.05</clueStrength>
       <pointsToward>null</pointsToward>

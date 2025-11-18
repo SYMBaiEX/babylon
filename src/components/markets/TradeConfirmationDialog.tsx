@@ -13,12 +13,21 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, CheckCircle, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 
+/**
+ * Trade type discriminator for confirmation dialog.
+ */
 type TradeType = 'open-perp' | 'close-perp' | 'buy-prediction' | 'sell-prediction';
 
+/**
+ * Base trade details interface with type discriminator.
+ */
 interface BaseTradeDetails {
   type: TradeType;
 }
 
+/**
+ * Open perpetual position trade details.
+ */
 interface OpenPerpDetails extends BaseTradeDetails {
   type: 'open-perp';
   ticker: string;
@@ -32,6 +41,9 @@ interface OpenPerpDetails extends BaseTradeDetails {
   liquidationDistance: number;
 }
 
+/**
+ * Close perpetual position trade details.
+ */
 interface ClosePerpDetails extends BaseTradeDetails {
   type: 'close-perp';
   ticker: string;
@@ -44,6 +56,9 @@ interface ClosePerpDetails extends BaseTradeDetails {
   unrealizedPnLPercent: number;
 }
 
+/**
+ * Buy prediction shares trade details.
+ */
 interface BuyPredictionDetails extends BaseTradeDetails {
   type: 'buy-prediction';
   question: string;
@@ -57,6 +72,9 @@ interface BuyPredictionDetails extends BaseTradeDetails {
   expectedProfit: number;
 }
 
+/**
+ * Sell prediction shares trade details.
+ */
 interface SellPredictionDetails extends BaseTradeDetails {
   type: 'sell-prediction';
   question: string;
@@ -69,12 +87,46 @@ interface SellPredictionDetails extends BaseTradeDetails {
   unrealizedPnLPercent: number;
 }
 
+/**
+ * Union type for all trade detail types.
+ */
 type TradeDetails =
   | OpenPerpDetails
   | ClosePerpDetails
   | BuyPredictionDetails
   | SellPredictionDetails;
 
+/**
+ * Trade confirmation dialog component for confirming trades before execution.
+ * 
+ * Displays a confirmation dialog with trade details before executing any trade.
+ * Supports multiple trade types: open/close perpetual positions and buy/sell
+ * prediction shares. Shows relevant information for each trade type including
+ * prices, fees, PnL, and risk warnings.
+ * 
+ * Features:
+ * - Trade type-specific display
+ * - Price and fee information
+ * - PnL calculations
+ * - Liquidation warnings (for perpetuals)
+ * - Price impact warnings (for predictions)
+ * - Loading state during submission
+ * - Cancel and confirm actions
+ * 
+ * @param props - TradeConfirmationDialog component props
+ * @returns Trade confirmation dialog element or null if no trade details
+ * 
+ * @example
+ * ```tsx
+ * <TradeConfirmationDialog
+ *   open={showConfirm}
+ *   onOpenChange={setShowConfirm}
+ *   onConfirm={executeTrade}
+ *   tradeDetails={tradeDetails}
+ *   isSubmitting={isSubmitting}
+ * />
+ * ```
+ */
 interface TradeConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

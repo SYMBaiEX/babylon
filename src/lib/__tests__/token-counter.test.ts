@@ -188,7 +188,7 @@ describe('TokenCounter', () => {
   });
   
   describe('MODEL_TOKEN_LIMITS', () => {
-    test('should include common OpenAI models', () => {
+    test('should include common OpenAGI models', () => {
       expect(MODEL_TOKEN_LIMITS['gpt-4o']).toBeDefined();
       expect(MODEL_TOKEN_LIMITS['gpt-4o-mini']).toBeDefined();
       expect(MODEL_TOKEN_LIMITS['gpt-4-turbo']).toBeDefined();

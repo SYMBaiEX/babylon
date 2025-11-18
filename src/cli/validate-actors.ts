@@ -96,15 +96,9 @@ const ActorsDataSchema = z.object({
  * ```
  */
 async function validateActors(): Promise<void> {
-  let data: unknown;
-  try {
-    // Use the loader which handles the split file structure
-    const { loadActorsData } = await import('@/lib/data/actors-loader');
-    data = loadActorsData();
-  } catch (error) {
-    logger.error('Failed to load actors data', { error }, 'validate-actors')
-    throw new Error(`Failed to load actors data: ${error}`)
-  }
+  // Use the loader which handles the split file structure
+  const { loadActorsData } = await import('@/lib/data/actors-loader');
+  const data = loadActorsData();
   const validatedData = ActorsDataSchema.parse(data);
 
   const { actors, organizations } = validatedData;

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import { logger } from '@/lib/logger';
 
 /**
  * Represents a single point in prediction market price history.
@@ -135,33 +134,18 @@ export function usePredictionHistory(
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/markets/predictions/${marketId}/history?limit=${limit}`
-      );
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        logger.error('Failed to parse prediction history response', { error, marketId }, 'usePredictionHistory');
-        setError('Failed to parse response');
-        setHistory(fallbackFromSeed());
-        setLoading(false);
-        return;
-      }
+    const response = await fetch(
+      `/api/markets/predictions/${marketId}/history?limit=${limit}`
+    );
+    const data = await response.json();
 
-      if (response.ok && Array.isArray(data.history) && data.history.length > 0) {
-        setHistory(formatHistory(data.history));
-      } else {
-        setHistory(fallbackFromSeed());
-      }
-    } catch (err) {
-      logger.error('Failed to fetch prediction price history', { error: err, marketId }, 'usePredictionHistory');
-      setError('Failed to fetch history');
+    if (response.ok && Array.isArray(data.history) && data.history.length > 0) {
+      setHistory(formatHistory(data.history));
+    } else {
       setHistory(fallbackFromSeed());
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   }, [marketId, limit, formatHistory, fallbackFromSeed]);
 
   useEffect(() => {

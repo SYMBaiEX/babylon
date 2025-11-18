@@ -80,27 +80,8 @@ export function wrapActionWithLogging(
         return;
       }
 
-      let success = false;
-      let error: string | undefined;
-      let result: Record<string, unknown> | undefined;
-
-      try {
-        // Execute action
-        if (originalHandler) {
-          await originalHandler(runtime, message, state, options as HandlerOptions | undefined, callback);
-        }
-        success = true;
-        result = { executed: true };
-      } catch (err) {
-        error = err instanceof Error ? err.message : String(err);
-        logger.error('Action execution failed', {
-          action: action.name,
-          trajectoryId,
-          error,
-        }, 'ActionInterceptor');
-        throw err;
-      } finally {
-        // Complete step with action result
+      // Handle success case
+      const successHandler = (): void => {
         loggerService.completeStep(
           trajectoryId,
           stepId,
@@ -111,14 +92,53 @@ export function wrapActionWithLogging(
               message: message.content.text || '',
               state: state ? JSON.parse(JSON.stringify(state)) : undefined,
             },
-            success,
-            result: result || { error },
+            success: true,
+            result: { executed: true },
             reasoning: `Action ${action.name} executed via ${action.description || 'handler'}`,
           },
           {
-            reward: success ? 0.1 : -0.1, // Small reward for successful execution
+            reward: 0.1, // Small reward for successful execution
           }
         );
+      };
+
+      // Handle error case
+      const errorHandler = (err: unknown): never => {
+        const error = err instanceof Error ? err.message : String(err);
+        logger.error('Action execution failed', {
+          action: action.name,
+          trajectoryId,
+          error,
+        }, 'ActionInterceptor');
+        
+        loggerService.completeStep(
+          trajectoryId,
+          stepId,
+          {
+            actionType: action.name,
+            actionName: action.name,
+            parameters: {
+              message: message.content.text || '',
+              state: state ? JSON.parse(JSON.stringify(state)) : undefined,
+            },
+            success: false,
+            result: { error },
+            reasoning: `Action ${action.name} failed: ${error}`,
+          },
+          {
+            reward: -0.1, // Negative reward for failed execution
+          }
+        );
+        
+        throw err;
+      };
+
+      // Execute action and handle both success and error cases
+      if (originalHandler) {
+        await originalHandler(runtime, message, state, options as HandlerOptions | undefined, callback)
+          .then(successHandler, errorHandler);
+      } else {
+        successHandler();
       }
     },
   };
@@ -226,46 +246,20 @@ export function wrapProviderWithLogging(
         return originalGet?.(runtime, message, state) || { text: '' };
       }
 
-      let result: import('@elizaos/core').ProviderResult = { text: '' };
-
-      try {
-        result = await originalGet?.(runtime, message, state) || { text: '' };
-        // Log provider access on success
-        loggerService.logProviderAccess(stepId, {
-          providerName: provider.name,
-          data: {
-            text: result.text || '',
-            success: true,
-          },
-          purpose: `Provider ${provider.name} accessed for context`,
-          query: {
-            message: message.content.text || '',
-            state: state ? JSON.parse(JSON.stringify(state)) : undefined,
-          },
-        });
-      } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        logger.error('Provider access failed', {
-          provider: provider.name,
-          trajectoryId,
-          error,
-        }, 'ProviderInterceptor');
-        // Log provider access before rethrowing
-        loggerService.logProviderAccess(stepId, {
-          providerName: provider.name,
-          data: {
-            text: '',
-            success: false,
-            error: error,
-          },
-          purpose: `Provider ${provider.name} accessed for context`,
-          query: {
-            message: message.content.text || '',
-            state: state ? JSON.parse(JSON.stringify(state)) : undefined,
-          },
-        });
-        throw err;
-      }
+      const result = await originalGet?.(runtime, message, state) || { text: '' };
+      // Log provider access on success
+      loggerService.logProviderAccess(stepId, {
+        providerName: provider.name,
+        data: {
+          text: result.text || '',
+          success: true,
+        },
+        purpose: `Provider ${provider.name} accessed for context`,
+        query: {
+          message: message.content.text || '',
+          state: state ? JSON.parse(JSON.stringify(state)) : undefined,
+        },
+      });
 
       return result;
     },

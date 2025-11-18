@@ -7,9 +7,15 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { z } from 'zod'
 
+/**
+ * Trade type schema for validation.
+ */
 const TradeTypeSchema = z.enum(['balance', 'npc', 'position']);
 type TradeType = z.infer<typeof TradeTypeSchema>;
 
+/**
+ * User schema for validation.
+ */
 const UserSchema = z.object({
   id: z.string(),
   username: z.string().nullable(),
@@ -18,6 +24,9 @@ const UserSchema = z.object({
   isActor: z.boolean(),
 });
 
+/**
+ * Base trade schema for validation.
+ */
 const BaseTradeSchema = z.object({
   type: TradeTypeSchema,
   id: z.string(),
@@ -25,6 +34,9 @@ const BaseTradeSchema = z.object({
   user: UserSchema.nullable(),
 });
 
+/**
+ * Balance trade schema for validation.
+ */
 const BalanceTradeSchema = BaseTradeSchema.extend({
   type: z.literal('balance'),
   amount: z.string(),
@@ -36,6 +48,9 @@ const BalanceTradeSchema = BaseTradeSchema.extend({
 });
 type BalanceTrade = z.infer<typeof BalanceTradeSchema>;
 
+/**
+ * NPC trade schema for validation.
+ */
 const NPCTradeSchema = BaseTradeSchema.extend({
   type: z.literal('npc'),
   marketType: z.string(),
@@ -50,6 +65,9 @@ const NPCTradeSchema = BaseTradeSchema.extend({
 });
 type NPCTrade = z.infer<typeof NPCTradeSchema>;
 
+/**
+ * Position trade schema for validation.
+ */
 const PositionTradeSchema = BaseTradeSchema.extend({
   type: z.literal('position'),
   market: z.object({
@@ -65,6 +83,9 @@ const PositionTradeSchema = BaseTradeSchema.extend({
 });
 type PositionTrade = z.infer<typeof PositionTradeSchema>;
 
+/**
+ * Trade schema union for validation.
+ */
 const TradeSchema = z.discriminatedUnion('type', [
   BalanceTradeSchema,
   NPCTradeSchema,
@@ -72,6 +93,23 @@ const TradeSchema = z.discriminatedUnion('type', [
 ]);
 type Trade = z.infer<typeof TradeSchema>;
 
+/**
+ * Trading feed tab component for viewing and creating trades.
+ * 
+ * Displays a feed of all trades in the system with filtering by trade type.
+ * Shows trade details and includes a form for creating test trades. Auto-refreshes
+ * every 10 seconds. Used for admin testing and monitoring.
+ * 
+ * Features:
+ * - Trade feed display
+ * - Trade type filtering
+ * - Trade creation form
+ * - Auto-refresh (10s interval)
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Trading feed tab element
+ */
 export function TradingFeedTab() {
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)

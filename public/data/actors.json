@@ -399,8 +399,8 @@
       "file": "./organizations/nvidai.json"
     },
     {
-      "id": "openagi",
-      "file": "./organizations/openagi.json"
+      "id": "opnai",
+      "file": "./organizations/opnai.json"
     },
     {
       "id": "palaintir",

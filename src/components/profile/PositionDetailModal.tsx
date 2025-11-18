@@ -30,6 +30,16 @@ import type {
   PredictionPosition,
 } from '@/types/profile';
 
+/**
+ * Format error message from API response payload.
+ * 
+ * Extracts error message from various API error response formats,
+ * falling back to a default message if extraction fails.
+ * 
+ * @param payload - Error payload from API response
+ * @param fallback - Fallback error message
+ * @returns Formatted error message string
+ */
 const formatErrorMessage = (payload: unknown, fallback: string): string => {
   if (!payload || typeof payload !== 'object') {
     return fallback;
@@ -57,6 +67,37 @@ const formatErrorMessage = (payload: unknown, fallback: string): string => {
   return fallback;
 };
 
+/**
+ * Position detail modal component for viewing and managing positions.
+ * 
+ * Displays a modal with detailed position information including entry price,
+ * current price, PnL, and position metrics. Supports both prediction and
+ * perpetual positions. Includes trading functionality (close/sell) with
+ * confirmation dialogs. Handles body scroll lock and escape key.
+ * 
+ * Features:
+ * - Position details display
+ * - PnL calculations
+ * - Close/sell position functionality
+ * - Confirmation dialogs
+ * - Market data fetching
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - PositionDetailModal component props
+ * @returns Position detail modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <PositionDetailModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   type="prediction"
+ *   data={position}
+ *   onSuccess={() => refreshPositions()}
+ * />
+ * ```
+ */
 interface PositionDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,6 +110,9 @@ interface PositionDetailModalProps {
   onSuccess?: () => void; // Callback after successful trade
 }
 
+/**
+ * Perpetual market structure for position detail modal.
+ */
 interface PerpMarket {
   ticker: string;
   name: string;
@@ -81,6 +125,9 @@ interface PerpMarket {
   minOrderSize: number;
 }
 
+/**
+ * Prediction market structure for position detail modal.
+ */
 interface PredictionMarket {
   id: number | string;
   text: string;
@@ -216,7 +263,7 @@ export function PositionDetailModal({
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json();
       toast.error(formatErrorMessage(errorData, 'Failed to buy shares'));
       setLoading(false);
       return;

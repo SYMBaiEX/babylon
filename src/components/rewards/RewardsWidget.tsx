@@ -7,6 +7,9 @@ import Link from 'next/link'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+/**
+ * Referred user structure for rewards widget.
+ */
 interface ReferredUser {
   id: string
   username: string | null
@@ -18,6 +21,9 @@ interface ReferredUser {
   joinedAt: Date | string | null
 }
 
+/**
+ * Referral statistics structure.
+ */
 interface ReferralStats {
   totalReferrals: number
   totalPointsEarned: number
@@ -25,6 +31,9 @@ interface ReferralStats {
   followingCount: number
 }
 
+/**
+ * Referral widget data structure from API.
+ */
 interface ReferralWidgetData {
   user: {
     id: string
@@ -39,11 +48,37 @@ interface ReferralWidgetData {
   referralUrl: string | null
 }
 
+/**
+ * Rewards widget component for displaying referral program information.
+ * 
+ * Displays referral statistics, referred users list, and referral code
+ * sharing functionality. Shows total referrals, points earned, and
+ * allows copying referral link. Auto-refreshes every 60 seconds.
+ * 
+ * Features:
+ * - Referral statistics display
+ * - Referred users list
+ * - Referral code sharing
+ * - Copy referral link
+ * - Auto-refresh (60s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - RewardsWidget component props
+ * @returns Rewards widget element
+ * 
+ * @example
+ * ```tsx
+ * <RewardsWidget userId="user-123" />
+ * ```
+ */
 interface RewardsWidgetProps {
   userId: string
 }
 
-// Global fetch tracking to prevent duplicate calls
+/**
+ * Global fetch tracking to prevent duplicate calls.
+ */
 let rewardsWidgetFetchInFlight = false
 let rewardsWidgetIntervalId: ReturnType<typeof setInterval> | null = null
 

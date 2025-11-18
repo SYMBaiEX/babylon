@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 // import { toast } from 'sonner'
 import { z } from 'zod'
 
+/**
+ * Participant schema for validation.
+ */
 const ParticipantSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -16,6 +19,9 @@ const ParticipantSchema = z.object({
 });
 // type Participant = z.infer<typeof ParticipantSchema>;
 
+/**
+ * Message schema for validation.
+ */
 const MessageSchema = z.object({
   id: z.string(),
   content: z.string(),
@@ -28,6 +34,9 @@ const MessageSchema = z.object({
 });
 // type Message = z.infer<typeof MessageSchema>;
 
+/**
+ * Group chat schema for validation.
+ */
 const GroupChatSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
@@ -43,6 +52,27 @@ const GroupChatSchema = z.object({
 });
 type GroupChat = z.infer<typeof GroupChatSchema>;
 
+/**
+ * Groups tab component for managing and monitoring group chats.
+ * 
+ * Displays a list of all group chats in the system with filtering, sorting,
+ * and search functionality. Shows group details including participants,
+ * recent messages, and statistics. Includes group creation form for testing.
+ * 
+ * Features:
+ * - Group list display
+ * - Search functionality
+ * - Sorting (by creation date, member count, message count)
+ * - Group details view
+ * - Participant list
+ * - Recent messages display
+ * - Group creation form
+ * - Auto-refresh
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Groups tab element
+ */
 export function GroupsTab() {
   const [groups, setGroups] = useState<GroupChat[]>([])
   const [isLoading, setIsLoading] = useState(true)

@@ -418,33 +418,8 @@ export class Agent0Client implements IAgent0Client {
    * For async initialization, use any method that calls ensureSDK()
    */
   async ensureAvailable(): Promise<boolean> {
-    try {
-      await this.ensureSDK()
-      const available = this.isAvailable()
-      if (!available && this.sdk) {
-        logger.debug(
-          'SDK initialized but in read-only mode',
-          { 
-            isReadOnly: this.sdk.isReadOnly,
-            chainId: this.chainId,
-            rpcUrl: this.config.rpcUrl 
-          },
-          'Agent0Client'
-        )
-      }
-      return available
-    } catch (error) {
-      logger.debug(
-        'SDK initialization failed',
-        { 
-          error: error instanceof Error ? error.message : String(error),
-          chainId: this.chainId,
-          rpcUrl: this.config.rpcUrl 
-        },
-        'Agent0Client'
-      )
-      return false
-    }
+    await this.ensureSDK()
+    return this.isAvailable()
   }
   
   /**

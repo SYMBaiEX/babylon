@@ -7,14 +7,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Skeleton } from '@/components/shared/Skeleton'
 
 /**
- * Trending item structure for trending panel.
+ * Trending item structure for trending panel (supports grouped trends).
  */
 interface TrendingItem {
   id: string
-  tag: string
-  tagSlug: string
+  tags: string[] // Array of tag names (e.g., ["OpenAGI", "Sam Altman"])
+  tagSlugs: string[] // Array of tag slugs for routing
+  tagIds: string[] // Array of tag IDs
   category?: string | null
-  postCount: number
+  totalPostCount: number
   summary?: string | null
   rank: number
 }
@@ -88,7 +89,15 @@ export function TrendingPanel() {
   // Note: Real-time updates via SSE removed - using manual pull-to-refresh
 
   const handleTrendingClick = (item: TrendingItem) => {
-    router.push(`/trending/${item.tagSlug}`)
+    // If multiple tags, navigate to grouped view; otherwise single tag view
+    if (item.tagSlugs.length > 1) {
+      // Navigate to grouped trending view with multiple tag IDs
+      const tagIds = item.tagIds.join(',')
+      router.push(`/trending/group?tags=${tagIds}`)
+    } else {
+      // Single tag - use existing route
+      router.push(`/trending/${item.tagSlugs[0]}`)
+    }
   }
 
   return (
@@ -119,13 +128,22 @@ export function TrendingPanel() {
                 <p className="text-xs text-muted-foreground">
                   {item.category || 'Trending'} · Trending
                 </p>
-                {/* Tag name */}
-                <p className="text-sm font-semibold text-foreground leading-snug">
-                  {item.tag}
-                </p>
+                {/* Tag name(s) - show all tags if grouped */}
+                <div className="flex flex-wrap gap-1.5 items-center mt-0.5">
+                  {item.tags.map((tag, idx) => (
+                    <span key={idx}>
+                      <span className="text-sm font-semibold text-foreground leading-snug">
+                        {tag}
+                      </span>
+                      {idx < item.tags.length - 1 && (
+                        <span className="text-xs text-muted-foreground mx-1">•</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
                 {/* Summary */}
                 {item.summary && (
-                  <p className="text-xs text-muted-foreground line-clamp-1">
+                  <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                     {item.summary}
                   </p>
                 )}

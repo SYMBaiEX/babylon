@@ -1,8 +1,14 @@
 import { cn } from '@/lib/utils'
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react'
 
+/**
+ * Market category type for category PnL card.
+ */
 type MarketCategory = 'perps' | 'predictions'
 
+/**
+ * Category PnL data structure for category PnL card.
+ */
 interface CategoryPnLData {
   unrealizedPnL: number
   positionCount: number
@@ -17,6 +23,37 @@ interface CategoryPnLData {
   }
 }
 
+/**
+ * Category PnL card component for displaying category-specific portfolio PnL.
+ * 
+ * Displays unrealized PnL and position count for a specific market category
+ * (perpetuals or predictions). Includes share functionality and refresh
+ * capability. Shows last updated timestamp.
+ * 
+ * Features:
+ * - Unrealized PnL display
+ * - Position count
+ * - Category-specific metrics
+ * - Share functionality
+ * - Refresh functionality
+ * - Last updated timestamp
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - CategoryPnLCard component props
+ * @returns Category PnL card element
+ * 
+ * @example
+ * ```tsx
+ * <CategoryPnLCard
+ *   category="perps"
+ *   data={pnlData}
+ *   loading={false}
+ *   onShare={() => sharePnL()}
+ *   onRefresh={() => refreshData()}
+ * />
+ * ```
+ */
 interface CategoryPnLCardProps {
   category: MarketCategory
   data: CategoryPnLData | null
@@ -27,17 +64,36 @@ interface CategoryPnLCardProps {
   lastUpdated: number | null
 }
 
+/**
+ * Currency formatter for displaying monetary values.
+ */
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
 })
 
+/**
+ * Format currency value safely.
+ * 
+ * Formats a number as currency, defaulting to 0 if invalid.
+ * 
+ * @param value - Value to format
+ * @returns Formatted currency string
+ */
 function formatCurrency(value: number | null | undefined) {
   const safeValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
   return formatter.format(safeValue)
 }
 
+/**
+ * Format relative time from timestamp.
+ * 
+ * Formats a timestamp as relative time (e.g., "5m ago", "2h ago").
+ * 
+ * @param timestamp - Timestamp to format
+ * @returns Formatted relative time string
+ */
 function formatRelativeTime(timestamp: number | null) {
   if (!timestamp) return ''
   const diffMs = Date.now() - timestamp
@@ -51,6 +107,9 @@ function formatRelativeTime(timestamp: number | null) {
   return `Updated ${diffDays}d ago`
 }
 
+/**
+ * Category configuration for styling and display.
+ */
 const categoryConfig = {
   perps: {
     title: 'Perpetual Futures P&L',

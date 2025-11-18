@@ -130,16 +130,11 @@ export class TrendingTopicsEngine {
     const topTopics = rankedTopics.slice(0, 5);
     
     // 4. Generate LLM descriptions for each trend
-    try {
-      this.currentTrends = await this.generateTrendDescriptions(topTopics, recentPosts);
-      
-      logger.info(`Generated ${this.currentTrends.length} trending topics`, {
-        trends: this.currentTrends.map(t => t.trendName)
-      }, 'TrendingTopicsEngine');
-    } catch (error) {
-      logger.error('Failed to generate trend descriptions', error, 'TrendingTopicsEngine');
-      // Keep previous trends on failure
-    }
+    this.currentTrends = await this.generateTrendDescriptions(topTopics, recentPosts);
+    
+    logger.info(`Generated ${this.currentTrends.length} trending topics`, {
+      trends: this.currentTrends.map(t => t.trendName)
+    }, 'TrendingTopicsEngine');
   }
 
   /**

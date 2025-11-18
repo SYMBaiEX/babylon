@@ -4,6 +4,33 @@ import { Shield, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * On-chain badge component for displaying blockchain verification status.
+ * 
+ * Displays a badge indicating whether a user's identity is verified on-chain
+ * via NFT registration. Shows different icons and tooltips for verified vs
+ * unverified states. Includes hover tooltip with NFT token ID for verified users.
+ * 
+ * Features:
+ * - Verified/unverified state display
+ * - NFT token ID display in tooltip
+ * - Size variants (sm, md, lg)
+ * - Optional label text
+ * - Hover tooltips
+ * 
+ * @param props - OnChainBadge component props
+ * @returns On-chain badge element
+ * 
+ * @example
+ * ```tsx
+ * <OnChainBadge
+ *   isRegistered={true}
+ *   nftTokenId={123}
+ *   size="md"
+ *   showLabel={true}
+ * />
+ * ```
+ */
 interface OnChainBadgeProps {
   isRegistered: boolean
   nftTokenId?: number | null

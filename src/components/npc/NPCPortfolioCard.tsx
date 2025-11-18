@@ -1,17 +1,40 @@
 /**
- * NPCPortfolioCard Component
- *
- * Displays NPC actor portfolio data including total value, positions, and metrics
- * Shows portfolio performance, utilization, and risk assessment
- *
+ * NPC portfolio card component for displaying NPC actor portfolio data.
+ * 
+ * Displays comprehensive portfolio information for an NPC actor including
+ * total value, positions, PnL, utilization, and risk score. Shows position
+ * details and portfolio metrics. Auto-refreshes every 10 seconds.
+ * 
+ * Features:
+ * - Portfolio value display
+ * - Position list
+ * - PnL breakdown (realized/unrealized)
+ * - Utilization percentage
+ * - Risk score indicator
+ * - Auto-refresh (10s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - NPCPortfolioCard component props
+ * @returns NPC portfolio card element
+ * 
+ * @example
+ * ```tsx
+ * <NPCPortfolioCard
+ *   actorId="actor-123"
+ *   showPositions={true}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import { Wallet, TrendingUp, TrendingDown, Activity, AlertCircle, BarChart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Position structure for NPC portfolio.
+ */
 interface Position {
   id: string
   marketType: string
@@ -26,6 +49,9 @@ interface Position {
   createdAt: string
 }
 
+/**
+ * Portfolio structure for NPC portfolio card.
+ */
 interface Portfolio {
   totalValue: number
   availableBalance: number
@@ -36,6 +62,9 @@ interface Portfolio {
   riskScore: number
 }
 
+/**
+ * Portfolio data structure from API.
+ */
 interface PortfolioData {
   success: boolean
   actorId: string

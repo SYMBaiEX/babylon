@@ -82,14 +82,7 @@ export function useChatMessages(chatId: string | null) {
     logger.debug(`Response status: ${response.status}`, { chatId, status: response.status }, 'useChatMessages');
     
     if (response.ok) {
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        logger.error('Failed to parse response JSON', { error, chatId }, 'useChatMessages');
-        setIsLoading(false);
-        return;
-      }
+      const data = await response.json();
       if (data.messages) {
         const formattedMessages: ChatMessage[] = data.messages.map((msg: {
           id: string;
@@ -133,14 +126,7 @@ export function useChatMessages(chatId: string | null) {
     const response = await fetch(`/api/chats/${chatId}?cursor=${nextCursor}&limit=50`);
     
     if (response.ok) {
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        logger.error('Failed to parse response JSON', { error, chatId, cursor: nextCursor }, 'useChatMessages');
-        setIsLoadingMore(false);
-        return;
-      }
+      const data = await response.json();
       
       if (data.messages && data.messages.length > 0) {
         const formattedMessages: ChatMessage[] = data.messages.map((msg: {

@@ -11,6 +11,9 @@ import { BlockUserModal } from '@/components/moderation/BlockUserModal'
 import { MuteUserModal } from '@/components/moderation/MuteUserModal'
 import { z } from 'zod'
 
+/**
+ * User schema for validation.
+ */
 const UserSchema = z.object({
   id: z.string(),
   username: z.string().nullable(),
@@ -59,9 +62,37 @@ const UserSchema = z.object({
 });
 type User = z.infer<typeof UserSchema>;
 
+/**
+ * Filter type for user management tab.
+ */
 type FilterType = 'all' | 'actors' | 'users' | 'banned' | 'admins'
+/**
+ * Sort by type for user management tab.
+ */
 type SortByType = 'created' | 'balance' | 'reputation' | 'username' | 'reports_received' | 'blocks_received' | 'mutes_received' | 'report_ratio' | 'block_ratio' | 'bad_user_score'
 
+/**
+ * User management tab component for managing users and actors.
+ * 
+ * Displays a comprehensive list of users and actors with filtering, sorting,
+ * and search functionality. Provides user management actions including ban,
+ * mute, block, and send money. Shows user statistics and moderation metrics.
+ * 
+ * Features:
+ * - User/actor list display
+ * - Filtering (all, actors, users, banned, admins)
+ * - Sorting by various metrics
+ * - Search functionality
+ * - User details view
+ * - Ban functionality
+ * - Mute/block functionality
+ * - Send money functionality
+ * - Moderation metrics display
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns User management tab element
+ */
 export function UserManagementTab() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)

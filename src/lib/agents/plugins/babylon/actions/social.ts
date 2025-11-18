@@ -66,29 +66,20 @@ export const createPostAction: Action = {
       return
     }
     
-    try {
-      const result = await babylonRuntime.a2aClient.createPost(
-        postContent,
-        'post'
-      ) as { success?: boolean; postId?: string; message?: string }
-      
-      if (callback) {
-        if (result.success === false) {
-          callback({
-            text: `Failed to create post: ${result.message || 'Unknown error'}`,
-            action: 'CREATE_POST'
-          })
-        } else {
-          callback({
-            text: `Successfully created post! Post ID: ${result.postId || 'unknown'}`,
-            action: 'CREATE_POST'
-          })
-        }
-      }
-    } catch (error) {
-      if (callback) {
+    const result = await babylonRuntime.a2aClient.createPost(
+      postContent,
+      'post'
+    ) as { success?: boolean; postId?: string; message?: string }
+    
+    if (callback) {
+      if (result.success === false) {
         callback({
-          text: `Error creating post: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          text: `Failed to create post: ${result.message || 'Unknown error'}`,
+          action: 'CREATE_POST'
+        })
+      } else {
+        callback({
+          text: `Successfully created post! Post ID: ${result.postId || 'unknown'}`,
           action: 'CREATE_POST'
         })
       }
@@ -159,26 +150,17 @@ export const commentAction: Action = {
     const postId = postIdMatch[1]!
     const commentContent = commentMatch[1]!
     
-    try {
-      const result = await babylonRuntime.a2aClient.createComment(postId, commentContent) as { success?: boolean; commentId?: string; message?: string }
-      
-      if (callback) {
-        if (result.success === false) {
-          callback({
-            text: `Failed to create comment: ${result.message || 'Unknown error'}`,
-            action: 'COMMENT_ON_POST'
-          })
-        } else {
-          callback({
-            text: `Successfully commented on post! Comment ID: ${result.commentId || 'unknown'}`,
-            action: 'COMMENT_ON_POST'
-          })
-        }
-      }
-    } catch (error) {
-      if (callback) {
+    const result = await babylonRuntime.a2aClient.createComment(postId, commentContent) as { success?: boolean; commentId?: string; message?: string }
+    
+    if (callback) {
+      if (result.success === false) {
         callback({
-          text: `Error creating comment: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          text: `Failed to create comment: ${result.message || 'Unknown error'}`,
+          action: 'COMMENT_ON_POST'
+        })
+      } else {
+        callback({
+          text: `Successfully commented on post! Comment ID: ${result.commentId || 'unknown'}`,
           action: 'COMMENT_ON_POST'
         })
       }
@@ -247,26 +229,17 @@ export const likePostAction: Action = {
     
     const postId = postIdMatch[1]!
     
-    try {
-      const result = await babylonRuntime.a2aClient.likePost(postId) as { success?: boolean; likeCount?: number; message?: string }
-      
-      if (callback) {
-        if (result.success === false) {
-          callback({
-            text: `Failed to like post: ${result.message || 'Unknown error'}`,
-            action: 'LIKE_POST'
-          })
-        } else {
-          callback({
-            text: `Successfully liked post ${postId}!${result.likeCount !== undefined ? ` Total likes: ${result.likeCount}` : ''}`,
-            action: 'LIKE_POST'
-          })
-        }
-      }
-    } catch (error) {
-      if (callback) {
+    const result = await babylonRuntime.a2aClient.likePost(postId) as { success?: boolean; likeCount?: number; message?: string }
+    
+    if (callback) {
+      if (result.success === false) {
         callback({
-          text: `Error liking post: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          text: `Failed to like post: ${result.message || 'Unknown error'}`,
+          action: 'LIKE_POST'
+        })
+      } else {
+        callback({
+          text: `Successfully liked post ${postId}!${result.likeCount !== undefined ? ` Total likes: ${result.likeCount}` : ''}`,
           action: 'LIKE_POST'
         })
       }

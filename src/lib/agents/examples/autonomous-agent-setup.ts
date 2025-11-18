@@ -240,18 +240,14 @@ export async function startMultiAgentSystem(agentUserIds: string[]) {
   const agents: Array<{ stop: () => void; agent: { id: string; displayName: string | null; isAgent: boolean; agentSystem: string | null }; runtime: AgentRuntime }> = []
 
   for (const agentUserId of agentUserIds) {
-    try {
-      const setup = await startAutonomousTickLoop(agentUserId, 5)
-      agents.push(setup)
-      
-      logger.info(
-        `Started agent ${setup.agent.displayName}`,
-        undefined,
-        'MultiAgentSystem'
-      )
-    } catch (error) {
-      logger.error(`Failed to start agent ${agentUserId}`, error, 'MultiAgentSystem')
-    }
+    const setup = await startAutonomousTickLoop(agentUserId, 5)
+    agents.push(setup)
+    
+    logger.info(
+      `Started agent ${setup.agent.displayName}`,
+      undefined,
+      'MultiAgentSystem'
+    )
   }
 
   logger.info(

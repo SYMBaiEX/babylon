@@ -1,12 +1,31 @@
 /**
- * StarRating Component
- *
- * Interactive star rating component for feedback submission
- * Converts between 5-star rating (UI) and 0-100 score (backend)
- *
- * Custom component using lucide-react
+ * Star rating component for interactive feedback submission.
+ * 
+ * Provides an interactive star rating interface that converts between
+ * 5-star display (UI) and 0-100 score (backend). Supports hover effects,
+ * half-star ratings, and readonly display mode.
+ * 
+ * Features:
+ * - Interactive star selection
+ * - Half-star support
+ * - Hover effects
+ * - Readonly mode
+ * - Size variants (sm, md, lg)
+ * - Score conversion (0-100 ↔ 0-5 stars)
+ * - Label display
+ * 
+ * @param props - StarRating component props
+ * @returns Star rating element
+ * 
+ * @example
+ * ```tsx
+ * <StarRating
+ *   value={70}
+ *   onChange={(score) => setScore(score)}
+ *   size="md"
+ * />
+ * ```
  */
-
 'use client'
 
 import { useState } from 'react'
@@ -23,14 +42,22 @@ interface StarRatingProps {
 }
 
 /**
- * Convert 0-100 score to 0-5 star rating
+ * Convert 0-100 score to 0-5 star rating.
+ * 
+ * Rounds to nearest 0.5 for half-star display.
+ * 
+ * @param score - Score from 0-100
+ * @returns Star rating from 0-5 (rounded to 0.5)
  */
 function scoreToStars(score: number): number {
   return Math.round((score / 100) * 5 * 2) / 2 // Round to nearest 0.5
 }
 
 /**
- * Convert 0-5 star rating to 0-100 score
+ * Convert 0-5 star rating to 0-100 score.
+ * 
+ * @param stars - Star rating from 0-5
+ * @returns Score from 0-100
  */
 function starsToScore(stars: number): number {
   return Math.round((stars / 5) * 100)

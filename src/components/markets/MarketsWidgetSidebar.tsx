@@ -4,6 +4,28 @@ import { MarketOverviewPanel } from './MarketOverviewPanel'
 import { TopMoversPanel } from './TopMoversPanel'
 import { PredictionTrendingPanel } from './PredictionTrendingPanel'
 
+/**
+ * Markets widget sidebar component for displaying market panels.
+ * 
+ * Container component that displays multiple market-related panels in a sidebar:
+ * - Market overview statistics
+ * - Top movers (gainers/losers)
+ * - Trending prediction markets
+ * 
+ * Only visible on extra-large screens (xl breakpoint). Provides click handlers
+ * for navigating to market detail pages.
+ * 
+ * @param props - MarketsWidgetSidebar component props
+ * @returns Markets widget sidebar element (hidden on smaller screens)
+ * 
+ * @example
+ * ```tsx
+ * <MarketsWidgetSidebar
+ *   onMarketClick={(market) => router.push(`/markets/${market.ticker}`)}
+ *   onPredictionClick={(id) => router.push(`/markets/predictions/${id}`)}
+ * />
+ * ```
+ */
 interface MarketsWidgetSidebarProps {
   onMarketClick?: (market: {
     ticker: string

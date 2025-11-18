@@ -93,28 +93,23 @@ export class HuggingFaceUploadUtil {
     token: string,
     isPrivate: boolean = false
   ): Promise<void> {
-    try {
-      const hubModule = await import('@huggingface/hub');
-      const createRepo = hubModule.createRepo;
+    const hubModule = await import('@huggingface/hub');
+    const createRepo = hubModule.createRepo;
 
-      try {
-        await createRepo({
-          repo: { type: repoType, name: repoName },
-          credentials: { accessToken: token },
-          private: isPrivate,
-        });
-        logger.info('Created new repository', { repo: repoName, type: repoType });
-      } catch (error) {
-        // Repository might already exist, which is fine
-        if (error instanceof Error && (error.message.includes('already exists') || error.message.includes('Repository not found'))) {
-          logger.info('Repository already exists or accessible', { repo: repoName });
-        } else {
-          logger.warn('Could not ensure repository exists', { error, repo: repoName });
-        }
-      }
+    try {
+      await createRepo({
+        repo: { type: repoType, name: repoName },
+        credentials: { accessToken: token },
+        private: isPrivate,
+      });
+      logger.info('Created new repository', { repo: repoName, type: repoType });
     } catch (error) {
-      logger.error('Failed to ensure repository', { error });
-      throw error;
+      // Repository might already exist, which is fine
+      if (error instanceof Error && (error.message.includes('already exists') || error.message.includes('Repository not found'))) {
+        logger.info('Repository already exists or accessible', { repo: repoName });
+      } else {
+        logger.warn('Could not ensure repository exists', { error, repo: repoName });
+      }
     }
   }
 

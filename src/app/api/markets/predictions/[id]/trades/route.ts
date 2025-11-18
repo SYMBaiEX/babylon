@@ -219,7 +219,7 @@ export const GET = withErrorHandling(async (
       id: pos.id,
       type: 'position' as const,
       user: pos.User,
-      side: pos.side,
+      side: pos.side ? 'YES' : 'NO',
       shares: Number(pos.shares),
       avgPrice: Number(pos.avgPrice),
       amount: Number(pos.shares) * Number(pos.avgPrice),

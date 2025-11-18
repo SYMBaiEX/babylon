@@ -14,7 +14,7 @@ public/data/
 │   ├── sam-ailtman.json
 │   └── ... (64 total)
 ├── organizations/           # Individual organization JSON files (SOURCE OF TRUTH)
-│   ├── openai.json
+│   ├── openagi.json
 │   ├── anthropic.json
 │   └── ... (52 total)
 └── relationships/           # [ARCHIVED] Static relationship files (no longer used)
@@ -51,7 +51,7 @@ console.log(data.relationships.length); // 331
 const actor = loadActorById('ailon-musk');
 
 // Load a single organization (OPTIMIZED - direct file read)
-const org = loadOrganizationById('openai');
+const org = loadOrganizationById('openagi');
 
 // Selective loading (NEW - load only what you need)
 const actorsOnly = loadActorsData({
@@ -100,7 +100,7 @@ Index file containing references to individual actor, organization, and relation
     ...
   ],
   "organizations": [
-    { "id": "openai", "file": "./organizations/openai.json" },
+    { "id": "openagi", "file": "./organizations/openagi.json" },
     ...
   ],
   "relationships": [

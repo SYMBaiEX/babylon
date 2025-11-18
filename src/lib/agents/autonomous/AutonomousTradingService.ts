@@ -202,9 +202,7 @@ ${contextString}`
     if (trade.type === 'prediction' && predictionMarkets.length > 0) {
       const market = predictionMarkets.find(m => m.id === trade.market || m.question.includes(trade.market))
       if (market && trade.amount <= Number(balance.balance)) {
-        // Keep try/catch for individual trade execution
-        try {
-          if (trade.action === 'buy_yes' || trade.action === 'buy_no') {
+        if (trade.action === 'buy_yes' || trade.action === 'buy_no') {
             const side = trade.action === 'buy_yes'
             
             // Execute buy via internal service
@@ -291,16 +289,11 @@ ${contextString}`
             lastMarketType = 'prediction'
             logger.info(`Agent ${agent.displayName} bought ${side ? 'YES' : 'NO'} on ${market.question}`, undefined, 'AutonomousTrading')
           }
-        } catch (error) {
-          logger.error(`Trade execution failed for agent ${agentUserId}`, error, 'AutonomousTrading')
-          throw error // Fail fast - don't continue on trade errors
-        }
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(o => o.name === trade.market || o.id === trade.market)
       if (org && trade.amount <= Number(balance.balance)) {
-        try {
-          if (trade.action === 'open_long' || trade.action === 'open_short') {
+        if (trade.action === 'open_long' || trade.action === 'open_short') {
             const side = trade.action === 'open_long' ? 'long' : 'short'
             // Use org.name as ticker (Organization model doesn't have ticker field, name is used as ticker)
             const ticker = org.name
@@ -335,10 +328,6 @@ ${contextString}`
             lastMarketType = 'perp'
             logger.info(`Agent ${agent.displayName} opened ${side} position on ${org.name}`, undefined, 'AutonomousTrading')
           }
-        } catch (error) {
-          logger.error(`Perp trade execution failed for agent ${agentUserId}`, error, 'AutonomousTrading')
-          throw error // Fail fast - don't continue on trade errors
-        }
       }
     }
 

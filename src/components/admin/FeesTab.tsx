@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/shared/Skeleton'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { z } from 'zod';
 
+/**
+ * Fee statistics schema for validation.
+ */
 const FeeStatsSchema = z.object({
   platformStats: z.object({
     totalFeesCollected: z.number(),
@@ -62,6 +65,25 @@ const FeeStatsSchema = z.object({
 });
 type FeeStats = z.infer<typeof FeeStatsSchema>;
 
+/**
+ * Fees tab component for displaying fee collection statistics.
+ * 
+ * Displays comprehensive fee statistics including platform fees, user fees,
+ * NPC fees, referrer fees, and fee trends. Shows top fee payers, top referral
+ * earners, and recent fees. Includes charts for fee trends over time.
+ * 
+ * Features:
+ * - Fee statistics dashboard
+ * - Fee breakdown by type
+ * - Top fee payers list
+ * - Top referral earners list
+ * - Recent fees list
+ * - Fee trend charts
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Fees tab element
+ */
 export function FeesTab() {
   const [stats, setStats] = useState<FeeStats | null>(null)
   const [loading, setLoading] = useState(true)

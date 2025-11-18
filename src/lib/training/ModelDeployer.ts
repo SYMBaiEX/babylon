@@ -28,11 +28,10 @@ export class ModelDeployer {
    * Deploy model to agents
    */
   async deploy(options: DeploymentOptions): Promise<DeploymentResult> {
-    try {
-      logger.info('Starting model deployment', {
-        version: options.modelVersion,
-        strategy: options.strategy
-      });
+    logger.info('Starting model deployment', {
+      version: options.modelVersion,
+      strategy: options.strategy
+    });
 
       interface PrismaTrainedModel {
         id: string;
@@ -131,21 +130,11 @@ export class ModelDeployer {
         runtimesCleared: targetAgents.length
       });
 
-      return {
-        success: true,
-        agentsUpdated: targetAgents.length,
-        deploymentId
-      };
-
-    } catch (error) {
-      logger.error('Model deployment failed', error);
-      return {
-        success: false,
-        agentsUpdated: 0,
-        deploymentId: '',
-        error: error instanceof Error ? error.message : 'Deployment failed'
-      };
-    }
+    return {
+      success: true,
+      agentsUpdated: targetAgents.length,
+      deploymentId
+    };
   }
 
   /**
@@ -181,11 +170,10 @@ export class ModelDeployer {
    * Rollback to previous model version
    */
   async rollback(currentVersion: string, targetVersion: string): Promise<DeploymentResult> {
-    try {
-      logger.info('Rolling back model', {
-        from: currentVersion,
-        to: targetVersion
-      });
+    logger.info('Rolling back model', {
+      from: currentVersion,
+      to: targetVersion
+    });
 
       interface PrismaModelDeployment {
         id: string;
@@ -241,20 +229,10 @@ export class ModelDeployer {
       }
 
       // Deploy target version
-      return await this.deploy({
-        modelVersion: targetVersion,
-        strategy: 'immediate'
-      });
-
-    } catch (error) {
-      logger.error('Rollback failed', error);
-      return {
-        success: false,
-        agentsUpdated: 0,
-        deploymentId: '',
-        error: error instanceof Error ? error.message : 'Rollback failed'
-      };
-    }
+    return await this.deploy({
+      modelVersion: targetVersion,
+      strategy: 'immediate'
+    });
   }
 
   /**

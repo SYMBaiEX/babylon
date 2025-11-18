@@ -320,7 +320,7 @@ export class MarketDecisionEngine {
     }
     
     // Validate all decisions
-    const validDecisions = this.validateDecisions(allDecisions, contexts);
+    const validDecisions = await this.validateDecisions(allDecisions, contexts);
     
     const duration = Date.now() - startTime;
     const tradeCount = validDecisions.filter(d => d.action !== 'hold').length;
@@ -350,7 +350,7 @@ export class MarketDecisionEngine {
     const decisions = await this.generateDecisionsForContexts(contexts);
     
     const contextsMap = new Map(contexts.map(c => [c.npcId, c]));
-    return this.validateDecisions(decisions, contextsMap);
+    return await this.validateDecisions(decisions, contextsMap);
   }
   
   /**
@@ -527,24 +527,18 @@ ${prompt}`
               
               const individualDecisions: TradingDecision[] = [];
               for (const context of contexts) {
-                try {
-                  const singleDecisions = await this.generateDecisionsForContexts([context]);
-                  individualDecisions.push(...singleDecisions);
-                } catch (individualError) {
-                  logger.warn('Failed to generate decision for individual NPC', {
-                    npcId: context.npcId,
-                    error: individualError instanceof Error ? individualError.message : String(individualError),
-                  }, 'MarketDecisionEngine');
-                }
+                const singleDecisions = await this.generateDecisionsForContexts([context]);
+                individualDecisions.push(...singleDecisions);
               }
               return individualDecisions;
             }
             
-            // If single NPC also fails, return empty array
+            // If single NPC also fails, throw
             logger.error('Failed to generate decisions even for single NPC', {
               error: errorMessage,
             }, 'MarketDecisionEngine');
-            return [];
+            
+            throw error;
           }
         } else {
           // Not a token limit error, rethrow
@@ -649,9 +643,9 @@ ${prompt}`
    */
   private formatNPCsList(contexts: NPCMarketContext[]): string {
     return contexts.map((ctx, index) => {
-      let section = `## NPC ${index + 1}: ${ctx.npcName}\n\n`;
+      let section = `## NPC ${index + 1}: [⚠️ USE THIS EXACT ID: ${ctx.npcId}] ${ctx.npcName}\n\n`;
       section += `**Profile:**\n`;
-      section += `- ID: ${ctx.npcId}\n`;
+      section += `- 🆔 **REQUIRED NPC ID:** ${ctx.npcId} ⬅️ **COPY THIS EXACTLY**\n`;
       section += `- Personality: ${ctx.personality}\n`;
       section += `- Tier: ${ctx.tier}\n`;
       section += `- Available Balance: $${ctx.availableBalance.toLocaleString()}\n\n`;
@@ -742,10 +736,10 @@ ${prompt}`
   /**
    * Validate decisions against constraints
    */
-  private validateDecisions(
+  private async validateDecisions(
     decisions: TradingDecision[],
     contexts: Map<string, NPCMarketContext>
-  ): TradingDecision[] {
+  ): Promise<TradingDecision[]> {
     logger.info(`Validating ${decisions.length} raw LLM decisions`, { 
       decisionsCount: decisions.length,
       contextsCount: contexts.size,
@@ -753,13 +747,151 @@ ${prompt}`
       sampleNpcName: decisions[0]?.npcName
     }, 'MarketDecisionEngine');
     
-    // Create reverse map from npcName to npcId for fallback lookup
+    // Build lowercase ID map for case-insensitive lookup
+    const contextsByLowercaseId = new Map<string, string>();
+    for (const id of contexts.keys()) {
+      contextsByLowercaseId.set(id.toLowerCase(), id);
+    }
+    
+    // Build comprehensive mapping from originalNpcId (what LLM generates) to actual NPC ID
+    // LLM sees "AIlon Musk" and might generate: "elon-musk", "Elon Musk", "ELON-MUSK", etc.
+    // ALL KEYS ARE LOWERCASE for case-insensitive matching
+    const originalIdToActualIdMap = new Map<string, string>();
+    
+    // Fetch actor data to get original names  
+    const actors = await prisma.actor.findMany({
+      where: { id: { in: Array.from(contexts.keys()) } },
+      select: { id: true, name: true }
+    });
+    
+    for (const actor of actors) {
+      // Parse actor JSON file to get all original identifiers
+      const actorJsonPath = `./public/data/actors/${actor.id}.json`;
+      const fs = await import('fs/promises');
+      const actorData = JSON.parse(await fs.readFile(actorJsonPath, 'utf-8')) as {
+        originalFirstName?: string;
+        originalLastName?: string;
+        originalHandle?: string;
+        realName?: string;
+      };
+      
+      const variations: string[] = [];
+      
+      if (actorData.originalFirstName && actorData.originalLastName) {
+        const firstName = actorData.originalFirstName.toLowerCase();
+        const lastName = actorData.originalLastName.toLowerCase();
+        
+        // Add all common variations:
+        variations.push(
+          `${firstName}-${lastName}`,        // elon-musk
+          `${firstName}${lastName}`,          // elonmusk  
+          `${firstName} ${lastName}`,         // elon musk
+          `${firstName}_${lastName}`,         // elon_musk
+          firstName,                          // elon
+          lastName                            // musk
+        );
+      }
+      
+      if (actorData.originalHandle) {
+        variations.push(actorData.originalHandle.toLowerCase()); // elonmusk
+      }
+      
+      if (actorData.realName) {
+        variations.push(
+          actorData.realName.toLowerCase(),                    // elon musk
+          actorData.realName.toLowerCase().replace(/\s+/g, '-'),  // elon-musk
+          actorData.realName.toLowerCase().replace(/\s+/g, '')    // elonmusk
+        );
+      }
+      
+      // Map all variations to the actual actor ID
+      for (const variation of variations) {
+        if (variation && !originalIdToActualIdMap.has(variation)) {
+          originalIdToActualIdMap.set(variation, actor.id);
+        }
+      }
+    }
+    
+    logger.info(`Built originalId mapping with ${originalIdToActualIdMap.size} variations for ${actors.length} NPCs`, undefined, 'MarketDecisionEngine');
+    
+    // Build organization/ticker mapping for perp markets
+    // LLM might generate "OPENAI", "OpenAI", "openai", etc. when actual ticker is "OPNAI"
+    // ALL KEYS ARE LOWERCASE for case-insensitive matching
+    const originalTickerToActualTickerMap = new Map<string, string>();
+    
+    const orgs = await prisma.organization.findMany({
+      where: { type: 'company' },
+      select: { id: true, name: true, ticker: true }
+    });
+    
+    // Get organization mappings from database (realName -> parodyName)
+    const orgMappings = await prisma.organizationMapping.findMany({
+      where: { isActive: true },
+      select: { realName: true, parodyName: true, aliases: true }
+    });
+    
+    // Build map from parody names to real names (ALL LOWERCASE)
+    const parodyToRealMap = new Map<string, string>();
+    for (const mapping of orgMappings) {
+      parodyToRealMap.set(mapping.parodyName.toLowerCase(), mapping.realName.toLowerCase());
+      for (const alias of mapping.aliases) {
+        parodyToRealMap.set(alias.toLowerCase(), mapping.realName.toLowerCase());
+      }
+    }
+    
+    for (const org of orgs) {
+      if (!org.ticker) continue;
+      
+      const variations: string[] = [];
+      
+      // Try to find real name from mapping
+      const parodyName = org.name.toLowerCase();
+      const realName = parodyToRealMap.get(parodyName);
+      
+      if (realName) {
+        // Add variations of the real name (ALL LOWERCASE)
+        const cleanRealName = realName.replace(/[^a-z]/gi, '');
+        variations.push(
+          realName,                                        // openai
+          cleanRealName,                                   // openai (cleaned)
+          `${cleanRealName}ai`,                           // openai + ai
+        );
+      }
+      
+      // Also derive from current name by removing "AI" insertions
+      // e.g., "OpnAI" -> LLM generates "openai", map to "OPNAI" ticker
+      const cleanedName = org.name.replace(/AI/gi, '').replace(/[^a-z]/gi, '').toLowerCase();
+      if (cleanedName) {
+        variations.push(
+          cleanedName,                                      // opn
+          `${cleanedName}ai`,                              // opnai
+        );
+      }
+      
+      // Add current ticker as variation too (lowercase)
+      if (org.ticker) {
+        variations.push(org.ticker.toLowerCase());          // opnai
+      }
+      
+      // Map all variations to actual ticker (ALL KEYS LOWERCASE, value is actual ticker case)
+      for (const variation of variations) {
+        if (variation && !originalTickerToActualTickerMap.has(variation)) {
+          originalTickerToActualTickerMap.set(variation, org.ticker);
+        }
+      }
+    }
+    
+    logger.info(`Built ticker mapping with ${originalTickerToActualTickerMap.size} variations for ${orgs.length} orgs (case-insensitive)`, undefined, 'MarketDecisionEngine');
+    
+    // Create reverse map from npcName to npcId for fallback lookup (ALL LOWERCASE)
     const nameToIdMap = new Map<string, string>();
     for (const [id, context] of contexts.entries()) {
-      nameToIdMap.set(context.npcName.toLowerCase(), id);
+      const lowercaseName = context.npcName.toLowerCase();
+      nameToIdMap.set(lowercaseName, id);
+      
       // Also try slugified versions (replace spaces with hyphens, lowercase)
-      const slugified = context.npcName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      if (slugified !== context.npcName.toLowerCase()) {
+      const slugified = lowercaseName.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      if (slugified !== lowercaseName) {
         nameToIdMap.set(slugified, id);
       }
     }
@@ -774,12 +906,40 @@ ${prompt}`
         logger.warn(`Decision missing both npcId and npcName`, {
           decision: JSON.stringify(decision),
         }, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(
+            `[DEV] LLM generated decision without npcId or npcName: ${JSON.stringify(decision)}`
+          );
+        }
         continue;
       }
       
-      let context = contexts.get(decision.npcId || '');
+      // Normalize npcId to lowercase for case-insensitive matching
+      // Handle case where npcId might be number or other type
+      const normalizedNpcId = decision.npcId 
+        ? String(decision.npcId).toLowerCase() 
+        : '';
       
-      // Fallback: try to find by name if ID doesn't match
+      // First try: use the ID as-is via lowercase map
+      let actualNpcId = contextsByLowercaseId.get(normalizedNpcId);
+      let context = actualNpcId ? contexts.get(actualNpcId) : undefined;
+      
+      // Second try: map originalNpcId to actual ID (e.g., "elon-musk" -> "ailon-musk")
+      // All mapping keys are lowercase, so we can use normalized ID directly
+      if (!context && normalizedNpcId) {
+        actualNpcId = originalIdToActualIdMap.get(normalizedNpcId);
+        if (actualNpcId) {
+          context = contexts.get(actualNpcId);
+          if (context) {
+            logger.debug(`Mapped originalId ${decision.npcId} (normalized: ${normalizedNpcId}) -> ${actualNpcId}`, undefined, 'MarketDecisionEngine');
+            decision.npcId = actualNpcId; // Update to actual ID
+          }
+        }
+      }
+      
+      // Third try: find by name if ID doesn't match
       if (!context && decision.npcName) {
         const nameKey = decision.npcName.toLowerCase();
         const slugifiedKey = nameKey.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -800,9 +960,18 @@ ${prompt}`
       
       if (!context) {
         rejectionReasons['no_context'] = (rejectionReasons['no_context'] || 0) + 1;
-        logger.warn(`Decision for unknown NPC: ${decision.npcId || 'missing'} (name: ${decision.npcName || 'missing'})`, {
+        const errorMsg = `Decision for unknown NPC: ${decision.npcId || 'missing'} (name: ${decision.npcName || 'missing'})`;
+        logger.warn(errorMsg, {
           decision: JSON.stringify(decision),
         }, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development: LLM generated ID that doesn't exist
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(
+            `[DEV] ${errorMsg}. LLM generated invalid NPC ID that couldn't be mapped to any existing NPC. ` +
+            `Decision: ${JSON.stringify(decision)}`
+          );
+        }
         continue;
       }
       
@@ -831,13 +1000,25 @@ ${prompt}`
       // Validate close_position action
       if (decision.action === 'close_position') {
         if (!decision.positionId) {
-          logger.warn(`Close position decision missing positionId for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Close position decision missing positionId for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
         }
         
         const position = context.currentPositions.find(p => p.id === decision.positionId);
         if (!position) {
-          logger.warn(`Position ${decision.positionId} not found for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Position ${decision.positionId} not found for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
         }
         
@@ -852,16 +1033,24 @@ ${prompt}`
       
       // Validate trading actions
       if (decision.amount <= 0) {
-        logger.warn(`Invalid amount ${decision.amount} for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+        const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
+        logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+        }
         continue;
       }
       
       if (decision.amount > context.availableBalance) {
-        logger.warn(
-          `LLM suggested amount exceeds balance for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()} - REJECTING`,
-          {},
-          'MarketDecisionEngine'
-        );
+        const errorMsg = `LLM suggested amount exceeds balance for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()}`;
+        logger.warn(`${errorMsg} - REJECTING`, {}, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development: LLM should respect balance constraints
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+        }
         // REJECT the decision instead of scaling - this forces LLM to respect constraints
         continue;
       }
@@ -869,9 +1058,15 @@ ${prompt}`
       // Validate market type (only 'perp' or 'prediction' are valid, 'pool' was removed)
       if (!decision.marketType) {
         rejectionReasons['missing_market_type'] = (rejectionReasons['missing_market_type'] || 0) + 1;
-        logger.warn(`Trading decision missing marketType for ${decision.npcName || decision.npcId || 'unknown'}`, {
+        const errorMsg = `Trading decision missing marketType for ${decision.npcName || decision.npcId || 'unknown'}`;
+        logger.warn(errorMsg, {
           decision: JSON.stringify(decision),
         }, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+        }
         continue;
       }
       
@@ -880,28 +1075,63 @@ ${prompt}`
       if (marketTypeStr !== 'perp' && marketTypeStr !== 'prediction') {
         rejectionReasons['invalid_market_type'] = (rejectionReasons['invalid_market_type'] || 0) + 1;
         const isPool = marketTypeStr === 'pool';
-        logger.warn(`Invalid marketType '${marketTypeStr}' for ${decision.npcName || decision.npcId || 'unknown'} - ${isPool ? 'pools market type was removed, ' : ''}must be 'perp' or 'prediction'`, {
+        const errorMsg = `Invalid marketType '${marketTypeStr}' for ${decision.npcName || decision.npcId || 'unknown'} - ${isPool ? 'pools market type was removed, ' : ''}must be 'perp' or 'prediction'`;
+        logger.warn(errorMsg, {
           decision: JSON.stringify(decision),
         }, 'MarketDecisionEngine');
+        
+        // FAIL FAST in development
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+        }
         continue;
       }
       
       // Validate perp actions
       if (decision.action === 'open_long' || decision.action === 'open_short') {
         if (decision.marketType !== 'perp') {
-          logger.warn(`Perp action with non-perp market type for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Perp action with non-perp market type for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
         }
         
         if (!decision.ticker) {
-          logger.warn(`Perp decision missing ticker for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Perp decision missing ticker for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
+        }
+        
+        // Map original ticker to actual ticker (case-insensitive)
+        // e.g., "OPENAI", "OpenAI", "openai" all map to actual ticker "OPNAI"
+        const normalizedTicker = String(decision.ticker).toLowerCase();
+        const mappedTicker = originalTickerToActualTickerMap.get(normalizedTicker);
+        if (mappedTicker) {
+          logger.debug(`Mapped ticker ${decision.ticker} (normalized: ${normalizedTicker}) -> ${mappedTicker}`, undefined, 'MarketDecisionEngine');
+          decision.ticker = mappedTicker;
         }
         
         // Verify ticker exists
         const perpExists = context.perpMarkets.find(p => p.ticker === decision.ticker);
         if (!perpExists) {
-          logger.warn(`Unknown perp ticker ${decision.ticker} for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Unknown perp ticker ${decision.ticker} for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development: ticker doesn't exist
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(
+              `[DEV] ${errorMsg}. Ticker mapping failed. Decision: ${JSON.stringify(decision)}`
+            );
+          }
           continue;
         }
       }
@@ -909,19 +1139,56 @@ ${prompt}`
       // Validate prediction actions
       if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
         if (decision.marketType !== 'prediction') {
-          logger.warn(`Prediction action with non-prediction market type for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Prediction action with non-prediction market type for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
         }
         
+        // LLM sometimes puts marketId in ticker field, extract it
+        if (!decision.marketId && decision.ticker) {
+          // Check if ticker looks like a marketId (e.g., "Q248821457163911168")
+          const tickerStr = String(decision.ticker);
+          if (tickerStr.startsWith('Q') || /^\d+$/.test(tickerStr)) {
+            decision.marketId = tickerStr.startsWith('Q') ? tickerStr.substring(1) : tickerStr;
+            logger.debug(`Extracted marketId ${decision.marketId} from ticker field`, undefined, 'MarketDecisionEngine');
+          }
+        }
+        
         if (!decision.marketId) {
-          logger.warn(`Prediction decision missing marketId for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Prediction decision missing marketId for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          }
           continue;
+        }
+        
+        // Clean up marketId: remove "Q" prefix if present, ensure it's a string
+        const marketIdStr = String(decision.marketId);
+        if (marketIdStr.startsWith('Q')) {
+          decision.marketId = marketIdStr.substring(1);
+          logger.debug(`Cleaned marketId: ${marketIdStr} -> ${decision.marketId}`, undefined, 'MarketDecisionEngine');
         }
         
         // Verify market exists
         const marketExists = context.predictionMarkets.find(p => p.id === decision.marketId);
         if (!marketExists) {
-          logger.warn(`Unknown prediction market ${decision.marketId} for ${decision.npcName}`, {}, 'MarketDecisionEngine');
+          const errorMsg = `Unknown prediction market ${decision.marketId} for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          
+          // FAIL FAST in development: market doesn't exist
+          if (process.env.NODE_ENV !== 'production') {
+            throw new Error(
+              `[DEV] ${errorMsg}. Market ID mapping failed. Decision: ${JSON.stringify(decision)}`
+            );
+          }
           continue;
         }
       }
@@ -1085,56 +1352,49 @@ ${prompt}`
    * This provides high-level supplementary context for the batch.
    */
   private async formatRecentEvents(): Promise<string> {
-    try {
-      // Get recent posts from the last 24 hours
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      // Get actor IDs first
-      const actors = await prisma.actor.findMany({
-        select: { id: true, name: true },
-      });
-      const actorMap = new Map(actors.map(a => [a.id, a.name]));
-      const actorIds = actors.map(a => a.id);
-      
-      if (actorIds.length === 0) {
-        return 'No actors available for narrative context.';
-      }
-      
-      const recentPosts = await prisma.post.findMany({
-        where: {
-          createdAt: { gte: oneDayAgo },
-          authorId: { in: actorIds },
-          type: 'post', // Only regular posts, not comments
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: {
-          content: true,
-          authorId: true,
-        },
-      });
-      
-      if (recentPosts.length === 0) {
-        return 'No recent posts in last 24 hours.';
-      }
-      
-      const events = ['Recent developments (last 24h):'];
-      recentPosts.forEach(post => {
-        const name = actorMap.get(post.authorId) || 'Unknown';
-        // Truncate to 100 chars for token efficiency
-        const content = post.content.length > 100 
-          ? `${post.content.substring(0, 100)}...` 
-          : post.content;
-        events.push(`- ${name}: ${content}`);
-      });
-      
-      return events.join('\n');
-    } catch (error) {
-      logger.warn('Failed to fetch recent events', {
-        error: error instanceof Error ? error.message : String(error),
-      }, 'MarketDecisionEngine');
-      return 'NPCs have access to recent posts in their individual contexts.';
+    // Get recent posts from the last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    // Get actor IDs first
+    const actors = await prisma.actor.findMany({
+      select: { id: true, name: true },
+    });
+    const actorMap = new Map(actors.map(a => [a.id, a.name]));
+    const actorIds = actors.map(a => a.id);
+    
+    if (actorIds.length === 0) {
+      return 'No actors available for narrative context.';
     }
+    
+    const recentPosts = await prisma.post.findMany({
+      where: {
+        createdAt: { gte: oneDayAgo },
+        authorId: { in: actorIds },
+        type: 'post', // Only regular posts, not comments
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        content: true,
+        authorId: true,
+      },
+    });
+    
+    if (recentPosts.length === 0) {
+      return 'No recent posts in last 24 hours.';
+    }
+    
+    const events = ['Recent developments (last 24h):'];
+    recentPosts.forEach(post => {
+      const name = actorMap.get(post.authorId) || 'Unknown';
+      // Truncate to 100 chars for token efficiency
+      const content = post.content.length > 100 
+        ? `${post.content.substring(0, 100)}...` 
+        : post.content;
+      events.push(`- ${name}: ${content}`);
+    });
+    
+    return events.join('\n');
   }
   
   /**

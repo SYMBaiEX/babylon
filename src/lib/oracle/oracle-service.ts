@@ -90,123 +90,114 @@ export class OracleService {
     category: string,
     outcome: boolean
   ): Promise<CommitTransactionResult> {
+    logger.info(
+      `Committing game: ${questionId}`,
+      { questionNumber, question: question.substring(0, 50) },
+      'OracleService'
+    )
+
+    // Generate salt and commitment
+    const salt = CommitmentStore.generateSalt()
+    const commitment = this.generateCommitment(outcome, salt)
+
+    // Store commitment locally
+    await CommitmentStore.store({
+      questionId,
+      sessionId: '', // Will be set after transaction
+      salt,
+      commitment,
+      createdAt: new Date()
+    })
+
+    // Call contract - verify method exists
+    if (!this.contract?.commitBabylonGame) {
+      throw new Error('commitBabylonGame not available on contract');
+    }
+    
+    // Verify contract has code at address
+    const code = await this.provider.getCode(this.config.oracleAddress)
+    if (!code || code === '0x' || code === '0x0') {
+      throw new Error(`No contract code found at address ${this.config.oracleAddress}`)
+    }
+    
+    // Encode the function call to verify it works
     try {
-      logger.info(
-        `Committing game: ${questionId}`,
-        { questionNumber, question: question.substring(0, 50) },
-        'OracleService'
-      )
-
-      // Generate salt and commitment
-      const salt = CommitmentStore.generateSalt()
-      const commitment = this.generateCommitment(outcome, salt)
-
-      // Store commitment locally
-      await CommitmentStore.store({
-        questionId,
-        sessionId: '', // Will be set after transaction
-        salt,
-        commitment,
-        createdAt: new Date()
-      })
-
-      // Call contract - verify method exists
-      if (!this.contract?.commitBabylonGame) {
-        throw new Error('commitBabylonGame not available on contract');
-      }
-      
-      // Verify contract has code at address
-      const code = await this.provider.getCode(this.config.oracleAddress)
-      if (!code || code === '0x' || code === '0x0') {
-        throw new Error(`No contract code found at address ${this.config.oracleAddress}`)
-      }
-      
-      // Encode the function call to verify it works
-      try {
-        const iface = this.contract.interface
-        const data = iface.encodeFunctionData('commitBabylonGame', [
-          questionId,
-          questionNumber,
-          question,
-          commitment,
-          category
-        ])
-        if (!data || data === '0x') {
-          throw new Error('Failed to encode function call - method may not exist in contract ABI')
-        }
-      } catch (encodeError) {
-        throw new Error(`Failed to encode commitBabylonGame call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`)
-      }
-      
-      const tx = await this.contract.commitBabylonGame(
+      const iface = this.contract.interface
+      const data = iface.encodeFunctionData('commitBabylonGame', [
         questionId,
         questionNumber,
         question,
         commitment,
-        category,
-        {
-          gasLimit: 500000 // Reasonable limit for commit
-        }
-      )
-
-      logger.info(
-        `Transaction sent: ${tx.hash}`,
-        { questionId },
-        'OracleService'
-      )
-
-      // Wait for confirmation
-      const receipt = await tx.wait(this.config.confirmations)
-
-      // Parse event to get sessionId
-      const event = receipt.logs
-        .map((log: ethers.Log | ethers.EventLog) => {
-          try {
-            return this.contract.interface.parseLog({ topics: log.topics, data: log.data })
-          } catch {
-            return null
-          }
-        })
-        .find((e: ethers.LogDescription | null) => e && e.name === 'BabylonGameCommitted')
-
-      const sessionId = event?.args?.sessionId || ethers.ZeroHash
-
-      // Update stored commitment with sessionId
-      const stored = await CommitmentStore.retrieve(questionId)
-      if (stored) {
-        await CommitmentStore.store({
-          ...stored,
-          sessionId: sessionId.toString()
-        })
+        category
+      ])
+      if (!data || data === '0x') {
+        throw new Error('Failed to encode function call - method may not exist in contract ABI')
       }
+    } catch (encodeError) {
+      throw new Error(`Failed to encode commitBabylonGame call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`)
+    }
+    
+    const tx = await this.contract.commitBabylonGame(
+      questionId,
+      questionNumber,
+      question,
+      commitment,
+      category,
+      {
+        gasLimit: 500000 // Reasonable limit for commit
+      }
+    )
 
-      logger.info(
-        `Game committed successfully`,
-        {
-          questionId,
-          sessionId: sessionId.toString(),
-          txHash: receipt.hash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: receipt.gasUsed.toString()
-        },
-        'OracleService'
-      )
+    logger.info(
+      `Transaction sent: ${tx.hash}`,
+      { questionId },
+      'OracleService'
+    )
 
-      return {
-        sessionId: sessionId.toString(),
+    // Wait for confirmation
+    const receipt = await tx.wait(this.config.confirmations)
+
+    // Parse event to get sessionId
+    const event = receipt.logs
+      .map((log: ethers.Log | ethers.EventLog) => {
+        try {
+          return this.contract.interface.parseLog({ topics: log.topics, data: log.data })
+        } catch {
+          return null
+        }
+      })
+      .find((e: ethers.LogDescription | null) => e && e.name === 'BabylonGameCommitted')
+
+    const sessionId = event?.args?.sessionId || ethers.ZeroHash
+
+    // Update stored commitment with sessionId
+    const stored = await CommitmentStore.retrieve(questionId)
+    if (stored) {
+      await CommitmentStore.store({
+        ...stored,
+        sessionId: sessionId.toString()
+      })
+    }
+
+    logger.info(
+      `Game committed successfully`,
+      {
         questionId,
-        commitment,
+        sessionId: sessionId.toString(),
         txHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString()
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to commit game',
-        { error, questionId },
-        'OracleService'
-      )
-      throw error
+      },
+      'OracleService'
+    )
+
+    return {
+      sessionId: sessionId.toString(),
+      questionId,
+      commitment,
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString()
     }
   }
 
@@ -219,86 +210,71 @@ export class OracleService {
     winners: string[] = [],
     totalPayout: bigint = BigInt(0)
   ): Promise<RevealTransactionResult> {
-    try {
-      logger.info(
-        `Revealing game: ${questionId}`,
-        { outcome, winnersCount: winners.length },
+    logger.info(
+      `Revealing game: ${questionId}`,
+      { outcome, winnersCount: winners.length },
+      'OracleService'
+    )
+
+    // Retrieve stored commitment
+    const stored = await CommitmentStore.retrieve(questionId)
+    if (!stored) {
+      logger.warn(
+        'Cannot reveal game - no commitment found',
+        { questionId },
         'OracleService'
       )
+      throw new Error(`No commitment found for question ${questionId}`)
+    }
 
-      // Retrieve stored commitment
-      const stored = await CommitmentStore.retrieve(questionId)
-      if (!stored) {
-        const error = new Error(`No commitment found for question ${questionId}`)
-        // Log missing commitment as warning (expected business logic error)
-        logger.warn(
-          'Cannot reveal game - no commitment found',
-          { questionId },
-          'OracleService'
-        )
-        throw error
+    // Call contract
+    if (!this.contract?.revealBabylonGame) {
+      throw new Error('revealBabylonGame not available on contract');
+    }
+    const tx = await this.contract.revealBabylonGame(
+      stored.sessionId,
+      outcome,
+      stored.salt,
+      '0x', // Empty TEE quote for now
+      winners,
+      totalPayout,
+      {
+        gasLimit: 800000 // Higher limit for reveal
       }
+    )
 
-      // Call contract
-      if (!this.contract?.revealBabylonGame) {
-        throw new Error('revealBabylonGame not available on contract');
-      }
-      const tx = await this.contract.revealBabylonGame(
-        stored.sessionId,
-        outcome,
-        stored.salt,
-        '0x', // Empty TEE quote for now
-        winners,
-        totalPayout,
-        {
-          gasLimit: 800000 // Higher limit for reveal
-        }
-      )
+    logger.info(
+      `Reveal transaction sent: ${tx.hash}`,
+      { questionId, sessionId: stored.sessionId },
+      'OracleService'
+    )
 
-      logger.info(
-        `Reveal transaction sent: ${tx.hash}`,
-        { questionId, sessionId: stored.sessionId },
-        'OracleService'
-      )
+    // Wait for confirmation
+    const receipt = await tx.wait(this.config.confirmations)
 
-      // Wait for confirmation
-      const receipt = await tx.wait(this.config.confirmations)
+    // Cleanup stored commitment
+    await CommitmentStore.delete(questionId)
 
-      // Cleanup stored commitment
-      await CommitmentStore.delete(questionId)
-
-      logger.info(
-        `Game revealed successfully`,
-        {
-          questionId,
-          sessionId: stored.sessionId,
-          outcome,
-          txHash: receipt.hash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: receipt.gasUsed.toString()
-        },
-        'OracleService'
-      )
-
-      return {
-        sessionId: stored.sessionId,
+    logger.info(
+      `Game revealed successfully`,
+      {
         questionId,
+        sessionId: stored.sessionId,
         outcome,
         txHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString()
-      }
-    } catch (error) {
-      // Only log as ERROR if it's not a missing commitment (which is already logged as WARN above)
-      const isMissingCommitment = error instanceof Error && error.message.includes('No commitment found')
-      if (!isMissingCommitment) {
-        logger.error(
-          'Failed to reveal game',
-          { error, questionId },
-          'OracleService'
-        )
-      }
-      throw error
+      },
+      'OracleService'
+    )
+
+    return {
+      sessionId: stored.sessionId,
+      questionId,
+      outcome,
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString()
     }
   }
 

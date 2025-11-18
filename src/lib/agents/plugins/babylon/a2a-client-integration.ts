@@ -27,33 +27,27 @@ export async function initializeA2AClient(
   
   logger.info('Initializing A2A client for Babylon', { endpoint: babylonEndpoint })
   
-  try {
-    // Use SDK to create client from agent card
-    const client = await A2AClient.fromCardUrl(babylonEndpoint)
-    
-    // Validate Babylon capabilities
-    const card = await client.getAgentCard()
-    
-    if (card.protocolVersion !== '0.3.0') {
-      logger.warn('Babylon using non-standard A2A protocol version', {
-        expected: '0.3.0',
-        actual: card.protocolVersion
-      })
-    }
-    
-    logger.info('A2A client initialized successfully', {
-      name: card.name,
-      skills: card.skills.length,
-      transport: card.preferredTransport,
-      protocolVersion: card.protocolVersion
+  // Use SDK to create client from agent card
+  const client = await A2AClient.fromCardUrl(babylonEndpoint)
+  
+  // Validate Babylon capabilities
+  const card = await client.getAgentCard()
+  
+  if (card.protocolVersion !== '0.3.0') {
+    logger.warn('Babylon using non-standard A2A protocol version', {
+      expected: '0.3.0',
+      actual: card.protocolVersion
     })
-    
-    return client
-    
-  } catch (error) {
-    logger.error('Failed to initialize A2A client', { error, endpoint: babylonEndpoint })
-    throw new Error(`Could not initialize A2A client: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+  
+  logger.info('A2A client initialized successfully', {
+    name: card.name,
+    skills: card.skills.length,
+    transport: card.preferredTransport,
+    protocolVersion: card.protocolVersion
+  })
+  
+  return client
 }
 
 /**
@@ -71,43 +65,37 @@ export async function executeBabylonSkill(
 ): Promise<Task | Message> {
   logger.info('Executing Babylon skill via A2A', { skillId, messageLength: message.length })
   
-  try {
-    const response = await client.sendMessage({
-      message: {
-        kind: 'message',
-        messageId: crypto.randomUUID(),
-        role: 'user',
-        parts: [{
-          kind: 'text',
-          text: message,
-          metadata: {
-            skillId  // Hint which skill to use
-          }
-        }]
-      }
-    })
-    
-    // Handle SendMessageResponse - extract Task or Message from result
-    let result: Task | Message
-    if ('result' in response && response.result) {
-      result = response.result as unknown as Task | Message
-    } else if ('kind' in response) {
-      result = response as unknown as Task | Message
-    } else {
-      throw new Error('Unexpected response format from sendMessage')
+  const response = await client.sendMessage({
+    message: {
+      kind: 'message',
+      messageId: crypto.randomUUID(),
+      role: 'user',
+      parts: [{
+        kind: 'text',
+        text: message,
+        metadata: {
+          skillId  // Hint which skill to use
+        }
+      }]
     }
-    
-    logger.info('Skill execution response received', {
-      skillId,
-      responseType: 'kind' in result ? result.kind : 'unknown'
-    })
-    
-    return result
-    
-  } catch (error) {
-    logger.error('Skill execution failed', { error, skillId })
-    throw error
+  })
+  
+  // Handle SendMessageResponse - extract Task or Message from result
+  let result: Task | Message
+  if ('result' in response && response.result) {
+    result = response.result as unknown as Task | Message
+  } else if ('kind' in response) {
+    result = response as unknown as Task | Message
+  } else {
+    throw new Error('Unexpected response format from sendMessage')
   }
+  
+  logger.info('Skill execution response received', {
+    skillId,
+    responseType: 'kind' in result ? result.kind : 'unknown'
+  })
+  
+  return result
 }
 
 /**

@@ -1,10 +1,20 @@
 'use client'
 
 /**
- * PostHog Provider
- * Initializes PostHog and provides tracking context
+ * PostHog provider component for initializing PostHog analytics.
+ * 
+ * Initializes PostHog analytics client and automatically tracks page views
+ * as users navigate. Provides PostHog context to child components.
+ * 
+ * Features:
+ * - PostHog initialization
+ * - Page view tracking
+ * - URL parameter tracking
+ * - Automatic navigation tracking
+ * 
+ * @param props - PostHogProvider component props
+ * @returns PostHog provider element
  */
-
 import { useEffect, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { posthog, initPostHog } from '@/lib/posthog/client'

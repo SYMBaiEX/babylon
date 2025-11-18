@@ -36,8 +36,7 @@ export class TrainingDataArchiver {
     rulerScoresPath?: string;
     metadata?: Record<string, unknown>;
   }): Promise<ArchivedWindow> {
-    try {
-      logger.info('Archiving training data', { windowId: options.windowId });
+    logger.info('Archiving training data', { windowId: options.windowId });
 
       const prefix = `${this.blobPrefix}${options.windowId}/`;
       interface BlobUrls {
@@ -105,11 +104,6 @@ export class TrainingDataArchiver {
         archivedAt: new Date(),
         size: totalSize
       };
-
-    } catch (error) {
-      logger.error('Failed to archive training data', error);
-      throw error;
-    }
   }
 
   /**
@@ -121,13 +115,12 @@ export class TrainingDataArchiver {
     rulerScores?: Record<string, unknown>;
     metadata: Record<string, unknown>;
   } | null> {
-    try {
-      const prefix = `${this.blobPrefix}${windowId}/`;
-      const { blobs } = await list({ prefix });
+    const prefix = `${this.blobPrefix}${windowId}/`;
+    const { blobs } = await list({ prefix });
 
-      if (blobs.length === 0) {
-        return null;
-      }
+    if (blobs.length === 0) {
+      return null;
+    }
 
       interface WindowDataResult {
         trajectories?: string;
@@ -163,54 +156,37 @@ export class TrainingDataArchiver {
         rulerScores: result.rulerScores,
         metadata: result.metadata
       };
-
-    } catch (error) {
-      logger.error('Failed to retrieve archived data', error);
-      return null;
-    }
   }
 
   /**
    * List all archived windows
    */
   async listWindows(): Promise<string[]> {
-    try {
-      const { blobs } = await list({ prefix: this.blobPrefix });
+    const { blobs } = await list({ prefix: this.blobPrefix });
 
-      const windows = new Set<string>();
-      for (const blob of blobs) {
-        const parts = blob.pathname.split('/');
-        if (parts[1]) {
-          windows.add(parts[1]);
-        }
+    const windows = new Set<string>();
+    for (const blob of blobs) {
+      const parts = blob.pathname.split('/');
+      if (parts[1]) {
+        windows.add(parts[1]);
       }
-
-      return Array.from(windows).sort().reverse();
-
-    } catch (error) {
-      logger.error('Failed to list windows', error);
-      return [];
     }
+
+    return Array.from(windows).sort().reverse();
   }
 
   /**
    * Delete archived window
    */
   async deleteWindow(windowId: string): Promise<void> {
-    try {
-      const prefix = `${this.blobPrefix}${windowId}/`;
-      const { blobs } = await list({ prefix });
+    const prefix = `${this.blobPrefix}${windowId}/`;
+    const { blobs } = await list({ prefix });
 
-      for (const blob of blobs) {
-        await del(blob.url);
-      }
-
-      logger.info('Deleted archived window', { windowId });
-
-    } catch (error) {
-      logger.error('Failed to delete window', error);
-      throw error;
+    for (const blob of blobs) {
+      await del(blob.url);
     }
+
+    logger.info('Deleted archived window', { windowId });
   }
 }
 

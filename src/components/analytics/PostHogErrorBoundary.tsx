@@ -1,10 +1,29 @@
 'use client'
 
 /**
- * PostHog Error Boundary
- * Catches and tracks React errors
+ * PostHog error boundary component for catching and tracking React errors.
+ * 
+ * Catches React component errors and automatically tracks them with PostHog
+ * analytics. Provides fallback UI when errors occur. Also logs errors using
+ * the application logger.
+ * 
+ * Features:
+ * - Error catching
+ * - PostHog error tracking
+ * - Fallback UI
+ * - Error logging
+ * - Refresh functionality
+ * 
+ * @param props - PostHogErrorBoundary component props
+ * @returns Error boundary component
+ * 
+ * @example
+ * ```tsx
+ * <PostHogErrorBoundary fallback={<ErrorFallback />}>
+ *   <App />
+ * </PostHogErrorBoundary>
+ * ```
  */
-
 import React, { Component, type ReactNode } from 'react'
 import { posthog } from '@/lib/posthog/client'
 import { logger } from '@/lib/logger'

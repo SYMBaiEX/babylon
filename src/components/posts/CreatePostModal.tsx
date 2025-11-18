@@ -113,14 +113,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     })
 
     if (response.ok) {
-      let data
-      try {
-        data = await response.json()
-      } catch (error) {
-        logger.error('Failed to parse create post response', { error }, 'CreatePostModal')
-        toast.error('Failed to parse response. Please try again.')
-        return
-      }
+      const data = await response.json()
       setContent('')
       // Pass the created post data to the callback
       if (data.post) {
@@ -128,7 +121,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
       }
       onClose()
     } else {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const error = await response.json()
       logger.error('Failed to create post:', error, 'CreatePostModal')
       toast.error(error.error || 'Failed to create post. Please try again.')
     }

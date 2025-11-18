@@ -41,7 +41,7 @@ async function testTrajectoryExtraction() {
   
   if (trajectories.length === 0) {
     console.log('⚠️  No trajectories found - cannot test extraction\n');
-    return;
+    return false;
   }
   
   // Test 2: Verify trajectory structure
@@ -161,12 +161,12 @@ async function testTrajectoryExtraction() {
 async function main() {
   try {
     const success = await testTrajectoryExtraction();
+    await prisma.$disconnect();
     process.exit(success ? 0 : 1);
   } catch (error) {
     console.error('Fatal error:', error);
-    process.exit(1);
-  } finally {
     await prisma.$disconnect();
+    process.exit(1);
   }
 }
 

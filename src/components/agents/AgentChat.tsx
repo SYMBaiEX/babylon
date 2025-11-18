@@ -9,6 +9,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
+/**
+ * Chat message structure for agent chat.
+ */
 interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -18,6 +21,33 @@ interface Message {
   createdAt: string
 }
 
+/**
+ * Agent chat component for chatting with agents.
+ * 
+ * Provides a chat interface for interacting with agents. Supports both
+ * free and pro model tiers. Displays message history, points cost per
+ * message, and handles message sending with loading states.
+ * 
+ * Features:
+ * - Message history display
+ * - Message sending
+ * - Points cost display
+ * - Model tier selection (free/pro)
+ * - Auto-scroll to bottom
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - AgentChat component props
+ * @returns Agent chat element
+ * 
+ * @example
+ * ```tsx
+ * <AgentChat
+ *   agent={agentData}
+ *   onUpdate={() => refreshAgent()}
+ * />
+ * ```
+ */
 interface AgentChatProps {
   agent: {
     id: string
@@ -116,7 +146,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
       })
 
       if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: 'Failed to send message' })) as { error: string }
+        const error = await res.json() as { error: string }
         setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id))
         toast.error(error.error || 'Failed to send message')
         setSending(false)

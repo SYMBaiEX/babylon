@@ -300,38 +300,29 @@ export class EnhancedLoadTestSimulator {
       this.resourceLimiter.requestStarted();
     }
 
-    let statusCode = 0;
-    let success = false;
+    const response = await fetch(url, {
+      method: endpoint.method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...endpoint.headers,
+      },
+      body: endpoint.body ? JSON.stringify(endpoint.body) : undefined,
+    });
 
-    try {
-      const response = await fetch(url, {
-        method: endpoint.method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...endpoint.headers,
-        },
-        body: endpoint.body ? JSON.stringify(endpoint.body) : undefined,
-      });
+    const statusCode = response.status;
+    const success = response.ok;
 
-      statusCode = response.status;
-      success = response.ok;
-
-      if (!success) {
-        const errorKey = `${endpoint.path}:${response.status}`;
-        this.errorCounts.set(errorKey, (this.errorCounts.get(errorKey) || 0) + 1);
-      }
-    } catch (error) {
-      const errorKey = `${endpoint.path}:error`;
+    if (!success) {
+      const errorKey = `${endpoint.path}:${response.status}`;
       this.errorCounts.set(errorKey, (this.errorCounts.get(errorKey) || 0) + 1);
-      logger.error('Request failed', error, 'EnhancedLoadTestSimulator');
-    } finally {
-      if (this.enableMonitoring) {
-        performanceMonitor.endRequest();
-      }
-      
-      if (this.resourceLimiter) {
-        this.resourceLimiter.requestEnded();
-      }
+    }
+
+    if (this.enableMonitoring) {
+      performanceMonitor.endRequest();
+    }
+    
+    if (this.resourceLimiter) {
+      this.resourceLimiter.requestEnded();
     }
 
     const responseTime = Date.now() - startTime;
@@ -530,38 +521,26 @@ export async function generateAllRoutesScenario(
   baseUrl: string = 'http://localhost:3000'
 ): Promise<EnhancedLoadTestConfig['endpoints']> {
   // Fetch OpenAPI spec to discover all routes
-  try {
-    const response = await fetch(`${baseUrl}/api/docs`);
-    const spec = await response.json() as { paths?: Record<string, Record<string, unknown>> };
-    
-    const endpoints: EnhancedLoadTestConfig['endpoints'] = [];
-    
-    if (spec.paths) {
-      for (const [path, methods] of Object.entries(spec.paths)) {
-        for (const method of Object.keys(methods)) {
-          if (['get', 'post', 'put', 'delete', 'patch'].includes(method.toLowerCase())) {
-            endpoints.push({
-              path,
-              method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-              weight: 1.0 / Object.keys(spec.paths).length,
-            });
-          }
+  const response = await fetch(`${baseUrl}/api/docs`);
+  const spec = await response.json() as { paths?: Record<string, Record<string, unknown>> };
+  
+  const endpoints: EnhancedLoadTestConfig['endpoints'] = [];
+  
+  if (spec.paths) {
+    for (const [path, methods] of Object.entries(spec.paths)) {
+      for (const method of Object.keys(methods)) {
+        if (['get', 'post', 'put', 'delete', 'patch'].includes(method.toLowerCase())) {
+          endpoints.push({
+            path,
+            method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+            weight: 1.0 / Object.keys(spec.paths).length,
+          });
         }
       }
     }
-    
-    return endpoints;
-  } catch (error) {
-    logger.error('Failed to fetch API routes', error, 'generateAllRoutesScenario');
-    // Return default routes
-    return [
-      { path: '/api/posts', method: 'GET', weight: 0.3 },
-      { path: '/api/users/me', method: 'GET', weight: 0.2 },
-      { path: '/api/leaderboard', method: 'GET', weight: 0.2 },
-      { path: '/api/notifications', method: 'GET', weight: 0.15 },
-      { path: '/api/feed/widgets/trending-posts', method: 'GET', weight: 0.15 },
-    ];
   }
+  
+  return endpoints;
 }
 
 /**

@@ -113,7 +113,7 @@ ${losersText}`,
       }
     } catch (error) {
       logger.error('Failed to fetch market movers via A2A', error, 'MarketMoversProvider')
-      return { text: `Error fetching market movers: ${error instanceof Error ? error.message : 'Unknown error'}` }
+      throw error
     }
   }
 }

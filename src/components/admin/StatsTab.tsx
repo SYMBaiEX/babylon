@@ -7,6 +7,9 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { z } from 'zod'
 
+/**
+ * User stats schema for validation.
+ */
 const UserStatsSchema = z.object({
   id: z.string(),
   username: z.string().nullable(),
@@ -14,6 +17,9 @@ const UserStatsSchema = z.object({
   profileImageUrl: z.string().nullable(),
 });
 
+/**
+ * System stats schema for validation.
+ */
 const SystemStatsSchema = z.object({
   users: z.object({
     total: z.number(),
@@ -77,6 +83,9 @@ const SystemStatsSchema = z.object({
 });
 type SystemStats = z.infer<typeof SystemStatsSchema>;
 
+/**
+ * Fee stats schema for validation.
+ */
 const FeeStatsSchema = z.object({
   totalFeesCollected: z.number(),
   totalUserFees: z.number(),
@@ -87,6 +96,27 @@ const FeeStatsSchema = z.object({
 });
 type FeeStats = z.infer<typeof FeeStatsSchema>;
 
+/**
+ * Stats tab component for displaying comprehensive system statistics.
+ * 
+ * Displays detailed system-wide statistics including user metrics, market
+ * statistics, trading activity, social engagement, financial data, and
+ * fee collection. Shows top users and recent signups.
+ * 
+ * Features:
+ * - User statistics (total, actors, real users, admins)
+ * - Market statistics
+ * - Trading activity metrics
+ * - Social engagement metrics
+ * - Financial statistics
+ * - Fee collection breakdown
+ * - Top users by balance/reputation
+ * - Recent signups
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Stats tab element
+ */
 export function StatsTab() {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [feeStats, setFeeStats] = useState<FeeStats | null>(null)

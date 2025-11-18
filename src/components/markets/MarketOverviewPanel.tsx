@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream'
 
+/**
+ * Perpetual market structure for market overview.
+ */
 interface PerpMarket {
   ticker: string
   organizationId: string
@@ -26,6 +29,9 @@ interface PerpMarket {
   minOrderSize: number
 }
 
+/**
+ * Market overview statistics structure.
+ */
 interface MarketOverview {
   totalMarkets: number
   totalVolume24h: number
@@ -35,12 +41,18 @@ interface MarketOverview {
   marketsDown: number
 }
 
+/**
+ * Prediction market statistics structure.
+ */
 interface PredictionStat {
   yesShares: number
   noShares: number
   resolved: boolean
 }
 
+/**
+ * Prediction question summary structure from API.
+ */
 interface PredictionQuestionSummary {
   id: string | number
   yesShares?: number | null
@@ -48,6 +60,22 @@ interface PredictionQuestionSummary {
   status?: string | null
 }
 
+/**
+ * Market overview panel component displaying aggregate market statistics.
+ * 
+ * Displays summary statistics for both perpetual and prediction markets including
+ * total markets, volume, open interest, and price changes. Subscribes to real-time
+ * prediction market updates via SSE. Shows loading states while fetching data.
+ * 
+ * Features:
+ * - Total markets count
+ * - 24h volume and open interest
+ * - Average price change
+ * - Markets up/down counts
+ * - Real-time prediction market updates
+ * 
+ * @returns Market overview panel element
+ */
 export function MarketOverviewPanel() {
   const [overview, setOverview] = useState<MarketOverview | null>(null)
   const [predictionStats, setPredictionStats] = useState<Record<string, PredictionStat>>({})

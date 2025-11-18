@@ -164,16 +164,7 @@ export class AutomationPipeline {
         continue; // Skip invalid trajectories
       }
 
-      let steps: TrajectoryStep[];
-      try {
-        steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
-      } catch (error) {
-        logger.warn('Failed to parse trajectory stepsJson in quality check', {
-          trajectoryId: traj.trajectoryId,
-          error: error instanceof Error ? error.message : String(error)
-        }, 'AutomationPipeline');
-        continue; // Skip corrupted trajectories
-      }
+      const steps: TrajectoryStep[] = JSON.parse(traj.stepsJson) as TrajectoryStep[];
 
       if (!Array.isArray(steps)) {
         continue; // Skip if not an array
@@ -233,40 +224,33 @@ export class AutomationPipeline {
         unscored: readiness.stats.unscoredTrajectories
       }, 'AutomationPipeline');
       
-      try {
-        const { rulerScoringService } = await import('./RulerScoringService');
-        // Score recent trajectories
-        const recentWindows = await prisma.trajectory.findMany({
-          where: {
-            isTrainingData: true,
-            usedInTraining: false,
-            aiJudgeReward: null,
-            windowId: { not: null }
-          },
-          select: { windowId: true },
-          distinct: ['windowId'],
-          take: 5,
-          orderBy: { createdAt: 'desc' }
-        });
+      const { rulerScoringService } = await import('./RulerScoringService');
+      // Score recent trajectories
+      const recentWindows = await prisma.trajectory.findMany({
+        where: {
+          isTrainingData: true,
+          usedInTraining: false,
+          aiJudgeReward: null,
+          windowId: { not: null }
+        },
+        select: { windowId: true },
+        distinct: ['windowId'],
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      });
 
-        for (const window of recentWindows) {
-          if (window.windowId) {
-            await rulerScoringService.scoreWindow(window.windowId);
-          }
+      for (const window of recentWindows) {
+        if (window.windowId) {
+          await rulerScoringService.scoreWindow(window.windowId);
         }
-        
-        // Re-check readiness after scoring
-        const newReadiness = await this.checkTrainingReadiness();
-        logger.info('After scoring', {
-          scored: newReadiness.stats.totalTrajectories,
-          stillUnscored: newReadiness.stats.unscoredTrajectories
-        }, 'AutomationPipeline');
-      } catch (error) {
-        logger.warn('Failed to score trajectories in force mode', {
-          error: error instanceof Error ? error.message : String(error)
-        }, 'AutomationPipeline');
-        // Continue anyway - Python trainer can work with unscored data using local scoring
       }
+      
+      // Re-check readiness after scoring
+      const newReadiness = await this.checkTrainingReadiness();
+      logger.info('After scoring', {
+        scored: newReadiness.stats.totalTrajectories,
+        stillUnscored: newReadiness.stats.unscoredTrajectories
+      }, 'AutomationPipeline');
     }
 
     // Use ModelSelectionService for smart model selection
@@ -481,29 +465,17 @@ export class AutomationPipeline {
    * CRITICAL: Export files can accumulate to 200GB+ if not cleaned up
    */
   private async cleanupExportFiles(batchId: string): Promise<void> {
-    try {
-      const fs = await import('node:fs/promises');
-      const path = await import('node:path');
-      
-      // Clean up GRPO export directory
-      const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
-      try {
-        const files = await fs.readdir(exportDir);
-        for (const file of files) {
-          const filePath = path.join(exportDir, file);
-          await fs.unlink(filePath);
-        }
-        logger.info('Cleaned up export files', { batchId, filesRemoved: files.length }, 'AutomationPipeline');
-      } catch (error) {
-        // Directory might not exist, that's okay
-        if ((error as { code?: string })?.code !== 'ENOENT') {
-          logger.warn('Failed to clean up export files', { error: error instanceof Error ? error.message : String(error) }, 'AutomationPipeline');
-        }
-      }
-    } catch (error) {
-      logger.warn('Export cleanup failed', { error: error instanceof Error ? error.message : String(error) }, 'AutomationPipeline');
-      // Don't throw - cleanup failures shouldn't break the pipeline
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    
+    // Clean up GRPO export directory
+    const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
+    const files = await fs.readdir(exportDir);
+    for (const file of files) {
+      const filePath = path.join(exportDir, file);
+      await fs.unlink(filePath);
     }
+    logger.info('Cleaned up export files', { batchId, filesRemoved: files.length }, 'AutomationPipeline');
   }
 
   /**
@@ -524,9 +496,7 @@ export class AutomationPipeline {
       } else if (status.status === 'failed') {
         logger.error('Training job failed', { batchId: this.currentTrainingJob });
         // Clean up export files even on failure
-        await this.cleanupExportFiles(this.currentTrainingJob).catch(() => {
-          // Ignore cleanup errors
-        });
+        await this.cleanupExportFiles(this.currentTrainingJob);
         this.currentTrainingJob = null;
       }
       return;
@@ -582,52 +552,33 @@ export class AutomationPipeline {
     }
 
     // Track market outcomes for recent windows (prerequisite for reward backpropagation)
-    try {
-      const { MarketOutcomesTracker } = await import('./MarketOutcomesTracker');
-      const outcomesTracker = new MarketOutcomesTracker();
-      const synced = await outcomesTracker.syncRecentWindows(24); // Sync last 24 hours
-      if (synced > 0) {
-        logger.info('Synced market outcomes for windows', { windowsSynced: synced });
-      }
-    } catch (error) {
-      logger.warn('Market outcomes tracking failed', { error: error instanceof Error ? error.message : String(error) });
+    const { MarketOutcomesTracker } = await import('./MarketOutcomesTracker');
+    const outcomesTracker = new MarketOutcomesTracker();
+    const synced = await outcomesTracker.syncRecentWindows(24); // Sync last 24 hours
+    if (synced > 0) {
+      logger.info('Synced market outcomes for windows', { windowsSynced: synced });
     }
 
     // Update rewards for windows with known outcomes (reward backpropagation)
-    try {
-      const { rewardBackpropagationService } = await import('./RewardBackpropagationService');
-      const processed = await rewardBackpropagationService.processPendingWindows();
-      if (processed > 0) {
-        logger.info('Updated rewards for trajectories', { windowsProcessed: processed });
-      }
-    } catch (error) {
-      logger.warn('Reward backpropagation failed', { error: error instanceof Error ? error.message : String(error) });
+    const { rewardBackpropagationService } = await import('./RewardBackpropagationService');
+    const processed = await rewardBackpropagationService.processPendingWindows();
+    if (processed > 0) {
+      logger.info('Updated rewards for trajectories', { windowsProcessed: processed });
     }
 
     // Score trajectories using RULER framework
-    try {
-      const { rulerScoringService } = await import('./RulerScoringService');
-      // Score trajectories from recent windows (last 24 hours)
+    const { rulerScoringService } = await import('./RulerScoringService');
+    // Score trajectories from recent windows (last 24 hours)
+    
+    // Score current window and previous windows
+    for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
+      const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+      const windowId = windowDate.toISOString().slice(0, 13) + ':00';
       
-      // Score current window and previous windows
-      for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
-        const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-        const windowId = windowDate.toISOString().slice(0, 13) + ':00';
-        
-        try {
-          const scored = await rulerScoringService.scoreWindow(windowId);
-          if (scored > 0) {
-            logger.info('Scored trajectories with RULER', { windowId, scored });
-          }
-        } catch (error) {
-          logger.warn('RULER scoring failed for window', { 
-            windowId, 
-            error: error instanceof Error ? error.message : String(error) 
-          });
-        }
+      const scored = await rulerScoringService.scoreWindow(windowId);
+      if (scored > 0) {
+        logger.info('Scored trajectories with RULER', { windowId, scored });
       }
-    } catch (error) {
-      logger.warn('RULER scoring failed', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Health checks
@@ -668,25 +619,17 @@ export class AutomationPipeline {
     });
 
     // Mark trajectories as used
-    // Parse trajectory IDs with error handling
+    // Parse trajectory IDs
     let trajectoryIds: string[];
-    try {
-      if (!batch.trajectoryIds || batch.trajectoryIds === 'null' || batch.trajectoryIds === '[]') {
-        logger.warn('Training batch has invalid trajectoryIds', { batchId: batch.id });
-        trajectoryIds = [];
-      } else {
-        trajectoryIds = JSON.parse(batch.trajectoryIds) as string[];
-        if (!Array.isArray(trajectoryIds)) {
-          logger.warn('Training batch trajectoryIds is not an array', { batchId: batch.id });
-          trajectoryIds = [];
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to parse training batch trajectoryIds', {
-        batchId: batch.id,
-        error: error instanceof Error ? error.message : String(error)
-      }, 'AutomationPipeline');
+    if (!batch.trajectoryIds || batch.trajectoryIds === 'null' || batch.trajectoryIds === '[]') {
+      logger.warn('Training batch has invalid trajectoryIds', { batchId: batch.id });
       trajectoryIds = [];
+    } else {
+      trajectoryIds = JSON.parse(batch.trajectoryIds) as string[];
+      if (!Array.isArray(trajectoryIds)) {
+        logger.warn('Training batch trajectoryIds is not an array', { batchId: batch.id });
+        trajectoryIds = [];
+      }
     }
     await prisma.trajectory.updateMany({
       where: {
@@ -742,71 +685,49 @@ export class AutomationPipeline {
       return { benchmarked: false, deployed: false, reason: 'Model not found' };
     }
 
-    try {
-      // Benchmark the model
-      logger.info('Benchmarking model...', { modelId: model.modelId }, 'AutomationPipeline');
-      const benchmarkResults = await benchmarkService.benchmarkModel(model.modelId);
-      
-      // Compare with previous models
-      const comparison = await benchmarkService.compareModels(model.modelId);
-      
-      logger.info('Benchmark complete', {
-        modelId: model.modelId,
-        score: benchmarkResults.benchmarkScore,
-        shouldDeploy: comparison.shouldDeploy,
-        reason: comparison.reason
-      }, 'AutomationPipeline');
+    // Benchmark the model
+    logger.info('Benchmarking model...', { modelId: model.modelId }, 'AutomationPipeline');
+    const benchmarkResults = await benchmarkService.benchmarkModel(model.modelId);
+    
+    // Compare with previous models
+    const comparison = await benchmarkService.compareModels(model.modelId);
+    
+    logger.info('Benchmark complete', {
+      modelId: model.modelId,
+      score: benchmarkResults.benchmarkScore,
+      shouldDeploy: comparison.shouldDeploy,
+      reason: comparison.reason
+    }, 'AutomationPipeline');
 
-      // Deploy if performance is good enough (and autoDeploy is enabled)
-      if (comparison.shouldDeploy && autoDeploy) {
-        await this.deployModel(batchId);
-        return { 
-          benchmarked: true, 
-          deployed: true, 
-          reason: comparison.reason 
-        };
-      }
-
-      return {
-        benchmarked: true,
-        deployed: false,
-        reason: comparison.reason || 'Performance below threshold'
-      };
-
-    } catch (error) {
-      logger.error('Benchmarking failed - model NOT deployed', { error, modelId: model.modelId }, 'AutomationPipeline');
-      
-      // SAFETY: Do NOT deploy on benchmark failure
-      // Better to skip deployment than deploy a potentially bad model
-      // Admins can manually deploy via dashboard if needed
-      return {
-        benchmarked: false,
-        deployed: false,
-        reason: `Benchmark failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    // Deploy if performance is good enough (and autoDeploy is enabled)
+    if (comparison.shouldDeploy && autoDeploy) {
+      await this.deployModel(batchId);
+      return { 
+        benchmarked: true, 
+        deployed: true, 
+        reason: comparison.reason 
       };
     }
+
+    return {
+      benchmarked: true,
+      deployed: false,
+      reason: comparison.reason || 'Performance below threshold'
+    };
   }
 
   /**
    * Get model selection info for next training
    */
   async getModelSelectionInfo() {
-    try {
-      const selection = await modelSelectionService.selectBaseModel();
-      const summary = await modelSelectionService.getSelectionSummary();
-      
-      return {
-        success: true,
-        selection,
-        summary
-      };
-    } catch (error) {
-      logger.error('Model selection failed', error, 'AutomationPipeline');
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Selection failed'
-      };
-    }
+    const selection = await modelSelectionService.selectBaseModel();
+    const summary = await modelSelectionService.getSelectionSummary();
+    
+    return {
+      success: true,
+      selection,
+      summary
+    };
   }
 
   /**
@@ -814,9 +735,7 @@ export class AutomationPipeline {
    */
   private async runHealthChecks(): Promise<void> {
     // Check database connectivity
-    await prisma.user.count().catch((error: Error) => {
-      logger.error('Database health check failed', error);
-    });
+    await prisma.user.count();
 
     // Check data collection rate
     const last1h = await prisma.trajectory.count({
@@ -832,12 +751,8 @@ export class AutomationPipeline {
     }
 
     // Check disk space for model storage
-    await fs.mkdir(this.config.modelStoragePath, { recursive: true }).catch((error: Error) => {
-      logger.error('Storage health check failed', error);
-    });
-    await fs.mkdir(this.config.dataStoragePath, { recursive: true }).catch((error: Error) => {
-      logger.error('Storage health check failed', error);
-    });
+    await fs.mkdir(this.config.modelStoragePath, { recursive: true });
+    await fs.mkdir(this.config.dataStoragePath, { recursive: true });
   }
 
   /**

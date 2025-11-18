@@ -1,18 +1,40 @@
 /**
- * NPCLeaderboard Component
- *
- * Displays ranked list of top-performing NPC actors by portfolio performance
- * Shows rank, portfolio value, ROI, unrealized PnL, and position metrics
- *
- * Pattern based on: ReputationLeaderboard.tsx
+ * NPC leaderboard component for displaying top-performing NPC actors.
+ * 
+ * Displays a ranked list of top-performing NPC actors by portfolio performance.
+ * Shows rank, portfolio value, ROI, unrealized PnL, and position metrics.
+ * Auto-refreshes every 30 seconds.
+ * 
+ * Features:
+ * - Ranked leaderboard
+ * - Portfolio value display
+ * - ROI and PnL metrics
+ * - Position count
+ * - Utilization percentage
+ * - Auto-refresh (30s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - NPCLeaderboard component props
+ * @returns NPC leaderboard element
+ * 
+ * @example
+ * ```tsx
+ * <NPCLeaderboard
+ *   limit={50}
+ *   minValue={1000}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import { Trophy, TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Performance metrics structure for NPC leaderboard.
+ */
 interface PerformanceMetrics {
   totalValue: number
   roi: number
@@ -21,6 +43,9 @@ interface PerformanceMetrics {
   utilization: number
 }
 
+/**
+ * Leaderboard entry structure for NPC leaderboard.
+ */
 interface LeaderboardEntry {
   rank: number
   actorId: string
@@ -31,6 +56,9 @@ interface LeaderboardEntry {
   performance: PerformanceMetrics
 }
 
+/**
+ * Leaderboard data structure from API.
+ */
 interface LeaderboardData {
   success: boolean
   leaderboard: LeaderboardEntry[]

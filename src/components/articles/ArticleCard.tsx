@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
 import { z } from 'zod';
 
+/**
+ * Article card post schema for validation.
+ */
 const _ArticleCardPostSchema = z.object({
   id: z.string(),
   type: z.string().optional(),
@@ -22,6 +25,33 @@ const _ArticleCardPostSchema = z.object({
   timestamp: z.string(),
 });
 
+/**
+ * Article card component for displaying article posts.
+ * 
+ * Displays a formatted card for article posts with title, byline, content
+ * preview, author information, and timestamp. Includes bias score display
+ * and click handling for navigation.
+ * 
+ * Features:
+ * - Article title and byline
+ * - Content preview
+ * - Author display
+ * - Timestamp formatting
+ * - Bias score indicator
+ * - Click handling
+ * - Memoized for performance
+ * 
+ * @param props - ArticleCard component props
+ * @returns Article card element
+ * 
+ * @example
+ * ```tsx
+ * <ArticleCard
+ *   post={articleData}
+ *   onClick={() => router.push(`/articles/${post.id}`)}
+ * />
+ * ```
+ */
 export type ArticleCardProps = {
   post: z.infer<typeof _ArticleCardPostSchema>;
   className?: string;

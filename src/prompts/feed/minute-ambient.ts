@@ -44,7 +44,7 @@ Requirements:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades) when relevant
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI") when mentioning them
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI") when mentioning them
 - MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions when relevant
 - MUST reference specific trades or market movements when relevant
 - Use @username format when mentioning users (e.g., "@ailonmusk said...")

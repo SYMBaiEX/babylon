@@ -78,7 +78,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
 - MUST reference specific trades or market movements when discussing trading
 - Use @username format when mentioning users (e.g., "@ailonmusk said...", "Just saw @samailtman's post...")

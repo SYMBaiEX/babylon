@@ -18,6 +18,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 
+/**
+ * Perpetual market structure for trading modal.
+ */
 interface PerpMarket {
   ticker: string;
   organizationId: string;
@@ -31,6 +34,38 @@ interface PerpMarket {
   minOrderSize: number;
 }
 
+/**
+ * Perpetual trading modal component for opening new positions.
+ * 
+ * Provides a full-featured trading interface for opening perpetual positions.
+ * Includes position size, leverage, side selection (long/short), margin calculation,
+ * liquidation price estimation, and fee display. Handles authentication and balance
+ * checking. Shows confirmation dialog before executing trades.
+ * 
+ * Features:
+ * - Long/short side selection
+ * - Position size input
+ * - Leverage selector (up to market max)
+ * - Margin requirement calculation
+ * - Liquidation price estimation
+ * - Fee calculation and display
+ * - Balance checking
+ * - Confirmation dialog
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - PerpTradingModal component props
+ * @returns Perpetual trading modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <PerpTradingModal
+ *   market={perpMarket}
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   onSuccess={() => refreshPositions()}
+ * />
+ * ```
+ */
 interface PerpTradingModalProps {
   market: PerpMarket;
   isOpen: boolean;

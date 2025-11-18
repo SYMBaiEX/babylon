@@ -50,62 +50,53 @@ export async function syncReputationToERC8004(
     return
   }
 
-  try {
-    // Calculate reputation score based on status
-    let reputationScore = data.reputationScore
+  // Calculate reputation score based on status
+  let reputationScore = data.reputationScore
 
-    // Banned users get 0
-    if (data.isBanned) {
-      reputationScore = 0
-    }
-    // Scammers/CSAM get very low score (but not 0 to distinguish from banned)
-    else if (data.isScammer || data.isCSAM) {
-      reputationScore = 5
-    }
-
-    // Convert reputation score (0-100) to Agent0 feedback score (0-100)
-    // Agent0 uses 0-100 scale, same as our reputation score
-    const agent0Score = Math.round(Math.max(0, Math.min(100, reputationScore)))
-    
-    logger.info('Syncing system reputation to local metrics', {
-      userId,
-      agent0TokenId: user.agent0TokenId,
-      reputationScore,
-      agent0Score,
-      isBanned: data.isBanned,
-      isScammer: data.isScammer,
-      isCSAM: data.isCSAM,
-    }, 'ERC8004Sync')
-
-    // Update local AgentPerformanceMetrics with system-calculated reputation
-    // Note: This does NOT submit feedback to Agent0 network (that's handled separately)
-    await prisma.agentPerformanceMetrics.upsert({
-      where: { userId },
-      create: {
-        id: await import('@/lib/snowflake').then(m => m.generateSnowflakeId()),
-        userId,
-        reputationScore,
-        updatedAt: new Date(),
-      },
-      update: {
-        reputationScore,
-        updatedAt: new Date(),
-      },
-    })
-
-    logger.info('✅ Reputation synced to ERC-8004', {
-      userId,
-      agent0TokenId: user.agent0TokenId,
-      reputationScore,
-    }, 'ERC8004Sync')
-  } catch (error) {
-    logger.error('Failed to sync reputation to ERC-8004', {
-      userId,
-      agent0TokenId: user.agent0TokenId,
-      error,
-    }, 'ERC8004Sync')
-    throw error
+  // Banned users get 0
+  if (data.isBanned) {
+    reputationScore = 0
   }
+  // Scammers/CSAM get very low score (but not 0 to distinguish from banned)
+  else if (data.isScammer || data.isCSAM) {
+    reputationScore = 5
+  }
+
+  // Convert reputation score (0-100) to Agent0 feedback score (0-100)
+  // Agent0 uses 0-100 scale, same as our reputation score
+  const agent0Score = Math.round(Math.max(0, Math.min(100, reputationScore)))
+  
+  logger.info('Syncing system reputation to local metrics', {
+    userId,
+    agent0TokenId: user.agent0TokenId,
+    reputationScore,
+    agent0Score,
+    isBanned: data.isBanned,
+    isScammer: data.isScammer,
+    isCSAM: data.isCSAM,
+  }, 'ERC8004Sync')
+
+  // Update local AgentPerformanceMetrics with system-calculated reputation
+  // Note: This does NOT submit feedback to Agent0 network (that's handled separately)
+  await prisma.agentPerformanceMetrics.upsert({
+    where: { userId },
+    create: {
+      id: await import('@/lib/snowflake').then(m => m.generateSnowflakeId()),
+      userId,
+      reputationScore,
+      updatedAt: new Date(),
+    },
+    update: {
+      reputationScore,
+      updatedAt: new Date(),
+    },
+  })
+
+  logger.info('✅ Reputation synced to ERC-8004', {
+    userId,
+    agent0TokenId: user.agent0TokenId,
+    reputationScore,
+  }, 'ERC8004Sync')
 }
 
 /**

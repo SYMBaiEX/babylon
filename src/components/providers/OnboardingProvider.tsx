@@ -25,8 +25,31 @@ import type { JsonValue } from '@/types/common';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
+/**
+ * Onboarding stage type for multi-step onboarding flow.
+ */
 type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
 
+/**
+ * Onboarding provider component for managing user onboarding flow.
+ * 
+ * Manages the complete onboarding process including profile creation,
+ * on-chain registration, and social account linking. Handles modal display,
+ * form submission, error handling, and progress tracking. Integrates with
+ * Privy authentication and smart wallet registration.
+ * 
+ * Features:
+ * - Multi-stage onboarding (PROFILE, ONCHAIN, COMPLETED)
+ * - Profile creation form
+ * - On-chain agent registration
+ * - Social account import (Farcaster, Twitter)
+ * - Referral code handling
+ * - Modal display management
+ * - Error handling and retry logic
+ * 
+ * @param props - OnboardingProvider component props
+ * @returns Onboarding provider element
+ */
 export function OnboardingProvider({
   children,
 }: {
@@ -561,7 +584,7 @@ export function OnboardingProvider({
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json();
       if (!response.ok) {
         const message =
           data?.error ||

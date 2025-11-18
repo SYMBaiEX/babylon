@@ -139,8 +139,7 @@ export class TrajectoryLoggerService {
     stepId: string,
     llmCall: LLMCall
   ): Promise<void> {
-    try {
-      await prisma.llmCallLog.create({
+    await prisma.llmCallLog.create({
         data: {
           id: await generateSnowflakeId(),
           trajectoryId,
@@ -171,15 +170,6 @@ export class TrajectoryLoggerService {
           }),
         },
       });
-    } catch (error) {
-      // Log but don't throw - trajectory logging should not break agent execution
-      logger.error('Failed to save LLM call to database', {
-        trajectoryId,
-        stepId,
-        callId: llmCall.callId,
-        error: error instanceof Error ? error.message : String(error),
-      }, 'TrajectoryLoggerService');
-    }
   }
 
   /**
@@ -330,8 +320,7 @@ export class TrajectoryLoggerService {
     }
 
     // Save to database
-    try {
-      await prisma.trajectory.create({
+    await prisma.trajectory.create({
         data: {
           id: await generateSnowflakeId(),
           trajectoryId,
@@ -365,14 +354,6 @@ export class TrajectoryLoggerService {
         steps: trajectory.steps.length,
         totalReward: trajectory.totalReward,
       }, 'TrajectoryLoggerService');
-    } catch (error) {
-      logger.error('Failed to save trajectory to database', {
-        trajectoryId,
-        agentId: trajectory.agentId,
-        error: error instanceof Error ? error.message : String(error),
-      }, 'TrajectoryLoggerService');
-      // Don't throw - keep trajectory in memory for retrieval
-    }
 
     // Keep in memory for retrieval
     this.activeTrajectories.set(trajectoryId, trajectory);

@@ -45,7 +45,7 @@ Requirements:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events related to the price movement
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI") when relevant
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI") when relevant
 - MUST reference specific markets/predictions by their exact names when relevant
 - MUST reference specific trades or market movements when relevant
 - Use @username format when mentioning users (e.g., "@ailonmusk's announcement...")

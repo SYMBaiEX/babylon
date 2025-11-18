@@ -75,9 +75,7 @@ ${profile.profileImageUrl ? `🖼️  Profile Image: ${profile.profileImageUrl}`
 User ID: ${profile.id}` }
     } catch (error) {
       logger.error('Error fetching user profile via A2A', { error, agentId: runtime.agentId, userId }, 'UserProfileProvider')
-      return { 
-        text: `Error fetching user profile: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }

@@ -201,10 +201,6 @@ const validation = validateGeneratedContent(generatedText);
 if (!validation.isValid) {
   console.error('Errors:', validation.errors); // Real names found
 }
-
-if (validation.warnings.length > 0) {
-  console.warn('Warnings:', validation.warnings); // Outdated prices/facts
-}
 ```
 
 ## Important Rules

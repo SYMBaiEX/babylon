@@ -1,9 +1,35 @@
 /**
- * Report Modal
+ * Report modal component for reporting users or posts.
  * 
- * Modal for reporting users or posts
+ * Provides a comprehensive reporting interface with category selection,
+ * reason field, and optional evidence. Supports reporting both users
+ * and specific posts. Includes validation and error handling.
+ * 
+ * Features:
+ * - Category selection (spam, harassment, hate speech, etc.)
+ * - Reason field (minimum 10 characters)
+ * - Optional evidence field
+ * - User/post context display
+ * - Form validation
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - ReportModal component props
+ * @returns Report modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <ReportModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   targetUserId="user-123"
+ *   targetDisplayName="Alice"
+ *   postId="post-456"
+ *   onSuccess={() => refreshFeed()}
+ * />
+ * ```
  */
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -23,6 +49,9 @@ interface ReportModalProps {
   onSuccess?: () => void;
 }
 
+/**
+ * Available report categories for user/post reporting.
+ */
 const REPORT_CATEGORIES = [
   { value: 'spam', label: 'Spam or scam', description: 'Unwanted commercial content or fraudulent activity' },
   { value: 'harassment', label: 'Harassment or bullying', description: 'Targeting someone with abuse' },

@@ -32,12 +32,12 @@ export {
   getParodyActorNames,
   getForbiddenRealNames,
   validateNoRealNames,
-  checkRealityGrounding,
   validateGeneratedContent,
   getCurrentDateContext,
   getRealityGrounding,
   getMinimalRealityGrounding,
-  REALITY_GROUNDING,
+  getFullRealityGrounding,
+  checkRealityGrounding,
 } from './world-context';
 export type { WorldContext, WorldContextOptions } from './world-context';
 

@@ -44,7 +44,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events mentioned in the event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names when relevant
 - MUST reference specific trades or market movements when discussing market impact
 - Use @username format when mentioning users (e.g., "@ailonmusk announced...")
@@ -70,7 +70,7 @@ Respond with ONLY this XML format (example for 2 posts):
       <pointsToward>null</pointsToward>
     </post>
     <post>
-      <content>OpnAI claims GPT-6 shows signs of consciousness during overnight tests. Team scrambles to verify results.</content>
+      <content>OpenAGI claims GPT-6 shows signs of consciousness during overnight tests. Team scrambles to verify results.</content>
       <sentiment>0.1</sentiment>
       <clueStrength>0.5</clueStrength>
       <pointsToward>true</pointsToward>

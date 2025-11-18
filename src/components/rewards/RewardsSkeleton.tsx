@@ -1,12 +1,26 @@
 /**
- * RewardsSkeleton Component
+ * Rewards skeleton component for rewards page loading state.
  * 
- * Skeleton loader for the rewards page that matches the actual layout
- * to prevent layout shifts during loading
+ * Provides skeleton loading UI that matches the rewards page layout to
+ * prevent layout shifts during loading. Includes skeleton components
+ * for stats, tasks, and referral sections.
+ * 
+ * Features:
+ * - Layout-matched skeleton
+ * - Staggered animations
+ * - Responsive design
+ * - Accessibility support
+ * 
+ * @returns Rewards skeleton element
  */
-
 import { Separator } from '@/components/shared/Separator'
 
+/**
+ * Skeleton box component for placeholder rectangles.
+ * 
+ * @param props - SkeletonBox component props
+ * @returns Skeleton box element
+ */
 function SkeletonBox({ className = '', delay = 0 }: { className?: string; delay?: number }) {
   return (
     <div 
@@ -17,6 +31,12 @@ function SkeletonBox({ className = '', delay = 0 }: { className?: string; delay?
   )
 }
 
+/**
+ * Skeleton text component for placeholder text lines.
+ * 
+ * @param props - SkeletonText component props
+ * @returns Skeleton text element
+ */
 function SkeletonText({ className = '', delay = 0 }: { className?: string; delay?: number }) {
   return (
     <div 

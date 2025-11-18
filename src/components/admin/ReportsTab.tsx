@@ -1,9 +1,23 @@
 /**
- * Admin Reports Tab
+ * Reports tab component for viewing and managing user reports.
  * 
- * View and manage user reports
+ * Displays all user reports with filtering by status and priority. Shows
+ * report details, evaluation results, and provides resolution functionality.
+ * Includes report statistics and AI evaluation display.
+ * 
+ * Features:
+ * - Reports list display
+ * - Status filtering
+ * - Priority filtering
+ * - Report details view
+ * - AI evaluation display
+ * - Resolution functionality
+ * - Report statistics
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Reports tab element
  */
-
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
@@ -13,6 +27,9 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+/**
+ * Report evaluation structure from AI.
+ */
 interface ReportEvaluation {
   outcome: 'valid_report' | 'invalid_report' | 'abusive_reporter' | 'insufficient_evidence';
   confidence: number;
@@ -26,6 +43,9 @@ interface ReportEvaluation {
   };
 }
 
+/**
+ * Report structure for reports tab.
+ */
 interface Report {
   id: string;
   reportType: string;
@@ -59,6 +79,9 @@ interface Report {
   } | null;
 }
 
+/**
+ * Report statistics structure.
+ */
 interface ReportStats {
   totals: {
     total: number;
@@ -69,7 +92,13 @@ interface ReportStats {
   };
 }
 
+/**
+ * Status filter type for reports tab.
+ */
 type StatusFilter = 'all' | 'pending' | 'reviewing' | 'resolved' | 'dismissed';
+/**
+ * Priority filter type for reports tab.
+ */
 type PriorityFilter = 'all' | 'low' | 'normal' | 'high' | 'critical';
 
 export function ReportsTab() {

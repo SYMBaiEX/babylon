@@ -184,9 +184,8 @@ export class TrajectoryRecorder {
     // Auto-generate window ID if not provided
     const windowId = options.windowId || getCurrentWindowId();
     
-    // Save to database with error handling
-    try {
-      await prisma.trajectory.create({
+    // Save to database
+    await prisma.trajectory.create({
         data: {
           id: await generateSnowflakeId(),
           trajectoryId,
@@ -229,18 +228,8 @@ export class TrajectoryRecorder {
           usedInTraining: false
         }
       });
-    } catch (error) {
-      logger.error('Failed to save trajectory to database', {
-        trajectoryId,
-        agentId: traj.agentId,
-        error: error instanceof Error ? error.message : String(error),
-        errorCode: (error as { code?: string })?.code
-      });
-      throw error; // Re-throw to let caller handle
-    }
 
     // Save LLM calls separately for analysis
-    try {
       for (const step of traj.steps) {
         for (const llmCall of step.llmCalls) {
           await prisma.llmCallLog.create({
@@ -271,13 +260,6 @@ export class TrajectoryRecorder {
           });
         }
       }
-    } catch (error) {
-      // Log but don't fail - trajectory is already saved
-      logger.warn('Failed to save some LLM call logs', {
-        trajectoryId,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
 
     this.activeTrajectories.delete(trajectoryId);
 

@@ -79,31 +79,26 @@ async function executeAsSystem<T>(
     timestamp: new Date().toISOString(),
   }, 'RLS Security')
 
-  try {
-    // Execute within a transaction with system context
-    const result = await client.$transaction(async (tx: TransactionClient) => {
-      // TEMPORARILY DISABLED: Force RLS even for table owners (but system policies will allow access)
-      // Note: Will be re-enabled once RLS policies are properly defined in migrations
-      // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
-      
-      // Set system context marker (policies should check for 'system')
-      await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', 'system', true)`)
+  // Execute within a transaction with system context
+  const result = await client.$transaction(async (tx: TransactionClient) => {
+    // TEMPORARILY DISABLED: Force RLS even for table owners (but system policies will allow access)
+    // Note: Will be re-enabled once RLS policies are properly defined in migrations
+    // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
+    
+    // Set system context marker (policies should check for 'system')
+    await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', 'system', true)`)
 
-      // Execute the operation
-      return await operation(tx as PrismaClient)
-    })
+    // Execute the operation
+    return await operation(tx as PrismaClient)
+  })
 
-    const duration = Date.now() - startTime
-    logger.info('System operation completed', {
-      operation: operationName || 'unknown',
-      duration: `${duration}ms`,
-    }, 'RLS Security')
+  const duration = Date.now() - startTime
+  logger.info('System operation completed', {
+    operation: operationName || 'unknown',
+    duration: `${duration}ms`,
+  }, 'RLS Security')
 
-    return result
-  } catch (error) {
-    logger.error('System operation failed', error, 'RLS Security')
-    throw error
-  }
+  return result
 }
 
 /**

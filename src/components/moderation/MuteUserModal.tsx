@@ -1,7 +1,32 @@
 /**
- * Mute User Modal
+ * Mute user modal component for muting users.
+ * 
+ * Provides a confirmation modal for muting users. Shows what muting
+ * will do (hides posts but maintains follow relationship). Includes
+ * optional reason field. Handles API call and success/error states.
+ * 
+ * Features:
+ * - Confirmation dialog
+ * - Muting behavior explanation
+ * - Optional reason field
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - MuteUserModal component props
+ * @returns Mute user modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <MuteUserModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   targetUserId="user-123"
+ *   targetDisplayName="Alice"
+ *   onSuccess={() => refreshFeed()}
+ * />
+ * ```
  */
-
 'use client';
 
 import { useState, useTransition } from 'react';

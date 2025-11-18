@@ -39,7 +39,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events from the mainstream story
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names when connecting to conspiracies
 - MUST reference specific trades or market movements when alleging manipulation
 - Use @username format when mentioning users (e.g., "@ailonmusk is hiding...")

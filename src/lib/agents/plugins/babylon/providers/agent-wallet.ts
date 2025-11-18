@@ -96,7 +96,7 @@ ${positions.perpPositions.map(p => {
       }
     } catch (error) {
       logger.error('Failed to fetch agent wallet via A2A', error, 'AgentWalletProvider')
-      return { text: `Error fetching wallet: ${error instanceof Error ? error.message : 'Unknown error'}` }
+      throw error
     }
   }
 }

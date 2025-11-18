@@ -47,10 +47,9 @@ export class RewardBackpropagationService {
     let updated = 0;
 
     for (const traj of trajectories) {
-      try {
-        const steps: TrajectoryStep[] = JSON.parse(traj.stepsJson);
-        let totalReward = 0;
-        let hasUpdates = false;
+      const steps: TrajectoryStep[] = JSON.parse(traj.stepsJson);
+      let totalReward = 0;
+      let hasUpdates = false;
 
         // Update rewards for each step based on outcomes
         for (const step of steps) {
@@ -118,12 +117,6 @@ export class RewardBackpropagationService {
           });
           updated++;
         }
-      } catch (error) {
-        logger.error('Failed to update rewards for trajectory', {
-          trajectoryId: traj.trajectoryId,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
     }
 
     logger.info('Updated rewards for trajectories', {
@@ -150,16 +143,9 @@ export class RewardBackpropagationService {
     let processed = 0;
 
     for (const { windowId } of windowsWithOutcomes) {
-      try {
-        const updated = await this.updateRewardsForWindow(windowId);
-        if (updated > 0) {
-          processed++;
-        }
-      } catch (error) {
-        logger.error('Failed to process window', {
-          windowId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      const updated = await this.updateRewardsForWindow(windowId);
+      if (updated > 0) {
+        processed++;
       }
     }
 

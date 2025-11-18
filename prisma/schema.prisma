@@ -1793,7 +1793,7 @@ model CharacterMapping {
 /// Organization name mappings for find/replace (real -> parody)
 model OrganizationMapping {
   id         String   @id
-  realName   String   @unique // 'OpenAI', 'Meta', etc.
+  realName   String   @unique // 'OpenAGI', 'Meta', etc.
   parodyName String // 'OpenLIE', 'Fakebook', etc.
   category   String // 'tech', 'media', 'government', etc.
   aliases    String[] // Alternative real names to search for

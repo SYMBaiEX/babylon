@@ -28,46 +28,98 @@ export interface WorldFactsContext {
  */
 export class WorldFactsService {
   /**
-   * Get all active world facts grouped by category
+   * Get all active world facts in randomized order for entropy
    */
   async getAllFacts(): Promise<WorldFact[]> {
-    return prisma.worldFact.findMany({
+    const facts = await prisma.worldFact.findMany({
       where: { isActive: true },
-      orderBy: [{ category: 'asc' }, { priority: 'desc' }],
     });
+    
+    // Randomize order for entropy
+    for (let i = facts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = facts[i];
+      if (temp && facts[j]) {
+        facts[i] = facts[j];
+        facts[j] = temp;
+      }
+    }
+    
+    return facts;
   }
 
   /**
-   * Get facts for a specific category
+   * Get reality grounding facts (category: 'reality-grounding')
    */
-  async getFactsByCategory(category: string): Promise<WorldFact[]> {
-    return prisma.worldFact.findMany({
-      where: { category, isActive: true },
-      orderBy: { priority: 'desc' },
+  async getRealityGroundingFacts(): Promise<WorldFact[]> {
+    const facts = await prisma.worldFact.findMany({
+      where: { 
+        isActive: true,
+        category: 'reality-grounding',
+      },
     });
+    
+    // Randomize order for entropy
+    for (let i = facts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = facts[i];
+      if (temp && facts[j]) {
+        facts[i] = facts[j];
+        facts[j] = temp;
+      }
+    }
+    
+    return facts;
   }
 
   /**
-   * Get a single fact by category and key
+   * Get a single fact by category and key (internal use for updates)
    */
-  async getFact(category: string, key: string): Promise<WorldFact | null> {
+  private async getFact(category: string, key: string): Promise<WorldFact | null> {
     return prisma.worldFact.findUnique({
       where: { category_key: { category, key } },
     });
   }
 
   /**
-   * Update or create a world fact
+   * Generate a key from a value string (for database lookup)
    */
-  async setFact(
-    category: string,
-    key: string,
-    label: string,
-    value: string,
-    source?: string,
-    priority = 0
-  ): Promise<WorldFact> {
-    const existing = await this.getFact(category, key);
+  private generateKey(value: string): string {
+    let keyPart = (value.split(':')[0] ?? '').trim();
+    if (keyPart.length > 50) {
+      keyPart = (keyPart.split('.')[0] ?? '').trim();
+    }
+    return keyPart
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .substring(0, 50);
+  }
+
+  /**
+   * Generate a label from a value string
+   */
+  private generateLabel(value: string): string {
+    const beforeColon = (value.split(':')[0] ?? '').trim();
+    if (beforeColon.length <= 60 && beforeColon.length > 0) {
+      return beforeColon;
+    }
+    const firstSentence = (value.split('.')[0] ?? '').trim();
+    if (firstSentence.length <= 60) {
+      return firstSentence;
+    }
+    return value.substring(0, 60).trim();
+  }
+
+  /**
+   * Update or create a world fact by value (simple string)
+   */
+  async setFactByValue(value: string): Promise<WorldFact> {
+    const defaultCategory = 'general';
+    const key = this.generateKey(value);
+    const label = this.generateLabel(value);
+    
+    const existing = await this.getFact(defaultCategory, key);
 
     if (existing) {
       return prisma.worldFact.update({
@@ -75,8 +127,8 @@ export class WorldFactsService {
         data: {
           label,
           value,
-          source,
-          priority,
+          source: 'default',
+          priority: 0,
           lastUpdated: new Date(),
           updatedAt: new Date(),
         },
@@ -86,13 +138,35 @@ export class WorldFactsService {
     return prisma.worldFact.create({
       data: {
         id: await generateSnowflakeId(),
-        category,
+        category: defaultCategory,
         key,
         label,
         value,
-        source,
-        priority,
+        source: 'default',
+        priority: 0,
         lastUpdated: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Update an existing fact by ID
+   */
+  async updateFactById(id: string, value: string): Promise<WorldFact> {
+    const existing = await prisma.worldFact.findUnique({ where: { id } });
+    if (!existing) {
+      throw new Error('Fact not found');
+    }
+
+    const label = this.generateLabel(value);
+
+    return prisma.worldFact.update({
+      where: { id },
+      data: {
+        label,
+        value,
+        lastUpdated: new Date(),
+        updatedAt: new Date(),
       },
     });
   }
@@ -104,27 +178,10 @@ export class WorldFactsService {
   async generateWorldContext(includeHeadlines = true): Promise<WorldFactsContext> {
     const facts = await this.getAllFacts();
 
-    // Group by category
-    const byCategory: Record<string, WorldFact[]> = {};
-    for (const fact of facts) {
-      if (!byCategory[fact.category]) {
-        byCategory[fact.category] = [];
-      }
-      const categoryArray = byCategory[fact.category]
-      if (categoryArray) {
-        categoryArray.push(fact);
-      }
-    }
-
-    // Format each category
-    const formatCategory = (category: string) => {
-      const categoryFacts = byCategory[category] || [];
-      if (categoryFacts.length === 0) return 'No information available';
-      
-      return categoryFacts
-        .map(f => `- ${f.label}: ${f.value}`)
-        .join('\n');
-    };
+    // Format all facts (already randomized) - just use the value directly
+    const formattedFacts = facts
+      .map(f => `- ${f.value}`)
+      .join('\n');
 
     // Get recent headlines if requested
     let headlinesContext = undefined;
@@ -135,11 +192,11 @@ export class WorldFactsService {
     }
 
     return {
-      crypto: formatCategory('crypto'),
-      politics: formatCategory('politics'),
-      economy: formatCategory('economy'),
-      technology: formatCategory('technology'),
-      general: formatCategory('general'),
+      crypto: formattedFacts,
+      politics: formattedFacts,
+      economy: formattedFacts,
+      technology: formattedFacts,
+      general: formattedFacts,
       timestamp: new Date().toISOString(),
       headlines: headlinesContext,
     };
@@ -155,19 +212,6 @@ export class WorldFactsService {
 === WORLD CONTEXT (Current Reality) ===
 Date/Time: ${context.timestamp}
 
-💰 CRYPTO & FINANCE:
-${context.crypto}
-
-🏛️ POLITICS & GOVERNMENT:
-${context.politics}
-
-📊 ECONOMY:
-${context.economy}
-
-🤖 TECHNOLOGY & AI:
-${context.technology}
-
-🌍 GENERAL FACTS:
 ${context.general}
 
 ${context.headlines ? `\n${context.headlines}\n` : ''}
@@ -200,30 +244,16 @@ This context reflects the current state of the world. Use these facts to make yo
   }
 
   /**
-   * Bulk update facts
+   * Bulk update facts (array of simple strings)
    */
-  async bulkUpdateFacts(updates: Array<{
-    category: string;
-    key: string;
-    label: string;
-    value: string;
-    source?: string;
-    priority?: number;
-  }>): Promise<void> {
-    for (const update of updates) {
-      await this.setFact(
-        update.category,
-        update.key,
-        update.label,
-        update.value,
-        update.source,
-        update.priority
-      );
+  async bulkUpdateFacts(values: string[]): Promise<void> {
+    for (const value of values) {
+      await this.setFactByValue(value);
     }
 
     logger.info(
-      `Bulk updated ${updates.length} world facts`,
-      { count: updates.length },
+      `Bulk updated ${values.length} world facts`,
+      { count: values.length },
       'WorldFactsService'
     );
   }

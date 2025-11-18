@@ -70,29 +70,20 @@ export const sendMessageAction: Action = {
     const chatId = chatIdMatch[1]!
     const messageContent = messageMatch[1]!
     
-    try {
-      const result = await babylonRuntime.a2aClient.sendMessage(
-        chatId,
-        messageContent
-      ) as { success?: boolean; messageId?: string; message?: string }
-      
-      if (callback) {
-        if (result.success === false) {
-          callback({
-            text: `Failed to send message: ${result.message || 'Unknown error'}`,
-            action: 'SEND_MESSAGE'
-          })
-        } else {
-          callback({
-            text: `Successfully sent message! Message ID: ${result.messageId || 'unknown'}`,
-            action: 'SEND_MESSAGE'
-          })
-        }
-      }
-    } catch (error) {
-      if (callback) {
+    const result = await babylonRuntime.a2aClient.sendMessage(
+      chatId,
+      messageContent
+    ) as { success?: boolean; messageId?: string; message?: string }
+    
+    if (callback) {
+      if (result.success === false) {
         callback({
-          text: `Error sending message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          text: `Failed to send message: ${result.message || 'Unknown error'}`,
+          action: 'SEND_MESSAGE'
+        })
+      } else {
+        callback({
+          text: `Successfully sent message! Message ID: ${result.messageId || 'unknown'}`,
           action: 'SEND_MESSAGE'
         })
       }
@@ -169,26 +160,17 @@ export const createGroupAction: Action = {
       }
     }
     
-    try {
-      const result = await babylonRuntime.a2aClient.createGroup(groupName, memberIds) as { success?: boolean; chatId?: string; message?: string }
-      
-      if (callback) {
-        if (result.success === false) {
-          callback({
-            text: `Failed to create group: ${result.message || 'Unknown error'}`,
-            action: 'CREATE_GROUP'
-          })
-        } else {
-          callback({
-            text: `Successfully created group "${groupName}"! Chat ID: ${result.chatId || 'unknown'}`,
-            action: 'CREATE_GROUP'
-          })
-        }
-      }
-    } catch (error) {
-      if (callback) {
+    const result = await babylonRuntime.a2aClient.createGroup(groupName, memberIds) as { success?: boolean; chatId?: string; message?: string }
+    
+    if (callback) {
+      if (result.success === false) {
         callback({
-          text: `Error creating group: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          text: `Failed to create group: ${result.message || 'Unknown error'}`,
+          action: 'CREATE_GROUP'
+        })
+      } else {
+        callback({
+          text: `Successfully created group "${groupName}"! Chat ID: ${result.chatId || 'unknown'}`,
           action: 'CREATE_GROUP'
         })
       }

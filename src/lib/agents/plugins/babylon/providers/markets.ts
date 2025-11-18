@@ -66,9 +66,7 @@ export const marketsProvider: Provider = {
       }
     } catch (error) {
       logger.error('Error fetching markets via A2A', { error, agentId: runtime.agentId }, 'MarketsProvider')
-      return { 
-        text: `Error fetching markets: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }

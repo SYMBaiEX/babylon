@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { TradeConfirmationDialog, type SellPredictionDetails } from './TradeConfirmationDialog'
 
+/**
+ * Prediction position structure for positions list.
+ */
 interface PredictionPosition {
   id: string
   marketId: string
@@ -21,6 +24,32 @@ interface PredictionPosition {
   resolution?: boolean | null
 }
 
+/**
+ * Prediction positions list component for displaying and managing prediction positions.
+ * 
+ * Displays a list of open prediction market positions with current prices and PnL.
+ * Shows position details including shares, average price, current value, and
+ * unrealized profit/loss. Includes sell functionality with confirmation dialog.
+ * 
+ * Features:
+ * - Position list with current prices
+ * - Unrealized PnL calculation
+ * - Sell position with confirmation
+ * - Loading states during sell
+ * - Toast notifications for success/error
+ * - Empty state message
+ * 
+ * @param props - PredictionPositionsList component props
+ * @returns Prediction positions list element
+ * 
+ * @example
+ * ```tsx
+ * <PredictionPositionsList
+ *   positions={userPositions}
+ *   onPositionSold={() => refreshPositions()}
+ * />
+ * ```
+ */
 interface PredictionPositionsListProps {
   positions: PredictionPosition[]
   onPositionSold?: () => void

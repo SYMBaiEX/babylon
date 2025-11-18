@@ -1,12 +1,33 @@
 /**
- * FeedbackForm Component
- *
- * Form for submitting user feedback/ratings
- * Supports star ratings, score sliders, and text comments
- *
- * Pattern based on: LinkSocialAccountsModal.tsx
+ * Feedback form component for submitting user feedback and ratings.
+ * 
+ * Provides a form interface for submitting feedback with star ratings,
+ * score sliders, and optional text comments. Supports multiple feedback
+ * categories and includes metadata for game/trade context.
+ * 
+ * Features:
+ * - Star rating input
+ * - Score slider (0-100)
+ * - Optional comment field
+ * - Category selection
+ * - Metadata support (gameId, tradeId)
+ * - Form validation
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - FeedbackForm component props
+ * @returns Feedback form element
+ * 
+ * @example
+ * ```tsx
+ * <FeedbackForm
+ *   toUserId="user-123"
+ *   category="game_performance"
+ *   gameId="game-456"
+ *   onSuccess={() => refreshFeedback()}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useState } from 'react'
@@ -78,7 +99,7 @@ export function FeedbackForm({
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to submit feedback' }))
+      const error = await response.json()
       setSubmitting(false)
       throw new Error(error.error || 'Failed to submit feedback')
     }

@@ -1,15 +1,28 @@
 'use client';
 
 /**
- * Group Invites Panel
+ * Group invites panel component for displaying all pending group invitations.
  * 
- * Shows all pending group invitations
+ * Fetches and displays all pending group invitations for the current user.
+ * Shows invitation count and renders individual invite notifications.
+ * Automatically reloads after invite responses.
+ * 
+ * Features:
+ * - Pending invitations list
+ * - Invitation count display
+ * - Auto-reload after response
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @returns Group invites panel element or null if no invites
  */
-
 import { useEffect, useState } from 'react';
 import { GroupInviteNotification } from './GroupInviteNotification';
 // import { toast } from 'sonner';
 
+/**
+ * Group invite structure for group invites panel.
+ */
 interface GroupInvite {
   id: string;
   groupId: string;

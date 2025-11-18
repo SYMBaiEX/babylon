@@ -22,9 +22,16 @@ import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
 import { PostHogProvider } from './PostHogProvider';
 
-// Wrapper component to fix clip-path DOM property issue in Privy
-// This fixes the React 19 warning about invalid DOM property 'clip-path'
-// The issue is that Privy uses 'clip-path' in inline styles, which React 19 rejects
+/**
+ * Wrapper component to fix clip-path DOM property issue in Privy.
+ * 
+ * Fixes the React 19 warning about invalid DOM property 'clip-path'.
+ * Privy uses 'clip-path' in inline styles, which React 19 rejects.
+ * This wrapper converts 'clip-path' to 'clipPath' (camelCase) after render.
+ * 
+ * @param props - PrivyProvider component props
+ * @returns PrivyProvider wrapped in fix container
+ */
 function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeof PrivyProvider>) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +101,26 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
   );
 }
 
+/**
+ * Root providers component wrapping the application with all necessary providers.
+ * 
+ * Provides all application-level context providers including:
+ * - Privy authentication
+ * - Smart wallets
+ * - React Query
+ * - Theme
+ * - Font size
+ * - Widget refresh
+ * - Farcaster Mini App
+ * - Onboarding
+ * - PostHog analytics
+ * - Referral capture
+ * 
+ * Handles client-side mounting and provider initialization.
+ * 
+ * @param props - Providers component props
+ * @returns Providers wrapper element
+ */
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 

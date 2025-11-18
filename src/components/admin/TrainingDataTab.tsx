@@ -6,6 +6,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
+/**
+ * Training data statistics structure for training data tab.
+ */
 interface TrainingDataStats {
   summary: {
     totalTrajectories: number
@@ -42,6 +45,24 @@ interface TrainingDataStats {
   }
 }
 
+/**
+ * Training data tab component for monitoring training data statistics.
+ * 
+ * Displays comprehensive training data statistics including trajectory counts,
+ * window information, quality metrics, and recent trajectories. Shows data
+ * quality assessment and readiness indicators.
+ * 
+ * Features:
+ * - Training data summary
+ * - Window statistics
+ * - Quality metrics display
+ * - Recent trajectories list
+ * - Quality color coding
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Training data tab element
+ */
 export function TrainingDataTab() {
   const [data, setData] = useState<TrainingDataStats | null>(null)
   const [loading, setLoading] = useState(true)

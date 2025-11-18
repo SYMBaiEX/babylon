@@ -1,9 +1,30 @@
 /**
- * Moderation Menu Component
+ * Moderation menu component for user moderation actions.
  * 
- * Dropdown menu for blocking, muting, and reporting users
+ * Provides a dropdown menu with options to mute, block, and report users.
+ * Opens corresponding modals for each action. Hides report option for NPCs
+ * (can only block/mute NPCs). Includes overlay to close menu on outside click.
+ * 
+ * Features:
+ * - Mute user option
+ * - Block user option
+ * - Report user option (hidden for NPCs)
+ * - Modal integration
+ * - Overlay click to close
+ * 
+ * @param props - ModerationMenu component props
+ * @returns Moderation menu element
+ * 
+ * @example
+ * ```tsx
+ * <ModerationMenu
+ *   targetUserId="user-123"
+ *   targetUsername="alice"
+ *   isNPC={false}
+ *   onActionComplete={() => refreshFeed()}
+ * />
+ * ```
  */
-
 'use client';
 
 import { useState } from 'react';

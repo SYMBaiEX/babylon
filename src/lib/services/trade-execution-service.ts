@@ -91,6 +91,14 @@ export class TradeExecutionService {
           },
           'TradeExecutionService'
         );
+        
+        // FAIL FAST in development: throw on any trade execution error
+        if (process.env.NODE_ENV !== 'production' && !isExpectedFailure) {
+          throw new Error(
+            `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage}`,
+            { cause: error }
+          );
+        }
       }
     }
 

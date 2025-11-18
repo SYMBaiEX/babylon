@@ -1,7 +1,32 @@
 /**
- * Block User Modal
+ * Block user modal component for blocking users.
+ * 
+ * Provides a confirmation modal for blocking users. Shows what blocking
+ * will do (different behavior for NPCs vs real users). Includes optional
+ * reason field. Handles API call and success/error states.
+ * 
+ * Features:
+ * - Confirmation dialog
+ * - NPC vs user blocking behavior
+ * - Optional reason field
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - BlockUserModal component props
+ * @returns Block user modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <BlockUserModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   targetUserId="user-123"
+ *   targetDisplayName="Alice"
+ *   onSuccess={() => refreshFeed()}
+ * />
+ * ```
  */
-
 'use client';
 
 import { useState, useTransition } from 'react';

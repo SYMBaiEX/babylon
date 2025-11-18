@@ -21,7 +21,7 @@ export async function generateAmbientPostsWithContext() {
   // Your existing actor list for the prompt
   const actorsList = `
   1. AIlon Musk: Tech CEO, erratic visionary
-  2. Sam AIltman: OpnAI CEO, messianic technocrat
+  2. Sam AIltman: OpenAGI CEO, messianic technocrat
   3. Mark Zuckerborg: MetAI CEO, robotic overlord
   `.trim();
 
@@ -106,7 +106,7 @@ export async function generateNewsPostsWithContext() {
   `.trim();
 
   const prompt = renderPrompt(newsPosts, {
-    eventDescription: 'OpnAI announces GPT-5 with AGI capabilities',
+    eventDescription: 'OpenAGI announces GPT-5 with AGI capabilities',
     eventType: 'AI_BREAKTHROUGH',
     sourceContext: 'Multiple sources confirm',
     outcomeFrame: 'This could change everything',

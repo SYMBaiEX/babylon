@@ -6,8 +6,10 @@ import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
-import { logger } from '@/lib/logger'
 
+/**
+ * Admin user structure for admin management tab.
+ */
 interface AdminUser {
   id: string
   username: string | null
@@ -23,6 +25,9 @@ interface AdminUser {
   hasTwitter: boolean
 }
 
+/**
+ * Available user structure for adding admins.
+ */
 interface AvailableUser {
   id: string
   username: string | null
@@ -32,6 +37,23 @@ interface AvailableUser {
   isActor: boolean
 }
 
+/**
+ * Admin management tab component for managing admin users.
+ * 
+ * Provides interface for viewing, adding, and removing admin users.
+ * Includes search functionality to find users to promote to admin.
+ * Shows admin list with user details and admin status indicators.
+ * 
+ * Features:
+ * - Admin list display
+ * - Add admin functionality
+ * - Remove admin functionality
+ * - User search
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Admin management tab element
+ */
 export function AdminManagementTab() {
   const [admins, setAdmins] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,16 +67,7 @@ export function AdminManagementTab() {
   const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    const loadAdmins = async () => {
-      try {
-        await fetchAdmins()
-      } catch (err) {
-        logger.error('Failed to load admins', { error: err }, 'AdminManagementTab')
-        setLoading(false)
-        setRefreshing(false)
-      }
-    }
-    loadAdmins()
+    void fetchAdmins()
   }, [])
 
   const fetchAdmins = async (showRefreshing = false) => {
@@ -74,28 +87,26 @@ export function AdminManagementTab() {
     }
 
     setLoadingUsers(true)
-    try {
-      const params = new URLSearchParams({
-        search: query,
-        limit: '10',
-        filter: 'users', // Only real users, not actors
-      })
-      const response = await fetch(`/api/admin/users?${params}`)
-      if (!response.ok) throw new Error('Failed to search users')
-      const data = await response.json()
-      
-      // Filter out users who are already admins
-      const adminIds = new Set(admins.map(a => a.id))
-      const nonAdminUsers = (data.users || [])
-        .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
-      
-      setAvailableUsers(nonAdminUsers)
-    } catch (err) {
-      logger.error('Failed to search users', { error: err }, 'AdminManagementTab')
+    const params = new URLSearchParams({
+      search: query,
+      limit: '10',
+      filter: 'users', // Only real users, not actors
+    })
+    const response = await fetch(`/api/admin/users?${params}`)
+    if (!response.ok) {
       setAvailableUsers([])
-    } finally {
       setLoadingUsers(false)
+      return
     }
+    const data = await response.json()
+    
+    // Filter out users who are already admins
+    const adminIds = new Set(admins.map(a => a.id))
+    const nonAdminUsers = (data.users || [])
+      .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
+    
+    setAvailableUsers(nonAdminUsers)
+    setLoadingUsers(false)
   }
 
   const handleAddAdmin = async (userId: string) => {

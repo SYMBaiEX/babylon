@@ -1,16 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Clock, TrendingDown, TrendingUp, User as UserIcon } from 'lucide-react';
+import { AlertCircle, ArrowUpDown, Clock, TrendingDown, TrendingUp, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 
+/**
+ * Page size for pagination in trades feed.
+ */
 const PAGE_SIZE = 50;
+/**
+ * Polling interval for fetching new trades (10 seconds).
+ */
 const POLL_INTERVAL = 10000; // 10 seconds
+/**
+ * Scroll threshold in pixels from top to consider "at top" for auto-polling.
+ */
 const SCROLL_THRESHOLD = 100; // pixels from top to consider "at top"
 
+/**
+ * Base trade user structure shared across trade types.
+ */
 interface BaseTradeUser {
   id: string;
   username: string | null;
@@ -19,6 +31,9 @@ interface BaseTradeUser {
   isActor: boolean;
 }
 
+/**
+ * Prediction market position trade structure.
+ */
 interface PositionTrade {
   id: string;
   type: 'position';
@@ -31,6 +46,9 @@ interface PositionTrade {
   marketId: string;
 }
 
+/**
+ * Perpetual market trade structure.
+ */
 interface PerpTrade {
   id: string;
   type: 'perp';
@@ -47,6 +65,9 @@ interface PerpTrade {
   ticker: string;
 }
 
+/**
+ * NPC trade structure for automated trading.
+ */
 interface NPCTrade {
   id: string;
   type: 'npc';
@@ -62,6 +83,9 @@ interface NPCTrade {
   timestamp: string;
 }
 
+/**
+ * Balance transaction trade structure.
+ */
 interface BalanceTrade {
   id: string;
   type: 'balance';
@@ -78,8 +102,38 @@ interface BalanceTrade {
   timestamp: string;
 }
 
+/**
+ * Union type for all trade types.
+ */
 type Trade = PositionTrade | PerpTrade | NPCTrade | BalanceTrade;
 
+/**
+ * Asset trades feed component for displaying recent trades for a market.
+ * 
+ * Displays a feed of recent trades (positions, perpetuals, NPC trades, balance
+ * transactions) for a specific prediction market or perpetual market. Supports
+ * pagination, auto-polling when scrolled to top, and real-time updates via SSE.
+ * 
+ * Features:
+ * - Trade feed with pagination
+ * - Auto-polling when at top of feed
+ * - Real-time updates via SSE
+ * - Multiple trade types (position, perp, NPC, balance)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - AssetTradesFeed component props
+ * @returns Asset trades feed element
+ * 
+ * @example
+ * ```tsx
+ * <AssetTradesFeed
+ *   marketType="prediction"
+ *   assetId="market-123"
+ *   containerRef={scrollContainerRef}
+ * />
+ * ```
+ */
 interface AssetTradesFeedProps {
   marketType: 'prediction' | 'perp';
   assetId: string; // marketId for predictions, ticker for perps
@@ -99,6 +153,7 @@ export function AssetTradesFeed({
   const [isAtTop, setIsAtTop] = useState(true);
   const [shouldPoll, setShouldPoll] = useState(true);
   const [needsRefresh, setNeedsRefresh] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -108,37 +163,47 @@ export function AssetTradesFeed({
     if (marketType === 'prediction') {
       return `/api/markets/predictions/${assetId}/trades`;
     }
-    return `/api/markets/perps/${assetId}/trades`;
+    return `/api/markets/perps/trades/${assetId}`;
   }, [marketType, assetId]);
 
   // Fetch trades from API
   const fetchTrades = useCallback(async (requestOffset: number, append = false) => {
-    const params = new URLSearchParams({
-      limit: PAGE_SIZE.toString(),
-      offset: requestOffset.toString(),
-    });
-
-    const response = await fetch(`${apiEndpoint}?${params.toString()}`);
-    if (!response.ok) throw new Error('Failed to fetch trades');
-    
-    const data = await response.json();
-    const newTrades = data.trades || [];
-
-    if (append) {
-      setTrades(prev => {
-        // Deduplicate trades by ID
-        const existingIds = new Set(prev.map(t => t.id));
-        const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id));
-        return [...prev, ...uniqueNewTrades];
+    try {
+      setError(null);
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
       });
-      setLoadingMore(false);
-    } else {
-      setTrades(newTrades);
-      setLoading(false);
-    }
 
-    setHasMore(data.hasMore || false);
-    setOffset(requestOffset + newTrades.length);
+      const response = await fetch(`${apiEndpoint}?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load trades: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const newTrades = data.trades || [];
+
+      if (append) {
+        setTrades(prev => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map(t => t.id));
+          const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id));
+          return [...prev, ...uniqueNewTrades];
+        });
+        setLoadingMore(false);
+      } else {
+        setTrades(newTrades);
+        setLoading(false);
+      }
+
+      setHasMore(data.hasMore || false);
+      setOffset(requestOffset + newTrades.length);
+    } catch (err) {
+      console.error('Failed to fetch trades:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load trades');
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [apiEndpoint]);
 
   // Refresh trades (used by polling)
@@ -300,6 +365,30 @@ export function AssetTradesFeed({
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-500/10 mb-4">
+          <AlertCircle className="w-6 h-6 text-red-500" />
+        </div>
+        <p className="text-sm font-medium text-foreground mb-2">Failed to load trades</p>
+        <p className="text-xs text-muted-foreground mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            setOffset(0);
+            setHasMore(true);
+            fetchTrades(0, false);
+          }}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+        >
+          Try Again
+        </button>
       </div>
     );
   }

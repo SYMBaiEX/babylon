@@ -1,10 +1,20 @@
 'use client'
 
 /**
- * PostHog User Identifier
- * Identifies users to PostHog when they authenticate
+ * PostHog identifier component for identifying users to PostHog analytics.
+ * 
+ * Automatically identifies authenticated users to PostHog with their user
+ * properties. Resets identification on logout. Tracks user profile information
+ * and authentication status.
+ * 
+ * Features:
+ * - User identification
+ * - Property tracking
+ * - Logout reset
+ * - Profile data tracking
+ * 
+ * @returns null (does not render anything)
  */
-
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { posthog } from '@/lib/posthog/client'

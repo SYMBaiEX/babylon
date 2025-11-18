@@ -5,7 +5,6 @@
  */
 
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
-import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -18,35 +17,34 @@ export const goalsProvider: Provider = {
   description: "Get the agent's core goals, personality, trading strategy, and operational constraints",
   
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
-    try {
-      const agentUserId = runtime.agentId
-      
-      // Get agent configuration
-      const agent = await prisma.user.findUnique({
-        where: { id: agentUserId },
-        select: {
-          id: true,
-          displayName: true,
-          bio: true,
-          agentSystem: true,
-          agentPersonality: true,
-          agentTradingStrategy: true,
-          agentPointsBalance: true,
-          autonomousTrading: true,
-          autonomousPosting: true,
-          autonomousCommenting: true,
-          autonomousDMs: true,
-          autonomousGroupChats: true,
-          managedBy: true
-        }
-      })
-      
-      if (!agent) {
-        return { text: '' }
+    const agentUserId = runtime.agentId
+    
+    // Get agent configuration
+    const agent = await prisma.user.findUnique({
+      where: { id: agentUserId },
+      select: {
+        id: true,
+        displayName: true,
+        bio: true,
+        agentSystem: true,
+        agentPersonality: true,
+        agentTradingStrategy: true,
+        agentPointsBalance: true,
+        autonomousTrading: true,
+        autonomousPosting: true,
+        autonomousCommenting: true,
+        autonomousDMs: true,
+        autonomousGroupChats: true,
+        managedBy: true
       }
-      
-      // Build comprehensive goals and directives
-      let output = `═══════════════════════════════════════════════════════
+    })
+    
+    if (!agent) {
+      return { text: '' }
+    }
+    
+    // Build comprehensive goals and directives
+    let output = `═══════════════════════════════════════════════════════
 🎯 YOUR CORE IDENTITY & MISSION
 ═══════════════════════════════════════════════════════
 
@@ -89,29 +87,25 @@ ${agent.autonomousGroupChats ? '✅ Group Chats: You CAN participate in group ch
 
 ═══════════════════════════════════════════════════════
 `
-      
-      return { 
-        text: output,
-        data: {
-          agentId: agent.id,
-          displayName: agent.displayName,
-          system: agent.agentSystem,
-          personality: agent.agentPersonality,
-          tradingStrategy: agent.agentTradingStrategy,
-          pointsBalance: agent.agentPointsBalance,
-          permissions: {
-            trading: agent.autonomousTrading,
-            posting: agent.autonomousPosting,
-            commenting: agent.autonomousCommenting,
-            dms: agent.autonomousDMs,
-            groupChats: agent.autonomousGroupChats
-          },
-          managedBy: agent.managedBy
-        }
+    
+    return { 
+      text: output,
+      data: {
+        agentId: agent.id,
+        displayName: agent.displayName,
+        system: agent.agentSystem,
+        personality: agent.agentPersonality,
+        tradingStrategy: agent.agentTradingStrategy,
+        pointsBalance: agent.agentPointsBalance,
+        permissions: {
+          trading: agent.autonomousTrading,
+          posting: agent.autonomousPosting,
+          commenting: agent.autonomousCommenting,
+          dms: agent.autonomousDMs,
+          groupChats: agent.autonomousGroupChats
+        },
+        managedBy: agent.managedBy
       }
-    } catch (error) {
-      logger.error('Failed to fetch agent goals', error, 'GoalsProvider')
-      return { text: '' }
     }
   }
 }

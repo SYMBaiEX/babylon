@@ -19,6 +19,9 @@ import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { WorldFactsSection } from './WorldFactsSection'
 
+/**
+ * Game state structure for game control tab.
+ */
 interface GameState {
   id: string
   isRunning: boolean
@@ -35,6 +38,9 @@ interface GameState {
   estimatedTotalTicks: number
 }
 
+/**
+ * Game statistics structure for game control tab.
+ */
 interface GameStats {
   gameState: GameState
   totals: {
@@ -94,6 +100,27 @@ interface GameStats {
   }
 }
 
+/**
+ * Game control tab component for managing game state and monitoring statistics.
+ * 
+ * Provides interface for controlling game playback (start/pause), viewing
+ * game state, and monitoring comprehensive statistics including content
+ * generation rates, LLM usage, and system performance. Includes world facts
+ * management section.
+ * 
+ * Features:
+ * - Game state display
+ * - Start/pause controls
+ * - Statistics dashboard
+ * - Content generation rates
+ * - LLM usage metrics
+ * - World facts management
+ * - Auto-refresh
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Game control tab element
+ */
 export function GameControlTab() {
   const [stats, setStats] = useState<GameStats | null>(null)
   const [loading, setLoading] = useState(true)

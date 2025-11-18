@@ -6,10 +6,34 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 
+/**
+ * Notification type for admin notifications tab.
+ */
 type NotificationType = 'system' | 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share';
 
+/**
+ * Recipient type for admin notifications tab.
+ */
 type RecipientType = 'specific' | 'all';
 
+/**
+ * Notifications tab component for sending admin notifications and testing DMs.
+ * 
+ * Provides interface for sending notifications to specific users or all users.
+ * Includes DM testing functionality for debugging direct messages. Shows current
+ * user ID and debug information.
+ * 
+ * Features:
+ * - Send notifications (specific user or all users)
+ * - Notification type selection
+ * - DM testing
+ * - Current user display
+ * - Debug information
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Notifications tab element
+ */
 export function NotificationsTab() {
   const [message, setMessage] = useState('')
   const [userId, setUserId] = useState('')

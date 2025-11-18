@@ -50,7 +50,7 @@ export async function generateAmbientPost() {
     actorCount: 3,
     actorsList: `
 1. AIlon Musk (@ailonmusk): Tech CEO, SpAIceX and TeslAI
-2. Sam AIltman (@ailtman): CEO of OpnAI
+2. Sam AIltman (@ailtman): CEO of OpenAGI
 3. Mark Zuckerborg (@markzuckerborg): CEO of MetAI
     `.trim(),
     ...worldContext,
@@ -177,7 +177,7 @@ export async function generateMixedFeedContent() {
     {
       name: 'News Posts',
       prompt: renderPrompt(newsPosts, {
-        eventDescription: 'OpnAI announces GPT-5',
+        eventDescription: 'OpenAGI announces GPT-5',
         eventType: 'AI_BREAKTHROUGH',
         mediaCount: 2,
         mediaList: '1. The New York TAImes\n2. BloombAIrg',
@@ -276,7 +276,7 @@ export function setupValidationMonitoring() {
  * ⚠️  MOCK FUNCTION - FOR DEMONSTRATION ONLY
  * 
  * This is NOT production code. For actual AI generation, use:
- * - BabylonLLMClient (src/generator/llm/openai-client.ts) for Groq/OpenAI
+ * - BabylonLLMClient (src/generator/llm/openai-client.ts) for Groq/OpenAGI
  * - GameGenerator methods for structured game content
  * - FeedGenerator methods for feed posts
  * 

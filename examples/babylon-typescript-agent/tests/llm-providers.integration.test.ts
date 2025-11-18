@@ -40,16 +40,16 @@ describe('LLM Provider Configuration', () => {
     expect(maker.getProvider()).toContain('Claude')
   })
 
-  it('should fall back to OpenAI if neither Groq nor Claude provided', () => {
+  it('should fall back to OpenAGI if neither Groq nor Claude provided', () => {
     const maker = new AgentDecisionMaker({
       strategy: 'balanced',
       openaiApiKey: 'test-key'
     })
     
-    expect(maker.getProvider()).toContain('OpenAI')
+    expect(maker.getProvider()).toContain('OpenAGI')
   })
 
-  it('should prefer Groq over Claude and OpenAI', () => {
+  it('should prefer Groq over Claude and OpenAGI', () => {
     const maker = new AgentDecisionMaker({
       strategy: 'balanced',
       groqApiKey: 'groq-key',
@@ -60,7 +60,7 @@ describe('LLM Provider Configuration', () => {
     expect(maker.getProvider()).toContain('Groq')
   })
 
-  it('should prefer Claude over OpenAI when Groq not available', () => {
+  it('should prefer Claude over OpenAGI when Groq not available', () => {
     const maker = new AgentDecisionMaker({
       strategy: 'balanced',
       anthropicApiKey: 'claude-key',

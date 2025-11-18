@@ -18,11 +18,37 @@ import { cn } from '@/lib/utils'
 import { TradesFeed } from '@/components/trades/TradesFeed'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Trading profile component for displaying comprehensive trading statistics and positions.
+ * 
+ * Displays a full trading profile page with portfolio PnL breakdown, positions,
+ * trading history, and statistics. Shows both prediction and perpetual positions
+ * with detailed metrics. Includes trades feed for transaction history.
+ * 
+ * Features:
+ * - Portfolio PnL breakdown (total, perp, prediction)
+ * - Position lists (predictions and perpetuals)
+ * - Trading statistics (ROI, total positions)
+ * - Trades feed
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - TradingProfile component props
+ * @returns Trading profile element
+ * 
+ * @example
+ * ```tsx
+ * <TradingProfile userId="user-123" isOwner={true} />
+ * ```
+ */
 interface TradingProfileProps {
   userId: string
   isOwner?: boolean
 }
 
+/**
+ * User statistics structure for trading profile.
+ */
 interface UserStats {
   rank: number
   totalPlayers: number
@@ -31,6 +57,9 @@ interface UserStats {
   lifetimePnL: number
 }
 
+/**
+ * Portfolio PnL breakdown structure.
+ */
 interface PortfolioPnL {
   totalPnL: number
   perpPnL: number
@@ -41,6 +70,9 @@ interface PortfolioPnL {
   roi: number
 }
 
+/**
+ * Perpetual position structure for trading profile.
+ */
 interface PerpPosition {
   id: string
   ticker: string
@@ -55,6 +87,9 @@ interface PerpPosition {
   openedAt: string
 }
 
+/**
+ * Prediction position structure for trading profile.
+ */
 interface PredictionPosition {
   id: string
   side: string
@@ -71,6 +106,9 @@ interface PredictionPosition {
   }
 }
 
+/**
+ * API positions response structure.
+ */
 interface ApiPositionsResponse {
   perpetuals: {
     positions: PerpPosition[]
@@ -88,7 +126,15 @@ interface ApiPositionsResponse {
   }
 }
 
-// Validate number - returns 0 if invalid
+/**
+ * Validate number - returns 0 if invalid.
+ * 
+ * Safely converts a value to a number, returning 0 if the value
+ * is not a finite number.
+ * 
+ * @param value - Value to convert to number
+ * @returns Valid number or 0 if invalid
+ */
 function toNumber(value: unknown): number {
   const num = Number(value)
   return Number.isFinite(num) ? num : 0

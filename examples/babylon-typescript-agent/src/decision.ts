@@ -84,8 +84,8 @@ export class AgentDecisionMaker {
       this.providerName = 'Claude (claude-sonnet-4-5)'
     } else if (config.openaiApiKey) {
       const openai = createOpenAI({ apiKey: config.openaiApiKey })
-      this.model = openai('gpt-4o-mini') as unknown as Parameters<typeof generateText>[0]['model']
-      this.providerName = 'OpenAI (gpt-4o-mini)'
+      this.model = openai('gpt-5.1') as unknown as Parameters<typeof generateText>[0]['model']
+      this.providerName = 'OpenAI (gpt-5.1)'
     } else {
       throw new Error('At least one LLM API key is required (GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)')
     }
@@ -182,23 +182,17 @@ Your decision (JSON only):`
    * Parse LLM response into Decision
    */
   private parseDecision(text: string): Decision {
-    try {
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        console.warn('No JSON found in LLM response, defaulting to HOLD')
-        return { action: 'HOLD', reasoning: 'Failed to parse LLM response' }
-      }
-      
-      const decision = JSON.parse(jsonMatch[0])
-      return {
-        action: decision.action || 'HOLD',
-        params: decision.params,
-        reasoning: decision.reasoning
-      }
-    } catch (error) {
-      console.error('Failed to parse LLM decision:', error)
-      return { action: 'HOLD', reasoning: 'JSON parse error' }
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('No JSON found in LLM response')
+    }
+    
+    const decision = JSON.parse(jsonMatch[0])
+    return {
+      action: decision.action || 'HOLD',
+      params: decision.params,
+      reasoning: decision.reasoning
     }
   }
 }

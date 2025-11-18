@@ -18,6 +18,9 @@ import { cn } from '@/lib/utils'
 import { usePrivy } from '@privy-io/react-auth'
 import { Button } from '@/components/ui/button'
 
+/**
+ * Group member structure for group settings modal.
+ */
 interface GroupMember {
   userId: string
   username: string | null
@@ -28,6 +31,9 @@ interface GroupMember {
   isAdmin: boolean
 }
 
+/**
+ * Group details structure from API.
+ */
 interface GroupDetails {
   id: string
   name: string
@@ -38,6 +44,37 @@ interface GroupDetails {
   isCurrentUserAdmin: boolean
 }
 
+/**
+ * Group settings modal component for managing group settings and members.
+ * 
+ * Provides a tabbed interface for managing group general settings (name,
+ * description) and members. Includes editing, member management, and
+ * delete/leave functionality. Shows different options based on admin status.
+ * 
+ * Features:
+ * - Tabbed interface (general, members)
+ * - Edit group name/description
+ * - Member management
+ * - Delete group (creator only)
+ * - Leave group
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - GroupSettingsModal component props
+ * @returns Group settings modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <GroupSettingsModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   groupId="group-123"
+ *   currentUserId="user-456"
+ *   onGroupUpdated={() => refreshGroup()}
+ * />
+ * ```
+ */
 interface GroupSettingsModalProps {
   isOpen: boolean
   onClose: () => void
@@ -47,6 +84,9 @@ interface GroupSettingsModalProps {
   currentUserId: string
 }
 
+/**
+ * Tab type for group settings modal.
+ */
 type Tab = 'general' | 'members'
 
 export function GroupSettingsModal({

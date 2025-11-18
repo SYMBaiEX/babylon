@@ -70,7 +70,7 @@ describe('ART Format Validation', () => {
   });
 
   describe('Message Array Conversion', () => {
-    it('should convert trajectory to OpenAI message array format', () => {
+    it('should convert trajectory to OpenAGI message array format', () => {
       const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId as string);

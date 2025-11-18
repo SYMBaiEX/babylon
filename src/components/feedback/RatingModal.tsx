@@ -1,12 +1,32 @@
 /**
- * RatingModal Component
- *
- * Modal wrapper for feedback/rating submission
- * Triggered after game completion, trades, or manual user interaction
- *
- * Pattern based on: PositionDetailModal.tsx
+ * Rating modal component for submitting feedback and ratings.
+ * 
+ * Provides a modal wrapper for the feedback form with context-specific
+ * titles and icons. Shows user reputation badge and thank you message
+ * after successful submission. Supports multiple feedback contexts.
+ * 
+ * Features:
+ * - Context-specific display (game, trade, social, general)
+ * - User reputation badge
+ * - Feedback form integration
+ * - Thank you message
+ * - Auto-close after submission
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - RatingModal component props
+ * @returns Rating modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <RatingModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   toUserId="user-123"
+ *   context={{ type: 'game', gameId: 'game-456' }}
+ *   onSuccess={() => refreshData()}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'

@@ -82,6 +82,10 @@ export class ModelUsageVerifier {
     
     // Count inferences from logs (using trajectoryId or other fields)
     // Note: LLMCallLog may not have agentId field directly
+    const trajectories = await prisma.trajectory.findMany({
+      where: { agentId: agentUserId },
+      select: { trajectoryId: true },
+    });
     const inferenceCount = await prisma.llmCallLog.count({
       where: {
         createdAt: {
@@ -89,13 +93,10 @@ export class ModelUsageVerifier {
         },
         // Filter by trajectory which has agentId
         trajectoryId: {
-          in: await prisma.trajectory.findMany({
-            where: { agentId: agentUserId },
-            select: { trajectoryId: true },
-          }).then(trajs => trajs.map(t => t.trajectoryId)),
+          in: trajectories.map(t => t.trajectoryId),
         },
       },
-    }).catch(() => 0); // Return 0 if query fails
+    });
     
     return {
       agentId: agentUserId,
@@ -118,18 +119,14 @@ export class ModelUsageVerifier {
     const errors: string[] = [];
     
     for (const agentId of agentUserIds) {
-      try {
-        const runtime = runtimes.get(agentId);
-        if (!runtime) {
-          errors.push(`Runtime not found for agent ${agentId}`);
-          continue;
-        }
-        
-        const stats = await this.verifyAgentModelUsage(agentId, runtime);
-        details.push(stats);
-      } catch (error) {
-        errors.push(`Failed to verify agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`);
+      const runtime = runtimes.get(agentId);
+      if (!runtime) {
+        errors.push(`Runtime not found for agent ${agentId}`);
+        continue;
       }
+      
+      const stats = await this.verifyAgentModelUsage(agentId, runtime);
+      details.push(stats);
     }
     
     const agentsUsingTrainedModel = details.filter(d => d.isTrainedModel).length;

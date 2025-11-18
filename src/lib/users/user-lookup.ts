@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/errors'
-import { Prisma, type User } from '@prisma/client'
+import type { Prisma} from '@prisma/client';
+import { type User } from '@prisma/client'
 
 type SelectArg = Parameters<typeof prisma.user.findUnique>[0]['select']
 
@@ -30,27 +31,15 @@ export async function findUserByIdentifier<T extends SelectArg | undefined = und
   }
 
   // Try to find by privyId
-  try {
-    if (select) {
-      const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier }, select })
-      if (byPrivyId) {
-        return byPrivyId as UserResult<T>
-      }
-    } else {
-      const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier } })
-      if (byPrivyId) {
-        return byPrivyId as UserResult<T>
-      }
+  if (select) {
+    const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier }, select })
+    if (byPrivyId) {
+      return byPrivyId as UserResult<T>
     }
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2022' &&
-      error.meta?.column === 'User.privyId'
-    ) {
-      // Fall through to try username lookup
-    } else {
-      throw error
+  } else {
+    const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier } })
+    if (byPrivyId) {
+      return byPrivyId as UserResult<T>
     }
   }
 

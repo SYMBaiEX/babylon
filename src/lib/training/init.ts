@@ -19,21 +19,17 @@ export async function initializeTrainingSystem(): Promise<void> {
   const available = isRLModelAvailable();
   
   if (available) {
-    try {
-      const model = await getLatestRLModel();
-      if (model) {
-        console.log('\n✅ Latest RL Model:', {
-          version: model.version,
-          avgReward: model.metadata.avgReward,
-          benchmarkScore: model.metadata.benchmarkScore,
-          trainedAt: model.metadata.trainedAt.toISOString()
-        });
-      } else {
-        console.log('\n⚠️  No trained models found in database');
-        console.log('   Run training to create models: POST /api/admin/training/trigger');
-      }
-    } catch (error) {
-      console.error('\n❌ Failed to check for RL models:', error);
+    const model = await getLatestRLModel();
+    if (model) {
+      console.log('\n✅ Latest RL Model:', {
+        version: model.version,
+        avgReward: model.metadata.avgReward,
+        benchmarkScore: model.metadata.benchmarkScore,
+        trainedAt: model.metadata.trainedAt.toISOString()
+      });
+    } else {
+      console.log('\n⚠️  No trained models found in database');
+      console.log('   Run training to create models: POST /api/admin/training/trigger');
     }
   } else {
     console.log('\nℹ️  RL models not available - using base model');

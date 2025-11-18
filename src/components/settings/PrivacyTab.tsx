@@ -7,6 +7,22 @@ import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Privacy tab component for managing user privacy and data rights.
+ * 
+ * Provides settings for GDPR and CCPA compliance including data export
+ * and account deletion. Handles data export as JSON download and account
+ * deletion with confirmation. Logs out user after account deletion.
+ * 
+ * Features:
+ * - Data export (JSON download)
+ * - Account deletion with confirmation
+ * - GDPR/CCPA compliance
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Privacy tab element
+ */
 export function PrivacyTab() {
   const { user, logout } = useAuth()
   const [isExporting, setIsExporting] = useState(false)

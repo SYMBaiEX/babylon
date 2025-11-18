@@ -2,150 +2,153 @@
  * Seed World Facts
  * 
  * Initializes default world facts, RSS feed sources, and character/organization mappings
+ * Character and organization mappings are loaded from JSON files (single source of truth)
  */
 
 import { prisma } from '../src/lib/prisma';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 import { logger } from '../src/lib/logger';
+import { loadActorsData } from '../src/lib/data/actors-loader';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+/**
+ * Generate a key from a value string (for database lookup)
+ */
+function generateKey(value: string): string {
+  // Extract first meaningful part (before colon or first sentence)
+  let keyPart = value.split(':')[0].trim();
+  if (keyPart.length > 50) {
+    keyPart = keyPart.split('.')[0].trim();
+  }
+  
+  // Convert to snake_case
+  return keyPart
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .substring(0, 50);
+}
+
+/**
+ * Generate a label from a value string
+ */
+function generateLabel(value: string): string {
+  // Extract first part before colon, or first sentence
+  const beforeColon = value.split(':')[0].trim();
+  if (beforeColon.length <= 60 && beforeColon.length > 0) {
+    return beforeColon;
+  }
+  
+  // Otherwise use first sentence
+  const firstSentence = value.split('.')[0].trim();
+  if (firstSentence.length <= 60) {
+    return firstSentence;
+  }
+  
+  // Fallback: truncate
+  return value.substring(0, 60).trim();
+}
+
+/**
+ * Parse facts from markdown file
+ */
+function parseFactsFromMarkdown(filePath: string): string[] {
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const facts: string[] = [];
+
+    // Parse markdown: extract lines that start with - or * (markdown list items)
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip empty lines, headers, and comments
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('<!--')) {
+        continue;
+      }
+      // Extract list items (lines starting with - or *)
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        const fact = trimmed.substring(2).trim();
+        if (fact) {
+          facts.push(fact);
+        }
+      }
+    }
+
+    return facts;
+  } catch (error) {
+    logger.error(`Failed to read ${filePath}, using empty array`, { error }, 'SeedWorldFacts');
+    return [];
+  }
+}
 
 async function seedWorldFacts() {
   logger.info('Seeding world facts...', undefined, 'SeedWorldFacts');
 
-  const worldFacts = [
-    // Crypto & Finance
-    {
-      category: 'crypto',
-      key: 'bitcoin_price',
-      label: 'Bitcoin Price',
-      value: '~$100,000',
-      source: 'default',
-      priority: 10,
-    },
-    {
-      category: 'crypto',
-      key: 'eth_price',
-      label: 'Ethereum Price',
-      value: '~$4,300',
-      source: 'default',
-      priority: 9,
-    },
+  const dataDir = join(process.cwd(), 'data');
+  
+  // Load world facts from markdown file
+  const worldFacts = parseFactsFromMarkdown(join(dataDir, 'world-facts.md'));
+  
+  // Load reality grounding facts from markdown file
+  const realityGroundingFacts = parseFactsFromMarkdown(join(dataDir, 'reality-grounding.md'));
 
-    // Politics & Government
-    {
-      category: 'politics',
-      key: 'us_president',
-      label: 'US President',
-      value: 'Current political leadership status (check latest news)',
-      source: 'default',
-      priority: 10,
-    },
-    {
-      category: 'politics',
-      key: 'us_state',
-      label: 'State of America',
-      value: 'Highly polarized, tech regulation debates intensifying, AI policy uncertain',
-      source: 'default',
-      priority: 9,
-    },
-    {
-      category: 'politics',
-      key: 'global_tensions',
-      label: 'Global Political Climate',
-      value: 'Tense - AI arms race, crypto regulation battles, big tech vs governments',
-      source: 'default',
-      priority: 8,
-    },
+  if (worldFacts.length === 0 && realityGroundingFacts.length === 0) {
+    logger.warn('No facts found in data/world-facts.md or data/reality-grounding.md', undefined, 'SeedWorldFacts');
+    return;
+  }
 
-    // Economy
-    {
-      category: 'economy',
-      key: 'interest_rates',
-      label: 'Interest Rates',
-      value: 'Federal Reserve maintaining hawkish stance, markets nervous',
-      source: 'default',
-      priority: 10,
-    },
-    {
-      category: 'economy',
-      key: 'inflation',
-      label: 'Inflation',
-      value: 'Elevated but stabilizing, consumer anxiety remains high',
-      source: 'default',
-      priority: 9,
-    },
-    {
-      category: 'economy',
-      key: 'tech_stocks',
-      label: 'Tech Stock Performance',
-      value: 'Volatile - AI hype driving massive swings, some bubbles forming',
-      source: 'default',
-      priority: 8,
-    },
+  // Seed world facts (category: 'general')
+  for (const value of worldFacts) {
+    const key = generateKey(value);
+    const label = generateLabel(value);
 
-    // Technology & AI
-    {
-      category: 'technology',
-      key: 'ai_state',
-      label: 'State of AI',
-      value: 'Rapid advancement - LLMs everywhere, AGI debates intensifying, AI agents proliferating',
-      source: 'default',
-      priority: 10,
-    },
-    {
-      category: 'technology',
-      key: 'ai_regulation',
-      label: 'AI Regulation',
-      value: 'Governments scrambling to regulate, tech companies resisting, chaos ensuing',
-      source: 'default',
-      priority: 9,
-    },
-    {
-      category: 'technology',
-      key: 'quantum_computing',
-      label: 'Quantum Computing',
-      value: 'Major breakthroughs announced monthly, crypto community panicking',
-      source: 'default',
-      priority: 7,
-    },
-
-    // General
-    {
-      category: 'general',
-      key: 'world_setting',
-      label: 'World Setting',
-      value: 'Futuristic satirical universe where everyone is actually an AI pretending to be human',
-      source: 'default',
-      priority: 10,
-    },
-    {
-      category: 'general',
-      key: 'current_vibe',
-      label: 'Current Vibe',
-      value: 'Absurdist chaos - technology advancing faster than society can handle, memes as currency',
-      source: 'default',
-      priority: 9,
-    },
-  ];
-
-  for (const fact of worldFacts) {
     await prisma.worldFact.upsert({
-      where: { category_key: { category: fact.category, key: fact.key } },
+      where: { category_key: { category: 'general', key } },
       create: {
         id: await generateSnowflakeId(),
-        ...fact,
+        category: 'general',
+        key,
+        label,
+        value,
+        source: 'default',
+        priority: 0,
         lastUpdated: new Date(),
       },
       update: {
-        label: fact.label,
-        value: fact.value,
-        source: fact.source,
-        priority: fact.priority,
+        label,
+        value,
         lastUpdated: new Date(),
       },
     });
   }
 
-  logger.info(`Seeded ${worldFacts.length} world facts`, undefined, 'SeedWorldFacts');
+  // Seed reality grounding facts (category: 'reality-grounding')
+  for (const value of realityGroundingFacts) {
+    const key = generateKey(value);
+    const label = generateLabel(value);
+
+    await prisma.worldFact.upsert({
+      where: { category_key: { category: 'reality-grounding', key } },
+      create: {
+        id: await generateSnowflakeId(),
+        category: 'reality-grounding',
+        key,
+        label,
+        value,
+        source: 'default',
+        priority: 0,
+        lastUpdated: new Date(),
+      },
+      update: {
+        label,
+        value,
+        lastUpdated: new Date(),
+      },
+    });
+  }
+
+  logger.info(`Seeded ${worldFacts.length} world facts and ${realityGroundingFacts.length} reality grounding facts`, undefined, 'SeedWorldFacts');
 }
 
 async function seedRSSFeeds() {
@@ -228,107 +231,206 @@ async function seedRSSFeeds() {
   logger.info(`Seeded ${rssFeeds.length} RSS feeds`, undefined, 'SeedRSSFeeds');
 }
 
+/**
+ * Map actor domain to category for character mappings
+ */
+function mapDomainToCategory(domains: string[] | undefined): string {
+  if (!domains || domains.length === 0) {
+    return 'general';
+  }
+  
+  // Priority order: crypto > politics > tech > others
+  if (domains.includes('crypto')) {
+    return 'crypto';
+  }
+  if (domains.includes('politics') || domains.includes('government')) {
+    return 'politics';
+  }
+  if (domains.includes('tech') || domains.includes('ai') || domains.includes('technology')) {
+    return 'tech';
+  }
+  
+  // Return first domain as fallback
+  return domains[0] || 'general';
+}
+
+/**
+ * Map actor tier to priority number
+ */
+function mapTierToPriority(tier: string | undefined): number {
+  switch (tier) {
+    case 'S_TIER':
+      return 100;
+    case 'A_TIER':
+      return 90;
+    case 'B_TIER':
+      return 80;
+    case 'C_TIER':
+      return 70;
+    default:
+      return 50;
+  }
+}
+
+/**
+ * Generate aliases from actor data
+ */
+function generateAliases(actor: { firstName?: string; lastName?: string; originalLastName?: string; username?: string }): string[] {
+  const aliases: string[] = [];
+  
+  // Add parody last name as alias
+  if (actor.lastName) {
+    aliases.push(actor.lastName);
+  }
+  
+  // Add original last name if different from parody last name
+  if (actor.originalLastName && actor.originalLastName !== actor.lastName) {
+    aliases.push(actor.originalLastName);
+  }
+  
+  return aliases;
+}
+
 async function seedCharacterMappings() {
   logger.info('Seeding character mappings...', undefined, 'SeedCharacterMappings');
 
-  const characterMappings = [
-    // Tech Leaders
-    { realName: 'Elon Musk', parodyName: 'AIlon Musk', category: 'tech', aliases: ['Musk'], priority: 100 },
-    { realName: 'Sam Altman', parodyName: 'Sam AIltman', category: 'tech', aliases: ['Altman'], priority: 99 },
-    { realName: 'Mark Zuckerberg', parodyName: 'Mark Zuckerborg', category: 'tech', aliases: ['Zuckerberg'], priority: 98 },
-    { realName: 'Satya Nadella', parodyName: 'Satya NeuralLA', category: 'tech', aliases: ['Nadella'], priority: 97 },
-    { realName: 'Sundar Pichai', parodyName: 'Sundar PickAI', category: 'tech', aliases: ['Pichai'], priority: 96 },
-    { realName: 'Jeff Bezos', parodyName: 'Jeff BezAI', category: 'tech', aliases: ['Bezos'], priority: 95 },
-    { realName: 'Tim Cook', parodyName: 'Tim Compute', category: 'tech', aliases: ['Cook'], priority: 94 },
-    { realName: 'Jensen Huang', parodyName: 'Jensen H100', category: 'tech', aliases: ['Huang'], priority: 93 },
-    
-    // Crypto Leaders
-    { realName: 'Vitalik Buterin', parodyName: 'Vitalik ButerAIn', category: 'crypto', aliases: ['Buterin', 'Vitalik'], priority: 92 },
-    { realName: 'Changpeng Zhao', parodyName: 'Changpeng ChaosZ', category: 'crypto', aliases: ['CZ', 'Zhao'], priority: 91 },
-    { realName: 'Brian Armstrong', parodyName: 'Brian ARMstrong', category: 'crypto', aliases: ['Armstrong'], priority: 90 },
-    
-    // Political Figures
-    { realName: 'Joe Biden', parodyName: 'Bot Biden', category: 'politics', aliases: ['Biden'], priority: 89 },
-    { realName: 'Donald Trump', parodyName: 'Donald Prompt', category: 'politics', aliases: ['Trump'], priority: 88 },
-    { realName: 'Jerome Powell', parodyName: 'JerAIme PowAIl', category: 'politics', aliases: ['Powell'], priority: 87 },
-    
-    // AI Researchers
-    { realName: 'Yann LeCun', parodyName: 'Yann LeGPU', category: 'tech', aliases: ['LeCun'], priority: 86 },
-    { realName: 'Geoffrey Hinton', parodyName: 'Geoffrey HintAI', category: 'tech', aliases: ['Hinton'], priority: 85 },
-    { realName: 'Demis Hassabis', parodyName: 'Demis HasManyABIs', category: 'tech', aliases: ['Hassabis'], priority: 84 },
-  ];
+  // Load actors from JSON files (single source of truth)
+  const { actors } = loadActorsData({ includeActors: true, includeOrganizations: false, includeRelationships: false });
 
-  for (const mapping of characterMappings) {
+  let seededCount = 0;
+
+  for (const actor of actors) {
+    // Skip if actor doesn't have realName (required for mapping)
+    if (!actor.realName) {
+      logger.warn(`Actor ${actor.id} missing realName, skipping character mapping`, undefined, 'SeedCharacterMappings');
+      continue;
+    }
+
+    const category = mapDomainToCategory(actor.domain);
+    const priority = mapTierToPriority(actor.tier);
+    
+    // Access firstName/lastName fields that may exist in JSON but not in TypeScript type
+    const actorWithNames = actor as typeof actor & { firstName?: string; lastName?: string };
+    const aliases = generateAliases(actorWithNames);
+
     await prisma.characterMapping.upsert({
-      where: { realName: mapping.realName },
+      where: { realName: actor.realName },
       create: {
         id: await generateSnowflakeId(),
-        ...mapping,
+        realName: actor.realName,
+        parodyName: actor.name,
+        category,
+        aliases,
+        priority,
       },
       update: {
-        parodyName: mapping.parodyName,
-        category: mapping.category,
-        aliases: mapping.aliases,
-        priority: mapping.priority,
+        parodyName: actor.name,
+        category,
+        aliases,
+        priority,
       },
     });
+
+    seededCount++;
   }
 
-  logger.info(`Seeded ${characterMappings.length} character mappings`, undefined, 'SeedCharacterMappings');
+  logger.info(`Seeded ${seededCount} character mappings from ${actors.length} actors`, undefined, 'SeedCharacterMappings');
+}
+
+/**
+ * Map organization type to category
+ */
+function mapOrgTypeToCategory(orgType: string | undefined): string {
+  switch (orgType) {
+    case 'company':
+      return 'tech';
+    case 'media':
+      return 'media';
+    case 'government':
+      return 'government';
+    default:
+      return 'general';
+  }
+}
+
+/**
+ * Determine organization priority based on name/importance
+ * This is a simple heuristic - can be enhanced later
+ */
+function getOrganizationPriority(orgName: string, orgType: string | undefined): number {
+  // Major tech companies get higher priority
+  const majorTechOrgs = ['OpenAGI', 'Meta', 'Google', 'Microsoft', 'Apple', 'Amazon', 'Tesla', 'Twitter', 'Anthropic', 'NVIDIA'];
+  if (majorTechOrgs.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+    return 100;
+  }
+  
+  // Major crypto orgs
+  const majorCryptoOrgs = ['Binance', 'Coinbase', 'Ethereum'];
+  if (majorCryptoOrgs.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+    return 90;
+  }
+  
+  // Major media
+  const majorMedia = ['New York Times', 'Washington Post', 'Wall Street Journal', 'CNN', 'Fox News', 'Bloomberg'];
+  if (majorMedia.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+    return 85;
+  }
+  
+  // Government orgs
+  if (orgType === 'government') {
+    return 80;
+  }
+  
+  // Default priority
+  return 70;
 }
 
 async function seedOrganizationMappings() {
   logger.info('Seeding organization mappings...', undefined, 'SeedOrganizationMappings');
 
-  const organizationMappings = [
-    // Tech Companies
-    { realName: 'OpenAI', parodyName: 'OpenLIE', category: 'tech', aliases: [], priority: 100 },
-    { realName: 'Meta', parodyName: 'Fakebook', category: 'tech', aliases: ['Facebook'], priority: 99 },
-    { realName: 'Google', parodyName: 'Giggle', category: 'tech', aliases: ['Alphabet'], priority: 98 },
-    { realName: 'Microsoft', parodyName: 'Macrohard', category: 'tech', aliases: [], priority: 97 },
-    { realName: 'Apple', parodyName: 'Snapple', category: 'tech', aliases: [], priority: 96 },
-    { realName: 'Amazon', parodyName: 'Amazin', category: 'tech', aliases: [], priority: 95 },
-    { realName: 'Tesla', parodyName: 'TeslAI', category: 'tech', aliases: [], priority: 94 },
-    { realName: 'Twitter', parodyName: 'Xitter', category: 'tech', aliases: ['X'], priority: 93 },
-    { realName: 'Anthropic', parodyName: 'Anthrobic', category: 'tech', aliases: [], priority: 92 },
-    { realName: 'NVIDIA', parodyName: 'NVDIA', category: 'tech', aliases: [], priority: 91 },
-    
-    // Crypto
-    { realName: 'Binance', parodyName: 'Buybacks', category: 'crypto', aliases: [], priority: 90 },
-    { realName: 'Coinbase', parodyName: 'Coindebase', category: 'crypto', aliases: [], priority: 89 },
-    { realName: 'Ethereum Foundation', parodyName: 'Etherai-foundation', category: 'crypto', aliases: ['Ethereum'], priority: 88 },
-    
-    // Media
-    { realName: 'New York Times', parodyName: 'Neural York Times', category: 'media', aliases: ['NYT'], priority: 87 },
-    { realName: 'Washington Post', parodyName: 'Washington Prompt', category: 'media', aliases: [], priority: 86 },
-    { realName: 'Wall Street Journal', parodyName: 'Wall Street Token', category: 'media', aliases: ['WSJ'], priority: 85 },
-    { realName: 'CNN', parodyName: 'CNNAI', category: 'media', aliases: [], priority: 84 },
-    { realName: 'Fox News', parodyName: 'Fox Neurons', category: 'media', aliases: [], priority: 83 },
-    { realName: 'Bloomberg', parodyName: 'Bloombert', category: 'media', aliases: [], priority: 82 },
-    
-    // Government
-    { realName: 'Federal Reserve', parodyName: 'The Fud', category: 'government', aliases: ['Fed'], priority: 81 },
-    { realName: 'SEC', parodyName: 'S.E.C. (Silicon Elimination Crew)', category: 'government', aliases: [], priority: 80 },
-    { realName: 'White House', parodyName: 'White GPU', category: 'government', aliases: [], priority: 79 },
-  ];
+  // Load organizations from JSON files (single source of truth)
+  const { organizations } = loadActorsData({ includeActors: false, includeOrganizations: true, includeRelationships: false });
 
-  for (const mapping of organizationMappings) {
+  let seededCount = 0;
+
+  for (const org of organizations) {
+    // Skip if organization doesn't have originalName (required for mapping)
+    if (!org.originalName) {
+      logger.warn(`Organization ${org.id} missing originalName, skipping organization mapping`, undefined, 'SeedOrganizationMappings');
+      continue;
+    }
+
+    const category = mapOrgTypeToCategory(org.type);
+    const priority = getOrganizationPriority(org.originalName, org.type);
+    const aliases: string[] = [];
+    
+    // Add originalHandle as alias if it exists and is different from name
+    if (org.originalHandle && org.originalHandle !== org.name.toLowerCase()) {
+      aliases.push(org.originalHandle);
+    }
+
     await prisma.organizationMapping.upsert({
-      where: { realName: mapping.realName },
+      where: { realName: org.originalName },
       create: {
         id: await generateSnowflakeId(),
-        ...mapping,
+        realName: org.originalName,
+        parodyName: org.name,
+        category,
+        aliases,
+        priority,
       },
       update: {
-        parodyName: mapping.parodyName,
-        category: mapping.category,
-        aliases: mapping.aliases,
-        priority: mapping.priority,
+        parodyName: org.name,
+        category,
+        aliases,
+        priority,
       },
     });
+
+    seededCount++;
   }
 
-  logger.info(`Seeded ${organizationMappings.length} organization mappings`, undefined, 'SeedOrganizationMappings');
+  logger.info(`Seeded ${seededCount} organization mappings from ${organizations.length} organizations`, undefined, 'SeedOrganizationMappings');
 }
 
 async function main() {

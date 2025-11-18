@@ -116,18 +116,8 @@ export class RulerScoringService {
       return null;
     }
 
-    // Parse stepsJson with error handling
-    let steps: TrajectoryStep[];
-    try {
-      steps = JSON.parse(trajectory.stepsJson) as TrajectoryStep[];
-    } catch (error) {
-      logger.error('Failed to parse trajectory stepsJson (corrupted data)', {
-        trajectoryId,
-        error: error instanceof Error ? error.message : String(error),
-        stepsJsonPreview: trajectory.stepsJson.substring(0, 100)
-      }, 'RulerScoringService');
-      return null; // Return null instead of throwing - allows batch processing to continue
-    }
+    // Parse stepsJson
+    const steps: TrajectoryStep[] = JSON.parse(trajectory.stepsJson) as TrajectoryStep[];
     
     // Validate it's an array with content
     if (!Array.isArray(steps) || steps.length === 0) {
@@ -176,23 +166,14 @@ export class RulerScoringService {
       scoredAt: new Date()
     };
 
-    // Save score to database with error handling
-    try {
-      await prisma.trajectory.update({
-        where: { trajectoryId },
-        data: {
-          aiJudgeReward: overallScore,
-          aiJudgeReasoning: score.reasoning
-        }
-      });
-    } catch (error) {
-      logger.error('Failed to save RULER score to database', {
-        trajectoryId,
-        overallScore,
-        error: error instanceof Error ? error.message : String(error)
-      }, 'RulerScoringService');
-      // Still return the score even if save fails - scoring succeeded
-    }
+    // Save score to database
+    await prisma.trajectory.update({
+      where: { trajectoryId },
+      data: {
+        aiJudgeReward: overallScore,
+        aiJudgeReasoning: score.reasoning
+      }
+    });
 
     logger.info('Trajectory scored with RULER', {
       trajectoryId,
@@ -454,51 +435,43 @@ export class RulerScoringService {
    * Stock price changes are currently empty; can be enhanced to track actual changes.
    */
   private async getWindowOutcomes(windowId: string): Promise<MarketOutcomes | null> {
-    try {
-      // Parse window ID to get time range
-      const windowDate = new Date(windowId);
-      
-      // Validate date is valid
-      if (isNaN(windowDate.getTime())) {
-        logger.warn('Invalid windowId format, cannot parse date', { windowId }, 'RulerScoringService');
-        return null;
-      }
-      
-      const windowEnd = new Date(windowDate.getTime() + 60 * 60 * 1000); // 1 hour window
-
-      // Get resolved prediction markets in this window
-      const resolvedMarkets = await prisma.market.findMany({
-        where: {
-          resolved: true,
-          updatedAt: {
-            gte: windowDate,
-            lt: windowEnd
-          }
-        },
-        select: {
-          id: true,
-          resolution: true
-        }
-      });
-
-      // Get stock price changes in this window
-      // For now, return empty array - can be enhanced to track actual price changes
-      const stocks: Array<{ ticker: string; changePercent: number }> = [];
-
-      return {
-        stocks,
-        predictions: resolvedMarkets.map(m => ({
-          marketId: m.id,
-          outcome: m.resolution === true ? 'YES' : m.resolution === false ? 'NO' : 'UNRESOLVED'
-        }))
-      };
-    } catch (error) {
-      logger.error('Failed to get window outcomes', {
-        windowId,
-        error: error instanceof Error ? error.message : String(error)
-      }, 'RulerScoringService');
-      return null; // Return null on error - scoring can continue without outcomes
+    // Parse window ID to get time range
+    const windowDate = new Date(windowId);
+    
+    // Validate date is valid
+    if (isNaN(windowDate.getTime())) {
+      logger.warn('Invalid windowId format, cannot parse date', { windowId }, 'RulerScoringService');
+      return null;
     }
+    
+    const windowEnd = new Date(windowDate.getTime() + 60 * 60 * 1000); // 1 hour window
+
+    // Get resolved prediction markets in this window
+    const resolvedMarkets = await prisma.market.findMany({
+      where: {
+        resolved: true,
+        updatedAt: {
+          gte: windowDate,
+          lt: windowEnd
+        }
+      },
+      select: {
+        id: true,
+        resolution: true
+      }
+    });
+
+    // Get stock price changes in this window
+    // For now, return empty array - can be enhanced to track actual price changes
+    const stocks: Array<{ ticker: string; changePercent: number }> = [];
+
+    return {
+      stocks,
+      predictions: resolvedMarkets.map(m => ({
+        marketId: m.id,
+        outcome: m.resolution === true ? 'YES' : m.resolution === false ? 'NO' : 'UNRESOLVED'
+      }))
+    };
   }
 
   /**
@@ -520,16 +493,9 @@ export class RulerScoringService {
     const scores: RulerScore[] = [];
 
     for (const trajectoryId of trajectoryIds) {
-      try {
-        const score = await this.scoreTrajectory(trajectoryId);
-        if (score) {
-          scores.push(score);
-        }
-      } catch (error) {
-        logger.error('Failed to score trajectory', {
-          trajectoryId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      const score = await this.scoreTrajectory(trajectoryId);
+      if (score) {
+        scores.push(score);
       }
     }
 

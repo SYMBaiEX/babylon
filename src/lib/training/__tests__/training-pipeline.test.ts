@@ -44,15 +44,10 @@ describe('Training Automation Pipeline', () => {
     it('should check training readiness without errors', async () => {
       const pipeline = new AutomationPipeline();
       
-      try {
-        const readiness = await pipeline.checkTrainingReadiness();
-        expect(readiness).toBeDefined();
-        expect(typeof readiness.ready).toBe('boolean');
-        expect(typeof readiness.stats.totalTrajectories).toBe('number');
-      } catch (error) {
-        // Expected to fail if trajectory tables don't exist yet
-        expect(error).toBeDefined();
-      }
+      const readiness = await pipeline.checkTrainingReadiness();
+      expect(readiness).toBeDefined();
+      expect(typeof readiness.ready).toBe('boolean');
+      expect(typeof readiness.stats.totalTrajectories).toBe('number');
     });
   });
 
@@ -60,16 +55,11 @@ describe('Training Automation Pipeline', () => {
     it('should get system status without crashing', async () => {
       const pipeline = new AutomationPipeline();
       
-      try {
-        // Access private method for testing (type assertion needed)
-        const status = await (pipeline as unknown as { getSystemStatus: () => Promise<{ data?: unknown; training?: unknown }> }).getSystemStatus();
-        expect(status).toBeDefined();
-        expect(status.data).toBeDefined();
-        expect(status.training).toBeDefined();
-      } catch (error) {
-        // Expected to fail if trajectory tables don't exist yet
-        expect(error).toBeDefined();
-      }
+      // Access private method for testing (type assertion needed)
+      const status = await (pipeline as unknown as { getSystemStatus: () => Promise<{ data?: unknown; training?: unknown }> }).getSystemStatus();
+      expect(status).toBeDefined();
+      expect(status.data).toBeDefined();
+      expect(status.training).toBeDefined();
     });
   });
 });

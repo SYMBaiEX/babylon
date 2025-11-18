@@ -71,37 +71,15 @@ async function initializeA2ASdkClient(
   // Create A2A client from Agent Card URL
   // Use default fetch - authentication will be handled by server via headers
   // The SDK will handle standard A2A methods, extensions will use custom headers
-  // In test/development, A2A client may not be available - make it optional
-  try {
-    const a2aClient = await A2AClient.fromCardUrl(agentCardUrl)
+  const a2aClient = await A2AClient.fromCardUrl(agentCardUrl)
 
-    logger.info('✅ A2A SDK client created', { 
-      agentUserId, 
-      agentName: agent.displayName,
-      agentCardUrl
-    })
+  logger.info('✅ A2A SDK client created', { 
+    agentUserId, 
+    agentName: agent.displayName,
+    agentCardUrl
+  })
 
-    return a2aClient
-  } catch (error) {
-    // In test/dev scenarios, server may not be running - this is OK
-    const isTestEnv = process.env.NODE_ENV === 'test' || 
-                     process.env.NODE_ENV === 'development' ||
-                     baseUrl.includes('localhost');
-    
-    if (isTestEnv) {
-      logger.warn('A2A client initialization failed (server may not be running) - using database fallback', {
-        agentUserId,
-        error: error instanceof Error ? error.message : String(error),
-        agentCardUrl
-      }, 'BabylonIntegration');
-      
-      // Return null to indicate A2A is not available - plugin will use database fallback
-      return null as unknown as A2AClient;
-    }
-    
-    // In production, re-throw the error
-    throw error;
-  }
+  return a2aClient
 }
 
 /**
@@ -718,64 +696,29 @@ export async function enhanceRuntimeWithBabylon(
   const babylonRuntime = runtime as BabylonRuntime
 
   // A2A is REQUIRED - initialize client
-  let a2aClient: BabylonA2AClient | undefined
-  try {
-    const sdkClient = await initializeA2ASdkClient(agentUserId)
-    
-    // Check if SDK client is null (indicates A2A not available)
-    if (!sdkClient) {
-      logger.warn('A2A SDK client is null - using database fallback', {
-        agentUserId,
-        agentCardUrl: `${process.env.BABYLON_A2A_ENDPOINT || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/.well-known/agent-card.json`
-      }, 'BabylonIntegration')
-      // Don't set a2aClient - will use database fallback
-    } else {
-      const agent = await prisma.user.findUnique({
-        where: { id: agentUserId },
-        select: { walletAddress: true, agent0TokenId: true }
-      })
-      
-      a2aClient = new BabylonA2AClient(
-        sdkClient,
-        agentUserId,
-        agent?.walletAddress || undefined,
-        agent?.agent0TokenId || undefined
-      )
-      babylonRuntime.a2aClient = a2aClient as unknown as typeof babylonRuntime.a2aClient
-      
-      logger.info('✅ Babylon plugin registered with A2A client', { 
-        agentUserId,
-        pluginName: plugin.name,
-        providersCount: plugin.providers?.length || 0,
-        actionsCount: plugin.actions?.length || 0,
-        a2aConnected: true,
-        a2aEndpoint: process.env.NEXT_PUBLIC_APP_URL || process.env.BABYLON_A2A_ENDPOINT || 'http://localhost:3000'
-      })
-    }
-  } catch (error) {
-    // Log detailed error for debugging
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorStack = error instanceof Error ? error.stack : undefined
-    
-    // Get agent info for error logging
-    const agent = await prisma.user.findUnique({
-      where: { id: agentUserId },
-      select: { walletAddress: true }
-    })
-    
-    logger.error('❌ A2A client initialization FAILED', {
-      agentUserId,
-      error: errorMessage,
-      stack: errorStack,
-      agentCardUrl: `${process.env.BABYLON_A2A_ENDPOINT || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/.well-known/agent-card.json`,
-      baseUrl: process.env.BABYLON_A2A_ENDPOINT || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      hasWallet: !!agent?.walletAddress
-    }, 'BabylonIntegration')
-    
-    // Don't throw - allow plugin registration but log error
-    // Providers/actions will check isConnected() and fail gracefully
-    // This allows graceful degradation if A2A endpoint is temporarily unavailable
-  }
+  const sdkClient = await initializeA2ASdkClient(agentUserId)
+  
+  const agent = await prisma.user.findUnique({
+    where: { id: agentUserId },
+    select: { walletAddress: true, agent0TokenId: true }
+  })
+  
+  const a2aClient = new BabylonA2AClient(
+    sdkClient,
+    agentUserId,
+    agent?.walletAddress || undefined,
+    agent?.agent0TokenId || undefined
+  )
+  babylonRuntime.a2aClient = a2aClient as unknown as typeof babylonRuntime.a2aClient
+  
+  logger.info('✅ Babylon plugin registered with A2A client', { 
+    agentUserId,
+    pluginName: plugin.name,
+    providersCount: plugin.providers?.length || 0,
+    actionsCount: plugin.actions?.length || 0,
+    a2aConnected: true,
+    a2aEndpoint: process.env.NEXT_PUBLIC_APP_URL || process.env.BABYLON_A2A_ENDPOINT || 'http://localhost:3000'
+  })
   
   runtime.registerPlugin(plugin)
   

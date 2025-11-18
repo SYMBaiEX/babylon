@@ -97,6 +97,8 @@ import { worldFactsService } from '@/lib/services/world-facts-service';
 import { rssFeedService } from '@/lib/services/rss-feed-service';
 import { createParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
+import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { logger } from '@/lib/logger';
 
 /**
@@ -135,27 +137,82 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   switch (action) {
     case 'update_fact': {
-      const { category, key, label, value, source, priority } = data;
-      const fact = await worldFactsService.setFact(
-        category,
-        key,
-        label,
-        value,
-        source,
-        priority
-      );
-      logger.info(`Updated world fact: ${category}.${key}`, { fact }, 'WorldFactsAdmin');
+      // Simple: just update by value (id is used to find the fact)
+      const { id, value } = data;
+      if (!id || !value) {
+        return successResponse({ error: 'Missing id or value' }, 400);
+      }
+      
+      const fact = await worldFactsService.updateFactById(id, value);
+      logger.info(`Updated world fact: ${id}`, { fact }, 'WorldFactsAdmin');
+      return successResponse({ fact });
+    }
+
+    case 'add_fact': {
+      // Add a new fact by value (simple string)
+      const { value, category } = data;
+      if (!value) {
+        return successResponse({ error: 'Missing value' }, 400);
+      }
+      
+      // Use specified category or default to 'general'
+      const factCategory = category || 'general';
+      const key = value.split(':')[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 50);
+      const label = value.split(':')[0].trim().substring(0, 60);
+      
+      // Check if fact already exists
+      const existing = await prisma.worldFact.findUnique({
+        where: { category_key: { category: factCategory, key } },
+      });
+      
+      let fact;
+      if (existing) {
+        fact = await prisma.worldFact.update({
+          where: { id: existing.id },
+          data: {
+            label,
+            value,
+            lastUpdated: new Date(),
+          },
+        });
+      } else {
+        fact = await prisma.worldFact.create({
+          data: {
+            id: await generateSnowflakeId(),
+            category: factCategory,
+            key,
+            label,
+            value,
+            source: 'default',
+            priority: 0,
+            lastUpdated: new Date(),
+          },
+        });
+      }
+      
+      logger.info(`Added world fact: ${fact.id}`, { fact }, 'WorldFactsAdmin');
       return successResponse({ fact });
     }
 
     case 'bulk_update_facts': {
-      await worldFactsService.bulkUpdateFacts(data.facts);
+      // Simple: array of strings
+      const { facts } = data;
+      if (!Array.isArray(facts)) {
+        return successResponse({ error: 'facts must be an array of strings' }, 400);
+      }
+      await worldFactsService.bulkUpdateFacts(facts);
       return successResponse({ success: true });
     }
 
     case 'toggle_fact': {
       const fact = await worldFactsService.toggleFactActive(data.id);
       return successResponse({ fact });
+    }
+
+    case 'delete_fact': {
+      await worldFactsService.deleteFact(data.id);
+      logger.info(`Deleted world fact: ${data.id}`, undefined, 'WorldFactsAdmin');
+      return successResponse({ success: true });
     }
 
     case 'fetch_rss': {

@@ -7,6 +7,9 @@ import { Skeleton } from '@/components/shared/Skeleton'
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream'
 import { logger } from '@/lib/logger'
 
+/**
+ * Top mover market structure for top movers panel.
+ */
 interface TopMover {
   ticker: string
   name: string
@@ -27,6 +30,24 @@ interface TopMover {
   minOrderSize?: number
 }
 
+/**
+ * Top movers panel component for displaying biggest gainers and losers.
+ * 
+ * Displays the top 4 gainers and top 4 losers from perpetual markets based on
+ * 24h price change percentage. Subscribes to real-time price updates via SSE.
+ * Automatically refreshes every 30 seconds. Navigates to market detail page on click.
+ * 
+ * Features:
+ * - Top gainers list (4 markets)
+ * - Top losers list (4 markets)
+ * - Real-time price updates via SSE
+ * - Auto-refresh (30s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - TopMoversPanel component props
+ * @returns Top movers panel element
+ */
 interface TopMoversPanelProps {
   onMarketClick?: (market: TopMover) => void
 }

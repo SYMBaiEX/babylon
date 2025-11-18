@@ -147,7 +147,7 @@ async function fileExists(path: string): Promise<boolean> {
  * while maintaining the satirical nature of the game.
  * 
  * **Example Mappings:**
- * - `openlie` → OpenAI
+ * - `openlie` → OpenAGI
  * - `anthropimp` → Anthropic
  * - `xitter` → Twitter/X
  * - `goolag` → Google
@@ -158,12 +158,12 @@ async function fileExists(path: string): Promise<boolean> {
  * @example
  * ```typescript
  * const realName = getOriginalCompanyName('OpenLie', 'openlie');
- * // Returns: 'OpenAI'
+ * // Returns: 'OpenAGI'
  * ```
  */
 function getOriginalCompanyName(satiricalName: string, orgId: string): string {
   const mappings: Record<string, string> = {
-    'openlie': 'OpenAI',
+    'openlie': 'OpenAGI',
     'anthropimp': 'Anthropic',
     'anthoprick': 'Anthropic',
     'deepmined': 'DeepMind',
@@ -554,13 +554,7 @@ async function main() {
 
   // Load actors database using the new loader
   const { loadActorsData } = await import("@/lib/data/actors-loader");
-  let parsedActors: unknown;
-  try {
-    parsedActors = loadActorsData();
-  } catch (error) {
-    logger.error('Failed to load actors data', { error }, 'generate-actor-images')
-    throw new Error(`Failed to load actors data: ${error}`)
-  }
+  const parsedActors = loadActorsData();
   const actorsDb = ActorsDatabaseSchema.parse(parsedActors);
 
   const actorsImagesDir = join(process.cwd(), "public", "images", "actors");

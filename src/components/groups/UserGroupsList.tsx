@@ -1,17 +1,32 @@
 'use client';
 
 /**
- * User Groups List Component
+ * User groups list component for displaying groups the user is a member of.
  * 
- * Displays list of groups the user is a member of
+ * Fetches and displays all groups the current user is a member of. Includes
+ * create group button and group details modal. Shows admin indicators and
+ * member counts.
+ * 
+ * Features:
+ * - Groups list display
+ * - Create group button
+ * - Group details modal
+ * - Admin indicators
+ * - Member count display
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @returns User groups list element
  */
-
 import { useEffect, useState } from 'react';
 import { Users, Plus, Crown } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
 // import { toast } from 'sonner';
 
+/**
+ * User group structure for user groups list.
+ */
 interface UserGroup {
   id: string;
   name: string;

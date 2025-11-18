@@ -180,16 +180,14 @@ class BabylonTrainer:
                 entity = "eliza-labs"
                 logger.info(f"Using default entity: {entity}")
         
-        # Create model with explicit entity (avoids permissions issues)
-        # CRITICAL: Pass project name WITHOUT entity prefix when entity is passed separately
-        # ART framework expects: project="project-name", entity="entity-name" (not "entity/project")
+        # Create model - ART pattern: just project name, no entity parameter
+        # ART reads WANDB_ENTITY from environment automatically
         self.model = art.TrainableModel(
             name=name,
-            project=project_name,  # Project name WITHOUT entity prefix
-            entity=entity,  # CRITICAL: Pass entity separately to use personal account
+            project=project_name,  # Just project name - ART reads entity from WANDB_ENTITY env var
             base_model=self.base_model
         )
-        logger.info(f"Created model '{name}' in project '{entity}/{project_name}'")
+        logger.info(f"Created model '{name}' in project '{project_name}'")
         
         # Check if WANDB_API_KEY is set to decide backend
         # If set: use W&B remote training (preferred)
@@ -199,15 +197,17 @@ class BabylonTrainer:
         force_local = os.getenv('FORCE_LOCAL_TRAINING', 'false').lower() == 'true'
         
         if wandb_key:
-            # CRITICAL: Don't call wandb.init() - it causes permission errors
-            # ART's ServerlessBackend handles wandb initialization internally
-            # Just create the backend with the API key
-            logger.info("✓ Using W&B ServerlessBackend (skipping wandb.init to avoid permission issues)")
+            # ART pattern: pass API key directly to ServerlessBackend (matches train.py)
+            if not wandb_key:
+                raise ValueError("WANDB_API_KEY is required for inference, training, and logging to Weights & Biases.")
+            
             self.backend = ServerlessBackend(api_key=wandb_key)
+            logger.info("✓ Created W&B ServerlessBackend")
             
             # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
-            max_retries = 3
-            retry_delay = 10  # seconds
+            # Increased delays for plan upgrade propagation
+            max_retries = 5
+            retry_delay = 30  # seconds - longer delay for plan upgrade to propagate
             
             for attempt in range(1, max_retries + 1):
                 try:
@@ -217,9 +217,10 @@ class BabylonTrainer:
                         retry_delay *= 2  # Exponential backoff
                     
                     # Wrap in asyncio.wait_for to add our own timeout
+                    # Increased timeout for plan upgrade - first registration can be slow
                     await asyncio.wait_for(
                         self.model.register(self.backend),
-                        timeout=180.0  # 3 minute timeout per attempt
+                        timeout=300.0  # 5 minute timeout per attempt (plan upgrade may need more time)
                     )
                     logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
                     logger.info(f"  Model: {self.base_model}")
@@ -830,8 +831,8 @@ class BabylonTrainer:
         step = await self.model.get_step()
         model_name = f"{self.model.get_inference_name()}:step{step}"
         
-        # Use OpenAI client
-        client = self.model.openai_client()
+        # Use OpenAGI client
+        client = self.model.openagi_client()
         
         messages = [
             {"role": "system", "content": "You are a trading agent."},

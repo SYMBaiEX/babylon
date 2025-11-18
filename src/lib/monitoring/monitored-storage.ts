@@ -20,18 +20,12 @@ export async function monitoredUploadImage(options: {
 }): Promise<{ url: string; key: string; size: number }> {
   const startTime = performance.now();
   
-  try {
-    const result = await storageClient.uploadImage(options);
-    const latency = performance.now() - startTime;
-    
-    performanceMonitor.recordStorageOperation('upload', latency, result.size);
-    
-    return result;
-  } catch (error) {
-    const latency = performance.now() - startTime;
-    performanceMonitor.recordStorageOperation('upload', latency, undefined, true);
-    throw error;
-  }
+  const result = await storageClient.uploadImage(options);
+  const latency = performance.now() - startTime;
+  
+  performanceMonitor.recordStorageOperation('upload', latency, result.size);
+  
+  return result;
 }
 
 /**

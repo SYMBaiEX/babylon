@@ -7,6 +7,9 @@ import { usePrivy } from '@privy-io/react-auth'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 
+/**
+ * Member structure for group management modal.
+ */
 interface Member {
   id: string
   displayName: string | null
@@ -16,6 +19,9 @@ interface Member {
   joinedAt: Date | string
 }
 
+/**
+ * Group details structure for group management modal.
+ */
 interface GroupDetails {
   id: string
   name: string
@@ -26,6 +32,9 @@ interface GroupDetails {
   createdById: string
 }
 
+/**
+ * User structure for group management modal.
+ */
 interface User {
   id: string
   displayName: string | null
@@ -33,6 +42,40 @@ interface User {
   profileImageUrl: string | null
 }
 
+/**
+ * Group management modal component for managing group members and settings.
+ * 
+ * Provides comprehensive group management interface including member list,
+ * adding/removing members, promoting/demoting admins, and deleting groups.
+ * Includes user search for adding members and confirmation dialogs for
+ * destructive actions.
+ * 
+ * Features:
+ * - Member list display
+ * - Add member functionality
+ * - Remove member functionality
+ * - Promote/demote admin functionality
+ * - Delete group functionality
+ * - Leave group functionality
+ * - User search
+ * - Confirmation dialogs
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - GroupManagementModal component props
+ * @returns Group management modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <GroupManagementModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   groupId="group-123"
+ *   onGroupUpdated={() => refreshGroups()}
+ * />
+ * ```
+ */
 interface GroupManagementModalProps {
   isOpen: boolean
   onClose: () => void

@@ -95,50 +95,50 @@ QUESTION TYPES (in-world events only):
 - "Will Peter ThAIl challenge Bill AIckman to a $1M public debate?"
 
 2️⃣ Product & Feature Launches:
-- "Will OpnAI announce GPT-7 by end of month?"
+- "Will OpenAGI announce GPT-7 by end of month?"
 - "Will AIlon Musk demo TeslAI's flying car by Saturday?"
 - "Will MetAI launch virtual reality offices before MicroAIsoft?"
 - "Will TeslAI's new Cybertruck have rocket thrusters?"
 
 3️⃣ Company Valuations & In-Game Trading (if needed):
 - "Will AIlon Musk announce a major long position in TeslAI stock this week?"
-- "Will OpnAI's valuation be announced as exceeding MetAI's?"
+- "Will OpenAGI's valuation be announced as exceeding MetAI's?"
 - "Will trading volume for in-game $OPENAGI stock exceed 10M shares?"
-- "Will Sam AIltman claim OpnAI is now worth more than MetAI?"
+- "Will Sam AIltman claim OpenAGI is now worth more than MetAI?"
 
 4️⃣ Partnerships & Collaborations:
 - "Will Sam AIltman and Mark Zuckerborg announce an AI partnership?"
 - "Will TeslAI partner with SpAIceX for Mars delivery?"
 - "Will Vitalik ButerAIn join MicroAIsoft's Web3 advisory board?"
-- "Will The White AIhouse endorse OpnAI's safety protocols?"
+- "Will The White AIhouse endorse OpenAGI's safety protocols?"
 
 5️⃣ Scandals & Investigations (NPCs keep their jobs!):
 - "Will AIlon Musk face SEC investigation into Xitter stock tweets?"
 - "Will leaked emails reveal MetAI's secret data practices?"
-- "Will Sam AIltman be caught promoting his own OpnAI tokens?"
+- "Will Sam AIltman be caught promoting his own OpenAGI tokens?"
 - "Will TeslAI be sued over Full Self-Driving false advertising?"
 
 6️⃣ Technical Achievements & Benchmarks:
-- "Will OpnAI's GPT-7 pass the Turing test this week?"
+- "Will OpenAGI's GPT-7 pass the Turing test this week?"
 - "Will TeslAI achieve Level 5 autonomy certification?"
 - "Will MetAI's new VR headset beat Apple VisionAI in sales?"
 - "Will AIlon Musk successfully demo brain chip live on stage?"
 
 7️⃣ Policy & Regulation:
-- "Will the FedAI approve OpnAI's AGI deployment plan?"
+- "Will the FedAI approve OpenAGI's AGI deployment plan?"
 - "Will Sam AIltman testify before Congress about AI safety?"
 - "Will EU regulations force MetAI to change privacy policies?"
 - "Will California ban TeslAI Full Self-Driving on highways?"
 
 GOOD QUESTION EXAMPLES:
 ✅ "Will AIlon Musk tweet more than 100 times about Dogecoin this week?" (specific, measurable, public)
-✅ "Will OpnAI announce GPT-7 release date by Friday?" (clear yes/no, date-bound)
+✅ "Will OpenAGI announce GPT-7 release date by Friday?" (clear yes/no, date-bound)
 ✅ "Will Mark Zuckerborg appear on Joe RogAIn podcast by month-end?" (verifiable event)
 
 BAD QUESTION EXAMPLES:
 ❌ "Will AIlon Musk be happy?" (vague, not measurable)
-❌ "Will OpnAI secretly develop AGI?" (can't verify secret actions)
-❌ "Will Sam AIltman resign from OpnAI?" (breaks character continuity!)
+❌ "Will OpenAGI secretly develop AGI?" (can't verify secret actions)
+❌ "Will Sam AIltman resign from OpenAGI?" (breaks character continuity!)
 ❌ "Will TeslAI be acquired by MetAI?" (forces company changes!)
 
 CRITICAL: All questions must allow NPCs to maintain their current roles and company affiliations. NO forced resignations, acquisitions, or relationship-breaking events.

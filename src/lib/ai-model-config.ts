@@ -4,7 +4,6 @@
  */
 
 import { prisma } from './prisma';
-import { logger } from './logger';
 
 interface AIModelConfig {
   wandbModel: string | null;
@@ -27,34 +26,24 @@ export async function getAIModelConfig(): Promise<AIModelConfig> {
     return cachedConfig;
   }
 
-  try {
-    const settings = await prisma.systemSettings.findUnique({
-      where: { id: 'system' },
-      select: {
-        wandbModel: true,
-        wandbEnabled: true,
-      },
-    });
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: 'system' },
+    select: {
+      wandbModel: true,
+      wandbEnabled: true,
+    },
+  });
 
-    const envWandbModel = process.env.WANDB_MODEL || null;
-    const wandbApiKeyPresent = !!process.env.WANDB_API_KEY;
+  const envWandbModel = process.env.WANDB_MODEL || null;
+  const wandbApiKeyPresent = !!process.env.WANDB_API_KEY;
 
-    cachedConfig = {
-      wandbModel: settings?.wandbModel || envWandbModel,
-      wandbEnabled: settings?.wandbEnabled ?? wandbApiKeyPresent,
-    };
-    lastFetch = now;
+  cachedConfig = {
+    wandbModel: settings?.wandbModel || envWandbModel,
+    wandbEnabled: settings?.wandbEnabled ?? wandbApiKeyPresent,
+  };
+  lastFetch = now;
 
-    return cachedConfig;
-  } catch (error) {
-    logger.error('Failed to load AI model config', { error }, 'AIModelConfig');
-    
-    // Return safe defaults on error
-    return {
-      wandbModel: null,
-      wandbEnabled: false,
-    };
-  }
+  return cachedConfig;
 }
 
 /**

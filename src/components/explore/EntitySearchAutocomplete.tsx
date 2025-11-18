@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { useRouter } from 'next/navigation'
 
+/**
+ * API user structure from registry API.
+ */
 interface ApiUser {
   id: string
   name: string
@@ -14,6 +17,9 @@ interface ApiUser {
   imageUrl?: string
 }
 
+/**
+ * API actor structure from registry API.
+ */
 interface ApiActor {
   id: string
   name: string
@@ -22,6 +28,9 @@ interface ApiActor {
   role?: string
 }
 
+/**
+ * Registry entity structure for search results.
+ */
 interface RegistryEntity {
   id: string
   name: string
@@ -31,6 +40,35 @@ interface RegistryEntity {
   type: 'user' | 'actor'
 }
 
+/**
+ * Entity search autocomplete component for searching users and actors.
+ * 
+ * Provides an autocomplete search input for finding users and actors from
+ * the registry. Displays search suggestions with avatars and navigation.
+ * Supports keyboard navigation and click selection.
+ * 
+ * Features:
+ * - Autocomplete search
+ * - User and actor results
+ * - Avatar display
+ * - Keyboard navigation
+ * - Click selection
+ * - Navigation to profiles
+ * - Debounced search
+ * - Loading states
+ * 
+ * @param props - EntitySearchAutocomplete component props
+ * @returns Entity search autocomplete element
+ * 
+ * @example
+ * ```tsx
+ * <EntitySearchAutocomplete
+ *   value={searchQuery}
+ *   onChange={setSearchQuery}
+ *   placeholder="Search users..."
+ * />
+ * ```
+ */
 interface EntitySearchAutocompleteProps {
   value: string
   onChange: (value: string) => void

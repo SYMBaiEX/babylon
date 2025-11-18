@@ -1,6 +1,34 @@
 import { type PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import { Share2, Sparkles } from 'lucide-react'
 
+/**
+ * Portfolio PnL card component for displaying overall portfolio summary.
+ * 
+ * Displays total account equity and available balance for the user's portfolio.
+ * Includes share functionality and buy points button. Shows loading and error
+ * states.
+ * 
+ * Features:
+ * - Total account equity display
+ * - Available balance display
+ * - Share functionality
+ * - Buy points button
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - PortfolioPnLCard component props
+ * @returns Portfolio PnL card element
+ * 
+ * @example
+ * ```tsx
+ * <PortfolioPnLCard
+ *   data={portfolioData}
+ *   loading={false}
+ *   onShare={() => sharePortfolio()}
+ *   setShowBuyPointsModal={setShowBuyPoints}
+ * />
+ * ```
+ */
 interface PortfolioPnLCardProps {
   data: PortfolioPnLSnapshot | null
   loading: boolean
@@ -9,12 +37,23 @@ interface PortfolioPnLCardProps {
   setShowBuyPointsModal: (show: boolean) => void
 }
 
+/**
+ * Currency formatter for displaying monetary values.
+ */
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
 })
 
+/**
+ * Format currency value safely.
+ * 
+ * Formats a number as currency, defaulting to 0 if invalid.
+ * 
+ * @param value - Value to format
+ * @returns Formatted currency string
+ */
 function formatCurrency(value: number | null | undefined) {
   const safeValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
   return formatter.format(safeValue)

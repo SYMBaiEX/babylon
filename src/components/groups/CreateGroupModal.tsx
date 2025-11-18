@@ -7,6 +7,9 @@ import { usePrivy } from '@privy-io/react-auth'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 
+/**
+ * User structure for group creation modal.
+ */
 interface User {
   id: string
   displayName: string | null
@@ -14,6 +17,36 @@ interface User {
   profileImageUrl: string | null
 }
 
+/**
+ * Create group modal component for creating new user groups.
+ * 
+ * Provides a form interface for creating groups with name input and
+ * member selection. Includes user search functionality and automatic
+ * group name generation from members. Creates both group and associated
+ * chat on creation.
+ * 
+ * Features:
+ * - Group name input
+ * - User search
+ * - Member selection
+ * - Auto-generated group names
+ * - Form validation
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - CreateGroupModal component props
+ * @returns Create group modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <CreateGroupModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   onGroupCreated={(groupId, chatId) => router.push(`/groups/${groupId}`)}
+ * />
+ * ```
+ */
 interface CreateGroupModalProps {
   isOpen: boolean
   onClose: () => void

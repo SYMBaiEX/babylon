@@ -96,17 +96,12 @@ export class SubgraphClient {
   private transformAgent(raw: RawSubgraphAgent): SubgraphAgent {
     const meta = this.parseMetadata(raw.metadata)
     
-    const capabilities = meta.capabilities
-      ? (() => {
-          try {
-            const parsed = JSON.parse(meta.capabilities)
-            parseCapabilities(parsed) // Validate
-            return meta.capabilities
-          } catch {
-            return undefined
-          }
-        })()
-      : undefined
+    let capabilities: string | undefined
+    if (meta.capabilities) {
+      const parsed = JSON.parse(meta.capabilities)
+      parseCapabilities(parsed) // Validate
+      capabilities = meta.capabilities
+    }
 
     return {
       id: raw.id,

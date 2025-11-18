@@ -1,12 +1,31 @@
 /**
- * ScoreSlider Component
- *
- * Visual slider for precise score input (0-100)
- * Provides more granular control than star rating
- *
- * Custom component with Tailwind styling
+ * Score slider component for precise score input (0-100).
+ * 
+ * Provides a visual slider interface for selecting scores with more granular
+ * control than star rating. Supports mouse and touch interactions, color-coded
+ * ranges, and label display.
+ * 
+ * Features:
+ * - Visual slider input
+ * - Mouse and touch support
+ * - Color-coded score ranges
+ * - Score labels (Excellent, Good, Average, etc.)
+ * - Value display
+ * - Readonly mode
+ * - Customizable min/max/step
+ * 
+ * @param props - ScoreSlider component props
+ * @returns Score slider element
+ * 
+ * @example
+ * ```tsx
+ * <ScoreSlider
+ *   value={70}
+ *   onChange={(score) => setScore(score)}
+ *   showLabels={true}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useState, useRef, useEffect } from 'react'

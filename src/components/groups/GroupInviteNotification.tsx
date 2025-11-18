@@ -1,11 +1,33 @@
 'use client';
 
 /**
- * Group Invite Notification Component
+ * Group invite notification component for displaying group invitations in notifications.
  * 
- * Displays group invites in notifications with accept/decline actions
+ * Displays a notification card for group invitations with inviter information
+ * and accept/decline actions. Shows group details and member count. Handles
+ * API calls and hides after response.
+ * 
+ * Features:
+ * - Inviter display
+ * - Group information
+ * - Accept functionality
+ * - Decline functionality
+ * - Loading states
+ * - Auto-hide after response
+ * 
+ * @param props - GroupInviteNotification component props
+ * @returns Group invite notification element or null if responded
+ * 
+ * @example
+ * ```tsx
+ * <GroupInviteNotification
+ *   inviteId="invite-123"
+ *   groupName="Trading Group"
+ *   inviterName="Alice"
+ *   onAccept={() => refreshNotifications()}
+ * />
+ * ```
  */
-
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Users, Check, X, Loader2 } from 'lucide-react';

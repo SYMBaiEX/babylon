@@ -16,22 +16,16 @@ export async function getMonitoredCache<T>(
 ): Promise<T | null> {
   const startTime = performance.now();
   
-  try {
-    const value = await getCache<T>(key, options);
-    const latency = performance.now() - startTime;
-    const hit = value !== null;
-    
-    // Estimate size (rough approximation)
-    const bytes = value ? JSON.stringify(value).length : 0;
-    
-    performanceMonitor.recordCacheOperation('get', hit, latency, bytes);
-    
-    return value;
-  } catch (error) {
-    const latency = performance.now() - startTime;
-    performanceMonitor.recordCacheOperation('get', false, latency);
-    throw error;
-  }
+  const value = await getCache<T>(key, options);
+  const latency = performance.now() - startTime;
+  const hit = value !== null;
+  
+  // Estimate size (rough approximation)
+  const bytes = value ? JSON.stringify(value).length : 0;
+  
+  performanceMonitor.recordCacheOperation('get', hit, latency, bytes);
+  
+  return value;
 }
 
 /**
@@ -44,19 +38,13 @@ export async function setMonitoredCache<T>(
 ): Promise<void> {
   const startTime = performance.now();
   
-  try {
-    await setCache(key, value, options);
-    const latency = performance.now() - startTime;
-    
-    // Estimate size
-    const bytes = JSON.stringify(value).length;
-    
-    performanceMonitor.recordCacheOperation('set', true, latency, bytes);
-  } catch (error) {
-    const latency = performance.now() - startTime;
-    performanceMonitor.recordCacheOperation('set', false, latency);
-    throw error;
-  }
+  await setCache(key, value, options);
+  const latency = performance.now() - startTime;
+  
+  // Estimate size
+  const bytes = JSON.stringify(value).length;
+  
+  performanceMonitor.recordCacheOperation('set', true, latency, bytes);
 }
 
 /**
@@ -68,16 +56,10 @@ export async function invalidateMonitoredCache(
 ): Promise<void> {
   const startTime = performance.now();
   
-  try {
-    await invalidateCache(key, options);
-    const latency = performance.now() - startTime;
-    
-    performanceMonitor.recordCacheOperation('delete', true, latency);
-  } catch (error) {
-    const latency = performance.now() - startTime;
-    performanceMonitor.recordCacheOperation('delete', false, latency);
-    throw error;
-  }
+  await invalidateCache(key, options);
+  const latency = performance.now() - startTime;
+  
+  performanceMonitor.recordCacheOperation('delete', true, latency);
 }
 
 

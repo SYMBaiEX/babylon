@@ -97,8 +97,7 @@ export class AutonomousCoordinator {
       trajectoryId: trajId
     }
 
-    try {
-      logger.info(`Starting autonomous tick for agent ${agentUserId}`, undefined, 'AutonomousCoordinator')
+    logger.info(`Starting autonomous tick for agent ${agentUserId}`, undefined, 'AutonomousCoordinator')
 
     // Get agent config
     const agent = await prisma.user.findUnique({
@@ -352,18 +351,6 @@ export class AutonomousCoordinator {
     }, 'AutonomousCoordinator')
 
     return result
-    } catch (error) {
-      // Always try to end the trajectory on error
-      if (recordTrajectories && trajId) {
-        result.duration = Date.now() - startTime
-        const finalState = await this.captureEnvironmentState(agentUserId)
-        await trajectoryRecorder.endTrajectory(trajId, {
-          finalBalance: finalState.agentBalance,
-          finalPnL: finalState.agentPnL
-        })
-      }
-      throw error
-    }
   }
 
   /**
@@ -395,26 +382,19 @@ export class AutonomousCoordinator {
     let errors = 0
 
     for (const agent of activeAgents) {
-      // Keep try/catch here to continue processing other agents if one fails
-      try {
-        const result = await this.executeAutonomousTick(agent.id, runtime)
+      const result = await this.executeAutonomousTick(agent.id, runtime)
+      
+      if (result.success) {
+        const actionCount = Object.values(result.actionsExecuted).reduce((sum, count) => sum + count, 0)
+        totalActions += actionCount
         
-        if (result.success) {
-          const actionCount = Object.values(result.actionsExecuted).reduce((sum, count) => sum + count, 0)
-          totalActions += actionCount
-          
-          logger.info(`Agent ${agent.displayName}: ${actionCount} actions in ${result.duration}ms`, undefined, 'AutonomousCoordinator')
-        } else {
-          errors++
-        }
-
-        // Small delay between agents to avoid overwhelming system
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-      } catch (error) {
-        logger.error(`Failed to process agent ${agent.id}`, error, 'AutonomousCoordinator')
+        logger.info(`Agent ${agent.displayName}: ${actionCount} actions in ${result.duration}ms`, undefined, 'AutonomousCoordinator')
+      } else {
         errors++
       }
+
+      // Small delay between agents to avoid overwhelming system
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
 
     return {

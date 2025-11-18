@@ -72,7 +72,7 @@ async function main() {
     const questions = [
       {
         questionNumber: 1,
-        text: "Will OpenAI announce GPT-5 within the next 7 days?",
+        text: "Will OpenAGI announce GPT-5 within the next 7 days?",
         scenarioId: 1,
         outcome: Math.random() > 0.5,
         rank: 1,

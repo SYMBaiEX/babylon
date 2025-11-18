@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/shared/Skeleton'
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream'
 import { logger } from '@/lib/logger'
 
+/**
+ * Prediction market summary structure for trending panel.
+ */
 interface PredictionSummary {
   id: string
   text: string
@@ -16,6 +19,9 @@ interface PredictionSummary {
   resolutionDate?: string
 }
 
+/**
+ * Prediction question structure from API.
+ */
 interface PredictionQuestion {
   id: string | number
   text: string
@@ -24,6 +30,23 @@ interface PredictionQuestion {
   resolutionDate?: string | null
 }
 
+/**
+ * Prediction trending panel component for displaying trending prediction markets.
+ * 
+ * Displays a list of trending prediction markets sorted by total volume (yes + no shares).
+ * Subscribes to real-time trade and resolution updates via SSE. Automatically refreshes
+ * every 60 seconds. Navigates to market detail page on click.
+ * 
+ * Features:
+ * - Trending markets list sorted by volume
+ * - Real-time share count updates via SSE
+ * - Auto-refresh (60s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - PredictionTrendingPanel component props
+ * @returns Prediction trending panel element
+ */
 interface PredictionTrendingPanelProps {
   onMarketClick?: (marketId: string) => void
 }

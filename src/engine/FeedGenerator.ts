@@ -591,13 +591,8 @@ Trending system not initialized yet.
           if (!entity) return; // Skip if entity doesn't exist
 
           // Fail-fast: Validate required fields using canonical validator
-          try {
-            ContentValidator.validatePostContent(post.post, `media post from ${entity.name}`);
-            ContentValidator.validateEntityName(entity.name, `media entity ${i}`);
-          } catch (error) {
-            logger.error('Validation failed, skipping post', { error, entity: entity.name, index: i });
-            return; // Skip invalid posts
-          }
+          ContentValidator.validatePostContent(post.post, `media post from ${entity.name}`);
+          ContentValidator.validateEntityName(entity.name, `media entity ${i}`);
 
           cascade.push({
             id: `${worldEvent.id}-${isOrg ? 'media' : 'news'}-${i}`,

@@ -51,7 +51,7 @@ async def test_with_custom_timeout():
         print("TEST 1: Create Client with custom configuration")
         print("=" * 70)
         
-        # The Client uses AsyncOpenAI which uses httpx internally
+        # The Client uses AsyncOpenAGI which uses httpx internally
         # We can't directly set httpx timeout, but we can try a different base_url
         # or check if there's an alternative endpoint
         

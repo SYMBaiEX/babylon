@@ -16,33 +16,25 @@ describe('Training Integration', () => {
     // Create test agents
     for (let i = 0; i < 3; i++) {
       const agentId = `e2e-test-agent-${i}-${Date.now()}`;
-      try {
-        await prisma.user.create({
-          data: {
-            id: agentId,
-            username: agentId,
-            displayName: agentId,
-            updatedAt: new Date(),
-            isAgent: true,
-            virtualBalance: 10000,
-          }
-        });
-        testAgentIds.push(agentId);
-      } catch (error) {
-        // Agent might already exist
-      }
+      await prisma.user.create({
+        data: {
+          id: agentId,
+          username: agentId,
+          displayName: agentId,
+          updatedAt: new Date(),
+          isAgent: true,
+          virtualBalance: 10000,
+        }
+      });
+      testAgentIds.push(agentId);
     }
   });
 
   afterAll(async () => {
     // Cleanup
-    try {
-      await prisma.user.deleteMany({
-        where: { id: { in: testAgentIds } }
-      });
-    } catch (error) {
-      // Cleanup errors not critical
-    }
+    await prisma.user.deleteMany({
+      where: { id: { in: testAgentIds } }
+    });
   });
 
   it('should record trajectories using TrajectoryRecorder', async () => {

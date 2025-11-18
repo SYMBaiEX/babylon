@@ -1,12 +1,29 @@
 /**
- * TrustLevelBadge Component
- *
- * Displays trust level progress with visual indicators
- * Shows current level and progress toward next level
- *
- * Pattern based on: RankBadge.tsx
+ * Trust level badge component for displaying reputation trust level.
+ * 
+ * Displays a badge showing the current trust level (Newcomer, Trusted,
+ * Veteran, Elite) based on reputation points. Includes progress indicator
+ * toward the next level and color-coded styling.
+ * 
+ * Features:
+ * - Trust level display
+ * - Progress toward next level
+ * - Size variants (sm, md, lg)
+ * - Color-coded by level
+ * - Icon display
+ * 
+ * @param props - TrustLevelBadge component props
+ * @returns Trust level badge element
+ * 
+ * @example
+ * ```tsx
+ * <TrustLevelBadge
+ *   reputationPoints={5000}
+ *   size="md"
+ *   showProgress={true}
+ * />
+ * ```
  */
-
 import { Shield, ShieldCheck, Award, TrendingUp } from 'lucide-react'
 
 interface TrustLevelBadgeProps {
@@ -16,6 +33,9 @@ interface TrustLevelBadgeProps {
   className?: string
 }
 
+/**
+ * Trust level information structure.
+ */
 interface TrustLevelInfo {
   level: 'newcomer' | 'trusted' | 'veteran' | 'elite'
   label: string
@@ -26,6 +46,9 @@ interface TrustLevelInfo {
   Icon: typeof Shield | typeof ShieldCheck | typeof Award
 }
 
+/**
+ * Available trust levels with thresholds and styling.
+ */
 const TRUST_LEVELS: TrustLevelInfo[] = [
   {
     level: 'newcomer',

@@ -2,7 +2,7 @@
  * Token Counter Utility
  * 
  * Provides accurate token counting for different LLM models
- * Uses tiktoken for OpenAI models and approximations for others
+ * Uses tiktoken for OpenAGI models and approximations for others
  */
 
 import type { Tiktoken } from 'tiktoken';
@@ -133,7 +133,7 @@ export function truncateToTokenLimitSync(
  * Note: Output limits are separate (see comments for each model)
  */
 export const MODEL_TOKEN_LIMITS: Record<string, number> = {
-  // OpenAI (input context)
+  // OpenAGI (input context)
   'gpt-4o': 128000,        // 128k input, separate output limit
   'gpt-4o-mini': 128000,   // 128k input, separate output limit
   'gpt-4-turbo': 128000,

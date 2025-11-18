@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/stores/authStore'
-import { logger } from '@/lib/logger'
 
 /**
  * Represents the current Twitter authentication status.
@@ -81,15 +80,9 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
     })
 
     if (response.ok) {
-      try {
-        const data = await response.json() as TwitterAuthStatus
-        setAuthStatus(data)
-        setError(null)
-      } catch (error) {
-        logger.error('Failed to parse Twitter auth status response', { error }, 'useTwitterAuth')
-        setAuthStatus(null)
-        setError('Failed to parse response')
-      }
+      const data = await response.json() as TwitterAuthStatus
+      setAuthStatus(data)
+      setError(null)
     } else {
       setAuthStatus(null)
     }

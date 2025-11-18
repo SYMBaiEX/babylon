@@ -54,9 +54,7 @@ export const feedProvider: Provider = {
       return { text: feedText }
     } catch (error) {
       logger.error('Error fetching feed via A2A', { error, agentId: runtime.agentId }, 'FeedProvider')
-      return { 
-        text: `Error fetching feed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }
@@ -97,9 +95,7 @@ export const trendingProvider: Provider = {
       return { text: trendingText }
     } catch (error) {
       logger.error('Error fetching trending tags via A2A', { error, agentId: runtime.agentId }, 'TrendingProvider')
-      return { 
-        text: `Error fetching trending topics: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }

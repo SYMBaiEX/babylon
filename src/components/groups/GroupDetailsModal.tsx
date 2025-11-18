@@ -1,17 +1,42 @@
 'use client';
 
 /**
- * Group Details Modal
+ * Group details modal component for viewing and managing group details.
  * 
- * Shows group details with member management for admins
+ * Displays group information including name, description, members, and
+ * creation date. Provides member management functionality for admins
+ * including removing members and toggling admin privileges.
+ * 
+ * Features:
+ * - Group information display
+ * - Member list
+ * - Remove member functionality (admins)
+ * - Toggle admin privileges (admins)
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - GroupDetailsModal component props
+ * @returns Group details modal element
+ * 
+ * @example
+ * ```tsx
+ * <GroupDetailsModal
+ *   groupId="group-123"
+ *   onClose={() => setShowModal(false)}
+ *   onGroupUpdated={() => refreshGroup()}
+ * />
+ * ```
  */
-
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Crown, UserMinus, UserPlus, Shield, Settings, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+/**
+ * Group member structure for group details modal.
+ */
 interface GroupMember {
   userId: string;
   username: string | null;
@@ -21,6 +46,9 @@ interface GroupMember {
   isAdmin: boolean;
 }
 
+/**
+ * Group details structure from API.
+ */
 interface GroupDetails {
   id: string;
   name: string;

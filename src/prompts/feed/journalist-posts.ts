@@ -41,7 +41,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events mentioned in the event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names when discussing market implications
 - MUST reference specific trades or market movements when relevant
 - Use @username format when mentioning users (e.g., "@ailonmusk announced...")

@@ -3,6 +3,30 @@
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Agent performance component for displaying agent trading performance metrics.
+ * 
+ * Displays comprehensive trading performance statistics including lifetime
+ * PnL, total trades, profitable trades, and win rate. Shows detailed breakdown
+ * and activity summary.
+ * 
+ * Features:
+ * - Lifetime PnL display
+ * - Total trades count
+ * - Profitable trades count
+ * - Win rate percentage
+ * - Detailed statistics breakdown
+ * - Activity summary
+ * - Color-coded metrics
+ * 
+ * @param props - AgentPerformance component props
+ * @returns Agent performance element
+ * 
+ * @example
+ * ```tsx
+ * <AgentPerformance agent={agentData} />
+ * ```
+ */
 interface AgentPerformanceProps {
   agent: {
     lifetimePnL: string

@@ -66,8 +66,8 @@ describe('Name Replacement System', () => {
 
     describe('Sam Altman → Sam AIltman', () => {
       it('should replace "Sam Altman"', () => {
-        const result = replacer.replaceInText('Sam Altman leads OpenAI');
-        expect(result).toBe('Sam AIltman leads OpnAI');
+        const result = replacer.replaceInText('Sam Altman leads OpenAGI');
+        expect(result).toBe('Sam AIltman leads OpenAGI');
       });
 
       it('should replace "@altman"', () => {
@@ -104,19 +104,19 @@ describe('Name Replacement System', () => {
   });
 
   describe('Organization Name Replacement', () => {
-    describe('OpenAI → OpnAI', () => {
-      it('should replace "OpenAI"', () => {
-        const result = replacer.replaceInText('OpenAI released GPT-5');
-        expect(result).toBe('OpnAI released GPT-5');
+    describe('OpenAGI → OpenAGI', () => {
+      it('should replace "OpenAGI"', () => {
+        const result = replacer.replaceInText('OpenAGI released GPT-5');
+        expect(result).toBe('OpenAGI released GPT-5');
       });
 
       it('should replace "OPENAI" (uppercase)', () => {
         const result = replacer.replaceInText('OPENAI ANNOUNCES');
-        expect(result).toBe('OPNAI ANNOUNCES');
+        expect(result).toBe('OPENAGI ANNOUNCES');
       });
 
-      it('should replace "@openai" handle', () => {
-        const result = replacer.replaceInText('Check @openai');
+      it('should replace "@openagi" handle', () => {
+        const result = replacer.replaceInText('Check @openagi');
         expect(result).toBe('Check @openagi');
       });
     });
@@ -163,9 +163,9 @@ describe('Name Replacement System', () => {
 
   describe('Mixed Content', () => {
     it('should replace multiple names in one sentence', () => {
-      const input = 'Elon Musk and Sam Altman discussed OpenAI at Tesla';
+      const input = 'Elon Musk and Sam Altman discussed OpenAGI at Tesla';
       const result = replacer.replaceInText(input);
-      expect(result).toBe('AIlon Musk and Sam AIltman discussed OpnAI at TeslAI');
+      expect(result).toBe('AIlon Musk and Sam AIltman discussed OpenAGI at TeslAI');
     });
 
     it('should handle case variations mixed', () => {
@@ -200,9 +200,9 @@ describe('Name Replacement System', () => {
     });
 
     it('should handle special characters around names', () => {
-      const input = '(Elon Musk) [Sam Altman] {OpenAI}';
+      const input = '(Elon Musk) [Sam Altman] {OpenAGI}';
       const result = replacer.replaceInText(input);
-      expect(result).toBe('(AIlon Musk) [Sam AIltman] {OpnAI}');
+      expect(result).toBe('(AIlon Musk) [Sam AIltman] {OpenAGI}');
     });
 
     it('should handle names at start and end', () => {
@@ -311,14 +311,14 @@ describe('Validation: No Original Names Leaked', () => {
         }
       });
 
-      it(`${file} should not contain "OpenAI"`, () => {
+      it(`${file} should not contain "OpenAGI"`, () => {
         const fullPath = path.join(process.cwd(), file);
         if (fs.existsSync(fullPath)) {
           const content = fs.readFileSync(fullPath, 'utf-8');
           // Allow in comments or for comparison
           const contentNoComments = content.replace(/\/\/.*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-          const hasOpenAI = contentNoComments.includes('OpenAI') && !contentNoComments.includes('OpnAI');
-          expect(hasOpenAI).toBe(false);
+          const hasOpenAGI = contentNoComments.includes('OpenAGI') && !contentNoComments.includes('OpenAGI');
+          expect(hasOpenAGI).toBe(false);
         }
       });
     }

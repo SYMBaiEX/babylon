@@ -13,6 +13,39 @@ import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 
+/**
+ * Admin send money modal component for sending ETH to users.
+ * 
+ * Provides a multi-step payment flow for admins to send ETH to users
+ * via smart wallet transactions. Handles wallet funding, payment processing,
+ * and transaction verification. Includes optional reason field for tracking.
+ * 
+ * Features:
+ * - USD amount input
+ * - ETH conversion
+ * - Optional reason field
+ * - Smart wallet funding (if needed)
+ * - Payment processing
+ * - Transaction verification
+ * - Multi-step flow (input → payment → verifying → success/error)
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - AdminSendMoneyModal component props
+ * @returns Admin send money modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <AdminSendMoneyModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   recipientId="user-123"
+ *   recipientName="Alice"
+ *   onSuccess={() => refreshData()}
+ * />
+ * ```
+ */
 interface AdminSendMoneyModalProps {
   isOpen: boolean
   onClose: () => void
@@ -23,8 +56,14 @@ interface AdminSendMoneyModalProps {
   onSuccess?: () => void
 }
 
+/**
+ * Payment step type for admin send money flow.
+ */
 type PaymentStep = 'input' | 'payment' | 'verifying' | 'success' | 'error'
 
+/**
+ * Payment request structure for admin money transfer.
+ */
 interface PaymentRequest {
   requestId: string
   to: string

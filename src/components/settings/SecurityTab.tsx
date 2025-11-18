@@ -6,6 +6,22 @@ import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * Security tab component for managing account security settings.
+ * 
+ * Provides settings for managing connected wallets, authentication methods,
+ * and account security. Displays wallet information, allows wallet linking/unlinking,
+ * and provides logout functionality. Shows Privy authentication details.
+ * 
+ * Features:
+ * - Wallet management (link/unlink)
+ * - Wallet export (for embedded wallets)
+ * - Authentication method display
+ * - Logout functionality
+ * - Copy to clipboard utilities
+ * 
+ * @returns Security tab element
+ */
 export function SecurityTab() {
   const { user: privyUser, linkWallet, unlinkWallet, exportWallet } = usePrivy()
   const { wallets } = useWallets()

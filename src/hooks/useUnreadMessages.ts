@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@/lib/logger';
 
 /**
  * Represents unread message counts.
@@ -42,7 +41,7 @@ interface UnreadCounts {
  * ```
  */
 export function useUnreadMessages() {
-  const { authenticated, user } = useAuth();
+  const { authenticated } = useAuth();
   const { getAccessToken } = usePrivy();
   const [counts, setCounts] = useState<UnreadCounts>({
     pendingDMs: 0,
@@ -73,14 +72,7 @@ export function useUnreadMessages() {
         return;
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        logger.error('Failed to parse unread counts response', { error, userId: user?.id }, 'useUnreadMessages');
-        setIsLoading(false);
-        return;
-      }
+      const data = await response.json();
       setCounts({
         pendingDMs: data.pendingDMs || 0,
         hasNewMessages: data.hasNewMessages || false,

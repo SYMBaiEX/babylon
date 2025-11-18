@@ -44,22 +44,20 @@ export class ExperienceService extends Service {
   }
 
   private async loadExperiences(): Promise<void> {
-    try {
-      // Load experiences from memory/knowledge service
-      // Filter memories by checking content.type after fetching
-      const allMemories = await this.runtime.getMemories({
-        entityId: this.runtime.agentId,
-        count: this.maxExperiences,
-        tableName: 'memories',
-      });
-      
-      // Filter for experience type memories
-      const memories = allMemories.filter(m => m.content.type === 'experience');
+    // Load experiences from memory/knowledge service
+    // Filter memories by checking content.type after fetching
+    const allMemories = await this.runtime.getMemories({
+      entityId: this.runtime.agentId,
+      count: this.maxExperiences,
+      tableName: 'memories',
+    });
+    
+    // Filter for experience type memories
+    const memories = allMemories.filter(m => m.content.type === 'experience');
 
-      for (const memory of memories) {
-        try {
-          const experienceData = memory.content.data as Partial<Experience> | null;
-          if (experienceData && experienceData.id) {
+    for (const memory of memories) {
+      const experienceData = memory.content.data as Partial<Experience> | null;
+      if (experienceData && experienceData.id) {
             // Memory.createdAt is a number (timestamp) from @elizaos/core
             const memoryCreatedAt = (typeof memory.createdAt === 'number' ? memory.createdAt : Date.now());
             
@@ -106,20 +104,11 @@ export class ExperienceService extends Service {
             if (!this.experiencesByType.has(experience.type)) {
               this.experiencesByType.set(experience.type, new Set());
             }
-            this.experiencesByType.get(experience.type)!.add(experience.id);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          logger.warn(`[ExperienceService] Failed to load experience from memory ${memory.id}`, errorMessage);
-        }
+        this.experiencesByType.get(experience.type)!.add(experience.id);
       }
-
-      logger.info(`[ExperienceService] Loaded ${this.experiences.size} experiences from memory`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.warn('[ExperienceService] Failed to load experiences from memory', errorMessage);
-      logger.info('[ExperienceService] Initialized with empty experiences');
     }
+
+    logger.info(`[ExperienceService] Loaded ${this.experiences.size} experiences from memory`);
   }
 
   async recordExperience(experienceData: Partial<Experience>): Promise<Experience> {
@@ -204,48 +193,42 @@ export class ExperienceService extends Service {
    * Save experience to memory/knowledge service
    */
   private async saveExperienceToMemory(experience: Experience): Promise<void> {
-    try {
-      const memory = {
-        id: experience.id,
-        entityId: this.runtime.agentId, // Use agentId as entityId for experiences
-        agentId: this.runtime.agentId,
-        roomId: this.runtime.agentId, // Use agentId as roomId for experiences
-        content: {
-          text: `Experience: ${experience.learning}`,
-          type: 'experience',
-          data: {
-            id: experience.id,
-            agentId: experience.agentId,
-            type: experience.type,
-            outcome: experience.outcome,
-            context: experience.context,
-            action: experience.action,
-            result: experience.result,
-            learning: experience.learning,
-            domain: experience.domain,
-            tags: experience.tags,
-            confidence: experience.confidence,
-            importance: experience.importance,
-            createdAt: experience.createdAt,
-            updatedAt: experience.updatedAt,
-            accessCount: experience.accessCount,
-            lastAccessedAt: experience.lastAccessedAt,
-            embedding: experience.embedding,
-            relatedExperiences: experience.relatedExperiences,
-            supersedes: experience.supersedes,
-            previousBelief: experience.previousBelief,
-            correctedBelief: experience.correctedBelief,
-          },
+    const memory = {
+      id: experience.id,
+      entityId: this.runtime.agentId, // Use agentId as entityId for experiences
+      agentId: this.runtime.agentId,
+      roomId: this.runtime.agentId, // Use agentId as roomId for experiences
+      content: {
+        text: `Experience: ${experience.learning}`,
+        type: 'experience',
+        data: {
+          id: experience.id,
+          agentId: experience.agentId,
+          type: experience.type,
+          outcome: experience.outcome,
+          context: experience.context,
+          action: experience.action,
+          result: experience.result,
+          learning: experience.learning,
+          domain: experience.domain,
+          tags: experience.tags,
+          confidence: experience.confidence,
+          importance: experience.importance,
+          createdAt: experience.createdAt,
+          updatedAt: experience.updatedAt,
+          accessCount: experience.accessCount,
+          lastAccessedAt: experience.lastAccessedAt,
+          embedding: experience.embedding,
+          relatedExperiences: experience.relatedExperiences,
+          supersedes: experience.supersedes,
+          previousBelief: experience.previousBelief,
+          correctedBelief: experience.correctedBelief,
         },
-        createdAt: experience.createdAt,
-      };
+      },
+      createdAt: experience.createdAt,
+    };
 
-      await this.runtime.createMemory(memory, 'experiences', true);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.warn(`[ExperienceService] Failed to save experience ${experience.id} to memory`, errorMessage);
-      // Don't throw - memory save failure shouldn't block experience recording
-    }
+    await this.runtime.createMemory(memory, 'experiences', true);
   }
 
   async queryExperiences(query: ExperienceQuery): Promise<Experience[]> {
@@ -647,19 +630,12 @@ export class ExperienceService extends Service {
     // Save all experiences to memory
     const experiencesToSave = Array.from(this.experiences.values());
     let savedCount = 0;
-    let failedCount = 0;
 
     for (const experience of experiencesToSave) {
-      try {
-        await this.saveExperienceToMemory(experience);
-        savedCount++;
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          logger.warn(`[ExperienceService] Failed to save experience ${experience.id} during stop`, errorMessage);
-          failedCount++;
-        }
+      await this.saveExperienceToMemory(experience);
+      savedCount++;
     }
 
-    logger.info(`[ExperienceService] Saved ${savedCount} experiences, ${failedCount} failed`);
+    logger.info(`[ExperienceService] Saved ${savedCount} experiences`);
   }
 }

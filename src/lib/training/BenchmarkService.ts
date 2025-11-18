@@ -65,18 +65,14 @@ export class BenchmarkService {
       return this.DEFAULT_BENCHMARK_PATH;
     } catch {
       // Fallback: find any benchmark file
-      try {
-        const benchmarkDir = path.resolve(process.cwd(), 'benchmarks');
-        const files = await fs.readdir(benchmarkDir);
-        const benchmarkFiles = files.filter(f => f.startsWith('benchmark-') && f.endsWith('.json'));
-        
-        if (benchmarkFiles.length > 0) {
-          const fallbackPath = path.join(benchmarkDir, benchmarkFiles[0]!);
-          logger.warn(`Default benchmark not found, using: ${fallbackPath}`, undefined, 'BenchmarkService');
-          return fallbackPath;
-        }
-      } catch {
-        // Ignore fallback errors
+      const benchmarkDir = path.resolve(process.cwd(), 'benchmarks');
+      const files = await fs.readdir(benchmarkDir);
+      const benchmarkFiles = files.filter(f => f.startsWith('benchmark-') && f.endsWith('.json'));
+      
+      if (benchmarkFiles.length > 0) {
+        const fallbackPath = path.join(benchmarkDir, benchmarkFiles[0]!);
+        logger.warn(`Default benchmark not found, using: ${fallbackPath}`, undefined, 'BenchmarkService');
+        return fallbackPath;
       }
     }
     
@@ -501,16 +497,8 @@ export class BenchmarkService {
     const results: Record<string, BenchmarkResults> = {};
 
     for (const modelId of modelIds) {
-      try {
-        const result = await this.benchmarkModel(modelId, benchmarkPath);
-        results[modelId] = result;
-      } catch (error) {
-        logger.error(
-          `Failed to benchmark model ${modelId}`,
-          error,
-          'BenchmarkService'
-        );
-      }
+      const result = await this.benchmarkModel(modelId, benchmarkPath);
+      results[modelId] = result;
     }
 
     return results;

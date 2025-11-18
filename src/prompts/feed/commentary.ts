@@ -39,7 +39,7 @@ IMPORTANT RULES:
 
 CONTENT REQUIREMENTS:
 - MUST reference specific actors, companies, or events from the news/event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpnAI")
+- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names when analyzing market implications
 - MUST reference specific trades or market movements when discussing trading activity
 - Use @username format when mentioning users (e.g., "@ailonmusk's move...")
@@ -65,7 +65,7 @@ Respond with ONLY this XML format (example for 2 commentators):
       <pointsToward>null</pointsToward>
     </comment>
     <comment>
-      <post>OpnAI's GPT-6 consciousness claims from @samailtman again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.</post>
+      <post>OpenAGI's GPT-6 consciousness claims from @samailtman again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.</post>
       <sentiment>-0.2</sentiment>
       <clueStrength>0.5</clueStrength>
       <pointsToward>false</pointsToward>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl'
 
@@ -104,17 +103,8 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       }),
     ])
 
-    let balanceJson;
-    let positionsJson;
-    try {
-      balanceJson = await balanceRes.json();
-      positionsJson = await positionsRes.json();
-    } catch (error) {
-      logger.error('Failed to parse portfolio PnL response', { error, userId: user.id }, 'usePortfolioPnL');
-      setError('Failed to parse response');
-      setLoading(false);
-      return;
-    }
+    const balanceJson = await balanceRes.json();
+    const positionsJson = await positionsRes.json();
 
       const totalDeposited = toNumber(balanceJson.totalDeposited)
       const totalWithdrawn = toNumber(balanceJson.totalWithdrawn)

@@ -7,14 +7,19 @@ import { useEffect, useState, useCallback } from 'react'
 import { Check, RefreshCw, Sparkles, Zap, Bot, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
+/**
+ * Wandb model structure for AI models tab.
+ */
 interface WandbModel {
   id: string
   name: string
   description?: string
 }
 
+/**
+ * AI models data structure from API.
+ */
 interface AIModelsData {
   currentSettings: {
     wandbModel: string | null
@@ -31,6 +36,24 @@ interface AIModelsData {
   recommendedModels: WandbModel[]
 }
 
+/**
+ * AI models tab component for managing AI model settings.
+ * 
+ * Provides interface for configuring AI model providers and Wandb models.
+ * Allows enabling/disabling Wandb and selecting specific models. Includes
+ * model testing functionality and provider status display.
+ * 
+ * Features:
+ * - Provider status display
+ * - Wandb enable/disable toggle
+ * - Model selection
+ * - Model testing
+ * - Recommended models display
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns AI models tab element
+ */
 export function AIModelsTab() {
   const [data, setData] = useState<AIModelsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,36 +64,30 @@ export function AIModelsTab() {
   const [wandbEnabled, setWandbEnabled] = useState(false)
 
   const fetchData = useCallback(async () => {
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
-      const response = await fetch('/api/admin/ai-models', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) throw new Error('Failed to fetch AI models')
-
-      let result;
-      try {
-        result = await response.json()
-      } catch (parseError) {
-        logger.error('Failed to parse AI models response', { error: parseError }, 'AIModelsTab')
-        throw new Error('Failed to parse response')
-      }
-      setData(result.data)
-      setSelectedModel(result.data.currentSettings.wandbModel)
-      setWandbEnabled(result.data.currentSettings.wandbEnabled)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Not authenticated')
       setLoading(false)
-    } catch (err) {
-      logger.error('Failed to load AI models', { error: err }, 'AIModelsTab')
+      return
+    }
+
+    const response = await fetch('/api/admin/ai-models', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
       toast.error('Failed to load AI models')
       setLoading(false)
+      return
     }
+
+    const result = await response.json()
+    setData(result.data)
+    setSelectedModel(result.data.currentSettings.wandbModel)
+    setWandbEnabled(result.data.currentSettings.wandbEnabled)
+    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -84,82 +101,65 @@ export function AIModelsTab() {
     }
 
     setSaving(true)
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
-      const response = await fetch('/api/admin/ai-models', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wandbModel: selectedModel,
-          wandbEnabled,
-        }),
-      })
-
-      if (!response.ok) {
-        let error;
-        try {
-          error = await response.json()
-        } catch (parseError) {
-          logger.error('Failed to parse save error response', { error: parseError }, 'AIModelsTab')
-          throw new Error('Failed to save')
-        }
-        throw new Error((error as { error?: string }).error || 'Failed to save')
-      }
-
-      toast.success('AI model configuration updated successfully')
-      setTestResult(null) // Clear previous test result
-      await fetchData() // Refresh data
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save configuration')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Not authenticated')
       setSaving(false)
+      return
     }
+
+    const response = await fetch('/api/admin/ai-models', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        wandbModel: selectedModel,
+        wandbEnabled,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      toast.error((error as { error?: string }).error || 'Failed to save configuration')
+      setSaving(false)
+      return
+    }
+
+    toast.success('AI model configuration updated successfully')
+    setTestResult(null) // Clear previous test result
+    await fetchData() // Refresh data
+    setSaving(false)
   }
 
   const handleTest = async () => {
     setTesting(true)
     setTestResult(null)
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
-      const response = await fetch('/api/admin/ai-models/test', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      let result;
-      try {
-        result = await response.json()
-      } catch (parseError) {
-        logger.error('Failed to parse test response', { error: parseError }, 'AIModelsTab')
-        throw new Error('Failed to parse test response')
-      }
-
-      if (response.ok) {
-        setTestResult(result.data)
-        toast.success(`Test successful! Using ${result.data.provider}`)
-      } else {
-        toast.error(result.error || 'Test failed')
-        setTestResult({ error: result.error, details: result.details })
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Test failed')
-      setTestResult({ error: error instanceof Error ? error.message : 'Test failed' })
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Not authenticated')
       setTesting(false)
+      return
     }
+
+    const response = await fetch('/api/admin/ai-models/test', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    const result = await response.json()
+
+    if (response.ok) {
+      setTestResult(result.data)
+      toast.success(`Test successful! Using ${result.data.provider}`)
+    } else {
+      toast.error(result.error || 'Test failed')
+      setTestResult({ error: result.error, details: result.details })
+    }
+    setTesting(false)
   }
 
   const getProviderIcon = (provider: string) => {

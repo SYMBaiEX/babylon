@@ -10,8 +10,7 @@ import { worldFactsService } from '@/lib/services/world-facts-service';
 const worldFactsModelsAvailable = !!(prisma && prisma.worldFact);
 
 describe('WorldFactsService', () => {
-  const testCategory = 'test';
-  const testKey = 'test-fact-' + Date.now();
+  const testValuePrefix = 'Test Fact: ' + Date.now();
 
   afterEach(async () => {
     if (!prisma) return;
@@ -20,129 +19,65 @@ describe('WorldFactsService', () => {
     // Cleanup test data
     await prisma.worldFact.deleteMany({
       where: {
-        category: testCategory,
+        value: {
+          startsWith: testValuePrefix,
+        },
       },
     });
   });
 
-  test('should create a new world fact', async () => {
+  test('should create a new world fact by value', async () => {
     if (!worldFactsModelsAvailable) return;
-    const fact = await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value',
-      'test-source',
-      5
-    );
+    const testValue = `${testValuePrefix} - Initial Value`;
+    const fact = await worldFactsService.setFactByValue(testValue);
 
     expect(fact).toBeDefined();
-    expect(fact.category).toBe(testCategory);
-    expect(fact.key).toBe(testKey);
-    expect(fact.label).toBe('Test Label');
-    expect(fact.value).toBe('Test Value');
-    expect(fact.source).toBe('test-source');
-    expect(fact.priority).toBe(5);
+    expect(fact.value).toBe(testValue);
+    expect(fact.category).toBe('general');
+    expect(fact.isActive).toBe(true);
   });
 
   test('should update existing world fact', async () => {
     if (!worldFactsModelsAvailable) return;
     // Create initial fact
-    await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Initial Label',
-      'Initial Value'
-    );
+    const testValue = `${testValuePrefix} - Initial Value`;
+    const fact = await worldFactsService.setFactByValue(testValue);
 
-    // Update it
-    const updated = await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Updated Label',
-      'Updated Value'
-    );
+    // Update it by ID
+    const updatedValue = `${testValuePrefix} - Updated Value`;
+    const updated = await worldFactsService.updateFactById(fact.id, updatedValue);
 
-    expect(updated.label).toBe('Updated Label');
-    expect(updated.value).toBe('Updated Value');
-  });
-
-  test('should get fact by category and key', async () => {
-    if (!worldFactsModelsAvailable) return;
-    await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
-
-    const fact = await worldFactsService.getFact(testCategory, testKey);
-
-    expect(fact).toBeDefined();
-    expect(fact?.category).toBe(testCategory);
-    expect(fact?.key).toBe(testKey);
-  });
-
-  test('should get facts by category', async () => {
-    if (!worldFactsModelsAvailable) return;
-    await worldFactsService.setFact(
-      testCategory,
-      testKey + '-1',
-      'Label 1',
-      'Value 1'
-    );
-    await worldFactsService.setFact(
-      testCategory,
-      testKey + '-2',
-      'Label 2',
-      'Value 2'
-    );
-
-    const facts = await worldFactsService.getFactsByCategory(testCategory);
-
-    expect(facts).toHaveLength(2);
-    expect(facts.every(f => f.category === testCategory)).toBe(true);
+    expect(updated.value).toBe(updatedValue);
+    expect(updated.id).toBe(fact.id);
   });
 
   test('should get all facts', async () => {
     if (!worldFactsModelsAvailable) return;
-    await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
+    const testValue = `${testValuePrefix} - Test Value`;
+    await worldFactsService.setFactByValue(testValue);
 
     const facts = await worldFactsService.getAllFacts();
 
     expect(facts).toBeDefined();
     expect(Array.isArray(facts)).toBe(true);
-    expect(facts.some(f => f.key === testKey)).toBe(true);
+    expect(facts.some(f => f.value === testValue)).toBe(true);
   });
 
   test('should delete a fact', async () => {
     if (!worldFactsModelsAvailable) return;
-    const fact = await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
+    const testValue = `${testValuePrefix} - To Delete`;
+    const fact = await worldFactsService.setFactByValue(testValue);
 
     await worldFactsService.deleteFact(fact.id);
 
-    const deleted = await worldFactsService.getFact(testCategory, testKey);
-    expect(deleted).toBeNull();
+    const allFacts = await worldFactsService.getAllFacts();
+    expect(allFacts.some(f => f.id === fact.id)).toBe(false);
   });
 
   test('should toggle fact active status', async () => {
     if (!worldFactsModelsAvailable) return;
-    const fact = await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
+    const testValue = `${testValuePrefix} - Toggle Test`;
+    const fact = await worldFactsService.setFactByValue(testValue);
 
     expect(fact.isActive).toBe(true);
 
@@ -155,12 +90,8 @@ describe('WorldFactsService', () => {
 
   test('should generate world context', async () => {
     if (!worldFactsModelsAvailable) return;
-    await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
+    const testValue = `${testValuePrefix} - Context Test`;
+    await worldFactsService.setFactByValue(testValue);
 
     const context = await worldFactsService.generateWorldContext(false);
 
@@ -171,16 +102,13 @@ describe('WorldFactsService', () => {
     expect(typeof context.economy).toBe('string');
     expect(typeof context.technology).toBe('string');
     expect(typeof context.general).toBe('string');
+    expect(context.general).toContain(testValue);
   });
 
   test('should generate prompt context string', async () => {
     if (!worldFactsModelsAvailable) return;
-    await worldFactsService.setFact(
-      testCategory,
-      testKey,
-      'Test Label',
-      'Test Value'
-    );
+    const testValue = `${testValuePrefix} - Prompt Test`;
+    await worldFactsService.setFactByValue(testValue);
 
     // Generate context without headlines to avoid LLM requirement
     const context = await worldFactsService.generateWorldContext(false);
@@ -196,25 +124,16 @@ describe('WorldFactsService', () => {
 
   test('should bulk update facts', async () => {
     if (!worldFactsModelsAvailable) return;
-    const updates = [
-      {
-        category: testCategory,
-        key: testKey + '-bulk-1',
-        label: 'Bulk Label 1',
-        value: 'Bulk Value 1',
-      },
-      {
-        category: testCategory,
-        key: testKey + '-bulk-2',
-        label: 'Bulk Label 2',
-        value: 'Bulk Value 2',
-      },
+    const values = [
+      `${testValuePrefix} - Bulk Value 1`,
+      `${testValuePrefix} - Bulk Value 2`,
     ];
 
-    await worldFactsService.bulkUpdateFacts(updates);
+    await worldFactsService.bulkUpdateFacts(values);
 
-    const facts = await worldFactsService.getFactsByCategory(testCategory);
-    expect(facts.length).toBeGreaterThanOrEqual(2);
+    const facts = await worldFactsService.getAllFacts();
+    expect(facts.some(f => f.value === values[0])).toBe(true);
+    expect(facts.some(f => f.value === values[1])).toBe(true);
   });
 });
 

@@ -457,58 +457,47 @@ Your action plan (JSON only):`
    * Parse action plan from LLM response
    */
   private parseActionPlan(response: string, _context: PlanningContext): ActionPlan {
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        logger.warn('No JSON found in planning response, using empty plan', undefined, 'PlanningCoordinator')
-        return {
-          actions: [],
-          totalActions: 0,
-          reasoning: 'No valid plan generated',
-          goalsAddressed: [],
-          estimatedCost: 0
-        }
-      }
-      
-      const parsed = JSON.parse(jsonMatch[0]) as {
-        reasoning: string
-        actions: Array<{
-          type: string
-          priority: number
-          goalId?: string
-          reasoning: string
-          estimatedImpact: number
-          params?: Record<string, unknown>
-        }>
-      }
-      
-      const actions: PlannedAction[] = parsed.actions.map(a => ({
-        type: a.type as PlannedAction['type'],
-        priority: a.priority,
-        goalId: a.goalId,
-        reasoning: a.reasoning,
-        estimatedImpact: a.estimatedImpact,
-        params: a.params || {}
-      }))
-      
-      const goalsAddressed = [...new Set(actions.map(a => a.goalId).filter(Boolean))] as string[]
-      
-      return {
-        actions,
-        totalActions: actions.length,
-        reasoning: parsed.reasoning,
-        goalsAddressed,
-        estimatedCost: actions.length  // Simple: 1 point per action
-      }
-    } catch (error) {
-      logger.error('Failed to parse action plan', error, 'PlanningCoordinator')
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      logger.warn('No JSON found in planning response, using empty plan', undefined, 'PlanningCoordinator')
       return {
         actions: [],
         totalActions: 0,
-        reasoning: 'Parse error',
+        reasoning: 'No valid plan generated',
         goalsAddressed: [],
         estimatedCost: 0
       }
+    }
+    
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      reasoning: string
+      actions: Array<{
+        type: string
+        priority: number
+        goalId?: string
+        reasoning: string
+        estimatedImpact: number
+        params?: Record<string, unknown>
+      }>
+    }
+    
+    const actions: PlannedAction[] = parsed.actions.map(a => ({
+      type: a.type as PlannedAction['type'],
+      priority: a.priority,
+      goalId: a.goalId,
+      reasoning: a.reasoning,
+      estimatedImpact: a.estimatedImpact,
+      params: a.params || {}
+    }))
+    
+    const goalsAddressed = [...new Set(actions.map(a => a.goalId).filter(Boolean))] as string[]
+    
+    return {
+      actions,
+      totalActions: actions.length,
+      reasoning: parsed.reasoning,
+      goalsAddressed,
+      estimatedCost: actions.length  // Simple: 1 point per action
     }
   }
   
@@ -735,49 +724,45 @@ Your action plan (JSON only):`
     agentUserId: string,
     action: PlannedAction
   ): Promise<void> {
-    try {
-      const goal = await prisma.agentGoal.findUnique({
-        where: { id: goalId }
-      })
-      
-      if (!goal) return
-      
-      // Update progress (simplified - could be more sophisticated)
-      const newProgress = Math.min(1.0, goal.progress + action.estimatedImpact)
-      
-      await prisma.agentGoal.update({
-        where: { id: goalId },
-        data: {
-          progress: newProgress,
-          updatedAt: new Date(),
-          ...(newProgress >= 1.0 ? {
-            status: 'completed',
-            completedAt: new Date()
-          } : {})
-        }
-      })
-      
-      // Record goal action
-      await prisma.agentGoalAction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          goalId,
-          agentUserId,
-          actionType: action.type,
-          impact: action.estimatedImpact,
-          metadata: action.params as Prisma.InputJsonValue
-        }
-      })
-      
-      logger.info(`Updated goal progress`, {
+    const goal = await prisma.agentGoal.findUnique({
+      where: { id: goalId }
+    })
+    
+    if (!goal) return
+    
+    // Update progress (simplified - could be more sophisticated)
+    const newProgress = Math.min(1.0, goal.progress + action.estimatedImpact)
+    
+    await prisma.agentGoal.update({
+      where: { id: goalId },
+      data: {
+        progress: newProgress,
+        updatedAt: new Date(),
+        ...(newProgress >= 1.0 ? {
+          status: 'completed',
+          completedAt: new Date()
+        } : {})
+      }
+    })
+    
+    // Record goal action
+    await prisma.agentGoalAction.create({
+      data: {
+        id: await generateSnowflakeId(),
         goalId,
-        oldProgress: goal.progress,
-        newProgress,
-        completed: newProgress >= 1.0
-      }, 'PlanningCoordinator')
-    } catch (error) {
-      logger.error('Failed to update goal progress', error, 'PlanningCoordinator')
-    }
+        agentUserId,
+        actionType: action.type,
+        impact: action.estimatedImpact,
+        metadata: action.params as Prisma.InputJsonValue
+      }
+    })
+    
+    logger.info(`Updated goal progress`, {
+      goalId,
+      oldProgress: goal.progress,
+      newProgress,
+      completed: newProgress >= 1.0
+    }, 'PlanningCoordinator')
   }
 }
 

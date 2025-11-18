@@ -62,7 +62,7 @@ ${topicsText}`,
       }
     } catch (error) {
       logger.error('Failed to fetch trending topics via A2A', error, 'TrendingTopicsProvider')
-      return { text: `Error fetching trending topics: ${error instanceof Error ? error.message : 'Unknown error'}` }
+      throw error
     }
   }
 }

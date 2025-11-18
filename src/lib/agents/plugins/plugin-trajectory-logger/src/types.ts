@@ -206,7 +206,7 @@ export interface Trajectory {
 }
 
 /**
- * OpenAI Chat Message Format (for ART training)
+ * OpenAGI Chat Message Format (for ART training)
  * This is what ART/GRPO actually trains on
  */
 export interface ChatMessage {

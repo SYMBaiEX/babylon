@@ -24,86 +24,76 @@ export interface ModelArtifact {
  * Get the latest RL model from database
  */
 export async function getLatestRLModel(): Promise<ModelArtifact | null> {
-  try {
-    const model = await prisma.trainedModel.findFirst({
-      where: {
-        status: { in: ['ready', 'deployed'] }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-    
-    if (!model) {
-      return null;
+  const model = await prisma.trainedModel.findFirst({
+    where: {
+      status: { in: ['ready', 'deployed'] }
+    },
+    orderBy: {
+      createdAt: 'desc'
     }
-    
-    // storagePath contains the WANDB model identifier (entity/project/model-name:step)
-    // This is what we need for WANDB API inference
-    const wandbModelId = model.storagePath || model.modelId;
-    
-    // Validate critical fields
-    if (!wandbModelId || wandbModelId.trim().length === 0) {
-      logger.error('Model has no storagePath or modelId', { 
-        modelId: model.modelId,
-        storagePath: model.storagePath 
-      }, 'WandbModelFetcher');
-      return null;
-    }
-    
-    if (!model.baseModel || model.baseModel.trim().length === 0) {
-      logger.error('Model has no baseModel', { modelId: model.modelId }, 'WandbModelFetcher');
-      return null;
-    }
-    
-    return {
-      version: model.version,
-      modelId: model.modelId, // Database model ID (babylon-agent-v1.0.0)
-      modelPath: wandbModelId, // WANDB model identifier for inference
-      metadata: {
-        avgReward: model.avgReward || undefined,
-        benchmarkScore: model.benchmarkScore || undefined,
-        baseModel: model.baseModel,
-        trainedAt: model.createdAt
-      }
-    };
-  } catch (error) {
-    logger.error('Failed to fetch latest RL model', { error }, 'WandbModelFetcher');
+  });
+  
+  if (!model) {
     return null;
   }
+  
+  // storagePath contains the WANDB model identifier (entity/project/model-name:step)
+  // This is what we need for WANDB API inference
+  const wandbModelId = model.storagePath || model.modelId;
+  
+  // Validate critical fields
+  if (!wandbModelId || wandbModelId.trim().length === 0) {
+    logger.error('Model has no storagePath or modelId', { 
+      modelId: model.modelId,
+      storagePath: model.storagePath 
+    }, 'WandbModelFetcher');
+    return null;
+  }
+  
+  if (!model.baseModel || model.baseModel.trim().length === 0) {
+    logger.error('Model has no baseModel', { modelId: model.modelId }, 'WandbModelFetcher');
+    return null;
+  }
+  
+  return {
+    version: model.version,
+    modelId: model.modelId, // Database model ID (babylon-agent-v1.0.0)
+    modelPath: wandbModelId, // WANDB model identifier for inference
+    metadata: {
+      avgReward: model.avgReward || undefined,
+      benchmarkScore: model.benchmarkScore || undefined,
+      baseModel: model.baseModel,
+      trainedAt: model.createdAt
+    }
+  };
 }
 
 /**
  * Get a specific version of RL model
  */
 export async function getRLModelByVersion(version: string): Promise<ModelArtifact | null> {
-  try {
-    const model = await prisma.trainedModel.findFirst({
-      where: {
-        version,
-        status: 'ready'
-      }
-    });
-    
-    if (!model) {
-      return null;
+  const model = await prisma.trainedModel.findFirst({
+    where: {
+      version,
+      status: 'ready'
     }
-    
-    return {
-      version: model.version,
-      modelId: model.modelId,
-      modelPath: model.storagePath || '',
-      metadata: {
-        avgReward: model.avgReward || undefined,
-        benchmarkScore: model.benchmarkScore || undefined,
-        baseModel: model.baseModel,
-        trainedAt: model.createdAt
-      }
-    };
-  } catch (error) {
-    logger.error(`Failed to fetch RL model version ${version}`, { error, version }, 'WandbModelFetcher');
+  });
+  
+  if (!model) {
     return null;
   }
+  
+  return {
+    version: model.version,
+    modelId: model.modelId,
+    modelPath: model.storagePath || '',
+    metadata: {
+      avgReward: model.avgReward || undefined,
+      benchmarkScore: model.benchmarkScore || undefined,
+      baseModel: model.baseModel,
+      trainedAt: model.createdAt
+    }
+  };
 }
 
 /**

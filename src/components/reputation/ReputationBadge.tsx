@@ -1,15 +1,32 @@
 /**
- * ReputationBadge Component
- *
- * Displays a badge for user reputation/trust levels
+ * Reputation badge component for displaying user reputation trust levels.
+ * 
+ * Displays a badge indicating the user's trust level based on reputation points:
  * - Newcomer: < 1000 points (Gray)
  * - Trusted: 1000-4999 points (Blue)
  * - Veteran: 5000-9999 points (Purple)
  * - Elite: 10000+ points (Gold)
- *
- * Pattern based on: RankBadge.tsx
+ * 
+ * Features:
+ * - Trust level display
+ * - Size variants (sm, md, lg)
+ * - Optional label text
+ * - Color-coded by level
+ * - Icon display
+ * - Elite level animation
+ * 
+ * @param props - ReputationBadge component props
+ * @returns Reputation badge element
+ * 
+ * @example
+ * ```tsx
+ * <ReputationBadge
+ *   reputationPoints={5000}
+ *   size="md"
+ *   showLabel={true}
+ * />
+ * ```
  */
-
 import { Shield, ShieldCheck, Award } from 'lucide-react'
 import type { ShieldAlert } from 'lucide-react'
 
@@ -20,8 +37,19 @@ interface ReputationBadgeProps {
   className?: string
 }
 
+/**
+ * Trust level type based on reputation points.
+ */
 type TrustLevel = 'newcomer' | 'trusted' | 'veteran' | 'elite'
 
+/**
+ * Get trust level from reputation points.
+ * 
+ * Determines the trust level based on reputation point thresholds.
+ * 
+ * @param points - Reputation points
+ * @returns Trust level
+ */
 function getTrustLevel(points: number): TrustLevel {
   if (points >= 10000) return 'elite'
   if (points >= 5000) return 'veteran'

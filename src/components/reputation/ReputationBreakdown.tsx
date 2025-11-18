@@ -1,18 +1,38 @@
 /**
- * ReputationBreakdown Component
- *
- * Displays detailed breakdown of reputation score components
- * Shows how PNL, Feedback, and Activity contribute to overall score
- *
- * Pattern based on: ProfileWidget.tsx
+ * Reputation breakdown component for displaying detailed reputation score components.
+ * 
+ * Displays a detailed breakdown of how PnL, Feedback, and Activity contribute
+ * to the overall reputation score. Shows component values, weights, and metrics
+ * with visual progress bars and color-coded indicators.
+ * 
+ * Features:
+ * - Component breakdown (PnL, Feedback, Activity)
+ * - Weight display
+ * - Progress bars
+ * - Metric display
+ * - Color-coded components
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - ReputationBreakdown component props
+ * @returns Reputation breakdown element
+ * 
+ * @example
+ * ```tsx
+ * <ReputationBreakdown
+ *   userId="user-123"
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import { DollarSign, MessageSquare, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Breakdown data structure from API.
+ */
 interface BreakdownData {
   userId: string
   reputationScore: number

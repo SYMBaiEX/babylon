@@ -61,9 +61,7 @@ export const messagesProvider: Provider = {
       }
     } catch (error) {
       logger.error('Error fetching messages via A2A', { error, agentId: runtime.agentId }, 'MessagesProvider')
-      return { 
-        text: `Error fetching messages: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }
@@ -107,9 +105,7 @@ export const notificationsProvider: Provider = {
       return { text: notificationsText }
     } catch (error) {
       logger.error('Error fetching notifications via A2A', { error, agentId: runtime.agentId }, 'NotificationsProvider')
-      return { 
-        text: `Error fetching notifications: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }
+      throw error
     }
   }
 }

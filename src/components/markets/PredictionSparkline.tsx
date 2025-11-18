@@ -3,6 +3,32 @@
 import { memo, useMemo } from 'react'
 import { LineChart, Line } from 'recharts'
 
+/**
+ * Prediction sparkline component for displaying mini price trend charts.
+ * 
+ * Displays a small line chart showing the last 20 data points of YES/NO probability
+ * trends. Used as a compact visualization in lists and cards. Shows both YES
+ * (green) and NO (red) probability lines.
+ * 
+ * Features:
+ * - Compact line chart (default 120x32px)
+ * - Last 20 data points only
+ * - Dual lines (YES and NO)
+ * - Color-coded (green YES, red NO)
+ * - Empty state handling
+ * 
+ * @param props - PredictionSparkline component props
+ * @returns Prediction sparkline element or empty state
+ * 
+ * @example
+ * ```tsx
+ * <PredictionSparkline
+ *   data={priceHistory}
+ *   width={120}
+ *   height={32}
+ * />
+ * ```
+ */
 interface PredictionSparklineProps {
   data: Array<{ time: number; yesPrice: number; noPrice: number }>
   width?: number

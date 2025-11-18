@@ -21,8 +21,7 @@ import {
   getCurrentDateContext, 
   getRealityGrounding, 
   getMinimalRealityGrounding,
-  checkRealityGrounding as checkReality,
-  REALITY_GROUNDING 
+  getFullRealityGrounding,
 } from './reality-grounding';
 
 /**
@@ -321,18 +320,18 @@ export async function generateWorldContext(
     includeTrades ? generateRecentTrades() : Promise.resolve(''),
   ]);
 
-  // Determine reality grounding level
+  // Determine reality grounding level (all are async now)
   let realityGrounding = '';
   if (includeRealityGrounding) {
     switch (realityGroundingLevel) {
       case 'full':
-        realityGrounding = REALITY_GROUNDING;
+        realityGrounding = await getFullRealityGrounding();
         break;
       case 'concise':
-        realityGrounding = getRealityGrounding();
+        realityGrounding = await getRealityGrounding();
         break;
       case 'minimal':
-        realityGrounding = getMinimalRealityGrounding();
+        realityGrounding = await getMinimalRealityGrounding();
         break;
       case 'none':
         realityGrounding = '';
@@ -423,20 +422,6 @@ export function validateNoRealNames(text: string): string[] {
 }
 
 /**
- * Check if generated content is grounded in current reality.
- * 
- * Validates that content references current dates, prices, and events.
- * Returns warnings if outdated references are detected (e.g., old prices,
- * wrong president, outdated AI models).
- * 
- * @param text - The generated content to check
- * @returns Array of warning messages about outdated references
- */
-export function checkRealityGrounding(text: string): string[] {
-  return checkReality(text);
-}
-
-/**
  * Complete validation of generated content.
  * 
  * Checks both parody names (errors) and reality grounding (warnings).
@@ -454,22 +439,16 @@ export function checkRealityGrounding(text: string): string[] {
  * if (!validation.isValid) {
  *   console.error('Errors:', validation.errors);
  * }
- * if (validation.warnings.length > 0) {
- *   console.warn('Warnings:', validation.warnings);
- * }
  * ```
  */
 export function validateGeneratedContent(text: string): {
   errors: string[];
-  warnings: string[];
   isValid: boolean;
 } {
   const errors = validateNoRealNames(text);
-  const warnings = checkRealityGrounding(text);
   
   return {
     errors,
-    warnings,
     isValid: errors.length === 0,
   };
 }
@@ -481,7 +460,8 @@ export {
   getCurrentDateContext,
   getRealityGrounding,
   getMinimalRealityGrounding,
-  REALITY_GROUNDING,
+  getFullRealityGrounding,
+  checkRealityGrounding,
 } from './reality-grounding';
 
 /**
@@ -513,9 +493,6 @@ export {
  * const validation = validateGeneratedContent(generatedText);
  * if (!validation.isValid) {
  *   console.error('Validation errors:', validation.errors);
- * }
- * if (validation.warnings.length > 0) {
- *   console.warn('Reality warnings:', validation.warnings);
  * }
  * ```
  */

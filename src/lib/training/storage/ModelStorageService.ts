@@ -38,11 +38,10 @@ export class ModelStorageService {
     modelPath: string;
     metadata?: ModelVersion['metadata'];
   }): Promise<ModelVersion> {
-    try {
-      logger.info('Uploading model to Vercel Blob', {
-        version: options.version,
-        path: options.modelPath
-      });
+    logger.info('Uploading model to Vercel Blob', {
+      version: options.version,
+      path: options.modelPath
+    });
 
       // Read model file
       const modelData = await fs.readFile(options.modelPath);
@@ -98,11 +97,6 @@ export class ModelStorageService {
         uploadedAt: new Date(),
         metadata: options.metadata || {}
       };
-
-    } catch (error) {
-      logger.error('Failed to upload model', error);
-      throw error;
-    }
   }
 
   /**
@@ -112,44 +106,37 @@ export class ModelStorageService {
     modelData: Buffer;
     metadata: ModelVersion['metadata'];
   }> {
-    try {
-      const model = await prisma.trainedModel.findFirst({
-        where: { version },
-        select: { storagePath: true }
-      });
+    const model = await prisma.trainedModel.findFirst({
+      where: { version },
+      select: { storagePath: true }
+    });
 
-      if (!model) {
-        throw new Error(`Model version ${version} not found`);
-      }
-
-      // Download model file
-      const modelResponse = await fetch(model.storagePath);
-      const modelData = Buffer.from(await modelResponse.arrayBuffer());
-
-      // Download metadata
-      const metadataUrl = model.storagePath.replace(/\/[^/]+$/, '/metadata.json');
-      const metadataResponse = await fetch(metadataUrl);
-      const metadata = await metadataResponse.json() as ModelVersion['metadata'];
-
-      return {
-        modelData,
-        metadata
-      };
-
-    } catch (error) {
-      logger.error('Failed to download model', error);
-      throw error;
+    if (!model) {
+      throw new Error(`Model version ${version} not found`);
     }
+
+    // Download model file
+    const modelResponse = await fetch(model.storagePath);
+    const modelData = Buffer.from(await modelResponse.arrayBuffer());
+
+    // Download metadata
+    const metadataUrl = model.storagePath.replace(/\/[^/]+$/, '/metadata.json');
+    const metadataResponse = await fetch(metadataUrl);
+    const metadata = await metadataResponse.json() as ModelVersion['metadata'];
+
+    return {
+      modelData,
+      metadata
+    };
   }
 
   /**
    * List all model versions
    */
   async listModels(): Promise<ModelVersion[]> {
-    try {
-      const { blobs } = await list({
-        prefix: this.blobPrefix
-      });
+    const { blobs } = await list({
+      prefix: this.blobPrefix
+    });
 
       // Group by version
       interface BlobInfo {
@@ -221,44 +208,33 @@ export class ModelStorageService {
         }
       }
 
-      return models.sort((a, b) => 
-        b.uploadedAt.getTime() - a.uploadedAt.getTime()
-      );
-
-    } catch (error) {
-      logger.error('Failed to list models', error);
-      return [];
-    }
+    return models.sort((a, b) => 
+      b.uploadedAt.getTime() - a.uploadedAt.getTime()
+    );
   }
 
   /**
    * Delete model version
    */
   async deleteModel(version: string): Promise<void> {
-    try {
-      const { blobs } = await list({
-        prefix: `${this.blobPrefix}${version}/`
-      });
+    const { blobs } = await list({
+      prefix: `${this.blobPrefix}${version}/`
+    });
 
-      for (const blob of blobs) {
-        await del(blob.url);
-      }
-
-      // Update database
-      await prisma.trainedModel.updateMany({
-        where: { version },
-        data: {
-          status: 'archived',
-          archivedAt: new Date()
-        }
-      });
-
-      logger.info('Model deleted from Vercel Blob', { version });
-
-    } catch (error) {
-      logger.error('Failed to delete model', error);
-      throw error;
+    for (const blob of blobs) {
+      await del(blob.url);
     }
+
+    // Update database
+    await prisma.trainedModel.updateMany({
+      where: { version },
+      data: {
+        status: 'archived',
+        archivedAt: new Date()
+      }
+    });
+
+    logger.info('Model deleted from Vercel Blob', { version });
   }
 
   /**

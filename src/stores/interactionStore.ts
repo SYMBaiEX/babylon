@@ -116,11 +116,7 @@ async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
       headers,
     });
 
-    try {
-      return await response.json();
-    } catch (error) {
-      throw new Error(`Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    return await response.json();
   }, {
     maxAttempts: 3,
     initialDelayMs: 1000,

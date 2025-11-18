@@ -15,6 +15,30 @@ import type {
   PerpPositionFromAPI,
 } from '@/types/profile'
 
+/**
+ * Profile widget component for displaying user profile summary.
+ * 
+ * Displays a compact profile widget showing user balance, positions (predictions
+ * and perpetuals), and trading statistics. Uses widget cache for performance.
+ * Includes position detail modal for viewing full position information.
+ * 
+ * Features:
+ * - Balance display (available, total deposited, lifetime PnL)
+ * - Prediction positions list
+ * - Perpetual positions list
+ * - Trading statistics
+ * - Position detail modal
+ * - Widget caching
+ * - Loading states
+ * 
+ * @param props - ProfileWidget component props
+ * @returns Profile widget element
+ * 
+ * @example
+ * ```tsx
+ * <ProfileWidget userId="user-123" />
+ * ```
+ */
 interface ProfileWidgetProps {
   userId: string
 }

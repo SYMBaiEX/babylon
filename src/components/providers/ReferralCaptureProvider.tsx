@@ -5,13 +5,20 @@ import { useSearchParams } from 'next/navigation'
 import { logger } from '@/lib/logger'
 
 /**
- * ReferralCaptureProvider
+ * Referral capture provider component for capturing referral codes from URL.
  * 
- * Captures the referral code from URL query parameter (?ref=CODE)
- * and stores it in sessionStorage for use during signup/onboarding.
+ * Captures the referral code from URL query parameter (?ref=CODE) and stores
+ * it in sessionStorage for use during signup/onboarding. Ensures the referral
+ * code persists across navigation until the user completes signup. Automatically
+ * cleans up expired referral codes (older than 30 days).
  * 
- * This ensures the referral code persists across navigation until
- * the user completes signup.
+ * Features:
+ * - URL parameter capture
+ * - SessionStorage persistence
+ * - Expiration handling (30 days)
+ * - Timestamp tracking
+ * 
+ * @returns null (does not render anything)
  */
 export function ReferralCaptureProvider() {
   const searchParams = useSearchParams()

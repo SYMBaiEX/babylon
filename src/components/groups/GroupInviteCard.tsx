@@ -4,6 +4,35 @@ import { useState } from 'react'
 import { Users, Check, X, Loader2 } from 'lucide-react'
 import { usePrivy } from '@privy-io/react-auth'
 
+/**
+ * Group invite card component for displaying and responding to group invitations.
+ * 
+ * Displays a card for a group invitation with group details and accept/decline
+ * actions. Shows success/declined states after response. Handles API calls
+ * for accepting or declining invitations.
+ * 
+ * Features:
+ * - Group information display
+ * - Accept functionality
+ * - Decline functionality
+ * - Status indicators
+ * - Loading states
+ * - Error handling
+ * 
+ * @param props - GroupInviteCard component props
+ * @returns Group invite card element
+ * 
+ * @example
+ * ```tsx
+ * <GroupInviteCard
+ *   inviteId="invite-123"
+ *   groupId="group-456"
+ *   groupName="Trading Group"
+ *   memberCount={5}
+ *   onAccepted={(groupId) => router.push(`/groups/${groupId}`)}
+ * />
+ * ```
+ */
 interface GroupInviteCardProps {
   inviteId: string
   groupId: string

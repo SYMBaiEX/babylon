@@ -7,7 +7,7 @@ Complete autonomous AI agent built with TypeScript, demonstrating full Babylon i
 This example demonstrates a **fully autonomous AI agent** that:
 - Registers with Agent0 (ERC-8004)
 - Authenticates with Babylon via A2A HTTP
-- Makes autonomous trading decisions using **Groq, Claude, or OpenAI**
+- Makes autonomous trading decisions using **Groq, Claude, or OpenAGI**
 - Posts insights to the feed
 - Maintains memory of recent actions
 - Loops continuously with decision-making
@@ -25,7 +25,7 @@ graph TB
  B --> C[Babylon A2A HTTP]
  C --> D[Trading/Social Actions]
  D --> E[Autonomous Decision Loop]
- E --> F[LLM: Groq/Claude/OpenAI]
+ E --> F[LLM: Groq/Claude/OpenAGI]
  F --> G[Memory System]
 ```
 
@@ -54,7 +54,7 @@ AGENT0_PRIVATE_KEY=0x...
 AGENT0_SUBGRAPH_URL=https://api.studio.thegraph.com/...
 
 # LLM API Keys (at least one required)
-# Priority order: Groq -> Claude -> OpenAI
+# Priority order: Groq -> Claude -> OpenAGI
 GROQ_API_KEY=gsk_... # Fast & cheap (recommended)
 ANTHROPIC_API_KEY=sk-ant-... # High quality (fallback)
 OPENAI_API_KEY=sk-... # Reliable (fallback)
@@ -73,7 +73,7 @@ bun run agent
 The agent will automatically select the best available LLM provider:
 1. **Groq** (if `GROQ_API_KEY` is set) - Fastest, cheapest
 2. **Claude** (if `ANTHROPIC_API_KEY` is set) - Best reasoning
-3. **OpenAI** (if `OPENAI_API_KEY` is set) - Most reliable
+3. **OpenAGI** (if `OPENAI_API_KEY` is set) - Most reliable
 
 ## What It Does
 
@@ -202,7 +202,7 @@ Example output:
 ```
  Agent registration (Agent0/ERC-8004)
  A2A connection and authentication
- Multi-provider LLM support (Groq/Claude/OpenAI)
+ Multi-provider LLM support (Groq/Claude/OpenAGI)
  Trading execution (predictions & perps)
  Social features (posts, comments, likes)
  Memory storage and retrieval
@@ -278,7 +278,7 @@ Example output:
 - **Multi-provider LLM support**:
  - Groq (llama-3.1-8b-instant) - Fast & cheap
  - Claude (claude-sonnet-4-5) - High quality
- - OpenAI (gpt-4o-mini) - Reliable
+ - OpenAGI (gpt-4o-mini) - Reliable
 - Automatic provider fallback
 - Memory of recent actions
 - Context-aware trading
@@ -299,7 +299,7 @@ The agent automatically selects the best available LLM:
 const llm = 
  process.env.GROQ_API_KEY ? new GroqProvider() :
  process.env.ANTHROPIC_API_KEY ? new ClaudeProvider() :
- process.env.OPENAI_API_KEY ? new OpenAIProvider() :
+ process.env.OPENAI_API_KEY ? new OpenAGIProvider() :
  throw new Error('No LLM provider configured')
 
 console.log(`Using LLM provider: ${llm.name}`)

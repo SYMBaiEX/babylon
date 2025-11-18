@@ -97,26 +97,18 @@ export class RelationshipEvolutionEngine {
               },
             });
             
-            try {
-              const llmResult = await this.generateInitialRelationshipDescription(
-                actor1.name,
-                actor2.name,
-                context,
-                actor1.personality || '',
-                actor2.personality || '',
-                existing?.history || undefined
-              );
-              
-              history = llmResult.description;
-              type = llmResult.type;
-              sentiment = llmResult.sentiment;
-            } catch {
-              // Fallback to simple description
-              const orgName = org?.name.toLowerCase() || 'same company';
-              history = existing?.history || `both work at ${orgName}`;
-              type = existing?.relationshipType || 'acquaintances';
-              sentiment = existing?.sentiment || 0;
-            }
+            const llmResult = await this.generateInitialRelationshipDescription(
+              actor1.name,
+              actor2.name,
+              context,
+              actor1.personality || '',
+              actor2.personality || '',
+              existing?.history || undefined
+            );
+            
+            history = llmResult.description;
+            type = llmResult.type;
+            sentiment = llmResult.sentiment;
           } else if (sharedOrgs.length > 0) {
             // Fallback: Simple template
             const org = orgMap.get(sharedOrgs[0]!);
@@ -362,41 +354,28 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       const maxRetries = 3;
       
       for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          const response = await this.llm.generateJSON<{ 
-            description: string;
-            type: string;
-            sentiment: number;
-          }>(
-            prompt,
-            { required: ['description', 'type', 'sentiment'] },
-            { maxTokens: 200, temperature: 0.8 }
-          );
+        const response = await this.llm.generateJSON<{ 
+          description: string;
+          type: string;
+          sentiment: number;
+        }>(
+          prompt,
+          { required: ['description', 'type', 'sentiment'] },
+          { maxTokens: 200, temperature: 0.8 }
+        );
 
-          if (response.description && response.description.trim().length > 0) {
-            // LLM determines everything - no hardcoded rules
-            // Don't trim - let LLM decide length (they know the context)
-            newHistory = response.description.toLowerCase().trim();
-            newType = response.type || 'acquaintances';
-            newSentiment = Math.max(-1, Math.min(1, response.sentiment || avgSentiment));
-            break; // Success
-          }
-        } catch (error) {
-          logger.warn(`Relationship description generation attempt ${attempt + 1}/${maxRetries} failed`, {
-            error,
-            actor1: actor1.name,
-            actor2: actor2.name,
-          }, 'RelationshipEvolutionEngine');
-          
-          if (attempt === maxRetries - 1) {
-            // Final fallback: use existing or defaults
-            newHistory = existing?.history || 'professional relationship';
-            newType = existing?.relationshipType || 'acquaintances';
-            newSentiment = existing?.sentiment || avgSentiment;
-          } else {
-            // Wait before retry (exponential backoff)
-            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
-          }
+        if (response.description && response.description.trim().length > 0) {
+          // LLM determines everything - no hardcoded rules
+          // Don't trim - let LLM decide length (they know the context)
+          newHistory = response.description.toLowerCase().trim();
+          newType = response.type || 'acquaintances';
+          newSentiment = Math.max(-1, Math.min(1, response.sentiment || avgSentiment));
+          break; // Success
+        }
+        
+        // Wait before retry (exponential backoff)
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
         }
       }
 

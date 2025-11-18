@@ -268,12 +268,8 @@ class ServerlessBroadcaster extends EventEmitter {
         const messages = await safePoll(`sse:${channel}`, 10);
         
         for (const msgStr of messages) {
-          try {
           const message = JSON.parse(msgStr) as BroadcastMessage;
           this.localBroadcast(message);
-          } catch (error) {
-            logger.error('Failed to parse SSE message from Redis', { error, message: msgStr }, 'EventBroadcaster');
-          }
         }
       }, 100);
       
@@ -293,12 +289,8 @@ class ServerlessBroadcaster extends EventEmitter {
       for (const chatChannel of chatChannels) {
         const messages = await safePoll(`sse:${chatChannel}`, 5);
         for (const msgStr of messages) {
-          try {
           const message = JSON.parse(msgStr) as BroadcastMessage;
           this.localBroadcast(message);
-          } catch (error) {
-            logger.error('Failed to parse SSE message from Redis', { error, message: msgStr }, 'EventBroadcaster');
-          }
         }
       }
     }, 200);

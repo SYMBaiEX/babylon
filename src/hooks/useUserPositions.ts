@@ -167,15 +167,7 @@ export function useUserPositions(
 
       if (controller.signal.aborted) return;
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error('Failed to parse positions response', parseError);
-        setError(new Error('Failed to parse response'));
-        setLoading(false);
-        return;
-      }
+      const data = await response.json();
 
       if (controller.signal.aborted) return;
 

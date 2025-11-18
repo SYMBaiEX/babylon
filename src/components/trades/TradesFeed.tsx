@@ -3,12 +3,48 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TradeCard, type Trade } from './TradeCard'
 import { FeedSkeleton } from '@/components/shared/Skeleton'
-import { Activity } from 'lucide-react'
+import { Activity, AlertCircle } from 'lucide-react'
 
+/**
+ * Page size for pagination in trades feed.
+ */
 const PAGE_SIZE = 20
+/**
+ * Scroll threshold in pixels from top to consider "at top" for auto-polling.
+ */
 const SCROLL_THRESHOLD = 100 // pixels from top to consider "at top"
+/**
+ * Polling interval for fetching new trades (10 seconds).
+ */
 const POLL_INTERVAL = 10000 // 10 seconds
 
+/**
+ * Trades feed component for displaying paginated list of trades.
+ * 
+ * Displays a feed of trades with pagination, auto-polling when scrolled
+ * to top, and pull-to-refresh support. Supports filtering by user ID.
+ * Automatically deduplicates trades and handles loading states.
+ * 
+ * Features:
+ * - Paginated trade feed
+ * - Auto-polling when at top
+ * - Pull-to-refresh support
+ * - User filtering
+ * - Trade deduplication
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - TradesFeed component props
+ * @returns Trades feed element
+ * 
+ * @example
+ * ```tsx
+ * <TradesFeed
+ *   userId="user-123"
+ *   containerRef={scrollContainerRef}
+ * />
+ * ```
+ */
 interface TradesFeedProps {
   userId?: string // Optional: filter trades by user ID
   containerRef?: React.RefObject<HTMLDivElement | null>
@@ -25,42 +61,53 @@ export function TradesFeed({
   const [offset, setOffset] = useState(0)
   const [isAtTop, setIsAtTop] = useState(true)
   const [shouldPoll, setShouldPoll] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch trades from API
   const fetchTrades = useCallback(async (requestOffset: number, append = false) => {
-    const params = new URLSearchParams({
-      limit: PAGE_SIZE.toString(),
-      offset: requestOffset.toString(),
-    })
-    
-    if (userId) {
-      params.append('userId', userId)
-    }
-
-    const response = await fetch(`/api/trades?${params.toString()}`)
-    if (!response.ok) throw new Error('Failed to fetch trades')
-    
-    const data = await response.json()
-    const newTrades = data.trades || []
-
-    if (append) {
-      setTrades(prev => {
-        // Deduplicate trades by ID
-        const existingIds = new Set(prev.map(t => t.id))
-        const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id))
-        return [...prev, ...uniqueNewTrades]
+    try {
+      setError(null)
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
       })
-      setLoadingMore(false)
-    } else {
-      setTrades(newTrades)
-      setLoading(false)
-    }
+      
+      if (userId) {
+        params.append('userId', userId)
+      }
 
-    setHasMore(data.hasMore || false)
-    setOffset(requestOffset + newTrades.length)
+      const response = await fetch(`/api/trades?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load trades: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      const newTrades = data.trades || []
+
+      if (append) {
+        setTrades(prev => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map(t => t.id))
+          const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id))
+          return [...prev, ...uniqueNewTrades]
+        })
+        setLoadingMore(false)
+      } else {
+        setTrades(newTrades)
+        setLoading(false)
+      }
+
+      setHasMore(data.hasMore || false)
+      setOffset(requestOffset + newTrades.length)
+    } catch (err) {
+      console.error('Failed to fetch trades:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load trades')
+      setLoading(false)
+      setLoadingMore(false)
+    }
   }, [userId])
 
   // Refresh trades (used by polling and pull-to-refresh)
@@ -162,6 +209,34 @@ export function TradesFeed({
     return (
       <div className="w-full">
         <FeedSkeleton count={5} />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-4">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">
+          Failed to load trades
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-sm mb-4">
+          {error}
+        </p>
+        <button
+          onClick={() => {
+            setLoading(true)
+            setError(null)
+            setOffset(0)
+            setHasMore(true)
+            fetchTrades(0, false)
+          }}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+        >
+          Try Again
+        </button>
       </div>
     )
   }

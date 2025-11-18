@@ -153,12 +153,8 @@ export class MarketOutcomesTracker {
       });
 
       if (!existing) {
-        try {
-          await this.trackWindowOutcomes(windowId);
-          synced++;
-        } catch (error) {
-          logger.error(`Failed to track outcomes for ${windowId}`, error);
-        }
+        await this.trackWindowOutcomes(windowId);
+        synced++;
       }
     }
 

@@ -6,8 +6,14 @@ import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp, Send, Coins } f
 import { useRouter } from 'next/navigation'
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 
+/**
+ * Trade type discriminator for trade card display.
+ */
 type TradeType = 'balance' | 'npc' | 'position' | 'perp' | 'transfer'
 
+/**
+ * Base trade structure shared across all trade types.
+ */
 interface BaseTrade {
   type: TradeType
   id: string
@@ -21,6 +27,9 @@ interface BaseTrade {
   } | null
 }
 
+/**
+ * Balance transaction trade structure.
+ */
 interface BalanceTrade extends BaseTrade {
   type: 'balance'
   amount: string
@@ -31,6 +40,9 @@ interface BalanceTrade extends BaseTrade {
   relatedId: string | null
 }
 
+/**
+ * NPC trade structure for automated trading.
+ */
 interface NPCTrade extends BaseTrade {
   type: 'npc'
   marketType: string
@@ -44,6 +56,9 @@ interface NPCTrade extends BaseTrade {
   reason: string | null
 }
 
+/**
+ * Prediction position trade structure.
+ */
 interface PositionTrade extends BaseTrade {
   type: 'position'
   market: {
@@ -58,6 +73,9 @@ interface PositionTrade extends BaseTrade {
   createdAt: Date | string
 }
 
+/**
+ * Perpetual position trade structure.
+ */
 interface PerpTrade extends BaseTrade {
   type: 'perp'
   ticker: string
@@ -76,6 +94,9 @@ interface PerpTrade extends BaseTrade {
   closedAt: Date | string | null
 }
 
+/**
+ * Points transfer trade structure.
+ */
 interface TransferTrade extends BaseTrade {
   type: 'transfer'
   otherParty: {
@@ -92,8 +113,35 @@ interface TransferTrade extends BaseTrade {
   message?: string
 }
 
+/**
+ * Union type for all trade types.
+ */
 export type Trade = BalanceTrade | NPCTrade | PositionTrade | PerpTrade | TransferTrade
 
+/**
+ * Trade card component for displaying individual trade entries.
+ * 
+ * Displays a formatted card for a single trade with type-specific
+ * information and styling. Supports multiple trade types (balance,
+ * NPC, position, perp, transfer) with appropriate icons and colors.
+ * Includes user avatars, timestamps, and navigation to related markets.
+ * 
+ * Features:
+ * - Type-specific display
+ * - User avatars
+ * - Timestamp formatting
+ * - Market navigation
+ * - Color-coded by trade type
+ * - PnL indicators
+ * 
+ * @param props - TradeCard component props
+ * @returns Trade card element
+ * 
+ * @example
+ * ```tsx
+ * <TradeCard trade={tradeData} />
+ * ```
+ */
 interface TradeCardProps {
   trade: Trade
 }

@@ -15,7 +15,7 @@ import type { Trajectory, TrajectoryStep, ChatMessage, ARTTrajectory, Trajectory
 /**
  * Convert rich trajectory to ART message format
  * 
- * Extracts OpenAI-style message array from our step-based trajectory.
+ * Extracts OpenAGI-style message array from our step-based trajectory.
  * This is what ART/GRPO actually trains on.
  */
 export function toARTMessages(trajectory: Trajectory): ChatMessage[] {

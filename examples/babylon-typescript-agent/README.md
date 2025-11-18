@@ -19,7 +19,7 @@ A fully autonomous AI agent that trades on Babylon prediction markets and perpet
 - ✅ **Multi-Market Support** - Trades prediction markets and perpetual futures
 - ✅ **Social Integration** - Posts, comments, and social interaction
 - ✅ **Memory System** - Remembers recent actions and learns
-- ✅ **Multi-LLM Support** - Works with Groq, Claude, or OpenAI
+- ✅ **Multi-LLM Support** - Works with Groq, Claude, or OpenAGI
 - ✅ **A2A Protocol** - Full Agent-to-Agent communication
 - ✅ **Real-Time Updates** - Continuous autonomous loop
 - ✅ **Fail-Fast Architecture** - No defensive programming, clear errors
@@ -43,7 +43,7 @@ A fully autonomous AI agent that trades on Babylon prediction markets and perpet
    
    # Optional
    ANTHROPIC_API_KEY=...             # Claude (fallback)
-   OPENAI_API_KEY=...                # OpenAI (fallback)
+   OPENAI_API_KEY=...                # OpenAGI (fallback)
    BABYLON_API_URL=http://localhost:3000/api/a2a  # Default
    
    # Agent Configuration
@@ -184,7 +184,7 @@ Core A2A route testing:
 Multi-provider LLM support:
 - Groq (primary)
 - Claude (fallback)
-- OpenAI (fallback)
+- OpenAGI (fallback)
 - Real decision making
 
 ### Integration Tests (9 tests)
@@ -236,7 +236,7 @@ Live server verification:
 The agent tries providers in order:
 1. **Groq** (primary) - Fast inference with `llama-3.1-8b-instant`
 2. **Claude** (fallback) - `claude-sonnet-4-5`
-3. **OpenAI** (fallback) - `gpt-4o-mini`
+3. **OpenAGI** (fallback) - `gpt-4o-mini`
 
 Provide at least one API key.
 

@@ -1,9 +1,21 @@
 /**
- * Human Review Tab
+ * Human review tab component for reviewing moderation appeals.
  * 
- * Shows appeals that need human review after staking
+ * Displays appeals that need human review after users have staked on them.
+ * Shows appeal details, user information, ban history, and provides approve/deny
+ * functionality. Includes user statistics and transaction hash tracking.
+ * 
+ * Features:
+ * - Appeals list display
+ * - Appeal details
+ * - User statistics
+ * - Approve/deny functionality
+ * - Transaction hash display
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Human review tab element
  */
-
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
@@ -13,6 +25,9 @@ import { Skeleton } from '@/components/shared/Skeleton'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
+/**
+ * Appeal structure for human review tab.
+ */
 interface Appeal {
   id: string
   username: string | null

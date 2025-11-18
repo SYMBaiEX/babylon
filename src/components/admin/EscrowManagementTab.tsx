@@ -9,15 +9,25 @@ import { Skeleton } from '@/components/shared/Skeleton'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
-// Note: Admin API routes use cookie-based authentication via requireAdmin middleware
-// The privy-token cookie is automatically sent with requests, so explicit Authorization header is optional
-// However, we can include it if available for consistency with other admin components
+/**
+ * Get authentication token from window if available.
+ * 
+ * Note: Admin API routes use cookie-based authentication via requireAdmin middleware.
+ * The privy-token cookie is automatically sent with requests, so explicit Authorization
+ * header is optional. However, we can include it if available for consistency with
+ * other admin components.
+ * 
+ * @returns Authentication token or null
+ */
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
   // Try to get token from window if available (some admin components use this)
   return (window as { __privyAccessToken?: string }).__privyAccessToken || null
 }
 
+/**
+ * Escrow schema for validation.
+ */
 const EscrowSchema = z.object({
   id: z.string(),
   recipientId: z.string(),
@@ -52,8 +62,31 @@ const EscrowSchema = z.object({
 })
 type Escrow = z.infer<typeof EscrowSchema>
 
+/**
+ * Status filter type for escrow management tab.
+ */
 type StatusFilter = 'all' | 'pending' | 'paid' | 'refunded' | 'expired'
 
+/**
+ * Escrow management tab component for managing moderation escrow payments.
+ * 
+ * Displays a list of escrow payments for moderation actions with filtering
+ * by status. Shows payment details, recipient information, and provides
+ * refund functionality. Includes transaction hash tracking and expiration
+ * handling.
+ * 
+ * Features:
+ * - Escrow list display
+ * - Status filtering
+ * - Payment details
+ * - Refund functionality
+ * - Transaction hash tracking
+ * - Expiration display
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Escrow management tab element
+ */
 export function EscrowManagementTab() {
   const [escrows, setEscrows] = useState<Escrow[]>([])
   const [loading, setLoading] = useState(true)

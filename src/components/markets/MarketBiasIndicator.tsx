@@ -1,17 +1,39 @@
 /**
- * MarketBiasIndicator Component
- *
- * Displays active market biases and sentiment adjustments
- * Shows which markets are being influenced and by how much
- *
+ * Market bias indicator component for displaying active market biases.
+ * 
+ * Displays a list of active market biases and sentiment adjustments affecting
+ * markets. Shows which entities are influencing markets, direction, strength,
+ * and expiration times. Auto-refreshes every 30 seconds.
+ * 
+ * Features:
+ * - Active biases list
+ * - Direction indicators (up/down)
+ * - Strength display
+ * - Price and sentiment adjustments
+ * - Expiration times
+ * - Auto-refresh (30s interval)
+ * - Loading states
+ * - Empty state handling
+ * 
+ * @param props - MarketBiasIndicator component props
+ * @returns Market bias indicator element
+ * 
+ * @example
+ * ```tsx
+ * <MarketBiasIndicator
+ *   maxDisplay={10}
+ * />
+ * ```
  */
-
 'use client'
 
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Bias adjustment structure for market bias indicator.
+ */
 interface BiasAdjustment {
   entityId: string
   entityName: string
@@ -23,6 +45,9 @@ interface BiasAdjustment {
   decayRate: number
 }
 
+/**
+ * Bias data structure from API.
+ */
 interface BiasData {
   success: boolean
   biases: BiasAdjustment[]

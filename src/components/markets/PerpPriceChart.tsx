@@ -9,11 +9,43 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 
+/**
+ * Price point structure for chart data.
+ */
 interface PricePoint {
   time: number;
   price: number;
 }
 
+/**
+ * Perpetual price chart component for displaying price history.
+ * 
+ * Displays an area chart of perpetual market price history with time range
+ * filtering (1H, 4H, 1D, 1W, ALL). Includes zoom functionality, price change
+ * indicators, and tooltips. Color-codes the chart based on price direction.
+ * 
+ * Features:
+ * - Area chart with price history
+ * - Time range filtering
+ * - Zoom and brush controls
+ * - Price change display
+ * - Color-coded by direction (green up, red down)
+ * - Responsive tooltips
+ * - Loading state handling
+ * 
+ * @param props - PerpPriceChart component props
+ * @returns Perpetual price chart element
+ * 
+ * @example
+ * ```tsx
+ * <PerpPriceChart
+ *   data={priceHistory}
+ *   currentPrice={100.50}
+ *   ticker="AAPL"
+ *   showBrush={true}
+ * />
+ * ```
+ */
 interface PerpPriceChartProps {
   data: PricePoint[];
   currentPrice: number;
@@ -21,6 +53,9 @@ interface PerpPriceChartProps {
   showBrush?: boolean;
 }
 
+/**
+ * Available time range options for chart filtering.
+ */
 type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
 
 const chartConfig = {

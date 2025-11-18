@@ -2,7 +2,7 @@
  * Content Safety Utilities
  * 
  * Basic content filtering for agent chat and generation
- * For production, consider integrating with OpenAI Moderation API or similar service
+ * For production, consider integrating with OpenAGI Moderation API or similar service
  */
 
 import { logger } from '@/lib/logger'

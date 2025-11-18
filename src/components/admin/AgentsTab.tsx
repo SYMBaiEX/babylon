@@ -6,6 +6,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
+/**
+ * Running agent structure for agents tab.
+ */
 interface RunningAgent {
   id: string
   name: string
@@ -48,6 +51,9 @@ interface RunningAgent {
   recentErrorsCount: number
 }
 
+/**
+ * Agent statistics structure for agents tab.
+ */
 interface AgentStats {
   total: number
   running: number
@@ -56,6 +62,26 @@ interface AgentStats {
   totalActions24h: number
 }
 
+/**
+ * Agents tab component for managing and monitoring agents.
+ * 
+ * Displays a comprehensive list of all running agents with their status,
+ * performance metrics, and autonomous capabilities. Includes filtering,
+ * sorting, and agent control (pause/resume). Auto-refreshes every 30 seconds.
+ * 
+ * Features:
+ * - Agent list with status indicators
+ * - Performance metrics display
+ * - Autonomous capability toggles
+ * - Filtering by status
+ * - Sorting by various metrics
+ * - Pause/resume functionality
+ * - Auto-refresh (30s interval)
+ * - Loading states
+ * - Error handling
+ * 
+ * @returns Agents tab element
+ */
 export function AgentsTab() {
   const [agents, setAgents] = useState<RunningAgent[]>([])
   const [stats, setStats] = useState<AgentStats | null>(null)

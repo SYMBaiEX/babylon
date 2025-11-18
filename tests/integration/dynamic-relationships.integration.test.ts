@@ -49,7 +49,7 @@ describe('Dynamic Relationships Integration', () => {
     // Create test actors
     const testActors = [
       { id: 'e2e-actor-ailon', name: 'E2E AIlon', domain: ['tech'], affiliations: ['e2e-spacex'] },
-      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['ai'], affiliations: ['e2e-openai'] },
+      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['ai'], affiliations: ['e2e-openagi'] },
     ];
 
     for (const actor of testActors) {
@@ -108,12 +108,12 @@ describe('Dynamic Relationships Integration', () => {
     // Give actors shared domain to ensure relationship is created
     const actors = [
       { id: 'e2e-actor-ailon', name: 'E2E AIlon', domain: ['tech', 'ai'], affiliations: ['e2e-spacex'] },
-      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['tech', 'ai'], affiliations: ['e2e-openai'] },
+      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['tech', 'ai'], affiliations: ['e2e-openagi'] },
     ];
     
     const orgs = [
       { id: 'e2e-spacex', name: 'test spacex', description: 'Test', type: 'company' as const, canBeInvolved: true },
-      { id: 'e2e-openai', name: 'test openai', description: 'Test', type: 'company' as const, canBeInvolved: true },
+      { id: 'e2e-openagi', name: 'test openagi', description: 'Test', type: 'company' as const, canBeInvolved: true },
     ];
     
     const created = await engine.generateInitialRelationships(actors, orgs);

@@ -6,6 +6,33 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
+/**
+ * Link social accounts modal component for connecting social accounts.
+ * 
+ * Provides a modal interface for linking Twitter and Farcaster accounts
+ * via OAuth. Handles OAuth callbacks and updates user profile with linked
+ * account information. Awards reputation points for linking accounts.
+ * 
+ * Features:
+ * - Twitter OAuth linking
+ * - Farcaster OAuth linking
+ * - OAuth callback handling
+ * - Points/reputation awards
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - LinkSocialAccountsModal component props
+ * @returns Link social accounts modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <LinkSocialAccountsModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ * />
+ * ```
+ */
 interface LinkSocialAccountsModalProps {
   isOpen: boolean
   onClose: () => void

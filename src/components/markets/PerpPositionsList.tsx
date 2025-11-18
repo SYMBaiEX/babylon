@@ -15,6 +15,9 @@ import { usePerpTrade } from '@/hooks/usePerpTrade';
 
 import { calculateUnrealizedPnL } from '@/shared/perps-types';
 
+/**
+ * Perpetual position structure for positions list.
+ */
 interface PerpPosition {
   id: string;
   ticker: string;
@@ -30,6 +33,32 @@ interface PerpPosition {
   openedAt: string;
 }
 
+/**
+ * Perpetual positions list component for displaying and managing open positions.
+ * 
+ * Displays a list of open perpetual positions with real-time price updates via SSE.
+ * Shows position details including entry price, current price, PnL, and liquidation
+ * price. Includes close position functionality with confirmation dialog.
+ * 
+ * Features:
+ * - Position list with real-time prices
+ * - Unrealized PnL calculation
+ * - Liquidation price display
+ * - Close position with confirmation
+ * - Loading states during close
+ * - Toast notifications for success/error
+ * 
+ * @param props - PerpPositionsList component props
+ * @returns Perpetual positions list element
+ * 
+ * @example
+ * ```tsx
+ * <PerpPositionsList
+ *   positions={userPositions}
+ *   onPositionClosed={() => refreshPositions()}
+ * />
+ * ```
+ */
 interface PerpPositionsListProps {
   positions: PerpPosition[];
   onPositionClosed?: () => void;
