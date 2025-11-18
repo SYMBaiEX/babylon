@@ -169,8 +169,8 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       const result = await pipeline.checkTrainingReadiness();
 
-      // Note: Scenario group checks have been removed, so this should now be ready
-      expect(result.ready).toBe(true);
+      expect(result.ready).toBe(false);
+      expect(result.reason).toContain('scenario groups');
       expect(result.stats.scenarioGroups).toBe(2);
     });
 
@@ -231,8 +231,8 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       const result = await pipeline.checkTrainingReadiness();
 
-      // Note: Quality checks have been removed for bootstrapping, so this should be ready
-      expect(result.ready).toBe(true);
+      expect(result.ready).toBe(false);
+      expect(result.reason).toContain('quality');
       expect(result.stats.dataQuality).toBeLessThan(1.0);
     });
   });
