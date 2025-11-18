@@ -51,7 +51,7 @@ const testOrgs: Organization[] = [
   },
   {
     id: 'test-company-2',
-    name: 'Test OpnAI',
+    name: 'Test OpenAGI',
     description: 'Test AI company',
     type: 'company',
     canBeInvolved: true,

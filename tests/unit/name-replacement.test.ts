@@ -67,7 +67,7 @@ describe('Name Replacement System', () => {
     describe('Sam Altman → Sam AIltman', () => {
       it('should replace "Sam Altman"', () => {
         const result = replacer.replaceInText('Sam Altman leads OpenAI');
-        expect(result).toBe('Sam AIltman leads OpnAI');
+        expect(result).toBe('Sam AIltman leads OpenAGI');
       });
 
       it('should replace "@altman"', () => {
@@ -104,10 +104,10 @@ describe('Name Replacement System', () => {
   });
 
   describe('Organization Name Replacement', () => {
-    describe('OpenAI → OpnAI', () => {
+    describe('OpenAI → OpenAGI', () => {
       it('should replace "OpenAI"', () => {
         const result = replacer.replaceInText('OpenAI released GPT-5');
-        expect(result).toBe('OpnAI released GPT-5');
+        expect(result).toBe('OpenAGI released GPT-5');
       });
 
       it('should replace "OPENAI" (uppercase)', () => {
@@ -165,7 +165,7 @@ describe('Name Replacement System', () => {
     it('should replace multiple names in one sentence', () => {
       const input = 'Elon Musk and Sam Altman discussed OpenAI at Tesla';
       const result = replacer.replaceInText(input);
-      expect(result).toBe('AIlon Musk and Sam AIltman discussed OpnAI at TeslAI');
+      expect(result).toBe('AIlon Musk and Sam AIltman discussed OpenAGI at TeslAI');
     });
 
     it('should handle case variations mixed', () => {
@@ -202,7 +202,7 @@ describe('Name Replacement System', () => {
     it('should handle special characters around names', () => {
       const input = '(Elon Musk) [Sam Altman] {OpenAI}';
       const result = replacer.replaceInText(input);
-      expect(result).toBe('(AIlon Musk) [Sam AIltman] {OpnAI}');
+      expect(result).toBe('(AIlon Musk) [Sam AIltman] {OpenAGI}');
     });
 
     it('should handle names at start and end', () => {
@@ -317,7 +317,7 @@ describe('Validation: No Original Names Leaked', () => {
           const content = fs.readFileSync(fullPath, 'utf-8');
           // Allow in comments or for comparison
           const contentNoComments = content.replace(/\/\/.*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-          const hasOpenAI = contentNoComments.includes('OpenAI') && !contentNoComments.includes('OpnAI');
+          const hasOpenAI = contentNoComments.includes('OpenAI') && !contentNoComments.includes('OpenAGI');
           expect(hasOpenAI).toBe(false);
         }
       });
