@@ -74,9 +74,6 @@ export default function PostPage({ params }: PostPageProps) {
         return;
       }
 
-      const { postInteractions } = useInteractionStore.getState();
-      const storeData = postInteractions.get(postId);
-
       setPost({
         id: postData.id,
         type: postData.type || 'post',
@@ -93,11 +90,11 @@ export default function PostPage({ params }: PostPageProps) {
         authorUsername: postData.authorUsername || null,
         authorProfileImageUrl: postData.authorProfileImageUrl || null,
         timestamp: postData.timestamp,
-        likeCount: storeData?.likeCount ?? postData.likeCount ?? 0,
-        commentCount: storeData?.commentCount ?? postData.commentCount ?? 0,
-        shareCount: storeData?.shareCount ?? postData.shareCount ?? 0,
-        isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
-        isShared: storeData?.isShared ?? postData.isShared ?? false,
+        likeCount: postData.likeCount ?? 0,
+        commentCount: postData.commentCount ?? 0,
+        shareCount: postData.shareCount ?? 0,
+        isLiked: postData.isLiked ?? false,
+        isShared: postData.isShared ?? false,
         // Repost metadata
         isRepost: postData.isRepost || false,
         originalPostId: postData.originalPostId || null,
@@ -108,6 +105,29 @@ export default function PostPage({ params }: PostPageProps) {
         originalContent: postData.originalContent || null,
         quoteComment: postData.quoteComment || null,
       });
+      
+      // Update the interaction store with fresh API data
+      // For reposts, use the original post ID to match InteractionBar's behavior
+      const interactionPostId = postData.originalPostId || postId;
+      const { postInteractions } = useInteractionStore.getState();
+      const storeData = postInteractions.get(interactionPostId);
+      
+      // Only update store if likeCount or commentCount changed to avoid overwriting isLiked/isShared
+      if (postData.likeCount !== undefined || postData.commentCount !== undefined) {
+        const store = useInteractionStore.getState();
+        const updatedInteractions = new Map(store.postInteractions);
+        updatedInteractions.set(interactionPostId, {
+          postId: interactionPostId,
+          likeCount: postData.likeCount ?? 0,
+          commentCount: postData.commentCount ?? 0,
+          shareCount: postData.shareCount ?? 0,
+          // Preserve existing isLiked/isShared from store, don't overwrite with API
+          isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
+          isShared: storeData?.isShared ?? postData.isShared ?? false,
+        });
+        useInteractionStore.setState({ postInteractions: updatedInteractions });
+      }
+      
       setIsLoading(false);
     };
 

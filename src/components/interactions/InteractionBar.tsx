@@ -53,31 +53,38 @@ export function InteractionBar({
   const { authenticated } = useAuth();
   const { showLoginModal } = useLoginModal();
 
+  // For reposts, use the original post ID for tracking interactions (isLiked/isShared)
+  // This ensures likes on a repost actually like the original post
+  const interactionPostId = postData?.originalPostId || postId;
+
   // Get interaction data from store (synced via polling) or fall back to initial values
-  const storeData = postInteractions.get(postId);
+  const storeData = postInteractions.get(interactionPostId);
   const likeCount = storeData?.likeCount ?? initialInteractions?.likeCount ?? 0;
   const commentCount = storeData?.commentCount ?? initialInteractions?.commentCount ?? 0;
   const shareCount = storeData?.shareCount ?? initialInteractions?.shareCount ?? 0;
   const isLiked = storeData?.isLiked ?? initialInteractions?.isLiked ?? false;
   const isShared = storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
-  // Register this post in the store so polling picks it up
+  // Update store with latest counts from API, but preserve isLiked/isShared from store
   useEffect(() => {
-    if (!storeData) {
-      // Initialize in store with provided initial values
+    if (initialInteractions) {
       const store = useInteractionStore.getState();
+      const currentStoreData = store.postInteractions.get(interactionPostId);
       const updatedInteractions = new Map(store.postInteractions);
-      updatedInteractions.set(postId, {
-        postId,
-        likeCount: initialInteractions?.likeCount ?? 0,
-        commentCount: initialInteractions?.commentCount ?? 0,
-        shareCount: initialInteractions?.shareCount ?? 0,
-        isLiked: initialInteractions?.isLiked ?? false,
-        isShared: initialInteractions?.isShared ?? false,
+      
+      updatedInteractions.set(interactionPostId, {
+        postId: interactionPostId,
+        // Use fresh counts from API
+        likeCount: initialInteractions.likeCount ?? 0,
+        commentCount: initialInteractions.commentCount ?? 0,
+        shareCount: initialInteractions.shareCount ?? 0,
+        // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
+        isLiked: currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+        isShared: currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
       });
       useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
-  }, [postId, storeData, initialInteractions]);
+  }, [interactionPostId, initialInteractions?.likeCount, initialInteractions?.commentCount, initialInteractions?.shareCount]);
 
   const handleCommentClick = () => {
     if (!authenticated) {
@@ -145,7 +152,7 @@ export function InteractionBar({
         {/* Like button with reaction picker */}
         <div onClick={(e) => e.stopPropagation()}>
           <LikeButton
-            targetId={postId}
+            targetId={postData?.originalPostId || postId}
             targetType="post"
             initialLiked={isLiked}
             initialCount={likeCount}
