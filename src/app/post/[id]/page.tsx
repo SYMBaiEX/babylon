@@ -107,17 +107,26 @@ export default function PostPage({ params }: PostPageProps) {
       });
       
       // Update the interaction store with fresh API data
-      const store = useInteractionStore.getState();
-      const updatedInteractions = new Map(store.postInteractions);
-      updatedInteractions.set(postId, {
-        postId,
-        likeCount: postData.likeCount ?? 0,
-        commentCount: postData.commentCount ?? 0,
-        shareCount: postData.shareCount ?? 0,
-        isLiked: postData.isLiked ?? false,
-        isShared: postData.isShared ?? false,
-      });
-      useInteractionStore.setState({ postInteractions: updatedInteractions });
+      // For reposts, use the original post ID to match InteractionBar's behavior
+      const interactionPostId = postData.originalPostId || postId;
+      const { postInteractions } = useInteractionStore.getState();
+      const storeData = postInteractions.get(interactionPostId);
+      
+      // Only update store if likeCount or commentCount changed to avoid overwriting isLiked/isShared
+      if (postData.likeCount !== undefined || postData.commentCount !== undefined) {
+        const store = useInteractionStore.getState();
+        const updatedInteractions = new Map(store.postInteractions);
+        updatedInteractions.set(interactionPostId, {
+          postId: interactionPostId,
+          likeCount: postData.likeCount ?? 0,
+          commentCount: postData.commentCount ?? 0,
+          shareCount: postData.shareCount ?? 0,
+          // Preserve existing isLiked/isShared from store, don't overwrite with API
+          isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
+          isShared: storeData?.isShared ?? postData.isShared ?? false,
+        });
+        useInteractionStore.setState({ postInteractions: updatedInteractions });
+      }
       
       setIsLoading(false);
     };
