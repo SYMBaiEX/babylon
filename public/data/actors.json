@@ -201,8 +201,8 @@
       "file": "./actors/peter-thail.json"
     },
     {
-      "id": "raichel-maddow",
-      "file": "./actors/raichel-maddow.json"
+      "id": "rachel-maiddow",
+      "file": "./actors/rachel-maiddow.json"
     },
     {
       "id": "saitya-nadella",
@@ -210,7 +210,7 @@
     },
     {
       "id": "sam-ailtman",
-      "file": "./actors/sam-AIltman.json"
+      "file": "./actors/sam-ailtman.json"
     },
     {
       "id": "seain-hannity",
@@ -388,7 +388,7 @@
     },
     {
       "id": "msainbc",
-      "file": "./organizations/msainbc.json"
+      "file": "./organizations/ainbc.json"
     },
     {
       "id": "neurailink",
@@ -425,10 +425,6 @@
     {
       "id": "teslai",
       "file": "./organizations/teslai.json"
-    },
-    {
-      "id": "wall-street-journai",
-      "file": "./organizations/wall-street-journai.json"
     },
     {
       "id": "the-daily-wire",
