@@ -4,14 +4,11 @@
  * Tests core functionality without external dependencies
  */
 
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
 import type { Trajectory, TrainingBatch, TrainedModel } from '@prisma/client';
+import type { AutomationPipeline as AutomationPipelineType, AutomationConfig } from '@/lib/training/AutomationPipeline';
 
-// Set dummy DATABASE_URL to prevent Prisma from complaining in test environment
-// This ensures tests run even if the user hasn't set up a real database connection
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mock:mock@localhost:5432/mock';
-
-// Define mocks before imports
+// Define mocks
 const mockPrisma = {
   trajectory: {
     count: mock(),
@@ -53,12 +50,20 @@ mock.module('@/lib/logger', () => ({
   logger: mockLogger
 }));
 
-// Import after mocking
-import { AutomationPipeline, type AutomationConfig } from '@/lib/training/AutomationPipeline';
-
 describe('AutomationPipeline - Unit Tests', () => {
-  let pipeline: AutomationPipeline;
+  let AutomationPipeline: any; // Constructor
+  let pipeline: AutomationPipelineType;
   let mockConfig: Partial<AutomationConfig>;
+
+  beforeAll(async () => {
+    // Set dummy DATABASE_URL to prevent Prisma from complaining
+    // This must be done before importing the module
+    process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mock:mock@localhost:5432/mock';
+    
+    // Dynamic import to ensure env var is set and mocks are applied
+    const module = await import('@/lib/training/AutomationPipeline');
+    AutomationPipeline = module.AutomationPipeline;
+  });
 
   beforeEach(() => {
     // Reset all mocks
@@ -119,7 +124,7 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should merge custom config with defaults', () => {
-      const config = pipeline['config'];
+      const config = (pipeline as any)['config'];
       
       expect(config.minTrajectoriesForTraining).toBe(50);
       expect(config.minGroupSize).toBe(3);
@@ -129,14 +134,14 @@ describe('AutomationPipeline - Unit Tests', () => {
 
     test('should use OpenPipe model by default', () => {
       const defaultPipeline = new AutomationPipeline();
-      expect(defaultPipeline['config'].baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      expect((defaultPipeline as any)['config'].baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
     });
 
     test('should allow custom model override', () => {
       const customPipeline = new AutomationPipeline({
         baseModel: 'custom-model'
       });
-      expect(customPipeline['config'].baseModel).toBe('custom-model');
+      expect((customPipeline as any)['config'].baseModel).toBe('custom-model');
     });
   });
 
@@ -239,7 +244,7 @@ describe('AutomationPipeline - Unit Tests', () => {
     test('should start at v1.0.0 when no models exist', async () => {
       mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
 
-      const version = await pipeline['getNextModelVersion']();
+      const version = await (pipeline as any)['getNextModelVersion']();
 
       expect(version).toBe('v1.0.0');
     });
@@ -249,7 +254,7 @@ describe('AutomationPipeline - Unit Tests', () => {
         version: 'v1.0.5'
       } as TrainedModel);
 
-      const version = await pipeline['getNextModelVersion']();
+      const version = await (pipeline as any)['getNextModelVersion']();
 
       expect(version).toBe('v1.0.6');
     });
@@ -259,7 +264,7 @@ describe('AutomationPipeline - Unit Tests', () => {
         version: 'v2.3.99'
       } as TrainedModel);
 
-      const version = await pipeline['getNextModelVersion']();
+      const version = await (pipeline as any)['getNextModelVersion']();
 
       expect(version).toBe('v2.3.100');
     });
@@ -275,7 +280,7 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       mockPrisma.trajectory.findMany.mockResolvedValue(mockTrajectories);
 
-      const ids = await pipeline['getTrajectoryIds'](3);
+      const ids = await (pipeline as any)['getTrajectoryIds'](3);
 
       expect(ids).toEqual(['traj-1', 'traj-2', 'traj-3']);
       expect(mockPrisma.trajectory.findMany).toHaveBeenCalled();
@@ -289,7 +294,7 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       mockPrisma.trajectory.findMany.mockResolvedValue(mockTrajectories);
 
-      const ids = await pipeline['getTrajectoryIds']();
+      const ids = await (pipeline as any)['getTrajectoryIds']();
 
       expect(ids).toHaveLength(2);
       expect(mockPrisma.trajectory.findMany).toHaveBeenCalled();
