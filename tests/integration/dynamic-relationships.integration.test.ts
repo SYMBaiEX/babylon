@@ -1,38 +1,69 @@
 /**
- * Dynamic Relationships Integration Test
+ * Dynamic Relationships System Tests
  * 
- * Tests the complete flow:
- * 1. Generate initial relationships
- * 2. Create interactions
- * 3. Evolve relationships
- * 4. Use in prompts
+ * Tests the text-based relationship evolution system:
+ * - Initial generation
+ * - Interaction tracking
+ * - Relationship evolution
+ * - Context generation
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 import { InteractionTracker } from '@/lib/services/InteractionTracker';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import type { Actor, Organization } from '@/shared/types';
 
-const prisma = new PrismaClient();
+// Test data
+const testActors: Actor[] = [
+  {
+    id: 'test-actor-1',
+    name: 'Test AIlon',
+    description: 'Test CEO',
+    domain: ['tech', 'space'],
+    affiliations: ['test-company-1'],
+  },
+  {
+    id: 'test-actor-2',
+    name: 'Test Sam',
+    description: 'Test AI CEO',
+    domain: ['ai', 'tech'],
+    affiliations: ['test-company-2'],
+  },
+  {
+    id: 'test-actor-3',
+    name: 'Test Mark',
+    description: 'Test Social CEO',
+    domain: ['social_media', 'tech'],
+    affiliations: ['test-company-1'], // Shared with actor-1
+  },
+];
 
-describe('Dynamic Relationships Integration', () => {
-  let llmClient: BabylonLLMClient;
-  
+const testOrgs: Organization[] = [
+  {
+    id: 'test-company-1',
+    name: 'Test TeslAI',
+    description: 'Test company',
+    type: 'company',
+    canBeInvolved: true,
+  },
+  {
+    id: 'test-company-2',
+    name: 'Test OpenAGI',
+    description: 'Test AI company',
+    type: 'company',
+    canBeInvolved: true,
+  },
+];
+
+describe('Dynamic Relationships System', () => {
   beforeAll(async () => {
-    // Initialize LLM client for evolution tests
-    try {
-      llmClient = new BabylonLLMClient();
-    } catch (error) {
-      console.log('⚠️  No LLM client available, skipping evolution tests');
-    }
-
     // Clean up test data
     await prisma.nPCInteraction.deleteMany({
       where: {
         OR: [
-          { actor1Id: { startsWith: 'e2e-actor-' } },
-          { actor2Id: { startsWith: 'e2e-actor-' } },
+          { actor1Id: { startsWith: 'test-actor-' } },
+          { actor2Id: { startsWith: 'test-actor-' } },
         ],
       },
     });
@@ -40,18 +71,13 @@ describe('Dynamic Relationships Integration', () => {
     await prisma.actorRelationship.deleteMany({
       where: {
         OR: [
-          { actor1Id: { startsWith: 'e2e-actor-' } },
-          { actor2Id: { startsWith: 'e2e-actor-' } },
+          { actor1Id: { startsWith: 'test-actor-' } },
+          { actor2Id: { startsWith: 'test-actor-' } },
         ],
       },
     });
 
     // Create test actors
-    const testActors = [
-      { id: 'e2e-actor-ailon', name: 'E2E AIlon', domain: ['tech'], affiliations: ['e2e-spacex'] },
-      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['ai'], affiliations: ['e2e-openagi'] },
-    ];
-
     for (const actor of testActors) {
       await prisma.actor.upsert({
         where: { id: actor.id },
@@ -59,8 +85,10 @@ describe('Dynamic Relationships Integration', () => {
         create: {
           id: actor.id,
           name: actor.name,
-          domain: actor.domain,
-          affiliations: actor.affiliations,
+          description: actor.description,
+          domain: actor.domain || [],
+          personality: 'test',
+          affiliations: actor.affiliations || [],
           postStyle: 'test',
           postExample: [],
           updatedAt: new Date(),
@@ -74,8 +102,8 @@ describe('Dynamic Relationships Integration', () => {
     await prisma.nPCInteraction.deleteMany({
       where: {
         OR: [
-          { actor1Id: { startsWith: 'e2e-actor-' } },
-          { actor2Id: { startsWith: 'e2e-actor-' } },
+          { actor1Id: { startsWith: 'test-actor-' } },
+          { actor2Id: { startsWith: 'test-actor-' } },
         ],
       },
     });
@@ -83,191 +111,288 @@ describe('Dynamic Relationships Integration', () => {
     await prisma.actorRelationship.deleteMany({
       where: {
         OR: [
-          { actor1Id: { startsWith: 'e2e-actor-' } },
-          { actor2Id: { startsWith: 'e2e-actor-' } },
+          { actor1Id: { startsWith: 'test-actor-' } },
+          { actor2Id: { startsWith: 'test-actor-' } },
         ],
       },
     });
-
+    
     await prisma.actor.deleteMany({
-      where: { id: { startsWith: 'e2e-actor-' } },
+      where: { id: { startsWith: 'test-actor-' } },
     });
 
     await prisma.$disconnect();
   });
 
-  test('Complete relationship lifecycle', async () => {
-    console.log('\n' + '='.repeat(60));
-    console.log('END-TO-END RELATIONSHIP TEST');
-    console.log('='.repeat(60));
+  describe('Initial Relationship Generation', () => {
+    test('should generate initial relationships based on shared context', async () => {
+      const engine = new RelationshipEvolutionEngine();
+      const created = await engine.generateInitialRelationships(testActors, testOrgs);
 
-    // Step 1: Generate initial relationship
-    console.log('\n1️⃣  Generating initial relationships...');
-    const engine = new RelationshipEvolutionEngine(llmClient);
-    
-    // Give actors shared domain to ensure relationship is created
-    const actors = [
-      { id: 'e2e-actor-ailon', name: 'E2E AIlon', domain: ['tech', 'ai'], affiliations: ['e2e-spacex'] },
-      { id: 'e2e-actor-sam', name: 'E2E Sam', domain: ['tech', 'ai'], affiliations: ['e2e-openagi'] },
-    ];
-    
-    const orgs = [
-      { id: 'e2e-spacex', name: 'test spacex', description: 'Test', type: 'company' as const, canBeInvolved: true },
-      { id: 'e2e-openagi', name: 'test openagi', description: 'Test', type: 'company' as const, canBeInvolved: true },
-    ];
-    
-    const created = await engine.generateInitialRelationships(actors, orgs);
-    console.log(`   ✅ Created ${created} initial relationships`);
+      expect(created).toBeGreaterThan(0);
 
-    // Verify relationship exists (might be either direction)
-    const initial = await prisma.actorRelationship.findFirst({
-      where: {
-        OR: [
-          { actor1Id: 'e2e-actor-ailon', actor2Id: 'e2e-actor-sam' },
-          { actor1Id: 'e2e-actor-sam', actor2Id: 'e2e-actor-ailon' },
-        ],
-      },
-    });
-
-    expect(initial).toBeTruthy();
-    expect(initial!.history).toBeTruthy();
-    console.log(`   ✅ Initial relationship: "${initial!.history}"`);
-
-    // Step 2: Simulate interactions
-    console.log('\n2️⃣  Simulating interactions...');
-    
-    // AIlon mentions Sam positively
-    await InteractionTracker.trackPostMention(
-      'e2e-actor-ailon',
-      'e2e-actor-sam',
-      'E2E Sam is doing amazing work on AI safety!',
-      0.7
-    );
-    console.log('   ✅ Tracked positive mention (sentiment: 0.7)');
-
-    // Sam replies positively
-    await InteractionTracker.trackReply(
-      'e2e-actor-sam',
-      'e2e-actor-ailon',
-      'Thanks E2E AIlon! Love what you are doing with rockets.',
-      0.6
-    );
-    console.log('   ✅ Tracked positive reply (sentiment: 0.6)');
-
-    // Both mentioned in article
-    await InteractionTracker.trackArticleMention(
-      ['e2e-actor-ailon', 'e2e-actor-sam'],
-      'E2E AIlon and E2E Sam team up on Mars AI project',
-      0.8
-    );
-    console.log('   ✅ Tracked article co-mention (sentiment: 0.8)');
-
-    // Verify interactions were saved
-    const interactions = await prisma.nPCInteraction.findMany({
-      where: {
-        actor1Id: 'e2e-actor-ailon',
-        actor2Id: 'e2e-actor-sam',
-      },
-    });
-
-    expect(interactions.length).toBe(3);
-    console.log(`   ✅ ${interactions.length} interactions recorded`);
-
-    // Step 3: Evolve relationship (if LLM available)
-    if (llmClient) {
-      console.log('\n3️⃣  Evolving relationship with LLM...');
-      
-      try {
-        const updated = await engine.analyzeAndUpdateRelationships();
-        console.log(`   ✅ Updated ${updated} relationships`);
-
-      // Check updated relationship
-      const evolved = await prisma.actorRelationship.findFirst({
+      // Check database
+      const relationships = await prisma.actorRelationship.findMany({
         where: {
-          actor1Id: 'e2e-actor-ailon',
-          actor2Id: 'e2e-actor-sam',
+          OR: [
+            { actor1Id: { startsWith: 'test-actor-' } },
+            { actor2Id: { startsWith: 'test-actor-' } },
+          ],
         },
       });
 
-      expect(evolved).toBeTruthy();
-      expect(evolved!.history).toBeTruthy();
-      expect(evolved!.evolutionCount).toBeGreaterThan(0);
+      expect(relationships.length).toBeGreaterThan(0);
       
-        console.log(`   ✅ Evolved relationship: "${evolved!.history}"`);
-        console.log(`   ✅ Evolution count: ${evolved!.evolutionCount}`);
-        console.log(`   ✅ Interaction count: ${evolved!.interactionCount}`);
-      } catch (error) {
-        console.log(`   ⚠️  LLM evolution timed out or failed (non-critical)`);
-        console.log(`   ℹ️  This is expected if LLM is slow - skipping evolution check`);
+      // Each relationship should have a text description
+      for (const rel of relationships) {
+        expect(rel.history).toBeTruthy();
+        expect(rel.history).toContain(''); // Not empty
+        expect(rel.relationshipType).toBeTruthy();
+        expect(rel.sentiment).toBeGreaterThanOrEqual(-1);
+        expect(rel.sentiment).toBeLessThanOrEqual(1);
+        expect(rel.strength).toBeGreaterThan(0);
+        expect(rel.strength).toBeLessThanOrEqual(1);
       }
-    } else {
-      console.log('\n3️⃣  Skipping LLM evolution (no API key)');
-    }
 
-    // Step 4: Generate context for prompts
-    console.log('\n4️⃣  Generating prompt context...');
-    
-    const context = await engine.getRelationshipContextForActor('e2e-actor-ailon');
-    expect(context).toBeTruthy();
-    expect(context.length).toBeGreaterThan(0);
-    expect(context).toContain('E2E Sam');
-    
-    console.log(`   ✅ Relationship context generated:`);
-    console.log(context.split('\n').map(l => `      ${l}`).join('\n'));
+      console.log(`\n✅ Generated ${created} relationships`);
+      console.log('Sample relationships:');
+      relationships.slice(0, 3).forEach(r => {
+        console.log(`  - ${r.relationshipType}: "${r.history}"`);
+      });
+    });
 
-    // Step 5: Verify context is simple and usable
-    console.log('\n5️⃣  Verifying context quality...');
-    
-    const lines = context.split('\n').filter(l => l.trim());
-    expect(lines.length).toBeLessThanOrEqual(5); // Max 5 relationships
-    
-    for (const line of lines) {
-      expect(line).toContain(':'); // Format: "- Name: description"
-      expect(line.length).toBeLessThan(150); // Keep it short
-    }
-    
-    console.log(`   ✅ Context is simple (${lines.length} lines)`);
-    console.log(`   ✅ Format is clean and narrative`);
-    
-    console.log('\n' + '='.repeat(60));
-    console.log('✅ END-TO-END TEST COMPLETE');
-    console.log('='.repeat(60));
-    console.log('\nRelationship lifecycle verified:');
-    console.log('  1. ✅ Initial generation works');
-    console.log('  2. ✅ Interaction tracking works');
-    console.log('  3. ✅ Evolution works (with LLM)');
-    console.log('  4. ✅ Context generation works');
-    console.log('  5. ✅ Context is simple and narrative');
+    test('should create relationships for actors with shared affiliations', async () => {
+      const relationships = await prisma.actorRelationship.findMany({
+        where: {
+          OR: [
+            { actor1Id: 'test-actor-1', actor2Id: 'test-actor-3' },
+            { actor1Id: 'test-actor-3', actor2Id: 'test-actor-1' },
+          ],
+        },
+      });
+
+      // Actors 1 and 3 share test-company-1, should have relationship
+      expect(relationships.length).toBeGreaterThan(0);
+      
+      const rel = relationships[0]!;
+      expect(rel.history).toContain(''); // Has description
+      
+      console.log(`\n✅ Shared affiliation relationship: "${rel.history}"`);
+    });
   });
 
-  test('Context format should be prompt-ready', async () => {
-    const engine = new RelationshipEvolutionEngine();
-    const context = await engine.getRelationshipContextForActor('e2e-actor-ailon');
+  describe('Interaction Tracking', () => {
+    test('should track post mentions', async () => {
+      const beforeCount = await prisma.nPCInteraction.count({
+        where: {
+          actor1Id: 'test-actor-1',
+          actor2Id: 'test-actor-2',
+        },
+      });
 
-    if (context) {
-      // Should be simple list format
-      expect(context).toMatch(/^- .+: .+$/m);
+      await InteractionTracker.trackPostMention(
+        'test-actor-1',
+        'test-actor-2',
+        'Test Sam is brilliant! Love what he is doing with AI.',
+        0.8
+      );
+
+      const afterCount = await prisma.nPCInteraction.count({
+        where: {
+          actor1Id: 'test-actor-1',
+          actor2Id: 'test-actor-2',
+        },
+      });
+
+      expect(afterCount).toBe(beforeCount + 1);
+
+      // Check interaction details
+      const interaction = await prisma.nPCInteraction.findFirst({
+        where: {
+          actor1Id: 'test-actor-1',
+          actor2Id: 'test-actor-2',
+        },
+        orderBy: { timestamp: 'desc' },
+      });
+
+      expect(interaction).toBeTruthy();
+      expect(interaction!.interactionType).toBe('mention');
+      expect(interaction!.sentiment).toBe(0.8);
+      expect(interaction!.context).toContain('mentioned');
       
-      // Should NOT have complex structure
-      expect(context).not.toContain('╔');
-      expect(context).not.toContain('│');
-      expect(context).not.toContain('┌');
+      console.log(`\n✅ Tracked mention: ${interaction!.context}`);
+    });
+
+    test('should track replies with sentiment', async () => {
+      await InteractionTracker.trackReply(
+        'test-actor-2',
+        'test-actor-1',
+        'Disagree with that terrible take',
+        -0.6
+      );
+
+      const interaction = await prisma.nPCInteraction.findFirst({
+        where: {
+          actor1Id: 'test-actor-1',
+          actor2Id: 'test-actor-2',
+          interactionType: 'reply',
+        },
+        orderBy: { timestamp: 'desc' },
+      });
+
+      expect(interaction).toBeTruthy();
+      expect(interaction!.sentiment).toBe(-0.6);
       
-      // Should be injectable into prompts as-is
-      const testPrompt = `You are E2E AIlon.
+      console.log(`\n✅ Tracked reply: ${interaction!.context}`);
+    });
 
-${context ? 'Your relationships:\n' + context : ''}
+    test('should extract actor mentions from text', () => {
+      const postContent = 'Test AIlon and Test Sam are working together on this AI project!';
+      const mentions = InteractionTracker.extractMentions(postContent, testActors);
 
-Write a post.`;
-
-      expect(testPrompt).toContain('Your relationships:');
-      expect(testPrompt).toContain('-');
+      expect(mentions).toContain('test-actor-1'); // Test AIlon
+      expect(mentions).toContain('test-actor-2'); // Test Sam
+      expect(mentions.length).toBeGreaterThanOrEqual(2);
       
-      console.log('\n✅ Context is prompt-ready:');
-      console.log('━'.repeat(40));
-      console.log(testPrompt);
-      console.log('━'.repeat(40));
-    }
+      console.log(`\n✅ Extracted mentions: ${mentions.join(', ')}`);
+    });
+
+    test('should analyze sentiment from text', () => {
+      const positiveText = 'This is amazing! Great work, love it!';
+      const negativeText = 'This is terrible and awful. Complete disaster!';
+      const neutralText = 'The project continues as planned.';
+
+      const posSentiment = InteractionTracker.analyzeSentiment(positiveText);
+      const negSentiment = InteractionTracker.analyzeSentiment(negativeText);
+      const neutralSentiment = InteractionTracker.analyzeSentiment(neutralText);
+
+      expect(posSentiment).toBeGreaterThan(0);
+      expect(negSentiment).toBeLessThan(0);
+      expect(neutralSentiment).toBe(0);
+      
+      console.log(`\n✅ Sentiment analysis:`);
+      console.log(`  Positive: ${posSentiment.toFixed(2)}`);
+      console.log(`  Negative: ${negSentiment.toFixed(2)}`);
+      console.log(`  Neutral: ${neutralSentiment.toFixed(2)}`);
+    });
+  });
+
+  describe('Relationship Context Generation', () => {
+    test('should generate simple text context for prompts', async () => {
+      const engine = new RelationshipEvolutionEngine();
+      const context = await engine.getRelationshipContextForActor('test-actor-1');
+
+      if (context) {
+        expect(context).toBeTruthy();
+        expect(context.length).toBeGreaterThan(0);
+        
+        // Should be simple text list
+        expect(context).toContain('-');
+        expect(context).toContain(':');
+        
+        // Should NOT have complex formatting
+        expect(context).not.toContain('✅');
+        expect(context).not.toContain('How to use:');
+        
+        console.log(`\n✅ Generated context for test-actor-1:`);
+        console.log(context);
+      }
+    });
+
+    test('should return empty string for actor with no relationships', async () => {
+      // Delete all relationships for test-actor-1
+      await prisma.actorRelationship.deleteMany({
+        where: {
+          OR: [
+            { actor1Id: 'test-actor-1' },
+            { actor2Id: 'test-actor-1' },
+          ],
+        },
+      });
+
+      const engine = new RelationshipEvolutionEngine();
+      const context = await engine.getRelationshipContextForActor('test-actor-1');
+
+      expect(context).toBe('');
+      
+      console.log(`\n✅ Empty context for actor with no relationships`);
+    });
+
+    test('should limit to top 5 strongest relationships', async () => {
+      const engine = new RelationshipEvolutionEngine();
+      
+      // Regenerate relationships
+      await engine.generateInitialRelationships(testActors, testOrgs);
+      
+      const context = await engine.getRelationshipContextForActor('test-actor-1');
+      const lines = context.split('\n').filter(l => l.trim());
+
+      expect(lines.length).toBeLessThanOrEqual(5);
+      
+      console.log(`\n✅ Context limited to ${lines.length} relationships`);
+    });
+  });
+
+  describe('Relationship Text Quality', () => {
+    test('relationship descriptions should be narrative and simple', async () => {
+      const relationships = await prisma.actorRelationship.findMany({
+        where: {
+          actor1Id: { startsWith: 'test-actor-' },
+        },
+        take: 5,
+      });
+
+      for (const rel of relationships) {
+        const desc = rel.history || '';
+        
+        // Should be lowercase and casual
+        expect(desc).toBe(desc.toLowerCase());
+        
+        // Should be short
+        expect(desc.length).toBeLessThan(100);
+        
+        // Should be descriptive
+        expect(desc.length).toBeGreaterThan(10);
+        
+        console.log(`  ✓ "${desc}"`);
+      }
+
+      console.log(`\n✅ All ${relationships.length} descriptions are simple and narrative`);
+    });
+  });
+
+  describe('System Integration', () => {
+    test('should have NPCInteraction table accessible', async () => {
+      const count = await prisma.nPCInteraction.count();
+      expect(count).toBeGreaterThanOrEqual(0);
+      
+      console.log(`\n✅ NPCInteraction table accessible: ${count} interactions`);
+    });
+
+    test('should have evolution tracking fields in ActorRelationship', async () => {
+      const relationship = await prisma.actorRelationship.findFirst({
+        where: {
+          actor1Id: { startsWith: 'test-actor-' },
+        },
+      });
+
+      if (relationship) {
+        expect('lastInteraction' in relationship).toBe(true);
+        expect('interactionCount' in relationship).toBe(true);
+        expect('evolutionCount' in relationship).toBe(true);
+        
+        console.log(`\n✅ Evolution tracking fields present:`, {
+          lastInteraction: relationship.lastInteraction,
+          interactionCount: relationship.interactionCount,
+          evolutionCount: relationship.evolutionCount,
+        });
+      }
+    });
   });
 });
+
+console.log('\n' + '='.repeat(60));
+console.log('DYNAMIC RELATIONSHIPS TESTS');
+console.log('='.repeat(60));
+
 

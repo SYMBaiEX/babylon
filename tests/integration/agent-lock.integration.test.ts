@@ -324,7 +324,7 @@ describe('Agent Lock Service Integration', () => {
     // Check lock status
     lockStatus = await checkAgentLock(testAgentId1)
     expect(lockStatus).toBeTruthy()
-    expect(lockStatus?.agentId).toBe(testAgentId1)
+    expect(lockStatus?.id).toBe(`agent-tick-${testAgentId1}`)
     expect(lockStatus?.lockedBy).toBe(processId)
     expect(lockStatus?.operation).toBe('agent-tick')
 

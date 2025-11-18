@@ -435,6 +435,7 @@ describe('Trending Topics & News Integration', () => {
   describe('Article Quality Validation', () => {
     it('should throw if article has empty title', async () => {
       const badLLM = {
+        getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
             title: '',
@@ -463,6 +464,7 @@ describe('Trending Topics & News Integration', () => {
 
     it('should throw if article has empty summary', async () => {
       const badLLM = {
+        getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
             title: 'Test Title',
@@ -491,6 +493,7 @@ describe('Trending Topics & News Integration', () => {
 
     it('should throw if article content is too short', async () => {
       const badLLM = {
+        getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
             title: 'Test Title',

@@ -5,12 +5,21 @@
  * (gamesPlayed, gamesWon, averageFeedbackScore, reputationScore, intel stats).
  */
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test, mock } from 'bun:test'
 import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import { POST as submitGameFeedback } from '@/app/api/feedback/game-to-agent/route'
+
+// Mock agent0 sync to prevent race conditions in tests
+mock.module('@/lib/reputation/agent0-reputation-sync', () => ({
+  submitFeedbackToAgent0: async () => {
+    return { submitted: true }
+  },
+}))
+
+// Dynamic import to ensure mock is used
+const { POST: submitGameFeedback } = await import('@/app/api/feedback/game-to-agent/route')
 
 describe('game feedback updates reputation metrics', () => {
   let agentId: string

@@ -48,6 +48,7 @@ declare module 'bun:test' {
     mockReturnValue(value: unknown): void;
     mockResolvedValue(value: unknown): void;
     mockRejectedValue(value: unknown): void;
+    mockRestore(): void;
     restore(): void;
   };
 }

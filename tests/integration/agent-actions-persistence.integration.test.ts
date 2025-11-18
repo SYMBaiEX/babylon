@@ -22,8 +22,34 @@ describe('Agent Actions Persistence Integration', () => {
   let testAgentId: string
   let testMarketId: string
   let testPostId: string
+  const originalFetch = global.fetch
 
   beforeAll(async () => {
+    // Mock fetch to handle A2A client initialization
+    global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString()
+      if (url.includes('.well-known/agent-card.json')) {
+        return new Response(JSON.stringify({
+          name: "Test Agent",
+          description: "A test agent",
+          version: "1.0.0",
+          capabilities: ["trading", "posting"]
+        }), { status: 200 })
+      }
+      // Allow other requests (like to other services if needed, or mock them too)
+      // For local connection refused, we might want to catch it?
+      // But originalFetch will throw if connection refused.
+      try {
+        return await originalFetch(input, init)
+      } catch (error) {
+        // If it's a connection error to localhost, just return 404 or 500 to avoid crashing
+        if (url.includes('localhost')) {
+           return new Response(null, { status: 503, statusText: "Service Unavailable" })
+        }
+        throw error
+      }
+    }
+
     // Create test agent with autonomous features enabled
     const agentResult = await createTestAgent('integration-test-agent-actions', {
       autonomousTrading: true,
@@ -81,6 +107,9 @@ describe('Agent Actions Persistence Integration', () => {
   })
 
   afterAll(async () => {
+    // Restore global fetch
+    global.fetch = originalFetch
+
     // Cleanup
     if (testAgentId) {
       try {

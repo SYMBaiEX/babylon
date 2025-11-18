@@ -735,25 +735,29 @@ export class AutomationPipeline {
    * Run health checks
    */
   private async runHealthChecks(): Promise<void> {
-    // Check database connectivity
-    await prisma.user.count();
+    try {
+      // Check database connectivity
+      await prisma.user.count();
 
-    // Check data collection rate
-    const last1h = await prisma.trajectory.count({
-      where: {
-        startTime: {
-          gte: new Date(Date.now() - 60 * 60 * 1000)
+      // Check data collection rate
+      const last1h = await prisma.trajectory.count({
+        where: {
+          startTime: {
+            gte: new Date(Date.now() - 60 * 60 * 1000)
+          }
         }
+      });
+
+      if (last1h < 1) {
+        logger.warn('Low data collection rate', { trajectoriesLastHour: last1h });
       }
-    });
 
-    if (last1h < 1) {
-      logger.warn('Low data collection rate', { trajectoriesLastHour: last1h });
+      // Check disk space for model storage
+      await fs.mkdir(this.config.modelStoragePath, { recursive: true });
+      await fs.mkdir(this.config.dataStoragePath, { recursive: true });
+    } catch (error) {
+      logger.error('Health check failed', { error: error instanceof Error ? error.message : String(error) });
     }
-
-    // Check disk space for model storage
-    await fs.mkdir(this.config.modelStoragePath, { recursive: true });
-    await fs.mkdir(this.config.dataStoragePath, { recursive: true });
   }
 
   /**

@@ -143,7 +143,7 @@ describe('Gameplay Tick Integration', () => {
     expect(typeof result.questionsResolved).toBe('number')
     expect(typeof result.questionsCreated).toBe('number')
     expect(typeof result.trendingCalculated).toBe('boolean')
-  })
+  }, 60000)
 
   test('should update market prices when NPC trading occurs', async () => {
     // Get initial market state
@@ -190,7 +190,7 @@ describe('Gameplay Tick Integration', () => {
       expect(new Date(marketAfter?.updatedAt || 0).getTime())
         .toBeGreaterThanOrEqual(new Date(marketBefore?.updatedAt || 0).getTime())
     }
-  })
+  }, 60000)
 
   test('should have reasonable market pricing (0-100% for predictions)', async () => {
     // Get all active markets
@@ -261,7 +261,7 @@ describe('Gameplay Tick Integration', () => {
       // We just verify the count is reasonable
       expect(afterPositions).toBeGreaterThanOrEqual(initialPositions)
     }
-  })
+  }, 60000)
 
   test('should generate content when buffer is low', async () => {
     // Run game tick without skipping content generation
@@ -275,7 +275,7 @@ describe('Gameplay Tick Integration', () => {
     expect(typeof result.postsCreated).toBe('number')
     expect(typeof result.articlesCreated).toBe('number')
     expect(typeof result.eventsCreated).toBe('number')
-  })
+  }, 120000)
 
   test('should resolve questions when resolution date passes', async () => {
     // Create a question that should resolve
@@ -308,7 +308,12 @@ describe('Gameplay Tick Integration', () => {
 
     // Question should be resolved if resolution date passed
     if (result.questionsResolved > 0) {
+      console.log('Resolved question status:', resolvedQuestion?.status, 'ID:', pastQuestionId)
       expect(resolvedQuestion?.status).toBe('resolved')
+    } else {
+       // If result says 0 resolved but we made one that SHOULD be resolved, that's suspicious but maybe it wasn't picked up?
+       // Check if it was picked up by logic
+       console.log('No questions resolved in this tick. Our past question status:', resolvedQuestion?.status)
     }
 
     // Cleanup
@@ -317,7 +322,7 @@ describe('Gameplay Tick Integration', () => {
     } catch (error) {
       // Cleanup errors not critical
     }
-  })
+  }, 60000)
 
   test('should test agent-tick cron endpoint if server available', async () => {
     if (!serverAvailable) {

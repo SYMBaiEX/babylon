@@ -392,6 +392,134 @@ One sentence summary:`
 }
 
 /**
+ * Generate a one-sentence summary for a single trending tag based on recent posts
+ * (Ported from trending-summary-service.ts)
+ */
+export async function generateTrendingSummary(
+  tagDisplayName: string,
+  category: string | null,
+  recentPosts: string[]
+): Promise<string> {
+  // Combine recent posts for context
+  const context = recentPosts.slice(0, 3).join(' | ')
+  
+  // If no context, return a generic summary
+  if (!context || context.trim().length === 0) {
+    return `Trending topic in ${category || 'general'} discussions`
+  }
+  
+  if (!openai) {
+    return `Trending topic in ${category || 'general'} discussions`
+  }
+
+  const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
+
+Recent posts about this topic:
+${context}
+
+Requirements:
+- Exactly ONE sentence, no more than 12 words
+- Describe what people are discussing/why it's trending
+- Natural, engaging tone like X/Twitter
+- No hashtags, no emojis
+- Don't start with "People are..." or "Users are..."
+
+Examples:
+- "Latest developments in SpaceX launch schedule"
+- "Market reactions to new AI regulation"
+- "Breaking news on election results"
+
+One sentence summary:`
+
+  try {
+    const startTime = Date.now()
+    
+    const response = await withRetry(
+      async () => await openai!.chat.completions.create({
+        model: SUMMARY_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 50,
+      }),
+      LLM_MAX_RETRIES,
+      'Single trend summary generation'
+    )
+
+    const duration = Date.now() - startTime
+    const tokensUsed = (response.usage?.total_tokens || 0)
+    const estimatedCost = calculateCost(SUMMARY_MODEL, tokensUsed)
+    
+    logger.debug('LLM single summary call completed', { 
+      durationMs: duration, 
+      model: SUMMARY_MODEL,
+      tokensUsed,
+      estimatedCostUSD: estimatedCost,
+    }, 'TrendingGroupingService')
+
+    let cleanSummary = response.choices[0]?.message?.content?.trim()
+      ?.replace(/^["']|["']$/g, '')
+      ?.replace(/\.$/, '')
+      ?.trim() || ''
+    
+    if (!cleanSummary) {
+      return `Trending topic in ${category || 'general'} discussions`
+    }
+
+    if (!cleanSummary.endsWith('.') && !cleanSummary.endsWith('!') && !cleanSummary.endsWith('?')) {
+      cleanSummary += '.'
+    }
+
+    const wordCount = cleanSummary.split(' ').length
+    if (wordCount > 20) {
+      cleanSummary = cleanSummary.split(' ').slice(0, 12).join(' ') + '...'
+    }
+
+    return cleanSummary
+  } catch (error) {
+    logger.error('Failed to generate single trend summary', { error, tag: tagDisplayName }, 'TrendingGroupingService')
+    return `Trending topic in ${category || 'general'} discussions`
+  }
+}
+
+/**
+ * Generate summaries for multiple trending tags
+ * (Ported from trending-summary-service.ts)
+ */
+export async function generateTrendingSummaries(
+  tags: Array<{
+    displayName: string
+    category: string | null
+    recentPosts: string[]
+  }>
+): Promise<Map<string, string>> {
+  const results = new Map<string, string>()
+
+  // Process in small batches to avoid rate limits
+  for (const tag of tags) {
+    const summary = await generateTrendingSummary(
+      tag.displayName,
+      tag.category,
+      tag.recentPosts
+    )
+    results.set(tag.displayName, summary)
+    
+    // Small delay to respect rate limits
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+
+  return results
+}
+
+/**
  * Group related trending tags using LLM analysis
  */
 export async function groupTrendingTags(tags: TrendingTag[]): Promise<GroupedTrend[]> {
@@ -494,4 +622,3 @@ export async function groupTrendingTags(tags: TrendingTag[]): Promise<GroupedTre
 
   return result
 }
-

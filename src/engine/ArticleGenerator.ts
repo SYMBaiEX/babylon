@@ -551,7 +551,7 @@ BIAS INSTRUCTIONS:
 
     const recentContext = recentEvents.length > 0
       ? `RECENT CONTEXT (for background):\n${recentEvents.map(e => `- ${e.description}`).join('\n')}`
-      : '';
+      : 'No recent context available.';
 
     const relatedQuestionContext = event.relatedQuestion 
       ? `Related to Prediction Market Question #${event.relatedQuestion}` 

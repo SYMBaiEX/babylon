@@ -531,6 +531,11 @@ You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO
 Your response MUST start with <decisions> and end with </decisions>.
 Your FIRST character MUST be '<' and your LAST character MUST be '>'.
 
+❌ DO NOT return JSON.
+❌ DO NOT return a 'response' object.
+❌ DO NOT return columnar data (arrays of values).
+✅ Return a LIST of <decision> elements inside <decisions>.
+
 ${prompt}`
           : prompt;
         
@@ -573,7 +578,33 @@ ${prompt}`
           if (xmlResult.success && xmlResult.data) {
             logger.info('Successfully extracted XML from string response', {}, 'MarketDecisionEngine');
             rawResponse = xmlResult.data as typeof rawResponse;
-            break;
+            // Continue to structure validation below
+          }
+        }
+
+        // Validate response structure matches expected format
+        let isValidStructure = false;
+        if (rawResponse && typeof rawResponse === 'object') {
+          if (Array.isArray(rawResponse)) {
+            isValidStructure = true;
+          } else if ('decisions' in rawResponse || 'decision' in rawResponse) {
+            isValidStructure = true;
+          }
+        }
+
+        if (!isValidStructure && typeof rawResponse !== 'string') {
+          // Check specifically for the columnar format to log it
+          const isColumnar = rawResponse && typeof rawResponse === 'object' && 'response' in rawResponse;
+          
+          logger.warn(`LLM returned invalid object structure${isColumnar ? ' (columnar format detected)' : ''}, retrying...`, {
+            attempt: retryCount + 1,
+            keys: rawResponse ? Object.keys(rawResponse) : [],
+            isColumnar
+          }, 'MarketDecisionEngine');
+           
+          if (retryCount < maxRetries) {
+            retryCount++;
+            continue;
           }
         }
         

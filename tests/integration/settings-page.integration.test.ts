@@ -22,9 +22,28 @@ let testAccessToken: string;
 describe('Settings Page Integration Tests', () => {
   const hasTestCreds = !!(process.env.TEST_USER_ID && process.env.TEST_ACCESS_TOKEN);
 
+  // Check if server is running
+  let serverAvailable = false;
+
   beforeAll(async () => {
+    try {
+      const health = await fetch(`${API_URL}/health`.replace('/api/health', '/api/health')); // Adjust if API_URL includes /api
+      // API_URL is http://localhost:3000/api
+      // Health check is likely at http://localhost:3000/api/health
+      const response = await fetch(`${API_URL}/health`);
+      console.log('health', health);
+      serverAvailable = response.ok;
+    } catch {
+      serverAvailable = false;
+    }
+
     if (!hasTestCreds) {
       console.warn('⚠️  Skipping settings tests - TEST_USER_ID and TEST_ACCESS_TOKEN not set');
+      return;
+    }
+    
+    if (!serverAvailable) {
+      console.warn('⚠️  Skipping settings tests - Server not available');
       return;
     }
     
@@ -292,6 +311,7 @@ describe('Settings Page Integration Tests', () => {
 
   describe('Authentication Requirements', () => {
     test('should require authentication for profile updates', async () => {
+      if (!serverAvailable) return;
       const response = await fetch(`${API_URL}/users/${testUserId}/update-profile`, {
         method: 'POST',
         headers: {
@@ -308,6 +328,7 @@ describe('Settings Page Integration Tests', () => {
     });
 
     test('should require authentication for data export', async () => {
+      if (!serverAvailable) return;
       const response = await fetch(`${API_URL}/users/export-data`, {
         headers: {
           // No Authorization header

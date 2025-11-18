@@ -82,9 +82,9 @@ describe('Trading and Question Generation Integration', () => {
         data: {
           id: testMarketId,
           question: 'Test: Will trading work?',
-          yesShares: 10000,
-          noShares: 10000,
-          liquidity: 20000,
+          yesShares: 100,
+          noShares: 100,
+          liquidity: 200,
           resolved: false,
           endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           createdAt: new Date(),
@@ -149,7 +149,7 @@ describe('Trading and Question Generation Integration', () => {
       // Markets should still exist (or more if new ones were created)
       expect(afterMarketCount).toBeGreaterThanOrEqual(initialMarketCount)
     }
-  }, { timeout: 60000 })
+  }, 60000)
 
   test('should create NPC positions when trading occurs', async () => {
     // Get initial position count
@@ -175,7 +175,7 @@ describe('Trading and Question Generation Integration', () => {
       const hasPositions = afterPositions > 0 || beforePositions > 0
       expect(hasPositions).toBe(true)
     }
-  }, { timeout: 60000 })
+  }, 60000)
 
   test('should generate new questions when count is low', async () => {
     // Get current active question count
@@ -231,7 +231,7 @@ describe('Trading and Question Generation Integration', () => {
       // If we had 10+ questions, generation should have been skipped
       expect(result.questionsCreated).toBe(0)
     }
-  }, { timeout: 60000 })
+  }, 60000)
 
   test('should update market prices when NPCs trade', async () => {
     // Get a market to track
@@ -276,7 +276,7 @@ describe('Trading and Question Generation Integration', () => {
       // If markets were updated, either shares changed or timestamp changed
       expect(sharesChanged || timestampChanged).toBe(true)
     }
-  }, { timeout: 60000 })
+  }, 60000)
 
   test('should create markets for new questions', async () => {
     // Ensure we're below question threshold to trigger generation
@@ -329,7 +329,7 @@ describe('Trading and Question Generation Integration', () => {
         expect(market?.resolved).toBe(false)
       }
     }
-  }, { timeout: 60000 })
+  }, 60000)
 
   test('should verify trading and question generation work together', async () => {
     // This is a comprehensive test that verifies both features work in the same tick
@@ -394,6 +394,6 @@ describe('Trading and Question Generation Integration', () => {
       expect(market).toBeTruthy()
       expect(market?.resolved).toBe(false)
     }
-  }, { timeout: 60000 })
+  }, 60000)
 })
 

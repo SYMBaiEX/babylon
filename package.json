@@ -13,7 +13,7 @@
     "test": "bun run test:unit && bun run test:integration",
     "test:unit": "bun test tests/unit/ --preload ./tests/unit/preload.ts",
     "test:integration": "bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts",
-    "test:all": "bun test tests/unit/ tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts --preload ./tests/unit/preload.ts",
+    "test:all": "bun run test:unit && bun run test:integration",
     "test:retry": "bun test src/lib/__tests__/prisma-retry.integration.test.ts",
     "test:a2a": "bun test src/a2a/tests/",
     "test:a2a:unit": "bun test ./src/a2a/tests/integration/points-service-integration.test.ts",

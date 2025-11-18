@@ -1251,26 +1251,31 @@ Trending system not initialized yet.
 
       // Handle multiple response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
-      if ('conspiracy' in rawResponse && rawResponse.conspiracy) {
-        if (Array.isArray(rawResponse.conspiracy)) {
-          // Format 1: Direct array
-          conspiracy = rawResponse.conspiracy;
-        } else if (typeof rawResponse.conspiracy === 'object' && 'post' in rawResponse.conspiracy) {
-          // Format 3: XML nested structure { conspiracy: { post: [...] } }
-          const nested = (rawResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
-          conspiracy = Array.isArray(nested) ? nested : [nested];
+      
+      if (rawResponse && typeof rawResponse === 'object') {
+        if ('conspiracy' in rawResponse && rawResponse.conspiracy) {
+          if (Array.isArray(rawResponse.conspiracy)) {
+            // Format 1: Direct array
+            conspiracy = rawResponse.conspiracy;
+          } else if (typeof rawResponse.conspiracy === 'object' && 'post' in rawResponse.conspiracy) {
+            // Format 3: XML nested structure { conspiracy: { post: [...] } }
+            const nested = (rawResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
+            conspiracy = Array.isArray(nested) ? nested : [nested];
+          }
+        } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
+          // Format 2: Wrapped in data array
+          conspiracy = rawResponse.data.flatMap((d) => {
+            return Array.isArray(d.conspiracy) ? d.conspiracy : [];
+          });
+        } else {
+          // Debug: Log what we got
+          logger.warn('Conspiracy response has unexpected structure', {
+            responseKeys: Object.keys(rawResponse),
+            hasConspiracy: 'conspiracy' in rawResponse,
+          }, 'FeedGenerator');
         }
-      } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
-        // Format 2: Wrapped in data array
-        conspiracy = rawResponse.data.flatMap((d) => {
-          return Array.isArray(d.conspiracy) ? d.conspiracy : [];
-        });
       } else {
-        // Debug: Log what we got
-        logger.warn('Conspiracy response has unexpected structure', {
-          responseKeys: Object.keys(rawResponse),
-          hasConspiracy: 'conspiracy' in rawResponse,
-        }, 'FeedGenerator');
+        logger.warn('Conspiracy response is not an object', { type: typeof rawResponse }, 'FeedGenerator');
       }
       
       // Debug: Log sample if we have posts
@@ -1610,7 +1615,7 @@ Trending system not initialized yet.
     const prompt = renderPrompt(governmentPost, {
       govName: govt.name,
       govDescription: govt.description,
-      eventDescription: event.description,
+      eventDescription: event.description || 'A significant event has occurred.',
       eventType: event.type,
       outcomeFrame,
       ...(this.worldContext || {})

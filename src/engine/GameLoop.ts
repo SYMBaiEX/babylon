@@ -6,7 +6,9 @@ import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine'
 import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
 import { logger } from '@/lib/logger';
 import type { WorldEvent } from './GameWorld';
-import type { FeedPost } from '@/shared/types';
+import type { FeedPost, Actor, ActorTier } from '@/shared/types';
+import { TradeExecutionService } from '@/lib/services/trade-execution-service';
+import { prisma } from '@/lib/prisma';
 
 export interface TickResult {
   events: WorldEvent[];
@@ -53,23 +55,27 @@ export class GameLoop {
     const decisions = await this.marketDecisions.generateBatchDecisions();
     let tradeCount = 0;
     
-    for (const decision of decisions) {
+    if (decisions.length > 0) {
       try {
-        if (decision.action === 'open_long' || decision.action === 'open_short') {
-           if (decision.npcId && decision.ticker && decision.amount) {
-             this.perps.openPosition(decision.npcId, {
-               ticker: decision.ticker,
-               side: decision.action === 'open_long' ? 'long' : 'short',
-               size: decision.amount,
-               leverage: 1, // Default leverage for NPC trades
-               orderType: 'market'
-             });
-             tradeCount++;
-           }
-        }
-        // Handle prediction market trades if needed (using separate service)
+        const executionService = new TradeExecutionService();
+        const executionResult = await executionService.executeDecisionBatch(decisions);
+        tradeCount = executionResult.successfulTrades;
+        
+        logger.info(
+          `NPC Trading: ${executionResult.successfulTrades} trades executed`,
+          {
+            successful: executionResult.successfulTrades,
+            failed: executionResult.failedTrades,
+            holds: executionResult.holdDecisions,
+          },
+          'GameLoop'
+        );
       } catch (e) {
-        logger.warn(`Trade failed for ${decision.npcId}: ${e instanceof Error ? e.message : String(e)}`, undefined, 'GameLoop');
+        logger.warn(
+          `Trade execution batch failed: ${e instanceof Error ? e.message : String(e)}`,
+          undefined,
+          'GameLoop'
+        );
       }
     }
 
@@ -83,36 +89,74 @@ export class GameLoop {
       .filter(m => Math.abs(m.changePercent24h) > 5)
       .map(m => ({ ticker: m.ticker, change: m.changePercent24h }));
 
-    const worldEvents = await this.world.generateTickEvents(day, hour, {
-      markets: marketState,
-      significantMoves
-    });
+    let worldEvents: WorldEvent[] = [];
+    try {
+      worldEvents = await this.world.generateTickEvents(day, hour, {
+        markets: marketState,
+        significantMoves
+      });
+    } catch (e) {
+      logger.warn(
+        `Failed to generate world events: ${e instanceof Error ? e.message : String(e)}`,
+        { day, hour },
+        'GameLoop'
+      );
+    }
 
     // 4. Feed Reaction (Social Layer)
     // Skip if marketOnly is true (for fast simulations)
     let posts: FeedPost[] = [];
     if (!marketOnly) {
-      // Reuse generateDayFeed but scoped to the events we just generated
-      // In a full implementation, we'd refactor FeedGenerator to support hourly ticks explicitly
-      // For now, we pass empty list for actors to save tokens if we don't want ambient posts
-      // or we pass all actors if we do. Let's pass an empty list for now to focus on event reactions.
-      // Actually generateDayFeed requires actors to generate any posts.
-      // We'll use a small subset of actors for efficiency in simulation.
+      // Fetch actors from database for feed generation
+      // Use a subset of top actors for efficiency in simulation
+      const actors = await prisma.actor.findMany({
+        take: 15,
+        orderBy: { reputationPoints: 'desc' },
+      });
       
-      // We need access to actors. GameWorld has them but they are private.
-      // Let's assume we can get them or pass them.
-      // For now, we'll pass an empty array and FeedGenerator will likely just return event-based posts if it can.
-      // Wait, generateDayFeed takes allActors.
-      // We need to expose actors from GameWorld or pass them in.
-      // For now, we'll use the world's NPCs if we can access them, or just empty array and accept limited output.
-      
-      posts = await this.feed.generateDayFeed(day, worldEvents, []); 
+      if (actors.length > 0) {
+        // Convert database actors to Actor type expected by FeedGenerator
+        const actorList: Actor[] = actors.map(actor => ({
+          id: actor.id,
+          name: actor.name,
+          description: actor.description || undefined,
+          domain: Array.isArray(actor.domain) ? actor.domain : (actor.domain ? [actor.domain] : undefined),
+          personality: actor.personality || undefined,
+          tier: actor.tier as ActorTier | undefined,
+          affiliations: actor.affiliations || [],
+          postStyle: actor.postStyle || undefined,
+          postExample: Array.isArray(actor.postExample) ? actor.postExample : (actor.postExample ? [actor.postExample] : undefined),
+          role: actor.role || undefined,
+          initialLuck: actor.initialLuck as 'low' | 'medium' | 'high' | undefined,
+          initialMood: actor.initialMood || undefined,
+        }));
+        
+        try {
+          posts = await this.feed.generateDayFeed(day, worldEvents, actorList);
+        } catch (e) {
+          logger.warn(
+            `Failed to generate feed posts: ${e instanceof Error ? e.message : String(e)}`,
+            { day, actorCount: actors.length },
+            'GameLoop'
+          );
+        }
+      } else {
+        logger.warn('No actors found for feed generation', {}, 'GameLoop');
+      }
     }
     
     // 5. Relationship Evolution (Social Layer)
     // Only run once per day to save tokens, or on major interactions
     if (!marketOnly && hour === 23) {
-      await this.relationships.analyzeAndUpdateRelationships();
+      try {
+        await this.relationships.analyzeAndUpdateRelationships();
+      } catch (e) {
+        logger.warn(
+          `Failed to analyze relationships: ${e instanceof Error ? e.message : String(e)}`,
+          undefined,
+          'GameLoop'
+        );
+      }
     }
 
     // 6. Record Snapshot

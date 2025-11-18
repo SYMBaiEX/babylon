@@ -60,7 +60,7 @@ describe('initializeAgentA2AClient wallet provisioning', () => {
   })
 
   test('does not call wallet service when wallet already exists', async () => {
-    findUniqueMock.mockResolvedValueOnce({
+    findUniqueMock.mockResolvedValue({
       id: 'agent-2',
       isAgent: true,
       walletAddress: '0xexisting'
