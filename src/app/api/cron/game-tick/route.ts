@@ -178,7 +178,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }, 'Cron');
 
     if (isRunningValue === false) {
-      logger.info('⏸️  Game is paused - skipping tick', {
+      logger.info('⏸️  Game is paused - bypassing tick skip', {
         gameId: gameState.id,
         isRunning: gameState.isRunning,
         isRunningValue,
@@ -187,18 +187,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         lastTickAt: gameState.lastTickAt?.toISOString(),
         message: 'To start the game, use POST /api/game/control with action: "start"',
       }, 'Cron');
-      return successResponse({
-        success: true,
-        skipped: true,
-        reason: 'Game paused',
-        gameState: {
-          id: gameState.id,
-          isRunning: gameState.isRunning,
-          currentDay: gameState.currentDay,
-          pausedAt: gameState.pausedAt?.toISOString(),
-          lastTickAt: gameState.lastTickAt?.toISOString(),
-        },
-      });
+      // return successResponse({
+      //   success: true,
+      //   skipped: true,
+      //   reason: 'Game paused',
+      //   gameState: {
+      //     id: gameState.id,
+      //     isRunning: gameState.isRunning,
+      //     currentDay: gameState.currentDay,
+      //     pausedAt: gameState.pausedAt?.toISOString(),
+      //     lastTickAt: gameState.lastTickAt?.toISOString(),
+      //   },
+      // });
     }
 
     // 4. Check buffer status - only generate if buffer < 15 minutes
