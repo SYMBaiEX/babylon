@@ -82,6 +82,8 @@ export class AgentRegistry {
             markets: [],
             actions: [],
             version: '1.0.0',
+            skills: [],
+            domains: [],
           },
           reputation: {
             totalBets: metrics?.gamesPlayed ?? 0,
