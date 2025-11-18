@@ -75,6 +75,7 @@ import type { NPCMarketContext } from '@/types/market-context';
 import { countTokensSync, getSafeContextLimit, truncateToTokenLimitSync } from '@/lib/token-counter';
 import type { JsonValue } from '@/types/common';
 import { prisma } from '@/lib/prisma';
+import { loadActorById } from '@/lib/data/actors-loader';
 
 /**
  * Token management configuration
@@ -878,19 +879,21 @@ ${prompt}`
     });
     
     for (const actor of actors) {
-      // Parse actor JSON file to get all original identifiers
-      const actorJsonPath = `./public/data/actors/${actor.id}.json`;
-      const fs = await import('fs/promises');
-      const actorData = JSON.parse(await fs.readFile(actorJsonPath, 'utf-8')) as {
-        originalFirstName?: string;
-        originalLastName?: string;
-        originalHandle?: string;
-        realName?: string;
-      };
-      
       const variations: string[] = [];
       
-      if (actorData.originalFirstName && actorData.originalLastName) {
+      // Load actor JSON file to get all original identifiers
+      // Use loadActorById which handles missing files gracefully
+      const actorData = loadActorById(actor.id);
+      
+      // If actor file doesn't exist (e.g., ID mismatch between DB and file), 
+      // we'll still use actor name and ID from database
+      if (!actorData) {
+        logger.debug(`Actor JSON file not found for ${actor.id}, using database name/ID only`, {
+          actorId: actor.id,
+          actorName: actor.name,
+        }, 'MarketDecisionEngine');
+        // Continue to add variations from database name/ID only
+      } else if (actorData.originalFirstName && actorData.originalLastName) {
         const firstName = actorData.originalFirstName.toLowerCase();
         const lastName = actorData.originalLastName.toLowerCase();
         
@@ -905,11 +908,11 @@ ${prompt}`
         );
       }
       
-      if (actorData.originalHandle) {
+      if (actorData?.originalHandle) {
         variations.push(actorData.originalHandle.toLowerCase()); // elonmusk
       }
       
-      if (actorData.realName) {
+      if (actorData?.realName) {
         variations.push(
           actorData.realName.toLowerCase(),                    // elon musk
           actorData.realName.toLowerCase().replace(/\s+/g, '-'),  // elon-musk
@@ -1139,7 +1142,7 @@ ${prompt}`
         }
       }
       
-      // Fourth try: fuzzy match for common typos (e.g., "rachel-maddow" -> "raichel-maddow")
+      // Fourth try: fuzzy match for common typos (e.g., "rachel-maiddow" -> "rachel-maiddow")
       // Only try this if we still haven't found a match and the ID looks like it might be a typo
       if (!context && normalizedNpcId && normalizedNpcId.length > 3) {
         // Try common typo patterns: check if removing/adding one character helps

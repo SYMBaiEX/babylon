@@ -198,8 +198,30 @@ class BabylonTrainer:
         
         if wandb_key:
             # Pass API key explicitly for consistency and reliability
+            logger.info(f"🔗 Creating ServerlessBackend...")
+            logger.info(f"   API Key: {'*' * (len(wandb_key) - 4) + wandb_key[-4:] if len(wandb_key) > 4 else '***'}")
+            logger.info(f"   Entity: {entity}")
+            logger.info(f"   Project: {project_name}")
+            logger.info(f"   Model Name: {name}")
+            logger.info(f"   Base Model: {self.base_model}")
+            
+            # Enable HTTP logging for debugging
+            import logging
+            import httpx
+            httpx_logger = logging.getLogger("httpx")
+            httpx_logger.setLevel(logging.DEBUG)
+            httpx_logger.addHandler(logging.StreamHandler())
+            
             self.backend = ServerlessBackend(api_key=wandb_key)
-            logger.info("✓ Created W&B ServerlessBackend with explicit API key")
+            
+            # Log backend details
+            if hasattr(self.backend, '_client'):
+                client = self.backend._client
+                if hasattr(client, 'base_url'):
+                    logger.info(f"✓ Created W&B ServerlessBackend")
+                    logger.info(f"   Backend URL: {client.base_url}")
+                    logger.info(f"   NOTE: This connects to W&B's REMOTE API (api.training.wandb.ai)")
+                    logger.info(f"   NOT a local connection - requires internet access to W&B servers")
             
             # CRITICAL: Add retry logic for transient W&B API errors (524 timeout, 500 workflow errors)
             # Increased delays for plan upgrade propagation
@@ -209,9 +231,16 @@ class BabylonTrainer:
             for attempt in range(1, max_retries + 1):
                 try:
                     if attempt > 1:
-                        logger.info(f"Retry attempt {attempt}/{max_retries} (waiting {retry_delay}s)...")
+                        logger.info(f"⏳ Retry attempt {attempt}/{max_retries} (waiting {retry_delay}s)...")
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2  # Exponential backoff
+                    
+                    logger.info(f"🚀 Attempting model registration (attempt {attempt}/{max_retries})...")
+                    logger.info(f"   Calling: model.register(backend)")
+                    logger.info(f"   This will make HTTP POST to: api.training.wandb.ai/models/create")
+                    logger.info(f"   Timeout: 300 seconds")
+                    
+                    start_time = asyncio.get_event_loop().time()
                     
                     # Wrap in asyncio.wait_for to add our own timeout
                     # Increased timeout for plan upgrade - first registration can be slow
@@ -219,37 +248,70 @@ class BabylonTrainer:
                         self.model.register(self.backend),
                         timeout=300.0  # 5 minute timeout per attempt (plan upgrade may need more time)
                     )
+                    
+                    elapsed = asyncio.get_event_loop().time() - start_time
+                    logger.info(f"✅ Model registration completed successfully!")
+                    logger.info(f"   Time taken: {elapsed:.2f} seconds")
+                    logger.info(f"   Model ID: {self.model.id if hasattr(self.model, 'id') else 'N/A'}")
                     logger.info("✓ Using W&B ServerlessBackend for REMOTE training")
                     logger.info(f"  Model: {self.base_model}")
                     logger.info("  Training will run on W&B infrastructure (not local GPU)")
                     break
                     
                 except asyncio.TimeoutError:
+                    elapsed = asyncio.get_event_loop().time() - start_time
+                    logger.error(f"⏱️  Model registration TIMEOUT after {elapsed:.2f} seconds")
+                    logger.error(f"   W&B's API (api.training.wandb.ai) did not respond within 300 seconds")
+                    logger.error(f"   This is a 524 Cloudflare timeout - W&B's origin server is overloaded")
                     if attempt < max_retries:
-                        logger.warning(f"Model registration timeout (attempt {attempt}/{max_retries})")
+                        logger.warning(f"   Retrying in {retry_delay}s...")
                         continue
                     else:
-                        raise ValueError("W&B training API timeout after all retries - service may be overloaded")
+                        raise ValueError(
+                            "W&B training API timeout after all retries - service may be overloaded. "
+                            "Check https://status.wandb.ai for API status"
+                        )
                         
                 except Exception as e:
+                    elapsed = asyncio.get_event_loop().time() - start_time if 'start_time' in locals() else 0
                     error_str = str(e)
+                    error_type = type(e).__name__
+                    
+                    logger.error(f"❌ Model registration FAILED after {elapsed:.2f} seconds")
+                    logger.error(f"   Error Type: {error_type}")
+                    logger.error(f"   Error Message (first 500 chars): {error_str[:500]}")
+                    
+                    # Log full error details for debugging
+                    import traceback
+                    logger.debug(f"   Full traceback:\n{traceback.format_exc()}")
+                    
+                    # Check if it's a 524 timeout (Cloudflare)
+                    if "524" in error_str or "timeout occurred" in error_str.lower():
+                        logger.error(f"   🔍 DIAGNOSIS: 524 Cloudflare Timeout")
+                        logger.error(f"   This means W&B's origin server (api.training.wandb.ai) timed out")
+                        logger.error(f"   NOT a local connection issue - W&B's servers are overloaded")
+                        logger.error(f"   Check: https://status.wandb.ai")
+                    
                     # Retry on transient errors: 524 timeout, 500 workflow errors
                     is_retryable = (
                         "524" in error_str or 
                         "timeout" in error_str.lower() or
                         "500" in error_str or
                         "workflow error" in error_str.lower() or
-                        "InternalServerError" in str(type(e))
+                        "InternalServerError" in error_type
                     )
                     
                     if is_retryable and attempt < max_retries:
                         if "500" in error_str or "workflow error" in error_str.lower():
-                            logger.warning(f"W&B workflow error (attempt {attempt}/{max_retries}) - retrying...")
+                            logger.warning(f"   ⚠️  W&B workflow error (attempt {attempt}/{max_retries}) - retrying...")
+                        elif "524" in error_str or "timeout" in error_str.lower():
+                            logger.warning(f"   ⚠️  524 timeout (attempt {attempt}/{max_retries}) - retrying...")
                         else:
-                            logger.warning(f"W&B timeout (attempt {attempt}/{max_retries}) - retrying...")
+                            logger.warning(f"   ⚠️  Retryable error (attempt {attempt}/{max_retries}) - retrying...")
                         continue
                     else:
-                        # Different error or out of retries - raise
+                        # Different error or out of retries - raise with full context
+                        logger.error(f"   ❌ Non-retryable error or max retries reached")
                         raise
         else:
             # WANDB_API_KEY not set - check if local training is allowed

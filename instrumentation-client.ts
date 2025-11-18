@@ -40,8 +40,8 @@ if (!sentryDisabled) {
   // Release tracking (set via environment variable or CI/CD)
   release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
   
-  // Debug mode (only in development)
-  debug: process.env.NODE_ENV === 'development',
+  // Debug mode disabled to suppress verbose logging
+  debug: false,
   
   // Performance monitoring with dynamic sampling
   // Use tracesSampler for better control over transaction sampling

@@ -13,6 +13,29 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+// Suppress noisy Sentry logger messages from Next.js integration
+const originalConsoleLog = console.log
+const originalConsoleError = console.error
+
+console.log = (...args: unknown[]) => {
+  const message = args.join(' ')
+  // Only filter Next.js Sentry logger messages
+  if (message.includes('[next] Sentry Logger') && 
+      (message.includes('SpanExporter exported') || message.includes('spans are waiting'))) {
+    return
+  }
+  originalConsoleLog(...args)
+}
+
+console.error = (...args: unknown[]) => {
+  const message = args.join(' ')
+  // Only filter Next.js Sentry "Transport disabled" error
+  if (message.includes('[next] Sentry Logger') && message.includes('Transport disabled')) {
+    return
+  }
+  originalConsoleError(...args)
+}
+
 // Log initialization status in development
 if (process.env.NODE_ENV === 'development') {
   const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
@@ -32,8 +55,8 @@ Sentry.init({
   // Release tracking (set via environment variable or CI/CD)
   release: process.env.SENTRY_RELEASE || process.env.NEXT_PUBLIC_SENTRY_RELEASE,
   
-  // Debug mode (only in development)
-  debug: process.env.NODE_ENV === 'development',
+  // Debug mode disabled to suppress verbose logging
+  debug: false,
   
   // Performance monitoring with dynamic sampling
   tracesSampler: (samplingContext) => {
