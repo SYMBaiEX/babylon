@@ -132,17 +132,72 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
-      return await db.game.findFirst({
+      const result = await db.game.findFirst({
         where: { isContinuous: true },
       });
+      
+      // Log the actual database values for debugging
+      logger.info('Game state query result', {
+        found: !!result,
+        id: result?.id,
+        isRunning: result?.isRunning,
+        isContinuous: result?.isContinuous,
+        currentDay: result?.currentDay,
+        pausedAt: result?.pausedAt?.toISOString(),
+        startedAt: result?.startedAt?.toISOString(),
+        lastTickAt: result?.lastTickAt?.toISOString(),
+        rawIsRunning: result?.isRunning,
+        rawIsRunningType: typeof result?.isRunning,
+      }, 'Cron');
+      
+      return result;
     });
 
-    if (!gameState || !gameState.isRunning) {
-      logger.info('Game is paused - skipping tick', undefined, 'Cron');
+    if (!gameState) {
+      logger.warn('⚠️  No game found - skipping tick. Create a game via POST /api/game/control', {
+        isContinuous: true,
+      }, 'Cron');
+      return successResponse({
+        success: true,
+        skipped: true,
+        reason: 'No game found',
+      });
+    }
+
+    // Explicit check with detailed logging
+    const isRunningValue = gameState.isRunning;
+    logger.info('Checking game running status', {
+      gameId: gameState.id,
+      isRunning: isRunningValue,
+      isRunningType: typeof isRunningValue,
+      isRunningBoolean: isRunningValue === true,
+      isRunningFalsy: !isRunningValue,
+      currentDay: gameState.currentDay,
+      pausedAt: gameState.pausedAt?.toISOString(),
+      lastTickAt: gameState.lastTickAt?.toISOString(),
+    }, 'Cron');
+
+    if (!isRunningValue) {
+      logger.info('⏸️  Game is paused - skipping tick', {
+        gameId: gameState.id,
+        isRunning: gameState.isRunning,
+        isRunningValue,
+        currentDay: gameState.currentDay,
+        pausedAt: gameState.pausedAt?.toISOString(),
+        lastTickAt: gameState.lastTickAt?.toISOString(),
+        message: 'To start the game, use POST /api/game/control with action: "start"',
+      }, 'Cron');
       return successResponse({
         success: true,
         skipped: true,
         reason: 'Game paused',
+        gameState: {
+          id: gameState.id,
+          isRunning: gameState.isRunning,
+          currentDay: gameState.currentDay,
+          pausedAt: gameState.pausedAt?.toISOString(),
+          lastTickAt: gameState.lastTickAt?.toISOString(),
+        },
       });
     }
 

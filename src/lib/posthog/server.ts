@@ -4,8 +4,23 @@
  */
 
 import { PostHog } from 'posthog-node'
+import { logger } from '@/lib/logger'
 
 let posthogClient: PostHog | null = null
+
+/**
+ * Handle PostHog errors gracefully without blocking
+ */
+function handlePostHogError(error: Error, context: string): void {
+  // Only log in development to avoid noise in production logs
+  // PostHog errors are non-critical and shouldn't block operations
+  if (process.env.NODE_ENV === 'development') {
+    logger.warn(`PostHog ${context} error (non-blocking)`, {
+      error: error.message,
+      name: error.name,
+    }, 'PostHog');
+  }
+}
 
 export const getPostHogServerClient = (): PostHog | null => {
   // Only initialize on server
@@ -25,9 +40,13 @@ export const getPostHogServerClient = (): PostHog | null => {
       host: apiHost,
       flushAt: 20, // Flush after 20 events
       flushInterval: 10000, // Flush every 10 seconds
+      // Timeout for network requests (5 seconds for serverless)
+      requestTimeout: 5000,
       
       // Important: Always shutdown gracefully to ensure events are sent
       // Use in API routes: await posthog.shutdown() before returning
+      // Note: PostHog errors are handled via try-catch in our wrapper functions
+      // and timeout wrappers to prevent blocking in serverless environments
     })
   }
 
@@ -45,16 +64,21 @@ export const trackServerEvent = async (
   const client = getPostHogServerClient()
   if (!client) return
 
-  client.capture({
-    distinctId,
-    event,
-    properties: {
-      ...properties,
-      $lib: 'posthog-node',
-      environment: process.env.NODE_ENV,
-      timestamp: new Date().toISOString(),
-    },
-  })
+  try {
+    client.capture({
+      distinctId,
+      event,
+      properties: {
+        ...properties,
+        $lib: 'posthog-node',
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    // Silently handle capture errors - don't block the request
+    handlePostHogError(error instanceof Error ? error : new Error(String(error)), 'capture')
+  }
 }
 
 /**
@@ -67,10 +91,15 @@ export const identifyServerUser = async (
   const client = getPostHogServerClient()
   if (!client) return
 
-  client.identify({
-    distinctId,
-    properties,
-  })
+  try {
+    client.identify({
+      distinctId,
+      properties,
+    })
+  } catch (error) {
+    // Silently handle identify errors - don't block the request
+    handlePostHogError(error instanceof Error ? error : new Error(String(error)), 'identify')
+  }
 }
 
 /**
@@ -89,41 +118,77 @@ export const trackServerError = async (
   const client = getPostHogServerClient()
   if (!client) return
 
-  const { endpoint, method, statusCode, ...otherContext } = context
-  
-  client.capture({
-    distinctId: distinctId || 'anonymous',
-    event: '$exception',
-    properties: {
-      $exception_type: error.name || 'Error',
-      $exception_message: error.message,
-      $exception_stack: error.stack,
-      endpoint,
-      method,
-      statusCode,
-      ...otherContext,
-      environment: process.env.NODE_ENV,
-      timestamp: new Date().toISOString(),
-    },
-  })
+  try {
+    const { endpoint, method, statusCode, ...otherContext } = context
+    
+    client.capture({
+      distinctId: distinctId || 'anonymous',
+      event: '$exception',
+      properties: {
+        $exception_type: error.name || 'Error',
+        $exception_message: error.message,
+        $exception_stack: error.stack,
+        endpoint,
+        method,
+        statusCode,
+        ...otherContext,
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  } catch (trackError) {
+    // Silently handle tracking errors - don't block error reporting
+    handlePostHogError(trackError instanceof Error ? trackError : new Error(String(trackError)), 'error-tracking')
+  }
 }
 
 /**
  * Flush all pending events (important for serverless functions)
+ * Wraps flush in timeout and error handling to prevent blocking
  */
 export const flushPostHog = async () => {
   const client = getPostHogServerClient()
   if (!client) return
 
-  await client.flush()
+  try {
+    // Wrap flush in a timeout to prevent hanging
+    const flushPromise = client.flush()
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('PostHog flush timeout')), 3000)
+    })
+
+    await Promise.race([flushPromise, timeoutPromise])
+  } catch (error) {
+    // Silently handle timeout/network errors - don't block the response
+    // Log only in development to avoid noise in production
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('PostHog flush failed (non-blocking):', error instanceof Error ? error.message : String(error))
+    }
+  }
 }
 
 /**
  * Shutdown PostHog client gracefully
+ * Wraps shutdown in timeout and error handling to prevent blocking
  */
 export const shutdownPostHog = async () => {
-  if (posthogClient) {
-    await posthogClient.shutdown()
+  if (!posthogClient) return
+
+  try {
+    // Wrap shutdown in a timeout to prevent hanging
+    const shutdownPromise = posthogClient.shutdown()
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('PostHog shutdown timeout')), 3000)
+    })
+
+    await Promise.race([shutdownPromise, timeoutPromise])
+  } catch (error) {
+    // Silently handle timeout/network errors - don't block the response
+    // Log only in development to avoid noise in production
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('PostHog shutdown failed (non-blocking):', error instanceof Error ? error.message : String(error))
+    }
+  } finally {
     posthogClient = null
   }
 }

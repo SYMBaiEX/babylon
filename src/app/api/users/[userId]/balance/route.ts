@@ -114,7 +114,9 @@ export const GET = withErrorHandling(async (
   const authUser = await optionalAuth(request);
 
   // Ensure user exists in database
-  let dbUser = await findUserByIdentifier(userId);
+  let dbUser = await findUserByIdentifier(userId, {
+    id: true,
+  });
 
   if (!dbUser) {
     dbUser = await prisma.user.create({

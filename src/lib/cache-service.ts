@@ -181,13 +181,18 @@ export async function getCache<T>(
           preview = String(cached).substring(0, 100);
         }
         
-        logger.error('Failed to parse cached value from Redis', { 
+        // Log warning - will fetch from DB and refresh cache
+        logger.warn('Failed to parse cached value', { 
           key: fullKey, 
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          } : String(error),
           cachedType: typeof cached,
           preview
         }, 'CacheService');
-        // Return null to trigger a fresh fetch
+        // Return null to trigger a fresh fetch from DB and cache refresh
         return null;
       }
     }
