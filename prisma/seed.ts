@@ -101,10 +101,11 @@ async function main() {
     const orgImagePath = join(process.cwd(), 'public', 'images', 'organizations', `${org.id}.jpg`);
     const imageUrl = existsSync(orgImagePath) ? `/images/organizations/${org.id}.jpg` : null;
     
-    await prisma.organization.create({
-      data: {
-        id: org.id,
+    await prisma.organization.upsert({
+      where: { id: org.id },
+      update: {
         name: org.name,
+        ticker: org.ticker || null,
         description: org.description || '',
         type: org.type,
         canBeInvolved: org.canBeInvolved !== false,
@@ -113,12 +114,18 @@ async function main() {
         imageUrl: imageUrl,
         updatedAt: new Date(),
       },
-    }).catch((error: unknown) => {
-      // Skip if organization already exists (P2002 = unique constraint violation)
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        return; // Skip duplicate
-      }
-      throw error;
+      create: {
+        id: org.id,
+        name: org.name,
+        ticker: org.ticker || null,
+        description: org.description || '',
+        type: org.type,
+        canBeInvolved: org.canBeInvolved !== false,
+        initialPrice: org.initialPrice || null,
+        currentPrice: org.initialPrice || null,
+        imageUrl: imageUrl,
+        updatedAt: new Date(),
+      },
     });
     orgCount++;
   }
