@@ -107,8 +107,11 @@ export default function PostPage({ params }: PostPageProps) {
       });
       
       // Update the interaction store with fresh API data
-      // For reposts, use the original post ID to match InteractionBar's behavior
-      const interactionPostId = postData.originalPostId || postId;
+      // Determine which post ID to use:
+      // - Quote posts (with quoteComment): Use their own ID
+      // - Simple reposts (no quoteComment): Use original post ID
+      const isQuotePost = postData.isRepost && postData.quoteComment;
+      const interactionPostId = isQuotePost ? postId : (postData.originalPostId || postId);
       const { postInteractions } = useInteractionStore.getState();
       const storeData = postInteractions.get(interactionPostId);
       
