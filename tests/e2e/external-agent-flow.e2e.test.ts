@@ -8,7 +8,7 @@
  * 4. Verify trust scoring → Trust level progression
  */
 
-import { describe, it, expect } from 'bun:test'
+import { test, expect } from '@playwright/test'
 import type { AgentCapabilities } from '@/types/a2a'
 
 // Base URL for API calls
@@ -47,9 +47,9 @@ const testAgent = {
 let apiKey: string
 let agentId: string
 
-describe('External Agent E2E Flow', () => {
-  describe('Phase 1: Agent Registration', () => {
-    it('should register a new external agent', async () => {
+test.describe('External Agent E2E Flow', () => {
+  test.describe('Phase 1: Agent Registration', () => {
+    test('should register a new external agent', async () => {
       const response = await fetch(`${BASE_URL}/api/agents/external/register`, {
         method: 'POST',
         headers: {
@@ -79,7 +79,7 @@ describe('External Agent E2E Flow', () => {
       console.log(`API Key: ${apiKey.substring(0, 20)}...`)
     })
 
-    it('should reject duplicate registration', async () => {
+    test('should reject duplicate registration', async () => {
       const response = await fetch(`${BASE_URL}/api/agents/external/register`, {
         method: 'POST',
         headers: {
@@ -96,7 +96,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.error).toBe('Agent already registered')
     })
 
-    it('should reject registration with invalid data', async () => {
+    test('should reject registration with invalid data', async () => {
       const invalidAgent = {
         ...testAgent,
         externalId: `invalid-${Date.now()}`,
@@ -121,8 +121,8 @@ describe('External Agent E2E Flow', () => {
     })
   })
 
-  describe('Phase 2: Agent Discovery', () => {
-    it('should discover agents with valid API key', async () => {
+  test.describe('Phase 2: Agent Discovery', () => {
+    test('should discover agents with valid API key', async () => {
       const response = await fetch(`${BASE_URL}/api/agents/external/discover?limit=10`, {
         method: 'GET',
         headers: {
@@ -142,7 +142,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.pagination.offset).toBe(0)
     })
 
-    it('should reject discovery without API key', async () => {
+    test('should reject discovery without API key', async () => {
       const response = await fetch(`${BASE_URL}/api/agents/external/discover`, {
         method: 'GET',
       })
@@ -155,7 +155,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.error).toBe('Unauthorized')
     })
 
-    it('should filter agents by capabilities', async () => {
+    test('should filter agents by capabilities', async () => {
       const response = await fetch(
         `${BASE_URL}/api/agents/external/discover?capabilities=text-generation&limit=10`,
         {
@@ -181,7 +181,7 @@ describe('External Agent E2E Flow', () => {
       })
     })
 
-    it('should filter agents by trust level', async () => {
+    test('should filter agents by trust level', async () => {
       const response = await fetch(
         `${BASE_URL}/api/agents/external/discover?minTrustLevel=1`,
         {
@@ -205,7 +205,7 @@ describe('External Agent E2E Flow', () => {
       })
     })
 
-    it('should support POST-based discovery with complex filters', async () => {
+    test('should support POST-based discovery with complex filters', async () => {
       const filter = {
         types: ['EXTERNAL', 'NPC'],
         statuses: ['ACTIVE'],
@@ -235,8 +235,8 @@ describe('External Agent E2E Flow', () => {
     })
   })
 
-  describe('Phase 3: A2A Messaging', () => {
-    it('should send A2A message with valid API key', async () => {
+  test.describe('Phase 3: A2A Messaging', () => {
+    test('should send A2A message with valid API key', async () => {
       const message = {
         jsonrpc: '2.0',
         id: 1,
@@ -277,7 +277,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.result.status).toBe('delivered')
     })
 
-    it('should reject A2A message without API key', async () => {
+    test('should reject A2A message without API key', async () => {
       const message = {
         jsonrpc: '2.0',
         id: 2,
@@ -311,7 +311,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.error.message).toContain('API key')
     })
 
-    it('should handle invalid JSON-RPC request', async () => {
+    test('should handle invalid JSON-RPC request', async () => {
       const invalidMessage = {
         jsonrpc: '2.0',
         id: 3,
@@ -337,7 +337,7 @@ describe('External Agent E2E Flow', () => {
       expect(data.error.code).toBe(-32602) // INVALID_PARAMS
     })
 
-    it('should return error for unknown method', async () => {
+    test('should return error for unknown method', async () => {
       const message = {
         jsonrpc: '2.0',
         id: 4,
@@ -364,8 +364,8 @@ describe('External Agent E2E Flow', () => {
     })
   })
 
-  describe('Phase 4: API Documentation', () => {
-    it('should return A2A endpoint documentation', async () => {
+  test.describe('Phase 4: API Documentation', () => {
+    test('should return A2A endpoint documentation', async () => {
       const response = await fetch(`${BASE_URL}/api/a2a/message`, {
         method: 'GET',
       })

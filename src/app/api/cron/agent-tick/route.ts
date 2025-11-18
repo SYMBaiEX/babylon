@@ -67,6 +67,10 @@ import { acquireAgentLock, releaseAgentLock } from '@/lib/services/agent-lock-se
 export const maxDuration = 800; // 13.3 minutes max for agent tick (matches vercel.json)
 export const dynamic = 'force-dynamic';
 
+export async function GET(req: NextRequest) {
+  return POST(req)
+}
+
 export async function POST(_req: NextRequest) {
   const startTime = Date.now()
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`

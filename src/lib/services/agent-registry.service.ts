@@ -25,10 +25,14 @@ import type {
 import type { Prisma } from '@prisma/client'
 import { createCipheriv, randomBytes } from 'crypto'
 
-const ENCRYPTION_KEY = process.env.CRON_SECRET || 
-  (process.env.NODE_ENV === 'production' 
-    ? (() => { throw new Error('CRON_SECRET must be set in production') })()
-    : 'dev-key-change-in-production-32-chars!!')
+const getEncryptionKey = () => {
+  if (process.env.CRON_SECRET) return process.env.CRON_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    // Throw only when actually trying to use the key in production without it
+    throw new Error('CRON_SECRET must be set in production')
+  }
+  return 'dev-key-change-in-production-32-chars!!'
+}
 const ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -724,7 +728,7 @@ export class AgentRegistryService {
    */
   private encryptCredentials(credentials: string): string {
     const iv = randomBytes(16)
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32))
+    const key = Buffer.from(getEncryptionKey().padEnd(32).slice(0, 32))
     const cipher = createCipheriv(ALGORITHM, key, iv)
     
     let encrypted = cipher.update(credentials, 'utf8', 'hex')

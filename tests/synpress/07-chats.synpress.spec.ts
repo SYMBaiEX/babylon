@@ -25,8 +25,15 @@ test.describe('Chats Page - Updated Design', () => {
   test('should load chats page with new design', async ({ page }) => {
     expect(page.url()).toContain('/chats')
     
-    // Check for Messages header
-    const hasMessagesHeader = await page.getByText('Messages').isVisible({ timeout: 5000 }).catch(() => false)
+    // Check for Messages header (handle multiple instances due to responsive layout)
+    const messagesHeaders = await page.getByText('Messages').all()
+    let hasMessagesHeader = false
+    for (const header of messagesHeaders) {
+      if (await header.isVisible().catch(() => false)) {
+        hasMessagesHeader = true
+        break
+      }
+    }
     expect(hasMessagesHeader).toBeTruthy()
     
     await page.screenshot({ path: 'test-results/screenshots/07-chats-page-new.png', fullPage: true })
@@ -34,10 +41,18 @@ test.describe('Chats Page - Updated Design', () => {
   })
 
   test('should display All/DMs/Groups filter tabs', async ({ page }) => {
-    // Check for filter tabs
-    const hasAllTab = await page.getByText('All').isVisible({ timeout: 5000 }).catch(() => false)
-    const hasDMsTab = await page.getByText('DMs').isVisible({ timeout: 5000 }).catch(() => false)
-    const hasGroupsTab = await page.getByText('Groups').isVisible({ timeout: 5000 }).catch(() => false)
+    // Check for filter tabs (handle multiple instances)
+    const checkVisible = async (text: string) => {
+      const elements = await page.getByText(text).all()
+      for (const el of elements) {
+        if (await el.isVisible().catch(() => false)) return true
+      }
+      return false
+    }
+
+    const hasAllTab = await checkVisible('All')
+    const hasDMsTab = await checkVisible('DMs')
+    const hasGroupsTab = await checkVisible('Groups')
     
     expect(hasAllTab || hasDMsTab || hasGroupsTab).toBeTruthy()
     
@@ -45,11 +60,20 @@ test.describe('Chats Page - Updated Design', () => {
   })
 
   test('should switch between filter tabs', async ({ page }) => {
-    const dmsTab = page.getByText('DMs')
-    const groupsTab = page.getByText('Groups')
-    const allTab = page.getByText('All')
+    // Helper to find first visible element
+    const findVisible = async (text: string) => {
+      const elements = await page.getByText(text).all()
+      for (const el of elements) {
+        if (await el.isVisible().catch(() => false)) return el
+      }
+      return null
+    }
+
+    const dmsTab = await findVisible('DMs')
+    const groupsTab = await findVisible('Groups')
+    const allTab = await findVisible('All')
     
-    if (await dmsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (dmsTab && groupsTab && allTab) {
       await dmsTab.click()
       await page.waitForTimeout(500)
       
@@ -62,6 +86,8 @@ test.describe('Chats Page - Updated Design', () => {
       await page.screenshot({ path: 'test-results/screenshots/07-filter-tabs.png' })
       
       console.log('✅ Filter tabs switching works')
+    } else {
+        console.log('⚠️ Could not find all filter tabs to test switching')
     }
   })
 
@@ -104,14 +130,22 @@ test.describe('Chat Messaging - New Implementation', () => {
   })
 
   test('should show empty state guidance for DMs', async ({ page }) => {
-    const dmsTab = page.getByText('DMs')
+    // Find visible DMs tab
+    const dmsTabs = await page.getByText('DMs').all()
+    let dmsTab = null
+    for (const tab of dmsTabs) {
+      if (await tab.isVisible().catch(() => false)) {
+        dmsTab = tab
+        break
+      }
+    }
     
-    if (await dmsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (dmsTab) {
       await dmsTab.click()
       await page.waitForTimeout(1000)
       
       // May show empty state with guidance
-      const hasEmptyState = await page.getByText(/profile/i).isVisible({ timeout: 5000 }).catch(() => false)
+      const hasEmptyState = await page.getByText(/profile/i).first().isVisible({ timeout: 5000 }).catch(() => false)
       
       console.log(`✅ DM empty state shows profile guidance: ${hasEmptyState}`)
     }
@@ -121,7 +155,14 @@ test.describe('Chat Messaging - New Implementation', () => {
     await page.waitForTimeout(2000)
     
     // Look for Live/Connecting indicator
-    const hasSSEIndicator = await page.getByText(/Live|Connecting/i).isVisible({ timeout: 5000 }).catch(() => false)
+    const indicators = await page.getByText(/Live|Connecting/i).all()
+    let hasSSEIndicator = false
+    for (const indicator of indicators) {
+        if (await indicator.isVisible().catch(() => false)) {
+            hasSSEIndicator = true
+            break
+        }
+    }
     
     console.log(`✅ SSE indicator visible: ${hasSSEIndicator}`)
   })
@@ -205,7 +246,14 @@ test.describe('Real-time Updates', () => {
     await page.waitForTimeout(2000)
     
     // Look for status indicator
-    const hasStatus = await page.getByText(/Live|Connecting/i).isVisible({ timeout: 5000 }).catch(() => false)
+    const indicators = await page.getByText(/Live|Connecting/i).all()
+    let hasStatus = false
+    for (const indicator of indicators) {
+        if (await indicator.isVisible().catch(() => false)) {
+            hasStatus = true
+            break
+        }
+    }
     
     console.log(`✅ SSE status indicator: ${hasStatus}`)
   })

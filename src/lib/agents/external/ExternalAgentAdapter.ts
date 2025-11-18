@@ -21,10 +21,14 @@ import type { JsonValue } from '@/types/common'
 import { logger } from '@/lib/logger'
 import { createDecipheriv } from 'crypto'
 
-const ENCRYPTION_KEY = process.env.CRON_SECRET || 
-  (process.env.NODE_ENV === 'production' 
-    ? (() => { throw new Error('CRON_SECRET must be set in production') })()
-    : 'dev-key-change-in-production-32-chars!!')
+const getEncryptionKey = () => {
+  if (process.env.CRON_SECRET) return process.env.CRON_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    // Throw only when actually trying to use the key in production without it
+    throw new Error('CRON_SECRET must be set in production')
+  }
+  return 'dev-key-change-in-production-32-chars!!'
+}
 const ALGORITHM = 'aes-256-cbc'
 
 export type Protocol = 'a2a' | 'mcp' | 'agent0' | 'custom'
@@ -503,7 +507,7 @@ export class ExternalAgentAdapter {
     }
     
     const iv = Buffer.from(ivHex, 'hex')
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32))
+    const key = Buffer.from(getEncryptionKey().padEnd(32).slice(0, 32))
     const decipher = createDecipheriv(ALGORITHM, key, iv)
     
     let decrypted = decipher.update(encryptedData, 'hex', 'utf8')
