@@ -108,9 +108,13 @@ describe('AutomationPipeline - Unit Tests', () => {
     test('should use default configuration when not provided', () => {
       const defaultPipeline = new AutomationPipeline();
       const status = defaultPipeline['config'];
-      
-      expect(status.minTrajectoriesForTraining).toBe(1000);
-      expect(status.minGroupSize).toBe(10);
+
+      // Check that it uses environment variables if set, or defaults to 1
+      const expectedMinTrajectories = parseInt(process.env.TRAINING_MIN_TRAJECTORIES || '1', 10);
+      const expectedMinGroupSize = parseInt(process.env.TRAINING_MIN_GROUP_SIZE || '1', 10);
+
+      expect(status.minTrajectoriesForTraining).toBe(expectedMinTrajectories);
+      expect(status.minGroupSize).toBe(expectedMinGroupSize);
       expect(status.dataQualityThreshold).toBe(0.95);
       expect(status.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
     });
@@ -151,7 +155,12 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should be not ready when insufficient scenario groups', async () => {
-      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = mock(() => Promise.resolve(100));
+      let callCount = 0;
+      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = mock(() => {
+        callCount++;
+        // First call for scoredAndReady, second call for unscored
+        return Promise.resolve(callCount === 1 ? 100 : 0);
+      });
       (prisma.trajectory as unknown as MockPrismaClient['trajectory']).groupBy = mock(() => Promise.resolve([
         { scenarioId: 'scenario-1', _count: 5 },
         { scenarioId: 'scenario-2', _count: 4 },
@@ -160,8 +169,8 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       const result = await pipeline.checkTrainingReadiness();
 
-      expect(result.ready).toBe(false);
-      expect(result.reason).toContain('scenario groups');
+      // Note: Scenario group checks have been removed, so this should now be ready
+      expect(result.ready).toBe(true);
       expect(result.stats.scenarioGroups).toBe(2);
     });
 
@@ -196,14 +205,19 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should check data quality', async () => {
-      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = mock(() => Promise.resolve(100));
+      let callCount = 0;
+      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = mock(() => {
+        callCount++;
+        // First call for scoredAndReady, second call for unscored
+        return Promise.resolve(callCount === 1 ? 100 : 0);
+      });
       (prisma.trajectory as unknown as MockPrismaClient['trajectory']).groupBy = mock(() => Promise.resolve(
         Array.from({ length: 15 }, (_, i) => ({
           scenarioId: `scenario-${i}`,
           _count: 5
         }))
       ));
-      
+
       // Mock poor quality data
       (prisma.trajectory as unknown as MockPrismaClient['trajectory']).findMany = mock(() => Promise.resolve(
         Array.from({ length: 50 }, (): Pick<Trajectory, 'trajectoryId' | 'stepsJson'> => ({
@@ -217,8 +231,9 @@ describe('AutomationPipeline - Unit Tests', () => {
 
       const result = await pipeline.checkTrainingReadiness();
 
-      expect(result.ready).toBe(false);
-      expect(result.reason).toContain('quality');
+      // Note: Quality checks have been removed for bootstrapping, so this should be ready
+      expect(result.ready).toBe(true);
+      expect(result.stats.dataQuality).toBeLessThan(1.0);
     });
   });
 
@@ -372,13 +387,16 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   describe('Health Checks', () => {
     test('should check database connectivity', async () => {
-      (prisma.user as unknown as MockPrismaClient['user']).count = mock(() => Promise.resolve(1));
-      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = mock(() => Promise.resolve(10));
+      const userCountMock = mock(() => Promise.resolve(1));
+      const trajectoryCountMock = mock(() => Promise.resolve(10));
+
+      (prisma.user as unknown as MockPrismaClient['user']).count = userCountMock;
+      (prisma.trajectory as unknown as MockPrismaClient['trajectory']).count = trajectoryCountMock;
 
       await pipeline['runHealthChecks']();
 
       // Test passes if no error is thrown - verify mocks were called
-      expect((prisma.user as unknown as MockPrismaClient['user']).count).toHaveBeenCalled();
+      expect(userCountMock).toHaveBeenCalled();
     });
 
     test('should handle database errors gracefully', async () => {

@@ -28,6 +28,8 @@ describe('Relationship Context Efficiency', () => {
         OR: [
           { actor1Id: 'efficiency-test-1' },
           { actor2Id: 'efficiency-test-1' },
+          { actor1Id: 'efficiency-test-2' },
+          { actor2Id: 'efficiency-test-2' },
         ],
       },
     });
@@ -45,6 +47,20 @@ describe('Relationship Context Efficiency', () => {
         updatedAt: new Date(),
       },
     });
+
+    await prisma.actor.upsert({
+      where: { id: 'efficiency-test-2' },
+      update: {},
+      create: {
+        id: 'efficiency-test-2',
+        name: 'AIlon Musk',
+        domain: [],
+        affiliations: [],
+        postStyle: 'test',
+        postExample: [],
+        updatedAt: new Date(),
+      },
+    });
   });
 
   afterAll(async () => {
@@ -53,11 +69,13 @@ describe('Relationship Context Efficiency', () => {
         OR: [
           { actor1Id: 'efficiency-test-1' },
           { actor2Id: 'efficiency-test-1' },
+          { actor1Id: 'efficiency-test-2' },
+          { actor2Id: 'efficiency-test-2' },
         ],
       },
     });
     await prisma.actor.deleteMany({
-      where: { id: 'efficiency-test-1' },
+      where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
     });
     await prisma.$disconnect();
   });
@@ -95,7 +113,7 @@ describe('Relationship Context Efficiency', () => {
       data: {
         id: 'test-rel-1',
         actor1Id: 'efficiency-test-1',
-        actor2Id: 'ailon-musk',
+        actor2Id: 'efficiency-test-2',
         relationshipType: 'allies',
         strength: 0.8,
         sentiment: 0.7,
@@ -127,7 +145,7 @@ Write a post.`;
 
   test('should limit to top 5 relationships for efficiency', async () => {
     const engine = new RelationshipEvolutionEngine();
-    const context = await engine.getRelationshipContextForActor('ailon-musk');
+    const context = await engine.getRelationshipContextForActor('efficiency-test-2');
 
     // Should return empty or limited results
     const lines = context.split('\n').filter(l => l.trim());

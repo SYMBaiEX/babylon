@@ -26,7 +26,11 @@ describe('Real Name Validation System', () => {
       testCases.forEach(testCase => {
         const violations = validateNoRealNames(testCase);
         expect(violations.length).toBeGreaterThan(0);
-        expect(violations.some(v => v.includes('openai') || v.includes('OpenAI'))).toBe(true);
+        // Check if any violation contains an OpenAI-related pattern (case-insensitive)
+        const hasOpenAIViolation = violations.some(v =>
+          /open[\s-_]?ai/i.test(v)
+        );
+        expect(hasOpenAIViolation).toBe(true);
       });
     });
 

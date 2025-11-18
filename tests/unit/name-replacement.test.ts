@@ -79,7 +79,7 @@ describe('Name Replacement System', () => {
     describe('Mark Zuckerberg → Mark Zuckerborg', () => {
       it('should replace "Mark Zuckerberg"', () => {
         const result = replacer.replaceInText('Mark Zuckerberg from Meta');
-        expect(result).toBe('Mark Zuckerborg from Met');
+        expect(result).toBe('Mark Zuckerborg from MetAI');
       });
 
       it('should replace "ZUCKERBERG" (uppercase)', () => {
@@ -112,7 +112,7 @@ describe('Name Replacement System', () => {
 
       it('should replace "OPENAI" (uppercase)', () => {
         const result = replacer.replaceInText('OPENAI ANNOUNCES');
-        expect(result).toBe('OPNAI ANNOUNCES');
+        expect(result).toBe('OPENAGI ANNOUNCES');
       });
 
       it('should replace "@openai" handle', () => {
@@ -121,10 +121,10 @@ describe('Name Replacement System', () => {
       });
     });
 
-    describe('Meta → Met', () => {
+    describe('Meta → MetAI', () => {
       it('should replace "Meta"', () => {
         const result = replacer.replaceInText('Meta owns Facebook');
-        expect(result).toBe('Met owns Facebook');
+        expect(result).toBe('MetAI owns Facebook');
       });
 
       it('should not replace "metadata"', () => {
