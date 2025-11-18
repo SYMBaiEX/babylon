@@ -19,8 +19,16 @@ CREATE INDEX IF NOT EXISTS "NPCInteraction_actor1Id_idx" ON "NPCInteraction"("ac
 CREATE INDEX IF NOT EXISTS "NPCInteraction_actor2Id_idx" ON "NPCInteraction"("actor2Id");
 
 -- Add foreign keys
-ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor1Id_fkey" FOREIGN KEY ("actor1Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor2Id_fkey" FOREIGN KEY ("actor2Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor1Id_fkey" FOREIGN KEY ("actor1Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+    ALTER TABLE "NPCInteraction" ADD CONSTRAINT "NPCInteraction_actor2Id_fkey" FOREIGN KEY ("actor2Id") REFERENCES "Actor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Update ActorRelationship to support dynamic evolution
 -- Add evolution tracking fields if they don't exist

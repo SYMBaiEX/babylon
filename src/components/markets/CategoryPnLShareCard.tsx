@@ -1,7 +1,13 @@
 import type { User } from '@/stores/authStore'
 
+/**
+ * Market category type for category PnL share card.
+ */
 type MarketCategory = 'perps' | 'predictions'
 
+/**
+ * Category PnL data structure for category PnL share card.
+ */
 interface CategoryPnLData {
   unrealizedPnL: number
   positionCount: number
@@ -13,6 +19,32 @@ interface CategoryPnLData {
   }
 }
 
+/**
+ * Category PnL share card component for generating shareable images.
+ * 
+ * Generates a styled card image (1200x630) for sharing category PnL
+ * on social media. Includes user profile, category information, and
+ * PnL metrics. Designed for Twitter/Farcaster OG images.
+ * 
+ * Features:
+ * - Shareable image generation
+ * - Category-specific styling
+ * - User profile display
+ * - PnL metrics display
+ * - Gradient backgrounds
+ * 
+ * @param props - CategoryPnLShareCard component props
+ * @returns Category PnL share card element
+ * 
+ * @example
+ * ```tsx
+ * <CategoryPnLShareCard
+ *   category="perps"
+ *   data={pnlData}
+ *   user={userData}
+ * />
+ * ```
+ */
 interface CategoryPnLShareCardProps {
   category: MarketCategory
   data: CategoryPnLData
@@ -20,16 +52,30 @@ interface CategoryPnLShareCardProps {
   className?: string
 }
 
+/**
+ * Currency formatter for displaying monetary values.
+ */
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
 })
 
+/**
+ * Format currency value safely.
+ * 
+ * Formats a number as currency, defaulting to 0 if invalid.
+ * 
+ * @param value - Value to format
+ * @returns Formatted currency string
+ */
 function formatCurrency(value: number) {
   return formatter.format(Number.isFinite(value) ? value : 0)
 }
 
+/**
+ * Category configuration for styling share cards.
+ */
 const categoryConfig = {
   perps: {
     title: 'Perpetual Futures',

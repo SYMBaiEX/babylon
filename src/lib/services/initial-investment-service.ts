@@ -253,8 +253,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
                   orgName: { type: 'string' },
                   amount: { type: 'number' },
                   reasoning: { type: 'string' }
-                },
-                required: ['npcId', 'npcName', 'ticker', 'amount']
+                }
               }
             }
           }
@@ -498,8 +497,8 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
         ticker: org.ticker,
         action: 'open_long',
         side: 'long',
-        amount: new Prisma.Decimal(investment.amount),
-        price: new Prisma.Decimal(entryPrice),
+        amount: investment.amount,
+        price: entryPrice,
         sentiment: null,
         reason: `Initial investment: ${investment.reasoning}`,
         executedAt: new Date(),

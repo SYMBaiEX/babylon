@@ -103,30 +103,40 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       }),
     ])
 
-    const balanceJson = await balanceRes.json();
-    const positionsJson = await positionsRes.json();
+    // Check if request was aborted before parsing
+    if (abortController.signal.aborted) {
+      return
+    }
 
-      const totalDeposited = toNumber(balanceJson.totalDeposited)
-      const totalWithdrawn = toNumber(balanceJson.totalWithdrawn)
-      const lifetimePnL = toNumber(balanceJson.lifetimePnL)
-      const availableBalance = toNumber(balanceJson.balance)
+    const balanceJson = await balanceRes.json()
+    const positionsJson = await positionsRes.json()
 
-      const perpUnrealized = (positionsJson?.perpetuals?.positions ?? []).reduce(
-        (sum: number, position: { unrealizedPnL?: number }) =>
-          sum + toNumber(position?.unrealizedPnL),
-        0,
-      )
+    // Check if request was aborted after parsing
+    if (abortController.signal.aborted) {
+      return
+    }
 
-      const predictionUnrealized = (positionsJson?.predictions?.positions ?? []).reduce(
-        (sum: number, position: { unrealizedPnL?: number }) =>
-          sum + toNumber(position?.unrealizedPnL),
-        0,
-      )
+    const totalDeposited = toNumber(balanceJson.totalDeposited)
+    const totalWithdrawn = toNumber(balanceJson.totalWithdrawn)
+    const lifetimePnL = toNumber(balanceJson.lifetimePnL)
+    const availableBalance = toNumber(balanceJson.balance)
 
-      const totalUnrealizedPnL = perpUnrealized + predictionUnrealized
-      const totalPnL = lifetimePnL + totalUnrealizedPnL
-      const netContributions = totalDeposited - totalWithdrawn
-      const accountEquity = netContributions + totalPnL
+    const perpUnrealized = (positionsJson?.perpetuals?.positions ?? []).reduce(
+      (sum: number, position: { unrealizedPnL?: number }) =>
+        sum + toNumber(position?.unrealizedPnL),
+      0,
+    )
+
+    const predictionUnrealized = (positionsJson?.predictions?.positions ?? []).reduce(
+      (sum: number, position: { unrealizedPnL?: number }) =>
+        sum + toNumber(position?.unrealizedPnL),
+      0,
+    )
+
+    const totalUnrealizedPnL = perpUnrealized + predictionUnrealized
+    const totalPnL = lifetimePnL + totalUnrealizedPnL
+    const netContributions = totalDeposited - totalWithdrawn
+    const accountEquity = netContributions + totalPnL
 
     setData({
       lifetimePnL,

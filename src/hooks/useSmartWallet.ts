@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { SmartWalletClientType } from '@privy-io/react-auth/smart-wallets';
 import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
+import { useWallets } from '@privy-io/react-auth';
 import type { Hex } from 'viem';
 
 import {
@@ -63,7 +64,52 @@ interface UseSmartWalletResult {
  */
 export function useSmartWallet(): UseSmartWalletResult {
   const { client } = useSmartWallets();
-  logger.debug('Smart wallet client initialized', { hasClient: !!client });
+  const { wallets } = useWallets();
+  const lastLoggedState = useRef<boolean | null>(null);
+  const hasLoggedWarning = useRef(false);
+  
+  // Check if embedded wallet exists
+  const hasEmbeddedWallet = useMemo(
+    () => wallets.some((w) => w.walletClientType === 'privy'),
+    [wallets]
+  );
+  
+  // Only log when the state changes, not on every render
+  useEffect(() => {
+    const hasClient = !!client;
+    const hasAddress = !!client?.account?.address;
+    
+    if (lastLoggedState.current !== hasClient) {
+      lastLoggedState.current = hasClient;
+      logger.debug('Smart wallet client state changed', { 
+        hasClient,
+        hasAddress,
+        address: client?.account?.address,
+        hasEmbeddedWallet
+      });
+    }
+    
+    // Log a warning if client is not available after a delay (but only once)
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (!hasClient && !hasLoggedWarning.current) {
+      timeoutId = setTimeout(() => {
+        if (!client) {
+          hasLoggedWarning.current = true;
+          const message = hasEmbeddedWallet
+            ? 'Smart wallet client not initialized despite embedded wallet existing. This may indicate a Privy configuration issue.'
+            : 'Smart wallet client not initialized. Embedded wallet may not be created yet.';
+          logger.warn(message, { hasEmbeddedWallet }, 'useSmartWallet');
+        }
+      }, 5000); // Wait 5 seconds before warning
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [client, hasEmbeddedWallet]);
+  
   const typedClient = client as SmartWalletClientType | undefined;
   const smartWalletAddress = typedClient?.account?.address;
   const smartWalletReady = useMemo(

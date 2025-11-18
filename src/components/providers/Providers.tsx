@@ -44,8 +44,9 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
       const allElements = containerRef.current.querySelectorAll('*');
       allElements.forEach((element) => {
         const htmlElement = element as HTMLElement;
-        const styleAttr = htmlElement.getAttribute('style');
         
+        // Check inline style attribute
+        const styleAttr = htmlElement.getAttribute('style');
         if (styleAttr && styleAttr.includes('clip-path')) {
           // Extract clip-path value
           const clipPathMatch = styleAttr.match(/clip-path\s*:\s*([^;]+)/);
@@ -70,14 +71,34 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
             }
           }
         }
+        
+        // Also check computed style object directly (in case Privy sets it via style object)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const computedStyle = (htmlElement.style as any);
+        if (computedStyle && 'clip-path' in computedStyle && !('clipPath' in computedStyle)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (computedStyle as any).clipPath = (computedStyle as any)['clip-path'];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          delete (computedStyle as any)['clip-path'];
+        }
       });
     };
 
-    // Run after Privy has rendered
-    const timeoutId = setTimeout(fixClipPath, 100);
+    // Run after Privy has rendered - use requestAnimationFrame for better timing
+    const runFix = () => {
+      requestAnimationFrame(() => {
+        fixClipPath();
+        // Also run after a short delay to catch late-rendered elements
+        setTimeout(fixClipPath, 50);
+      });
+    };
+    
+    const timeoutId = setTimeout(runFix, 100);
     
     // Watch for dynamically added elements
-    const observer = new MutationObserver(fixClipPath);
+    const observer = new MutationObserver(() => {
+      requestAnimationFrame(fixClipPath);
+    });
     
     if (containerRef.current) {
       observer.observe(containerRef.current, {
@@ -94,9 +115,12 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
     };
   }, []);
 
+  // Wrap children in Fragment to ensure proper key handling
   return (
     <div ref={containerRef}>
-      <PrivyProvider {...props}>{children}</PrivyProvider>
+      <PrivyProvider {...props}>
+        {children}
+      </PrivyProvider>
     </div>
   );
 }

@@ -11,10 +11,12 @@ import { logger } from '@/lib/logger'
 import type { User } from '@prisma/client'
 import type { CreateAgentParams, AgentPerformance } from '../types'
 import type { JsonValue } from '@/types/common'
-import { agentRuntimeManager } from '../runtime/AgentRuntimeManager'
+import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
+import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { agentIdentityService } from '../identity/AgentIdentityService'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { AuthorizationError } from '@/lib/errors/base.errors'
+import type { AgentCapabilities } from '@/types/a2a'
 
 export class AgentServiceV2 {
   /**
@@ -131,6 +133,59 @@ export class AgentServiceV2 {
 
     logger.info(`Agent user created: ${agentUserId} managed by ${managerUserId}`, undefined, 'AgentService')
 
+    // Register agent in unified registry
+    try {
+      const capabilities: AgentCapabilities = {
+        strategies: [
+          'prediction_markets',
+          'social_interaction',
+          ...(tradingStrategy ? [`trading_${tradingStrategy.toLowerCase()}`] : []),
+        ],
+        markets: ['prediction', 'perpetual', 'spot'],
+        actions: [
+          'trade',
+          'post',
+          'comment',
+          'like',
+          'message',
+          'analyze_market',
+          'manage_portfolio',
+        ],
+        version: '1.0.0',
+        x402Support: true,
+        platform: 'babylon',
+        userType: 'user_controlled',
+        gameNetwork: {
+          chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '84532'), // Base Sepolia default
+          registryAddress: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000'),
+          reputationAddress: process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA,
+        },
+        skills: [],
+        domains: [],
+      }
+
+      await agentRegistry.registerUserAgent({
+        userId: agentUserId,
+        name: name,
+        systemPrompt: system || 'You are a helpful AI agent on Babylon prediction market.',
+        capabilities,
+        trustLevel: 1, // BASIC trust level for user-created agents
+      })
+
+      logger.info(
+        `Agent ${agentUserId} registered in unified registry`,
+        undefined,
+        'AgentService',
+      )
+    } catch (error) {
+      logger.error(
+        `Failed to register agent ${agentUserId} in registry`,
+        error instanceof Error ? error : new Error(String(error)),
+        'AgentService',
+      )
+      // Don't fail the whole operation if registry fails
+    }
+
     if (this.shouldAutoSetupAgentIdentity()) {
       void this.setupAgentIdentity(agentUserId)
     }
@@ -179,7 +234,7 @@ export class AgentServiceV2 {
     await this.getAgent(agentUserId, managerUserId) // Verify ownership
 
     if (updates.system || updates.personality || updates.modelTier || updates.bio) {
-      agentRuntimeManager.clearRuntime(agentUserId)
+      await agentRuntimeManager.clearRuntime(agentUserId)
     }
 
     const userUpdates: Record<string, unknown> = {}
@@ -252,7 +307,9 @@ export class AgentServiceV2 {
       await tx.user.delete({ where: { id: agentUserId } })
     })
 
-    agentRuntimeManager.clearRuntime(agentUserId)
+    // Clear runtime from agent runtime manager
+    await agentRuntimeManager.clearRuntime(agentUserId)
+
     logger.info(`Agent deleted: ${agentUserId}`, undefined, 'AgentService')
   }
 

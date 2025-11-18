@@ -246,6 +246,8 @@ export class Agent0Client implements IAgent0Client {
         platform: 'babylon',
         userType: 'game',
         x402Support: true,
+        skills: [],
+        domains: [],
         // Cross-chain game network info
         gameNetwork: {
           chainId: baseChainId,
@@ -391,6 +393,8 @@ export class Agent0Client implements IAgent0Client {
     markets: string[];
     actions: string[];
     version: string;
+    skills: string[];
+    domains: string[];
   } {
     if (!extras?.capabilities) {
       return parseCapabilities(undefined)

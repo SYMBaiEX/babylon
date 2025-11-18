@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
 
+/**
+ * Log structure for agent logs.
+ */
 interface Log {
   id: string
   type: string
@@ -18,6 +21,30 @@ interface Log {
   createdAt: string
 }
 
+/**
+ * Agent logs component for displaying agent activity logs.
+ * 
+ * Displays a list of logs for a specific agent with filtering by type and
+ * level. Shows log details including prompts, completions, and metadata.
+ * Supports expanding/collapsing log entries. Auto-refreshes every 5 seconds.
+ * 
+ * Features:
+ * - Log list display
+ * - Type filtering
+ * - Level filtering
+ * - Expandable log entries
+ * - Color-coded by type/level
+ * - Auto-refresh (5s interval)
+ * - Loading states
+ * 
+ * @param props - AgentLogs component props
+ * @returns Agent logs element
+ * 
+ * @example
+ * ```tsx
+ * <AgentLogs agentId="agent-123" />
+ * ```
+ */
 interface AgentLogsProps {
   agentId: string
 }

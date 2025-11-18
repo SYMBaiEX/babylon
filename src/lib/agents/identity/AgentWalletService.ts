@@ -199,6 +199,8 @@ export class AgentWalletService {
       moderationEscrowSupport: true,
       autonomousTrading: agent.autonomousTrading,
       autonomousPosting: agent.autonomousPosting,
+      skills: [],
+      domains: [],
     }
 
     // Step 2: Register via Agent0Client (handles signing and gas server-side)

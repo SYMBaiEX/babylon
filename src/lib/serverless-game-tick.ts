@@ -430,7 +430,84 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     }
 
     const durationMs = Date.now() - startedAt;
-    logger.info('Game tick completed', { ...result, durationMs }, 'GameTick');
+    
+    // Validation: Quality checks after game tick
+    const validationWarnings: string[] = []
+    
+    // Verify markets were updated if NPC trading ran
+    // Check both baseline investments and market decisions
+    const hadNPCTrading = baselineResult || (marketDecisions && marketDecisions.length > 0)
+    if (result.marketsUpdated === 0 && hadNPCTrading) {
+      validationWarnings.push('NPC trading executed but no markets were updated')
+    }
+    
+    // Verify content was generated if buffer was low and not skipped
+    if (!skipContentGeneration && result.postsCreated === 0 && result.articlesCreated === 0 && result.eventsCreated === 0) {
+      validationWarnings.push('Content generation ran but no content was created')
+    }
+    
+    // Verify questions resolved correctly
+    if (result.questionsResolved > 0) {
+      // Check that resolved questions have correct status
+      const resolvedQuestions = await prisma.question.findMany({
+        where: {
+          status: 'resolved',
+          updatedAt: {
+            gte: new Date(timestamp.getTime() - 60000) // Updated in last minute
+          }
+        },
+        take: result.questionsResolved
+      })
+      
+      if (resolvedQuestions.length !== result.questionsResolved) {
+        validationWarnings.push(`Expected ${result.questionsResolved} resolved questions but found ${resolvedQuestions.length}`)
+      }
+    }
+    
+    // Validate market prices are reasonable (0-100% for predictions)
+    const activeMarkets = await prisma.market.findMany({
+      where: {
+        resolved: false,
+        endDate: { gte: timestamp }
+      },
+      take: 10
+    })
+    
+    for (const market of activeMarkets) {
+      const yesShares = Number(market.yesShares)
+      const noShares = Number(market.noShares)
+      const totalShares = yesShares + noShares
+      
+      if (totalShares > 0) {
+        const yesOdds = (yesShares / totalShares) * 100
+        const noOdds = (noShares / totalShares) * 100
+        
+        // Odds should be between 0 and 100%
+        if (yesOdds < 0 || yesOdds > 100 || noOdds < 0 || noOdds > 100) {
+          validationWarnings.push(`Market ${market.id} has invalid odds: YES=${yesOdds.toFixed(2)}%, NO=${noOdds.toFixed(2)}%`)
+        }
+        
+        // Odds should sum to approximately 100% (allowing for rounding)
+        const sum = yesOdds + noOdds
+        if (sum < 99.9 || sum > 100.1) {
+          validationWarnings.push(`Market ${market.id} odds don't sum to 100%: ${sum.toFixed(2)}%`)
+        }
+      }
+    }
+    
+    // Log validation warnings if any
+    if (validationWarnings.length > 0) {
+      logger.warn('Game tick validation warnings', {
+        warnings: validationWarnings,
+        result
+      }, 'GameTick')
+    }
+    
+    logger.info('Game tick completed', { 
+      ...result, 
+      durationMs,
+      validationWarnings: validationWarnings.length > 0 ? validationWarnings.length : undefined
+    }, 'GameTick');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const errorStack = error instanceof Error ? error.stack : undefined

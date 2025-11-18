@@ -4,6 +4,31 @@ import { PnLShareModal } from './PnLShareModal'
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import type { User } from '@/stores/authStore'
 
+/**
+ * Portfolio PnL share modal component for sharing portfolio PnL.
+ * 
+ * Wrapper component that delegates to PnLShareModal with portfolio-specific
+ * configuration. Provides modal interface for sharing portfolio PnL on
+ * social media.
+ * 
+ * Features:
+ * - Modal wrapper
+ * - Portfolio-specific sharing
+ * - Delegates to PnLShareModal
+ * 
+ * @param props - PortfolioPnLShareModal component props
+ * @returns Portfolio PnL share modal element
+ * 
+ * @example
+ * ```tsx
+ * <PortfolioPnLShareModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   data={portfolioData}
+ *   user={userData}
+ * />
+ * ```
+ */
 interface PortfolioPnLShareModalProps {
   isOpen: boolean
   onClose: () => void

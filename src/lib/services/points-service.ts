@@ -43,6 +43,7 @@ export class PointsService {
         pointsAwardedForFarcaster: true,
         pointsAwardedForTwitter: true,
         pointsAwardedForWallet: true,
+        pointsAwardedForReferralBonus: true,
       },
     });
 
@@ -78,6 +79,7 @@ export class PointsService {
       pointsAwardedForFarcaster?: boolean
       pointsAwardedForTwitter?: boolean
       pointsAwardedForWallet?: boolean
+      pointsAwardedForReferralBonus?: boolean
     } = {
       reputationPoints: pointsAfter,
     };
@@ -102,6 +104,10 @@ export class PointsService {
       case 'wallet_connect':
         updateData.bonusPoints = user.bonusPoints + amount;
         updateData.pointsAwardedForWallet = true;
+        break;
+      case 'referral_bonus':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForReferralBonus = true;
         break;
       case 'share_action':
       case 'share_to_twitter':
@@ -331,6 +337,7 @@ export class PointsService {
       pointsAwardedForFarcaster: boolean;
       pointsAwardedForTwitter: boolean;
       pointsAwardedForWallet: boolean;
+      pointsAwardedForReferralBonus: boolean;
     },
     reason: PointsReason
   ): boolean {
@@ -343,6 +350,8 @@ export class PointsService {
         return user.pointsAwardedForTwitter;
       case 'wallet_connect':
         return user.pointsAwardedForWallet;
+      case 'referral_bonus':
+        return user.pointsAwardedForReferralBonus;
       default:
         return false; // For share actions and referrals, allow multiple awards
     }

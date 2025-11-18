@@ -11,16 +11,13 @@
  * Prerequisites: Backend server must be running
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import type { User } from '@/stores/authStore';
+import { describe, test, expect, beforeAll } from 'bun:test';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 
 // Test user credentials - you'll need to set these up
 let testUserId: string;
 let testAccessToken: string;
-let testUser: User;
 
 describe('Settings Page Integration Tests', () => {
   const hasTestCreds = !!(process.env.TEST_USER_ID && process.env.TEST_ACCESS_TOKEN);
@@ -42,8 +39,7 @@ describe('Settings Page Integration Tests', () => {
     });
     
     expect(response.ok).toBe(true);
-    const data = await response.json();
-    testUser = data.user;
+    await response.json();
   });
 
   describe('Profile Tab', () => {

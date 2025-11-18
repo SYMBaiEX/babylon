@@ -159,28 +159,33 @@ export function useUserPositions(
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/markets/positions/${encodeURIComponent(userId)}`,
-        { signal: controller.signal }
-      );
+    const response = await fetch(
+      `/api/markets/positions/${encodeURIComponent(userId)}`,
+      { signal: controller.signal }
+    );
 
-      if (controller.signal.aborted) return;
+    // Check if request was aborted before parsing
+    if (controller.signal.aborted) {
+      return;
+    }
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (controller.signal.aborted) return;
+    // Check if request was aborted after parsing
+    if (controller.signal.aborted) {
+      return;
+    }
 
-      const perpetuals = data?.perpetuals ?? {};
-      const predictions = data?.predictions ?? {};
+    const perpetuals = data?.perpetuals ?? {};
+    const predictions = data?.predictions ?? {};
 
-      const normalizedPerps = (perpetuals.positions ?? []).map(
-        (pos: ApiPerpPositionPayload) => ({
-          id: pos.id,
-          userId: pos.userId,
-          ticker: pos.ticker,
-          organizationId: pos.organizationId,
-          side: pos.side,
+    const normalizedPerps = (perpetuals.positions ?? []).map(
+      (pos: ApiPerpPositionPayload) => ({
+        id: pos.id,
+        userId: pos.userId,
+        ticker: pos.ticker,
+        organizationId: pos.organizationId,
+        side: pos.side,
         entryPrice: toNumber(pos.entryPrice),
         currentPrice: toNumber(pos.currentPrice),
         size: toNumber(pos.size),
@@ -190,52 +195,39 @@ export function useUserPositions(
         unrealizedPnLPercent: toNumber(pos.unrealizedPnLPercent),
         fundingPaid: toNumber(pos.fundingPaid),
         openedAt: pos.openedAt,
-          lastUpdated: pos.lastUpdated ?? pos.openedAt,
-        })
-      ) as PerpPosition[];
+        lastUpdated: pos.lastUpdated ?? pos.openedAt,
+      })
+    ) as PerpPosition[];
 
-      const normalizedPredictions = (predictions.positions ?? []).map(
-        (pos: ApiPredictionPositionPayload) => {
-          const shares = toNumber(pos.shares);
-          const avgPrice = toNumber(pos.avgPrice);
-          return {
-            id: pos.id,
-            marketId: pos.marketId,
-            question: pos.question,
-            side: pos.side,
-            shares,
-            avgPrice,
-            currentPrice: toNumber(pos.currentPrice),
-            currentValue: toNumber(pos.currentValue ?? 0),
-            costBasis: toNumber(pos.costBasis ?? shares * avgPrice),
-            unrealizedPnL: toNumber(pos.unrealizedPnL ?? 0),
-            resolved: Boolean(pos.resolved),
-            resolution: pos.resolution ?? null,
-          };
-        }
-      ) as UserPredictionPosition[];
+    const normalizedPredictions = (predictions.positions ?? []).map(
+      (pos: ApiPredictionPositionPayload) => {
+        const shares = toNumber(pos.shares);
+        const avgPrice = toNumber(pos.avgPrice);
+        return {
+          id: pos.id,
+          marketId: pos.marketId,
+          question: pos.question,
+          side: pos.side,
+          shares,
+          avgPrice,
+          currentPrice: toNumber(pos.currentPrice),
+          currentValue: toNumber(pos.currentValue ?? 0),
+          costBasis: toNumber(pos.costBasis ?? shares * avgPrice),
+          unrealizedPnL: toNumber(pos.unrealizedPnL ?? 0),
+          resolved: Boolean(pos.resolved),
+          resolution: pos.resolution ?? null,
+        };
+      }
+    ) as UserPredictionPosition[];
 
-      setState({
-        perpPositions: normalizedPerps,
-        predictionPositions: normalizedPredictions,
-        perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
-      });
+    setState({
+      perpPositions: normalizedPerps,
+      predictionPositions: normalizedPredictions,
+      perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
+    });
 
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
-    } catch (err) {
-      // Ignore AbortErrors - they're intentional when the component unmounts or userId changes
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      
-      console.error('Failed to fetch user positions', err);
-      
-      if (!controller.signal.aborted) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch positions'));
-        setLoading(false);
-      }
+    if (!controller.signal.aborted) {
+      setLoading(false);
     }
   }, [userId, enabled]);
 

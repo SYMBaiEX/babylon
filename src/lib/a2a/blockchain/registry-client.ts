@@ -15,6 +15,8 @@ const CapabilitiesSchema = z.object({
   markets: z.array(z.string()).optional(),
   actions: z.array(z.string()).optional(),
   version: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  domains: z.array(z.string()).optional(),
 });
 
 // ERC-8004 Identity Registry ABI (minimal)
@@ -188,6 +190,8 @@ export class RegistryClient {
     markets: string[]
     actions: string[]
     version: string
+    skills: string[]
+    domains: string[]
   } {
     const parsed = JSON.parse(metadata);
     const validation = CapabilitiesSchema.safeParse(parsed);
@@ -196,6 +200,8 @@ export class RegistryClient {
       markets: validation.data?.markets ?? [],
       actions: validation.data?.actions ?? [],
       version: validation.data?.version ?? '1.0.0',
+      skills: validation.data?.skills ?? [],
+      domains: validation.data?.domains ?? [],
     };
   }
 
@@ -258,6 +264,8 @@ export class RegistryClient {
         markets: profile.capabilities.markets,
         actions: profile.capabilities.actions,
         version: profile.capabilities.version,
+        skills: profile.capabilities.skills || [],
+        domains: profile.capabilities.domains || [],
       },
       reputation: {
         totalBets: profile.reputation.totalBets,
@@ -295,6 +303,8 @@ export class RegistryClient {
         markets: profile.capabilities.markets,
         actions: profile.capabilities.actions,
         version: profile.capabilities.version,
+        skills: profile.capabilities.skills || [],
+        domains: profile.capabilities.domains || [],
       },
       reputation: {
         totalBets: profile.reputation.totalBets,

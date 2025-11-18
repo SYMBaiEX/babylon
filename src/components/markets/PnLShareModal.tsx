@@ -11,8 +11,14 @@ import type { User } from '@/stores/authStore'
 import { trackExternalShare } from '@/lib/share/trackExternalShare'
 import { useTwitterAuth } from '@/hooks/useTwitterAuth'
 
+/**
+ * Market category type for PnL share modal.
+ */
 type MarketCategory = 'perps' | 'predictions'
 
+/**
+ * Category PnL data structure for PnL share modal.
+ */
 interface CategoryPnLData {
   unrealizedPnL: number
   positionCount: number
@@ -24,6 +30,39 @@ interface CategoryPnLData {
   }
 }
 
+/**
+ * PnL share modal component for sharing portfolio or category PnL.
+ * 
+ * Provides a modal interface for sharing PnL data on social media (Twitter,
+ * Farcaster). Generates shareable images, handles image download, and supports
+ * direct posting to Twitter. Includes Twitter authentication and share tracking.
+ * 
+ * Features:
+ * - Portfolio or category PnL sharing
+ * - Shareable image generation
+ * - Image download
+ * - Twitter posting
+ * - Farcaster sharing
+ * - Twitter authentication
+ * - Share tracking
+ * - Loading states
+ * - Error handling
+ * - Body scroll lock and escape key handling
+ * 
+ * @param props - PnLShareModal component props
+ * @returns PnL share modal element or null if not open
+ * 
+ * @example
+ * ```tsx
+ * <PnLShareModal
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ *   type="portfolio"
+ *   portfolioData={portfolioData}
+ *   user={userData}
+ * />
+ * ```
+ */
 interface PnLShareModalProps {
   isOpen: boolean
   onClose: () => void
@@ -34,6 +73,12 @@ interface PnLShareModalProps {
   user: User | null
 }
 
+/**
+ * Farcaster icon component for social sharing.
+ * 
+ * @param props - FarcasterIcon component props
+ * @returns Farcaster icon SVG element
+ */
 function FarcasterIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="currentColor" aria-hidden="true">
@@ -44,6 +89,9 @@ function FarcasterIcon({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Category labels for display.
+ */
 const categoryLabels: Record<MarketCategory, string> = {
   perps: 'Perpetual Futures',
   predictions: 'Prediction Markets',

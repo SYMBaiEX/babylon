@@ -1,18 +1,54 @@
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import type { User } from '@/stores/authStore'
 
+/**
+ * Portfolio PnL share card component for generating shareable images.
+ * 
+ * Generates a styled card image (1200x630) for sharing portfolio PnL
+ * on social media. Includes user profile, portfolio metrics, and
+ * PnL breakdown. Designed for Twitter/Farcaster OG images.
+ * 
+ * Features:
+ * - Shareable image generation
+ * - Portfolio metrics display
+ * - User profile display
+ * - PnL breakdown
+ * - Gradient backgrounds
+ * 
+ * @param props - PortfolioPnLShareCard component props
+ * @returns Portfolio PnL share card element
+ * 
+ * @example
+ * ```tsx
+ * <PortfolioPnLShareCard
+ *   data={portfolioData}
+ *   user={userData}
+ * />
+ * ```
+ */
 interface PortfolioPnLShareCardProps {
   data: PortfolioPnLSnapshot
   user: User
   className?: string
 }
 
+/**
+ * Currency formatter for displaying monetary values.
+ */
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
 })
 
+/**
+ * Format currency value safely.
+ * 
+ * Formats a number as currency, defaulting to 0 if invalid.
+ * 
+ * @param value - Value to format
+ * @returns Formatted currency string
+ */
 function formatCurrency(value: number) {
   return formatter.format(Number.isFinite(value) ? value : 0)
 }

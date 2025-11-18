@@ -92,6 +92,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { OnboardingProfileSchema } from '@/lib/validation/schemas'
 import { prisma } from '@/lib/prisma'
 import { PointsService } from '@/lib/services/points-service'
+import { POINTS } from '@/lib/constants/points'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { getPrivyClient } from '@/lib/api/auth-middleware'
@@ -102,6 +103,7 @@ import { notifyNewAccount } from '@/lib/services/notification-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
+import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 
 interface SignupRequestBody {
   username: string
@@ -209,6 +211,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       if (referralCode) {
         const normalizedCode = referralCode.trim()
 
+        // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
           select: { id: true },
@@ -216,38 +219,42 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
           resolvedReferrerId = referrerByUsername.id
-
-          const referralRecord = await tx.referral.upsert({
+        } else {
+          // If not found by username, look up who owns this referral code
+          const referralOwner = await tx.user.findUnique({
             where: { referralCode: normalizedCode },
-            update: {
-              referredUserId: canonicalUserId,
-              status: 'pending',
+            select: { id: true },
+          })
+
+          if (referralOwner && referralOwner.id !== canonicalUserId) {
+            resolvedReferrerId = referralOwner.id
+          }
+        }
+
+        // Create or update referral record (idempotent for retries)
+        if (resolvedReferrerId) {
+          const newReferralRecord = await tx.referral.upsert({
+            where: {
+              referralCode_referredUserId: {
+                referralCode: normalizedCode,
+                referredUserId: canonicalUserId,
+              },
             },
             create: {
               id: await generateSnowflakeId(),
-              referrerId: referrerByUsername.id,
+              referrerId: resolvedReferrerId,
               referralCode: normalizedCode,
               referredUserId: canonicalUserId,
               status: 'pending',
             },
+            update: {
+              // On retry, keep existing record but ensure status is pending
+              status: 'pending',
+            },
             select: { id: true },
           })
-
-          resolvedReferralRecordId = referralRecord.id
-        } else {
-          const referralRecord = await tx.referral.findUnique({
-            where: { referralCode: normalizedCode },
-            select: { id: true, referrerId: true, referredUserId: true },
-          })
-
-          if (
-            referralRecord &&
-            referralRecord.referrerId !== canonicalUserId &&
-            (!referralRecord.referredUserId || referralRecord.referredUserId === canonicalUserId)
-          ) {
-            resolvedReferrerId = referralRecord.referrerId
-            resolvedReferralRecordId = referralRecord.id
-          }
+          
+          resolvedReferralRecordId = newReferralRecord.id
         }
       }
 
@@ -356,13 +363,72 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw error;
   })
 
+  // Generate referral code for new user (ensures they can refer others immediately)
+  await getOrCreateReferralCode(result.user.id)
+
   // Award points for social account linking
   const pointsAwarded = {
     farcaster: 0,
     twitter: 0,
     wallet: 0,
     profile: 0,
+    referral: 0,
+    referralBonus: 0,
   };
+
+  // Award referral points if user was referred
+  if (result.referrerId) {
+    // Award points to REFERRER
+    const referralResult = await PointsService.awardReferralSignup(result.referrerId, result.user.id)
+    pointsAwarded.referral = referralResult.pointsAwarded
+    
+    // Award bonus to NEW USER (referee) for using referral code
+    const refereeBonus = await PointsService.awardPoints(
+      result.user.id,
+      POINTS.REFERRAL_BONUS,
+      'referral_bonus',
+      { referrerId: result.referrerId }
+    )
+    pointsAwarded.referralBonus = refereeBonus.pointsAwarded
+    
+    // Update referral status to completed
+    if (result.referralRecordId) {
+      await prisma.referral.update({
+        where: { id: result.referralRecordId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      })
+    }
+    
+    // Auto-follow the referrer (new user follows the person who referred them)
+    await prisma.follow.upsert({
+      where: {
+        followerId_followingId: {
+          followerId: result.user.id,       // New user is the follower
+          followingId: result.referrerId,   // Referrer is being followed
+        },
+      },
+      update: {},
+      create: {
+        id: await generateSnowflakeId(),
+        followerId: result.user.id,
+        followingId: result.referrerId,
+      },
+    })
+    
+    logger.info(
+      'Awarded referral points to both referrer and referee',
+      { 
+        referrerId: result.referrerId, 
+        referredUserId: result.user.id, 
+        referrerPoints: referralResult.pointsAwarded,
+        refereeBonus: refereeBonus.pointsAwarded,
+      },
+      'POST /api/users/signup'
+    )
+  }
 
   if (identityFarcasterUsername || importedFarcaster) {
     const farcasterUsername = parsedProfile.farcasterUsername ?? identityFarcasterUsername
