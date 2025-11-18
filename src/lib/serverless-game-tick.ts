@@ -144,17 +144,20 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     // Bootstrap initial content if this is a fresh setup
     await bootstrapContentIfNeeded(timestamp);
 
-    // Load wandb model configuration from database
+    // Note: Wandb model configuration is loaded but not used in game tick
+    // Wandb models should ONLY be used for agent operations, not game tick operations
+    // This is kept for logging/debugging purposes only
     const { getWandbModel } = await import('./ai-model-config');
     const wandbModel = await getWandbModel();
     if (wandbModel) {
-      logger.info('Loaded wandb model from config', { model: wandbModel }, 'GameTick');
+      logger.debug('Wandb model configured (not used in game tick - reserved for agents)', { model: wandbModel }, 'GameTick');
     }
 
-    // Initialize LLM client - uses auto-priority: Wandb > Groq > Claude > OpenAI
-    const llmClient = new BabylonLLMClient();
+    // Initialize LLM client for game tick operations (excludes Wandb)
+    // Wandb models should ONLY be used for agent operations, not game tick
+    const llmClient = BabylonLLMClient.forGameTick();
     const stats = llmClient.getStats();
-    logger.info('LLM client initialized for game NPCs', { 
+    logger.info('LLM client initialized for game tick operations', { 
       provider: stats.provider, 
       model: stats.model 
     }, 'GameTick');
@@ -280,6 +283,32 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
 
     const contextService = new MarketContextService();
     
+    // Create a separate LLM client for market decisions that skips Wandb
+    // Wandb models should ONLY be used for agent ticks, not for game tick market decisions
+    // Priority: Groq > Claude > OpenAI (skip Wandb)
+    let marketDecisionLLM: BabylonLLMClient;
+    if (process.env.GROQ_API_KEY) {
+      marketDecisionLLM = BabylonLLMClient.forGroq();
+      logger.info('Using Groq for market decisions', {}, 'GameTick');
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      marketDecisionLLM = BabylonLLMClient.forClaude();
+      logger.info('Using Claude for market decisions', {}, 'GameTick');
+    } else if (process.env.OPENAI_API_KEY) {
+      marketDecisionLLM = BabylonLLMClient.forOpenAI();
+      logger.info('Using OpenAI for market decisions', {}, 'GameTick');
+    } else {
+      // CRITICAL: Market decisions cannot use Wandb - throw error instead of falling back
+      throw new Error(
+        '❌ No API key found for market decisions!\n' +
+        '   Market decisions cannot use Wandb (Wandb is reserved for agents only).\n' +
+        '   Set one of these environment variables:\n' +
+        '   - GROQ_API_KEY (recommended for market decisions)\n' +
+        '   - ANTHROPIC_API_KEY\n' +
+        '   - OPENAI_API_KEY\n' +
+        '   Example: export GROQ_API_KEY=your_key_here'
+      );
+    }
+    
     // Configure decision engine with model and token limits from environment
     // Use qwen/qwen3-32b on Groq for background trading operations
     const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
@@ -295,7 +324,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       10
     );
     
-    const decisionEngine = new MarketDecisionEngine(llmClient, contextService, {
+    const decisionEngine = new MarketDecisionEngine(marketDecisionLLM, contextService, {
       model: modelName,
       maxOutputTokens,
     });
@@ -945,6 +974,8 @@ Return your response as XML in this exact format:
   <post>your post content here</post>
 </response>`;
 
+      // Only use Wandb-specific model if provider is Wandb, otherwise use default
+      const model = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
       const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
         prompt,
         {
@@ -953,7 +984,7 @@ Return your response as XML in this exact format:
           },
           required: ['post'],
         },
-        { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+        { temperature: 0.9, maxTokens: 200, ...(model ? { model } : {}), format: 'xml' }
       );
       
       // Handle XML structure
@@ -1011,6 +1042,8 @@ Return your response as XML in this exact format:
   <article>full article body here with \\n\\n between paragraphs</article>
 </response>`;
 
+          // Only use Wandb-specific model if provider is Wandb, otherwise use default
+          const articleModel = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
           const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
             prompt,
             { 
@@ -1021,7 +1054,7 @@ Return your response as XML in this exact format:
               },
               required: ['title', 'summary', 'article'] 
             },
-            { temperature: 0.7, maxTokens: 1000, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+            { temperature: 0.7, maxTokens: 1000, ...(articleModel ? { model: articleModel } : {}), format: 'xml' }
           );
           
           // Handle XML structure
@@ -1083,6 +1116,8 @@ Return your response as XML in this exact format:
   <post>your brief post content here</post>
 </response>`;
 
+          // Only use Wandb-specific model if provider is Wandb, otherwise use default
+          const orgPostModel = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
           const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
             prompt,
             {
@@ -1091,7 +1126,7 @@ Return your response as XML in this exact format:
               },
               required: ['post'],
             },
-            { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+            { temperature: 0.9, maxTokens: 200, ...(orgPostModel ? { model: orgPostModel } : {}), format: 'xml' }
           );
           
           // Handle XML structure
@@ -1457,10 +1492,12 @@ Return your response as XML in this exact format:
   <article>full article body here with \\n\\n between paragraphs</article>
 </response>`;
       
+      // Only use Wandb-specific model if provider is Wandb, otherwise use default
+      const baselineModel = llm.getProvider() === 'wandb' ? 'moonshotai/kimi-k2-instruct-0905' : undefined;
       const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
         prompt,
         { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 1100, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+        { temperature: 0.7, maxTokens: 1100, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml' }
       );
       
       // Handle XML structure
@@ -1772,7 +1809,7 @@ Return your response as XML in this exact format:
           },
           required: ['question', 'resolutionCriteria'],
         },
-        { temperature: 0.8, maxTokens: 300, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
+        { temperature: 0.8, maxTokens: 300, ...(llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}), format: 'xml' }
       );
       
       // Handle XML structure - extract question data from response

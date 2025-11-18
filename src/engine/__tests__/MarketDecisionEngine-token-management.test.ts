@@ -178,7 +178,7 @@ describe('MarketDecisionEngine - Token Management', () => {
 
     test('should accept custom model configuration', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext, {
-        model: 'gpt-4o',
+        model: 'gpt-5.1',
         maxOutputTokens: 4000,
       });
       

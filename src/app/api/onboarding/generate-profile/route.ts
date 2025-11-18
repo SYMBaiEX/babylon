@@ -65,7 +65,8 @@ interface ProfileData {
  * Generate AI profile data for onboarding
  */
 export async function GET(_request: NextRequest) {
-  const llmClient = new BabylonLLMClient();
+  // Use game tick LLM client (excludes Wandb - Wandb is reserved for agent runtime operations only)
+  const llmClient = BabylonLLMClient.forGameTick();
   
   // Generate random words for entropy/inspiration
   const randomAnimal = uniqueNamesGenerator({ dictionaries: [animals], length: 1 });

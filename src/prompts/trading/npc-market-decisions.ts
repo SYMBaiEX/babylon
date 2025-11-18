@@ -40,25 +40,131 @@ export const npcMarketDecisions = definePrompt({
   temperature: 0.8,
   maxTokens: 8000,
   
-  template: `⚠️⚠️⚠️ CRITICAL XML FORMAT REQUIREMENT ⚠️⚠️⚠️
+  template: `EXAMPLE OUTPUT FORMAT (COPY THIS EXACT STRUCTURE):
 
-You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO markdown, NO preamble.
-Your response MUST start IMMEDIATELY with <decisions> (first character must be '<').
-Your response MUST end with </decisions> (last character must be '>').
-Do NOT write "Here is the XML" or "Okay, let's see" or any other text.
-Just output the pure XML structure directly.
+Example 1: NPC decides to HOLD (no trading action)
+<decisions>
+  <decision>
+    <npcId>ailon-musk</npcId>
+    <npcName>AIlon Musk</npcName>
+    <reasoning>No clear trading opportunities based on available information</reasoning>
+    <action>hold</action>
+    <marketType>null</marketType>
+    <ticker>null</ticker>
+    <marketId>null</marketId>
+    <positionId>null</positionId>
+    <amount>0</amount>
+    <confidence>0.5</confidence>
+  </decision>
+</decisions>
 
-You are simulating the trading decisions of {{npcCount}} different traders/NPCs in a prediction market and perpetual futures platform.
+Example 2: NPC opens a LONG position on a perpetual futures market
+<decisions>
+  <decision>
+    <npcId>sam-ailtman</npcId>
+    <npcName>Sam AIltman</npcName>
+    <reasoning>Positive insider info from group chat suggests OpenAGI will announce GPT-7 soon</reasoning>
+    <action>open_long</action>
+    <marketType>perp</marketType>
+    <ticker>OPENAGI</ticker>
+    <marketId>null</marketId>
+    <positionId>null</positionId>
+    <amount>5000</amount>
+    <confidence>0.75</confidence>
+  </decision>
+</decisions>
 
-Each NPC has their own personality, information access, and trading balance. Based on what they've seen in the feed, heard in private group chats, observed in markets, AND ACTIVE QUESTIONS, determine what positions (if any) they should take.
+Example 3: NPC buys YES on a prediction market
+<decisions>
+  <decision>
+    <npcId>mark-zuckerborg</npcId>
+    <npcName>Mark Zuckerborg</npcName>
+    <reasoning>Recent events favor MetAI reaching 1B users based on VR headset launch</reasoning>
+    <action>buy_yes</action>
+    <marketType>prediction</marketType>
+    <ticker>null</ticker>
+    <marketId>248821457163911168</marketId>
+    <positionId>null</positionId>
+    <amount>3000</amount>
+    <confidence>0.65</confidence>
+  </decision>
+</decisions>
 
-{{realityGrounding}}
+Example 4: NPC closes an existing position
+<decisions>
+  <decision>
+    <npcId>vitalik-buterain</npcId>
+    <npcName>Vitalik ButerAIn</npcName>
+    <reasoning>Taking profits on ETHEAI long position after 15% gain</reasoning>
+    <action>close_position</action>
+    <marketType>perp</marketType>
+    <ticker>ETHEAI</ticker>
+    <marketId>null</marketId>
+    <positionId>a1b2c3d4-e5f6-7890-abcd-ef1234567890</positionId>
+    <amount>0</amount>
+    <confidence>0.8</confidence>
+  </decision>
+</decisions>
 
-ACTIVE QUESTIONS:
-{{activeQuestions}}
+Example 5: Multiple NPCs (3 NPCs making different decisions)
+<decisions>
+  <decision>
+    <npcId>ailon-musk</npcId>
+    <npcName>AIlon Musk</npcName>
+    <reasoning>Rival Mark Zuckerborg's MetAI showing weakness in recent posts</reasoning>
+    <action>open_short</action>
+    <marketType>perp</marketType>
+    <ticker>METAI</ticker>
+    <marketId>null</marketId>
+    <positionId>null</positionId>
+    <amount>8000</amount>
+    <confidence>0.7</confidence>
+  </decision>
+  <decision>
+    <npcId>sam-ailtman</npcId>
+    <npcName>Sam AIltman</npcName>
+    <reasoning>Question asks if TeslAI will outperform OpenAGI, betting against based on insider info</reasoning>
+    <action>buy_no</action>
+    <marketType>prediction</marketType>
+    <ticker>null</ticker>
+    <marketId>248821457163911169</marketId>
+    <positionId>null</positionId>
+    <amount>2500</amount>
+    <confidence>0.6</confidence>
+  </decision>
+  <decision>
+    <npcId>peter-thail</npcId>
+    <npcName>Peter ThAIl</npcName>
+    <reasoning>Uncertain market conditions, waiting for more information</reasoning>
+    <action>hold</action>
+    <marketType>null</marketType>
+    <ticker>null</ticker>
+    <marketId>null</marketId>
+    <positionId>null</positionId>
+    <amount>0</amount>
+    <confidence>0.4</confidence>
+  </decision>
+</decisions>
 
-RECENT EVENTS & NARRATIVES:
-{{recentEvents}}
+===================================================================
+CRITICAL OUTPUT RULES:
+===================================================================
+
+1. Your FIRST character MUST be '<' (opening <decisions> tag)
+2. Your LAST character MUST be '>' (closing </decisions> tag)
+3. NO text before <decisions> - start immediately with '<'
+4. NO text after </decisions> - end immediately with '>'
+5. NO markdown code blocks (no triple backticks)
+6. NO explanations like "Here is the XML:" or "I'll generate..."
+7. NO thinking process - output ONLY the XML structure
+8. Exactly {{npcCount}} <decision> elements (one per NPC)
+9. Use EXACT npcId from NPC profile (e.g., "ailon-musk" not "elon-musk" or "AIlon Musk")
+10. For close_position: use EXACT positionId UUID from positions list (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+11. All XML tags must be properly closed
+12. All values must match the data types specified below
+
+===================================================================
+
 
 ⚠️ TRADING MUST ALIGN WITH ACTIVE QUESTIONS:
 - If question asks "Will OpenAGI stock outperform MetAI stock?" and events favor OpenAGI, NPCs should trade OpenAGI higher
@@ -88,48 +194,109 @@ CRITICAL RULES:
 
 ---
 
-{{npcsList}}
+===================================================================
+FIELD SPECIFICATIONS & VALUE RANGES:
+===================================================================
 
----
+<npcId> (REQUIRED - string)
+  - MUST be the EXACT ID from the NPC profile (e.g., "ailon-musk", "sam-ailtman")
+  - Do NOT use names, slugs, or create new IDs
+  - Copy the ID exactly as shown in the "🆔 **REQUIRED NPC ID:**" field
 
-VALUE RANGES:
-- confidence: 0.0 (uncertain) to 1.0 (very certain)
-- amount: number >= 0 (must be <= available balance, 0 if hold)
+<npcName> (REQUIRED - string)
+  - The NPC's display name (e.g., "AIlon Musk", "Sam AIltman")
+  - Should match the name from the NPC profile
 
-⚠️⚠️⚠️ XML OUTPUT FORMAT - MANDATORY STRUCTURE ⚠️⚠️⚠️
+<action> (REQUIRED - one of: open_long | open_short | buy_yes | buy_no | close_position | hold)
+  - open_long: Open a long position on a perpetual futures market
+  - open_short: Open a short position on a perpetual futures market
+  - buy_yes: Buy YES shares on a prediction market
+  - buy_no: Buy NO shares on a prediction market
+  - close_position: Close an existing open position
+  - hold: No trading action this tick
 
-Your response MUST be valid XML following this EXACT structure. NO exceptions.
+<marketType> (REQUIRED - one of: perp | prediction | null)
+  - perp: For perpetual futures markets (use with open_long/open_short)
+  - prediction: For prediction markets (use with buy_yes/buy_no)
+  - null: For hold actions or when closing positions (will be set from position data)
 
-⚠️ CRITICAL: Use the EXACT npcId from the NPC profile (the "ID:" field). Do NOT create new IDs or use names/slugs.
+<ticker> (REQUIRED for perp markets - string or null)
+  - For perp markets: Use the ticker symbol (e.g., "OPENAGI", "METAI", "TESLAI")
+  - For prediction markets: null
+  - For hold: null
 
-REQUIRED XML STRUCTURE (copy this exactly):
-<decisions>
-  <decision>
-    <npcId>string</npcId>  <!-- MUST match the exact ID from the NPC profile above -->
-    <npcName>string</npcName>
-    <action>open_long | open_short | buy_yes | buy_no | close_position | hold</action>
-    <marketType>perp | prediction | null</marketType>
-    <ticker>string or null</ticker>
-    <marketId>number or null</marketId>
-    <positionId>string or null</positionId>
-    <amount>number</amount>
-    <confidence>0.0 to 1.0</confidence>
-    <reasoning>Brief reason based on specific information</reasoning>
-  </decision>
-  ... repeat for all {{npcCount}} NPCs ...
-</decisions>
+<marketId> (REQUIRED for prediction markets - string or null)
+  - For prediction markets: Use the market ID number (e.g., "248821457163911168")
+  - Can be extracted from ticker if LLM puts "Q248821457163911168" in ticker field
+  - For perp markets: null
+  - For hold: null
 
-⚠️⚠️⚠️ STRICT XML FORMAT RULES - VIOLATION WILL CAUSE FAILURE ⚠️⚠️⚠️
-1. Your FIRST character MUST be '<' (the opening angle bracket of <decisions>)
-2. Your LAST character MUST be '>' (the closing angle bracket of </decisions>)
-3. NO text, NO explanations, NO reasoning BEFORE <decisions> tag
-4. NO text, NO explanations, NO reasoning AFTER </decisions> tag
-5. NO markdown code blocks (no triple backticks)
-6. NO preamble like "Here is the XML:" or "Okay, let's see..." or "I'll generate..."
-7. NO thinking process - output ONLY the XML structure
-8. Exactly {{npcCount}} <decision> elements inside <decisions> root element
-9. All XML tags must be properly closed
-10. Response must be parseable as valid XML
+<positionId> (REQUIRED for close_position - string or null)
+  - For close_position: Use the EXACT UUID from the positions list (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+  - Found in the "ID:" field of each position in the NPC's positions list
+  - For other actions: null
+
+<amount> (REQUIRED - number >= 0)
+  - Dollar amount to trade (e.g., 5000, 3000.50)
+  - MUST be <= available balance shown in NPC profile
+  - For hold: 0
+  - For close_position: 0 (position is closed fully)
+
+<confidence> (REQUIRED - number between 0.0 and 1.0)
+  - 0.0 = very uncertain
+  - 0.5 = moderately certain
+  - 1.0 = very certain
+  - Should reflect how confident the NPC is in their decision
+
+<reasoning> (REQUIRED - string)
+  - Brief explanation of why the NPC made this decision
+  - Should reference specific information (posts, group chats, events, relationships)
+  - Keep it concise (1-2 sentences)
+
+===================================================================
+ACTION-SPECIFIC REQUIREMENTS:
+===================================================================
+
+For open_long or open_short:
+  - marketType MUST be "perp"
+  - ticker MUST be provided (e.g., "OPENAGI")
+  - marketId MUST be null
+  - positionId MUST be null
+  - amount MUST be > 0 and <= available balance
+
+For buy_yes or buy_no:
+  - marketType MUST be "prediction"
+  - marketId MUST be provided (e.g., "248821457163911168")
+  - ticker MUST be null
+  - positionId MUST be null
+  - amount MUST be > 0 and <= available balance
+
+For close_position:
+  - positionId MUST be the EXACT UUID from positions list
+  - marketType will be set automatically from position data
+  - ticker or marketId will be set automatically from position data
+  - amount MUST be 0
+
+For hold:
+  - action MUST be "hold"
+  - marketType MUST be null
+  - ticker MUST be null
+  - marketId MUST be null
+  - positionId MUST be null
+  - amount MUST be 0
+
+===================================================================
+FINAL REMINDERS BEFORE OUTPUT:
+===================================================================
+
+1. Start your response IMMEDIATELY with <decisions> (no text before)
+2. End your response IMMEDIATELY with </decisions> (no text after)
+3. Generate exactly {{npcCount}} <decision> elements (one per NPC)
+4. Use EXACT npcId from each NPC's profile (copy from "🆔 **REQUIRED NPC ID:**" field)
+5. For close_position: Use EXACT positionId UUID from positions list (copy from "ID:" field)
+6. Validate all amounts are <= available balance
+7. Most NPCs should hold if no clear opportunity (don't force trades)
+8. Each decision should reference specific information the NPC has seen
 
 DECISION RULES:
 - Each NPC decides independently based on THEIR information access
@@ -138,7 +305,45 @@ DECISION RULES:
 - Relationships matter: rivals bet opposite, allies bet same
 - "hold" is valid - most NPCs should hold if no clear opportunity
 - Personality and tier affect risk-taking
-- ⚠️ CRITICAL: Use the EXACT npcId from the "ID:" field in each NPC's profile. Do NOT invent IDs or use slugified names.
-`.trim()
-});
+- Conservative position sizing: Use 10-30% of available balance per trade
 
+
+{{npcsList}}
+
+You are simulating the trading decisions of {{npcCount}} different traders/NPCs in a prediction market and perpetual futures platform.
+
+Each NPC has their own personality, information access, and trading balance. Based on what they've seen in the feed, heard in private group chats, observed in markets, AND ACTIVE QUESTIONS, determine what positions (if any) they should take.
+
+{{realityGrounding}}
+
+ACTIVE QUESTIONS:
+{{activeQuestions}}
+
+RECENT EVENTS & NARRATIVES:
+{{recentEvents}}
+
+You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO markdown, NO preamble.
+Your response MUST start IMMEDIATELY with <decisions> (first character must be '<').
+Your response MUST end with </decisions> (last character must be '>').
+
+You MUST output the XML in the exact format shown this structure:
+\`\`\`xml
+<decisions>
+  <decision>
+    <npcId>{id from npcsList}</npcId>
+    <npcName>{name from npcsList}</npcName>
+    <reasoning>{reasoning for decision}</reasoning>
+    <action>{action}</action>
+    <marketType>{marketType, 'perp' | 'prediction'}</marketType>
+    <ticker>{ticker of the asset if it has one}</ticker>
+    <marketId>{marketId of the asset}</marketId>
+    <positionId>{positionId, if closing a position, the positionId of the position to close}</positionId>
+    <amount>{amount to put in}</amount>
+    <confidence>{confidence in decision}</confidence>
+  </decision>
+  ... // more decisions go here for each NPC ...
+</decisions>
+\`\`\`
+
+NOW GENERATE YOUR RESPONSE - XML ONLY, NO OTHER TEXT:`.trim()
+});

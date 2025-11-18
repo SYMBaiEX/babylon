@@ -100,7 +100,7 @@ export class ParodyHeadlineGenerator {
       {
         temperature: 0.9,
         maxTokens: 500,
-        model: 'moonshotai/kimi-k2-instruct-0905',
+        ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
         format: 'xml',
       }
     );
@@ -320,10 +320,11 @@ Generate the parody now.`;
 }
 
 /**
- * Create instance with default LLM client - uses auto-priority: Wandb > Groq > Claude > OpenAI
+ * Create instance with game tick LLM client (excludes Wandb)
+ * Wandb models should ONLY be used for agent operations, not game content generation
  */
 export function createParodyHeadlineGenerator(): ParodyHeadlineGenerator {
-  const llm = new BabylonLLMClient();
+  const llm = BabylonLLMClient.forGameTick();
   return new ParodyHeadlineGenerator(llm);
 }
 

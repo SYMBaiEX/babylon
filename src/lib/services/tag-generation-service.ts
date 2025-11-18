@@ -96,7 +96,7 @@ If no good tags can be extracted, return: <tags></tags>`
   // Use llama-3.1-8b-instant for fast tag generation (free tier)
   const model = process.env.GROQ_API_KEY 
     ? 'llama-3.1-8b-instant' // Free tier: Fast and efficient
-    : 'gpt-4o-mini'
+    : 'gpt-5-nano'
 
   const response = await openai.chat.completions.create({
     model,

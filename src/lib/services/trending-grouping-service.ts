@@ -13,8 +13,8 @@ import OpenAI from 'openai'
 // Configuration
 const LLM_TIMEOUT_MS = 15000 // 15 seconds
 const LLM_MAX_RETRIES = 2
-const GROUPING_MODEL = process.env.TRENDING_GROUPING_MODEL || (process.env.GROQ_API_KEY ? 'llama-3.1-70b-versatile' : 'gpt-4o')
-const SUMMARY_MODEL = process.env.TRENDING_SUMMARY_MODEL || (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-4o-mini')
+const GROUPING_MODEL = process.env.TRENDING_GROUPING_MODEL || (process.env.GROQ_API_KEY ? 'llama-3.1-70b-versatile' : 'gpt-5.1')
+const SUMMARY_MODEL = process.env.TRENDING_SUMMARY_MODEL || (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-5-nano')
 
 // Check if LLM is available
 const hasApiKey = !!(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY)
@@ -99,9 +99,9 @@ function calculateCost(model: string, tokens: number): number {
   // OpenAI pricing (approximate, per 1M tokens)
   // GPT-4o: $2.50 input, $10 output (average ~$6/1M)
   // GPT-4o-mini: $0.15 input, $0.60 output (average ~$0.375/1M)
-  if (model.includes('gpt-4o-mini')) {
+  if (model.includes('gpt-5-nano')) {
     return (tokens / 1000000) * 0.375
-  } else if (model.includes('gpt-4o')) {
+  } else if (model.includes('gpt-5.1')) {
     return (tokens / 1000000) * 6
   }
   

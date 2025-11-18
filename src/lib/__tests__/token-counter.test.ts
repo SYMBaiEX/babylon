@@ -84,7 +84,7 @@ describe('TokenCounter', () => {
   
   describe('getModelTokenLimit', () => {
     test('should return correct limit for known models', () => {
-      expect(getModelTokenLimit('gpt-4o')).toBe(128000);
+      expect(getModelTokenLimit('gpt-5.1')).toBe(128000);
       expect(getModelTokenLimit('llama-3.1-8b-instant')).toBe(131072); // 130k in binary
       expect(getModelTokenLimit('qwen/qwen3-32b')).toBe(131072);
       expect(getModelTokenLimit('claude-sonnet-4-5')).toBe(200000);
@@ -123,7 +123,7 @@ describe('TokenCounter', () => {
     });
     
     test('should enforce minimum limit', () => {
-      const model = 'gpt-4'; // 8k total
+      const model = 'gpt-5.1'; // 8k total
       const safeLimit = getSafeContextLimit(model, 7500);
       
       // Would calculate to very small number, should return 1000
@@ -189,9 +189,9 @@ describe('TokenCounter', () => {
   
   describe('MODEL_TOKEN_LIMITS', () => {
     test('should include common OpenAGI models', () => {
-      expect(MODEL_TOKEN_LIMITS['gpt-4o']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['gpt-4o-mini']).toBeDefined();
-      expect(MODEL_TOKEN_LIMITS['gpt-4-turbo']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['gpt-5.1']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['gpt-5-nano']).toBeDefined();
+      expect(MODEL_TOKEN_LIMITS['gpt-5.1-turbo']).toBeDefined();
       expect(MODEL_TOKEN_LIMITS['gpt-3.5-turbo']).toBeDefined();
     });
     

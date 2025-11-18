@@ -66,9 +66,40 @@ export class BabylonLLMClient {
   /**
    * Create a BabylonLLMClient configured to use a specific Wandb model
    * This is a convenience factory method for testing Wandb models
+   * 
+   * ⚠️ WARNING: Wandb models should ONLY be used for agent operations, not game tick operations
    */
   static forWandb(modelName: string): BabylonLLMClient {
     return new BabylonLLMClient('', modelName, undefined);
+  }
+
+  /**
+   * Create a BabylonLLMClient for game tick operations (excludes Wandb)
+   * Priority: Groq > Claude > OpenAI
+   * 
+   * ⚠️ IMPORTANT: Wandb models should ONLY be used for agent operations.
+   * Game tick operations (content generation, market decisions, etc.) should use this method.
+   */
+  static forGameTick(): BabylonLLMClient {
+    // Check providers in order, skipping Wandb
+    if (process.env.GROQ_API_KEY) {
+      return new BabylonLLMClient('', '', 'groq');
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      return new BabylonLLMClient('', '', 'claude');
+    } else if (process.env.OPENAI_API_KEY) {
+      return new BabylonLLMClient('', '', 'openai');
+    } else {
+      // Fallback: throw error if no non-Wandb providers available
+      throw new Error(
+        '❌ No API key found for game tick operations!\n' +
+        '   Game tick operations cannot use Wandb (Wandb is reserved for agents only).\n' +
+        '   Set one of these environment variables:\n' +
+        '   - GROQ_API_KEY (recommended for game tick)\n' +
+        '   - ANTHROPIC_API_KEY\n' +
+        '   - OPENAI_API_KEY\n' +
+        '   Example: export GROQ_API_KEY=your_key_here'
+      );
+    }
   }
 
   constructor(apiKey?: string, wandbModelOverride?: string, forceProvider?: LLMProvider) {
@@ -326,9 +357,9 @@ export class BabylonLLMClient {
       case 'claude':
         return 'claude-sonnet-4-5';
       case 'openai':
-        return 'gpt-4o-mini';
+        return 'gpt-5-nano';
       default:
-        return 'gpt-4o-mini';
+        return 'gpt-5-nano';
     }
   }
 

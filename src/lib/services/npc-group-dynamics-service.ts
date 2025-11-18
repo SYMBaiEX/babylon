@@ -63,10 +63,11 @@ export class NPCGroupDynamicsService {
 
     logger.info('Processing NPC group dynamics', undefined, 'NPCGroupDynamicsService');
 
-    // Initialize LLM client for message generation
+    // Initialize LLM client for message generation (excludes Wandb)
+    // Wandb models should ONLY be used for agent operations, not game tick operations
     let llm: BabylonLLMClient | null = null;
     try {
-      llm = new BabylonLLMClient();
+      llm = BabylonLLMClient.forGameTick();
     } catch (error) {
       logger.warn('Failed to initialize LLM for group dynamics', { error }, 'NPCGroupDynamicsService');
     }

@@ -239,8 +239,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       latestTimestamp: bufferStatus.latestTimestamp?.toISOString(),
     }, 'Cron');
 
-    // Uses auto-priority: Wandb > Groq > Claude > OpenAI
-    const llmClient = new BabylonLLMClient();
+    // Use game tick LLM client (excludes Wandb - Wandb is reserved for agents only)
+    const llmClient = BabylonLLMClient.forGameTick();
     const lookaheadResult = await generateAheadIfNeeded(llmClient, 15);
     
     logger.info('Lookahead generation complete', {

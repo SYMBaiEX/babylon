@@ -236,7 +236,7 @@ Live server verification:
 The agent tries providers in order:
 1. **Groq** (primary) - Fast inference with `llama-3.1-8b-instant`
 2. **Claude** (fallback) - `claude-sonnet-4-5`
-3. **OpenAGI** (fallback) - `gpt-4o-mini`
+3. **OpenAGI** (fallback) - `gpt-5-nano`
 
 Provide at least one API key.
 

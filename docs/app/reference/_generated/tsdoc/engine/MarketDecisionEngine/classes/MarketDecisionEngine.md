@@ -26,7 +26,7 @@ efficiently while staying within model context limits.
 - Handle both individual and batch generation
 
 **Architecture:**
-- Uses `gpt-4o-mini` by default for reliability
+- Uses `gpt-5-nano` by default for reliability
 - Dynamically calculates batch sizes based on token limits
 - Falls back to individual processing if batches fail
 - Strict validation prevents invalid trades
@@ -67,7 +67,7 @@ Optional configuration overrides
 
 `string`
 
-LLM model to use (default: 'gpt-4o-mini')
+LLM model to use (default: 'gpt-5-nano')
 
 ###### maxOutputTokens?
 
@@ -85,7 +85,7 @@ Initializes the engine with token management configuration. Automatically
 calculates safe context limits based on model and output requirements.
 
 **Model Selection:**
-- Default: `gpt-4o-mini` (reliable, tested, fast)
+- Default: `gpt-5-nano` (reliable, tested, fast)
 - Groq models avoid due to naming inconsistencies
 - Can override but must handle token limits carefully
 
@@ -102,7 +102,7 @@ const engine = new MarketDecisionEngine(
   llmClient,
   contextService,
   { 
-    model: 'gpt-4o-mini',
+    model: 'gpt-5-nano',
     maxOutputTokens: 4000 
   }
 );

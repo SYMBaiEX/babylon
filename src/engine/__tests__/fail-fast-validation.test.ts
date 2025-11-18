@@ -13,7 +13,7 @@ import { ContentValidator } from '@/lib/validation/content-validator';
 
 describe('Fail-Fast Validation', () => {
   test('generateDayFeed throws on invalid day number', async () => {
-    const llm = new BabylonLLMClient();
+    const llm = BabylonLLMClient.forGameTick();
     const feed = new FeedGenerator(llm);
 
     await expect(
@@ -26,7 +26,7 @@ describe('Fail-Fast Validation', () => {
   });
 
   test('generateDayFeed throws on empty actors array', async () => {
-    const llm = new BabylonLLMClient();
+    const llm = BabylonLLMClient.forGameTick();
     const feed = new FeedGenerator(llm);
 
     await expect(

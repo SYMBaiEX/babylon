@@ -24,6 +24,7 @@ let encoding: Tiktoken | null = null;
 async function getEncoding(): Promise<Tiktoken> {
   if (!encoding) {
     const tiktoken = await import('tiktoken');
+    // Use gpt-4 as fallback since gpt-5.1 is not a standard tiktoken model
     encoding = tiktoken.encoding_for_model('gpt-4');
   }
   return encoding;
@@ -193,10 +194,9 @@ export function truncateToTokenLimitSync(
  */
 export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   // OpenAGI (input context)
-  'gpt-4o': 128000,        // 128k input, separate output limit
-  'gpt-4o-mini': 128000,   // 128k input, separate output limit
-  'gpt-4-turbo': 128000,
-  'gpt-4': 8192,
+  'gpt-5.1': 128000,        // 128k input, separate output limit
+  'gpt-5-nano': 128000,   // 128k input, separate output limit
+  'gpt-5.1-turbo': 128000,
   'gpt-3.5-turbo': 16385,
   'gpt-3.5-turbo-16k': 16385,
   
@@ -243,7 +243,7 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
  * 
  * @example
  * ```typescript
- * const limit = getModelTokenLimit('gpt-4o');
+ * const limit = getModelTokenLimit('gpt-5.1');
  * // Returns: 128000
  * ```
  */
@@ -265,7 +265,7 @@ export function getModelTokenLimit(model: string): number {
  * 
  * @example
  * ```typescript
- * const safeLimit = getSafeContextLimit('gpt-4o', 8000, 0.05);
+ * const safeLimit = getSafeContextLimit('gpt-5.1', 8000, 0.05);
  * // Returns: ~121600 (128000 * 0.95)
  * ```
  */

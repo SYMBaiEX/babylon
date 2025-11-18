@@ -68,7 +68,8 @@ export async function POST(_req: NextRequest) {
     const wandbModel = await getWandbModel();
 
     // Initialize client
-    const client = wandbModel ? BabylonLLMClient.forWandb(wandbModel) : new BabylonLLMClient();
+    // Admin test can use Wandb if explicitly configured, otherwise use game tick client
+    const client = wandbModel ? BabylonLLMClient.forWandb(wandbModel) : BabylonLLMClient.forGameTick();
     const stats = client.getStats();
     
     logger.info('Testing AI model', { 

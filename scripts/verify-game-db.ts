@@ -74,6 +74,11 @@ async function verifyGameState() {
       console.log('   This might be returning the wrong game.');
     } else {
       const game = continuousGames[0];
+      if (!game) {
+        console.log('\n⚠️  Unexpected: array length is 1 but game is undefined');
+        return;
+      }
+      
       console.log(`\n✅ Found 1 continuous game:`);
       console.log(`   ID: ${game.id}`);
       console.log(`   isRunning: ${game.isRunning} (${typeof game.isRunning})`);

@@ -409,7 +409,7 @@ export class ArticleGenerator {
       { 
         temperature: 0.85,
         maxTokens: 2500,
-        model: 'moonshotai/kimi-k2-instruct-0905',
+        ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
         format: 'xml', // Use XML for robustness
       }
     );

@@ -147,7 +147,7 @@ async function simulateAgent(
       : 'HOLD';
 
     trajectoryRecorder.logLLMCall(trajectoryId, {
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-nano',
       systemPrompt: `You are a ${strategy.name} trading agent with risk tolerance ${strategy.riskTolerance}`,
       userPrompt: `Current price: ${ticker} at $${currentPrice.toFixed(2)}. Should you trade?`,
       response: action,

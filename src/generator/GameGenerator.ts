@@ -298,7 +298,11 @@ export class GameGenerator {
   private feedGenerator: FeedGenerator;
   private gameHistory: GameHistory[] = [];
   constructor(apiKey?: string, previousHistory?: GameHistory[]) {
-    this.llm = new BabylonLLMClient(apiKey);
+    // Use game tick LLM client (excludes Wandb - Wandb is reserved for agents only)
+    // If apiKey is provided, use OpenAI explicitly, otherwise use forGameTick()
+    this.llm = apiKey 
+      ? BabylonLLMClient.forOpenAI(apiKey)
+      : BabylonLLMClient.forGameTick();
     this.feedGenerator = new FeedGenerator(this.llm); // Pass LLM to FeedGenerator
     this.gameHistory = previousHistory || [];
   }

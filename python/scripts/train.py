@@ -44,7 +44,7 @@ async def train(
     
     db_url = os.getenv('DATABASE_URL')
     wandb_api_key = os.getenv('WANDB_API_KEY')
-    judge_model = os.getenv('JUDGE_MODEL', 'openai/gpt-4o-mini')
+    judge_model = os.getenv('JUDGE_MODEL', 'openai/gpt-5-nano')
     # CRITICAL: Only model available in W&B ART catalog
     base_model = os.getenv('BASE_MODEL', 'OpenPipe/Qwen3-14B-Instruct')
     project = os.getenv('PROJECT_NAME', 'babylon-agents')
