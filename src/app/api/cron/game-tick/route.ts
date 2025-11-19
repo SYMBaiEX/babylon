@@ -58,6 +58,7 @@ import { executeGameTick } from '@/lib/serverless-game-tick'
 import { acquireGenerationLock, releaseGenerationLock } from '@/lib/services/generation-lock-service'
 import { checkLookaheadStatus, generateAheadIfNeeded } from '@/lib/services/lookahead-generation-service'
 import { BabylonLLMClient } from '@/generator/llm/openai-client'
+import { relayCronToStaging } from '@/lib/services/cron-relay-service'
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -117,17 +118,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
   const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
-  // Debug environment context for cron issues (sanitized - no secrets)
-  const envSnapshot: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (typeof value === 'string') {
-      envSnapshot[key] = value.length > 60 ? `${value.slice(0, 30)}...${value.slice(-10)}` : value;
-    }
-  }
-  logger.info('Cron environment debug snapshot', {
-    env: envSnapshot,
-    timestamp: new Date().toISOString(),
-  }, 'Cron');
+  await relayCronToStaging(request, 'game-tick')
   
   // 2. Acquire generation lock to prevent concurrent execution
   if (!await acquireGenerationLock(lockId)) {
