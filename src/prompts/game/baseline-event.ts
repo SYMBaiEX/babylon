@@ -19,6 +19,8 @@ export const baselineEvent = definePrompt({
   template: `
 You must respond with valid XML only.
 
+{{worldEventExamples}}
+
 Date: {{dateStr}}
 Event type: {{eventType}}
 Involved: {{actorDescriptions}}

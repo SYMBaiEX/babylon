@@ -49,11 +49,24 @@ export function renderPrompt(
     optionalVars?: string[];
   } = {}
 ): string {
-  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades', 'realityGrounding', 'currentDateTime', 'currentDate', 'currentTime', 'currentYear', 'currentMonth', 'currentDay'] } = options;
+  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades', 'realityGrounding', 'worldFacts', 'worldEventExamples', 'currentDateTime', 'currentDate', 'currentTime', 'currentYear', 'currentMonth', 'currentDay'] } = options;
   
   let rendered = prompt.template;
+
+  // Inject current date/time variables
+  const now = new Date();
+  const dateVariables: Record<string, string | number> = {
+    currentDateTime: now.toLocaleString('en-US'),
+    currentDate: now.toISOString().split('T')[0] || '',
+    currentTime: now.toTimeString().split(' ')[0] || '',
+    currentYear: now.getFullYear(),
+    currentMonth: now.toLocaleString('en-US', { month: 'long' }),
+    currentDay: now.getDate(),
+  };
+
+  const allVariables = { ...dateVariables, ...variables };
   
-  for (const [key, value] of Object.entries(variables)) {
+  for (const [key, value] of Object.entries(allVariables)) {
     const stringValue = String(value ?? '');
     
     // Validate non-optional variables are not empty

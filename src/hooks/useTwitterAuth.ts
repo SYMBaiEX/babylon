@@ -32,7 +32,7 @@ interface UseTwitterAuthReturn {
 }
 
 /**
- * Hook for managing Twitter OAuth authentication for posting tweets.
+ * Hook for managing Twitter OAuth authentication for posting posts.
  * 
  * Provides functionality to connect and disconnect Twitter accounts via
  * OAuth 2.0. Automatically checks auth status on mount and when the user

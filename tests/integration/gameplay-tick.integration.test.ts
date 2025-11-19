@@ -361,6 +361,21 @@ describe('Gameplay Tick Integration', () => {
       }
     })
 
+    // Create associated market (required for resolution)
+    await prisma.market.create({
+      data: {
+        id: pastQuestionId, // Same ID as question
+        question: 'Integration test: Past question',
+        yesShares: 100,
+        noShares: 100,
+        liquidity: 200,
+        resolved: false,
+        endDate: new Date(Date.now() - 1000), // Same as resolution date
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    })
+
     // Run game tick
     const result = await executeGameTick(true)
 

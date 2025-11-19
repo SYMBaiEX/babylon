@@ -112,9 +112,6 @@ export class NPCGroupDynamicsService {
 
     // Get NPCs who could start a group
     const npcs = await prisma.actor.findMany({
-        where: {
-          hasPool: true,
-        },
         select: {
           id: true,
           name: true,
@@ -231,7 +228,6 @@ export class NPCGroupDynamicsService {
         // Get NPCs who could join
         const potentialMembers = await prisma.actor.findMany({
           where: {
-            hasPool: true,
             id: {
               notIn: Array.from(currentMemberIds),
             },
@@ -855,7 +851,6 @@ Return your response as XML in this exact format:
             id: {
               in: Array.from(currentMemberIds),
             },
-            hasPool: true,
           },
           select: {
             id: true,

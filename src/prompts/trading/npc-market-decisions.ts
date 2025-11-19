@@ -42,6 +42,10 @@ export const npcMarketDecisions = definePrompt({
   
   template: `EXAMPLE OUTPUT FORMAT (COPY THIS EXACT STRUCTURE):
 
+⚠️⚠️⚠️ IMPORTANT: The amounts shown in examples (5000, 3000, etc.) are FORMAT EXAMPLES ONLY ⚠️⚠️⚠️
+You MUST check each NPC's "MAX TRADE AMOUNT" and "Available Balance" shown in their profile.
+NEVER use amounts from these examples - always use amounts that respect the NPC's balance constraints!
+
 Example 1: NPC decides to HOLD (no trading action)
 <decisions>
   <decision>
@@ -323,6 +327,18 @@ DECISION RULES:
 - Personality and tier affect risk-taking
 - Conservative position sizing: Use 10-30% of available balance per trade (check MAX TRADE AMOUNT field)
 
+===================================================================
+💰💰💰 BALANCE INFORMATION IS IN THE NPCs LIST BELOW 💰💰💰
+===================================================================
+Each NPC's profile includes:
+- 💰 Available Balance: The total amount they can trade
+- ⚠️ MAX TRADE AMOUNT: 30% of balance (recommended max per trade)
+- ❌ NEVER exceed Available Balance - trades above will be REJECTED
+
+A summary table at the top of the NPCs list shows all balances for quick reference.
+Check each NPC's balance BEFORE setting the <amount> field!
+
+===================================================================
 
 {{npcsList}}
 

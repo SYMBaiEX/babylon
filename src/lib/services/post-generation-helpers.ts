@@ -14,8 +14,8 @@ import type { Actor, Organization, Question } from '@prisma/client';
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
 
-const MAX_POST_TOKENS = 500; // Reasonable limit for social media posts
-const MAX_ARTICLE_TOKENS = 8000; // Higher limit for full articles
+const MAX_POST_TOKENS = 16384; // No practical limit
+const MAX_ARTICLE_TOKENS = 16384; // No practical limit
 
 /**
  * Generate a single NPC post using LLM

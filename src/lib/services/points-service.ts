@@ -492,7 +492,6 @@ export class PointsService {
       const actors = await prisma.actor.findMany({
         where: {
           reputationPoints: { gte: minPoints },
-          hasPool: true,
         },
         select: {
           id: true,
@@ -597,7 +596,6 @@ export class PointsService {
     const higherActorsCount = await prisma.actor.count({
       where: {
         reputationPoints: { gt: user.reputationPoints },
-        hasPool: true,
       },
     });
 

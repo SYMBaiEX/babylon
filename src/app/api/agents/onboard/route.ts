@@ -72,7 +72,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address, type Hash } from 'viem'
+import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, parseAbi, type Address, type Hash } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
@@ -286,7 +286,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     for (let i = 0; i < 10; i++) {
       const betTxHash = await walletClient.writeContract({
         address: REPUTATION_SYSTEM,
-        abi: REPUTATION_SYSTEM_ABI,
+        abi: parseAbi(REPUTATION_SYSTEM_ABI),
         functionName: 'recordBet',
         args: [BigInt(tokenId), parseEther('100')],
       })
@@ -301,7 +301,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     for (let i = 0; i < 7; i++) {
       const winTxHash = await walletClient.writeContract({
         address: REPUTATION_SYSTEM,
-        abi: REPUTATION_SYSTEM_ABI,
+        abi: parseAbi(REPUTATION_SYSTEM_ABI),
         functionName: 'recordWin',
         args: [BigInt(tokenId), parseEther('100')],
       })

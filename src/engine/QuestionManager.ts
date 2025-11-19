@@ -60,9 +60,20 @@
 
 import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext } from '@/prompts';
+import { BabylonLLMClient as BabylonLLMClientValue } from '../generator/llm/openai-client';
+import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext, worldImpactAssessment } from '@/prompts';
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
+import { worldFactsService } from '@/lib/services/world-facts-service';
+import { prisma } from '@/lib/prisma';
+import { PredictionPricing } from '@/lib/prediction-pricing';
+import { Prisma } from '@prisma/client';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
+import { MarketContextService } from '@/lib/services/market-context-service';
+import { TradeExecutionService } from '@/lib/services/trade-execution-service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Parameters for question generation
@@ -316,6 +327,20 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       realityGroundingLevel: 'concise',
     });
 
+    // Load example questions
+    let exampleQuestions = '';
+    try {
+      const examplesPath = path.join(process.cwd(), 'data', 'question-examples.md');
+      if (fs.existsSync(examplesPath)) {
+        const content = fs.readFileSync(examplesPath, 'utf-8');
+        const lines = content.split('\n').filter(line => line.trim().length > 0);
+        const shuffled = shuffleArray(lines);
+        exampleQuestions = shuffled.slice(0, 10).map(q => `✅ "${q}"`).join('\n');
+      }
+    } catch (error) {
+      logger.warn('Failed to load question examples', { error }, 'QuestionManager');
+    }
+
     return renderPrompt(questionGeneration, {
       scenariosList,
       actorsList,
@@ -323,6 +348,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       recentContext,
       activeQuestionsContext,
       numToGenerate: numToGenerate.toString(),
+      exampleQuestions,
       ...worldContext,
     });
   }
@@ -496,7 +522,60 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       ? rawResponse.response
       : rawResponse as { event: string; type: string };
 
-    return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
+    const eventDescription = response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
+
+    // Assess world impact
+    await this.assessAndRecordWorldImpact(question, eventDescription);
+
+    return eventDescription;
+  }
+
+  /**
+   * Assess if a resolution event changes the world and record it if so
+   */
+  private async assessAndRecordWorldImpact(
+    question: Question,
+    resolutionEvent: string
+  ): Promise<void> {
+    try {
+      const worldContext = await generateWorldContext({
+        includeWorldFacts: true,
+        realityGroundingLevel: 'concise'
+      });
+
+      const prompt = renderPrompt(worldImpactAssessment, {
+        worldFacts: worldContext.worldFacts,
+        questionText: question.text,
+        outcome: question.outcome ? 'YES' : 'NO',
+        outcomeText: question.outcome ? 'True/Happened' : 'False/Did not happen',
+        resolutionEvent,
+      });
+
+      const response = await this.llm.generateJSON<{
+        changesWorld: boolean;
+        newFact: string | null;
+      } | {
+        response: {
+          changesWorld: boolean;
+          newFact: string | null;
+        }
+      }>(prompt);
+
+      // Handle potential wrapped response
+      let result: { changesWorld: boolean; newFact: string | null };
+      if ('response' in response) {
+        result = response.response;
+      } else {
+        result = response;
+      }
+
+      if (result.changesWorld && result.newFact) {
+        await worldFactsService.addDynamicFact(result.newFact);
+        logger.info(`Added new world fact: ${result.newFact}`, { questionId: question.id }, 'QuestionManager');
+      }
+    } catch (error) {
+      logger.error('Failed to assess world impact', { error }, 'QuestionManager');
+    }
   }
 
   /**
@@ -589,6 +668,490 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
 
     return Math.max(0, diffDays);
   }
+
+  /**
+   * Generate questions for continuous game mode with full context
+   * 
+   * @param count - Number of questions to generate
+   * @param deadlineMs - Deadline timestamp to abort if exceeded
+   * @returns Number of questions successfully created
+   * 
+   * @description
+   * Generates questions with complete game context including:
+   * - World facts and reality grounding
+   * - Recent events (last 7 days)
+   * - Active and resolved questions
+   * - Actors and organizations
+   * - Trending topics
+   * - Current markets and trades
+   * 
+   * Also creates markets and triggers NPC betting on new questions.
+   */
+  async generateQuestionsForContinuousGame(
+    count: number,
+    deadlineMs: number
+  ): Promise<number> {
+    let questionsCreated = 0;
+
+    // Gather ALL context needed for intelligent question generation
+    logger.info('Gathering context for question generation...', { count }, 'QuestionManager');
+    
+    const [
+      worldFactsContext,
+      worldContext,
+      recentEvents,
+      activeQuestions,
+      resolvedQuestions,
+      actors,
+      organizations,
+      trendingTags,
+    ] = await Promise.all([
+      worldFactsService.generatePromptContext(),
+      generateWorldContext({ 
+        maxActors: 50, 
+        realityGroundingLevel: 'concise',
+        includeMarkets: true,
+        includePredictions: true,
+        includeTrades: true,
+        includeWorldFacts: true,
+      }),
+      // Get recent events from last 7 days
+      prisma.worldEvent.findMany({
+        where: {
+          timestamp: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          },
+          visibility: 'public',
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 20,
+      }),
+      // Get active questions
+      prisma.question.findMany({
+        where: { status: 'active' },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      // Get recently resolved questions (last 7 days) with outcomes
+      prisma.question.findMany({
+        where: {
+          status: 'resolved',
+          updatedAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+        select: {
+          text: true,
+          resolvedOutcome: true,
+          resolutionDate: true,
+        },
+      }),
+      // Get actors (main and supporting roles)
+      prisma.actor.findMany({
+        where: {
+          role: { in: ['main', 'supporting'] },
+        },
+        take: 30,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          domain: true,
+          role: true,
+          personality: true,
+          affiliations: true,
+        },
+      }),
+      // Get organizations (companies)
+      prisma.organization.findMany({
+        where: { type: 'company' },
+        take: 20,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          type: true,
+        },
+      }),
+      // Get trending topics for context
+      prisma.trendingTag.findMany({
+        orderBy: { score: 'desc' },
+        take: 10,
+        include: {
+          Tag: {
+            select: {
+              name: true,
+              displayName: true,
+              category: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Load example questions
+    let exampleQuestions = '';
+    try {
+      const examplesPath = path.join(process.cwd(), 'data', 'question-examples.md');
+      if (fs.existsSync(examplesPath)) {
+        const content = fs.readFileSync(examplesPath, 'utf-8');
+        const lines = content.split('\n').filter(line => line.trim().length > 0);
+        const shuffled = shuffleArray(lines);
+        exampleQuestions = shuffled.slice(0, 10).map(q => `✅ "${q}"`).join('\n');
+      }
+    } catch (error) {
+      logger.warn('Failed to load question examples', { error }, 'QuestionManager');
+    }
+
+    // Format context strings
+    const recentEventsContext = recentEvents.length > 0
+      ? `\n\nRECENT EVENTS (Last 7 days):\n${recentEvents
+          .slice(0, 15)
+          .map(e => `- ${e.description} (${e.eventType})`)
+          .join('\n')}`
+      : '\n\nNo recent events yet.';
+
+    const activeQuestionsContext = activeQuestions.length > 0
+      ? `\n\nCURRENT ACTIVE QUESTIONS (${activeQuestions.length}):\n${activeQuestions
+          .slice(0, 15)
+          .map(q => `- ${q.text} (resolves ${q.resolutionDate ? new Date(q.resolutionDate).toISOString().split('T')[0] : 'unknown'})`)
+          .join('\n')}`
+      : '\n\nNo active questions yet.';
+
+    const resolvedQuestionsContext = resolvedQuestions.length > 0
+      ? `\n\nRECENTLY RESOLVED QUESTIONS (Last 7 days):\n${resolvedQuestions
+          .map(q => `- ${q.text} → ${q.resolvedOutcome ? 'YES' : 'NO'} (resolved ${q.resolutionDate ? new Date(q.resolutionDate).toISOString().split('T')[0] : 'unknown'})`)
+          .join('\n')}`
+      : '\n\nNo recently resolved questions.';
+
+    const actorsList = actors.length > 0
+      ? `\n\nKEY ACTORS:\n${actors
+          .slice(0, 20)
+          .map(a => `- ${a.name}: ${a.description || 'No description'}`)
+          .join('\n')}`
+      : '';
+
+    const orgsList = organizations.length > 0
+      ? `\n\nKEY COMPANIES:\n${organizations
+          .slice(0, 15)
+          .map(o => `- ${o.name}: ${o.description || 'No description'}`)
+          .join('\n')}`
+      : '';
+
+    const trendingContext = trendingTags.length > 0
+      ? `\n\nTRENDING TOPICS:\n${trendingTags
+          .slice(0, 10)
+          .map(tt => `- ${tt.Tag?.displayName || tt.Tag?.name || 'Unknown'}: ${tt.Tag?.category || 'General'} (score: ${tt.score.toFixed(1)})`)
+          .join('\n')}`
+      : '';
+
+    // Build the comprehensive prompt
+    const prompt = `You are generating prediction market questions for a satirical game.
+
+${worldFactsContext}
+
+${worldContext.realityGrounding || ''}
+
+${recentEventsContext}
+${activeQuestionsContext}
+${resolvedQuestionsContext}
+${actorsList}
+${orgsList}
+${trendingContext}
+
+${worldContext.currentMarkets ? `\n\nCURRENT MARKETS:\n${worldContext.currentMarkets}` : ''}
+${worldContext.activePredictions ? `\n\nACTIVE PREDICTIONS:\n${worldContext.activePredictions}` : ''}
+${worldContext.recentTrades ? `\n\nRECENT TRADES:\n${worldContext.recentTrades}` : ''}
+
+${exampleQuestions ? `\n\nEXAMPLE QUESTIONS:\n${exampleQuestions}` : ''}
+
+TASK:
+Generate ${count} NEW prediction market questions that:
+
+CRITICAL RULES:
+- Use ONLY the exact actor names from KEY ACTORS list above
+- Use ONLY the exact company names from KEY COMPANIES list above
+- NEVER use real-world person or organization names
+- ALWAYS use the parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.)
+- NEVER "correct" or change parody names - use them exactly as shown
+
+REQUIREMENTS:
+✅ Must be about FUTURE events (not past events)
+✅ Must be clear YES/NO questions with unambiguous resolution criteria
+✅ Must be specific and measurable (include dates, numbers, or clear outcomes)
+✅ Must be satirical and entertaining (exaggerated tech-bro drama)
+✅ Should involve the main actors or companies from the lists above
+✅ Should build on recent events and ongoing storylines
+✅ Should NOT duplicate existing active questions
+✅ Can be about: product launches, public feuds, tech demos, partnerships, scandals, market activity
+
+❌ AVOID vague questions like "Will [ACTOR] be successful?" (not measurable)
+❌ AVOID questions that can't be verified like "Will [ACTOR] secretly do X?" (unverifiable)
+✅ PREFER specific, public, verifiable outcomes with clear resolution
+
+RESOLUTION TIME:
+Each question should resolve between 1-7 days from now:
+- 1-2 days: Fast-moving drama (feuds, announcements)
+- 3-5 days: Medium developments (product launches, investigations)
+- 6-7 days: Slower outcomes (market movements, long-term deals)
+
+CRITICAL: All questions must allow NPCs to maintain their current roles and company affiliations. NO forced resignations, acquisitions, or relationship-breaking events.
+
+Return your response as XML in this exact format:
+<response>
+  <questions>
+    <question>
+      <text>Will Mark Zuckerborg demo MetAI's new VR legs by Friday?</text>
+      <resolutionCriteria>Clear criteria for resolution - must be publicly verifiable</resolutionCriteria>
+      <daysUntilResolution>3</daysUntilResolution>
+      <expectedOutcome>yes</expectedOutcome>
+    </question>
+    <!-- More questions here -->
+  </questions>
+</response>
+
+Generate ${count} questions now. Each must have daysUntilResolution between 1-7, and expectedOutcome must be "yes" or "no" (not true/false).`;
+
+    // Generate questions in batch
+    let response: {
+      questions: Array<{
+        text: string;
+        resolutionCriteria: string;
+        daysUntilResolution: number;
+        expectedOutcome: string; // "yes" or "no"
+      }>;
+    } | {
+      response: {
+        questions: Array<{
+          text: string;
+          resolutionCriteria: string;
+          daysUntilResolution: number;
+          expectedOutcome: string;
+        }>;
+      };
+    } | null = null;
+
+    try {
+      if (Date.now() > deadlineMs) {
+        logger.warn('Question generation aborted due to tick budget limit', { questionsCreated }, 'QuestionManager');
+        return questionsCreated;
+      }
+
+      response = await this.llm.generateJSON<{
+        questions: Array<{
+          text: string;
+          resolutionCriteria: string;
+          daysUntilResolution: number;
+          expectedOutcome: string;
+        }>;
+      } | {
+        response: {
+          questions: Array<{
+            text: string;
+            resolutionCriteria: string;
+            daysUntilResolution: number;
+            expectedOutcome: string;
+          }>;
+        };
+      }>(
+        prompt,
+        {
+          properties: {
+            questions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string' },
+                  resolutionCriteria: { type: 'string' },
+                  daysUntilResolution: { type: 'number' },
+                  expectedOutcome: { type: 'string' },
+                },
+              },
+            },
+          },
+          required: ['questions'],
+        },
+        {
+          temperature: 0.9,
+          maxTokens: 8000,
+          ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
+          format: 'xml',
+        }
+      );
+
+      // Handle XML structure
+      const questionsData = response && 'response' in response && response.response
+        ? (response.response as { questions: Array<{ text: string; resolutionCriteria: string; daysUntilResolution: number; expectedOutcome: string }> }).questions
+        : (response as { questions: Array<{ text: string; resolutionCriteria: string; daysUntilResolution: number; expectedOutcome: string }> }).questions;
+
+      if (!questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
+        logger.warn('No questions generated from LLM response', { response }, 'QuestionManager');
+        return questionsCreated;
+      }
+
+      // Get next question number
+      const lastQuestion = await prisma.question.findFirst({
+        orderBy: { questionNumber: 'desc' },
+      });
+      let nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
+
+      const scenarioId = 1; // Note: Will be replaced with dynamic scenario selection when schema supports it
+      const now = new Date();
+
+      // Create each question
+      for (const questionData of questionsData.slice(0, count)) {
+        if (Date.now() > deadlineMs) {
+          logger.warn('Question generation aborted due to tick budget limit', { questionsCreated }, 'QuestionManager');
+          break;
+        }
+
+        if (!questionData.text || !questionData.resolutionCriteria) {
+          logger.warn('Invalid question data, skipping', { questionData }, 'QuestionManager');
+          continue;
+        }
+
+        // Convert "yes"/"no" to boolean
+        const expectedOutcomeStr = String(questionData.expectedOutcome || '').toLowerCase().trim();
+        const expectedOutcome = expectedOutcomeStr === 'yes' || expectedOutcomeStr === 'true';
+
+        // Clamp daysUntilResolution to 1-7 range and ensure it's a valid integer
+        const rawDays = questionData.daysUntilResolution;
+        const daysUntilResolution = Math.max(1, Math.min(7, Math.round(rawDays || 3)));
+
+        // Calculate resolution date from current date + daysUntilResolution
+        const resolutionDate = new Date();
+        resolutionDate.setDate(resolutionDate.getDate() + daysUntilResolution);
+        resolutionDate.setHours(23, 59, 59, 999); // Set to end of day for consistency
+
+        logger.info(`Creating question with ${daysUntilResolution} day resolution period`, {
+          questionText: questionData.text,
+          daysUntilResolution,
+          resolutionDate: resolutionDate.toISOString(),
+          rawDaysFromLLM: rawDays,
+          expectedOutcome: expectedOutcomeStr,
+          outcomeBoolean: expectedOutcome,
+        }, 'QuestionManager');
+
+        const question = await prisma.question.create({
+          data: {
+            id: await generateSnowflakeId(),
+            questionNumber: nextQuestionNumber++,
+            text: questionData.text,
+            scenarioId,
+            outcome: expectedOutcome,
+            rank: 1,
+            resolutionDate,
+            status: 'active',
+            updatedAt: now,
+          },
+        });
+
+        // Initialize market with sufficient liquidity for trading
+        const initialLiquidity = 20000;
+        const { yesShares, noShares } = PredictionPricing.initializeMarket(initialLiquidity);
+
+        const market = await prisma.market.create({
+          data: {
+            id: question.id,
+            question: questionData.text,
+            description: questionData.resolutionCriteria,
+            yesShares: new Prisma.Decimal(yesShares),
+            noShares: new Prisma.Decimal(noShares),
+            liquidity: initialLiquidity,
+            endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
+            gameId: 'continuous',
+            updatedAt: now,
+          },
+        });
+
+        logger.debug('Question and market created with matching resolution dates', {
+          questionId: question.id,
+          questionNumber: question.questionNumber,
+          resolutionDate: resolutionDate.toISOString(),
+          daysUntilResolution,
+          marketEndDate: market.endDate.toISOString(),
+        }, 'QuestionManager');
+
+        // Create market on-chain if it doesn't have onChainMarketId
+        if (!market.onChainMarketId) {
+          const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service');
+          await ensureMarketOnChain(market.id).catch((error) => {
+            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market.id }, 'QuestionManager');
+          });
+        }
+
+        // Trigger NPC betting on this new question
+        try {
+          const contextService = new MarketContextService();
+          
+          // Create LLM client for market decisions (same as used in main tick)
+          let marketDecisionLLM: BabylonLLMClient;
+          if (process.env.GROQ_API_KEY) {
+            marketDecisionLLM = BabylonLLMClientValue.forGroq();
+          } else if (process.env.ANTHROPIC_API_KEY) {
+            marketDecisionLLM = BabylonLLMClientValue.forClaude();
+          } else if (process.env.OPENAI_API_KEY) {
+            marketDecisionLLM = BabylonLLMClientValue.forOpenAI();
+          } else {
+            logger.warn('No API key for market decisions - skipping NPC betting on new question', { questionId: question.id }, 'QuestionManager');
+            questionsCreated++;
+            continue;
+          }
+
+          const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
+          const isKimiModel = modelName.toLowerCase().includes('kimi');
+          const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+          const maxOutputTokens = parseInt(
+            process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS || defaultMaxOutput.toString(),
+            10
+          );
+
+          const decisionEngine = new MarketDecisionEngine(marketDecisionLLM, contextService, {
+            model: modelName,
+            maxOutputTokens,
+          });
+
+          // Generate decisions for NPCs - they will see the new question in context
+          const decisions = await decisionEngine.generateBatchDecisions();
+          
+          // Filter to decisions for this new question
+          const questionDecisions = decisions.filter(d => 
+            d.marketType === 'prediction' && d.marketId === question.id
+          );
+
+          if (questionDecisions.length > 0) {
+            const executionService = new TradeExecutionService();
+            const executionResult = await executionService.executeDecisionBatch(questionDecisions);
+            
+            logger.info(`NPC betting on new question Q${question.questionNumber}`, {
+              questionId: question.id,
+              questionText: question.text,
+              decisionsGenerated: questionDecisions.length,
+              successfulTrades: executionResult.successfulTrades,
+              failedTrades: executionResult.failedTrades,
+            }, 'QuestionManager');
+          }
+        } catch (error) {
+          logger.warn('Failed to trigger NPC betting on new question (non-blocking)', {
+            error: error instanceof Error ? error.message : String(error),
+            questionId: question.id,
+          }, 'QuestionManager');
+          // Continue even if NPC betting fails
+        }
+
+        questionsCreated++;
+      }
+    } catch (error) {
+      logger.error(
+        'Failed to generate new questions via LLM',
+        { error: error instanceof Error ? error.message : String(error) },
+        'QuestionManager'
+      );
+    }
+
+    return questionsCreated;
+  }
 }
-
-

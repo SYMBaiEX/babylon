@@ -149,26 +149,17 @@ All feed prompts have been updated with world context:
 - `ambient-posts.ts`
 - `reactions.ts`
 - `news-posts.ts`
-- `journalist-posts.ts`
-- `company-posts.ts`
-- `government-posts.ts`
 - `conspiracy.ts`
 - `commentary.ts`
 - `replies.ts`
 
 ### Individual Post Prompts
-- `ambient-post.ts`
-- `reply.ts`
-- `direct-reaction.ts`
-- `journalist-post.ts`
-- `conspiracy-post.ts`
-- `media-post.ts`
-- `expert-commentary.ts`
 - `company-post.ts`
 - `government-post.ts`
 - `analyst-reaction.ts`
 - `stock-ticker.ts`
 - `minute-ambient.ts`
+- `reply.ts`
 
 ## Examples
 

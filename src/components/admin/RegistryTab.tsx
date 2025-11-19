@@ -57,7 +57,6 @@ const RegistryEntitySchema = z.object({
   tier: z.string().optional(),
   role: z.string().optional(),
   domain: z.array(z.string()).optional(),
-  hasPool: z.boolean().optional(),
   capabilities: z.record(z.string(), z.unknown()).optional(),
   reputation: z.object({
     trustScore: z.number(),

@@ -21,6 +21,8 @@ You must respond with valid XML only.
 
 {{realityGrounding}}
 
+{{worldEventExamples}}
+
 Create 3 dramatic, satirical scenarios for these main actors:
 
 MAIN ACTORS:

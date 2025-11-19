@@ -131,72 +131,8 @@ export class TradeExecutionService {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
 
-    // Check actor's trading balance
-    const availableBalance = parseFloat(actor.tradingBalance.toString());
-    
-    // For prediction markets, estimate total cost (amount + fee)
-    if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
-      if (decision.marketId) {
-        const market = await prisma.market.findUnique({
-          where: { id: decision.marketId.toString() },
-        });
-        
-        if (market) {
-          const side = decision.action === 'buy_yes' ? 'yes' : 'no';
-          const calculation = PredictionPricing.calculateBuyWithFees(
-            Number(market.yesShares),
-            Number(market.noShares),
-            side,
-            decision.amount
-          );
-          const totalWithFee = calculation.totalWithFee ?? decision.amount;
-          
-          if (availableBalance < totalWithFee) {
-            logger.warn(
-              `Insufficient trading balance for ${decision.npcName}: ${availableBalance} < ${totalWithFee} (requested: ${decision.amount})`,
-              {
-                npcId: decision.npcId,
-                npcName: decision.npcName,
-                availableBalance,
-                requestedAmount: decision.amount,
-                totalWithFee,
-                marketId: decision.marketId,
-              },
-              'TradeExecutionService'
-            );
-            throw new Error(
-              `Insufficient trading balance: ${availableBalance} < ${totalWithFee} (amount: ${decision.amount}, fee: ${calculation.fee})`
-            );
-          }
-        }
-      }
-    }
-    
-    // For perp positions, estimate total cost (margin + fee)
-    if (decision.action === 'open_long' || decision.action === 'open_short') {
-      const leverage = 5; // Standard leverage
-      const positionSize = decision.amount * leverage;
-      const feeCalc = FeeService.calculateFee(positionSize);
-      const totalCost = decision.amount + feeCalc.feeAmount;
-      
-      if (availableBalance < totalCost) {
-        logger.warn(
-          `Insufficient trading balance for ${decision.npcName}: ${availableBalance} < ${totalCost} (requested margin: ${decision.amount})`,
-          {
-            npcId: decision.npcId,
-            npcName: decision.npcName,
-            availableBalance,
-            requestedMargin: decision.amount,
-            totalCost,
-            ticker: decision.ticker,
-          },
-          'TradeExecutionService'
-        );
-        throw new Error(
-          `Insufficient trading balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
-        );
-      }
-    }
+    // Note: Balance checks are performed inside transactions to ensure atomicity
+    // and prevent race conditions when multiple trades are queued for the same NPC
 
     // Handle close position
     if (decision.action === 'close_position') {
@@ -226,18 +162,56 @@ export class TradeExecutionService {
       throw new Error('Ticker required for perp position');
     }
 
-    // Get current price - try exact match first for test reliability
+    // Try multiple lookup strategies to handle LLM-generated ticker variations
+    const tickerUpper = decision.ticker.toUpperCase();
+    const tickerLower = decision.ticker.toLowerCase();
+    
+    // Strategy 1: Exact ID match
     let org = await prisma.organization.findUnique({
       where: { id: decision.ticker },
     });
 
-    // If not found by exact ID, try lowercase contains match  
+    // Strategy 2: Ticker field match (case-insensitive)
     if (!org) {
       org = await prisma.organization.findFirst({
-      where: {
-        id: { contains: decision.ticker.toLowerCase() },
-      },
-    });
+        where: {
+          ticker: { equals: tickerUpper, mode: 'insensitive' },
+        },
+      });
+    }
+
+    // Strategy 3: ID contains match (for partial matches)
+    if (!org) {
+      org = await prisma.organization.findFirst({
+        where: {
+          id: { contains: tickerLower, mode: 'insensitive' },
+        },
+      });
+    }
+
+    // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)
+    if (!org) {
+      const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
+      const orgs = await prisma.organization.findMany({
+        where: { type: 'company' },
+      });
+      
+      const matchedOrg = orgs.find(o => {
+        if (!o.currentPrice) return false;
+        const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedOrgTicker = (o.ticker || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedOrgId = o.id.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        return normalizedName === normalizedTicker ||
+               normalizedOrgTicker === normalizedTicker ||
+               normalizedOrgId === normalizedTicker ||
+               normalizedName.includes(normalizedTicker) ||
+               normalizedTicker.includes(normalizedName);
+      });
+      
+      if (matchedOrg) {
+        org = matchedOrg;
+      }
     }
 
     if (!org?.currentPrice) {

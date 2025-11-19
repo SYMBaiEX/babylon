@@ -301,7 +301,7 @@ Array:`
         modelSize: 'small',  // Free tier: Fast and efficient
         runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.6,
-        maxTokens: 500
+        maxTokens: 16384
       }),
       new Promise<string>((resolve) => {
         setTimeout(() => {
@@ -412,7 +412,7 @@ Generate ONLY the response text, nothing else.`
           modelSize: 'small',  // Free tier: Fast response generation
           runtime: _runtime,  // Pass runtime to access W&B trained models
           temperature: 0.8,
-          maxTokens: 100
+          maxTokens: 16384
         }),
         new Promise<string>((resolve) => {
           setTimeout(() => {

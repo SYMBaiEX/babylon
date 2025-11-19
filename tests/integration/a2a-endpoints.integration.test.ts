@@ -45,7 +45,6 @@ describe('A2A Endpoints Integration Tests', () => {
           postStyle: 'Test',
           postExample: [],
           personality: 'Test',
-          hasPool: false,
           updatedAt: new Date()
         }
       })
@@ -63,7 +62,6 @@ describe('A2A Endpoints Integration Tests', () => {
           postStyle: 'Test',
           postExample: [],
           personality: 'Test',
-          hasPool: false,
           updatedAt: new Date()
         }
       })

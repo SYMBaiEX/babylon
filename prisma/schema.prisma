@@ -953,6 +953,8 @@ model Question {
   oracleRevealTxHash  String?
   oracleSaltEncrypted String?
   oracleSessionId     String?    @unique
+  resolutionProofUrl  String?
+  resolutionDescription String?
   Position            Position[]
 
   @@index([createdDate(sort: Desc)])
