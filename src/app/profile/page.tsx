@@ -136,10 +136,6 @@ export default function ProfilePage() {
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
 
-  useEffect(() => {
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", posts)
-  }, [posts])
-
   // Social visibility toggles
   const [socialVisibility, setSocialVisibility] = useState<SocialVisibility>({
     twitter: true,
