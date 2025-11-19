@@ -67,12 +67,17 @@ type Tab = 'stats' | 'game-control' | 'fees' | 'trades' | 'users' | 'registry' |
  */
 export default function AdminDashboard() {
   const router = useRouter()
-  const { authenticated, user } = useAuth()
+  const { authenticated, user, ready } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('stats')
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
   const checkAdminAccess = useCallback(async () => {
+    if (!ready) {
+      setLoading(true)
+      return
+    }
+
     if (!authenticated) {
       // Don't redirect on localhost - let them see the login prompt
       const isLocalhost = typeof window !== 'undefined' && 
@@ -104,7 +109,7 @@ export default function AdminDashboard() {
     
     setIsAuthorized(true)
     setLoading(false)
-  }, [authenticated, router, user])
+  }, [authenticated, ready, router, user])
 
   useEffect(() => {
     checkAdminAccess()
@@ -208,4 +213,3 @@ export default function AdminDashboard() {
     </PageContainer>
   )
 }
-

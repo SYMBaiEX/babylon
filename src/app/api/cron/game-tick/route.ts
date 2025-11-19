@@ -58,6 +58,7 @@ import { executeGameTick } from '@/lib/serverless-game-tick'
 import { acquireGenerationLock, releaseGenerationLock } from '@/lib/services/generation-lock-service'
 import { checkLookaheadStatus, generateAheadIfNeeded } from '@/lib/services/lookahead-generation-service'
 import { BabylonLLMClient } from '@/generator/llm/openai-client'
+import { relayCronToStaging } from '@/lib/services/cron-relay-service'
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -117,6 +118,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
   const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
+  await relayCronToStaging(request, 'game-tick')
+  
   // 2. Acquire generation lock to prevent concurrent execution
   if (!await acquireGenerationLock(lockId)) {
     logger.info('Tick skipped - lock held by another process', { lockId }, 'Cron');
@@ -149,6 +152,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
+      logger.info('Cron DB env debug', {
+        hasPrismaDatabaseUrl: Boolean(process.env.PRISMA_DATABASE_URL),
+        databaseUrlPrefix: process.env.DATABASE_URL?.split('@')[1]?.slice(0, 20),
+        directDatabaseUrlPrefix: process.env.DIRECT_DATABASE_URL?.split('@')[1]?.slice(0, 20),
+      }, 'Cron');
+
       const result = await db.game.findFirst({
         where: { isContinuous: true },
       });
@@ -327,4 +336,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Forward to POST handler
   return POST(request);
 });
-

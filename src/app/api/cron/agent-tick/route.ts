@@ -61,6 +61,7 @@ import { autonomousCoordinator } from '@/lib/agents/autonomous'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
 import type { User } from '@prisma/client'
 import { acquireAgentLock, releaseAgentLock } from '@/lib/services/agent-lock-service'
+import { relayCronToStaging } from '@/lib/services/cron-relay-service'
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -75,6 +76,8 @@ export async function POST(_req: NextRequest) {
   const startTime = Date.now()
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`
   logger.info('Agent tick started', { processId }, 'AgentTick')
+
+  await relayCronToStaging(_req, 'agent-tick')
 
   // Check GAME_START environment variable for manual control
   const gameStartEnv = process.env.GAME_START?.toLowerCase();
@@ -365,4 +368,3 @@ export async function POST(_req: NextRequest) {
     results
   })
 }
-

@@ -53,6 +53,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { AuthorizationError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { syncAllReputationsToERC8004, batchSyncReputationsToERC8004 } from '@/lib/reputation/erc8004-reputation-sync'
+import { relayCronToStaging } from '@/lib/services/cron-relay-service'
 
 // Vercel function configuration
 export const maxDuration = 300 // 5 minutes max
@@ -99,6 +100,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const startTime = Date.now()
   logger.info('🔄 Starting reputation sync cron job', undefined, 'ReputationSyncCron')
+
+  await relayCronToStaging(request, 'reputation-sync')
 
   try {
     // Parse query parameters for batch processing
@@ -153,4 +156,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw error
   }
 })
-
