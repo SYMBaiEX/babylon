@@ -103,6 +103,7 @@ type PostWithOriginal = Post & {
     content: string;
     authorId: string;
     timestamp: Date;
+    deletedAt: Date | null;
   } | null;
 };
 
@@ -292,12 +293,12 @@ export const GET = withErrorHandling(async (
             : false,
           // Include original post for reposts/quotes
           Post_Post_originalPostIdToPost: {
-            where: { deletedAt: null },
             select: {
               id: true,
               content: true,
               authorId: true,
               timestamp: true,
+              deletedAt: true,
             }
           }
         },
@@ -320,7 +321,25 @@ export const GET = withErrorHandling(async (
       
       // Get unique author IDs from original posts (for reposts/quotes)
       const postsWithOriginal = posts as PostWithOriginal[];
-      const originalPostAuthorIds = postsWithOriginal
+      
+      // Filter out reposts where the original post is deleted
+      const validPosts = postsWithOriginal.filter(post => {
+        // If it's a repost, check if original post exists and is not deleted
+        if (post.originalPostId) {
+          const hasOriginalPost = post.Post_Post_originalPostIdToPost && !post.Post_Post_originalPostIdToPost.deletedAt;
+          const isQuote = post.content && post.content.length > 0;
+          
+          // For quote posts, keep them even if original is deleted (user has commentary)
+          // For simple reposts, filter out if original is deleted
+          if (isQuote) {
+            return true; // Keep quote posts regardless
+          }
+          return hasOriginalPost; // Filter out simple reposts with deleted originals
+        }
+        return true;
+      });
+      
+      const originalPostAuthorIds = validPosts
         .filter(p => p.originalPostId && p.Post_Post_originalPostIdToPost)
         .map(p => p.Post_Post_originalPostIdToPost!.authorId)
         .filter((id): id is string => !!id);
@@ -362,7 +381,7 @@ export const GET = withErrorHandling(async (
       const orgAuthorsMap = new Map(originalAuthorsOrgs.map(o => [o.id, o]));
       
       // Get interaction counts for original posts (for reposts)
-      const originalPostIds = postsWithOriginal
+      const originalPostIds = validPosts
         .filter(p => p.originalPostId)
         .map(p => p.originalPostId)
         .filter((id): id is string => id !== null);
@@ -391,7 +410,7 @@ export const GET = withErrorHandling(async (
       const originalShareMap = new Map(originalPostShares.map(s => [s.postId, s._count.postId]));
       
       // Format posts (includes both regular posts and reposts/quotes)
-      const formattedPosts = postsWithOriginal.map((post) => {
+      const formattedPosts = validPosts.map((post) => {
         const basePost = {
           id: post.id,
           content: post.content,
@@ -414,44 +433,59 @@ export const GET = withErrorHandling(async (
         };
         
         // Check if this is a repost/quote
-        if (post.originalPostId && post.Post_Post_originalPostIdToPost) {
-          const originalPost = post.Post_Post_originalPostIdToPost;
+        if (post.originalPostId) {
           const isQuote = post.content && post.content.length > 0;
+          const originalPost = post.Post_Post_originalPostIdToPost;
           
-          // Get original post author info
-          const originalUser = userAuthorsMap.get(originalPost.authorId);
-          const originalActor = actorAuthorsMap.get(originalPost.authorId);
-          const originalOrg = orgAuthorsMap.get(originalPost.authorId);
+          // If original post exists and is not deleted
+          if (originalPost && !originalPost.deletedAt) {
+            // Get original post author info
+            const originalUser = userAuthorsMap.get(originalPost.authorId);
+            const originalActor = actorAuthorsMap.get(originalPost.authorId);
+            const originalOrg = orgAuthorsMap.get(originalPost.authorId);
+            
+            // For simple reposts (not quotes), use the original post's interaction counts
+            // For quote posts, keep the quote post's interaction counts
+            const interactionCounts = !isQuote ? {
+              likeCount: originalReactionMap.get(originalPost.id) ?? 0,
+              commentCount: originalCommentMap.get(originalPost.id) ?? 0,
+              shareCount: originalShareMap.get(originalPost.id) ?? 0,
+            } : {
+              likeCount: basePost.likeCount,
+              commentCount: basePost.commentCount,
+              shareCount: basePost.shareCount,
+            };
+            
+            return {
+              ...basePost,
+              ...interactionCounts,
+              isRepost: true,
+              isQuote,
+              quoteComment: isQuote ? post.content : null,
+              originalPostId: originalPost.id,
+              originalPost: {
+                id: originalPost.id,
+                content: originalPost.content,
+                authorId: originalPost.authorId,
+                authorName: originalUser?.displayName || originalActor?.name || originalOrg?.name || originalPost.authorId,
+                authorUsername: originalUser?.username || null,
+                authorProfileImageUrl: originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl || null,
+                timestamp: originalPost.timestamp.toISOString(),
+              }
+            };
+          }
           
-          // For simple reposts (not quotes), use the original post's interaction counts
-          // For quote posts, keep the quote post's interaction counts
-          const interactionCounts = !isQuote ? {
-            likeCount: originalReactionMap.get(originalPost.id) ?? 0,
-            commentCount: originalCommentMap.get(originalPost.id) ?? 0,
-            shareCount: originalShareMap.get(originalPost.id) ?? 0,
-          } : {
-            likeCount: basePost.likeCount,
-            commentCount: basePost.commentCount,
-            shareCount: basePost.shareCount,
-          };
-          
-          return {
-            ...basePost,
-            ...interactionCounts,
-            isRepost: true,
-            isQuote,
-            quoteComment: isQuote ? post.content : null,
-            originalPostId: originalPost.id,
-            originalPost: {
-              id: originalPost.id,
-              content: originalPost.content,
-              authorId: originalPost.authorId,
-              authorName: originalUser?.displayName || originalActor?.name || originalOrg?.name || originalPost.authorId,
-              authorUsername: originalUser?.username || null,
-              authorProfileImageUrl: originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl || null,
-              timestamp: originalPost.timestamp.toISOString(),
-            }
-          };
+          // If original post is deleted but this is a quote post, return with null originalPost
+          if (isQuote) {
+            return {
+              ...basePost,
+              isRepost: true,
+              isQuote: true,
+              quoteComment: post.content,
+              originalPostId: post.originalPostId,
+              originalPost: null,
+            };
+          }
         }
         
         return basePost;

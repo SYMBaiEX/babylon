@@ -155,7 +155,9 @@ export const PostCard = memo(function PostCard({
   const authorIsNPC = isNpcIdentifier(displayAuthorId);
   const showVerifiedBadge = authorIsNPC;
 
-  const quotedPostId = post.originalPostId ?? null;
+  // For quote posts with deleted originals, link to the quote post itself
+  // For other reposts, link to the original post (if it exists)
+  const quotedPostId = post.originalPost ? post.originalPostId : (post.isRepost && post.isQuote ? post.id : null);
 
   // Internal click handler that navigates to the correct post
   // For simple reposts, navigate to the original post
@@ -342,7 +344,7 @@ export const PostCard = memo(function PostCard({
             {post.content}
           </div>
         </div>
-      ) : post.isRepost && post.originalPost ? (
+      ) : post.isRepost ? (
         // Repost (with or without quote comment) - show embedded card
         <div className="w-full mb-4">
           {/* Quote comment (if present) */}
@@ -371,53 +373,61 @@ export const PostCard = memo(function PostCard({
             onClick={handleQuotedPostClick}
             onKeyDown={handleQuotedPostKeyDown}
           >
-            {/* Original post author */}
-            <div className="flex items-start gap-3 mb-3">
-              <Link
-                href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
-                className="shrink-0 hover:opacity-80 transition-opacity"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Avatar
-                  id={post.originalPost.authorId}
-                  name={post.originalPost.authorName}
-                  type="actor"
-                  size="sm"
-                  src={post.originalPost.authorProfileImageUrl || undefined}
-                />
-              </Link>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+            {post.originalPost ? (
+              <>
+                {/* Original post author */}
+                <div className="flex items-start gap-3 mb-3">
                   <Link
                     href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
-                    className="font-semibold text-foreground hover:underline truncate"
+                    className="shrink-0 hover:opacity-80 transition-opacity"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {post.originalPost.authorName}
+                    <Avatar
+                      id={post.originalPost.authorId}
+                      name={post.originalPost.authorName}
+                      type="actor"
+                      size="sm"
+                      src={post.originalPost.authorProfileImageUrl || undefined}
+                    />
                   </Link>
-                  {isNpcIdentifier(post.originalPost.authorId) && (
-                    <VerifiedBadge size="sm" />
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
+                        className="font-semibold text-foreground hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {post.originalPost.authorName}
+                      </Link>
+                      {isNpcIdentifier(post.originalPost.authorId) && (
+                        <VerifiedBadge size="sm" />
+                      )}
+                    </div>
+                    <Link
+                      href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
+                      className="text-foreground/50 text-sm hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      @{post.originalPost.authorUsername || post.originalPost.authorId}
+                    </Link>
+                  </div>
                 </div>
-                <Link
-                  href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
-                  className="text-foreground/50 text-sm hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  @{post.originalPost.authorUsername || post.originalPost.authorId}
-                </Link>
-              </div>
-            </div>
 
-            {/* Original post content */}
-            <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
-              <TaggedText 
-                text={post.originalPost.content}
-                onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`)
-                }} 
-              />
-            </div>
+                {/* Original post content */}
+                <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                  <TaggedText 
+                    text={post.originalPost.content}
+                    onTagClick={(tag) => {
+                      router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                    }} 
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-foreground/50 italic py-4 text-center">
+                This post has been deleted
+              </div>
+            )}
           </div>
         </div>
       ) : (
