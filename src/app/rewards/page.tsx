@@ -5,7 +5,6 @@ import { Avatar } from '@/components/shared/Avatar'
 import { ExternalShareButton } from '@/components/shared/ExternalShareButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
-import { ShareButton } from '@/components/shared/ShareButton'
 import { ShareEarnModal } from '@/components/shared/ShareEarnModal'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton'
@@ -589,13 +588,18 @@ export default function RewardsPage() {
               <p className="text-sm text-muted-foreground">
                 Share content to earn +{POINTS.SHARE_ACTION} points per share
               </p>
-              <ShareButton
-                contentType="profile"
-                contentId={user?.id || ''}
-                url={user?.username && typeof window !== 'undefined' ? `${window.location.origin}/profile/${user.username.startsWith('@') ? user.username.slice(1) : user.username}` : undefined}
-                text="Check out my Babylon profile! 🎮"
-                className="w-full"
-              />
+              <div className="relative">
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-primary-foreground transition-colors"
+                >
+                  <>
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Share</span>
+                  </>
+                </button>
+              </div>
+              
             </div>
 
             <Separator />
