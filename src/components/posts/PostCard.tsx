@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo, type MouseEvent, type KeyboardEvent } from 'react';
+import { memo, useState, useEffect, type MouseEvent, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -67,16 +67,20 @@ export interface PostCardProps {
     deletedAt?: string | null; // Soft delete timestamp
     // Repost metadata
     isRepost?: boolean;
+    isQuote?: boolean; // True if it has quote commentary
+    quoteComment?: string | null; // The quote commentary text
     originalPostId?: string | null;
-    originalAuthorId?: string | null;
-    originalAuthorName?: string | null;
-    originalAuthorUsername?: string | null;
-    originalAuthorProfileImageUrl?: string | null;
-    originalContent?: string | null;
-    quoteComment?: string | null;
+    originalPost?: {
+      id: string;
+      content: string;
+      authorId: string;
+      authorName: string;
+      authorUsername: string | null;
+      authorProfileImageUrl: string | null;
+      timestamp: string;
+    } | null;
   };
   className?: string;
-  onClick?: () => void;
   onCommentClick?: () => void;
   showInteractions?: boolean;
   isDetail?: boolean;
@@ -85,7 +89,6 @@ export interface PostCardProps {
 export const PostCard = memo(function PostCard({
   post,
   className,
-  onClick,
   onCommentClick,
   showInteractions = true,
   isDetail = false,
@@ -137,70 +140,37 @@ export const PostCard = memo(function PostCard({
     isShared: post.isShared ?? false,
   };
 
-  // Client-side fallback: Parse repost content if API didn't populate metadata
-  const clientSideRepostData = useMemo(() => {
-    // If already has repost metadata, use it
-    if (post.isRepost && post.originalAuthorId) {
-      return null;
-    }
-    
-    // Guard against undefined/null content
-    if (!post.content || typeof post.content !== 'string') {
-      return null;
-    }
-    
-    // Otherwise, try to parse from content
-    const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
-    const match = post.content.match(separatorPattern);
-    
-    if (!match) return null;
-    
-    const parts = post.content.split(separatorPattern);
-    const quoteComment = parts[0]?.trim() || null;
-    const originalContent = parts[2]?.trim() || '';
-    const originalAuthorUsername = match[1] || '';
-    
-    return {
-      isRepost: true,
-      quoteComment,
-      originalContent,
-      originalAuthorUsername,
-      originalAuthorId: originalAuthorUsername,
-      originalAuthorName: originalAuthorUsername,
-    };
-  }, [post.content, post.isRepost, post.originalAuthorId]);
-
-  // Use client-side parsed data if API data is missing
-  const effectivePost = useMemo(() => {
-    if (clientSideRepostData) {
-      return {
-        ...post,
-        isRepost: true,
-        quoteComment: clientSideRepostData.quoteComment,
-        originalContent: clientSideRepostData.originalContent,
-        originalAuthorId: clientSideRepostData.originalAuthorId,
-        originalAuthorName: clientSideRepostData.originalAuthorName,
-        originalAuthorUsername: clientSideRepostData.originalAuthorUsername,
-        originalPostId: null,
-        originalAuthorProfileImageUrl: null,
-      };
-    }
-    return post;
-  }, [post, clientSideRepostData]);
-
-  // For QUOTE posts (isRepost with quoteComment), show the REPOSTER's info in the header
-  // For simple reposts (isRepost without quoteComment), show the ORIGINAL author's info
-  const isSimpleRepost = effectivePost.isRepost && !effectivePost.quoteComment;
+  // Determine if this is a simple repost (no quote) or a quote post
+  // Simple repost: isRepost && !isQuote (or !quoteComment)
+  // Quote post: isRepost && isQuote (or has quoteComment)
+  const isSimpleRepost = post.isRepost && !post.isQuote && !post.quoteComment;
   
-  const displayAuthorId = isSimpleRepost && effectivePost.originalAuthorId ? effectivePost.originalAuthorId : effectivePost.authorId;
-  const displayAuthorName = isSimpleRepost && effectivePost.originalAuthorName ? effectivePost.originalAuthorName : effectivePost.authorName;
-  const displayAuthorUsername = isSimpleRepost && effectivePost.originalAuthorUsername ? effectivePost.originalAuthorUsername : effectivePost.authorUsername;
-  const displayAuthorProfileImageUrl = isSimpleRepost && effectivePost.originalAuthorProfileImageUrl ? effectivePost.originalAuthorProfileImageUrl : effectivePost.authorProfileImageUrl;
+  // For QUOTE posts, show the REPOSTER's info in the header
+  // For simple reposts, show the ORIGINAL author's info
+  const displayAuthorId = isSimpleRepost && post.originalPost ? post.originalPost.authorId : post.authorId;
+  const displayAuthorName = isSimpleRepost && post.originalPost ? post.originalPost.authorName : post.authorName;
+  const displayAuthorUsername = isSimpleRepost && post.originalPost ? post.originalPost.authorUsername : post.authorUsername;
+  const displayAuthorProfileImageUrl = isSimpleRepost && post.originalPost ? post.originalPost.authorProfileImageUrl : post.authorProfileImageUrl;
   
   const authorIsNPC = isNpcIdentifier(displayAuthorId);
   const showVerifiedBadge = authorIsNPC;
 
-  const quotedPostId = effectivePost.originalPostId ?? post.originalPostId ?? null;
+  // For quote posts with deleted originals, link to the quote post itself
+  // For other reposts, link to the original post (if it exists)
+  const quotedPostId = post.originalPost ? post.originalPostId : (post.isRepost && post.isQuote ? post.id : null);
+
+  // Internal click handler that navigates to the correct post
+  // For simple reposts, navigate to the original post
+  // For quote posts and regular posts, navigate to the post itself
+  const handleCardClick = () => {
+    // For simple reposts, go to the original post
+    if (isSimpleRepost && post.originalPostId) {
+      router.push(`/post/${post.originalPostId}`);
+    } else {
+      // For quote posts and regular posts, go to this post
+      router.push(`/post/${post.id}`);
+    }
+  };
 
   const handleQuotedPostClick = (event: MouseEvent<HTMLDivElement>) => {
     // Always stop propagation to prevent parent card click
@@ -225,12 +195,6 @@ export const PostCard = memo(function PostCard({
     // Only navigate if we have a valid post ID
     if (quotedPostId) {
       router.push(`/post/${quotedPostId}`);
-    }
-  };
-
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
     }
   };
 
@@ -264,7 +228,7 @@ export const PostCard = memo(function PostCard({
       style={{
         fontSize: `${fontSize}rem`,
       }}
-      onClick={!isDetail ? handleClick : undefined}
+      onClick={!isDetail ? handleCardClick : undefined}
     >
       {/* Repost Indicator - Only show for simple reposts (not quote posts) */}
       {isSimpleRepost && (
@@ -272,19 +236,23 @@ export const PostCard = memo(function PostCard({
           <Repeat2 size={14} className="text-green-600" />
           <span>
             Reposted by{' '}
-            <Link
-              href={getProfileUrl(effectivePost.authorId, effectivePost.authorUsername)}
-              className="font-semibold hover:underline text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {effectivePost.authorName}
-            </Link>
+            {user?.id === post.authorId ? (
+              <span className="font-semibold text-foreground">you</span>
+            ) : (
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="font-semibold hover:underline text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.authorName}
+              </Link>
+            )}
           </span>
         </div>
       )}
 
       {/* Row 1: Avatar + Name/Handle/Timestamp Header */}
-      <div className="flex items-start gap-3 w-full mb-3">
+      {!isSimpleRepost && <div className="flex items-start gap-3 w-full mb-3">
         {/* Avatar - Clickable, Round - Shows original author for simple reposts, reposter for quote posts */}
         <Link
           href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
@@ -345,7 +313,7 @@ export const PostCard = memo(function PostCard({
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Row 2: Post Content - Full width */}
       {post.type === 'article' ? (
@@ -359,7 +327,7 @@ export const PostCard = memo(function PostCard({
             {!isDetail && (
               <button
                 className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
-                onClick={handleClick}
+                onClick={handleCardClick}
               >
                 Read Full Article →
               </button>
@@ -376,14 +344,14 @@ export const PostCard = memo(function PostCard({
             {post.content}
           </div>
         </div>
-      ) : effectivePost.isRepost && effectivePost.originalAuthorId ? (
-        // Repost (with or without quote comment) - show embedded card if we have original author info
+      ) : post.isRepost ? (
+        // Repost (with or without quote comment) - show embedded card
         <div className="w-full mb-4">
           {/* Quote comment (if present) */}
-          {effectivePost.quoteComment && (
+          {post.quoteComment && (
             <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words mb-4 post-content">
               <TaggedText
-                text={effectivePost.quoteComment}
+                text={post.quoteComment}
                 onTagClick={(tag) => {
                   router.push(`/feed?search=${encodeURIComponent(tag)}`)
                 }}
@@ -405,53 +373,61 @@ export const PostCard = memo(function PostCard({
             onClick={handleQuotedPostClick}
             onKeyDown={handleQuotedPostKeyDown}
           >
-            {/* Original post author */}
-            <div className="flex items-start gap-3 mb-3">
-              <Link
-                href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
-                className="shrink-0 hover:opacity-80 transition-opacity"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Avatar
-                  id={effectivePost.originalAuthorId || ''}
-                  name={effectivePost.originalAuthorName || ''}
-                  type="actor"
-                  size="sm"
-                  src={effectivePost.originalAuthorProfileImageUrl || undefined}
-                />
-              </Link>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+            {post.originalPost ? (
+              <>
+                {/* Original post author */}
+                <div className="flex items-start gap-3 mb-3">
                   <Link
-                    href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
-                    className="font-semibold text-foreground hover:underline truncate"
+                    href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
+                    className="shrink-0 hover:opacity-80 transition-opacity"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {effectivePost.originalAuthorName}
+                    <Avatar
+                      id={post.originalPost.authorId}
+                      name={post.originalPost.authorName}
+                      type="actor"
+                      size="sm"
+                      src={post.originalPost.authorProfileImageUrl || undefined}
+                    />
                   </Link>
-                  {effectivePost.originalAuthorId && isNpcIdentifier(effectivePost.originalAuthorId) && (
-                    <VerifiedBadge size="sm" />
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
+                        className="font-semibold text-foreground hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {post.originalPost.authorName}
+                      </Link>
+                      {isNpcIdentifier(post.originalPost.authorId) && (
+                        <VerifiedBadge size="sm" />
+                      )}
+                    </div>
+                    <Link
+                      href={getProfileUrl(post.originalPost.authorId, post.originalPost.authorUsername)}
+                      className="text-foreground/50 text-sm hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      @{post.originalPost.authorUsername || post.originalPost.authorId}
+                    </Link>
+                  </div>
                 </div>
-                <Link
-                  href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
-                  className="text-foreground/50 text-sm hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  @{effectivePost.originalAuthorUsername || effectivePost.originalAuthorId}
-                </Link>
-              </div>
-            </div>
 
-            {/* Original post content - Use originalContent if available, otherwise parse */}
-            <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
-              <TaggedText 
-                text={effectivePost.originalContent || ''}
-                onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`)
-                }} 
-              />
-            </div>
+                {/* Original post content */}
+                <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                  <TaggedText 
+                    text={post.originalPost.content}
+                    onTagClick={(tag) => {
+                      router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                    }} 
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-foreground/50 italic py-4 text-center">
+                This post has been deleted
+              </div>
+            )}
           </div>
         </div>
       ) : (

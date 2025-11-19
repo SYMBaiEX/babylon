@@ -352,6 +352,10 @@ export interface InteractionBarProps {
     shareCount?: number;
     isLiked?: boolean;
     isShared?: boolean;
+    // Repost metadata
+    isRepost?: boolean;
+    isQuote?: boolean;
+    quoteComment?: string | null;
     originalPostId?: string | null;
   };
 }

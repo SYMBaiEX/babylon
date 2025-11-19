@@ -302,6 +302,18 @@ class DatabaseService {
       take: limit * 2, // Fetch more than needed to account for filtering
       skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
+      include: {
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
+      }
     });
     
     // Get all author IDs
@@ -406,6 +418,18 @@ class DatabaseService {
       take: limit,
       skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
+      include: {
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
+      }
     });
     
     logger.info('DatabaseService.getPostsByActor completed', {

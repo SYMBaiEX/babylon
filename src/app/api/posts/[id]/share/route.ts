@@ -275,11 +275,10 @@ export const POST = withErrorHandling(async (
       const originalAuthorUsername = originalUser?.username || originalPost.authorId;
       const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl;
 
-      // If quote comment is provided, create a quote post with commentary
-      // Otherwise, create a simple repost
-      const repostContent = quoteComment 
-        ? `${quoteComment}\n\n--- Reposted from @${originalAuthorUsername} ---\n${originalPost.content}`
-        : originalPost.content;
+      // Create repost post with reference to original
+      // For quote posts: content = quote commentary only
+      // For simple reposts: content = empty string
+      const repostContent = quoteComment || '';
 
       // Create repost post with reference to original
       const createdRepost = await prisma.post.create({
@@ -295,7 +294,7 @@ export const POST = withErrorHandling(async (
       // Format repost data for broadcast
       repostPostData = {
         id: createdRepost.id,
-        content: createdRepost.content,
+        content: createdRepost.content, // Quote commentary or empty string
         authorId: createdRepost.authorId,
         authorName: canonicalUser.username || canonicalUser.displayName || `user_${canonicalUserId.slice(0, 8)}`,
         authorUsername: canonicalUser.username,
@@ -303,12 +302,17 @@ export const POST = withErrorHandling(async (
         authorProfileImageUrl: canonicalUser.profileImageUrl,
         timestamp: createdRepost.timestamp.toISOString(),
         isRepost: true,
+        isQuote: !!quoteComment,
         originalPostId: postId,
-        originalAuthorId: originalPost.authorId,
-        originalAuthorName: originalAuthorName,
-        originalAuthorUsername: originalAuthorUsername,
-        originalAuthorProfileImageUrl: originalAuthorProfileImageUrl,
-        originalContent: originalPost.content, // Include original content separately
+        originalPost: {
+          id: postId,
+          content: originalPost.content,
+          authorId: originalPost.authorId,
+          authorName: originalAuthorName,
+          authorUsername: originalAuthorUsername,
+          authorProfileImageUrl: originalAuthorProfileImageUrl,
+          timestamp: originalPost.timestamp.toISOString(),
+        },
         quoteComment: quoteComment || null,
       };
 

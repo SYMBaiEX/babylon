@@ -249,13 +249,24 @@ export interface FeedPost {
   isShared?: boolean;
   // Repost metadata
   isRepost?: boolean;
+  isQuote?: boolean; // True if it has quote commentary
+  quoteComment?: string | null; // The quote commentary text
   originalPostId?: string | null;
+  originalPost?: {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorUsername: string | null;
+    authorProfileImageUrl: string | null;
+    timestamp: string;
+  } | null;
+  // Legacy fields (for backward compatibility with old posts)
   originalAuthorId?: string | null;
   originalAuthorName?: string | null;
   originalAuthorUsername?: string | null;
   originalAuthorProfileImageUrl?: string | null;
-  originalContent?: string | null; // Original post content for quote posts
-  quoteComment?: string | null;
+  originalContent?: string | null;
 }
 
 /**

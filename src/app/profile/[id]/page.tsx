@@ -90,6 +90,20 @@ export default function ActorProfilePage() {
     shareCount?: number
     isLiked?: boolean
     isShared?: boolean
+    // Repost metadata
+    isRepost?: boolean
+    isQuote?: boolean
+    quoteComment?: string | null
+    originalPostId?: string | null
+    originalPost?: {
+      id: string
+      content: string
+      authorId: string
+      authorName: string
+      authorUsername: string | null
+      authorProfileImageUrl: string | null
+      timestamp: string
+    } | null
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
@@ -416,6 +430,12 @@ export default function ActorProfilePage() {
           shareCount: apiPost.shareCount,
           isLiked: apiPost.isLiked,
           isShared: apiPost.isShared,
+          // Repost metadata (pass through from API)
+          isRepost: apiPost.isRepost,
+          isQuote: apiPost.isQuote,
+          quoteComment: apiPost.quoteComment,
+          originalPostId: apiPost.originalPostId,
+          originalPost: apiPost.originalPost,
         },
         gameId: '',
         gameName: '',
@@ -790,26 +810,21 @@ export default function ActorProfilePage() {
                   isShared: item.post.isShared,
                   // Repost metadata
                   isRepost: item.post.isRepost || false,
-                  originalPostId: item.post.originalPostId || null,
-                  originalAuthorId: item.post.originalAuthorId || null,
-                  originalAuthorName: item.post.originalAuthorName || null,
-                  originalAuthorUsername: item.post.originalAuthorUsername || null,
-                  originalAuthorProfileImageUrl: item.post.originalAuthorProfileImageUrl || null,
-                  originalContent: item.post.originalContent || null,
+                  isQuote: item.post.isQuote || false,
                   quoteComment: item.post.quoteComment || null,
+                  originalPostId: item.post.originalPostId || null,
+                  originalPost: item.post.originalPost || null,
                 };
                 
                 return postData.type && postData.type === 'article' ? (
                   <ArticleCard
                     key={`${item.post.id}-${i}`}
                     post={postData}
-                    onClick={() => router.push(`/post/${item.post.id}`)}
                   />
                 ) : (
                   <PostCard
                     key={`${item.post.id}-${i}`}
                     post={postData}
-                    onClick={() => router.push(`/post/${item.post.id}`)}
                     showInteractions={true}
                   />
                 );
@@ -1068,26 +1083,21 @@ export default function ActorProfilePage() {
                     isShared: item.post.isShared,
                     // Repost metadata
                     isRepost: item.post.isRepost || false,
-                    originalPostId: item.post.originalPostId || null,
-                    originalAuthorId: item.post.originalAuthorId || null,
-                    originalAuthorName: item.post.originalAuthorName || null,
-                    originalAuthorUsername: item.post.originalAuthorUsername || null,
-                    originalAuthorProfileImageUrl: item.post.originalAuthorProfileImageUrl || null,
-                    originalContent: item.post.originalContent || null,
+                    isQuote: item.post.isQuote || false,
                     quoteComment: item.post.quoteComment || null,
+                    originalPostId: item.post.originalPostId || null,
+                    originalPost: item.post.originalPost || null,
                   };
                   
                   return postData.type && postData.type === 'article' ? (
                     <ArticleCard
                       key={`${item.post.id}-${i}`}
                       post={postData}
-                      onClick={() => router.push(`/post/${item.post.id}`)}
                     />
                   ) : (
                     <PostCard
                       key={`${item.post.id}-${i}`}
                       post={postData}
-                      onClick={() => router.push(`/post/${item.post.id}`)}
                       showInteractions={true}
                     />
                   );
