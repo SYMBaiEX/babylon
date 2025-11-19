@@ -117,6 +117,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
   const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
+  // Debug environment context for cron issues (sanitized - no secrets)
+  const envSnapshot: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') {
+      envSnapshot[key] = value.length > 60 ? `${value.slice(0, 30)}...${value.slice(-10)}` : value;
+    }
+  }
+  logger.info('Cron environment debug snapshot', {
+    env: envSnapshot,
+    timestamp: new Date().toISOString(),
+  }, 'Cron');
+  
   // 2. Acquire generation lock to prevent concurrent execution
   if (!await acquireGenerationLock(lockId)) {
     logger.info('Tick skipped - lock held by another process', { lockId }, 'Cron');
