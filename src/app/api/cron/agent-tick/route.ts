@@ -77,9 +77,35 @@ export async function POST(_req: NextRequest) {
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`
   logger.info('Agent tick started', { processId }, 'AgentTick')
 
-  await relayCronToStaging(_req, 'agent-tick')
+  // 1. Relay to staging if REDIRECT_CRON_STAGING is enabled
+  const relayResult = await relayCronToStaging(_req, 'agent-tick');
+  if (relayResult.forwarded) {
+    logger.info('Cron execution relayed to staging - skipping local execution', {
+      status: relayResult.status,
+      error: relayResult.error,
+    }, 'AgentTick');
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Relayed to staging environment',
+      relayStatus: relayResult.status,
+    });
+  }
 
-  // Check Game status from database
+  // 2. Check GAME_START environment variable (legacy override)
+  const gameStartEnv = process.env.GAME_START?.toLowerCase();
+  if (gameStartEnv === 'false' || gameStartEnv === '0') {
+    logger.info('⏸️  Game disabled via GAME_START env var - skipping tick', {
+      GAME_START: process.env.GAME_START,
+    }, 'AgentTick');
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Game disabled via GAME_START environment variable',
+    });
+  }
+
+  // 3. Check Game status from database
   const gameState = await prisma.game.findFirst({
     where: { isContinuous: true }
   })
@@ -98,7 +124,7 @@ export async function POST(_req: NextRequest) {
       gameId: gameState.id,
       status: 'paused'
     }, 'AgentTick')
-    
+
     return NextResponse.json({
       success: true,
       skipped: true,

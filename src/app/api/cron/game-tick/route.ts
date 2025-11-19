@@ -117,9 +117,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const startTime = Date.now();
   const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  
-  await relayCronToStaging(request, 'game-tick')
-  
+
+  // 1.5. Relay to staging if REDIRECT_CRON_STAGING is enabled
+  const relayResult = await relayCronToStaging(request, 'game-tick');
+  if (relayResult.forwarded) {
+    logger.info('Cron execution relayed to staging - skipping local execution', {
+      status: relayResult.status,
+      error: relayResult.error,
+    }, 'Cron');
+    return successResponse({
+      success: true,
+      skipped: true,
+      reason: 'Relayed to staging environment',
+      relayStatus: relayResult.status,
+    });
+  }
+
+  // 1.6. Check GAME_START environment variable (legacy override)
+  const gameStartEnv = process.env.GAME_START?.toLowerCase();
+  if (gameStartEnv === 'false' || gameStartEnv === '0') {
+    logger.info('⏸️  Game disabled via GAME_START env var - skipping tick', {
+      GAME_START: process.env.GAME_START,
+    }, 'Cron');
+    return successResponse({
+      success: true,
+      skipped: true,
+      reason: 'Game disabled via GAME_START environment variable',
+    });
+  }
+
   // 2. Acquire generation lock to prevent concurrent execution
   if (!await acquireGenerationLock(lockId)) {
     logger.info('Tick skipped - lock held by another process', { lockId }, 'Cron');
@@ -131,7 +157,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   try {
-    logger.info('🎮 Game tick started', { lockId }, 'Cron');
+    logger.info('🎮 Game tick started', {
+      lockId,
+      gameStartEnv: process.env.GAME_START || 'not set (defaults to true)',
+    }, 'Cron');
 
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
