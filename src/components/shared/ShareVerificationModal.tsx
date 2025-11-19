@@ -32,6 +32,7 @@ interface ShareVerificationModalProps {
   shareId: string
   platform: 'twitter' | 'farcaster'
   userId: string
+  onSuccess?: (pointsAwarded: number) => void
 }
 
 export function ShareVerificationModal({ 
@@ -86,9 +87,12 @@ export function ShareVerificationModal({
           ? `Share verified! You earned ${data.points.awarded} points.` 
           : 'Share verified! Thank you for sharing!'
         toast.success(pointsMessage)
-        onClose()
-        // Reload the page to update points display
-        window.location.reload()
+
+        setTimeout(() => {
+          // Reload the page to update points display
+          window.location.reload()
+        }, 2000)
+       
       } else {
         toast.error(data.message || 'Could not verify your post. Please check the URL.')
       }
