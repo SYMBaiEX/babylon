@@ -72,27 +72,27 @@ async function main() {
     const questions = [
       {
         questionNumber: 1,
-        text: "Will OpenAGI announce GPT-5 within the next 7 days?",
+        text: "Will the Global AI Arms Race treaty be signed by at least 5 major nations within the next 30 days?",
         scenarioId: 1,
         outcome: Math.random() > 0.5,
         rank: 1,
-        resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        resolutionDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
       {
         questionNumber: 2,
-        text: "Will Bitcoin break $100k this week?",
+        text: "Will James Webb Telescope confirm biosignatures on K2-18b within the next 60 days?",
         scenarioId: 2,
         outcome: Math.random() > 0.5,
         rank: 2,
-        resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        resolutionDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
       },
       {
         questionNumber: 3,
-        text: "Will Tesla stock move more than 5% in the next 3 days?",
+        text: "Will 'Holodeck-lite' VR experiences replace traditional cinemas in 3+ major cities within the next 90 days?",
         scenarioId: 3,
         outcome: Math.random() > 0.5,
         rank: 3,
-        resolutionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        resolutionDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       },
     ];
 
