@@ -773,7 +773,7 @@ export default function ProfilePage() {
                         shareCount: item.shareCount,
                         isLiked: item.isLiked,
                         isShared: item.isShared,
-                        // Repost metadata (new clean structure)
+                        // Repost metadata
                         isRepost: item.isRepost || false,
                         isQuote: item.isQuote || false,
                         quoteComment: item.quoteComment || null,

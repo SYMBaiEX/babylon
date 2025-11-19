@@ -65,7 +65,7 @@ export interface PostCardProps {
     isLiked?: boolean;
     isShared?: boolean;
     deletedAt?: string | null; // Soft delete timestamp
-    // Repost metadata (new clean structure)
+    // Repost metadata
     isRepost?: boolean;
     isQuote?: boolean; // True if it has quote commentary
     quoteComment?: string | null; // The quote commentary text

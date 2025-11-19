@@ -808,7 +808,7 @@ export default function ActorProfilePage() {
                   shareCount: item.post.shareCount,
                   isLiked: item.post.isLiked,
                   isShared: item.post.isShared,
-                  // Repost metadata (new clean structure)
+                  // Repost metadata
                   isRepost: item.post.isRepost || false,
                   isQuote: item.post.isQuote || false,
                   quoteComment: item.post.quoteComment || null,
@@ -1083,7 +1083,7 @@ export default function ActorProfilePage() {
                     shareCount: item.post.shareCount,
                     isLiked: item.post.isLiked,
                     isShared: item.post.isShared,
-                    // Repost metadata (new clean structure)
+                    // Repost metadata
                     isRepost: item.post.isRepost || false,
                     isQuote: item.post.isQuote || false,
                     quoteComment: item.post.quoteComment || null,

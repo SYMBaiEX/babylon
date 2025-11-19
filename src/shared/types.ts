@@ -247,7 +247,7 @@ export interface FeedPost {
   shareCount?: number;
   isLiked?: boolean;
   isShared?: boolean;
-  // Repost metadata (new clean structure)
+  // Repost metadata
   isRepost?: boolean;
   isQuote?: boolean; // True if it has quote commentary
   quoteComment?: string | null; // The quote commentary text

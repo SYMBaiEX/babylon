@@ -499,7 +499,7 @@ function FeedPageContent() {
                       shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
                       isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
                       isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
-                      // Repost metadata (new clean structure)
+                      // Repost metadata
                       isRepost: ('isRepost' in post ? (post.isRepost as boolean) : false) || false,
                       isQuote: ('isQuote' in post ? (post.isQuote as boolean) : false) || false,
                       quoteComment: ('quoteComment' in post ? (post.quoteComment as string | null) : null) || null,
