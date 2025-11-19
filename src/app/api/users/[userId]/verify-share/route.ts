@@ -161,7 +161,7 @@ export const POST = withErrorHandling(async (
     const tweetMatch = postUrl.match(/(?:twitter\.com|x\.com)\/([^/]+)\/status\/(\d+)/);
     
     if (!tweetMatch || !tweetMatch[1] || !tweetMatch[2]) {
-      verificationError = 'Invalid Twitter/X URL format. Expected: https://twitter.com/username/status/123456789';
+      verificationError = 'Invalid X URL format. Expected: https://x.com/username/status/123456789';
       logger.warn(
         `Invalid Twitter URL format: ${shareId}`,
         { shareId, postUrl, userId: canonicalUserId },

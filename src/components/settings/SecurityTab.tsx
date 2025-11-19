@@ -115,7 +115,7 @@ export function SecurityTab() {
                 )}
                 {privyUser.twitter && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Twitter: </span>
+                    <span className="text-muted-foreground">X: </span>
                     <span className="font-medium">@{privyUser.twitter.username}</span>
                   </div>
                 )}

@@ -591,7 +591,7 @@ export default function ProfilePage() {
                     {user.hasTwitter && user.twitterUsername && (
                       <div className="flex items-center justify-between group">
                         <a
-                          href={`https://twitter.com/${user.twitterUsername}`}
+                          href={`https://x.com/${user.twitterUsername}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -620,7 +620,7 @@ export default function ProfilePage() {
                     {user.hasFarcaster && user.farcasterUsername && (
                       <div className="flex items-center justify-between group">
                         <a
-                          href={`https://warpcast.com/${user.farcasterUsername}`}
+                          href={`https://farcaster.xyz/${user.farcasterUsername}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
