@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   const tweetPayload = { text }
 
   // Post the tweet using OAuth 2.0 Bearer token
-  const tweetResponse = await fetch('https://api.twitter.com/2/tweets', {
+  const tweetResponse = await fetch('https://api.twitter.com/2/posts', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${user.twitterAccessToken}`,

@@ -29,10 +29,13 @@ export interface WorldFactsContext {
 export class WorldFactsService {
   /**
    * Get all active world facts in randomized order for entropy
+   * Limits to the 100 most recent facts
    */
   async getAllFacts(): Promise<WorldFact[]> {
     const facts = await prisma.worldFact.findMany({
       where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
     
     // Randomize order for entropy
@@ -49,27 +52,37 @@ export class WorldFactsService {
   }
 
   /**
-   * Get reality grounding facts (category: 'reality-grounding')
+   * Get recent world facts
    */
-  async getRealityGroundingFacts(): Promise<WorldFact[]> {
-    const facts = await prisma.worldFact.findMany({
-      where: { 
-        isActive: true,
-        category: 'reality-grounding',
+  async getRecentFacts(limit: number = 100): Promise<WorldFact[]> {
+    return prisma.worldFact.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  /**
+   * Add a new dynamic world fact
+   */
+  async addDynamicFact(value: string): Promise<WorldFact> {
+    const key = this.generateKey(value);
+    const label = this.generateLabel(value);
+    
+    logger.info(`Adding dynamic world fact: ${value}`, undefined, 'WorldFactsService');
+
+    return prisma.worldFact.create({
+      data: {
+        id: await generateSnowflakeId(),
+        category: 'general',
+        key,
+        label,
+        value,
+        source: 'dynamic',
+        priority: 0,
+        lastUpdated: new Date(),
       },
     });
-    
-    // Randomize order for entropy
-    for (let i = facts.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const temp = facts[i];
-      if (temp && facts[j]) {
-        facts[i] = facts[j];
-        facts[j] = temp;
-      }
-    }
-    
-    return facts;
   }
 
   /**
@@ -261,5 +274,3 @@ This context reflects the current state of the world. Use these facts to make yo
 
 // Singleton instance
 export const worldFactsService = new WorldFactsService();
-
-

@@ -5,13 +5,15 @@
  * with trending topics and news article generation.
  */
 
+/// <reference types="bun-types" />
+
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
 import { NewsArticlePacingEngine } from '../NewsArticlePacingEngine';
-import { ArticleGenerator } from '../ArticleGenerator';
+import { ArticleGenerator, type Article } from '../ArticleGenerator';
 import { FeedGenerator } from '../FeedGenerator';
-import type { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { FeedPost, Question, Organization, Actor } from '@/shared/types';
+import type { BabylonLLMClient } from '../../generator/llm/openai-client';
+import type { FeedPost, Question, Organization, Actor } from '../../shared/types';
 
 describe('Trending Topics & News Integration', () => {
   let trendEngine: TrendingTopicsEngine;
@@ -32,11 +34,11 @@ describe('Trending Topics & News Integration', () => {
   };
 
   const mockOrgs: Organization[] = [
-    { id: 'msdnc', name: 'MSDNC', type: 'media', description: 'Progressive news network' },
-    { id: 'the-fud', name: 'The Fud', type: 'media', description: 'Investigative journalism' },
-    { id: 'channel-7', name: 'Channel 7', type: 'media', description: 'Breaking news' },
-    { id: 'xitter', name: 'Xitter', type: 'media', description: 'Social media platform' },
-    { id: 'bbc', name: 'BBC', type: 'media', description: 'Global news' },
+    { id: 'msdnc', name: 'MSDNC', type: 'media', description: 'Progressive news network', canBeInvolved: true },
+    { id: 'the-fud', name: 'The Fud', type: 'media', description: 'Investigative journalism', canBeInvolved: true },
+    { id: 'channel-7', name: 'Channel 7', type: 'media', description: 'Breaking news', canBeInvolved: true },
+    { id: 'xitter', name: 'Xitter', type: 'media', description: 'Social media platform', canBeInvolved: true },
+    { id: 'bbc', name: 'BBC', type: 'media', description: 'Global news', canBeInvolved: true },
   ];
 
   const mockActors: Actor[] = [
@@ -107,7 +109,7 @@ describe('Trending Topics & News Integration', () => {
       expect(breakingOrgs.length).toBeLessThanOrEqual(2);
 
       // Generate articles
-      const articles = [];
+      const articles: Article[] = [];
       for (const org of breakingOrgs) {
         const article = await articleGen.generateArticleForQuestion(
           mockQuestion,
@@ -348,6 +350,8 @@ describe('Trending Topics & News Integration', () => {
         id: '',
         name: '',
         type: 'media',
+        description: 'Invalid org',
+        canBeInvolved: false,
       } as Organization;
 
       await expect(async () => {

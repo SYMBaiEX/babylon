@@ -21,6 +21,9 @@ mock.module('@/lib/prisma', () => ({
 }));
 
 mock.module('@/lib/database-service', () => ({
+  default: () => ({
+    recordPriceUpdate: mockRecordPriceUpdate,
+  }),
   db: {
     recordPriceUpdate: mockRecordPriceUpdate,
   },

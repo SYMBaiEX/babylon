@@ -21,6 +21,8 @@ You must respond with valid XML only.
 
 {{fullContext}}
 
+{{worldEventExamples}}
+
 ━━━ GENERATE DAY {{day}} EVENTS ━━━
 
 {{phaseContext}}

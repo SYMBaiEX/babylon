@@ -49,9 +49,6 @@ export class AlphaGroupInviteService {
 
     // Get all NPCs (actors)
     const npcs = await prisma.actor.findMany({
-      where: {
-        hasPool: true, // Only NPCs with active pools
-      },
       select: {
         id: true,
         name: true,

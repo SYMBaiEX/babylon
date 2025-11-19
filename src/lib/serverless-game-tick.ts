@@ -1577,13 +1577,6 @@ ${worldFactsContext}
 
 Use the world context above to make relevant, timely questions that reflect current reality (in our satirical universe).
 
-CRITICAL RULES:
-- DO NOT ask about Bitcoin/Crypto prices (e.g. "Will BTC hit $100k?").
-- DO NOT ask about events that already happened (e.g. Bitcoin ETF approval).
-- DO NOT ask about "Spot Bitcoin ETF" (this is 2024 news).
-- Focus on NEW developments: product launches, specific political outcomes, or tech drama.
-- Questions must be about FUTURE events resolvable in the next 7 days.
-
 Return your response as XML in this exact format:
 <response>
   <question>Will X happen?</question>

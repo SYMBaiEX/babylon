@@ -478,7 +478,6 @@ export class RelationshipManager {
       tier: (prismaActor.tier as ActorTier | null) || undefined,
       initialLuck: (prismaActor.initialLuck as 'low' | 'medium' | 'high' | null) || undefined,
       initialMood: prismaActor.initialMood ?? undefined,
-      hasPool: prismaActor.hasPool || undefined,
       tradingBalance: prismaActor.tradingBalance
         ? Number(prismaActor.tradingBalance)
         : undefined,

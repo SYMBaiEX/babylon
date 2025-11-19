@@ -242,7 +242,7 @@ export class MarketDecisionEngine {
       model,
       maxContextTokens: getSafeContextLimit(modelForTokenLimit, maxOutputTokens),
       maxOutputTokens,
-      tokensPerNPC: 800, // Actual average is ~780 tokens per NPC based on measurements
+      tokensPerNPC: 2000, // Increased to 2000 to be conservative and avoid context limit errors
     };
     
     logger.info('MarketDecisionEngine initialized', {
@@ -313,8 +313,8 @@ export class MarketDecisionEngine {
     // For OpenAI models, be more conservative due to combined input+output limits
     const isOpenAIModel = (this.tokenConfig.model?.toLowerCase().includes('gpt') ?? false) || this.llm.getProvider() === 'openai';
     
-    // Use a conservative estimate with safety margin (reserve 20% for prompt structure and variations)
-    const safetyMargin = 0.8; // Use only 80% of available tokens
+    // Use a conservative estimate with safety margin (reserve 50% for prompt structure and variations)
+    const safetyMargin = 0.5; // Use only 50% of available tokens to avoid "reduce length" errors
     let maxNPCsPerBatch = Math.max(1, Math.floor(
       (this.tokenConfig.maxContextTokens * safetyMargin) / this.tokenConfig.tokensPerNPC
     ));

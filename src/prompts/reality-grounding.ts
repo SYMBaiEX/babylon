@@ -4,10 +4,11 @@
  * Provides current date, prices, politics, culture, and tech landscape
  * to ground LLM outputs in current reality and prevent outdated predictions.
  * 
- * Facts are loaded from the database (seeded from data/reality-grounding.md)
+ * Facts are loaded directly from data/reality-grounding.md
  */
 
-import { worldFactsService } from '@/lib/services/world-facts-service';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Get current date and time context for prompts.
@@ -53,25 +54,51 @@ export function getCurrentDateContext(): {
 }
 
 /**
- * Get full reality grounding string from database.
+ * Get world event examples for style and tone context.
  * 
- * Loads all reality grounding facts from the database and formats them
+ * Reads from data/world-event-examples.md to provide the LLM with 
+ * examples of the desired satirical/news style.
+ */
+export async function getWorldEventExamples(): Promise<string> {
+  try {
+    const filePath = join(process.cwd(), 'data', 'world-event-examples.md');
+    const content = readFileSync(filePath, 'utf-8');
+    return `=== WORLD EVENT EXAMPLES (FOR STYLE AND TONE) ===\n\n${content}`;
+  } catch (error) {
+    console.error('Failed to read world-event-examples.md', error);
+    return '';
+  }
+}
+
+/**
+ * Helper to read reality grounding content from file
+ */
+function getRealityGroundingContent(): string {
+  try {
+    const filePath = join(process.cwd(), 'data', 'reality-grounding.md');
+    return readFileSync(filePath, 'utf-8');
+  } catch (error) {
+    console.error('Failed to read reality-grounding.md', error);
+    return '';
+  }
+}
+
+/**
+ * Get full reality grounding string from file.
+ * 
+ * Loads all reality grounding facts from the file and formats them
  * with the current date dynamically inserted.
  * 
  * @returns Full reality grounding string with current date and all facts
  */
 export async function getFullRealityGrounding(): Promise<string> {
   const dateCtx = getCurrentDateContext();
-  const facts = await worldFactsService.getRealityGroundingFacts();
-  
-  const factsText = facts
-    .map(f => `- ${f.value}`)
-    .join('\n');
+  const content = getRealityGroundingContent();
   
   return `
 === CURRENT DATE: ${dateCtx.dateFull} ===
 
-${factsText}
+${content}
 `.trim();
 }
 
@@ -103,35 +130,20 @@ export function checkRealityGrounding(text: string): string[] {
 /**
  * Get a concise reality grounding string for prompts.
  * 
- * Returns a condensed version of current world facts including prices,
- * leadership, AI state, and key context. Includes current date
- * dynamically. Suitable for most prompts that need reality grounding.
+ * Returns the full content as it's designed to be injected whole.
  * 
  * @returns Concise reality grounding string with current date and key facts
  */
 export async function getRealityGrounding(): Promise<string> {
   const dateCtx = getCurrentDateContext();
-  const facts = await worldFactsService.getRealityGroundingFacts();
-  
-  // Format facts concisely (limit to first 20 for concise version)
-  const factsText = facts
-    .slice(0, 20)
-    .map(f => `- ${f.value}`)
-    .join('\n');
+  const content = getRealityGroundingContent();
   
   return `
 === REALITY GROUNDING (${dateCtx.dateFull}) ===
 
-${factsText}
+${content}
 
 CRITICAL: Ground all predictions in this reality. Use current dates, prices, and leadership.
-
-FORBIDDEN TOPICS FOR PREDICTIONS:
-- Cryptocurrency prices (BTC, ETH, SOL, DOGE, etc.) - too volatile, boring
-- Currency exchange rates - not interesting
-- Simple stock price movements - focus on events instead
-- Weather - not relevant
-Focus on: Company events, regulations, tech breakthroughs, political decisions, AI releases, mergers, scandals
 `.trim();
 }
 
@@ -145,13 +157,12 @@ Focus on: Company events, regulations, tech breakthroughs, political decisions, 
  */
 export async function getMinimalRealityGrounding(): Promise<string> {
   const dateCtx = getCurrentDateContext();
-  const facts = await worldFactsService.getRealityGroundingFacts();
-  
-  // Get first 5 facts for minimal version
-  const keyFacts = facts
-    .slice(0, 5)
-    .map(f => f.value)
-    .join(' | ');
+  // For minimal, we might just want the date and maybe the first section of the file?
+  // Or just the date if the file is too long.
+  // Let's try to extract the first few lines.
+  const content = getRealityGroundingContent();
+  const lines = content.split('\n').filter(l => l.trim().length > 0 && !l.startsWith('#')).slice(0, 5);
+  const keyFacts = lines.join(' | ');
   
   return `DATE: ${dateCtx.dateFull} | ${keyFacts}`;
 }

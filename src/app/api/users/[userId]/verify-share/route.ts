@@ -183,7 +183,7 @@ export const POST = withErrorHandling(async (
         // Verify tweet exists using Twitter API v2
         try {
           const twitterResponse = await fetch(
-            `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text`,
+            `https://api.twitter.com/2/posts/${tweetId}?tweet.fields=author_id,created_at,text`,
             {
               headers: {
                 'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
@@ -204,7 +204,7 @@ export const POST = withErrorHandling(async (
               });
 
               if (!user?.twitterUsername) {
-                verificationError = 'Please link your Twitter/X account first to verify tweets.';
+                verificationError = 'Please link your Twitter/X account first to verify posts.';
                 logger.warn(
                   `User has no linked Twitter account: ${shareId}`,
                   { shareId, userId: canonicalUserId },
@@ -216,7 +216,7 @@ export const POST = withErrorHandling(async (
                 const urlTwitterUsername = tweetUsername.toLowerCase();
 
                 if (userTwitterUsername !== urlTwitterUsername) {
-                  verificationError = `This tweet is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own tweets.`;
+                  verificationError = `This tweet is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own posts.`;
                   logger.warn(
                     `Tweet author mismatch: ${shareId}`,
                     { 

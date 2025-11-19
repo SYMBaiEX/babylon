@@ -60,9 +60,12 @@
 
 import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext } from '@/prompts';
+import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext, worldImpactAssessment } from '@/prompts';
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
+import { worldFactsService } from '@/lib/services/world-facts-service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Parameters for question generation
@@ -316,6 +319,20 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       realityGroundingLevel: 'concise',
     });
 
+    // Load example questions
+    let exampleQuestions = '';
+    try {
+      const examplesPath = path.join(process.cwd(), 'data', 'question-examples.md');
+      if (fs.existsSync(examplesPath)) {
+        const content = fs.readFileSync(examplesPath, 'utf-8');
+        const lines = content.split('\n').filter(line => line.trim().length > 0);
+        const shuffled = shuffleArray(lines);
+        exampleQuestions = shuffled.slice(0, 10).map(q => `✅ "${q}"`).join('\n');
+      }
+    } catch (error) {
+      logger.warn('Failed to load question examples', { error }, 'QuestionManager');
+    }
+
     return renderPrompt(questionGeneration, {
       scenariosList,
       actorsList,
@@ -323,6 +340,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       recentContext,
       activeQuestionsContext,
       numToGenerate: numToGenerate.toString(),
+      exampleQuestions,
       ...worldContext,
     });
   }
@@ -496,7 +514,60 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       ? rawResponse.response
       : rawResponse as { event: string; type: string };
 
-    return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
+    const eventDescription = response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
+
+    // Assess world impact
+    await this.assessAndRecordWorldImpact(question, eventDescription);
+
+    return eventDescription;
+  }
+
+  /**
+   * Assess if a resolution event changes the world and record it if so
+   */
+  private async assessAndRecordWorldImpact(
+    question: Question,
+    resolutionEvent: string
+  ): Promise<void> {
+    try {
+      const worldContext = await generateWorldContext({
+        includeWorldFacts: true,
+        realityGroundingLevel: 'concise'
+      });
+
+      const prompt = renderPrompt(worldImpactAssessment, {
+        worldFacts: worldContext.worldFacts,
+        questionText: question.text,
+        outcome: question.outcome ? 'YES' : 'NO',
+        outcomeText: question.outcome ? 'True/Happened' : 'False/Did not happen',
+        resolutionEvent,
+      });
+
+      const response = await this.llm.generateJSON<{
+        changesWorld: boolean;
+        newFact: string | null;
+      } | {
+        response: {
+          changesWorld: boolean;
+          newFact: string | null;
+        }
+      }>(prompt);
+
+      // Handle potential wrapped response
+      let result: { changesWorld: boolean; newFact: string | null };
+      if ('response' in response) {
+        result = response.response;
+      } else {
+        result = response;
+      }
+
+      if (result.changesWorld && result.newFact) {
+        await worldFactsService.addDynamicFact(result.newFact);
+        logger.info(`Added new world fact: ${result.newFact}`, { questionId: question.id }, 'QuestionManager');
+      }
+    } catch (error) {
+      logger.error('Failed to assess world impact', { error }, 'QuestionManager');
+    }
   }
 
   /**
@@ -590,5 +661,3 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     return Math.max(0, diffDays);
   }
 }
-
-

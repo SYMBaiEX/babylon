@@ -17,6 +17,7 @@ import { loadActorsData } from '@/lib/data/actors-loader';
 import { prisma } from '@/lib/prisma';
 import { shuffleArray } from '@/lib/utils/randomization';
 import type { ActorData } from '@/shared/types';
+import { worldFactsService } from '@/lib/services/world-facts-service';
 import { 
   getCurrentDateContext, 
   getRealityGrounding, 
@@ -38,6 +39,8 @@ export interface WorldContextOptions {
   includeTrades?: boolean;
   /** Whether to include reality grounding (default: true) */
   includeRealityGrounding?: boolean;
+  /** Whether to include dynamic world facts (default: true) */
+  includeWorldFacts?: boolean;
   /** Maximum number of actors to include (default: 50) */
   maxActors?: number;
   /** Level of reality grounding detail: 'full', 'concise', 'minimal', or 'none' (default: 'concise') */
@@ -67,6 +70,9 @@ export interface WorldContext {
   
   // Reality grounding
   realityGrounding: string;
+  
+  // Dynamic world facts
+  worldFacts: string;
 }
 
 /**
@@ -307,6 +313,7 @@ export async function generateWorldContext(
     includePredictions = true,
     includeTrades = true,
     includeRealityGrounding = true,
+    includeWorldFacts = true,
     maxActors = 50, // Limit to top 50 actors to avoid token limits
     realityGroundingLevel = 'concise', // Default to concise for most prompts
   } = options;
@@ -314,10 +321,11 @@ export async function generateWorldContext(
   const dateContext = getCurrentDateContext();
 
   // Fetch data in parallel for performance
-  const [markets, predictions, trades] = await Promise.all([
+  const [markets, predictions, trades, worldFactsData] = await Promise.all([
     includeMarkets ? generateCurrentMarkets() : Promise.resolve(''),
     includePredictions ? generateActivePredictions() : Promise.resolve(''),
     includeTrades ? generateRecentTrades() : Promise.resolve(''),
+    includeWorldFacts ? worldFactsService.generateWorldContext(false) : Promise.resolve({ general: '' }),
   ]);
 
   // Determine reality grounding level (all are async now)
@@ -358,6 +366,9 @@ export async function generateWorldContext(
     
     // Reality grounding
     realityGrounding,
+    
+    // Dynamic world facts
+    worldFacts: worldFactsData.general,
   };
 }
 
@@ -496,4 +507,3 @@ export {
  * }
  * ```
  */
-

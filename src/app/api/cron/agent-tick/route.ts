@@ -79,22 +79,33 @@ export async function POST(_req: NextRequest) {
 
   await relayCronToStaging(_req, 'agent-tick')
 
-  // Check GAME_START environment variable for manual control
-  const gameStartEnv = process.env.GAME_START?.toLowerCase();
-  const isGameStartEnabled = gameStartEnv === 'start' || gameStartEnv === 'running' || gameStartEnv === 'true';
+  // Check Game status from database
+  const gameState = await prisma.game.findFirst({
+    where: { isContinuous: true }
+  })
 
-  if (!isGameStartEnabled) {
-    logger.info('⏸️  Agent tick paused via GAME_START environment variable', {
-      GAME_START: process.env.GAME_START,
-      message: 'Set GAME_START=start in Vercel to resume agent ticks',
-    }, 'AgentTick');
+  if (!gameState) {
+    logger.warn('No continuous game found', {}, 'AgentTick')
     return NextResponse.json({
       success: true,
       skipped: true,
-      reason: 'Agents paused (GAME_START env var)',
-      GAME_START: process.env.GAME_START,
+      reason: 'No continuous game found'
+    })
+  }
+
+  if (!gameState.isRunning) {
+    logger.info('⏸️  Agent tick paused (Game is not running)', {
+      gameId: gameState.id,
+      status: 'paused'
+    }, 'AgentTick')
+    
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Game is paused',
+      gameId: gameState.id,
       duration: Date.now() - startTime,
-    });
+    })
   }
 
   // NEW: Query via unified AgentRegistry to include both USER agents and NPCs

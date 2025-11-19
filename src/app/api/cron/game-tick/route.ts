@@ -133,23 +133,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   try {
     logger.info('🎮 Game tick started', { lockId }, 'Cron');
 
-    // 3. Check GAME_START environment variable for manual control
-    const gameStartEnv = process.env.GAME_START?.toLowerCase();
-    const isGameStartEnabled = gameStartEnv === 'start' || gameStartEnv === 'running' || gameStartEnv === 'true';
-
-    if (!isGameStartEnabled) {
-      logger.info('⏸️  Game paused via GAME_START environment variable', {
-        GAME_START: process.env.GAME_START,
-        message: 'Set GAME_START=start in Vercel to resume game ticks',
-      }, 'Cron');
-      return successResponse({
-        success: true,
-        skipped: true,
-        reason: 'Game paused (GAME_START env var)',
-        GAME_START: process.env.GAME_START,
-      });
-    }
-
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
       logger.info('Cron DB env debug', {
@@ -204,7 +187,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }, 'Cron');
 
     if (isRunningValue === false) {
-      logger.info('⏸️  Game is paused - bypassing tick skip', {
+      logger.info('⏸️  Game is paused - skipping tick', {
         gameId: gameState.id,
         isRunning: gameState.isRunning,
         isRunningValue,
@@ -213,18 +196,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         lastTickAt: gameState.lastTickAt?.toISOString(),
         message: 'To start the game, use POST /api/game/control with action: "start"',
       }, 'Cron');
-      // return successResponse({
-      //   success: true,
-      //   skipped: true,
-      //   reason: 'Game paused',
-      //   gameState: {
-      //     id: gameState.id,
-      //     isRunning: gameState.isRunning,
-      //     currentDay: gameState.currentDay,
-      //     pausedAt: gameState.pausedAt?.toISOString(),
-      //     lastTickAt: gameState.lastTickAt?.toISOString(),
-      //   },
-      // });
+      
+      return successResponse({
+        success: true,
+        skipped: true,
+        reason: 'Game paused',
+        gameState: {
+          id: gameState.id,
+          isRunning: gameState.isRunning,
+          currentDay: gameState.currentDay,
+          pausedAt: gameState.pausedAt?.toISOString(),
+          lastTickAt: gameState.lastTickAt?.toISOString(),
+        },
+      });
     }
 
     // 5. Check buffer status - only generate if buffer < 15 minutes

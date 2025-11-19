@@ -82,27 +82,21 @@ import { generateWorldContext, type WorldContext } from '@/prompts';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
 
 import {
-  ambientPost,
   ambientPosts,
   analystReaction,
   commentary,
   companyPost,
   conspiracy,
-  conspiracyPost,
   dayTransition,
-  directReaction,
-  expertCommentary,
   governmentPost,
-  journalistPost,
-  mediaPost,
   minuteAmbient,
   newsPosts,
   priceAnnouncement,
   questionResolvedFeed,
   reactions,
   renderPrompt,
-  reply,
   replies,
+  reply,
   stockTicker,
   getPromptParams
 } from '@/prompts';
@@ -547,6 +541,10 @@ Trending system not initialized yet.
       // Generate replies (30-50% of existing posts get replies)
       const replies = await this.generateReplies(day, feed, allActors);
       feed.push(...replies);
+
+      // Generate reposts (10-20% of existing posts get reposted)
+      const reposts = await this.generateReposts(day, feed, allActors);
+      feed.push(...reposts);
 
       // Sort by timestamp for realistic feed flow
       return feed.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -1328,156 +1326,6 @@ Trending system not initialized yet.
   }
 
   /**
-   * Generate journalist breaking news post
-   * Journalists report events objectively (with slight bias)
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates journalist post WITHOUT knowing predetermined outcome.
-   * Uses only event hint for framing.
-   */
-  public async generateJournalistPost(
-    journalist: Actor,
-    event: WorldEvent
-  ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    const state = this.actorStates.get(journalist.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, undefined, this.relationships, journalist.id)
-      : '';
-
-    // Frame based on event hint only
-    const outcomeFrame = event.pointsToward === 'YES'
-      ? 'Frame as potentially positive development'
-      : event.pointsToward === 'NO'
-        ? 'Highlight concerns or problems with this development'
-        : 'Report objectively - implications unclear';
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    const prompt = renderPrompt(journalistPost, {
-      journalistName: journalist.name,
-      journalistDescription: journalist.description || '',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame,
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(journalistPost);
-    // Retry until we get non-empty content
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid journalist post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate valid journalist post after ${maxRetries} attempts for ${journalist.name}`);
-  }
-
-  /**
-   * Generate media organization post
-   * Media breaks stories with bias, often citing anonymous sources
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates media post WITHOUT knowing predetermined outcome.
-   * Uses event hint and organizational bias for framing.
-   */
-  public async generateMediaPost(
-    media: Organization,
-    event: WorldEvent,
-    allActors: Actor[],
-    outcome: boolean
-  ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    // Determine which actor might have "leaked" this to the media
-    const potentialSource = allActors.find(a => event.actors.includes(a.id));
-    const sourceHint = potentialSource 
-      ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).`
-      : 'You have your own sources.';
-
-    // Frame based on outcome for narrative coherence
-    const outcomeFrame = outcome 
-      ? 'Spin this with your typical editorial slant toward positive framing' 
-      : 'Spin this with your typical editorial slant emphasizing problems';
-
-    const prompt = renderPrompt(mediaPost, {
-      mediaName: media.name,
-      mediaDescription: media.description,
-      eventDescription: event.description,
-      eventType: event.type,
-      sourceHint,
-      outcomeFrame,
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(mediaPost);
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.warn(`Invalid media post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate valid media post after ${maxRetries} attempts for ${media.name}`);
-  }
-
   /**
    * Generate company PR statement
    * Companies manage crises, spin news, and announce products
@@ -1651,232 +1499,6 @@ Trending system not initialized yet.
     throw new Error(`Failed to generate valid government post after ${maxRetries} attempts for ${govt.name}`);
   }
 
-  /**
-   * Generate direct reaction from involved party
-   * Defensive if bad, celebratory if good, motivated by self-interest
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates reaction WITHOUT knowing predetermined outcome.
-   * Actor reacts based on event hint and their own self-interest/bias.
-   */
-  public async generateDirectReaction(
-    actor: Actor,
-    event: WorldEvent,
-    outcome: boolean
-  ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    // Get actor's current emotional state
-    const state = this.actorStates.get(actor.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
-      : '';
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    // React based on event hint and self-interest only
-    const eventGuidance = event.pointsToward
-      ? `This event suggests things are trending toward ${event.pointsToward}. React based on how this affects YOUR interests.`
-      : `The implications of this event are unclear. React based on your role, interests, and what you know from your insider sources.`;
-
-    const prompt = renderPrompt(directReaction, {
-      actorName: actor.name,
-      actorDescription: actor.description || actor.role || 'actor',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      eventGuidance,
-      outcomeFrame: outcome 
-        ? 'Frame as potentially positive' 
-        : 'Highlight concerns or problems',
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(directReaction);
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid reaction (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate valid reaction after ${maxRetries} attempts for ${actor.name}`);
-  }
-
-  /**
-   * Generate expert/commentator analysis
-   * Outsiders analyzing what happened
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates expert commentary WITHOUT knowing predetermined outcome.
-   * Experts analyze based on event hints and their domain expertise.
-   */
-  public async generateCommentary(
-    actor: Actor,
-    event: WorldEvent,
-    outcome: boolean
-  ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    // Get actor's current emotional state
-    const state = this.actorStates.get(actor.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
-      : '';
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    // Analyze based on outcome for narrative coherence
-    const outcomeFrame = outcome 
-      ? 'Lean optimistic' 
-      : 'Lean skeptical';
-
-    const prompt = renderPrompt(expertCommentary, {
-      actorName: actor.name,
-      actorDescription: actor.description || actor.role || 'actor',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame,
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(expertCommentary);
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid commentary (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate valid commentary after ${maxRetries} attempts for ${actor.name}`);
-  }
-
-  /**
-   * Generate conspiracy theory / wild spin
-   * These actors create alternative narratives
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates conspiracy theory WITHOUT knowing predetermined outcome.
-   * Contrarians often contradict mainstream narratives regardless of truth.
-   */
-  public async generateConspiracyPost(
-    actor: Actor,
-    event: WorldEvent,
-    outcome: boolean
-  ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    const state = this.actorStates.get(actor.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
-      : '';
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    // Conspiracy theories often contradict (contrarian behavior)
-    const outcomeFrame = outcome 
-      ? 'Claim it\'s a distraction' 
-      : 'Say they\'re hiding worse';
-
-    const prompt = renderPrompt(conspiracyPost, {
-      actorName: actor.name,
-      actorDescription: actor.description || actor.role || 'actor',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame,
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(conspiracyPost);
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid conspiracy post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate valid conspiracy post after ${maxRetries} attempts for ${actor.name}`);
-  }
 
   /**
    * Generate ambient feed posts (not tied to specific events)
@@ -1980,6 +1602,63 @@ Trending system not initialized yet.
     }
     
     return replies;
+  }
+
+  /**
+   * Generate reposts/retweets of existing posts
+   * 10-20% of posts get reposted by other actors
+   */
+  private async generateReposts(day: number, existingPosts: FeedPost[], allActors: Actor[]): Promise<FeedPost[]> {
+    const reposts: FeedPost[] = [];
+    
+    // Select posts that could get reposted (10-20% of posts)
+    const postsToRepost = shuffleArray(existingPosts).slice(0, Math.floor(existingPosts.length * (0.1 + Math.random() * 0.1)));
+    
+    for (const originalPost of postsToRepost) {
+      // Select 1-2 actors to repost
+      const repostCount = 1 + Math.floor(Math.random() * 2);
+      const repostingActors = shuffleArray(
+        allActors.filter(a => a.id !== originalPost.author)
+      ).slice(0, repostCount);
+      
+      for (const actor of repostingActors) {
+        const isQuoteTweet = Math.random() > 0.5; // 50% chance of quote tweet
+        let quoteComment = null;
+        
+        if (isQuoteTweet) {
+             // Use generateReplyContent for the quote comment as it fits the "reaction" vibe
+             quoteComment = await this.generateReplyContent(actor, originalPost);
+        }
+        
+        // Repost timestamp is after original post
+        const originalTime = new Date(originalPost.timestamp);
+        
+        if (isNaN(originalTime.getTime())) continue;
+        
+        const repostTime = new Date(originalTime.getTime() + (2 + Math.random() * 30) * 60 * 1000); // 2-32 minutes later
+        
+        reposts.push({
+          id: `repost-${originalPost.id}-${actor.id}`,
+          day,
+          timestamp: repostTime.toISOString(),
+          type: 'post', // It's a new post that is a repost
+          content: quoteComment || '', // Content is the quote comment if present
+          author: actor.id,
+          authorName: actor.name,
+          isRepost: true,
+          originalPostId: originalPost.id,
+          originalAuthorId: originalPost.author,
+          originalAuthorName: originalPost.authorName,
+          originalContent: originalPost.content,
+          quoteComment: quoteComment,
+          sentiment: originalPost.sentiment, // Inherit sentiment roughly
+          clueStrength: (originalPost.clueStrength ?? 0) * 0.8,
+          pointsToward: originalPost.pointsToward,
+        });
+      }
+    }
+    
+    return reposts;
   }
 
   /**
@@ -2308,93 +1987,6 @@ Trending system not initialized yet.
 
 
 
-  /**
-   * Generate ambient post (general musing, not tied to events)
-   * Public for external use and testing
-   * 
-   * @description
-   * Generates ambient post WITHOUT knowing predetermined outcome.
-   * Actor posts general thoughts based on their mood and trending topics.
-   */
-  public async generateAmbientPost(actor: Actor, day: number): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    // Get actor's current emotional state
-    const state = this.actorStates.get(actor.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
-      : '';
-
-    // Get relationship context from database (cached for efficiency)
-    const relationshipContext = await this.getActorRelationships(actor.id);
-
-    // General atmosphere based on game phase, not outcome
-    const atmosphereNote = day <= 10
-      ? 'Early in the month - things are just getting started.'
-      : day <= 20
-        ? 'Mid-way through - developments are unfolding.'
-        : 'Late in the month - events are accelerating.';
-
-    const progressContext = day <= 10 
-      ? 'Early days - things are just getting started.'
-      : day <= 20
-        ? 'Mid-way through - developments are unfolding.'
-        : 'Late stage - tension is building, things are heating up.';
-
-    const prompt = renderPrompt(ambientPost, {
-      actorName: actor.name,
-      actorDescription: actor.description || actor.role || 'actor',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      relationshipContext: relationshipContext ? '\nYour relationships:\n' + relationshipContext + '\n' : '',
-      day: day.toString(),
-      progressContext,
-      atmosphereNote,
-      outcomeFrame: day < 15 
-        ? 'Be vague or mysterious' 
-        : 'Hint at things heating up',
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(ambientPost);
-    // Retry until we get non-empty content
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      // Validate post exists and is not empty
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid post returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    // If all retries fail, throw error
-    throw new Error(`Failed to generate valid post after ${maxRetries} attempts for ${actor.name}`);
-  }
 
   /**
    * Generate feed posts for stock price movements
@@ -2759,74 +2351,6 @@ Trending system not initialized yet.
     return 'RESOLUTION';
   }
 
-  /**
-   * Generate reply to another post
-   * React based on personality, mood, and relationship
-   * Public for external use and testing
-   */
-  public async generateReply(actor: Actor, originalPost: FeedPost): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
-    if (!this.llm) {
-      throw new Error('LLM client required for feed generation');
-    }
-
-    // Get actor's current emotional state and relationship with the original poster
-    const state = this.actorStates.get(actor.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck, originalPost.author, this.relationships, actor.id)
-      : '';
-
-    // Ensure world context is available
-    if (!this.worldContext) {
-      this.worldContext = await generateWorldContext({ maxActors: 50 });
-    }
-
-    const relationshipContext = originalPost.author 
-      ? `Consider your relationship with ${originalPost.authorName} when responding.`
-      : '';
-
-    const prompt = renderPrompt(reply, {
-      actorName: actor.name,
-      actorDescription: actor.description || actor.role || 'actor',
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      originalAuthorName: originalPost.authorName,
-      originalContent: originalPost.content,
-      relationshipContext,
-      ...(this.worldContext || {})
-    });
-
-    const params = getPromptParams(reply);
-    // Retry until we get non-empty content
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
-      );
-
-      // Validate post exists and is not empty
-      if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
-        return {
-          ...response,
-          post: await this.postProcessContent(response.post)
-        };
-      }
-
-      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
-      logger.warn(`Invalid reply returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    // If all retries fail, throw error
-    throw new Error(`Failed to generate valid reply after ${maxRetries} attempts for ${actor.name}`);
-  }
 
 }
 

@@ -5,7 +5,7 @@
  * Handles feedback submission, reputation queries, and sync with local database.
  */
 
-import { createPublicClient, http, type Address, type WalletClient } from 'viem'
+import { createPublicClient, http, parseAbi, type Address, type WalletClient } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis'
 import { prisma } from '@/lib/prisma'
@@ -39,7 +39,7 @@ interface OnChainReputation {
 export async function getOnChainReputation(tokenId: number): Promise<OnChainReputation | null> {
   const reputation = (await publicClient.readContract({
     address: REPUTATION_SYSTEM_ADDRESS,
-    abi: REPUTATION_SYSTEM_ABI,
+    abi: parseAbi(REPUTATION_SYSTEM_ABI),
     functionName: 'getReputation',
     args: [BigInt(tokenId)],
   })) as [bigint, bigint, bigint, bigint, bigint, bigint, boolean]
@@ -81,7 +81,7 @@ export async function submitOnChainFeedback(
   const hash = await walletClient.writeContract({
     chain: baseSepolia,
     address: REPUTATION_SYSTEM_ADDRESS,
-    abi: REPUTATION_SYSTEM_ABI,
+    abi: parseAbi(REPUTATION_SYSTEM_ABI),
     functionName: 'submitFeedback',
     args: [BigInt(tokenId), int8Rating, comment],
     account: walletClient.account,
@@ -112,7 +112,7 @@ export async function recordBet(
   const hash = await walletClient.writeContract({
     chain: baseSepolia,
     address: REPUTATION_SYSTEM_ADDRESS,
-    abi: REPUTATION_SYSTEM_ABI,
+    abi: parseAbi(REPUTATION_SYSTEM_ABI),
     functionName: 'recordBet',
     args: [BigInt(tokenId), BigInt(amount)],
     account: walletClient.account,
