@@ -182,35 +182,35 @@ export const POST = withErrorHandling(async (
       } else {
         // Verify tweet exists using Twitter API v2
         try {
-          const twitterResponse = await fetch(
-            `https://api.twitter.com/2/posts/${tweetId}?tweet.fields=author_id,created_at,text`,
-            {
-              headers: {
-                'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
-              },
-            }
-          );
-          
-          if (twitterResponse.ok) {
-            const tweetData = await twitterResponse.json();
-            
-            if (tweetData.data) {
-              // VALIDATION 1: Check if user has linked Twitter account
-              const user = await prisma.user.findUnique({
-                where: { id: canonicalUserId },
-                select: { 
-                  twitterUsername: true,
-                },
-              });
+          const user = await prisma.user.findUnique({
+            where: { id: canonicalUserId },
+            select: { 
+              twitterUsername: true,
+            },
+          });
 
-              if (!user?.twitterUsername) {
-                verificationError = 'Please link your Twitter/X account first to verify posts.';
-                logger.warn(
-                  `User has no linked Twitter account: ${shareId}`,
-                  { shareId, userId: canonicalUserId },
-                  'POST /api/users/[userId]/verify-share'
-                );
-              } else {
+          // VALIDATION 1: Check if user has linked Twitter account
+          if (!user?.twitterUsername) {
+            verificationError = 'Please link your Twitter/X account first to verify posts.';
+            logger.warn(
+              `User has no linked Twitter account: ${shareId}`,
+              { shareId, userId: canonicalUserId },
+              'POST /api/users/[userId]/verify-share'
+            );
+          } else {
+            const twitterResponse = await fetch(
+              `https://api.twitter.com/2/posts/${tweetId}?tweet.fields=author_id,created_at,text`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+                },
+              }
+            );
+            
+            if (twitterResponse.ok) {
+              const tweetData = await twitterResponse.json();
+              
+              if (tweetData.data) {
                 // VALIDATION 2: Verify tweet author matches user's Twitter account
                 const userTwitterUsername = user.twitterUsername.toLowerCase().replace('@', '');
                 const urlTwitterUsername = tweetUsername.toLowerCase();
@@ -268,29 +268,29 @@ export const POST = withErrorHandling(async (
                     );
                   }
                 }
+              } else {
+                verificationError = 'Tweet not found or has been deleted';
+                logger.warn(
+                  `Tweet not found in API response: ${shareId}`,
+                  { shareId, tweetId },
+                  'POST /api/users/[userId]/verify-share'
+                );
               }
-            } else {
-              verificationError = 'Tweet not found or has been deleted';
+            } else if (twitterResponse.status === 404) {
+              verificationError = 'Tweet not found. Please check the URL and try again.';
               logger.warn(
-                `Tweet not found in API response: ${shareId}`,
+                `Tweet not found (404): ${shareId}`,
                 { shareId, tweetId },
                 'POST /api/users/[userId]/verify-share'
               );
+            } else {
+              verificationError = `Twitter API error (${twitterResponse.status}). Please try again later.`;
+              logger.error(
+                `Twitter API error: ${shareId}`,
+                { shareId, tweetId, status: twitterResponse.status },
+                'POST /api/users/[userId]/verify-share'
+              );
             }
-          } else if (twitterResponse.status === 404) {
-            verificationError = 'Tweet not found. Please check the URL and try again.';
-            logger.warn(
-              `Tweet not found (404): ${shareId}`,
-              { shareId, tweetId },
-              'POST /api/users/[userId]/verify-share'
-            );
-          } else {
-            verificationError = `Twitter API error (${twitterResponse.status}). Please try again later.`;
-            logger.error(
-              `Twitter API error: ${shareId}`,
-              { shareId, tweetId, status: twitterResponse.status },
-              'POST /api/users/[userId]/verify-share'
-            );
           }
         } catch (error) {
           verificationError = 'Failed to verify with Twitter API. Please try again later.';

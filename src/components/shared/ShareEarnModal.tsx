@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { X as XIcon, Twitter, Check, Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
+import { ShareVerificationModal } from './ShareVerificationModal'
 
 // Farcaster icon component
 function FarcasterIcon({ className }: { className?: string }) {
@@ -45,8 +46,8 @@ interface ShareEarnModalProps {
  * Share status tracking for each platform.
  */
 interface ShareStatus {
-  twitter: { shared: boolean; earned: boolean; loading: boolean }
-  farcaster: { shared: boolean; earned: boolean; loading: boolean }
+  twitter: { shared: boolean; earned: boolean; loading: boolean; shareId?: string }
+  farcaster: { shared: boolean; earned: boolean; loading: boolean; shareId?: string }
 }
 
 /**
@@ -69,8 +70,14 @@ export function ShareEarnModal({
     farcaster: { shared: false, earned: false, loading: false },
   })
   const [isTwitterConfigured, setIsTwitterConfigured] = useState(true) // Default to true, check on mount
+  const [showVerification, setShowVerification] = useState(false)
+  const [pendingVerification, setPendingVerification] = useState<{
+    shareId: string
+    platform: 'twitter' | 'farcaster'
+  } | null>(null)
+  const [checkingExistingShares, setCheckingExistingShares] = useState(false)
 
-  const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '')
+  const shareUrl = url || (typeof window !== 'undefined' ? window.location.origin : '');
   const shareText = text || 'Check this out!'
 
   // Check configuration and existing shares on mount
@@ -101,21 +108,59 @@ export function ShareEarnModal({
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) return
 
-    // Check for existing share actions
-    // This would require a new API endpoint or passing this data in
-    // For now, we'll check locally based on the response when sharing
+    setCheckingExistingShares(true)
+
+    try {
+      // Check for existing verified and earned shares for this content type
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        const shares = data.shares || []
+
+        // Update state for each platform that has been verified and earned
+        const twitterShare = shares.find((s: { platform: string }) => s.platform === 'twitter')
+        const farcasterShare = shares.find((s: { platform: string }) => s.platform === 'farcaster')
+
+        setShareStatus(prev => ({
+          twitter: twitterShare
+            ? { shared: true, earned: true, loading: false }
+            : prev.twitter,
+          farcaster: farcasterShare
+            ? { shared: true, earned: true, loading: false }
+            : prev.farcaster,
+        }))
+
+        logger.info(
+          `Found ${shares.length} existing verified shares for ${contentType}`,
+          { contentType, twitter: !!twitterShare, farcaster: !!farcasterShare },
+          'ShareEarnModal'
+        )
+      }
+    } catch (error) {
+      logger.warn('Failed to check existing shares', { error }, 'ShareEarnModal')
+    } finally {
+      setCheckingExistingShares(false)
+    }
   }
 
-  const trackShare = async (platform: 'twitter' | 'farcaster'): Promise<boolean> => {
+  const trackShare = async (platform: 'twitter' | 'farcaster'): Promise<{ success: boolean; shareId?: string }> => {
     if (!authenticated || !user) {
       logger.warn('User not authenticated, cannot track share', undefined, 'ShareEarnModal')
-      return false
+      return { success: false }
     }
 
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) {
       logger.warn('No access token available', undefined, 'ShareEarnModal')
-      return false
+      return { success: false }
     }
 
     const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
@@ -134,25 +179,32 @@ export function ShareEarnModal({
 
     if (response.ok) {
       const data = await response.json()
-      const pointsAwarded = data.points?.awarded > 0
-      const alreadyAwarded = data.points?.alreadyAwarded
+      const shareId = data.shareAction?.id
       
-      if (pointsAwarded) {
-        logger.info(
-          `Earned ${data.points.awarded} points for sharing to ${platform}`,
-          { platform, points: data.points.awarded },
-          'ShareEarnModal'
-        )
-      }
+      logger.info(
+        `Share action created for ${platform}, verification required`,
+        { platform, shareId },
+        'ShareEarnModal'
+      )
       
-      return pointsAwarded || alreadyAwarded
+      return { success: true, shareId }
     }
     
-    return false
+    return { success: false }
   }
 
   const handleShareToTwitter = async () => {
-    if (shareStatus.twitter.shared || shareStatus.twitter.loading) return
+    if (shareStatus.twitter.loading) return
+
+    // If already earned, just open share window without verification
+    if (shareStatus.twitter.earned) {
+      const textContainsUrl = shareText.includes(shareUrl)
+      const twitterUrl = textContainsUrl
+        ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+        : `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+      window.open(twitterUrl, '_blank', 'width=550,height=420')
+      return
+    }
 
     setShareStatus(prev => ({
       ...prev,
@@ -166,16 +218,33 @@ export function ShareEarnModal({
       : `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
     window.open(twitterUrl, '_blank', 'width=550,height=420')
     
-    const earned = await trackShare('twitter')
+    const result = await trackShare('twitter')
     
+    // Don't mark as shared yet - only after verification
     setShareStatus(prev => ({
       ...prev,
-      twitter: { shared: true, earned, loading: false }
+      twitter: { ...prev.twitter, loading: false, shareId: result.shareId }
     }))
+
+    // Show verification modal after a short delay (gives user time to post)
+    if (result.success && result.shareId && user) {
+      setTimeout(() => {
+        setPendingVerification({ shareId: result.shareId!, platform: 'twitter' })
+        setShowVerification(true)
+      }, 3000) // 3 second delay
+    }
   }
 
   const handleShareToFarcaster = async () => {
-    if (shareStatus.farcaster.shared || shareStatus.farcaster.loading) return
+    if (shareStatus.farcaster.loading) return
+
+    // If already earned, just open share window without verification
+    if (shareStatus.farcaster.earned) {
+      const castText = `${shareText}\n\n${shareUrl}`
+      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
+      window.open(warpcastUrl, '_blank', 'width=550,height=600')
+      return
+    }
 
     setShareStatus(prev => ({
       ...prev,
@@ -186,12 +255,21 @@ export function ShareEarnModal({
     const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
     window.open(warpcastUrl, '_blank', 'width=550,height=600')
     
-    const earned = await trackShare('farcaster')
+    const result = await trackShare('farcaster')
     
+    // Don't mark as shared yet - only after verification
     setShareStatus(prev => ({
       ...prev,
-      farcaster: { shared: true, earned, loading: false }
+      farcaster: { ...prev.farcaster, loading: false, shareId: result.shareId }
     }))
+
+    // Show verification modal after a short delay (gives user time to post)
+    if (result.success && result.shareId && user) {
+      setTimeout(() => {
+        setPendingVerification({ shareId: result.shareId!, platform: 'farcaster' })
+        setShowVerification(true)
+      }, 3000) // 3 second delay
+    }
   }
 
   if (!isOpen) return null
@@ -206,76 +284,85 @@ export function ShareEarnModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-md shadow-2xl">
+        <div className="bg-background rounded-xl border border-border w-full max-w-md shadow-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-700">
-            <h2 className="text-xl font-bold text-primary-foreground">Share & Earn</h2>
+          <div className="flex items-center justify-between p-6 border-b border-border">
+            <h2 className="text-xl font-bold">Share & Earn</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
-              <XIcon className="w-5 h-5 text-gray-400" />
+              <XIcon className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-4">
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               Share to earn +1000 points per platform
             </p>
 
-            {/* Twitter Share */}
-            <button
+            {checkingExistingShares ? (
+              /* Loading state while checking existing shares */
+              <div className="space-y-4">
+                <div className="w-full flex items-center justify-center p-8">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Checking your shares...</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Share buttons */
+              <>
+                {/* Twitter Share */}
+                <button
               onClick={handleShareToTwitter}
-              disabled={!isTwitterConfigured || shareStatus.twitter.shared || shareStatus.twitter.loading}
+              disabled={!isTwitterConfigured || shareStatus.twitter.loading}
               className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-all ${
                 !isTwitterConfigured
-                  ? 'bg-gray-800/50 border-gray-700/50 cursor-not-allowed opacity-60'
-                  : shareStatus.twitter.shared
-                  ? 'bg-green-500/10 border-green-500/30 cursor-not-allowed'
+                  ? 'bg-muted/50 border-border cursor-not-allowed opacity-60'
+                  : shareStatus.twitter.earned
+                  ? 'bg-green-500/10 border-green-500/30 cursor-pointer hover:bg-green-500/20'
                   : shareStatus.twitter.loading
-                  ? 'bg-gray-800 border-gray-700 cursor-wait'
-                  : 'bg-gray-800 border-gray-700 hover:bg-gray-750 cursor-pointer'
+                  ? 'bg-card border-border cursor-wait'
+                  : 'bg-card border-border hover:bg-muted cursor-pointer'
               }`}
             >
               <Twitter className={`w-6 h-6 ${
                 !isTwitterConfigured 
-                  ? 'text-gray-600' 
-                  : shareStatus.twitter.shared 
+                  ? 'text-muted-foreground' 
+                  : shareStatus.twitter.earned 
                   ? 'text-blue-400' 
-                  : 'text-gray-400'
+                  : 'text-muted-foreground'
               }`} />
               <div className="flex-1 text-left">
                 <div className="flex items-center gap-2">
-                  <h3 className={`text-sm font-semibold ${!isTwitterConfigured ? 'text-gray-500' : 'text-foreground'}`}>
+                  <h3 className={`text-sm font-semibold ${!isTwitterConfigured ? 'text-muted-foreground' : ''}`}>
                     Share to X
                   </h3>
                   {!isTwitterConfigured && (
-                    <span className="text-xs px-2 py-0.5 bg-gray-700/50 text-gray-400 rounded">
+                    <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded">
                       Coming Soon
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {!isTwitterConfigured
                     ? 'Twitter integration coming soon'
                     : shareStatus.twitter.loading
                     ? 'Processing...'
-                    : shareStatus.twitter.shared
-                    ? shareStatus.twitter.earned
-                      ? 'Already earned points'
-                      : 'Shared'
-                    : 'Share your profile'}
+                    : shareStatus.twitter.earned
+                      ? 'Earned +1000 points - Share again!'
+                      : 'Share your profile'}
                 </p>
               </div>
               {!isTwitterConfigured ? (
-                <Lock className="w-5 h-5 text-gray-600" />
-              ) : shareStatus.twitter.shared ? (
+                <Lock className="w-5 h-5 text-muted-foreground" />
+              ) : shareStatus.twitter.earned ? (
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-green-500" />
-                  {shareStatus.twitter.earned && (
-                    <span className="text-xs font-semibold text-green-500">+1000</span>
-                  )}
+                  <span className="text-xs font-semibold text-green-500">+1000</span>
                 </div>
               ) : null}
             </button>
@@ -283,47 +370,73 @@ export function ShareEarnModal({
             {/* Farcaster Share */}
             <button
               onClick={handleShareToFarcaster}
-              disabled={shareStatus.farcaster.shared || shareStatus.farcaster.loading}
+              disabled={shareStatus.farcaster.loading}
               className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-all ${
-                shareStatus.farcaster.shared
-                  ? 'bg-green-500/10 border-green-500/30 cursor-not-allowed'
+                shareStatus.farcaster.earned
+                  ? 'bg-green-500/10 border-green-500/30 cursor-pointer hover:bg-green-500/20'
                   : shareStatus.farcaster.loading
-                  ? 'bg-gray-800 border-gray-700 cursor-wait'
-                  : 'bg-gray-800 border-gray-700 hover:bg-gray-750 cursor-pointer'
+                  ? 'bg-card border-border cursor-wait'
+                  : 'bg-card border-border hover:bg-muted cursor-pointer'
               }`}
             >
-              <FarcasterIcon className={`w-6 h-6 ${shareStatus.farcaster.shared ? 'text-purple-400' : 'text-gray-400'}`} />
+              <FarcasterIcon className={`w-6 h-6 ${shareStatus.farcaster.earned ? 'text-purple-400' : 'text-muted-foreground'}`} />
               <div className="flex-1 text-left">
-                <h3 className="text-sm font-semibold text-primary-foreground">Share to Farcaster</h3>
-                <p className="text-xs text-gray-400">
+                <h3 className="text-sm font-semibold">Share to Farcaster</h3>
+                <p className="text-xs text-muted-foreground">
                   {shareStatus.farcaster.loading
                     ? 'Processing...'
-                    : shareStatus.farcaster.shared
-                    ? shareStatus.farcaster.earned
-                      ? 'Already earned points'
-                      : 'Shared'
+                    : shareStatus.farcaster.earned
+                    ? 'Earned +1000 points - Share again!'
                     : 'Share your profile'}
                 </p>
               </div>
-              {shareStatus.farcaster.shared && (
+              {shareStatus.farcaster.earned && (
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-green-500" />
-                  {shareStatus.farcaster.earned && (
-                    <span className="text-xs font-semibold text-green-500">+1000</span>
-                  )}
+                  <span className="text-xs font-semibold text-green-500">+1000</span>
                 </div>
               )}
             </button>
+              </>
+            )}
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-gray-700">
-            <p className="text-xs text-gray-500 text-center">
-              Points are awarded once per platform
+          <div className="p-6 border-t border-border">
+            <p className="text-xs text-muted-foreground text-center">
+              Points are awarded once per platform after verification
             </p>
           </div>
         </div>
       </div>
+
+      {/* Verification Modal */}
+      {showVerification && pendingVerification && user && (
+        <ShareVerificationModal
+          isOpen={showVerification}
+          onClose={() => {
+            setShowVerification(false)
+            setPendingVerification(null)
+          }}
+          shareId={pendingVerification.shareId}
+          platform={pendingVerification.platform}
+          userId={user.id}
+          onSuccess={(_pointsAwarded) => {
+            // Update the share status to show points were earned
+            if (pendingVerification.platform === 'twitter') {
+              setShareStatus(prev => ({
+                ...prev,
+                twitter: { ...prev.twitter, earned: true }
+              }))
+            } else if (pendingVerification.platform === 'farcaster') {
+              setShareStatus(prev => ({
+                ...prev,
+                farcaster: { ...prev.farcaster, earned: true }
+              }))
+            }
+          }}
+        />
+      )}
     </>
   )
 }

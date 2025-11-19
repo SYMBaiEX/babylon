@@ -1,15 +1,39 @@
 /**
  * User Share API
  * 
+ * @route GET /api/users/[userId]/share - Get verified shares
  * @route POST /api/users/[userId]/share - Track share action
  * @access Authenticated
  * 
  * @description
- * Tracks a share action and awards points. Supports multiple platforms
+ * GET: Retrieves verified and earned shares for a user by content type
+ * POST: Tracks a share action and awards points. Supports multiple platforms
  * (Twitter, Farcaster, Link, Telegram, Discord) and content types.
  * 
  * @openapi
  * /api/users/{userId}/share:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get verified shares
+ *     description: Retrieves verified and earned shares for a user
+ *     security:
+ *       - PrivyAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: query
+ *         name: contentType
+ *         schema:
+ *           type: string
+ *         description: Filter by content type
+ *     responses:
+ *       200:
+ *         description: Verified shares retrieved
  *   post:
  *     tags:
  *       - Users
@@ -59,6 +83,12 @@
  * 
  * @example
  * ```typescript
+ * // Check existing shares
+ * await fetch(`/api/users/${userId}/share?contentType=profile`, {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * 
+ * // Track new share
  * await fetch(`/api/users/${userId}/share`, {
  *   method: 'POST',
  *   headers: { 'Authorization': `Bearer ${token}` },
@@ -90,6 +120,63 @@ const ShareRequestSchema = z.object({
   contentType: z.enum(['post', 'profile', 'market', 'referral', 'leaderboard']),
   contentId: z.string().optional(), // Allow any string (user IDs can be Privy DIDs or Snowflake IDs)
   url: z.string().url().optional()
+});
+
+/**
+ * GET /api/users/[userId]/share
+ * Get verified and earned shares for a user
+ */
+export const GET = withErrorHandling(async (
+  request: NextRequest,
+  context: { params: Promise<{ userId: string }> }
+) => {
+  // Authenticate user
+  const authUser = await authenticate(request);
+  const params = await context.params;
+  const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
+
+  // Verify user is accessing their own shares
+  if (authUser.userId !== canonicalUserId) {
+    throw new AuthorizationError('You can only access your own shares', 'share-action', 'read');
+  }
+
+  // Get contentType filter from query params
+  const { searchParams } = new URL(request.url);
+  const contentType = searchParams.get('contentType');
+
+  // Query for verified and earned shares
+  const shares = await prisma.shareAction.findMany({
+    where: {
+      userId: canonicalUserId,
+      verified: true,
+      pointsAwarded: true,
+      ...(contentType ? { contentType } : {}),
+    },
+    select: {
+      id: true,
+      platform: true,
+      contentType: true,
+      contentId: true,
+      createdAt: true,
+      verifiedAt: true,
+    },
+    orderBy: {
+      verifiedAt: 'desc',
+    },
+  });
+
+  logger.info(
+    `Retrieved ${shares.length} verified shares for user ${canonicalUserId}`,
+    { userId: canonicalUserId, contentType, count: shares.length },
+    'GET /api/users/[userId]/share'
+  );
+
+  return successResponse({
+    shares,
+    count: shares.length,
+  });
 });
 
 /**
