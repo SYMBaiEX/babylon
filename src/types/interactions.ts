@@ -353,8 +353,6 @@ export interface InteractionBarProps {
     isLiked?: boolean;
     isShared?: boolean;
     originalPostId?: string | null;
-    isRepost?: boolean;
-    quoteComment?: string | null;
   };
 }
 
