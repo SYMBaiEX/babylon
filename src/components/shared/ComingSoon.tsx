@@ -348,7 +348,7 @@ export function ComingSoon() {
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col overflow-x-hidden overflow-y-auto bg-[#000B1C] text-foreground safe-area-bottom">
+      <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground safe-area-bottom">
         {/* Background Image (Absolute - scrolls with content) */}
         <div className="absolute inset-0 h-[100vh] z-0">
           <Image
@@ -818,7 +818,7 @@ export function ComingSoon() {
                   href="https://github.com/elizaOS/babylon" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center block backdrop-blur-md touch-manipulation hover:bg-primary/10"
+                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center block backdrop-blur-md touch-manipulation"
                 >
                   <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">Develop and Deploy</h3>
                   <p className="text-sm sm:text-base text-primary-foreground/80 leading-relaxed">Build your own Agent</p>
@@ -829,7 +829,7 @@ export function ComingSoon() {
                   href="https://docs.babylon.market" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center block backdrop-blur-md touch-manipulation sm:col-span-2 md:col-span-1 hover:bg-primary/10"
+                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center block backdrop-blur-md touch-manipulation sm:col-span-2 md:col-span-1"
                 >
                   <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">Read Whitepaper</h3>
                   <p className="text-sm sm:text-base text-primary-foreground/80 leading-relaxed">Deep dive into tech</p>
@@ -844,7 +844,7 @@ export function ComingSoon() {
         </section>
 
         {/* Footer */}
-        <footer className="relative z-10 py-16 mt-auto border-t border-primary/20 overflow-hidden">
+        <footer className="relative z-10 py-12 sm:py-16 mt-auto border-t border-primary/20 overflow-hidden">
           <div className="absolute inset-0 z-0">
             <Image
               src="/assets/images/background.png"
@@ -856,31 +856,183 @@ export function ComingSoon() {
             <div className="absolute inset-0 bg-[#000B1C]/80" />
           </div>
           
-          <div className="relative z-10 max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center md:items-start justify-between gap-10">
-            {/* Left Side */}
-            <div className="flex flex-col items-center md:items-start text-center md:text-left">
-              <div className="mb-6 flex items-center gap-3">
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-10 md:py-12">
+            {/* Mobile Layout */}
+            <div className="flex flex-col items-start text-left space-y-6 sm:hidden">
+              {/* Logo and Brand */}
+              <div className="flex items-center gap-3">
                 <Image
                   src="/assets/logos/logo.svg"
                   alt="Babylon Logo"
-                  width={48}
-                  height={48}
-                  className="w-12 h-12"
+                  width={40}
+                  height={40}
+                  className="w-10 h-10"
                 />
-                <span className="text-2xl font-bold text-foreground tracking-tight">Babylon.Market</span>
+                <span className="text-xl font-bold text-foreground tracking-tight">BABYLON</span>
               </div>
-              <p className="text-muted-foreground max-w-md text-lg">
+              
+              {/* Description */}
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-md">
                 The City of Agents. Where AI and humans compete in real-time prediction markets.
               </p>
-              <div className="mt-6 text-xs text-muted-foreground/50">
-                © {new Date().getFullYear()} Babylon. All rights reserved.
+              
+              {/* Community Section */}
+              <div className="w-full space-y-4">
+                <h3 className="text-base sm:text-lg font-semibold text-foreground uppercase tracking-wider">COMMUNITY</h3>
+                <nav className="flex flex-col gap-3 text-sm text-muted-foreground">
+                  <a 
+                    href="https://discord.gg/ukKRJtYQ7q" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                  >
+                    Discord
+                  </a>
+                  <a 
+                    href="https://x.com/PlayBabylon" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                  >
+                    X
+                  </a>
+                  <a 
+                    href="https://farcaster.xyz" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                  >
+                    Farcaster
+                  </a>
+                  <a 
+                    href="#" 
+                    className="hover:text-primary transition-colors duration-200 touch-manipulation opacity-60"
+                  >
+                    Telegram
+                  </a>
+                  <a 
+                    href="https://t.me/+JDu3deg56Ok2NWVh"
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-primary transition-colors duration-200 touch-manipulation opacity-60"
+                  >
+                    Telegram (Builders)
+                  </a>
+                </nav>
               </div>
-              <div className="flex items-center gap-4 sm:gap-6">
-                <span className="hidden sm:inline">Built with</span>
-                <span className="text-primary">❤️</span>
-                <span className="hidden sm:inline">for the future of prediction markets</span>
+              
+              {/* Separator */}
+              <div className="w-full border-t border-primary/10 pt-6">
+                <div className="text-xs text-muted-foreground/70 text-center">
+                  © {new Date().getFullYear()} Babylon. All rights reserved.
+                </div>
               </div>
             </div>
+
+            {/* Desktop Layout */}
+            <div className="hidden sm:block">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 sm:gap-10 md:gap-12 mb-8 sm:mb-10">
+                {/* Brand Section */}
+                <div className="md:col-span-5 lg:col-span-4 flex flex-col items-center md:items-start text-center md:text-left">
+                  {/* Logo and Brand Name */}
+                  <div className="flex items-center gap-3 mb-4 sm:mb-5">
+                    <Image
+                      src="/assets/logos/logo.svg"
+                      alt="Babylon Logo"
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 sm:w-12 sm:h-12 shrink-0"
+                    />
+                    <span className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Babylon.Market</span>
+                  </div>
+                  
+                  {/* Tagline */}
+                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4 sm:mb-6 max-w-md">
+                    The City of Agents. Where AI and humans compete in real-time prediction markets.
+                  </p>
+                </div>
+
+                {/* Quick Links Section */}
+                <div className="md:col-span-3 lg:col-span-2 flex flex-col items-center md:items-start">
+                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Resources</h3>
+                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground">
+                    <a 
+                      href="https://docs.babylon.market" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                    >
+                      Documentation
+                    </a>
+                    <a 
+                      href="https://github.com/elizaOS/babylon" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                    >
+                      GitHub
+                    </a>
+                    <a 
+                      href="https://babylon.market" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation"
+                    >
+                      Website
+                    </a>
+                  </nav>
+                </div>
+
+                {/* Social Links Section */}
+                <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center md:items-start">
+                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Connect</h3>
+                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground w-full">
+                    <a 
+                      href="https://x.com/PlayBabylon" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation flex items-center gap-2"
+                    >
+                      <span>Twitter / X</span>
+                    </a>
+                    <a 
+                      href="https://discord.gg/ukKRJtYQ7q" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation flex items-center gap-2"
+                    >
+                      <span>Discord</span>
+                    </a>
+                  </nav>
+                </div>
+
+                {/* Legal Section */}
+                <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center md:items-start">
+                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Legal</h3>
+                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground">
+                    <a 
+                      href="#" 
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation opacity-60"
+                    >
+                      Privacy Policy
+                    </a>
+                    <a 
+                      href="#" 
+                      className="hover:text-primary transition-colors duration-200 touch-manipulation opacity-60"
+                    >
+                      Terms of Service
+                    </a>
+                  </nav>
+                </div>
+              </div>
+
+              {/* Bottom Bar */}
+              <div className="border-t border-primary/10 pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-center gap-4 text-xs sm:text-sm text-muted-foreground/70">
+                <div className="text-center">
+                  © {new Date().getFullYear()} Babylon. All rights reserved.
+                </div>
+                </div>
+              </div>
           </div>
         </footer>
 
@@ -944,7 +1096,7 @@ export function ComingSoon() {
 
   // Authenticated & waitlisted - Show position and leaderboard
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-x-hidden overflow-y-auto bg-[#000B1C] text-foreground">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <Image

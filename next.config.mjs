@@ -33,6 +33,7 @@ const nextConfig = {
     'electron-fetch',
   ],
   images: {
+    qualities: [100, 75],
     remotePatterns: [
       {
         protocol: 'https',
