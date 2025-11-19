@@ -414,60 +414,25 @@ export const DELETE = withErrorHandling(async (
     }
 
     // Delete repost post if it exists
-    // Since we don't have originalPostId field, we need to find reposts by:
-    // 1. Posts authored by this user
-    // 2. Created around the same time as the share record
-    // 3. Content matches (either exact or with quote comment prefix)
-    
-    // Get the original post content to match against
-    const originalPostContent = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { content: true },
+    // Find the repost post using originalPostId field (direct database reference)
+    const repostPost = await prisma.post.findFirst({
+      where: {
+        authorId: canonicalUserId,
+        originalPostId: postId,
+        deletedAt: null,
+      },
     });
 
-    if (originalPostContent) {
-      // Find repost posts created by this user around the time they shared
-      // Look for posts created within a reasonable time window of the share
-      const shareCreatedAt = share.createdAt;
-      const windowStart = new Date(shareCreatedAt.getTime() - 1000); // 1 second before
-      const windowEnd = new Date(shareCreatedAt.getTime() + 60000); // 1 minute after
-
-      // Only check for reposts up to current time
-      const currentTime = new Date();
-      const effectiveWindowEnd = windowEnd > currentTime ? currentTime : windowEnd;
-      const potentialReposts = await prisma.post.findMany({
+    if (repostPost) {
+      // Delete the repost post
+      await prisma.post.delete({
         where: {
-          authorId: canonicalUserId,
-          timestamp: {
-            gte: windowStart,
-            lte: effectiveWindowEnd, // ✅ No future posts
-          },
-          deletedAt: null,
+          id: repostPost.id,
         },
       });
-
-      // Filter to find actual reposts (content matches original or contains it as quote)
-      const repostPosts = potentialReposts.filter(p => {
-        // Exact match (simple repost)
-        if (p.content === originalPostContent.content) return true;
-        // Quote post match (contains original content after separator)
-        if (p.content.includes(originalPostContent.content)) return true;
-        return false;
-      });
-
-      // Delete all repost posts for this share
-      if (repostPosts.length > 0) {
-        await prisma.post.deleteMany({
-          where: {
-            id: {
-              in: repostPosts.map((p) => p.id),
-            },
-          },
-        });
-        logger.info('Deleted repost posts', { count: repostPosts.length, postIds: repostPosts.map(p => p.id) }, 'DELETE /api/posts/[id]/share');
-      } else {
-        logger.warn('No repost posts found to delete', { postId, userId: canonicalUserId, windowStart, windowEnd }, 'DELETE /api/posts/[id]/share');
-      }
+      logger.info('Deleted repost post', { repostPostId: repostPost.id, originalPostId: postId }, 'DELETE /api/posts/[id]/share');
+    } else {
+      logger.warn('No repost post found to delete', { postId, userId: canonicalUserId }, 'DELETE /api/posts/[id]/share');
     }
 
     // Delete share
