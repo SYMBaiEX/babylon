@@ -81,7 +81,6 @@ export interface PostCardProps {
     } | null;
   };
   className?: string;
-  onClick?: () => void;
   onCommentClick?: () => void;
   showInteractions?: boolean;
   isDetail?: boolean;
@@ -90,7 +89,6 @@ export interface PostCardProps {
 export const PostCard = memo(function PostCard({
   post,
   className,
-  onClick,
   onCommentClick,
   showInteractions = true,
   isDetail = false,
@@ -159,6 +157,19 @@ export const PostCard = memo(function PostCard({
 
   const quotedPostId = post.originalPostId ?? null;
 
+  // Internal click handler that navigates to the correct post
+  // For simple reposts, navigate to the original post
+  // For quote posts and regular posts, navigate to the post itself
+  const handleCardClick = () => {
+    // For simple reposts, go to the original post
+    if (isSimpleRepost && post.originalPostId) {
+      router.push(`/post/${post.originalPostId}`);
+    } else {
+      // For quote posts and regular posts, go to this post
+      router.push(`/post/${post.id}`);
+    }
+  };
+
   const handleQuotedPostClick = (event: MouseEvent<HTMLDivElement>) => {
     // Always stop propagation to prevent parent card click
     event.preventDefault();
@@ -182,12 +193,6 @@ export const PostCard = memo(function PostCard({
     // Only navigate if we have a valid post ID
     if (quotedPostId) {
       router.push(`/post/${quotedPostId}`);
-    }
-  };
-
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
     }
   };
 
@@ -221,7 +226,7 @@ export const PostCard = memo(function PostCard({
       style={{
         fontSize: `${fontSize}rem`,
       }}
-      onClick={!isDetail ? handleClick : undefined}
+      onClick={!isDetail ? handleCardClick : undefined}
     >
       {/* Repost Indicator - Only show for simple reposts (not quote posts) */}
       {isSimpleRepost && (
@@ -316,7 +321,7 @@ export const PostCard = memo(function PostCard({
             {!isDetail && (
               <button
                 className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
-                onClick={handleClick}
+                onClick={handleCardClick}
               >
                 Read Full Article →
               </button>

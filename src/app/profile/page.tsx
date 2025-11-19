@@ -785,13 +785,11 @@ export default function ProfilePage() {
                         <ArticleCard
                           key={item.id}
                           post={postData}
-                          onClick={() => router.push(`/post/${item.id}`)}
                         />
                       ) : (
                         <PostCard
                           key={item.id}
                           post={postData}
-                          onClick={() => router.push(`/post/${item.id}`)}
                           showInteractions
                         />
                       )

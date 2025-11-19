@@ -820,13 +820,11 @@ export default function ActorProfilePage() {
                   <ArticleCard
                     key={`${item.post.id}-${i}`}
                     post={postData}
-                    onClick={() => router.push(`/post/${item.post.id}`)}
                   />
                 ) : (
                   <PostCard
                     key={`${item.post.id}-${i}`}
                     post={postData}
-                    onClick={() => router.push(`/post/${item.post.id}`)}
                     showInteractions={true}
                   />
                 );
@@ -1095,13 +1093,11 @@ export default function ActorProfilePage() {
                     <ArticleCard
                       key={`${item.post.id}-${i}`}
                       post={postData}
-                      onClick={() => router.push(`/post/${item.post.id}`)}
                     />
                   ) : (
                     <PostCard
                       key={`${item.post.id}-${i}`}
                       post={postData}
-                      onClick={() => router.push(`/post/${item.post.id}`)}
                       showInteractions={true}
                     />
                   );

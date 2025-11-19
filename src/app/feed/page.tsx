@@ -512,12 +512,10 @@ function FeedPageContent() {
                         {postData.type && postData.type === 'article' ? (
                           <ArticleCard
                             post={postData}
-                            onClick={() => router.push(`/post/${post.id}`)}
                           />
                         ) : (
                           <PostCard
                             post={postData}
-                            onClick={() => router.push(`/post/${post.id}`)}
                           />
                         )}
                         {showBannerAfterThisPost && (
