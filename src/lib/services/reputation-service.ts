@@ -7,7 +7,7 @@
  * system smart contract on Base Sepolia.
  */
 
-import { createPublicClient, createWalletClient, http, parseEther, type Address } from 'viem'
+import { createPublicClient, createWalletClient, http, parseAbi, parseEther, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/prisma'
@@ -138,7 +138,7 @@ export class ReputationService {
         logger.info(`Recording WIN for token ${tokenId} (+10 reputation)`, { tokenId, change: 10 }, 'ReputationService')
         txHash = await walletClient.writeContract({
           address: REPUTATION_SYSTEM,
-          abi: REPUTATION_SYSTEM_ABI,
+          abi: parseAbi(REPUTATION_SYSTEM_ABI),
           functionName: 'recordWin',
           args: [BigInt(tokenId), amount],
         })
@@ -147,7 +147,7 @@ export class ReputationService {
         logger.info(`Recording LOSS for token ${tokenId} (-5 reputation)`, { tokenId, change: -5 }, 'ReputationService')
         txHash = await walletClient.writeContract({
           address: REPUTATION_SYSTEM,
-          abi: REPUTATION_SYSTEM_ABI,
+          abi: parseAbi(REPUTATION_SYSTEM_ABI),
           functionName: 'recordLoss',
           args: [BigInt(tokenId), amount],
         })
@@ -212,7 +212,7 @@ export class ReputationService {
 
     const reputation = await publicClient.readContract({
       address: REPUTATION_SYSTEM,
-      abi: REPUTATION_SYSTEM_ABI,
+      abi: parseAbi(REPUTATION_SYSTEM_ABI),
       functionName: 'getReputation',
       args: [BigInt(user.nftTokenId)],
     }) as [bigint, bigint, bigint, bigint, bigint, bigint, boolean]

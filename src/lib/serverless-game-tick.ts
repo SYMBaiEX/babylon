@@ -1960,7 +1960,7 @@ async function resolveMarketOnChain(
     throw new Error('Missing blockchain configuration');
   }
 
-  const { createPublicClient, createWalletClient, http } = await import('viem');
+  const { createPublicClient, createWalletClient, http, parseAbi } = await import('viem');
   const { privateKeyToAccount } = await import('viem/accounts');
   const { baseSepolia } = await import('viem/chains');
   const { PREDICTION_MARKET_ABI } = await import('@/lib/web3/abis');
@@ -1981,7 +1981,7 @@ async function resolveMarketOnChain(
   // Note: winningOutcome must be uint8 (0 or 1 for binary markets)
   const txHash = await walletClient.writeContract({
     address: diamondAddress as `0x${string}`,
-    abi: PREDICTION_MARKET_ABI,
+    abi: parseAbi(PREDICTION_MARKET_ABI),
     functionName: 'resolveMarket',
     args: [onChainMarketId as `0x${string}`, winningOutcome as number],
   });

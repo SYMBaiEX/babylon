@@ -148,6 +148,11 @@ export function ComingSoon() {
 
     const data = await positionResponse.json()
     
+    // Check if user is actually on waitlist (API returns { position: null } if not)
+    if (data.position === null) {
+      return false
+    }
+    
     // Log if invite code is missing for debugging
     if (!data.inviteCode) {
       logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')

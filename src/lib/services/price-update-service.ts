@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { PRICE_STORAGE_FACET_ABI } from '@/lib/web3/abis';
 import type { JsonValue } from '@/types/common';
-import { createPublicClient, createWalletClient, encodePacked, http, keccak256 } from 'viem';
+import { createPublicClient, createWalletClient, encodePacked, http, keccak256, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
@@ -184,7 +184,7 @@ export class PriceUpdateService {
     try {
       currentTick = await publicClient.readContract({
         address: diamondAddress,
-        abi: PRICE_STORAGE_FACET_ABI,
+        abi: parseAbi(PRICE_STORAGE_FACET_ABI),
         functionName: 'getGlobalTickCounter',
       }) as bigint;
     } catch (error) {
@@ -211,7 +211,7 @@ export class PriceUpdateService {
     // Batch update prices
     const txHash = await walletClient.writeContract({
       address: diamondAddress,
-      abi: PRICE_STORAGE_FACET_ABI,
+      abi: parseAbi(PRICE_STORAGE_FACET_ABI),
       functionName: 'updatePrices',
       args: [marketIds, currentTick, prices],
     });

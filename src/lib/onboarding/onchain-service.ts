@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { createWalletClient, createPublicClient, http, decodeEventLog, type Address } from 'viem'
+import { createWalletClient, createPublicClient, http, decodeEventLog, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/prisma'
@@ -563,7 +563,7 @@ export async function processOnchainRegistration({
     logger.info('Bootstrapping on-chain reputation via feedback...', undefined, 'OnboardingOnchain')
     const bootstrapTx = await walletClient.writeContract({
       address: REPUTATION_SYSTEM,
-      abi: REPUTATION_SYSTEM_ABI,
+      abi: parseAbi(REPUTATION_SYSTEM_ABI),
       functionName: 'submitFeedback',
       args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
     })
