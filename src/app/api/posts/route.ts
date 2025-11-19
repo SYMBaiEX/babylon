@@ -240,12 +240,23 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server'
-import type { JsonValue } from '@/types/common';
 import { NextResponse } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
 import { notifyMention } from '@/lib/services/notification-service';
 import { getBlockedUserIds, getMutedUserIds, getBlockedByUserIds } from '@/lib/moderation/filters';
+import type { Post } from '@prisma/client';
+
+// Type for posts with included original post relation
+type PostWithOriginal = Post & {
+  Post_Post_originalPostIdToPost?: {
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: Date;
+    createdAt: Date;
+  } | null;
+};
 
 /**
  * Safely convert a date value to ISO string
@@ -271,34 +282,6 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   }
   // Fallback to current date
   return new Date().toISOString();
-}
-
-/**
- * Parse repost content to extract metadata
- * Returns null if not a repost, otherwise returns parsed data
- */
-function parseRepostContent(content: string): {
-  isRepost: true;
-  quoteComment: string | null;
-  originalContent: string;
-  originalAuthorUsername: string;
-} | null {
-  const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
-  const match = content.match(separatorPattern);
-  
-  if (!match) return null;
-  
-  const parts = content.split(separatorPattern);
-  const quoteComment = parts[0]?.trim() || null;
-  const originalContent = parts[2]?.trim() || '';
-  const originalAuthorUsername = match[1] || '';
-  
-  return {
-    isRepost: true,
-    quoteComment,
-    originalContent,
-    originalAuthorUsername,
-  };
 }
 
 export const GET = withErrorHandling(async (request: Request) => {
@@ -384,11 +367,23 @@ export const GET = withErrorHandling(async (request: Request) => {
 
       // Get user data for filtered posts
       const authorIds = [...new Set(filteredPosts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
-      const users = await prisma.user.findMany({
-        where: { id: { in: authorIds } },
-        select: { id: true, username: true, displayName: true },
-      });
+      const [users, actors, organizations] = await Promise.all([
+        prisma.user.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, username: true, displayName: true, profileImageUrl: true },
+        }),
+        prisma.actor.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, name: true, profileImageUrl: true },
+        }),
+        prisma.organization.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, name: true, imageUrl: true },
+        }),
+      ]);
       const userMap = new Map(users.map(u => [u.id, u]));
+      const actorMap = new Map(actors.map(a => [a.id, a]));
+      const orgMap = new Map(organizations.map(o => [o.id, o]));
       
       // Get interaction counts for all filtered posts in parallel
       const postIds = filteredPosts.map(p => p.id);
@@ -409,130 +404,80 @@ export const GET = withErrorHandling(async (request: Request) => {
       const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
       const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
       
-      // OPTIMIZED: Batch repost metadata lookups to avoid N+1
-      // First, identify all reposts and extract original usernames
-      const repostDataMap = new Map<string, ReturnType<typeof parseRepostContent>>();
-      const originalUsernames = new Set<string>();
-      
-      for (const post of filteredPosts) {
-        const repostData = parseRepostContent(post.content || '');
-        if (repostData) {
-          repostDataMap.set(post.id, repostData);
-          originalUsernames.add(repostData.originalAuthorUsername);
-        }
-      }
-
-      // Batch lookup original authors (users and actors)
-      const originalAuthorsMap = new Map<string, { id: string; name: string; username: string; profileImageUrl: string | null }>();
-      
-      if (originalUsernames.size > 0) {
-        const usernameArray = Array.from(originalUsernames);
-        const [originalUsers, originalActors] = await Promise.all([
-          prisma.user.findMany({
-            where: { username: { in: usernameArray } },
-            select: { id: true, username: true, displayName: true, profileImageUrl: true },
-          }),
-          prisma.actor.findMany({
-            where: { id: { in: usernameArray } },
-            select: { id: true, name: true, profileImageUrl: true },
-          }),
-        ]);
-
-        // Map users
-        for (const user of originalUsers) {
-          originalAuthorsMap.set(user.username!, {
-            id: user.id,
-            name: user.displayName || user.username || user.id,
-            username: user.username!,
-            profileImageUrl: user.profileImageUrl,
-          });
-        }
-
-        // Map actors
-        for (const actor of originalActors) {
-          originalAuthorsMap.set(actor.id, {
-            id: actor.id,
-            name: actor.name,
-            username: actor.id,
-            profileImageUrl: actor.profileImageUrl,
-          });
-        }
-
-        // Batch lookup share records for all reposters
-        const reposterIds = posts.filter(p => repostDataMap.has(p.id)).map(p => p.authorId).filter((id): id is string => !!id);
-        const shareRecords = await prisma.share.findMany({
-          where: { userId: { in: reposterIds } },
-          select: { postId: true, userId: true },
-          orderBy: { createdAt: 'desc' },
-        });
-
-        const shareMap = new Map(shareRecords.map(s => [s.userId, s.postId]));
-
-        // Build repost metadata lookup
-        const repostMetadataMap = new Map<string, Record<string, JsonValue>>();
-        for (const [postId, repostData] of repostDataMap.entries()) {
-          if (!repostData) continue; // Skip null entries
-          
-          const originalAuthor = originalAuthorsMap.get(repostData.originalAuthorUsername);
-          const post = posts.find(p => p.id === postId);
-          const shareRecord = post?.authorId ? shareMap.get(post.authorId) : undefined;
-
-          if (originalAuthor) {
-            repostMetadataMap.set(postId, {
-              isRepost: true,
-              quoteComment: repostData.quoteComment,
-              originalContent: repostData.originalContent,
-              originalPostId: shareRecord ?? null,
-              originalAuthorId: originalAuthor.id,
-              originalAuthorName: originalAuthor.name,
-              originalAuthorUsername: originalAuthor.username,
-              originalAuthorProfileImageUrl: originalAuthor.profileImageUrl,
-            });
-          } else {
-            repostMetadataMap.set(postId, {
-              isRepost: true,
-              quoteComment: repostData.quoteComment,
-              originalContent: repostData.originalContent,
-              originalPostId: null,
-              originalAuthorId: repostData.originalAuthorUsername,
-              originalAuthorName: repostData.originalAuthorUsername,
-              originalAuthorUsername: repostData.originalAuthorUsername,
-              originalAuthorProfileImageUrl: null,
-            });
-          }
-        }
-
-        // Format following posts synchronously using lookup maps
-        const formattedFollowingPosts = posts.map((post) => {
-          const user = post.authorId ? userMap.get(post.authorId) : undefined;
-          const repostMetadata = repostMetadataMap.get(post.id) || {};
-          
-          return {
-            id: post.id,
-            content: post.content,
-            author: post.authorId,
-            authorId: post.authorId,
-            authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
-            authorUsername: user?.username || null,
-            timestamp: toISOStringSafe(post.timestamp),
-            createdAt: toISOStringSafe(post.createdAt),
-            likeCount: reactionMap.get(post.id) ?? 0,
-            commentCount: commentMap.get(post.id) ?? 0,
-            shareCount: 0, // Share count not currently tracked in feed
-            isLiked: false,
-            isShared: false,
-            ...repostMetadata,
-          };
-        });
+      // Format following posts synchronously using lookup maps
+      // Note: filteredPosts already includes originalPost via the include in the query above
+      const formattedFollowingPosts = posts.map((post) => {
+        const postsWithOriginal = post as PostWithOriginal;
+        const user = post.authorId ? userMap.get(post.authorId) : undefined;
         
-        return NextResponse.json({
-          success: true,
-          posts: formattedFollowingPosts,
-          limit,
-          source: 'following',
-        });
-      }
+        // Build repost metadata from originalPost if it exists (clean, no text parsing)
+        const repostMetadata: Record<string, unknown> = {};
+        if (postsWithOriginal.originalPostId && postsWithOriginal.Post_Post_originalPostIdToPost) {
+          const originalPost = postsWithOriginal.Post_Post_originalPostIdToPost;
+          const isQuote = post.content && post.content.length > 0;
+          
+          // Get original author from our maps
+          const originalUser = userMap.get(originalPost.authorId);
+          const originalActor = actorMap.get(originalPost.authorId);
+          const originalOrg = orgMap.get(originalPost.authorId);
+          
+          let originalAuthorName = originalPost.authorId;
+          let originalAuthorUsername: string | null = null;
+          let originalAuthorProfileImageUrl: string | null = null;
+          
+          if (originalActor) {
+            originalAuthorName = originalActor.name;
+            originalAuthorProfileImageUrl = originalActor.profileImageUrl!;
+          } else if (originalOrg) {
+            originalAuthorName = originalOrg.name;
+            originalAuthorProfileImageUrl = originalOrg.imageUrl!;
+          } else if (originalUser) {
+            originalAuthorName = originalUser.displayName!;
+            originalAuthorUsername = originalUser.username!;
+            originalAuthorProfileImageUrl = originalUser.profileImageUrl || null;
+          }
+          
+          repostMetadata.isRepost = true;
+          repostMetadata.isQuote = isQuote;
+          repostMetadata.quoteComment = isQuote ? post.content : null;
+          repostMetadata.originalPostId = originalPost.id;
+          repostMetadata.originalPost = {
+            id: originalPost.id,
+            content: originalPost.content,
+            authorId: originalPost.authorId,
+            authorName: originalAuthorName,
+            authorUsername: originalAuthorUsername,
+            authorProfileImageUrl: originalAuthorProfileImageUrl,
+            timestamp: toISOStringSafe(originalPost.timestamp),
+          };
+        }
+          
+        return {
+          id: post.id,
+          content: post.content,
+          author: post.authorId,
+          authorId: post.authorId,
+          authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
+          authorUsername: user?.username || null,
+          timestamp: toISOStringSafe(post.timestamp),
+          createdAt: toISOStringSafe(post.createdAt),
+          likeCount: reactionMap.get(post.id) ?? 0,
+          commentCount: commentMap.get(post.id) ?? 0,
+          shareCount: 0, // Share count not currently tracked in feed
+          isLiked: false,
+          isShared: false,
+          ...repostMetadata,
+        };
+      });
+        
+      return NextResponse.json({
+        success: true,
+        posts: formattedFollowingPosts,
+        limit,
+        source: 'following',
+      });
     }
+    
     // Get posts from database with cursor-based pagination
     let posts;
     
@@ -567,6 +512,18 @@ export const GET = withErrorHandling(async (request: Request) => {
         where,
         orderBy: { timestamp: 'desc' },
         take: limit,
+        include: {
+          Post_Post_originalPostIdToPost: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              content: true,
+              authorId: true,
+              timestamp: true,
+              createdAt: true,
+            }
+          }
+        }
       });
       
       logger.info('Fetched posts by type', { type, count: posts.length }, 'GET /api/posts');
@@ -609,7 +566,16 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
     
     // Get unique author IDs to fetch author data (users, actors, or organizations)
-    const authorIds = [...new Set(posts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
+    // Include both post authors and original post authors (for reposts/quotes)
+    const postsWithOriginal = posts as PostWithOriginal[];
+    const postAuthorIds = postsWithOriginal.map(p => p.authorId).filter((id): id is string => id !== undefined);
+    const originalPostAuthorIds = postsWithOriginal
+      .filter(p => p.originalPostId && p.Post_Post_originalPostIdToPost)
+      .map(p => p.Post_Post_originalPostIdToPost!.authorId)
+      .filter((id): id is string => id !== undefined);
+    
+    const authorIds = [...new Set([...postAuthorIds, ...originalPostAuthorIds])];
+    
     const [users, actors, organizations] = await Promise.all([
       prisma.user.findMany({
         where: { id: { in: authorIds } },
@@ -653,7 +619,8 @@ export const GET = withErrorHandling(async (request: Request) => {
     const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
     const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
     
-    const formattedPosts = await Promise.all(posts.map(async (post) => {
+    // Format posts - simple transformation, no async queries needed!
+    const formattedPosts = postsWithOriginal.map((post) => {
       const user = userMap.get(post.authorId!)
       const actor = actorMap.get(post.authorId!)
       const org = orgMap.get(post.authorId!)
@@ -677,84 +644,8 @@ export const GET = withErrorHandling(async (request: Request) => {
       const timestamp = toISOStringSafe(post.timestamp)
       const createdAt = toISOStringSafe(post.createdAt)
       
-      // Check if this is a repost by parsing content or checking originalPostId field
-      const parsedRepostData = parseRepostContent(post.content!)
-      let repostMetadata = {}
-      
-      if (parsedRepostData || post.originalPostId) {
-        // Try to get original author info
-        let originalAuthor = null
-        const originalPostId = post.originalPostId || null
-        let effectiveRepostData = parsedRepostData
-        
-        if (parsedRepostData) {
-          // Parse from content if available (fallback for old posts)
-          originalAuthor = await prisma.user.findUnique({
-            where: { username: parsedRepostData.originalAuthorUsername },
-            select: { id: true, username: true, displayName: true, profileImageUrl: true },
-          }) || await prisma.actor.findFirst({
-            where: { id: parsedRepostData.originalAuthorUsername },
-            select: { id: true, name: true, profileImageUrl: true },
-          }) || await prisma.organization.findFirst({
-            where: { id: parsedRepostData.originalAuthorUsername },
-            select: { id: true, name: true, imageUrl: true },
-          })
-        }
-        
-        // If we have originalPostId but no author info yet, fetch from original post
-        if (originalPostId && !originalAuthor) {
-          const originalPost = await prisma.post.findUnique({
-            where: { id: originalPostId },
-            select: { authorId: true, content: true },
-          })
-          
-          if (originalPost) {
-            // Fetch author details
-            const [user, actor, org] = await Promise.all([
-              prisma.user.findUnique({
-                where: { id: originalPost.authorId },
-                select: { id: true, username: true, displayName: true, profileImageUrl: true },
-              }),
-              prisma.actor.findUnique({
-                where: { id: originalPost.authorId },
-                select: { id: true, name: true, profileImageUrl: true },
-              }),
-              prisma.organization.findUnique({
-                where: { id: originalPost.authorId },
-                select: { id: true, name: true, imageUrl: true },
-              }),
-            ])
-            
-            originalAuthor = user || actor || org
-            
-            // Create repostData with actual original content if not already set
-            if (!effectiveRepostData || !effectiveRepostData.originalContent) {
-              effectiveRepostData = {
-                ...(effectiveRepostData || {}),
-                isRepost: true,
-                quoteComment: effectiveRepostData?.quoteComment ?? null,
-                originalContent: originalPost.content,
-                originalAuthorUsername: user?.username || originalPost.authorId,
-              };
-            }
-          }
-        }
-        
-        if (originalAuthor && effectiveRepostData) {
-          repostMetadata = {
-            isRepost: true,
-            quoteComment: effectiveRepostData.quoteComment,
-            originalContent: effectiveRepostData.originalContent,
-            originalPostId: originalPostId,
-            originalAuthorId: originalAuthor.id,
-            originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName!,
-            originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username! : originalAuthor.id,
-            originalAuthorProfileImageUrl: 'imageUrl' in originalAuthor ? originalAuthor.imageUrl : originalAuthor.profileImageUrl,
-          }
-        }
-      }
-      
-      return {
+      // Build base post object
+      const basePost = {
         id: post.id,
         type: post.type || undefined,
         content: post.content!,
@@ -779,11 +670,54 @@ export const GET = withErrorHandling(async (request: Request) => {
         shareCount: shareMap.get(post.id) ?? 0,
         isLiked: false,
         isShared: false,
-        ...repostMetadata,
+      };
+      
+      // Check if this is a repost/quote by presence of originalPostId
+      if (post.originalPostId && post.Post_Post_originalPostIdToPost) {
+        const originalPost = post.Post_Post_originalPostIdToPost;
+        const isQuote = post.content && post.content.length > 0;
+        
+        // Get original post author info
+        const originalUser = userMap.get(originalPost.authorId);
+        const originalActor = actorMap.get(originalPost.authorId);
+        const originalOrg = orgMap.get(originalPost.authorId);
+        
+        let originalAuthorName = originalPost.authorId;
+        let originalAuthorUsername: string | null = null;
+        let originalAuthorProfileImageUrl: string | null = null;
+        
+        if (originalActor) {
+          originalAuthorName = originalActor.name;
+          originalAuthorProfileImageUrl = originalActor.profileImageUrl!;
+        } else if (originalOrg) {
+          originalAuthorName = originalOrg.name;
+          originalAuthorProfileImageUrl = originalOrg.imageUrl!;
+        } else if (originalUser) {
+          originalAuthorName = originalUser.displayName!;
+          originalAuthorUsername = originalUser.username!;
+          originalAuthorProfileImageUrl = originalUser.profileImageUrl;
+        }
+        
+        return {
+          ...basePost,
+          isRepost: true,
+          isQuote,
+          quoteComment: isQuote ? post.content : null,
+          originalPostId: originalPost.id,
+          originalPost: {
+            id: originalPost.id,
+            content: originalPost.content,
+            authorId: originalPost.authorId,
+            authorName: originalAuthorName,
+            authorUsername: originalAuthorUsername,
+            authorProfileImageUrl: originalAuthorProfileImageUrl,
+            timestamp: toISOStringSafe(originalPost.timestamp),
+          }
+        };
       }
-
-      logger.error('Error formatting post', { postId: post?.id, post }, 'GET /api/posts')
-    }))
+      
+      return basePost;
+    })
     
     logger.info('Formatted posts', { 
       originalCount: posts.length, 

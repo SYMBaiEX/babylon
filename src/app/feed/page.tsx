@@ -2,7 +2,7 @@
 
 import { ArticleCard } from '@/components/articles/ArticleCard'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
-import { PostCard } from '@/components/posts/PostCard'
+import { PostCard, type PostCardProps } from '@/components/posts/PostCard'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -499,15 +499,12 @@ function FeedPageContent() {
                       shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
                       isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
                       isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
-                      // Repost metadata
-                      isRepost: ('isRepost' in post ? post.isRepost : false) || false,
-                      originalPostId: ('originalPostId' in post ? post.originalPostId : null) || null,
-                      originalAuthorId: ('originalAuthorId' in post ? post.originalAuthorId : null) || null,
-                      originalAuthorName: ('originalAuthorName' in post ? post.originalAuthorName : null) || null,
-                      originalAuthorUsername: ('originalAuthorUsername' in post ? post.originalAuthorUsername : null) || null,
-                      originalAuthorProfileImageUrl: ('originalAuthorProfileImageUrl' in post ? post.originalAuthorProfileImageUrl : null) || null,
-                      originalContent: ('originalContent' in post ? post.originalContent : null) || null,
-                      quoteComment: ('quoteComment' in post ? post.quoteComment : null) || null,
+                      // Repost metadata (new clean structure)
+                      isRepost: ('isRepost' in post ? (post.isRepost as boolean) : false) || false,
+                      isQuote: ('isQuote' in post ? (post.isQuote as boolean) : false) || false,
+                      quoteComment: ('quoteComment' in post ? (post.quoteComment as string | null) : null) || null,
+                      originalPostId: ('originalPostId' in post ? (post.originalPostId as string | null) : null) || null,
+                      originalPost: ('originalPost' in post ? (post.originalPost as PostCardProps['post']['originalPost']) : null) || null,
                     }
 
                     return (

@@ -87,6 +87,24 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
+import type { Post } from '@prisma/client';
+
+// Type for posts with included original post relation
+type PostWithOriginal = Post & {
+  _count: {
+    Reaction: number;
+    Comment: number;
+    Share: number;
+  };
+  Reaction: Array<{ id: string }>;
+  Share: Array<{ id: string }>;
+  Post_Post_originalPostIdToPost?: {
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: Date;
+  } | null;
+};
 
 /**
  * GET /api/users/[userId]/posts
@@ -244,7 +262,6 @@ export const GET = withErrorHandling(async (
           authorId: canonicalUserId,
           deletedAt: null, // Filter out deleted posts
           timestamp: { lte: now }, // ✅ No future posts
-          // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
           _count: {
@@ -273,42 +290,19 @@ export const GET = withErrorHandling(async (
                 select: { id: true },
               }
             : false,
-        },
-        orderBy: {
-          timestamp: 'desc',
-        },
-        take: 100,
-      });
-
-      // Also get user's shares (reposts) - only for posts up to current time
-      const shares = await prisma.share.findMany({
-        where: {
-          userId: canonicalUserId,
-          Post: {
-            timestamp: { lte: now }, // ✅ No future posts
-          },
-        },
-        include: {
-          Post: {
+          // Include original post for reposts/quotes
+          Post_Post_originalPostIdToPost: {
+            where: { deletedAt: null },
             select: {
               id: true,
               content: true,
               authorId: true,
               timestamp: true,
-              _count: {
-                select: {
-                  Reaction: {
-                    where: { type: 'like' },
-                  },
-                  Comment: true,
-                  Share: true,
-                },
-              },
-            },
-          },
+            }
+          }
         },
         orderBy: {
-          createdAt: 'desc',
+          timestamp: 'desc',
         },
         take: 100,
       });
@@ -324,13 +318,19 @@ export const GET = withErrorHandling(async (
         },
       });
       
-      // Get unique author IDs from shared posts
-      const sharedPostAuthorIds = [...new Set(shares.map(s => s.Post.authorId))];
+      // Get unique author IDs from original posts (for reposts/quotes)
+      const postsWithOriginal = posts as PostWithOriginal[];
+      const originalPostAuthorIds = postsWithOriginal
+        .filter(p => p.originalPostId && p.Post_Post_originalPostIdToPost)
+        .map(p => p.Post_Post_originalPostIdToPost!.authorId)
+        .filter((id): id is string => !!id);
       
-      // Fetch User, Actor, and Organization info for shared post authors
-      const [sharedAuthorsUsers, sharedAuthorsActors, sharedAuthorsOrgs] = await Promise.all([
+      const uniqueOriginalAuthorIds = [...new Set(originalPostAuthorIds)];
+      
+      // Fetch User, Actor, and Organization info for original post authors
+      const [originalAuthorsUsers, originalAuthorsActors, originalAuthorsOrgs] = await Promise.all([
         prisma.user.findMany({
-          where: { id: { in: sharedPostAuthorIds } },
+          where: { id: { in: uniqueOriginalAuthorIds } },
           select: {
             id: true,
             displayName: true,
@@ -339,7 +339,7 @@ export const GET = withErrorHandling(async (
           },
         }),
         prisma.actor.findMany({
-          where: { id: { in: sharedPostAuthorIds } },
+          where: { id: { in: uniqueOriginalAuthorIds } },
           select: {
             id: true,
             name: true,
@@ -347,7 +347,7 @@ export const GET = withErrorHandling(async (
           },
         }),
         prisma.organization.findMany({
-          where: { id: { in: sharedPostAuthorIds } },
+          where: { id: { in: uniqueOriginalAuthorIds } },
           select: {
             id: true,
             name: true,
@@ -357,78 +357,66 @@ export const GET = withErrorHandling(async (
       ]);
       
       // Create author lookup maps
-      const userAuthorsMap = new Map(sharedAuthorsUsers.map(u => [u.id, u]));
-      const actorAuthorsMap = new Map(sharedAuthorsActors.map(a => [a.id, a]));
-      const orgAuthorsMap = new Map(sharedAuthorsOrgs.map(o => [o.id, o]));
+      const userAuthorsMap = new Map(originalAuthorsUsers.map(u => [u.id, u]));
+      const actorAuthorsMap = new Map(originalAuthorsActors.map(a => [a.id, a]));
+      const orgAuthorsMap = new Map(originalAuthorsOrgs.map(o => [o.id, o]));
       
-      // Format posts
-      const formattedPosts = posts.map((post) => ({
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        timestamp: post.timestamp.toISOString(),
-        createdAt: post.createdAt.toISOString(),
-        likeCount: post._count.Reaction,
-        commentCount: post._count.Comment,
-        shareCount: post._count.Share,
-        isLiked: post.Reaction.length > 0,
-        isShared: post.Share.length > 0,
-        author: postAuthor
-          ? {
-              id: postAuthor.id,
-              displayName: postAuthor.displayName,
-              username: postAuthor.username,
-              profileImageUrl: postAuthor.profileImageUrl,
-            }
-          : null,
-      }));
-
-      // Format shares as reposts
-      const reposts = shares.map((share) => {
-        const authorUser = userAuthorsMap.get(share.Post.authorId);
-        const authorActor = actorAuthorsMap.get(share.Post.authorId);
-        const authorOrg = orgAuthorsMap.get(share.Post.authorId);
-        
-        return {
-          id: `share-${share.id}`,
-          content: share.Post.content,
-          authorId: share.Post.authorId,
-          timestamp: share.createdAt.toISOString(),
-          createdAt: share.createdAt.toISOString(),
-          likeCount: share.Post._count.Reaction,
-          commentCount: share.Post._count.Comment,
-          shareCount: share.Post._count.Share,
-          isLiked: false, // Could check if user liked original post
-          isShared: true,
-          isRepost: true,
-          originalPostId: share.Post.id,
-          author: authorUser
+      // Format posts (includes both regular posts and reposts/quotes)
+      const formattedPosts = postsWithOriginal.map((post) => {
+        const basePost = {
+          id: post.id,
+          content: post.content,
+          authorId: post.authorId,
+          timestamp: post.timestamp.toISOString(),
+          createdAt: post.createdAt.toISOString(),
+          likeCount: post._count.Reaction,
+          commentCount: post._count.Comment,
+          shareCount: post._count.Share,
+          isLiked: post.Reaction.length > 0,
+          isShared: post.Share.length > 0,
+          author: postAuthor
             ? {
-                id: authorUser.id,
-                displayName: authorUser.displayName,
-                username: authorUser.username,
-                profileImageUrl: authorUser.profileImageUrl,
+                id: postAuthor.id,
+                displayName: postAuthor.displayName,
+                username: postAuthor.username,
+                profileImageUrl: postAuthor.profileImageUrl,
               }
-            : authorActor
-              ? {
-                  id: authorActor.id,
-                  displayName: authorActor.name,
-                  username: null,
-                  profileImageUrl: authorActor.profileImageUrl,
-                }
-              : authorOrg
-              ? {
-                  id: authorOrg.id,
-                  displayName: authorOrg.name,
-                  username: null,
-                  profileImageUrl: authorOrg.imageUrl,
-                }
-              : null,
+            : null,
         };
+        
+        // Check if this is a repost/quote
+        if (post.originalPostId && post.Post_Post_originalPostIdToPost) {
+          const originalPost = post.Post_Post_originalPostIdToPost;
+          const isQuote = post.content && post.content.length > 0;
+          
+          // Get original post author info
+          const originalUser = userAuthorsMap.get(originalPost.authorId);
+          const originalActor = actorAuthorsMap.get(originalPost.authorId);
+          const originalOrg = orgAuthorsMap.get(originalPost.authorId);
+          
+          return {
+            ...basePost,
+            isRepost: true,
+            isQuote,
+            quoteComment: isQuote ? post.content : null,
+            originalPostId: originalPost.id,
+            originalPost: {
+              id: originalPost.id,
+              content: originalPost.content,
+              authorId: originalPost.authorId,
+              authorName: originalUser?.displayName || originalActor?.name || originalOrg?.name || originalPost.authorId,
+              authorUsername: originalUser?.username || null,
+              authorProfileImageUrl: originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl || null,
+              timestamp: originalPost.timestamp.toISOString(),
+            }
+          };
+        }
+        
+        return basePost;
       });
 
-      // Combine and sort by timestamp
-      const allItems = [...formattedPosts, ...reposts].sort(
+      // Sort by timestamp (posts already include reposts/quotes)
+      const allItems = formattedPosts.sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
