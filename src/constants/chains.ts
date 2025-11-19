@@ -1,8 +1,26 @@
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
+import { defineChain } from 'viem';
+
+// Local Anvil chain definition
+const anvil = defineChain({
+  id: 31337,
+  name: 'Anvil Local',
+  nativeCurrency: {
+    name: 'Ethereum',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['http://localhost:8545'],
+    },
+  },
+});
 
 const rawChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
 
 const resolveChain = () => {
+  if (rawChainId === anvil.id) return anvil;
   if (rawChainId === base.id) return base;
   if (rawChainId === mainnet.id) return mainnet;
   if (rawChainId === sepolia.id) return sepolia;

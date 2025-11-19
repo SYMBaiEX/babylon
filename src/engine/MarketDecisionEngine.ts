@@ -811,13 +811,47 @@ ${prompt}`
    * Applies intelligent truncation to stay within token budgets
    */
   private formatNPCsList(contexts: NPCMarketContext[]): string {
-    return contexts.map((ctx, index) => {
+    // Add a summary table at the top showing all NPC balances for quick reference
+    let summary = `===================================================================\n`;
+    summary += `🚨🚨🚨 CRITICAL: BALANCE CONSTRAINTS - QUICK REFERENCE 🚨🚨🚨\n`;
+    summary += `===================================================================\n`;
+    summary += `⚠️⚠️⚠️ BEFORE SETTING ANY AMOUNT, CHECK THIS TABLE ⚠️⚠️⚠️\n\n`;
+    summary += `NPC ID                    | Available Balance | MAX Trade (30%) | NEVER Exceed\n`;
+    summary += `---------------------------|-------------------|-----------------|-------------\n`;
+    
+    contexts.forEach(ctx => {
+      const maxAmount = Math.floor(ctx.availableBalance * 0.3);
+      const npcIdPadded = (ctx.npcId || '').padEnd(25);
+      const balanceStr = `$${ctx.availableBalance.toLocaleString()}`.padEnd(17);
+      const maxStr = `$${maxAmount.toLocaleString()}`.padEnd(15);
+      summary += `${npcIdPadded} | ${balanceStr} | ${maxStr} | $${ctx.availableBalance.toLocaleString()}\n`;
+    });
+    
+    summary += `\n⚠️ CRITICAL RULES:\n`;
+    summary += `- Amount MUST be <= MAX Trade (30% of balance) for conservative trading\n`;
+    summary += `- Amount MUST be <= Available Balance (hard limit - trades above will be REJECTED)\n`;
+    summary += `- If you set amount > Available Balance, the entire decision will be REJECTED\n`;
+    summary += `- Check the table above BEFORE setting any amount value\n`;
+    summary += `===================================================================\n\n`;
+    
+    return summary + contexts.map((ctx, index) => {
+      const maxAmount = Math.floor(ctx.availableBalance * 0.3); // 30% max per trade
+      
       let section = `## NPC ${index + 1}: [⚠️ USE THIS EXACT ID: ${ctx.npcId}] ${ctx.npcName}\n\n`;
+      
+      // ⚠️ CRITICAL: Balance constraint at the very top for maximum visibility
+      section += `🚨🚨🚨 BALANCE CONSTRAINT - READ THIS FIRST 🚨🚨🚨\n`;
+      section += `💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
+      section += `⚠️⚠️⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n`;
+      section += `❌ NEVER exceed $${maxAmount.toLocaleString()} - trades above this will be REJECTED\n`;
+      section += `❌ NEVER exceed $${ctx.availableBalance.toLocaleString()} (full balance) - trades above this will be REJECTED\n\n`;
+      
       section += `**Profile:**\n`;
       section += `- 🆔 **REQUIRED NPC ID:** ${ctx.npcId} ⬅️ **COPY THIS EXACTLY**\n`;
       section += `- Personality: ${ctx.personality}\n`;
       section += `- Tier: ${ctx.tier}\n`;
-      section += `- Available Balance: $${ctx.availableBalance.toLocaleString()}\n\n`;
+      section += `- 💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
+      section += `- ⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n\n`;
       
       // Relationships (limit to top 5 strongest)
       if (ctx.relationships && ctx.relationships.length > 0) {
@@ -896,11 +930,15 @@ ${prompt}`
       }
       
       section += `\n**DECISION:**\n`;
-      const maxAmount = Math.floor(ctx.availableBalance * 0.3); // 30% max per trade
+      section += `🚨🚨🚨 BALANCE CONSTRAINT - CHECK BEFORE SETTING AMOUNT 🚨🚨🚨\n`;
       section += `💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
-      section += `⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance - NEVER exceed this!)\n`;
-      section += `Actions: open_long, open_short, buy_yes, buy_no, close_position, hold\n`;
-      section += `⚠️ REQUIRED: marketType must be "perp" for open_long/open_short, "prediction" for buy_yes/buy_no\n\n`;
+      section += `⚠️⚠️⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n`;
+      section += `❌ If you set amount > $${maxAmount.toLocaleString()}, the trade will be REJECTED\n`;
+      section += `❌ If you set amount > $${ctx.availableBalance.toLocaleString()}, the trade will be REJECTED\n`;
+      section += `✅ Safe amount range: $1 - $${maxAmount.toLocaleString()}\n`;
+      section += `\nActions: open_long, open_short, buy_yes, buy_no, close_position, hold\n`;
+      section += `⚠️ REQUIRED: marketType must be "perp" for open_long/open_short, "prediction" for buy_yes/buy_no\n`;
+      section += `⚠️ REQUIRED: amount MUST be <= $${maxAmount.toLocaleString()} (check balance above!)\n\n`;
       
       return section;
     }).join('\n\n');
@@ -1335,16 +1373,40 @@ ${prompt}`
         continue;
       }
       
+      // Calculate max trade amount (30% of balance)
+      const maxTradeAmount = Math.floor(context.availableBalance * 0.3);
+      
+      // Validate amount doesn't exceed balance or max trade amount
       if (decision.amount > context.availableBalance) {
-        const errorMsg = `LLM suggested amount exceeds balance for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()}`;
-        logger.warn(`${errorMsg} - REJECTING`, {}, 'MarketDecisionEngine');
+        const errorMsg = `LLM suggested amount exceeds balance for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()} (balance)`;
+        logger.warn(`${errorMsg} - REJECTING`, {
+          npcId: decision.npcId,
+          npcName: decision.npcName,
+          suggestedAmount: decision.amount,
+          availableBalance: context.availableBalance,
+          maxTradeAmount,
+          action: decision.action,
+        }, 'MarketDecisionEngine');
         
         // FAIL FAST in development: LLM should respect balance constraints
         if (process.env.NODE_ENV !== 'production') {
-          throw new Error(`[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`);
+          throw new Error(`[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()}. Decision: ${JSON.stringify(decision)}`);
         }
         // REJECT the decision instead of scaling - this forces LLM to respect constraints
         continue;
+      }
+      
+      // Also warn if exceeding 30% max (but don't reject - some NPCs might want to use more)
+      if (decision.amount > maxTradeAmount) {
+        logger.warn(`LLM suggested amount exceeds 30% max for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${maxTradeAmount.toLocaleString()} (30% of $${context.availableBalance.toLocaleString()})`, {
+          npcId: decision.npcId,
+          npcName: decision.npcName,
+          suggestedAmount: decision.amount,
+          maxTradeAmount,
+          availableBalance: context.availableBalance,
+          action: decision.action,
+        }, 'MarketDecisionEngine');
+        // Don't reject - 30% is a guideline, not a hard limit
       }
       
       // Validate market type (only 'perp' or 'prediction' are valid, 'pool' was removed)

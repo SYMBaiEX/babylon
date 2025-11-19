@@ -20,6 +20,7 @@
 
 import { Prisma } from '@prisma/client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
+import { QuestionManager } from '@/engine/QuestionManager';
 import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
@@ -1284,7 +1285,8 @@ async function generateArticles(
 }
 
 /**
- * Generate baseline articles in parallel (optimized version)
+ * Generate baseline articles in parallel with game context
+ * Generates articles about active questions, actors, or companies instead of generic topics
  */
 async function generateBaselineArticlesParallel(
   newsOrgs: Array<{ id: string; name: string | null; description: string | null }>,
@@ -1292,17 +1294,94 @@ async function generateBaselineArticlesParallel(
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<number> {
-  const baselineTopics = [
-    { topic: "the current state of prediction markets", category: "finance" },
-    { topic: "upcoming trends in tech and politics", category: "tech" },
-    { topic: "volatility in crypto markets", category: "finance" },
-    { topic: "major developments to watch this week", category: "business" },
-    { topic: "the state of global markets", category: "finance" },
-  ];
+  // Gather game context for relevant articles
+  const [activeQuestions, actors, companies, worldFactsContext, worldContext] = await Promise.all([
+    prisma.question.findMany({
+      where: { status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.actor.findMany({
+      where: {
+        role: { in: ['main', 'supporting'] },
+      },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        domain: true,
+        tier: true,
+      },
+    }),
+    prisma.organization.findMany({
+      where: { type: 'company' },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        currentPrice: true,
+        initialPrice: true,
+      },
+    }),
+    worldFactsService.generatePromptContext(),
+    (async () => {
+      const { generateWorldContext } = await import('@/prompts');
+      return generateWorldContext({ maxActors: 30, realityGroundingLevel: 'concise' });
+    })(),
+  ]);
+
+  // Build article topics from game context
+  const articleTopics: Array<{ topic: string; category: string; context: string }> = [];
+
+  // Add topics about active questions
+  for (const question of activeQuestions.slice(0, 3)) {
+    articleTopics.push({
+      topic: question.text,
+      category: 'finance',
+      context: `prediction market question: "${question.text}"`,
+    });
+  }
+
+  // Add topics about high-tier actors
+  for (const actor of actors.filter(a => a.tier === 'S_TIER' || a.tier === 'A_TIER').slice(0, 2)) {
+    const domainStr = Array.isArray(actor.domain) ? actor.domain[0] : actor.domain;
+    const domain = domainStr || 'tech';
+    articleTopics.push({
+      topic: `${actor.name} and their recent activities`,
+      category: domain === 'tech' ? 'tech' : 'business',
+      context: `${actor.name} (${actor.description || 'prominent figure'}) in ${domain}`,
+    });
+  }
+
+  // Add topics about companies with price movements
+  for (const company of companies.slice(0, 2)) {
+    const currentPrice = company.currentPrice || company.initialPrice || 100;
+    const initialPrice = company.initialPrice || 100;
+    const changePercent = ((currentPrice - initialPrice) / initialPrice) * 100;
+    articleTopics.push({
+      topic: `${company.name} and market performance`,
+      category: 'finance',
+      context: `${company.name} (${company.description || 'company'}) - ${changePercent > 0 ? 'up' : 'down'} ${Math.abs(changePercent).toFixed(1)}% from initial price`,
+    });
+  }
+
+  // If we don't have enough topics, add some game-relevant generic ones
+  if (articleTopics.length < 5) {
+    articleTopics.push(
+      { topic: 'recent developments in prediction markets', category: 'finance', context: 'prediction markets and trading activity' },
+      { topic: 'tech industry trends and major players', category: 'tech', context: 'technology sector developments' }
+    );
+  }
+
+  const articlesToGenerate = Math.min(5, newsOrgs.length, articleTopics.length);
   
-  const articlesToGenerate = Math.min(5, newsOrgs.length);
-  
-  logger.info(`Generating ${articlesToGenerate} baseline articles in parallel`, {}, 'GameTick');
+  logger.info(`Generating ${articlesToGenerate} baseline articles with game context`, { 
+    topicsFromQuestions: activeQuestions.length,
+    topicsFromActors: actors.length,
+    topicsFromCompanies: companies.length,
+  }, 'GameTick');
 
   // Generate all articles in parallel
   const articlePromises = Array.from({ length: articlesToGenerate }, async (_, i) => {
@@ -1314,15 +1393,29 @@ async function generateBaselineArticlesParallel(
     const org = newsOrgs[i];
     if (!org || !org.name) return 0;
     
-      const topicData = baselineTopics[i % baselineTopics.length];
+    const topicData = articleTopics[i];
     if (!topicData) return 0;
     
     const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
 
+CONTEXT:
+${topicData.context}
+
+${worldFactsContext}
+
+${worldContext.realityGrounding || ''}
+
+CRITICAL RULES:
+- Use ONLY parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.) - NEVER real names
+- Reference specific actors, companies, or questions from the game context above
+- Make the article relevant to the current game state and active questions
+- Include specific details about actors, companies, or prediction markets when relevant
+
 Your article should include:
-- A compelling headline (max 100 chars)
+- A compelling headline (max 100 chars) that references specific game elements
 - A 2-3 sentence summary for the article listing (max 400 chars)
 - A full article body of at least 4 paragraphs with clear context, quotes or sourced details where appropriate, and a professional newsroom tone
+- Reference specific actors, companies, or questions from the context above
 - Be professional and informative
 - Match the tone of a ${org.description || 'news organization'}
 - Separate paragraphs with \\n\\n (two newlines)
@@ -1388,7 +1481,11 @@ Return your response as XML in this exact format:
         timestamp: timestampWithOffset,
       });
       
-      logger.debug('Created baseline article', { org: org.name, topic: topicData.topic }, 'GameTick');
+      logger.debug('Created baseline article with game context', { 
+        org: org.name, 
+        topic: topicData.topic,
+        category: topicData.category,
+      }, 'GameTick');
       return 1;
   });
   
@@ -1406,7 +1503,8 @@ Return your response as XML in this exact format:
   
   logger.info('Parallel baseline article generation complete', { 
     articlesCreated,
-    attempted: articlesToGenerate 
+    attempted: articlesToGenerate,
+    topicsUsed: articleTopics.length,
   }, 'GameTick');
   
   return articlesCreated;
@@ -1549,132 +1647,15 @@ async function updateMarketPricesFromTrades(
 }
 
 /**
- * Generate new questions
+ * Generate new questions using QuestionManager
  */
 async function generateNewQuestions(
   count: number,
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<number> {
-  let questionsCreated = 0;
-
-  // Get world facts context once for all questions
-  const worldFactsContext = await worldFactsService.generatePromptContext();
-
-  for (let i = 0; i < count; i++) {
-    if (Date.now() > deadlineMs) {
-      logger.warn(
-        'Question generation aborted due to tick budget limit',
-        { questionsCreated },
-        'GameTick'
-      );
-      break;
-    }
-
-    const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. 
-
-${worldFactsContext}
-
-Use the world context above to make relevant, timely questions that reflect current reality (in our satirical universe).
-
-Return your response as XML in this exact format:
-<response>
-  <question>Will X happen?</question>
-  <resolutionCriteria>Clear criteria for resolution</resolutionCriteria>
-</response>`;
-
-    let response: { question: string; resolutionCriteria: string } | { response: { question: string; resolutionCriteria: string } } | null = null;
-    let questionData: { question: string; resolutionCriteria: string } | null = null;
-    
-    try {
-      response = await llm.generateJSON<{
-        question: string;
-        resolutionCriteria: string;
-      } | { response: { question: string; resolutionCriteria: string } }>(
-        prompt,
-        {
-          properties: {
-            question: { type: 'string' },
-            resolutionCriteria: { type: 'string' },
-          },
-          required: ['question', 'resolutionCriteria'],
-        },
-        { temperature: 0.8, maxTokens: 8000, ...(llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}), format: 'xml' }
-      );
-      
-      // Handle XML structure - extract question data from response
-      questionData = response && 'response' in response && response.response
-        ? response.response as { question: string; resolutionCriteria: string }
-        : response as { question: string; resolutionCriteria: string };
-    } catch (error) {
-      logger.warn(
-        'Failed to generate new question via LLM',
-        { error },
-        'GameTick'
-      );
-      continue;
-    }
-
-    if (!questionData?.question) {
-      continue;
-    }
-
-    const resolutionDate = new Date();
-    resolutionDate.setDate(resolutionDate.getDate() + 3);
-
-    const lastQuestion = await prisma.question.findFirst({
-      orderBy: { questionNumber: 'desc' },
-    });
-    const nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
-
-    const scenarioId = 1; // Note: Will be replaced with dynamic scenario selection when schema supports it
-
-    const now = new Date();
-    const question = await prisma.question.create({
-      data: {
-        id: await generateSnowflakeId(),
-        questionNumber: nextQuestionNumber,
-        text: questionData.question,
-        scenarioId,
-        outcome: Math.random() > 0.5,
-        rank: 1,
-        resolutionDate,
-        status: 'active',
-        updatedAt: now,
-      },
-    });
-
-    // Initialize market with sufficient liquidity for trading
-    // Use 20,000 liquidity (10,000 YES + 10,000 NO shares) to support larger NPC trades
-    const initialLiquidity = 20000;
-    const { yesShares, noShares } = PredictionPricing.initializeMarket(initialLiquidity);
-
-    const market = await prisma.market.create({
-      data: {
-        id: question.id,
-        question: questionData.question,
-        description: questionData.resolutionCriteria,
-        yesShares: new Prisma.Decimal(yesShares),
-        noShares: new Prisma.Decimal(noShares),
-        liquidity: initialLiquidity,
-        endDate: resolutionDate,
-        gameId: 'continuous',
-        updatedAt: now,
-      },
-    });
-
-    // Create market on-chain if it doesn't have onChainMarketId
-    if (!market.onChainMarketId) {
-      const { ensureMarketOnChain } = await import('./services/onchain-market-service');
-      await ensureMarketOnChain(market.id).catch((error) => {
-        logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market.id }, 'GameTick');
-      });
-    }
-
-    questionsCreated++;
-  }
-
-  return questionsCreated;
+  const questionManager = new QuestionManager(llm);
+  return await questionManager.generateQuestionsForContinuousGame(count, deadlineMs);
 }
 
 /**

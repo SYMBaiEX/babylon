@@ -241,7 +241,11 @@ export async function withRetry<T>(
                           process.env.BUN_ENV === 'test' ||
                           typeof Bun !== 'undefined' && Bun.main.includes('test');
         
-        if (!isJsonBodyError && !(isConstraintViolation && isTestEnv) && !isRecordNotFoundError) {
+        // Suppress P2002 errors for generationLock.create() - these are expected behavior
+        // for distributed lock acquisition (lock already exists is handled by the lock service)
+        const isLockAcquisitionError = errorCode === 'P2002' && operationName === 'generationLock.create';
+        
+        if (!isJsonBodyError && !(isConstraintViolation && isTestEnv) && !isRecordNotFoundError && !isLockAcquisitionError) {
           logger.warn(
             `Non-retryable error in operation`,
             extractErrorDetails(lastError, operationName),

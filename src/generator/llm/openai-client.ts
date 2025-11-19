@@ -208,121 +208,155 @@ export class BabylonLLMClient {
       },
     ];
 
-    const response = await this.client.chat.completions.create({
-      model,
-      messages,
-      ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
-      temperature,
-      max_tokens: maxTokens,
-    });
+    let retryCount = 0;
+    const maxRetries = 3;
+    const initialDelayMs = 2000;
 
-    let content = response.choices[0]!.message.content!;
-    let finishReason = response.choices[0]!.finish_reason;
-
-    // Handle truncation by continuing generation (for models with 32k+ context)
-    if (finishReason === 'length') {
-      logger.warn('Response truncated, attempting continuation', { 
-        model, 
-        tokensUsed: maxTokens 
-      }, 'BabylonLLMClient');
-      
-      // Try to continue generation up to 2 more times
-      let continuationAttempts = 0;
-      const maxContinuations = 2;
-      
-      while (finishReason === 'length' && continuationAttempts < maxContinuations) {
-        continuationAttempts++;
-        
-        // Create continuation prompt
-        const continuationMessages = [
-          ...messages,
-          {
-            role: 'assistant' as const,
-            content: content,
-          },
-          {
-            role: 'user' as const,
-            content: 'Continue from where you left off. Complete the remaining JSON array entries.',
-          },
-        ];
-        
-        logger.info(`Continuation attempt ${continuationAttempts}/${maxContinuations}`, { 
-          contentLength: content.length 
-        }, 'BabylonLLMClient');
-        
-        const continuationResponse = await this.client.chat.completions.create({
+    while (true) {
+      try {
+        const response = await this.client.chat.completions.create({
           model,
-          messages: continuationMessages,
+          messages,
           ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
           temperature,
           max_tokens: maxTokens,
         });
-        
-        const continuationContent = continuationResponse.choices[0]!.message.content!;
-        finishReason = continuationResponse.choices[0]!.finish_reason;
-        
-        // Append continuation to content
-        content += continuationContent;
-        
-        if (finishReason !== 'length') {
-          logger.info('Continuation successful', { 
-            attempts: continuationAttempts,
-            finalLength: content.length 
-          }, 'BabylonLLMClient');
-          break;
-        }
-      }
-      
-      // If still truncated after max continuations, throw error
-      if (finishReason === 'length') {
-        throw new Error(`Response truncated at ${maxTokens} tokens after ${continuationAttempts} continuation attempts.`);
-      }
-    }
 
-    // Parse based on requested format
-    if (format === 'xml') {
-      // Use XML parser (more robust, handles malformed content better)
-      const xmlResult = parseXML(content);
-      
-      if (!xmlResult.success) {
-        throw new Error(`Failed to parse XML: ${xmlResult.error}`);
-      }
-      
-      logger.debug('Successfully parsed XML response', {
-        hasData: xmlResult.data !== null,
-        isArray: Array.isArray(xmlResult.data),
-      }, 'BabylonLLMClient');
-      
-      return xmlResult.data as T;
-    } else {
-      // Use JSON parser (legacy)
-      // If we had a continuation, use the advanced parser
-      if (content.includes('Continue from where you left off')) {
-        const parsed = parseContinuationContent(content);
-        if (parsed !== null) {
-          logger.info('Successfully parsed continuation content', { 
-            isArray: Array.isArray(parsed),
-            items: Array.isArray(parsed) ? parsed.length : 'N/A'
+        let content = response.choices[0]!.message.content!;
+        let finishReason = response.choices[0]!.finish_reason;
+
+        // Handle truncation by continuing generation (for models with 32k+ context)
+        if (finishReason === 'length') {
+          logger.warn('Response truncated, attempting continuation', { 
+            model, 
+            tokensUsed: maxTokens 
           }, 'BabylonLLMClient');
-          return parsed as T;
+          
+          // Try to continue generation up to 2 more times
+          let continuationAttempts = 0;
+          const maxContinuations = 2;
+          
+          while (finishReason === 'length' && continuationAttempts < maxContinuations) {
+            continuationAttempts++;
+            
+            // Create continuation prompt
+            const continuationMessages = [
+              ...messages,
+              {
+                role: 'assistant' as const,
+                content: content,
+              },
+              {
+                role: 'user' as const,
+                content: 'Continue from where you left off. Complete the remaining JSON array entries.',
+              },
+            ];
+            
+            logger.info(`Continuation attempt ${continuationAttempts}/${maxContinuations}`, { 
+              contentLength: content.length 
+            }, 'BabylonLLMClient');
+            
+            const continuationResponse = await this.client.chat.completions.create({
+              model,
+              messages: continuationMessages,
+              ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
+              temperature,
+              max_tokens: maxTokens,
+            });
+            
+            const continuationContent = continuationResponse.choices[0]!.message.content!;
+            finishReason = continuationResponse.choices[0]!.finish_reason;
+            
+            // Append continuation to content
+            content += continuationContent;
+            
+            if (finishReason !== 'length') {
+              logger.info('Continuation successful', { 
+                attempts: continuationAttempts,
+                finalLength: content.length 
+              }, 'BabylonLLMClient');
+              break;
+            }
+          }
+          
+          // If still truncated after max continuations, throw error
+          if (finishReason === 'length') {
+            throw new Error(`Response truncated at ${maxTokens} tokens after ${continuationAttempts} continuation attempts.`);
+          }
+        }
+
+        // Parse based on requested format
+        if (format === 'xml') {
+          // Use XML parser (more robust, handles malformed content better)
+          const xmlResult = parseXML(content);
+          
+          if (!xmlResult.success) {
+            throw new Error(`Failed to parse XML: ${xmlResult.error}`);
+          }
+          
+          logger.debug('Successfully parsed XML response', {
+            hasData: xmlResult.data !== null,
+            isArray: Array.isArray(xmlResult.data),
+          }, 'BabylonLLMClient');
+          
+          return xmlResult.data as T;
         } else {
-          logger.error('Failed to parse continuation content, attempting fallback', {
-            contentPreview: content.substring(0, 200)
-          }, 'BabylonLLMClient');
+          // Use JSON parser (legacy)
+          // If we had a continuation, use the advanced parser
+          if (content.includes('Continue from where you left off')) {
+            const parsed = parseContinuationContent(content);
+            if (parsed !== null) {
+              logger.info('Successfully parsed continuation content', { 
+                isArray: Array.isArray(parsed),
+                items: Array.isArray(parsed) ? parsed.length : 'N/A'
+              }, 'BabylonLLMClient');
+              return parsed as T;
+            } else {
+              logger.error('Failed to parse continuation content, attempting fallback', {
+                contentPreview: content.substring(0, 200)
+              }, 'BabylonLLMClient');
+            }
+          }
+
+          // Standard JSON parsing for non-continuation responses
+          let jsonContent = cleanMarkdownCodeBlocks(content);
+          jsonContent = extractJsonFromText(jsonContent);
+          
+          const parsed: Record<string, JsonValue> = JSON.parse(jsonContent);
+
+          if (schema && !this.validateSchema(parsed, schema)) {
+            throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
+          }
+
+          return parsed as T;
         }
+      } catch (error: unknown) {
+        const err = error as { status?: number; message?: string };
+        // Handle 502/503/504 service errors with exponential backoff
+        if (retryCount < maxRetries && (
+            err?.status === 502 || 
+            err?.status === 503 || 
+            err?.status === 504 || 
+            err?.message?.includes('502') || 
+            err?.message?.includes('503') ||
+            err?.message?.includes('service_unavailable')
+        )) {
+          retryCount++;
+          const delay = initialDelayMs * Math.pow(2, retryCount - 1);
+          
+          logger.warn(`LLM Service Error (${err.status || 'unknown'}), retrying in ${delay}ms...`, {
+            attempt: retryCount,
+            maxRetries,
+            error: err.message
+          }, 'BabylonLLMClient');
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // Re-throw if not a retryable error or retries exhausted
+        throw error;
       }
-
-      // Standard JSON parsing for non-continuation responses
-      let jsonContent = cleanMarkdownCodeBlocks(content);
-      jsonContent = extractJsonFromText(jsonContent);
-      
-      const parsed: Record<string, JsonValue> = JSON.parse(jsonContent);
-
-      if (schema && !this.validateSchema(parsed, schema)) {
-        throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
-      }
-
-      return parsed as T;
     }
   }
 
