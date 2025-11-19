@@ -234,13 +234,17 @@ export const PostCard = memo(function PostCard({
           <Repeat2 size={14} className="text-green-600" />
           <span>
             Reposted by{' '}
-            <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="font-semibold hover:underline text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {post.authorName}
-            </Link>
+            {user?.id === post.authorId ? (
+              <span className="font-semibold text-foreground">you</span>
+            ) : (
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="font-semibold hover:underline text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.authorName}
+              </Link>
+            )}
           </span>
         </div>
       )}
