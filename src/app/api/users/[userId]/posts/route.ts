@@ -361,6 +361,35 @@ export const GET = withErrorHandling(async (
       const actorAuthorsMap = new Map(originalAuthorsActors.map(a => [a.id, a]));
       const orgAuthorsMap = new Map(originalAuthorsOrgs.map(o => [o.id, o]));
       
+      // Get interaction counts for original posts (for reposts)
+      const originalPostIds = postsWithOriginal
+        .filter(p => p.originalPostId)
+        .map(p => p.originalPostId)
+        .filter((id): id is string => id !== null);
+      
+      const [originalPostReactions, originalPostComments, originalPostShares] = await Promise.all([
+        originalPostIds.length > 0 ? prisma.reaction.groupBy({
+          by: ['postId'],
+          where: { postId: { in: originalPostIds }, type: 'like' },
+          _count: { postId: true },
+        }) : Promise.resolve([]),
+        originalPostIds.length > 0 ? prisma.comment.groupBy({
+          by: ['postId'],
+          where: { postId: { in: originalPostIds } },
+          _count: { postId: true },
+        }) : Promise.resolve([]),
+        originalPostIds.length > 0 ? prisma.share.groupBy({
+          by: ['postId'],
+          where: { postId: { in: originalPostIds } },
+          _count: { postId: true },
+        }) : Promise.resolve([]),
+      ]);
+      
+      // Create interaction count maps for original posts
+      const originalReactionMap = new Map(originalPostReactions.map(r => [r.postId, r._count.postId]));
+      const originalCommentMap = new Map(originalPostComments.map(c => [c.postId, c._count.postId]));
+      const originalShareMap = new Map(originalPostShares.map(s => [s.postId, s._count.postId]));
+      
       // Format posts (includes both regular posts and reposts/quotes)
       const formattedPosts = postsWithOriginal.map((post) => {
         const basePost = {
@@ -394,8 +423,21 @@ export const GET = withErrorHandling(async (
           const originalActor = actorAuthorsMap.get(originalPost.authorId);
           const originalOrg = orgAuthorsMap.get(originalPost.authorId);
           
+          // For simple reposts (not quotes), use the original post's interaction counts
+          // For quote posts, keep the quote post's interaction counts
+          const interactionCounts = !isQuote ? {
+            likeCount: originalReactionMap.get(originalPost.id) ?? 0,
+            commentCount: originalCommentMap.get(originalPost.id) ?? 0,
+            shareCount: originalShareMap.get(originalPost.id) ?? 0,
+          } : {
+            likeCount: basePost.likeCount,
+            commentCount: basePost.commentCount,
+            shareCount: basePost.shareCount,
+          };
+          
           return {
             ...basePost,
+            ...interactionCounts,
             isRepost: true,
             isQuote,
             quoteComment: isQuote ? post.content : null,

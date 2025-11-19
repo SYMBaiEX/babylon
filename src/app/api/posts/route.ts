@@ -596,20 +596,27 @@ export const GET = withErrorHandling(async (request: Request) => {
     
     // Get interaction counts for all posts in parallel
     const postIds = posts.map(p => p.id);
+    // Also collect original post IDs for reposts to get their interaction counts
+    const originalPostIds = posts
+      .filter(p => p.originalPostId)
+      .map(p => p.originalPostId)
+      .filter((id): id is string => id !== null);
+    const allPostIds = [...new Set([...postIds, ...originalPostIds])];
+    
     const [allReactions, allComments, allShares] = await Promise.all([
       prisma.reaction.groupBy({
         by: ['postId'],
-        where: { postId: { in: postIds }, type: 'like' },
+        where: { postId: { in: allPostIds }, type: 'like' },
         _count: { postId: true },
       }),
       prisma.comment.groupBy({
         by: ['postId'],
-        where: { postId: { in: postIds } },
+        where: { postId: { in: allPostIds } },
         _count: { postId: true },
       }),
       prisma.share.groupBy({
         by: ['postId'],
-        where: { postId: { in: postIds } },
+        where: { postId: { in: allPostIds } },
         _count: { postId: true },
       }),
     ]);
@@ -698,8 +705,21 @@ export const GET = withErrorHandling(async (request: Request) => {
           originalAuthorProfileImageUrl = originalUser.profileImageUrl;
         }
         
+        // For simple reposts (not quotes), use the original post's interaction counts
+        // For quote posts, keep the quote post's interaction counts
+        const interactionCounts = !isQuote ? {
+          likeCount: reactionMap.get(originalPost.id) ?? 0,
+          commentCount: commentMap.get(originalPost.id) ?? 0,
+          shareCount: shareMap.get(originalPost.id) ?? 0,
+        } : {
+          likeCount: basePost.likeCount,
+          commentCount: basePost.commentCount,
+          shareCount: basePost.shareCount,
+        };
+        
         return {
           ...basePost,
+          ...interactionCounts,
           isRepost: true,
           isQuote,
           quoteComment: isQuote ? post.content : null,
