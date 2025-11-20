@@ -51,6 +51,19 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts/,
+      testDir: './tests/e2e',
+    },
+
+    // Integration auth setup - extracts tokens from authenticated browser context
+    {
+      name: 'setup-integration-auth',
+      testMatch: /.*integration.*\.setup\.ts/,
+      testDir: './tests/integration',
+      use: {
+        // Use authenticated state from E2E setup
+        storageState: '.playwright/auth.json',
+      },
+      dependencies: ['setup'],
     },
 
     // Main test project - depends on setup and uses saved auth state
