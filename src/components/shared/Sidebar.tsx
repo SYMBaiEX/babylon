@@ -7,6 +7,7 @@ import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { cn } from '@/lib/utils'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
 import { Bell, Bot, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -93,9 +94,10 @@ function SidebarContent() {
   }, [authenticated, user])
 
   const copyReferralCode = async () => {
-    if (!user?.referralCode) return
+    if (!user?.username) return
     
-    await navigator.clipboard.writeText(user.referralCode)
+    const referralUrl = getReferralUrl(user.username)
+    await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
   }
@@ -343,7 +345,7 @@ function SidebarContent() {
           {showMdMenu && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto bg-sidebar border border-border rounded-lg shadow-lg overflow-hidden z-50">
               {/* Referral Code */}
-              {user.referralCode && (
+              {user.username && (
                 <button
                   onClick={copyReferralCode}
                   className="w-full flex items-center justify-center p-3 hover:bg-sidebar-accent transition-colors"
@@ -359,7 +361,7 @@ function SidebarContent() {
               )}
               
               {/* Separator */}
-              {user.referralCode && <div className="border-t border-border" />}
+              {user.username && <div className="border-t border-border" />}
               
               {/* Logout */}
               <button

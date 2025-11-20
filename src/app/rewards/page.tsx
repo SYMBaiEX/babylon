@@ -10,6 +10,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
+import { getReferralUrl, getReferralShareText } from '@/lib/referral/referral-utils'
 import { POINTS } from '@/lib/constants/points'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -124,11 +125,8 @@ export default function RewardsPage() {
   }, [user?.id, ready, authenticated, fetchReferralData])
 
   const handleCopyUrl = async () => {
-    if (!user?.id) return
-    const referralUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/share/referral/${user.id}` 
-      : ''
-    if (!referralUrl) return
+    if (!referralData?.user.username) return
+    const referralUrl = getReferralUrl(referralData.user.username)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedUrl(true)
     setTimeout(() => setCopiedUrl(false), 2000)
@@ -380,13 +378,13 @@ export default function RewardsPage() {
                 {/* URL Display */}
                 <div className="flex gap-2">
                   <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border truncate">
-                    {user?.id && typeof window !== 'undefined' 
-                      ? `${window.location.origin}/share/referral/${user.id}` 
+                    {referralData.user.username 
+                      ? getReferralUrl(referralData.user.username)
                       : 'Set a username to get your referral link'}
                   </div>
                   <button
                     onClick={handleCopyUrl}
-                    disabled={!user?.id}
+                    disabled={!referralData.user.username}
                     className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center gap-1.5 border border-border disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {copiedUrl ? (
@@ -404,16 +402,16 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {user?.id && (
+                {referralData.user.username && (
                   <ExternalShareButton
                     contentType="referral"
-                    text={`Join me on Babylon! 🎮\n\n${typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}`}
-                    url={typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}
+                    text={getReferralShareText(referralData.user.username)}
+                    url={getReferralUrl(referralData.user.username)}
                     className="w-full"
                   />
                 )}
 
-                {!user?.id && (
+                {!referralData.user.username && (
                   <p className="text-xs text-muted-foreground">
                     Sign in to get your referral link
                   </p>
@@ -616,11 +614,13 @@ export default function RewardsPage() {
                 {/* URL Display */}
                 <div className="flex gap-2">
                   <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border break-all">
-                    {referralData.referralUrl || 'Set a username to get your referral link'}
+                    {referralData.user.username 
+                      ? getReferralUrl(referralData.user.username)
+                      : 'Set a username to get your referral link'}
                   </div>
                   <button
                     onClick={handleCopyUrl}
-                    disabled={!referralData.referralUrl}
+                    disabled={!referralData.user.username}
                     className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     aria-label="Copy referral link"
                   >
@@ -633,16 +633,16 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {user?.id && (
+                {referralData.user.username && (
                   <ExternalShareButton
                     contentType="referral"
-                    text={`Join me on Babylon! 🎮\n\n${typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}`}
-                    url={typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}
+                    text={getReferralShareText(referralData.user.username)}
+                    url={getReferralUrl(referralData.user.username)}
                     className="w-full"
                   />
                 )}
 
-                {!user?.id && (
+                {!referralData.user.username && (
                   <p className="text-xs text-muted-foreground">
                     Sign in to get your referral link
                   </p>
