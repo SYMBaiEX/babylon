@@ -33,7 +33,6 @@ export function UserMenu() {
   const { logout } = useAuth()
   const { user } = useAuthStore()
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
-  const [referralCode, setReferralCode] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const lastFetchedUserIdRef = useRef<string | null>(null)
 
@@ -50,7 +49,6 @@ export function UserMenu() {
       if (!user?.id || !isMounted) {
         if (!isMounted) return
         setPointsData(null)
-        setReferralCode(null)
         lastFetchedUserIdRef.current = null
         return
       }
@@ -93,24 +91,6 @@ export function UserMenu() {
               available: Number(data.balance || 0),
               total: Number(data.totalDeposited || 0),
             })
-          }
-        }
-
-        // Fetch referral code
-        const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { 
-          headers,
-          signal: fetchController.signal
-        })
-        
-        if (!isMounted || fetchController.signal.aborted) {
-          userMenuFetchInFlight = false
-          return
-        }
-
-        if (referralResponse.ok) {
-          const data = await referralResponse.json()
-          if (isMounted && !fetchController.signal.aborted) {
-            setReferralCode(data.user?.referralCode || null)
           }
         }
 
@@ -218,7 +198,7 @@ export function UserMenu() {
         </div>
       )}
       
-      {referralCode && (
+      {user?.id && (
         <DropdownItem onClick={handleCopyReferralCode}>
           <div className="flex items-center gap-3 py-2">
             {copiedCode ? (
