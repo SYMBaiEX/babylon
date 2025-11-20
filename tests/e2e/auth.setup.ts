@@ -54,23 +54,58 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     return
   }
 
-  // Click login button
-  const loginButtonVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
-  if (!loginButtonVisible) {
-    throw new Error('Could not find login button on page')
+  // Check if login modal is already open (email input visible)
+  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
+  const isLoginModalOpen = await emailInput.isVisible({ timeout: 1000 }).catch(() => false)
+
+  if (!isLoginModalOpen) {
+    // Click login button
+    const loginButtonVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
+    if (!loginButtonVisible) {
+      throw new Error('Could not find login button on page')
+    }
+
+    // Force click if necessary or retry
+    try {
+      await loginButton.click({ timeout: 5000 })
+    } catch (e) {
+      console.log('⚠️  Normal click failed, trying force click...', e)
+      await loginButton.click({ force: true })
+    }
+    await page.waitForTimeout(1000)
+  } else {
+    console.log('ℹ️  Login modal already open')
   }
 
-  await loginButton.click()
-  await page.waitForTimeout(1000)
-
   // Fill in email
-  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
   await emailInput.waitFor({ state: 'visible', timeout: 10000 })
   await emailInput.fill(email)
   await page.waitForTimeout(500)
 
   // Click continue/submit
-  const continueButton = page.locator('button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]').first()
+  // Prioritize buttons inside the modal/dialog if it exists to avoid clicking covered buttons
+  const modalSelector = '#headlessui-portal-root, .DialogContainer-sc-3cfde0b5-2, [role="dialog"]';
+  const modal = page.locator(modalSelector).first();
+  const isModalVisible = await modal.isVisible().catch(() => false);
+  
+  let continueButton;
+  const buttonSelector = 'button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]';
+  
+  if (isModalVisible) {
+    console.log('ℹ️  Modal detected, targeting button inside modal');
+    // Use filter to find button with text inside the modal
+    continueButton = modal.locator('button').filter({ hasText: /Continue|Log in|Submit/ }).first();
+  } else {
+    console.log('ℹ️  No modal detected, targeting button on page');
+    continueButton = page.locator(buttonSelector).first();
+  }
+  
+  // Ensure we have a valid locator
+  if (await continueButton.count() === 0 && isModalVisible) {
+     console.log('⚠️  Button not found in modal, falling back to page search');
+     continueButton = page.locator(buttonSelector).first();
+  }
+  
   await continueButton.click()
   await page.waitForTimeout(2000)
 

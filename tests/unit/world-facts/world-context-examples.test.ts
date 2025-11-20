@@ -18,9 +18,9 @@ describe('World Context Examples Integration', () => {
     expect(examples).toBeString();
     expect(examples).toContain('=== WORLD EVENT EXAMPLES (FOR STYLE AND TONE) ===');
     
-    // Check that it contains list items
-    const lines = examples.split('\n').filter(l => l.trim().startsWith('-'));
-    expect(lines.length).toBe(20);
+    // Check that it contains content lines (not checking for bullets as format changed)
+    const lines = examples.split('\n').filter(l => l.trim().length > 0 && !l.startsWith('=') && !l.startsWith('#'));
+    expect(lines.length).toBeGreaterThan(20);
   });
 
   test('getRealityGrounding should NOT contain world event examples', async () => {

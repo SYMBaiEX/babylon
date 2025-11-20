@@ -45,7 +45,7 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
 
   if (!emailInputVisible) {
     // Look for Privy login button or modal
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), [data-testid="privy-login"]').first()
+    const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Connect Wallet"), [data-testid="privy-login"]').first()
     
     const isVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
     
