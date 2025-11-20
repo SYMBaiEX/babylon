@@ -192,6 +192,18 @@ jobs:
           # 4. Add both as secrets in GitHub Settings > Secrets and variables > Actions
           TEST_USER_ID: ${{ secrets.TEST_USER_ID || vars.TEST_USER_ID || '' }}
           TEST_ACCESS_TOKEN: ${{ secrets.TEST_ACCESS_TOKEN || vars.TEST_ACCESS_TOKEN || '' }}
+          # Agent0 SDK Configuration for integration tests
+          # NOTE: Add these secrets in GitHub Settings > Secrets and variables > Actions
+          # Required for agent0-sdk.integration.test.ts to run (currently skipped without config)
+          # Get free Ethereum Sepolia RPC: https://www.alchemy.com/ or https://infura.io/
+          # Use a dedicated test wallet - NEVER use mainnet wallet with funds!
+          AGENT0_ENABLED: ${{ secrets.AGENT0_ENABLED || 'false' }}
+          AGENT0_NETWORK: ${{ secrets.AGENT0_NETWORK || 'sepolia' }}
+          AGENT0_RPC_URL: ${{ secrets.AGENT0_RPC_URL || '' }}
+          AGENT0_PRIVATE_KEY: ${{ secrets.AGENT0_PRIVATE_KEY || '' }}
+          AGENT0_IPFS_PROVIDER: ${{ secrets.AGENT0_IPFS_PROVIDER || 'pinata' }}
+          PINATA_JWT: ${{ secrets.PINATA_JWT || '' }}
+          AGENT0_SUBGRAPH_URL: ${{ secrets.AGENT0_SUBGRAPH_URL || '' }}
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts src/engine/__tests__/
         continue-on-error: false
 
