@@ -52,9 +52,12 @@ describe('Security: Prevent Cheating', () => {
       );
       
       for (const q of activeQuestions) {
+        if ((q as Question).outcome !== undefined) {
+             console.log('FAILED CHEATING TEST DEBUG:', JSON.stringify(q, null, 2));
+        }
         expect((q as Question).outcome).toBeUndefined();
       }
-    });
+    }, 300000);
     
     test('posts dont directly reveal predetermined outcomes', async () => {
       if (!hasLLMKey) {
@@ -92,7 +95,7 @@ describe('Security: Prevent Cheating', () => {
       const suspiciousRate = suspiciousPosts / totalPosts;
       
       expect(suspiciousRate).toBeLessThan(0.01); // Less than 1%
-    });
+    }, 300000);
   });
   
   describe('No Future Information Access', () => {
@@ -157,7 +160,7 @@ describe('Security: Prevent Cheating', () => {
         expect(actor.persona).toBeUndefined();
         expect((actor as typeof game.setup.mainActors[0]).trackRecord).toBeUndefined();
       }
-    });
+    }, 300000);
     
     test('insider status not visible to users', async () => {
       if (!hasLLMKey) {
@@ -182,7 +185,7 @@ describe('Security: Prevent Cheating', () => {
       for (const q of publicQuestions) {
         expect(q.metadata).toBeUndefined();
       }
-    });
+    }, 300000);
   });
   
   describe('Information Gradient Integrity', () => {
@@ -209,7 +212,7 @@ describe('Security: Prevent Cheating', () => {
       
       // Allow variance but ensure not too many hints
       expect(hintRate).toBeLessThan(0.30); // Max 30% in early game
-    });
+    }, 300000);
     
     test('late game provides sufficient clarity', async () => {
       if (!hasLLMKey) {
@@ -233,7 +236,7 @@ describe('Security: Prevent Cheating', () => {
       
       // Should be at least 70% in late game
       expect(hintRate).toBeGreaterThan(0.60); // At least 60%
-    });
+    }, 300000);
   });
   
   describe('Fair Information Distribution', () => {

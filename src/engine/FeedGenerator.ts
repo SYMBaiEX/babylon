@@ -848,6 +848,15 @@ Trending system not initialized yet.
         params
       );
 
+      if (!response) {
+        logger.warn(`LLM returned null/undefined media response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return [];
+      }
+
       // Debug: Log raw response structure on first attempt
       if (attempt === 0) {
         logger.info('Media batch raw response structure', {
@@ -1023,6 +1032,15 @@ Trending system not initialized yet.
         params
       );
 
+      if (!response) {
+        logger.warn(`LLM returned null/undefined reactions response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return [];
+      }
+
       // Handle XML nested structure: { reactions: [...] } or { reactions: { reaction: [...] } }
       let reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
       if (Array.isArray(response.reactions)) {
@@ -1140,6 +1158,15 @@ Trending system not initialized yet.
         params
       );
 
+      if (!response) {
+        logger.warn(`LLM returned null/undefined commentary response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return [];
+      }
+
       // Handle XML nested structure: { commentary: [...] } or { commentary: { comment: [...] } }
       let commentary: CommentaryPost[] = [];
       if (Array.isArray(response.commentary)) {
@@ -1246,6 +1273,15 @@ Trending system not initialized yet.
         undefined, // Don't validate schema, we'll handle both formats
         params
       );
+
+      if (!rawResponse) {
+        logger.warn(`LLM returned null/undefined conspiracy response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return []; // Return empty if failed
+      }
 
       // Handle multiple response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
@@ -1387,6 +1423,15 @@ Trending system not initialized yet.
         params
       );
 
+      if (!response) {
+        logger.warn(`LLM returned null/undefined company post response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        throw new Error(`Failed to generate valid company post after ${maxRetries} attempts for ${company.name}`);
+      }
+
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return {
           ...response,
@@ -1482,6 +1527,15 @@ Trending system not initialized yet.
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         params
       );
+
+      if (!response) {
+        logger.warn(`LLM returned null/undefined government post response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        throw new Error(`Failed to generate valid government post after ${maxRetries} attempts for ${govt.name}`);
+      }
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return {
@@ -1697,6 +1751,11 @@ Trending system not initialized yet.
       params
     );
 
+    if (!rawResponse) {
+      logger.warn('LLM returned null/undefined reply content', undefined, 'FeedGenerator');
+      return 'Interesting point.'; // Fallback
+    }
+
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
       ? rawResponse.response
@@ -1794,6 +1853,15 @@ Trending system not initialized yet.
         undefined, // Don't validate schema to handle various response formats
         params
       );
+
+      if (!response) {
+        logger.warn(`LLM returned null/undefined ambient response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return [];
+      }
 
       // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
       let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
@@ -1937,6 +2005,15 @@ Trending system not initialized yet.
         undefined, // Don't validate schema to handle various response formats
         params
       );
+
+      if (!response) {
+        logger.warn(`LLM returned null/undefined replies response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        return [];
+      }
 
       // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } }
       let replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];

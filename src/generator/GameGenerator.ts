@@ -876,6 +876,11 @@ Otherwise, start fresh.`;
       maxTokens: 8000,
     });
     
+    if (!rawResult) {
+      logger.error('LLM returned null/undefined scenarios response', undefined, 'GameGenerator');
+      throw new Error('LLM returned no response for scenarios');
+    }
+    
     // Handle XML structure - may be nested like { scenarios: { scenario: [...] } }
     let scenarios: Scenario[];
     
@@ -953,6 +958,11 @@ Otherwise, start fresh.`;
       maxTokens: 8000,
     });
     
+    if (!rawResult) {
+      logger.error('LLM returned null/undefined questions response', undefined, 'GameGenerator');
+      throw new Error('LLM returned no response for questions');
+    }
+    
     // Handle both possible response formats:
     // 1. { questions: [...] } - expected format
     // 2. [{ questions: [...] }, { questions: [...] }] - grouped by scenario
@@ -1016,6 +1026,11 @@ Otherwise, start fresh.`;
     });
 
     const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt);
+    
+    if (!rawResult) {
+      logger.warn('LLM returned null/undefined rankings response, using default ranking', undefined, 'GameGenerator');
+      return questions.slice(0, 3);
+    }
     
     // Handle XML structure - may be nested like { rankings: { ranking: [...] } }
     let rankings: Array<{ questionId: number; rank: number }> = [];
@@ -1479,6 +1494,16 @@ Otherwise, start fresh.`;
       }
     }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000 });
 
+    if (!rawResponse) {
+      logger.warn('LLM returned null/undefined events response, falling back to simple events', undefined, 'GameGenerator');
+      // Fallback generation if LLM fails
+      return eventRequests.map(req => ({
+        eventNumber: req.eventNumber,
+        event: `${req.actors.map(a => a.name).join(' and ')} involved in ${req.type}`,
+        pointsToward: null
+      }));
+    }
+
     // Handle XML structure - may be nested like { events: { event: [...] } }
     let events: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> = [];
     
@@ -1823,6 +1848,16 @@ ${req.members.map((m, idx) => {
         { required: ['groups'] },
         { temperature: 1.0, maxTokens: 5000 }
       );
+
+      if (!rawResponse) {
+        logger.warn(`LLM returned null/undefined group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        // Fallback for last attempt
+        return messages;
+      }
 
       // Handle XML structure
       const response = 'response' in rawResponse && rawResponse.response

@@ -55,14 +55,16 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   }
 
   // Check if login modal is already open (email input visible)
+  // Increase timeout to allow for Privy SDK to initialize (can take a few seconds)
   const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
-  const isLoginModalOpen = await emailInput.isVisible({ timeout: 1000 }).catch(() => false)
+  const isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
 
   if (!isLoginModalOpen) {
     // Click login button
-    const loginButtonVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
+    // Wait longer for the button to appear (Privy initialization takes time)
+    const loginButtonVisible = await loginButton.isVisible({ timeout: 15000 }).catch(() => false)
     if (!loginButtonVisible) {
-      throw new Error('Could not find login button on page')
+      throw new Error('Could not find login button on page (or Privy failed to initialize)')
     }
 
     // Force click if necessary or retry
@@ -83,28 +85,10 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   await page.waitForTimeout(500)
 
   // Click continue/submit
-  // Prioritize buttons inside the modal/dialog if it exists to avoid clicking covered buttons
-  const modalSelector = '#headlessui-portal-root, .DialogContainer-sc-3cfde0b5-2, [role="dialog"]';
-  const modal = page.locator(modalSelector).first();
-  const isModalVisible = await modal.isVisible().catch(() => false);
-  
-  let continueButton;
-  const buttonSelector = 'button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]';
-  
-  if (isModalVisible) {
-    console.log('ℹ️  Modal detected, targeting button inside modal');
-    // Use filter to find button with text inside the modal
-    continueButton = modal.locator('button').filter({ hasText: /Continue|Log in|Submit/ }).first();
-  } else {
-    console.log('ℹ️  No modal detected, targeting button on page');
-    continueButton = page.locator(buttonSelector).first();
-  }
-  
-  // Ensure we have a valid locator
-  if (await continueButton.count() === 0 && isModalVisible) {
-     console.log('⚠️  Button not found in modal, falling back to page search');
-     continueButton = page.locator(buttonSelector).first();
-  }
+  // Use .last() to target the button in the modal (which is usually appended last in the DOM)
+  const continueButton = page.locator('button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]')
+    .filter({ hasText: /Continue|Log in|Submit/ })
+    .last();
   
   await continueButton.click()
   await page.waitForTimeout(2000)
@@ -128,14 +112,18 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   // On localhost, admin middleware allows any authenticated user to access admin routes
   await page.waitForFunction(() => {
     // Check for common authentication indicators
-    return (
-      document.querySelector('[data-testid="user-menu"]') !== null ||
-      document.querySelector('[aria-label*="user menu"]') !== null ||
-      document.querySelector('button:has-text("Profile")') !== null ||
-      // Check localStorage for Privy auth tokens
-      window.localStorage.getItem('privy:token') !== null ||
-      Object.keys(window.localStorage).some(key => key.startsWith('privy:'))
-    )
+    const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
+    const hasAriaLabel = document.querySelector('[aria-label*="user menu"]') !== null;
+    
+    // Check for profile button (standard DOM way)
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const hasProfileButton = buttons.some(b => b.textContent?.includes('Profile'));
+    
+    // Check localStorage for Privy auth tokens
+    const hasPrivyToken = window.localStorage.getItem('privy:token') !== null;
+    const hasPrivyKeys = Object.keys(window.localStorage).some(key => key.startsWith('privy:'));
+    
+    return hasUserMenu || hasAriaLabel || hasProfileButton || hasPrivyToken || hasPrivyKeys;
   }, { timeout: 15000 })
 
   console.log('✅ Authentication successful')

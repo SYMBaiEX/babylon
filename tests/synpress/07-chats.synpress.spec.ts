@@ -26,15 +26,16 @@ test.describe('Chats Page - Updated Design', () => {
     expect(page.url()).toContain('/chats')
     
     // Check for Messages header (handle multiple instances due to responsive layout)
-    const messagesHeaders = await page.getByText('Messages').all()
-    let hasMessagesHeader = false
-    for (const header of messagesHeaders) {
-      if (await header.isVisible().catch(() => false)) {
-        hasMessagesHeader = true
-        break
+    // We use expect.poll because we need to wait for at least ONE of the headers to be visible
+    await expect.poll(async () => {
+      const messagesHeaders = await page.getByText('Messages').all()
+      for (const header of messagesHeaders) {
+        if (await header.isVisible().catch(() => false)) {
+          return true
+        }
       }
-    }
-    expect(hasMessagesHeader).toBeTruthy()
+      return false
+    }, { message: 'Could not find visible "Messages" header', timeout: 10000 }).toBeTruthy()
     
     await page.screenshot({ path: 'test-results/screenshots/07-chats-page-new.png', fullPage: true })
     console.log('✅ Chats page loaded with new design')
@@ -42,21 +43,23 @@ test.describe('Chats Page - Updated Design', () => {
 
   test('should display All/DMs/Groups filter tabs', async ({ page }) => {
     // Check for filter tabs (handle multiple instances)
-    const checkVisible = async (text: string) => {
-      const elements = await page.getByText(text).all()
-      for (const el of elements) {
-        if (await el.isVisible().catch(() => false)) return true
+    await expect.poll(async () => {
+      const checkVisible = async (text: string) => {
+        const elements = await page.getByText(text).all()
+        for (const el of elements) {
+          if (await el.isVisible().catch(() => false)) return true
+        }
+        return false
       }
-      return false
-    }
 
-    const hasAllTab = await checkVisible('All')
-    const hasDMsTab = await checkVisible('DMs')
-    const hasGroupsTab = await checkVisible('Groups')
+      const hasAllTab = await checkVisible('All')
+      const hasDMsTab = await checkVisible('DMs')
+      const hasGroupsTab = await checkVisible('Groups')
+      
+      return hasAllTab || hasDMsTab || hasGroupsTab
+    }, { message: 'Could not find any filter tabs', timeout: 10000 }).toBeTruthy()
     
-    expect(hasAllTab || hasDMsTab || hasGroupsTab).toBeTruthy()
-    
-    console.log(`✅ Filter tabs visible: All=${hasAllTab}, DMs=${hasDMsTab}, Groups=${hasGroupsTab}`)
+    console.log('✅ Filter tabs visible')
   })
 
   test('should switch between filter tabs', async ({ page }) => {
@@ -68,6 +71,14 @@ test.describe('Chats Page - Updated Design', () => {
       }
       return null
     }
+
+    // Poll until we find all tabs
+    await expect.poll(async () => {
+      const dmsTab = await findVisible('DMs')
+      const groupsTab = await findVisible('Groups')
+      const allTab = await findVisible('All')
+      return !!(dmsTab && groupsTab && allTab)
+    }, { message: 'Could not find all filter tabs for switching', timeout: 10000 }).toBeTruthy()
 
     const dmsTab = await findVisible('DMs')
     const groupsTab = await findVisible('Groups')
@@ -86,8 +97,6 @@ test.describe('Chats Page - Updated Design', () => {
       await page.screenshot({ path: 'test-results/screenshots/07-filter-tabs.png' })
       
       console.log('✅ Filter tabs switching works')
-    } else {
-        console.log('⚠️ Could not find all filter tabs to test switching')
     }
   })
 

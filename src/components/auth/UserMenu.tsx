@@ -178,7 +178,7 @@ export function UserMenu() {
   const username = user.username || `user${user.id.slice(0, 8)}`
 
   const trigger = (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-full hover:bg-sidebar-accent cursor-pointer transition-colors">
+    <div data-testid="user-menu" className="flex items-center gap-3 px-3 py-2.5 rounded-full hover:bg-sidebar-accent cursor-pointer transition-colors">
       <Avatar
         id={user.id}
         name={displayName}
