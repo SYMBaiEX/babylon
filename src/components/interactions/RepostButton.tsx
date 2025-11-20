@@ -10,7 +10,8 @@ import { useLoginModal } from '@/hooks/useLoginModal';
 import type { RepostButtonProps } from '@/types/interactions';
 import type { FeedPost } from '@/shared/types';
 import { Skeleton } from '@/components/shared/Skeleton';
-// // import { toast } from 'sonner';
+import { Avatar } from '@/components/shared/Avatar';
+// // import { toast } from 'sonner');
 
 /**
  * Repost/share button component for sharing posts.
@@ -213,9 +214,9 @@ export function RepostButton({
           />
 
           {/* Modal - Mobile */}
-          <div className="fixed inset-x-4 top-20 bottom-auto z-50 md:hidden rounded-2xl border border-white/10 bg-[#050816] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+          <div className="fixed inset-x-4 top-20 bottom-auto z-50 md:hidden rounded-2xl border border-border bg-sidebar shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -223,7 +224,7 @@ export function RepostButton({
                     setShowConfirmation(false);
                     setQuoteComment('');
                   }}
-                  className="text-foreground/70 hover:text-foreground transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X size={20} />
                 </button>
@@ -265,7 +266,7 @@ export function RepostButton({
                 className={cn(
                   'w-full p-3 rounded-xl mb-1',
                   'border-0 bg-transparent',
-                  'text-foreground placeholder:text-foreground/40',
+                  'text-foreground placeholder:text-muted-foreground',
                   'resize-none focus:outline-none',
                   'transition-colors'
                 )}
@@ -279,7 +280,7 @@ export function RepostButton({
                     id="char-count-mobile"
                     className={cn(
                       'text-xs',
-                      quoteComment.length > 450 ? 'text-red-400' : 'text-foreground/40'
+                      quoteComment.length > 450 ? 'text-red-400' : 'text-muted-foreground'
                     )}
                   >
                     {quoteComment.length}/500
@@ -290,31 +291,36 @@ export function RepostButton({
               {/* Original Post Preview */}
               {postData && (
                 <div className={cn(
-                  'rounded-xl border border-white/10 p-4 mt-4',
-                  'bg-white/5'
+                  'rounded-xl border border-border p-4 mt-4',
+                  'bg-muted/30'
                 )}>
                   {/* Original Post Author */}
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-foreground text-sm font-semibold shrink-0">
-                      {postData.authorName[0]?.toUpperCase() || '?'}
-                    </div>
+                    <Avatar
+                      id={postData.authorId}
+                      name={postData.authorName}
+                      type="user"
+                      src={postData.authorProfileImageUrl || undefined}
+                      size="sm"
+                      className="shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-foreground text-sm truncate">
                           {postData.authorName}
                         </span>
-                        <span className="text-foreground/40 text-xs">
+                        <span className="text-muted-foreground text-xs">
                           {formatTime(postData.timestamp)}
                         </span>
                       </div>
-                      <span className="text-foreground/50 text-xs">
+                      <span className="text-muted-foreground text-xs">
                         @{postData.authorUsername || postData.authorId}
                       </span>
                     </div>
                   </div>
                   
                   {/* Original Post Content */}
-                  <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap break-words">
+                  <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap break-words">
                     {postData.content}
                   </p>
                 </div>
@@ -324,9 +330,9 @@ export function RepostButton({
 
           {/* Modal - Desktop */}
           <div className="hidden md:flex fixed inset-0 z-50 items-center justify-center p-4">
-            <div className="rounded-2xl border border-white/10 bg-[#050816] shadow-2xl w-full max-w-[580px] max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="rounded-2xl border border-border bg-sidebar shadow-2xl w-full max-w-[580px] max-h-[85vh] flex flex-col overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-border px-6 py-4">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -334,11 +340,11 @@ export function RepostButton({
                       setShowConfirmation(false);
                       setQuoteComment('');
                     }}
-                    className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X size={20} />
                   </button>
-                  <h2 className="text-lg font-semibold text-primary-foreground">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {quoteComment.trim() ? 'Quote' : 'Repost'}
                   </h2>
                 </div>
@@ -380,7 +386,7 @@ export function RepostButton({
                   className={cn(
                     'w-full p-4 rounded-xl mb-1',
                     'border-0 bg-transparent',
-                    'text-primary-foreground text-base placeholder:text-primary-foreground/40',
+                    'text-foreground text-base placeholder:text-muted-foreground',
                     'resize-none focus:outline-none',
                     'transition-colors'
                   )}
@@ -394,7 +400,7 @@ export function RepostButton({
                       id="char-count-desktop"
                       className={cn(
                         'text-sm',
-                        quoteComment.length > 450 ? 'text-red-400' : 'text-foreground/40'
+                        quoteComment.length > 450 ? 'text-red-400' : 'text-muted-foreground'
                       )}
                     >
                       {quoteComment.length}/500
@@ -405,31 +411,36 @@ export function RepostButton({
                 {/* Original Post Preview */}
                 {postData && (
                   <div className={cn(
-                    'rounded-xl border border-white/10 p-5 mt-4',
-                    'bg-white/5'
+                    'rounded-xl border border-border p-5 mt-4',
+                    'bg-muted/30'
                   )}>
                     {/* Original Post Author */}
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-primary-foreground font-semibold shrink-0">
-                        {postData.authorName[0]?.toUpperCase() || '?'}
-                      </div>
+                      <Avatar
+                        id={postData.authorId}
+                        name={postData.authorName}
+                        type="user"
+                        src={postData.authorProfileImageUrl || undefined}
+                        size="md"
+                        className="shrink-0"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-primary-foreground truncate">
+                          <span className="font-semibold text-foreground truncate">
                             {postData.authorName}
                           </span>
-                          <span className="text-primary-foreground/40 text-sm">
+                          <span className="text-muted-foreground text-sm">
                             {formatTime(postData.timestamp)}
                           </span>
                         </div>
-                        <span className="text-primary-foreground/50 text-sm">
+                        <span className="text-muted-foreground text-sm">
                           @{postData.authorUsername || postData.authorId}
                         </span>
                       </div>
                     </div>
                     
                     {/* Original Post Content */}
-                    <p className="text-primary-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                    <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words">
                       {postData.content}
                     </p>
                   </div>
