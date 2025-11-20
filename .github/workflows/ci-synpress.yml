@@ -59,9 +59,10 @@ jobs:
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # Pass secrets with correct names (not _VAR suffix)
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
-          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          # Use NEXT_PUBLIC_PRIVY_APP_ID secret for both server-side (PRIVY_APP_ID) and client-side (NEXT_PUBLIC_PRIVY_APP_ID)
+          PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
@@ -89,8 +90,12 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          # CRITICAL: NEXT_PUBLIC_* variables must be set at BUILD TIME (not runtime)
+          # Next.js embeds these values into the JavaScript bundle during build
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
         run: |
           echo "🏗️ Building production..."
+          echo "🔑 NEXT_PUBLIC_PRIVY_APP_ID is ${NEXT_PUBLIC_PRIVY_APP_ID:0:10}..." # Show first 10 chars for verification
           bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           echo "✅ Build complete"
 

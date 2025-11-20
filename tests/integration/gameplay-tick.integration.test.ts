@@ -22,38 +22,134 @@ mock.module('@/generator/llm/openai-client', () => {
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
         generateJSON: async (_prompt: string, schema: any) => {
-          // Detect if this is for questions generation
-          // Questions prompt contains: "ORGANIZATIONS IN PLAY", "Scenario X:", or asks to create questions
-          const isQuestionGeneration = _prompt.includes('ORGANIZATIONS IN PLAY') ||
-                                      _prompt.includes('Create prediction market questions') ||
-                                      (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'));
+          // CRITICAL: This mock MUST prevent all real API calls
+          // Always return a valid response structure based on schema or prompt patterns
           
-          // Extract actor IDs from MAIN ACTORS section
-          const mainActorsMatch = _prompt.match(/MAIN ACTORS[:\s]*\n((?:- [^\n]+\n?)+)/i);
-          let actorIds = ["actor-1", "actor-2", "actor-3"]; // Default fallback
+          // Priority 1: Question resolution validation (no schema, prompt contains Question/Outcome)
+          // QuestionManager.generateResolutionEvent calls with undefined schema
+          if (!schema && (_prompt.includes('Question:') && _prompt.includes('Outcome:'))) {
+            const outcomeMatch = _prompt.match(/Outcome:\s*(YES|NO)/i);
+            const questionMatch = _prompt.match(/Question:\s*([^\n]+)/i);
+            const outcome = outcomeMatch?.[1]?.toUpperCase() ?? 'YES';
+            const questionText = questionMatch?.[1]?.trim() ?? 'test question';
+            
+            // QuestionManager expects: { event: string; type: string } | { response: { event: string; type: string } }
+            return {
+              response: {
+                event: `Mock resolution event: ${questionText} outcome confirmed as ${outcome}`,
+                type: "announcement"
+              }
+            };
+          }
           
-          if (mainActorsMatch && mainActorsMatch[1]) {
-            const actorsSection = mainActorsMatch[1];
-            const actorLines = actorsSection.match(/- ([^:]+):/g) || [];
-            actorIds = actorLines.slice(0, 3).map((m) => {
-              const name = m.replace(/^- |:/g, '').trim();
-              // Extract just the name part before any description
-              const nameOnly = name.split(' - ')[0] || name.split(' [')[0] || name;
-              // Convert to actor ID format
-              return nameOnly.toLowerCase()
-                .replace(/\s+/g, '-')
-                .replace(/[^a-z0-9-]/g, '')
-                .substring(0, 50) || `actor-${actorIds.length + 1}`;
-            });
-            if (actorIds.length === 0) {
-              actorIds = ["actor-1", "actor-2", "actor-3"];
+          // Priority 2: Schema-based detection (more reliable than prompt parsing)
+          if (schema?.properties) {
+            // Question resolution (has response.event property)
+            if (schema.properties.response?.properties?.event) {
+              return {
+                response: {
+                  event: "Mock resolution event confirming the outcome",
+                  type: "announcement"
+                }
+              };
+            }
+            
+            // Market decisions (has npcId property)
+            if (schema.properties.npcId || schema.properties.decisions) {
+              return {
+                decisions: [
+                  {
+                    npcId: "test-npc",
+                    npcName: "Test NPC",
+                    reasoning: "Mock reasoning",
+                    action: "hold",
+                    confidence: 0.5
+                  }
+                ]
+              };
+            }
+            
+            // Article generation (has title and article properties)
+            if (schema.properties.title && schema.properties.article) {
+              return {
+                title: "Mock Article Title",
+                summary: "Mock article summary for testing.",
+                article: "Mock article body content that is long enough.\n\nIt has multiple paragraphs.\n\nTo satisfy length requirements.\n\nAnd validation checks."
+              };
+            }
+            
+            // Post generation (has post property)
+            if (schema.properties.post) {
+              return {
+                post: "This is a mock post content."
+              };
+            }
+            
+            // Question generation (has question property)
+            if (schema.properties.question) {
+              return {
+                question: "Will testing succeed?",
+                resolutionCriteria: "If tests pass"
+              };
+            }
+            
+            // Scenarios or questions (has scenarios or response property)
+            if (schema.properties.scenarios || schema.properties.response) {
+              // Check prompt to distinguish between scenarios and questions
+              const isQuestionGeneration = _prompt.includes('ORGANIZATIONS IN PLAY') ||
+                                        _prompt.includes('Create prediction market questions');
+              
+              if (isQuestionGeneration) {
+                return {
+                  questions: [
+                    {
+                      id: 1,
+                      text: "Will testing succeed?",
+                      scenario: 1,
+                      outcome: true,
+                      rank: 1,
+                      createdDate: new Date().toISOString(),
+                      resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                      status: "active"
+                    }
+                  ]
+                };
+              }
+              
+              // Extract actor IDs for scenarios
+              const mainActorsMatch = _prompt.match(/MAIN ACTORS[:\s]*\n((?:- [^\n]+\n?)+)/i);
+              let actorIds = ["actor-1", "actor-2", "actor-3"];
+              
+              if (mainActorsMatch?.[1]) {
+                const actorLines = mainActorsMatch[1].match(/- ([^:]+):/g) || [];
+                actorIds = actorLines.slice(0, 3).map((m) => {
+                  const name = m.replace(/^- |:/g, '').trim().split(' - ')[0]?.split(' [')[0] ?? 'actor';
+                  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 50) || `actor-${actorIds.length + 1}`;
+                });
+                if (actorIds.length === 0) actorIds = ["actor-1", "actor-2", "actor-3"];
+              }
+              
+              return {
+                scenarios: [
+                  {
+                    id: 1,
+                    title: "Test Scenario: Will Testing Succeed?",
+                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                    mainActors: actorIds,
+                    theme: "testing",
+                    involvedOrganizations: []
+                  }
+                ]
+              };
             }
           }
           
-          // Handle undefined schema or schema without properties
+          // Priority 3: No schema - infer from prompt content
           if (!schema || !schema.properties) {
-            if (isQuestionGeneration) {
-              // Return questions format
+            // Question generation prompts
+            if (_prompt.includes('ORGANIZATIONS IN PLAY') || 
+                _prompt.includes('Create prediction market questions') ||
+                (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'))) {
               return {
                 questions: [
                   {
@@ -68,80 +164,31 @@ mock.module('@/generator/llm/openai-client', () => {
                   }
                 ]
               };
-            } else {
-              // Return scenarios format
-              return {
-                scenarios: [
-                  {
-                    id: 1,
-                    title: "Test Scenario: Will Testing Succeed?",
-                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
-                    mainActors: actorIds,
-                    theme: "testing",
-                    involvedOrganizations: []
-                  }
-                ]
-              };
             }
-          }
-          
-          if (schema.properties && schema.properties.question) {
+            
+            // Default: return scenarios format (safest fallback)
             return {
-              question: "Will testing succeed?",
-              resolutionCriteria: "If tests pass"
+              scenarios: [
+                {
+                  id: 1,
+                  title: "Test Scenario: Will Testing Succeed?",
+                  description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                  mainActors: ["actor-1", "actor-2", "actor-3"],
+                  theme: "testing",
+                  involvedOrganizations: []
+                }
+              ]
             };
           }
           
-          // Article mock
-          if (schema.properties && schema.properties.title && schema.properties.article) {
-             return {
-              title: "Mock Article Title",
-              summary: "Mock article summary for testing.",
-              article: "Mock article body content that is long enough.\n\nIt has multiple paragraphs.\n\nTo satisfy length requirements.\n\nAnd validation checks."
-            };
-          }
-
-          // NPC Post mock
-          if (schema.properties && schema.properties.post) {
-            return {
-              post: "This is a mock post content."
-            };
-          }
-          
-          // Handle scenarios or questions based on prompt content
-          if (schema.properties && (schema.properties.scenarios || schema.properties.response)) {
-            if (isQuestionGeneration) {
-              return {
-                questions: [
-                  {
-                    id: 1,
-                    text: "Will testing succeed?",
-                    scenario: 1,
-                    outcome: true,
-                    rank: 1,
-                    createdDate: new Date().toISOString(),
-                    resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                    status: "active"
-                  }
-                ]
-              };
-            } else {
-              return {
-                scenarios: [
-                  {
-                    id: 1,
-                    title: "Test Scenario: Will Testing Succeed?",
-                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
-                    mainActors: actorIds,
-                    theme: "testing",
-                    involvedOrganizations: []
-                  }
-                ]
-              };
+          // Final fallback: return safe empty structure (never return {} which could cause parsing errors)
+          // This should never be reached, but ensures we never return undefined or empty object
+          return {
+            response: {
+              event: "Mock event",
+              type: "announcement"
             }
-          }
-          
-          return {};
+          };
         },
         complete: async () => "Mock completion response"
       }),

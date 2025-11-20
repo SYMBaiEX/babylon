@@ -20,14 +20,35 @@ test.describe('Chats Page - Updated Design', () => {
     // Use 1920x1080 to ensure we're in desktop layout (xl breakpoint is 1280px)
     await page.setViewportSize({ width: 1920, height: 1080 })
     
-    await navigateTo(page, ROUTES.HOME)
-    await loginWithPrivyEmail(page, getPrivyTestAccount())
-    await navigateTo(page, ROUTES.CHATS)
-    await waitForPageLoad(page)
+    // Capture console errors for debugging Privy initialization issues
+    const consoleErrors: string[] = []
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text())
+      }
+    })
     
-    // Wait for the page to be ready by waiting for a specific element that indicates content is loaded
-    // The "Messages" header appears when the main content is rendered (after auth check)
-    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    try {
+      await navigateTo(page, ROUTES.HOME)
+      await loginWithPrivyEmail(page, getPrivyTestAccount())
+      await navigateTo(page, ROUTES.CHATS)
+      await waitForPageLoad(page)
+      
+      // Wait for the page to be ready by waiting for a specific element that indicates content is loaded
+      // The "Messages" header appears when the main content is rendered (after auth check)
+      await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    } catch (error) {
+      // Log console errors if authentication or page load failed
+      if (consoleErrors.length > 0) {
+        console.error('❌ Console errors during test setup:', consoleErrors)
+      }
+      
+      // Re-throw with more context
+      throw new Error(
+        `Test setup failed: ${error instanceof Error ? error.message : String(error)}\n` +
+        `Console errors: ${consoleErrors.length > 0 ? consoleErrors.join('; ') : 'none'}`
+      )
+    }
   })
 
   test('should load chats page with new design', async ({ page }) => {
