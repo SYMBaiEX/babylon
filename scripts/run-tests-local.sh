@@ -64,3 +64,4 @@ bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts 
 echo ""
 echo "✅ Tests complete!"
 
+
