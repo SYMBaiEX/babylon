@@ -66,34 +66,37 @@ test.describe('Chats Page - Updated Design', () => {
   test('should display All/DMs/Groups filter tabs', async ({ page }) => {
     // Playwright's getByRole automatically waits for elements to be visible
     // Check for all three filter tabs - they appear in the same container
-    // Buttons use aria-label, so we match on the aria-label values which take precedence
-    const allTab = page.getByRole('button', { name: 'Show all conversations', exact: true }).first()
-    const dmsTab = page.getByRole('button', { name: 'Show direct messages', exact: true }).first()
-    const groupsTab = page.getByRole('button', { name: 'Show group chats', exact: true }).first()
+    // Buttons use aria-label, so we match on the aria-label values (remove exact: true for more flexibility)
+    const allTab = page.getByRole('button', { name: 'Show all conversations' }).first()
+    const dmsTab = page.getByRole('button', { name: 'Show direct messages' }).first()
+    const groupsTab = page.getByRole('button', { name: 'Show group chats' }).first()
     
-    await expect(allTab).toBeVisible()
-    await expect(dmsTab).toBeVisible()
-    await expect(groupsTab).toBeVisible()
+    await expect(allTab).toBeVisible({ timeout: 10000 })
+    await expect(dmsTab).toBeVisible({ timeout: 10000 })
+    await expect(groupsTab).toBeVisible({ timeout: 10000 })
     
     console.log('✅ Filter tabs visible')
   })
 
   test('should switch between filter tabs', async ({ page }) => {
     // Playwright's getByRole automatically waits for elements and handles clicks
-    // Buttons use aria-label, so we match on the aria-label values which take precedence
-    const allTab = page.getByRole('button', { name: 'Show all conversations', exact: true }).first()
-    const dmsTab = page.getByRole('button', { name: 'Show direct messages', exact: true }).first()
-    const groupsTab = page.getByRole('button', { name: 'Show group chats', exact: true }).first()
+    // Buttons use aria-label, so we match on the aria-label values (remove exact: true for more flexibility)
+    const allTab = page.getByRole('button', { name: 'Show all conversations' }).first()
+    const dmsTab = page.getByRole('button', { name: 'Show direct messages' }).first()
+    const groupsTab = page.getByRole('button', { name: 'Show group chats' }).first()
     
     // Verify all tabs are visible
-    await expect(allTab).toBeVisible()
-    await expect(dmsTab).toBeVisible()
-    await expect(groupsTab).toBeVisible()
+    await expect(allTab).toBeVisible({ timeout: 10000 })
+    await expect(dmsTab).toBeVisible({ timeout: 10000 })
+    await expect(groupsTab).toBeVisible({ timeout: 10000 })
     
     // Click through each tab - Playwright waits for elements to be actionable
     await dmsTab.click()
+    await page.waitForTimeout(500) // Wait for state update
     await groupsTab.click()
+    await page.waitForTimeout(500) // Wait for state update
     await allTab.click()
+    await page.waitForTimeout(500) // Wait for state update
     
     await page.screenshot({ path: 'test-results/screenshots/07-filter-tabs.png' })
     
@@ -101,10 +104,11 @@ test.describe('Chats Page - Updated Design', () => {
   })
 
   test('should display search conversations', async ({ page }) => {
-    // Look for search input
-    const hasSearch = await page.getByPlaceholder(/search/i).isVisible({ timeout: 5000 }).catch(() => false)
+    // Look for search input - wait for it to be visible
+    const searchInput = page.getByPlaceholder(/search/i).first()
+    await expect(searchInput).toBeVisible({ timeout: 10000 })
     
-    console.log(`✅ Search input visible: ${hasSearch}`)
+    console.log('✅ Search input visible')
   })
 
   test('should display chats list', async ({ page }) => {
@@ -142,47 +146,38 @@ test.describe('Chat Messaging - New Implementation', () => {
   })
 
   test('should show empty state guidance for DMs', async ({ page }) => {
-    // Find visible DMs tab
-    const dmsTabs = await page.getByText('DMs').all()
-    let dmsTab = null
-    for (const tab of dmsTabs) {
-      if (await tab.isVisible().catch(() => false)) {
-        dmsTab = tab
-        break
-      }
-    }
+    // Find and click DMs tab using aria-label for reliability
+    const dmsTab = page.getByRole('button', { name: 'Show direct messages' }).first()
+    await expect(dmsTab).toBeVisible({ timeout: 10000 })
+    await dmsTab.click()
+    await page.waitForTimeout(1000)
     
-    if (dmsTab) {
-      await dmsTab.click()
-      await page.waitForTimeout(1000)
-      
-      // May show empty state with guidance
-      const hasEmptyState = await page.getByText(/profile/i).first().isVisible({ timeout: 5000 }).catch(() => false)
-      
-      console.log(`✅ DM empty state shows profile guidance: ${hasEmptyState}`)
-    }
+    // Check for empty state guidance text - the actual text is "Visit a user's profile to start a DM"
+    const hasEmptyState = await page.getByText(/visit.*profile/i).first().isVisible({ timeout: 5000 }).catch(() => false)
+    
+    console.log(`✅ DM empty state shows profile guidance: ${hasEmptyState}`)
   })
 
   test('should display SSE connection status', async ({ page }) => {
     await page.waitForTimeout(2000)
     
-    // Look for Live/Connecting indicator
-    const indicators = await page.getByText(/Live|Connecting/i).all()
-    let hasSSEIndicator = false
-    for (const indicator of indicators) {
-        if (await indicator.isVisible().catch(() => false)) {
-            hasSSEIndicator = true
-            break
-        }
-    }
+    // Look for SSE status indicator using data-testid or text content
+    // The status shows "Live" when connected or "Connecting" when not
+    const sseStatus = page.getByTestId('sse-status').or(page.getByText(/Live|Connecting/i)).first()
+    await expect(sseStatus).toBeVisible({ timeout: 10000 })
     
-    console.log(`✅ SSE indicator visible: ${hasSSEIndicator}`)
+    const statusText = await sseStatus.textContent()
+    console.log(`✅ SSE indicator visible with status: ${statusText}`)
   })
 
   test('should handle mobile responsive design', async ({ page }) => {
-    // Test mobile viewport
+    // Test mobile viewport - ensure we're authenticated first
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto('/chats')
+    await navigateTo(page, ROUTES.CHATS)
+    await waitForPageLoad(page)
+    
+    // Wait for the page to be ready
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
     await page.waitForTimeout(2000)
     
     // Page should load successfully
@@ -262,11 +257,13 @@ test.describe('Real-time Updates', () => {
     
     // Wait for the page to be ready
     await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    await page.waitForTimeout(2000) // Give time for SSE connection to establish
     
-    // Look for status indicator - use Playwright's built-in waiting
-    const indicators = page.getByText(/Live|Connecting/i)
-    const hasStatus = await indicators.first().isVisible({ timeout: 5000 }).catch(() => false)
+    // Look for status indicator using data-testid or text content
+    const sseStatus = page.getByTestId('sse-status').or(page.getByText(/Live|Connecting/i)).first()
+    await expect(sseStatus).toBeVisible({ timeout: 10000 })
     
-    console.log(`✅ SSE status indicator: ${hasStatus}`)
+    const statusText = await sseStatus.textContent()
+    console.log(`✅ SSE status indicator visible with status: ${statusText}`)
   })
 })

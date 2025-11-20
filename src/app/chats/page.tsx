@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useChatMessages } from '@/hooks/useChatMessages'
 import { useChatParam } from '@/hooks/useChatParam'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useSSE } from '@/hooks/useSSE'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
@@ -85,6 +86,12 @@ export default function ChatsPage() {
   useA2A()
   useChatParam()
   
+  // Get global SSE connection status for status indicator
+  // Subscribe to 'feed' channel to ensure connection is established (any valid channel works)
+  const { isConnected: globalSSEConnected } = useSSE({
+    channels: ['feed'], // Subscribe to feed channel to establish SSE connection
+  })
+  
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
@@ -111,7 +118,7 @@ export default function ChatsPage() {
   // Use SSE for real-time messages with pagination
   const { 
     messages: realtimeMessages, 
-    isConnected: _sseConnected,
+    isConnected: sseConnected, // Connection status for the selected chat channel
     isLoadingMore,
     hasMore,
     loadMore
@@ -696,7 +703,20 @@ export default function ChatsPage() {
                 {/* Header with Filters */}
                 <div className="px-4 py-3">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                      {globalSSEConnected ? (
+                        <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="sse-status">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          Live
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="sse-status">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Connecting
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -863,11 +883,25 @@ export default function ChatsPage() {
                           />
                         )}
                         <div>
-                          <h3 className="text-lg font-bold text-foreground">
-                            {chatDetails.chat.name || 
-                             chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
-                             'Chat'}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-foreground">
+                              {chatDetails.chat.name || 
+                               chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
+                               'Chat'}
+                            </h3>
+                            {/* Show chat-specific SSE connection status */}
+                            {sseConnected ? (
+                              <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="chat-sse-status">
+                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                Live
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="chat-sse-status">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Connecting
+                              </span>
+                            )}
+                          </div>
                           {chatDetails.chat.isGroup && (
                             <p className="text-xs text-muted-foreground">
                               {chatDetails.participants.length} participants
@@ -1178,7 +1212,20 @@ export default function ChatsPage() {
                 {/* Mobile Header with Tabs */}
                 <div className="px-4 py-3">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                      {globalSSEConnected ? (
+                        <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="sse-status">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          Live
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="sse-status">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Connecting
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1358,11 +1405,25 @@ export default function ChatsPage() {
                         />
                       )}
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-foreground">
-                          {chatDetails.chat.name || 
-                           chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
-                           'Chat'}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-foreground">
+                            {chatDetails.chat.name || 
+                             chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
+                             'Chat'}
+                          </h3>
+                          {/* Show chat-specific SSE connection status */}
+                          {sseConnected ? (
+                            <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="chat-sse-status">
+                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="chat-sse-status">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Connecting
+                            </span>
+                          )}
+                        </div>
                         {chatDetails.chat.isGroup && (
                           <p className="text-xs text-muted-foreground">
                             {chatDetails.participants.length} participants
