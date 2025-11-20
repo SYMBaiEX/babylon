@@ -24,6 +24,8 @@ export function getPrivyTestAccount(): PrivyTestAccount {
     throw new Error('PRIVY_TEST_EMAIL environment variable is required for synpress tests')
   }
 
+  console.log(`📧 Privy test credentials loaded for: ${email}`)
+
   return {
     email,
     password,
@@ -36,6 +38,7 @@ export function getPrivyTestAccount(): PrivyTestAccount {
  * Login with Privy email authentication
  */
 export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount): Promise<void> {
+  console.log('🔄 Starting Privy login flow...')
   // Wait for Privy to be available
   await page.waitForTimeout(2000)
 
@@ -48,34 +51,45 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
   if (isLoggedIn) {
     console.log('✅ User already logged in, skipping login flow')
     return
+  } else {
+    console.log('ℹ️ User not logged in, proceeding with login')
   }
 
   // Check if email input is already visible (modal already open)
   const emailInput = page.locator('input[type="email"], input[name="email"]').first()
   let emailInputVisible = await emailInput.isVisible({ timeout: 2000 }).catch(() => false)
+  console.log(`ℹ️ Email input visible initially: ${emailInputVisible}`)
 
   if (!emailInputVisible) {
     // Look for Privy login button or modal
     const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Connect Wallet"), [data-testid="privy-login"]').first()
     
+    // Check if enabled
+    const isEnabled = await loginButton.isEnabled({ timeout: 2000 }).catch(() => false)
+    console.log(`ℹ️ Login button found and enabled: ${isEnabled}`)
+
     const isVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
+    console.log(`ℹ️ Login button visible: ${isVisible}`)
     
     if (isVisible) {
       // Try to click, but handle potential overlays
       try {
-        await loginButton.click({ timeout: 5000 })
+        console.log('🖱️ Clicking login button...')
+        // Force click if it's disabled or covered
+        await loginButton.click({ timeout: 5000, force: true })
       } catch (e) {
         console.log('⚠️  Click on login button failed, checking if modal is already open or blocked:', e)
-        // Check if modal appeared anyway or if we need to handle an overlay
       }
       await page.waitForTimeout(1000)
       
       // Re-check email input
       emailInputVisible = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
+      console.log(`ℹ️ Email input visible after click: ${emailInputVisible}`)
     }
   }
   
   if (emailInputVisible) {
+      console.log(`⌨️ Filling email: ${account.email}`)
       await emailInput.fill(account.email)
       await page.waitForTimeout(500)
 
@@ -96,6 +110,7 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
       }
 
       if (await submitButton.isVisible().catch(() => false)) {
+        console.log('🖱️ Clicking submit button')
         await submitButton.click()
       } else {
         console.warn('⚠️  Could not find submit button for login form')
@@ -113,6 +128,7 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
         const passwordVisible = await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)
         
         if (passwordVisible) {
+          console.log('⌨️ Filling password')
           await passwordInput.fill(account.password)
           await page.waitForTimeout(500)
           
@@ -122,19 +138,45 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
         }
       }
 
-      // If OTP is required
-      if (account.otp) {
-        const otpInput = page.locator('input[type="text"][maxlength="6"], input[name="otp"]').first()
-        const otpVisible = await otpInput.isVisible({ timeout: 5000 }).catch(() => false)
+      // If OTP is required or requested
+      // Check for OTP screen by text or input
+      const otpText = page.getByText('Enter confirmation code').first()
+      const otpInput = page.locator('input[autocomplete="one-time-code"], input[name="code"], input[name="otp"], input[data-privy-otp-input]').first()
+      
+      const isOtpScreen = await otpText.isVisible({ timeout: 5000 }).catch(() => false) || 
+                          await otpInput.isVisible({ timeout: 1000 }).catch(() => false)
+
+      if (isOtpScreen) {
+        console.log('ℹ️ OTP screen detected')
+        const code = account.otp || '000000' // Default to 000000 if not provided
         
-        if (otpVisible) {
-          await otpInput.fill(account.otp)
-          await page.waitForTimeout(500)
-          
-          const verifyButton = page.locator('button:has-text("Verify"), button[type="submit"]').first()
-          await verifyButton.click()
-          await page.waitForTimeout(2000)
+        console.log(`⌨️ Filling OTP: ${code}`)
+        // Privy often uses 6 separate inputs or one input. 
+        // Best strategy is to focus the input and type the code
+        
+        if (await otpInput.isVisible()) {
+            await otpInput.click() // Focus
+            await page.waitForTimeout(100)
+            await page.keyboard.type(code)
+        } else {
+            // Try typing blindly if input is hidden/custom
+            await page.keyboard.type(code)
         }
+        await page.waitForTimeout(1000)
+        
+        // Check for error message
+        const errorMsg = page.getByText('Invalid code').first()
+        if (await errorMsg.isVisible().catch(() => false)) {
+            console.error('❌ Invalid OTP code detected')
+        }
+        
+        // Click verify if button exists (sometimes auto-submits)
+        // Be specific to avoid clicking "Resend code"
+        const verifyButton = page.locator('button:has-text("Verify"), button[type="submit"]').first()
+        if (await verifyButton.isVisible()) {
+             await verifyButton.click()
+        }
+        await page.waitForTimeout(2000)
       }
     } else {
     // Check if already logged in (re-check)

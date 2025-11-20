@@ -58,7 +58,7 @@
  * ```
  */
 
-import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
+import type { Question, Scenario, SelectedActor, Organization, DayTimeline, WorldEvent } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from '../generator/llm/openai-client';
 import { questionGeneration, questionResolutionValidation, renderPrompt, generateWorldContext, worldImpactAssessment } from '@/prompts';
@@ -72,6 +72,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { MarketContextService } from '@/lib/services/market-context-service';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
+import { ArticleGenerator, type Article } from '@/engine/ArticleGenerator';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -434,12 +435,83 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
    * // => { ...question, status: 'resolved', resolvedOutcome: true }
    * ```
    */
-  resolveQuestion(question: Question, outcome: boolean): Question {
+  resolveQuestion(question: Question, outcome: boolean, resolutionDescription?: string, resolutionProofUrl?: string): Question {
     return {
       ...question,
       status: 'resolved',
       resolvedOutcome: outcome,
+      resolutionDescription,
+      resolutionProofUrl,
     };
+  }
+
+  /**
+   * Generate proof content (Article) for a resolved question
+   */
+  async generateProofContent(
+    question: Question,
+    eventDescription: string,
+    actors: SelectedActor[],
+    organizations: Organization[]
+  ): Promise<{ type: 'article'; article: Article; url: string } | null> {
+      const articleGenerator = new ArticleGenerator(this.llm);
+      
+      // Find a suitable media organization
+      const mediaOrgs = organizations.filter(o => o.type === 'media');
+      // Use random media org or fallback to first org
+      const org = mediaOrgs.length > 0 
+        ? mediaOrgs[Math.floor(Math.random() * mediaOrgs.length)] 
+        : organizations[0];
+      
+      if (!org) return null;
+
+      // Create a synthetic event for the article generator
+      const event: WorldEvent = {
+          id: `resolution-${question.id}`,
+          day: 0, // Placeholder, not critical for article generation logic here
+          type: 'revelation',
+          description: eventDescription,
+          actors: [],
+          relatedQuestion: typeof question.id === 'number' ? question.id : undefined,
+          pointsToward: question.outcome ? 'YES' : 'NO',
+          visibility: 'public'
+      };
+
+      try {
+        const article = await articleGenerator.generateArticleForQuestion(
+            question,
+            org,
+            'resolution',
+            actors,
+            [event]
+        );
+
+        return { 
+            type: 'article', 
+            article,
+            url: `/article/${article.id}`
+        };
+      } catch (error) {
+          logger.error('Failed to generate proof article', { error }, 'QuestionManager');
+          return null;
+      }
+  }
+
+  /**
+   * Generate resolution event and proof content
+   */
+  async generateResolutionWithProof(
+    question: Question,
+    actors: SelectedActor[],
+    organizations: Organization[],
+    recentEvents: DayTimeline[]
+  ): Promise<{ description: string; proof?: { type: 'article'; article: Article; url: string } }> {
+      const description = await this.generateResolutionEvent(question, actors, organizations, recentEvents);
+      
+      // Generate proof
+      const proof = await this.generateProofContent(question, description, actors, organizations);
+      
+      return { description, proof: proof || undefined };
   }
 
   /**

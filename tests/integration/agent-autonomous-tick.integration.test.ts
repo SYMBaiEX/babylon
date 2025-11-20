@@ -22,11 +22,15 @@ describe('Agent Autonomous Tick Integration', () => {
   let initialLastTickAt: Date | null
 
   beforeAll(async () => {
+    console.log('Starting beforeAll setup...');
     // Check if server is running
     try {
+      console.log(`Checking health at ${BASE_URL}/api/health`);
       const response = await fetch(`${BASE_URL}/api/health`)
       serverAvailable = response.ok
-    } catch {
+      console.log('Server available:', serverAvailable);
+    } catch (e) {
+      console.log('Server check failed:', e);
       serverAvailable = false
     }
 
@@ -36,23 +40,47 @@ describe('Agent Autonomous Tick Integration', () => {
     }
 
     // Create test agent with autonomous features enabled
-    const agentResult = await createTestAgent('integration-test-agent-tick', {
+    console.log('Creating test agent...');
+    const uniquePrefix = `integration-test-agent-tick-${Date.now()}`;
+    const agentResult = await createTestAgent(uniquePrefix, {
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
       agentPointsBalance: 100,
       virtualBalance: 10000
     })
+    console.log('Test agent created:', agentResult.agentId);
 
     testAgentId = agentResult.agentId
 
     // Get initial state
+    console.log('Getting initial state...');
     const agent = await prisma.user.findUnique({
       where: { id: testAgentId },
       select: {
         agentLastTickAt: true
       }
     })
+    console.log('Initial state got.');
+
+    // Verify agent can be found via AgentRegistry locally
+    try {
+      console.log('DATABASE_URL:', process.env.DATABASE_URL);
+      const { agentRegistry } = await import('@/lib/services/agent-registry.service');
+      const { AgentType, AgentStatus } = await import('@/types/agent-registry.types');
+      const found = await agentRegistry.discoverAgents({
+        types: [AgentType.USER_CONTROLLED],
+        statuses: [AgentStatus.ACTIVE],
+        limit: 100 // Increase limit
+      });
+      console.log('Local AgentRegistry discovery count:', found.length);
+      const foundIds = found.map(a => a.agentId);
+      console.log('Found IDs:', JSON.stringify(foundIds, null, 2));
+      console.log('Test Agent ID:', testAgentId);
+      console.log('Is found?', foundIds.includes(testAgentId));
+    } catch (e) {
+      console.log('Local AgentRegistry discovery failed:', e);
+    }
 
     initialLastTickAt = agent?.agentLastTickAt || null
   })
@@ -179,6 +207,9 @@ describe('Agent Autonomous Tick Integration', () => {
     
     // Find our agent in the results
     const agentResult = result.results.find((r: { agentId: string }) => r.agentId === testAgentId)
+    if (!agentResult) {
+      console.log('⚠️  Test agent not found in results. Available results:', JSON.stringify(result.results.map((r: any) => ({ id: r.agentId, name: r.name })), null, 2))
+    }
     expect(agentResult).toBeTruthy()
     
     // If agent had an error, skip the test
@@ -265,6 +296,9 @@ describe('Agent Autonomous Tick Integration', () => {
     
     // Find our agent in the results
     const agentResult = result.results.find((r: { agentId: string }) => r.agentId === testAgentId)
+    if (!agentResult) {
+      console.log('⚠️  Test agent not found in results. Available results:', JSON.stringify(result.results.map((r: any) => ({ id: r.agentId, name: r.name })), null, 2))
+    }
     expect(agentResult).toBeTruthy()
     
     // If agent had an error, skip the test
@@ -334,6 +368,9 @@ describe('Agent Autonomous Tick Integration', () => {
     
     // Find our agent in the results
     const agentResult = result.results.find((r: { agentId: string }) => r.agentId === testAgentId)
+    if (!agentResult) {
+      console.log('⚠️  Test agent not found in results. Available results:', JSON.stringify(result.results.map((r: any) => ({ id: r.agentId, name: r.name })), null, 2))
+    }
     expect(agentResult).toBeTruthy()
     
     // Wait for database update

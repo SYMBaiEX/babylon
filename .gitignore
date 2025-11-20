@@ -1,50 +1,74 @@
-node_modules
-.env
-.env*.local
-.env.test
-!.env.example
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
-dist/
-.next/
-out/
-build/
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
 *.tsbuildinfo
 next-env.d.ts
-# prisma/migrations/ should NOT be ignored - they need to be in version control!
-.vscode/
-.idea/
-.serena/
-cache/*
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Foundry
+cache/
+out/
 broadcast/
-plugin-babylon/.eliza/
-claudedocs/
-package-lock.json
-test-results/
-.playwright/
 
-# Uploaded user files - keep directory structure but ignore actual files
-.eliza/
-games/babylon
-games/
-.vercel
-CLAUDE.md
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
 
-# Sentry Config File
-.env.sentry-build-plugin
+# Training data
+training_data/trajectories/
+training_data/datasets/
+training_recording/
+storage/
 
-training_data
-training_recording
-test-empty
-
-.rl-training-complete
-.system-status
-.rl-training-status
-dev-server.log
-dev-server.pid
-__pycache__
-.env.staging
-.secrets
-exports/
-**/__pycache__/**
+# Weights & Biases
 wandb/
-.art/
+
+# Test results
+test-results/
+playwright-report/
+
+# Debug prompts
+debug-prompts/

@@ -487,6 +487,8 @@ class DatabaseService {
     resolutionDate: Date;
     status: string;
     resolvedOutcome: boolean | null;
+    resolutionProofUrl: string | null;
+    resolutionDescription: string | null;
   }): Question {
     return {
       id: prismaQuestion.id,
@@ -500,6 +502,8 @@ class DatabaseService {
       resolutionDate: prismaQuestion.resolutionDate.toISOString(),
       status: prismaQuestion.status as 'active' | 'resolved' | 'cancelled',
       resolvedOutcome: prismaQuestion.resolvedOutcome ?? undefined,
+      resolutionProofUrl: prismaQuestion.resolutionProofUrl ?? undefined,
+      resolutionDescription: prismaQuestion.resolutionDescription ?? undefined,
       timeframe: this.calculateTimeframe(prismaQuestion.resolutionDate),
       createdAt: prismaQuestion.createdDate,
       updatedAt: prismaQuestion.createdDate, // Prisma model has updatedAt but we use createdDate for now

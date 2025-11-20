@@ -47,12 +47,21 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-    // Main test project
+    // Setup project - runs once before all tests to authenticate
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+
+    // Main test project - depends on setup and uses saved auth state
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // Use authenticated state from setup
+        storageState: '.playwright/auth.json',
       },
+      dependencies: ['setup'],
     },
 
     // Uncomment to test on other browsers
@@ -60,13 +69,17 @@ export default defineConfig({
     //   name: 'firefox',
     //   use: {
     //     ...devices['Desktop Firefox'],
+    //     storageState: '.playwright/auth.json',
     //   },
+    //   dependencies: ['setup'],
     // },
     // {
     //   name: 'webkit',
     //   use: {
     //     ...devices['Desktop Safari'],
+    //     storageState: '.playwright/auth.json',
     //   },
+    //   dependencies: ['setup'],
     // },
   ],
 
@@ -82,4 +95,3 @@ export default defineConfig({
     stderr: 'pipe',
   },
 })
-

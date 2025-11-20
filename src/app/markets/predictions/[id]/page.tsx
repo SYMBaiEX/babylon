@@ -10,7 +10,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle, ExternalLink } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePredictionHistory } from '@/hooks/usePredictionHistory'
@@ -46,6 +46,8 @@ interface PredictionMarket {
   liquidity?: number
   resolved?: boolean
   resolution?: boolean | null
+  resolutionProofUrl?: string | null
+  resolutionDescription?: string | null
   yesProbability?: number
   noProbability?: number
   userPosition?: PredictionPosition | null
@@ -499,6 +501,29 @@ export default function PredictionDetailPage() {
                     })}
                   </span>
                 </div>
+                
+                {/* Resolution Proof */}
+                {market.resolutionProofUrl && (
+                  <div className="flex items-center justify-between border-t border-border/50 pt-2 mt-1">
+                    <span className="text-sm text-muted-foreground">Proof</span>
+                    <a 
+                      href={market.resolutionProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-500 hover:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      View Source <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+                
+                {/* Resolution Description */}
+                {market.resolutionDescription && (
+                   <div className="border-t border-border/50 pt-2 mt-1 text-sm text-muted-foreground">
+                     <p className="font-medium text-foreground text-xs mb-1 uppercase tracking-wider">Resolution Description</p>
+                     <p className="italic">"{market.resolutionDescription}"</p>
+                   </div>
+                )}
               </div>
             </div>
           )}

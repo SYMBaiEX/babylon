@@ -131,6 +131,7 @@ export async function POST(_req: NextRequest) {
   const registeredAgents = await agentRegistry.discoverAgents({
     types: [AgentType.USER_CONTROLLED, AgentType.NPC],
     statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED],
+    limit: 500, // Increase limit to ensure we process all agents in test environments
   })
 
   // Filter agents with sufficient points and autonomous features enabled

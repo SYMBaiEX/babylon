@@ -20,6 +20,10 @@ const nextConfig = {
         source: '/.well-known/farcaster.json',
         destination: '/farcaster.json',
       },
+      {
+        source: '/.well-known/agent-card.json',
+        destination: '/api/game/card',
+      },
     ]
   },
   // Externalize packages with native Node.js dependencies for server-side

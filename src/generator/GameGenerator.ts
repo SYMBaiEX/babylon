@@ -1181,10 +1181,23 @@ Otherwise, start fresh.`;
       required: ['name']
     });
 
+    let parsedResponse = rawResponse;
+    if (typeof rawResponse === 'string') {
+      try {
+         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+      } catch {
+         // ignore
+      }
+    }
+
+    if (!parsedResponse || typeof parsedResponse !== 'object') {
+      return `${admin.name}'s Group`; // Fallback
+    }
+
     // Handle XML structure
-    const response = 'response' in rawResponse && rawResponse.response
-      ? rawResponse.response
-      : rawResponse as { name: string };
+    const response = 'response' in parsedResponse && parsedResponse.response
+      ? parsedResponse.response
+      : parsedResponse as { name: string };
 
     return response.name.toLowerCase();
   }
@@ -1504,21 +1517,39 @@ Otherwise, start fresh.`;
       }));
     }
 
+    let parsedResponse = rawResponse;
+    if (typeof rawResponse === 'string') {
+      try {
+         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+      } catch {
+         // ignore
+      }
+    }
+
+    if (typeof parsedResponse !== 'object') {
+       logger.warn('LLM returned non-object events response', { type: typeof parsedResponse }, 'GameGenerator');
+       return eventRequests.map(req => ({
+        eventNumber: req.eventNumber,
+        event: `${req.actors.map(a => a.name).join(' and ')} involved in ${req.type}`,
+        pointsToward: null
+      }));
+    }
+
     // Handle XML structure - may be nested like { events: { event: [...] } }
     let events: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> = [];
     
-    if (typeof rawResponse === 'object' && rawResponse !== null && 'response' in rawResponse && rawResponse.response && rawResponse.response.events) {
-      if (Array.isArray(rawResponse.response.events)) {
-        events = rawResponse.response.events;
-      } else if (typeof rawResponse.response.events === 'object' && 'event' in rawResponse.response.events) {
-        const nested = (rawResponse.response.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
+    if ('response' in parsedResponse && parsedResponse.response && parsedResponse.response.events) {
+      if (Array.isArray(parsedResponse.response.events)) {
+        events = parsedResponse.response.events;
+      } else if (typeof parsedResponse.response.events === 'object' && 'event' in parsedResponse.response.events) {
+        const nested = (parsedResponse.response.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
         events = Array.isArray(nested) ? nested : [nested];
       }
-    } else if (rawResponse && 'events' in rawResponse && rawResponse.events) {
-      if (Array.isArray(rawResponse.events)) {
-        events = rawResponse.events;
-      } else if (typeof rawResponse.events === 'object' && 'event' in rawResponse.events) {
-        const nested = (rawResponse.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
+    } else if ('events' in parsedResponse && parsedResponse.events) {
+      if (Array.isArray(parsedResponse.events)) {
+        events = parsedResponse.events;
+      } else if (typeof parsedResponse.events === 'object' && 'event' in parsedResponse.events) {
+        const nested = (parsedResponse.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
         events = Array.isArray(nested) ? nested : [nested];
       }
     }

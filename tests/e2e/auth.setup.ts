@@ -36,56 +36,96 @@ function getPrivyTestAccount() {
  * Authenticate with Privy and wait for successful login
  */
 async function authenticateWithPrivy(page: Page, email: string, password: string | undefined) {
-  // Navigate to home page
-  await page.goto('/')
+  // Navigate to home page with dev mode forced to ensure app loads
+  await page.goto('/?dev=true')
 
-  // Wait for page to load
+  // Wait for page to load completely (networkidle is better for SPAs than domcontentloaded)
   await page.waitForLoadState('networkidle')
+  
+  // Give React time to hydrate and render the modal
+  await page.waitForTimeout(3000)
 
-  // Look for login button - Privy typically uses these patterns
-  const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Login"), button:has-text("Connect")').first()
-
-  // Check if already logged in by looking for user menu
-  const userMenu = page.locator('[data-testid="user-menu"], button:has-text("Profile"), [aria-label*="user menu"]').first()
-  const isAlreadyLoggedIn = await userMenu.isVisible({ timeout: 2000 }).catch(() => false)
+  // Check for authentication indicators first
+  const isAlreadyLoggedIn = await page.evaluate(() => {
+    const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
+    const hasProfile = Array.from(document.querySelectorAll('button')).some(b => b.textContent?.includes('Profile'));
+    const hasToken = window.localStorage.getItem('privy:token') !== null;
+    return (hasUserMenu || hasProfile) && hasToken;
+  }).catch(() => false);
 
   if (isAlreadyLoggedIn) {
     console.log('✅ Already authenticated - skipping login flow')
     return
   }
 
-  // Check if login modal is already open (email input visible)
-  // Increase timeout to allow for Privy SDK to initialize (can take a few seconds)
+  // Check for Coming Soon state which would prevent login
+  const comingSoon = await page.locator('text=Coming Soon').isVisible().catch(() => false)
+  if (comingSoon) {
+    console.log('❌ Page is showing "Coming Soon" - localhost detection failed')
+  }
+
+  // Look for login button or modal input
+  // Also look for the Sidebar "Connect Wallet" button as a fallback
+  const sidebarLoginBtn = page.locator('button:has-text("Connect Wallet")').first()
+  const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Login")').first()
   const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
-  const isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
+
+  // Check if modal is ALREADY open
+  let isLoginModalOpen = await emailInput.isVisible({ timeout: 2000 }).catch(() => false)
 
   if (!isLoginModalOpen) {
-    // Click login button
-    // Wait longer for the button to appear (Privy initialization takes time)
-    const loginButtonVisible = await loginButton.isVisible({ timeout: 15000 }).catch(() => false)
-    if (!loginButtonVisible) {
-      throw new Error('Could not find login button on page (or Privy failed to initialize)')
+    // If sidebar login button is visible, click it to open modal
+    if (await sidebarLoginBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log('ℹ️  Clicking sidebar "Connect Wallet" button')
+        await sidebarLoginBtn.click()
+        await page.waitForTimeout(1000)
+        isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
     }
+    
+    // If still not open, try other login buttons
+    if (!isLoginModalOpen) {
+        const loginButtonVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
+    
+        if (loginButtonVisible) {
+        try {
+            await loginButton.click({ timeout: 5000 })
+        } catch (e) {
+            console.log('⚠️  Normal click failed, trying force click...', e)
+            await loginButton.click({ force: true })
+        }
+        await page.waitForTimeout(1000)
+        isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
+        }
+    }
+  }
 
-    // Force click if necessary or retry
-    try {
-      await loginButton.click({ timeout: 5000 })
-    } catch (e) {
-      console.log('⚠️  Normal click failed, trying force click...', e)
-      await loginButton.click({ force: true })
+  if (!isLoginModalOpen) {
+    // One last check if we missed the logged-in state
+    const loggedInNow = await page.evaluate(() => {
+        const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
+        return hasUserMenu;
+    }).catch(() => false);
+
+    if (loggedInNow) {
+        console.log('✅ Logged in detected late')
+        return;
     }
-    await page.waitForTimeout(1000)
-  } else {
-    console.log('ℹ️  Login modal already open')
+    
+    // Debugging output
+    const title = await page.title();
+    const content = await page.content();
+    console.log(`❌ Debug - Page Title: ${title}`);
+    console.log(`❌ Debug - Page Content Start: ${content.substring(0, 200)}`);
+
+    // On localhost, app should auto-open modal. If not, something is wrong.
+    throw new Error('Could not find login button or open login modal on page')
   }
 
   // Fill in email
-  await emailInput.waitFor({ state: 'visible', timeout: 10000 })
   await emailInput.fill(email)
   await page.waitForTimeout(500)
 
   // Click continue/submit
-  // Use .last() to target the button in the modal (which is usually appended last in the DOM)
   const continueButton = page.locator('button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]')
     .filter({ hasText: /Continue|Log in|Submit/ })
     .last();
@@ -108,23 +148,17 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     }
   }
 
-  // Wait for successful authentication by checking for user menu or authenticated state
-  // On localhost, admin middleware allows any authenticated user to access admin routes
+  // Wait for successful authentication
   await page.waitForFunction(() => {
-    // Check for common authentication indicators
+    const hasAccessToken = (window as any).__privyAccessToken;
+    if (hasAccessToken) return true;
+
     const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
-    const hasAriaLabel = document.querySelector('[aria-label*="user menu"]') !== null;
-    
-    // Check for profile button (standard DOM way)
-    const buttons = Array.from(document.querySelectorAll('button'));
-    const hasProfileButton = buttons.some(b => b.textContent?.includes('Profile'));
-    
-    // Check localStorage for Privy auth tokens
+    const hasProfileButton = Array.from(document.querySelectorAll('button')).some(b => b.textContent?.includes('Profile'));
     const hasPrivyToken = window.localStorage.getItem('privy:token') !== null;
-    const hasPrivyKeys = Object.keys(window.localStorage).some(key => key.startsWith('privy:'));
     
-    return hasUserMenu || hasAriaLabel || hasProfileButton || hasPrivyToken || hasPrivyKeys;
-  }, { timeout: 15000 })
+    return (hasUserMenu || hasProfileButton) && hasPrivyToken;
+  }, { timeout: 30000 })
 
   console.log('✅ Authentication successful')
 }

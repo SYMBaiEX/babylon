@@ -840,13 +840,22 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(newsPosts);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
+      const rawResponse = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
         params
       );
+
+      let response: { posts?: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null } } } | null = rawResponse;
+      if (typeof rawResponse === 'string') {
+        try {
+           response = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+        } catch {
+           // ignore
+        }
+      }
 
       if (!response) {
         logger.warn(`LLM returned null/undefined media response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
@@ -857,13 +866,23 @@ Trending system not initialized yet.
         return [];
       }
 
+      // Check if response is valid object
+      if (typeof response !== 'object' || response === null) {
+         logger.warn(`LLM returned non-object media response (attempt ${attempt + 1}/${maxRetries})`, { type: typeof response }, 'FeedGenerator');
+         if (attempt < maxRetries - 1) {
+           await new Promise(resolve => setTimeout(resolve, 1000));
+           continue;
+         }
+         return [];
+      }
+
       // Debug: Log raw response structure on first attempt
       if (attempt === 0) {
         logger.info('Media batch raw response structure', {
           hasResponse: !!response,
           hasPosts: 'posts' in response,
-          postsType: response.posts ? typeof response.posts : 'undefined',
-          isArray: Array.isArray(response.posts),
+          postsType: (response as { posts?: unknown }).posts ? typeof (response as { posts?: unknown }).posts : 'undefined',
+          isArray: Array.isArray((response as { posts?: unknown }).posts),
           sampleKeys: response ? Object.keys(response).slice(0, 5) : [],
         }, 'FeedGenerator');
       }
@@ -873,7 +892,7 @@ Trending system not initialized yet.
       if (Array.isArray(response.posts)) {
         posts = response.posts;
       } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
-        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).post;
+        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null } }).post;
         posts = Array.isArray(nested) ? nested : [nested];
       } else if (response.posts) {
         // Debug: Log what we got
@@ -1024,7 +1043,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(reactions);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
@@ -1150,7 +1169,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(commentary);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<CommentaryResponse>(
         prompt,
@@ -1266,7 +1285,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(conspiracy);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const rawResponse = await this.llm.generateJSON<ConspiracyResponse>(
         prompt,
@@ -1274,7 +1293,16 @@ Trending system not initialized yet.
         params
       );
 
-      if (!rawResponse) {
+      let parsedResponse = rawResponse;
+      if (typeof rawResponse === 'string') {
+        try {
+           parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+        } catch {
+           // ignore
+        }
+      }
+
+      if (!parsedResponse) {
         logger.warn(`LLM returned null/undefined conspiracy response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1286,30 +1314,30 @@ Trending system not initialized yet.
       // Handle multiple response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
       
-      if (rawResponse && typeof rawResponse === 'object') {
-        if ('conspiracy' in rawResponse && rawResponse.conspiracy) {
-          if (Array.isArray(rawResponse.conspiracy)) {
+      if (parsedResponse && typeof parsedResponse === 'object') {
+        if ('conspiracy' in parsedResponse && parsedResponse.conspiracy) {
+          if (Array.isArray(parsedResponse.conspiracy)) {
             // Format 1: Direct array
-            conspiracy = rawResponse.conspiracy;
-          } else if (typeof rawResponse.conspiracy === 'object' && 'post' in rawResponse.conspiracy) {
+            conspiracy = parsedResponse.conspiracy;
+          } else if (typeof parsedResponse.conspiracy === 'object' && 'post' in parsedResponse.conspiracy) {
             // Format 3: XML nested structure { conspiracy: { post: [...] } }
-            const nested = (rawResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
+            const nested = (parsedResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
             conspiracy = Array.isArray(nested) ? nested : [nested];
           }
-        } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
+        } else if ('data' in parsedResponse && Array.isArray(parsedResponse.data)) {
           // Format 2: Wrapped in data array
-          conspiracy = rawResponse.data.flatMap((d) => {
+          conspiracy = parsedResponse.data.flatMap((d: { conspiracy?: ConspiracyPost[] }) => {
             return Array.isArray(d.conspiracy) ? d.conspiracy : [];
           });
         } else {
           // Debug: Log what we got
           logger.warn('Conspiracy response has unexpected structure', {
-            responseKeys: Object.keys(rawResponse),
-            hasConspiracy: 'conspiracy' in rawResponse,
+            responseKeys: Object.keys(parsedResponse),
+            hasConspiracy: 'conspiracy' in parsedResponse,
           }, 'FeedGenerator');
         }
       } else {
-        logger.warn('Conspiracy response is not an object', { type: typeof rawResponse }, 'FeedGenerator');
+        logger.warn('Conspiracy response is not an object', { type: typeof parsedResponse }, 'FeedGenerator');
       }
       
       // Debug: Log sample if we have posts
@@ -1411,7 +1439,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(companyPost);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ 
         post: string;
@@ -1522,7 +1550,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(governmentPost);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ 
         post: string;
@@ -1630,17 +1658,20 @@ Trending system not initialized yet.
         allActors.filter(a => a.id !== originalPost.author)
       ).slice(0, replyCount);
       
-      for (const actor of replyingActors) {
-        // Generate reply content
-        const replyContent = await this.generateReplyContent(actor, originalPost);
-        
+      // ✅ BATCH: Generate all replies for this post in ONE call
+      const batchReplies = await this.generateRepliesBatch(replyingActors, originalPost);
+      
+      batchReplies.forEach((replyContent, i) => {
+        const actor = replyingActors[i];
+        if (!actor) return;
+
         // Reply timestamp is after original post
         const originalTime = new Date(originalPost.timestamp);
         
         // Validate timestamp
         if (isNaN(originalTime.getTime())) {
           logger.warn(`Invalid timestamp for post ${originalPost.id}, skipping reply generation`, { postId: originalPost.id }, 'FeedGenerator');
-          continue;
+          return;
         }
         
         const replyTime = new Date(originalTime.getTime() + (5 + Math.random() * 55) * 60 * 1000); // 5-60 minutes later
@@ -1650,16 +1681,16 @@ Trending system not initialized yet.
           day,
           timestamp: replyTime.toISOString(),
           type: 'reply',
-          content: replyContent,
+          content: replyContent.post,
           author: actor.id,
           authorName: actor.name,
           replyTo: originalPost.id,
           relatedEvent: originalPost.relatedEvent,
-          sentiment: (originalPost.sentiment ?? 0) * (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
-          clueStrength: (originalPost.clueStrength ?? 0) * 0.5,
-          pointsToward: originalPost.pointsToward,
+          sentiment: replyContent.sentiment,
+          clueStrength: replyContent.clueStrength,
+          pointsToward: replyContent.pointsToward,
         });
-      }
+      });
     }
     
     return replies;
@@ -1758,15 +1789,24 @@ Trending system not initialized yet.
       params
     );
 
-    if (!rawResponse) {
-      logger.warn('LLM returned null/undefined reply content', undefined, 'FeedGenerator');
+    let parsedResponse = rawResponse;
+    if (typeof rawResponse === 'string') {
+      try {
+         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+      } catch {
+         // ignore
+      }
+    }
+
+    if (!parsedResponse || typeof parsedResponse !== 'object') {
+      logger.warn('LLM returned null/undefined/invalid reply content', { type: typeof parsedResponse }, 'FeedGenerator');
       return 'Interesting point.'; // Fallback
     }
 
     // Handle XML structure
-    const response = 'response' in rawResponse && rawResponse.response
-      ? rawResponse.response
-      : rawResponse as { post: string };
+    const response = 'response' in parsedResponse && parsedResponse.response
+      ? parsedResponse.response
+      : parsedResponse as { post: string };
 
     return await this.postProcessContent(response.post);
   }
@@ -1853,7 +1893,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(ambientPosts);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
@@ -1861,8 +1901,8 @@ Trending system not initialized yet.
         params
       );
 
-      if (!response) {
-        logger.warn(`LLM returned null/undefined ambient response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+      if (!response || typeof response !== 'object') {
+        logger.warn(`LLM returned null/undefined/invalid ambient response (attempt ${attempt + 1}/${maxRetries})`, { type: typeof response }, 'FeedGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
@@ -1914,7 +1954,8 @@ Trending system not initialized yet.
       }
     }
 
-    throw new Error(`Failed to generate ambient posts batch after ${maxRetries} attempts`);
+    logger.error(`Failed to generate ambient posts batch after ${maxRetries} attempts. Returning empty batch.`, undefined, 'FeedGenerator');
+    return [];
   }
 
   /**
@@ -2005,7 +2046,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(replies);
-    const maxRetries = 5;
+    const maxRetries = 2;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
@@ -2013,8 +2054,8 @@ Trending system not initialized yet.
         params
       );
 
-      if (!response) {
-        logger.warn(`LLM returned null/undefined replies response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
+      if (!response || typeof response !== 'object') {
+        logger.warn(`LLM returned null/undefined/invalid replies response (attempt ${attempt + 1}/${maxRetries})`, { type: typeof response }, 'FeedGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
@@ -2066,7 +2107,8 @@ Trending system not initialized yet.
       }
     }
 
-    throw new Error(`Failed to generate replies batch after ${maxRetries} attempts`);
+    logger.error(`Failed to generate valid replies batch after ${maxRetries} attempts. Returning empty batch.`, undefined, 'FeedGenerator');
+    return [];
   }
 
 
@@ -2437,4 +2479,3 @@ Trending system not initialized yet.
 
 
 }
-
