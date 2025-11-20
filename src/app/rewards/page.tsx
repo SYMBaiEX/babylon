@@ -379,9 +379,7 @@ export default function RewardsPage() {
                 <div className="flex gap-2">
                   <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border truncate">
                     {user?.id 
-                      ? (typeof window !== 'undefined' 
-                          ? `${window.location.host}/share/referral/${user.id}`
-                          : getReferralUrl(user.id))
+                      ? getReferralUrl(user.id)
                       : 'Set a username to get your referral link'}
                   </div>
                   <button
@@ -617,9 +615,7 @@ export default function RewardsPage() {
                 <div className="flex gap-2">
                   <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border break-all">
                     {user?.id 
-                      ? (typeof window !== 'undefined' 
-                          ? `${window.location.host}/share/referral/${user.id}`
-                          : getReferralUrl(user.id))
+                      ? getReferralUrl(user.id)
                       : 'Set a username to get your referral link'}
                   </div>
                   <button
