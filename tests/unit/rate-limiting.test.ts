@@ -4,7 +4,31 @@
  * Tests for user-level rate limiting and duplicate detection
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
+
+// Mock logger using Bun's console (no-ops for clean test output)
+mock.module('@/lib/logger', () => {
+  const mockLogger = {
+    debug: () => {}, // Use Bun's console.debug if you want to see logs
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    setLevel: () => {},
+    getLevel: () => 'debug' as const,
+  };
+  return {
+    logger: mockLogger,
+    Logger: class MockLogger {
+      debug = mockLogger.debug;
+      info = mockLogger.info;
+      warn = mockLogger.warn;
+      error = mockLogger.error;
+      setLevel = mockLogger.setLevel;
+      getLevel = mockLogger.getLevel;
+    },
+  };
+});
+
 import {
   checkRateLimit,
   RATE_LIMIT_CONFIGS,

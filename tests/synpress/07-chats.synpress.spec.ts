@@ -45,9 +45,10 @@ test.describe('Chats Page - Updated Design', () => {
   test('should display All/DMs/Groups filter tabs', async ({ page }) => {
     // Playwright's getByRole automatically waits for elements to be visible
     // Check for all three filter tabs - they appear in the same container
-    const allTab = page.getByRole('button', { name: 'All', exact: true }).first()
-    const dmsTab = page.getByRole('button', { name: 'DMs', exact: true }).first()
-    const groupsTab = page.getByRole('button', { name: 'Groups', exact: true }).first()
+    // Buttons use aria-label, so we match on the aria-label values which take precedence
+    const allTab = page.getByRole('button', { name: 'Show all conversations', exact: true }).first()
+    const dmsTab = page.getByRole('button', { name: 'Show direct messages', exact: true }).first()
+    const groupsTab = page.getByRole('button', { name: 'Show group chats', exact: true }).first()
     
     await expect(allTab).toBeVisible()
     await expect(dmsTab).toBeVisible()
@@ -58,9 +59,10 @@ test.describe('Chats Page - Updated Design', () => {
 
   test('should switch between filter tabs', async ({ page }) => {
     // Playwright's getByRole automatically waits for elements and handles clicks
-    const allTab = page.getByRole('button', { name: 'All', exact: true }).first()
-    const dmsTab = page.getByRole('button', { name: 'DMs', exact: true }).first()
-    const groupsTab = page.getByRole('button', { name: 'Groups', exact: true }).first()
+    // Buttons use aria-label, so we match on the aria-label values which take precedence
+    const allTab = page.getByRole('button', { name: 'Show all conversations', exact: true }).first()
+    const dmsTab = page.getByRole('button', { name: 'Show direct messages', exact: true }).first()
+    const groupsTab = page.getByRole('button', { name: 'Show group chats', exact: true }).first()
     
     // Verify all tabs are visible
     await expect(allTab).toBeVisible()
