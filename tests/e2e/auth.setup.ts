@@ -50,7 +50,7 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     page.waitForSelector('[data-testid="user-menu"]', { timeout: 20000 }).then(() => 'loggedin'),
     page.waitForSelector('button:has-text("Log in"), button:has-text("Sign in")', { timeout: 20000 }).then(() => 'login_button'),
     page.waitForSelector('input[type="email"]', { timeout: 20000 }).then(() => 'email_input')
-  ]).catch((e) => {
+  ]).catch((_) => {
     console.log('⚠️ Timeout waiting for auth elements')
     return 'timeout'
   })

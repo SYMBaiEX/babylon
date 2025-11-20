@@ -2233,8 +2233,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
     liquidity: Number(resolvedMarket?.liquidity ?? 0),
     totalPayout,
     timestamp: resolutionTimestamp.toISOString(),
-    resolutionProofUrl: (question as any).resolutionProofUrl ?? undefined,
-    resolutionDescription: (question as any).resolutionDescription ?? undefined,
+    resolutionProofUrl: question.resolutionProofUrl ?? undefined,
+    resolutionDescription: question.resolutionDescription ?? undefined,
   });
 
   logger.info(
