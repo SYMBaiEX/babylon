@@ -199,7 +199,7 @@ export const POST = withErrorHandling(async (
             );
           } else {
             const twitterResponse = await fetch(
-              `https://api.twitter.com/2/posts/${tweetId}?tweet.fields=author_id,created_at,text`,
+              `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities`,
               {
                 headers: {
                   'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
@@ -209,7 +209,7 @@ export const POST = withErrorHandling(async (
             
             if (twitterResponse.ok) {
               const tweetData = await twitterResponse.json();
-              
+
               if (tweetData.data) {
                 // VALIDATION 2: Verify tweet author matches user's Twitter account
                 const userTwitterUsername = user.twitterUsername.toLowerCase().replace('@', '');
@@ -228,11 +228,23 @@ export const POST = withErrorHandling(async (
                   );
                 } else {
                   // VALIDATION 3: Verify tweet contains the shared URL
+                  // Twitter converts URLs to t.co links, so we need to check expanded URLs from entities
                   const tweetText = (tweetData.data.text || '').toLowerCase();
                   const sharedUrl = shareAction.url?.toLowerCase() || '';
                   
-                  // Check if the tweet contains the exact shared URL
-                  const containsUrl = sharedUrl && tweetText.includes(sharedUrl);
+                  // Extract expanded URLs from tweet entities (Twitter automatically shortens URLs to t.co)
+                  const urlEntities = tweetData.data.entities?.urls as Array<{ expanded_url?: string }> | undefined;
+                  const expandedUrls = (urlEntities || [])
+                    .map((urlEntity) => urlEntity.expanded_url?.toLowerCase() || '')
+                    .filter((url) => url);
+                  
+                  // Check if the tweet contains the shared URL (in text or expanded URLs)
+                  const containsUrlInText = sharedUrl && tweetText.includes(sharedUrl);
+                  const containsUrlInEntities = sharedUrl && expandedUrls.some((expandedUrl) => 
+                    expandedUrl.includes(sharedUrl) || sharedUrl.includes(expandedUrl)
+                  );
+
+                  const containsUrl = containsUrlInText || containsUrlInEntities;
 
                   if (!containsUrl && sharedUrl) {
                     verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
@@ -242,6 +254,7 @@ export const POST = withErrorHandling(async (
                         shareId, 
                         tweetText: tweetText.substring(0, 100),
                         expectedUrl: sharedUrl,
+                        expandedUrls,
                       },
                       'POST /api/users/[userId]/verify-share'
                     );
@@ -258,12 +271,14 @@ export const POST = withErrorHandling(async (
                       tweetAuthorId: tweetData.data.author_id || '',
                       verifiedAt: new Date().toISOString(),
                       urlMatch: containsUrl,
+                      urlMatchMethod: containsUrlInEntities ? 'expanded_urls' : 'text',
+                      expandedUrls: expandedUrls.join(', '),
                       authorMatch: true,
                     };
                     
                     logger.info(
                       `Twitter share verified via API: ${shareId}`,
-                      { shareId, tweetId, tweetUsername, userId: canonicalUserId },
+                      { shareId, tweetId, tweetUsername, userId: canonicalUserId, urlMatchMethod: containsUrlInEntities ? 'expanded_urls' : 'text' },
                       'POST /api/users/[userId]/verify-share'
                     );
                   }
