@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Trophy, Copy, Check, ExternalLink, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
 
 /**
  * Invite friends banner component for referral program.
@@ -26,23 +27,14 @@ interface InviteFriendsBannerProps {
 
 export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
   const { user, setUser } = useAuthStore()
-  const [referralUrl, setReferralUrl] = useState<string | null>(null)
   const [copiedReferral, setCopiedReferral] = useState(false)
 
   useEffect(() => {
-    const fetchReferralUrl = async () => {
+    const trackBannerView = async () => {
       if (!user?.id) return
       
       const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
       if (!token) return
-
-      const referralRes = await fetch(`/api/users/${encodeURIComponent(user.id)}/referral-code`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      if (referralRes.ok) {
-        const data = await referralRes.json()
-        setReferralUrl(data.referralUrl)
-      }
 
       // Track banner view in local storage
       const viewKey = `banner_view_${user.id}`
@@ -67,12 +59,13 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
       }
     }
 
-    fetchReferralUrl()
+    trackBannerView()
   }, [user])
 
   const handleCopyReferral = async (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!referralUrl) return
+    if (!user?.id) return
+    const referralUrl = getReferralUrl(user.id)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
@@ -117,7 +110,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     onDismiss?.()
   }
 
-  if (!user?.referralCode || !referralUrl) {
+  if (!user?.referralCode || !user?.id) {
     return null
   }
 

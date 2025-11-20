@@ -4,6 +4,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { getReferralUrl, getDisplayReferralUrl } from '@/lib/referral/referral-utils'
 import { Check, Copy, LogOut } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -162,9 +163,8 @@ export function UserMenu() {
   }, [user?.id])
 
   const handleCopyReferralCode = async () => {
-    if (!referralCode) return
-    // Create full referral URL
-    const referralUrl = `${window.location.origin}?ref=${referralCode}`
+    if (!user?.id) return
+    const referralUrl = getReferralUrl(user.id)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedCode(true)
     setTimeout(() => setCopiedCode(false), 2000)
@@ -232,7 +232,7 @@ export function UserMenu() {
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-sm font-semibold text-foreground">Copy Referral Link</span>
                   <span className="text-xs text-muted-foreground font-mono truncate">
-                    {typeof window !== 'undefined' && `${window.location.host}?ref=${referralCode}`}
+                    {getDisplayReferralUrl(user.id)}
                   </span>
                 </div>
               </>
