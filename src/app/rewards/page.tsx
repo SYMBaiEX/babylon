@@ -589,7 +589,7 @@ export default function RewardsPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-primary-foreground transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 text-foreground transition-colors"
                 >
                   <>
                     <Share2 className="w-4 h-4" />
