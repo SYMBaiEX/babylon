@@ -19,12 +19,12 @@ export function getBaseUrl(): string {
  * Generate a shareable referral URL for a user
  * 
  * @param usernameOrCode - The user's username or referral code
- * @returns Full shareable referral URL (e.g., https://babylon.market?ref=ai16z)
+ * @returns Full shareable referral URL (e.g., https://babylon.market?ref=babylon)
  * 
  * @example
  * ```typescript
- * const url = getReferralUrl('ai16z')
- * // Returns: "https://babylon.market?ref=ai16z"
+ * const url = getReferralUrl('babylon')
+ * // Returns: "https://babylon.market?ref=babylon"
  * ```
  */
 export function getReferralUrl(usernameOrCode: string): string {
@@ -40,8 +40,8 @@ export function getReferralUrl(usernameOrCode: string): string {
  * 
  * @example
  * ```typescript
- * const url = getShortReferralUrl('ai16z-ABC123')
- * // Returns: "https://babylon.market?ref=ai16z-ABC123"
+ * const url = getShortReferralUrl('babylon-ABC123')
+ * // Returns: "https://babylon.market?ref=babylon-ABC123"
  * ```
  * 
  * @deprecated Use getReferralUrl instead for better OG tag support and social sharing
@@ -59,8 +59,8 @@ export function getShortReferralUrl(referralCode: string): string {
  * 
  * @example
  * ```typescript
- * const display = getDisplayReferralUrl('ai16z')
- * // Returns: "localhost:3000?ref=ai16z"
+ * const display = getDisplayReferralUrl('babylon')
+ * // Returns: "localhost:3000?ref=babylon"
  * ```
  */
 export function getDisplayReferralUrl(usernameOrCode: string): string {
@@ -77,8 +77,8 @@ export function getDisplayReferralUrl(usernameOrCode: string): string {
  * 
  * @example
  * ```typescript
- * const text = getReferralShareText('ai16z')
- * // Returns: "Join me on Babylon! 🎮\n\nhttps://babylon.market?ref=ai16z"
+ * const text = getReferralShareText('babylon')
+ * // Returns: "Join me on Babylon! 🎮\n\nhttps://babylon.market?ref=babylon"
  * ```
  */
 export function getReferralShareText(usernameOrCode: string, customMessage?: string): string {
