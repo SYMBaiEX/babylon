@@ -35,6 +35,7 @@ interface WorldFactsData {
     general: string
     headlines?: string
   }
+  realityGroundingContent?: string
 }
 
 /**
@@ -114,7 +115,7 @@ export function WorldFactsSection() {
     setEditValue('')
   }
 
-  const [newFactCategory, setNewFactCategory] = useState<'general' | 'reality-grounding'>('general')
+  const [newFactCategory, setNewFactCategory] = useState<'general'>('general')
 
   const addFact = async () => {
     if (!newFactValue.trim()) return
@@ -214,11 +215,10 @@ export function WorldFactsSection() {
             <div className="flex gap-2">
               <select
                 value={newFactCategory}
-                onChange={(e) => setNewFactCategory(e.target.value as 'general' | 'reality-grounding')}
+                onChange={(e) => setNewFactCategory(e.target.value as 'general')}
                 className="px-3 py-2 bg-background border border-border rounded-lg text-sm"
               >
                 <option value="general">World Fact</option>
-                <option value="reality-grounding">Reality Grounding</option>
               </select>
               <textarea
                 value={newFactValue}
@@ -309,77 +309,21 @@ export function WorldFactsSection() {
           </div>
         </div>
 
-        {/* Reality Grounding Facts */}
+        {/* Reality Grounding Facts (Static) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="text-lg font-semibold text-muted-foreground uppercase tracking-wide">
-              Reality Grounding Facts
+              Reality Grounding (Static Context)
             </h4>
           </div>
 
-          {/* Facts List */}
-          <div className="space-y-2">
-            {data.facts.filter(f => f.category === 'reality-grounding').map(fact => (
-              <div
-                key={fact.id}
-                className="flex items-start justify-between gap-4 p-3 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex-1">
-                  {editingFact === fact.id ? (
-                    <textarea
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
-                      rows={3}
-                    />
-                  ) : (
-                    <div className="text-sm text-muted-foreground">{fact.value}</div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Last updated: {new Date(fact.lastUpdated).toLocaleString()}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {editingFact === fact.id ? (
-                    <>
-                      <button
-                        onClick={() => saveEdit(fact)}
-                        disabled={actionLoading}
-                        className="p-2 rounded-lg bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors disabled:opacity-50"
-                      >
-                        <Save className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingFact(null)
-                          setEditValue('')
-                        }}
-                        className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => startEditing(fact)}
-                        className="p-2 rounded-lg bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 transition-colors"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleAction('delete_fact', { id: fact.id })}
-                        disabled={actionLoading}
-                        className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="bg-card border border-border rounded-lg p-4">
+            <pre className="whitespace-pre-wrap text-sm text-muted-foreground font-mono max-h-96 overflow-y-auto">
+              {data.realityGroundingContent || 'No reality grounding content found.'}
+            </pre>
+            <p className="text-xs text-muted-foreground mt-2">
+              This content is loaded from <code>data/reality-grounding.md</code> and injected into prompts.
+            </p>
           </div>
         </div>
       </div>
@@ -409,5 +353,3 @@ export function WorldFactsSection() {
     </div>
   )
 }
-
-

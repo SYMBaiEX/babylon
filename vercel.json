@@ -23,6 +23,15 @@
   ],
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-src 'self' https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://vercel.live; frame-ancestors 'self'"
+        }
+      ]
+    },
+    {
       "source": "/api/:path*",
       "headers": [
         {
@@ -39,7 +48,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-admin-token"
         }
       ]
     }

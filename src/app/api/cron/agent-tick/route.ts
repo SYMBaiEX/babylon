@@ -77,24 +77,61 @@ export async function POST(_req: NextRequest) {
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`
   logger.info('Agent tick started', { processId }, 'AgentTick')
 
-  await relayCronToStaging(_req, 'agent-tick')
-
-  // Check GAME_START environment variable for manual control
-  const gameStartEnv = process.env.GAME_START?.toLowerCase();
-  const isGameStartEnabled = gameStartEnv === 'start' || gameStartEnv === 'running' || gameStartEnv === 'true';
-
-  if (!isGameStartEnabled) {
-    logger.info('⏸️  Agent tick paused via GAME_START environment variable', {
-      GAME_START: process.env.GAME_START,
-      message: 'Set GAME_START=start in Vercel to resume agent ticks',
+  // 1. Relay to staging if REDIRECT_CRON_STAGING is enabled
+  const relayResult = await relayCronToStaging(_req, 'agent-tick');
+  if (relayResult.forwarded) {
+    logger.info('Cron execution relayed to staging - skipping local execution', {
+      status: relayResult.status,
+      error: relayResult.error,
     }, 'AgentTick');
     return NextResponse.json({
       success: true,
       skipped: true,
-      reason: 'Agents paused (GAME_START env var)',
-      GAME_START: process.env.GAME_START,
-      duration: Date.now() - startTime,
+      reason: 'Relayed to staging environment',
+      relayStatus: relayResult.status,
     });
+  }
+
+  // 2. Check GAME_START environment variable (legacy override)
+  const gameStartEnv = process.env.GAME_START?.toLowerCase();
+  if (gameStartEnv === 'false' || gameStartEnv === '0') {
+    logger.info('⏸️  Game disabled via GAME_START env var - skipping tick', {
+      GAME_START: process.env.GAME_START,
+    }, 'AgentTick');
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Game disabled via GAME_START environment variable',
+    });
+  }
+
+  // 3. Check Game status from database
+  const gameState = await prisma.game.findFirst({
+    where: { isContinuous: true }
+  })
+
+  if (!gameState) {
+    logger.warn('No continuous game found', {}, 'AgentTick')
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'No continuous game found'
+    })
+  }
+
+  if (!gameState.isRunning) {
+    logger.info('⏸️  Agent tick paused (Game is not running)', {
+      gameId: gameState.id,
+      status: 'paused'
+    }, 'AgentTick')
+
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Game is paused',
+      gameId: gameState.id,
+      duration: Date.now() - startTime,
+    })
   }
 
   // NEW: Query via unified AgentRegistry to include both USER agents and NPCs

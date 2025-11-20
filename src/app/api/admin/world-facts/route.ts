@@ -100,6 +100,8 @@ import { characterMappingService } from '@/lib/services/character-mapping-servic
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { logger } from '@/lib/logger';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * GET /api/admin/world-facts - Get all world facts and related data
@@ -116,6 +118,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const context = await worldFactsService.generateWorldContext(true);
 
+  // Read reality grounding content
+  let realityGroundingContent = '';
+  try {
+    realityGroundingContent = readFileSync(join(process.cwd(), 'data', 'reality-grounding.md'), 'utf-8');
+  } catch (e) {
+    logger.warn('Failed to read reality-grounding.md', { error: e }, 'WorldFactsAdmin');
+  }
+
   return successResponse({
     facts,
     rssFeeds,
@@ -123,6 +133,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     characterMappings,
     organizationMappings,
     context,
+    realityGroundingContent,
   });
 });
 
@@ -260,7 +271,3 @@ export const DELETE = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse({ success: true });
 });
-
-
-
-

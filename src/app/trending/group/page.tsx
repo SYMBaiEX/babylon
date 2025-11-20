@@ -121,7 +121,6 @@ export default function GroupedTrendingPage() {
                 <PostCard
                   key={post.id}
                   post={post}
-                  onClick={() => router.push(`/post/${post.id}`)}
                 />
               ))}
               

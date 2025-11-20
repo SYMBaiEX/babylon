@@ -43,37 +43,27 @@ export type { WorldContext, WorldContextOptions } from './world-context';
 
 // Prompts by category
 // Feed prompts
-export { governmentPosts } from './feed/government-posts';
 export { companyPost } from './feed/company-post';
 export { newsPosts } from './feed/news-posts';
-export { conspiracyPost } from './feed/conspiracy-post';
 export { analystReaction } from './feed/analyst-reaction';
 export { governmentPost } from './feed/government-post';
-export { expertCommentary } from './feed/expert-commentary';
-export { ambientPost } from './feed/ambient-post';
-export { mediaPost } from './feed/media-post';
-export { reply } from './feed/reply';
 export { ambientPosts } from './feed/ambient-posts';
 export { stockTicker } from './feed/stock-ticker';
 export { minuteAmbient } from './feed/minute-ambient';
 export { replies } from './feed/replies';
-export { directReaction } from './feed/direct-reaction';
-export { journalistPost } from './feed/journalist-post';
+export { reply } from './feed/reply';
 export { conspiracy } from './feed/conspiracy';
 export { reactions } from './feed/reactions';
-export { companyPosts } from './feed/company-posts';
-export { journalistPosts } from './feed/journalist-posts';
 export { commentary } from './feed/commentary';
 
 // Game prompts
 export { dayTransition } from './game/day-transition';
 export { groupMessages } from './game/group-messages';
-export { resolutionEvent } from './game/resolution-event';
 export { phaseContext } from './game/phase-context';
 export { questionRankings } from './game/question-rankings';
 export { baselineEvent } from './game/baseline-event';
+export { biasedArticle } from './game/biased-article';
 export { questionResolutionValidation } from './game/question-resolution-validation';
-export { eventDescriptions } from './game/event-descriptions';
 export { questionResolvedFeed } from './game/question-resolved-feed';
 export { scenarios } from './game/scenarios';
 export { groupChatName } from './game/group-chat-name';
@@ -81,14 +71,8 @@ export { dayEvents } from './game/day-events';
 export { questions } from './game/questions';
 export { groupMessage } from './game/group-message';
 export { priceAnnouncement } from './game/price-announcement';
-export { priceImpact } from './game/price-impact';
-export { groupChatNames } from './game/group-chat-names';
 export { questionGeneration } from './game/question-generation';
-export { npcPredictionPost } from './game/npc-prediction-post';
-export { orgPredictionArticle } from './game/org-prediction-article';
-export { orgPredictionPost } from './game/org-prediction-post';
-export { baselineArticle } from './game/baseline-article';
-export { biasedArticle } from './game/biased-article';
+export { worldImpactAssessment } from './game/world-impact';
 
 // Image prompts
 export { actorPortrait, actorBanner } from './image/actor-portrait';

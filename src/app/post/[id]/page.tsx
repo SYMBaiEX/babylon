@@ -45,15 +45,20 @@ export default function PostPage({ params }: PostPageProps) {
     shareCount: number;
     isLiked: boolean;
     isShared: boolean;
-    // Repost metadata
+    // Repost metadata (new clean structure)
     isRepost?: boolean;
-    originalPostId?: string | null;
-    originalAuthorId?: string | null;
-    originalAuthorName?: string | null;
-    originalAuthorUsername?: string | null;
-    originalAuthorProfileImageUrl?: string | null;
-    originalContent?: string | null;
+    isQuote?: boolean;
     quoteComment?: string | null;
+    originalPostId?: string | null;
+    originalPost?: {
+      id: string;
+      content: string;
+      authorId: string;
+      authorName: string;
+      authorUsername: string | null;
+      authorProfileImageUrl: string | null;
+      timestamp: string;
+    } | null;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,15 +100,12 @@ export default function PostPage({ params }: PostPageProps) {
         shareCount: postData.shareCount ?? 0,
         isLiked: postData.isLiked ?? false,
         isShared: postData.isShared ?? false,
-        // Repost metadata
+        // Repost metadata (new clean structure)
         isRepost: postData.isRepost || false,
-        originalPostId: postData.originalPostId || null,
-        originalAuthorId: postData.originalAuthorId || null,
-        originalAuthorName: postData.originalAuthorName || null,
-        originalAuthorUsername: postData.originalAuthorUsername || null,
-        originalAuthorProfileImageUrl: postData.originalAuthorProfileImageUrl || null,
-        originalContent: postData.originalContent || null,
+        isQuote: postData.isQuote || false,
         quoteComment: postData.quoteComment || null,
+        originalPostId: postData.originalPostId || null,
+        originalPost: postData.originalPost || null,
       });
       
       // Update the interaction store with fresh API data

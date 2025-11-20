@@ -90,6 +90,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
   }
 
+  // Calculate expected total from breakdown components
+  const calculatedTotal = position.invitePoints + position.earnedPoints + position.bonusPoints
+  
+  // Log if there's a mismatch (reputationPoints may include base points)
+  if (Math.abs(position.points - calculatedTotal) > 100) {
+    logger.warn('Points calculation mismatch', {
+      userId,
+      reputationPoints: position.points,
+      calculatedTotal,
+      invitePoints: position.invitePoints,
+      earnedPoints: position.earnedPoints,
+      bonusPoints: position.bonusPoints,
+    }, 'GET /api/waitlist/position')
+  }
+  
   return successResponse({
     // IMPORTANT: Return leaderboardRank as "position" for UI compatibility
     position: position.leaderboardRank,      // Dynamic rank based on invite points
@@ -99,9 +114,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     totalCount: position.totalCount,
     percentile: position.percentile,
     inviteCode: position.inviteCode,
-    points: position.points,
+    points: position.points, // Full reputation points
     pointsBreakdown: {
-      total: position.points,
+      total: position.points, // Should match points (reputationPoints)
       invite: position.invitePoints,
       earned: position.earnedPoints,
       bonus: position.bonusPoints,

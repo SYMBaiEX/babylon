@@ -275,11 +275,10 @@ export const POST = withErrorHandling(async (
       const originalAuthorUsername = originalUser?.username || originalPost.authorId;
       const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl;
 
-      // If quote comment is provided, create a quote post with commentary
-      // Otherwise, create a simple repost
-      const repostContent = quoteComment 
-        ? `${quoteComment}\n\n--- Reposted from @${originalAuthorUsername} ---\n${originalPost.content}`
-        : originalPost.content;
+      // Create repost post with reference to original
+      // For quote posts: content = quote commentary only
+      // For simple reposts: content = empty string
+      const repostContent = quoteComment || '';
 
       // Create repost post with reference to original
       const createdRepost = await prisma.post.create({
@@ -295,7 +294,7 @@ export const POST = withErrorHandling(async (
       // Format repost data for broadcast
       repostPostData = {
         id: createdRepost.id,
-        content: createdRepost.content,
+        content: createdRepost.content, // Quote commentary or empty string
         authorId: createdRepost.authorId,
         authorName: canonicalUser.username || canonicalUser.displayName || `user_${canonicalUserId.slice(0, 8)}`,
         authorUsername: canonicalUser.username,
@@ -303,12 +302,17 @@ export const POST = withErrorHandling(async (
         authorProfileImageUrl: canonicalUser.profileImageUrl,
         timestamp: createdRepost.timestamp.toISOString(),
         isRepost: true,
+        isQuote: !!quoteComment,
         originalPostId: postId,
-        originalAuthorId: originalPost.authorId,
-        originalAuthorName: originalAuthorName,
-        originalAuthorUsername: originalAuthorUsername,
-        originalAuthorProfileImageUrl: originalAuthorProfileImageUrl,
-        originalContent: originalPost.content, // Include original content separately
+        originalPost: {
+          id: postId,
+          content: originalPost.content,
+          authorId: originalPost.authorId,
+          authorName: originalAuthorName,
+          authorUsername: originalAuthorUsername,
+          authorProfileImageUrl: originalAuthorProfileImageUrl,
+          timestamp: originalPost.timestamp.toISOString(),
+        },
         quoteComment: quoteComment || null,
       };
 
@@ -414,60 +418,25 @@ export const DELETE = withErrorHandling(async (
     }
 
     // Delete repost post if it exists
-    // Since we don't have originalPostId field, we need to find reposts by:
-    // 1. Posts authored by this user
-    // 2. Created around the same time as the share record
-    // 3. Content matches (either exact or with quote comment prefix)
-    
-    // Get the original post content to match against
-    const originalPostContent = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { content: true },
+    // Find the repost post using originalPostId field (direct database reference)
+    const repostPost = await prisma.post.findFirst({
+      where: {
+        authorId: canonicalUserId,
+        originalPostId: postId,
+        deletedAt: null,
+      },
     });
 
-    if (originalPostContent) {
-      // Find repost posts created by this user around the time they shared
-      // Look for posts created within a reasonable time window of the share
-      const shareCreatedAt = share.createdAt;
-      const windowStart = new Date(shareCreatedAt.getTime() - 1000); // 1 second before
-      const windowEnd = new Date(shareCreatedAt.getTime() + 60000); // 1 minute after
-
-      // Only check for reposts up to current time
-      const currentTime = new Date();
-      const effectiveWindowEnd = windowEnd > currentTime ? currentTime : windowEnd;
-      const potentialReposts = await prisma.post.findMany({
+    if (repostPost) {
+      // Delete the repost post
+      await prisma.post.delete({
         where: {
-          authorId: canonicalUserId,
-          timestamp: {
-            gte: windowStart,
-            lte: effectiveWindowEnd, // ✅ No future posts
-          },
-          deletedAt: null,
+          id: repostPost.id,
         },
       });
-
-      // Filter to find actual reposts (content matches original or contains it as quote)
-      const repostPosts = potentialReposts.filter(p => {
-        // Exact match (simple repost)
-        if (p.content === originalPostContent.content) return true;
-        // Quote post match (contains original content after separator)
-        if (p.content.includes(originalPostContent.content)) return true;
-        return false;
-      });
-
-      // Delete all repost posts for this share
-      if (repostPosts.length > 0) {
-        await prisma.post.deleteMany({
-          where: {
-            id: {
-              in: repostPosts.map((p) => p.id),
-            },
-          },
-        });
-        logger.info('Deleted repost posts', { count: repostPosts.length, postIds: repostPosts.map(p => p.id) }, 'DELETE /api/posts/[id]/share');
-      } else {
-        logger.warn('No repost posts found to delete', { postId, userId: canonicalUserId, windowStart, windowEnd }, 'DELETE /api/posts/[id]/share');
-      }
+      logger.info('Deleted repost post', { repostPostId: repostPost.id, originalPostId: postId }, 'DELETE /api/posts/[id]/share');
+    } else {
+      logger.warn('No repost post found to delete', { postId, userId: canonicalUserId }, 'DELETE /api/posts/[id]/share');
     }
 
     // Delete share

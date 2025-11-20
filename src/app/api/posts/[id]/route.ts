@@ -74,34 +74,6 @@ import type { NextRequest } from 'next/server';
 import type { JsonValue } from '@/types/common';
 
 /**
- * Parse repost content to extract metadata
- * Returns null if not a repost, otherwise returns parsed data
- */
-function parseRepostContent(content: string): {
-  isRepost: true;
-  quoteComment: string | null;
-  originalContent: string;
-  originalAuthorUsername: string;
-} | null {
-  const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
-  const match = content.match(separatorPattern);
-  
-  if (!match) return null;
-  
-  const parts = content.split(separatorPattern);
-  const quoteComment = parts[0]?.trim() || null;
-  const originalContent = parts[2]?.trim() || '';
-  const originalAuthorUsername = match[1] || '';
-  
-  return {
-    isRepost: true,
-    quoteComment,
-    originalContent,
-    originalAuthorUsername,
-  };
-}
-
-/**
  * GET /api/posts/[id]
  * Get a single post by ID
  */
@@ -172,6 +144,17 @@ export const GET = withErrorHandling(async (
                 id: true,
               },
             },
+        // Include original post for reposts/quotes
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
       },
     })
   })
@@ -214,6 +197,17 @@ export const GET = withErrorHandling(async (
             id: true,
           },
         },
+        // Include original post for reposts/quotes
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
       },
     })
   });
@@ -303,112 +297,61 @@ export const GET = withErrorHandling(async (
         const timestampStr = gamePost.timestamp as string;
         const createdAtStr = (gamePost.createdAt || timestampStr) as string;
 
-        // Parse repost metadata if this is a repost
-        const parsedRepostData = gamePost.content ? parseRepostContent(gamePost.content) : null;
+        // Check for repost metadata from originalPostId field (no legacy text parsing)
         let repostMetadata = {};
         
         const originalPostIdFromGame = 'originalPostId' in gamePost ? (gamePost as Record<string, JsonValue>).originalPostId as string | undefined : undefined;
-        if (parsedRepostData || originalPostIdFromGame) {
-          // Try to get original author info
-          let originalAuthor = null;
-          const originalPostId = originalPostIdFromGame || null;
-          let effectiveRepostData = parsedRepostData;
+        if (originalPostIdFromGame) {
+          const originalPost = await asPublic(async (db) => {
+            return await db.post.findUnique({
+              where: { id: originalPostIdFromGame },
+              select: { authorId: true, content: true },
+            });
+          });
           
-          if (parsedRepostData) {
-            // Parse from content if available (fallback for old posts)
-            originalAuthor = await asPublic(async (db) => {
+          if (originalPost) {
+            // Fetch author details
+            const originalAuthor = await asPublic(async (db) => {
               const usr = await db.user.findUnique({
-                where: { username: parsedRepostData.originalAuthorUsername },
+                where: { id: originalPost.authorId },
                 select: { id: true, username: true, displayName: true, profileImageUrl: true },
               });
               
               if (usr) return usr;
               
-              const act = await db.actor.findFirst({
-                where: { id: parsedRepostData.originalAuthorUsername },
+              const act = await db.actor.findUnique({
+                where: { id: originalPost.authorId },
                 select: { id: true, name: true, profileImageUrl: true },
               });
               
               if (act) return act;
               
-              const org = await db.organization.findFirst({
-                where: { id: parsedRepostData.originalAuthorUsername },
+              const org = await db.organization.findUnique({
+                where: { id: originalPost.authorId },
                 select: { id: true, name: true, imageUrl: true },
               });
               
               return org;
             });
-          }
-          
-          // If we have originalPostId but no author info yet, fetch from original post
-          if (originalPostId && !originalAuthor) {
-            const originalPost = await asPublic(async (db) => {
-              return await db.post.findUnique({
-                where: { id: originalPostId },
-                select: { authorId: true, content: true },
-              });
-            });
             
-            if (originalPost) {
-              // Fetch author details
-              originalAuthor = await asPublic(async (db) => {
-                const usr = await db.user.findUnique({
-                  where: { id: originalPost.authorId },
-                  select: { id: true, username: true, displayName: true, profileImageUrl: true },
-                });
-                
-                if (usr) return usr;
-                
-                const act = await db.actor.findUnique({
-                  where: { id: originalPost.authorId },
-                  select: { id: true, name: true, profileImageUrl: true },
-                });
-                
-                if (act) return act;
-                
-                const org = await db.organization.findUnique({
-                  where: { id: originalPost.authorId },
-                  select: { id: true, name: true, imageUrl: true },
-                });
-                
-                return org;
-              });
-              
-              // Create repostData with actual original content if not already set
-              if (!parsedRepostData && originalAuthor) {
-                effectiveRepostData = {
-                  isRepost: true,
-                  quoteComment: null,
-                  originalContent: originalPost.content,
-                  originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username! : originalPost.authorId,
-                };
-              }
+            if (originalAuthor) {
+              const isQuote = gamePost.content && gamePost.content.length > 0;
+              repostMetadata = {
+                isRepost: true,
+                isQuote,
+                quoteComment: isQuote ? gamePost.content : null,
+                originalPostId: originalPostIdFromGame,
+                originalPost: {
+                  id: originalPostIdFromGame,
+                  content: originalPost.content,
+                  authorId: originalPost.authorId,
+                  authorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
+                  authorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+                  authorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
+                  timestamp: new Date().toISOString(),
+                }
+              };
             }
-          }
-          
-          if (originalAuthor && effectiveRepostData) {
-            repostMetadata = {
-              isRepost: true,
-              quoteComment: effectiveRepostData.quoteComment,
-              originalContent: effectiveRepostData.originalContent,
-              originalPostId: originalPostId,
-              originalAuthorId: originalAuthor.id,
-              originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
-              originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
-              originalAuthorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
-            };
-          } else if (effectiveRepostData) {
-            // Fallback if we can't find the original author
-            repostMetadata = {
-              isRepost: true,
-              quoteComment: effectiveRepostData.quoteComment,
-              originalContent: effectiveRepostData.originalContent,
-              originalPostId: originalPostId,
-              originalAuthorId: effectiveRepostData.originalAuthorUsername,
-              originalAuthorName: effectiveRepostData.originalAuthorUsername,
-              originalAuthorUsername: effectiveRepostData.originalAuthorUsername,
-              originalAuthorProfileImageUrl: null,
-            };
           }
         }
 
@@ -525,6 +468,17 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
+                // Include original post for reposts/quotes
+                Post_Post_originalPostIdToPost: {
+                  where: { deletedAt: null },
+                  select: {
+                    id: true,
+                    content: true,
+                    authorId: true,
+                    timestamp: true,
+                    createdAt: true,
+                  }
+                }
               },
             });
           })
@@ -568,6 +522,17 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
+                // Include original post for reposts/quotes
+                Post_Post_originalPostIdToPost: {
+                  where: { deletedAt: null },
+                  select: {
+                    id: true,
+                    content: true,
+                    authorId: true,
+                    timestamp: true,
+                    createdAt: true,
+                  }
+                }
               },
             });
           });
@@ -626,29 +591,31 @@ export const GET = withErrorHandling(async (
     const reactionsArray = post.Reaction && Array.isArray(post.Reaction) ? post.Reaction : [];
     const sharesArray = post.Share && Array.isArray(post.Share) ? post.Share : [];
 
-    // Parse repost metadata if this is a repost
-    const repostData = post.content ? parseRepostContent(post.content) : null;
+    // Build repost metadata from originalPostId (clean, no regex parsing)
     let repostMetadata = {};
     
-    if (repostData) {
-      // Look up original author by username (could be User, Actor, or Organization)
+    if (post.originalPostId && post.Post_Post_originalPostIdToPost) {
+      const originalPost = post.Post_Post_originalPostIdToPost;
+      const isQuote = post.content && post.content.length > 0;
+      
+      // Get original post author
       const originalAuthor = await asPublic(async (db) => {
         const usr = await db.user.findUnique({
-          where: { username: repostData.originalAuthorUsername },
+          where: { id: originalPost.authorId },
           select: { id: true, username: true, displayName: true, profileImageUrl: true },
         });
         
         if (usr) return usr;
         
         const act = await db.actor.findFirst({
-          where: { id: repostData.originalAuthorUsername },
+          where: { id: originalPost.authorId },
           select: { id: true, name: true, profileImageUrl: true },
         });
         
         if (act) return act;
         
         const org = await db.organization.findFirst({
-          where: { id: repostData.originalAuthorUsername },
+          where: { id: originalPost.authorId },
           select: { id: true, name: true, imageUrl: true },
         });
         
@@ -656,59 +623,20 @@ export const GET = withErrorHandling(async (
       });
       
       if (originalAuthor) {
-        // Find the Share record for this repost to get the original post ID
-        const shareRecord = await asPublic(async (db) => {
-          return await db.share.findFirst({
-            where: { 
-              userId: post.authorId || '',
-              Post: {
-                authorId: originalAuthor.id
-              }
-            },
-            orderBy: { createdAt: 'desc' },
-            select: { postId: true },
-          });
-        });
-        
-        let originalPostId = shareRecord?.postId || null;
-        
-        // If Share lookup failed, try to find the original post by content and author
-        if (!originalPostId && repostData.originalContent) {
-          const originalPost = await asPublic(async (db) => {
-            return await db.post.findFirst({
-              where: {
-                authorId: originalAuthor.id,
-                content: repostData.originalContent,
-                deletedAt: null,
-              },
-              orderBy: { timestamp: 'desc' },
-              select: { id: true },
-            });
-          });
-          originalPostId = originalPost?.id || null;
-        }
-        
         repostMetadata = {
           isRepost: true,
-          quoteComment: repostData.quoteComment,
-          originalContent: repostData.originalContent,
-          originalPostId: originalPostId,
-          originalAuthorId: originalAuthor.id,
-          originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
-          originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
-          originalAuthorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
-        };
-      } else {
-        // Even if we can't find the original author, still mark as repost
-        repostMetadata = {
-          isRepost: true,
-          quoteComment: repostData.quoteComment,
-          originalContent: repostData.originalContent,
-          originalPostId: null,
-          originalAuthorId: repostData.originalAuthorUsername,
-          originalAuthorName: repostData.originalAuthorUsername,
-          originalAuthorUsername: repostData.originalAuthorUsername,
-          originalAuthorProfileImageUrl: null,
+          isQuote,
+          quoteComment: isQuote ? post.content : null,
+          originalPostId: originalPost.id,
+          originalPost: {
+            id: originalPost.id,
+            content: originalPost.content,
+            authorId: originalPost.authorId,
+            authorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
+            authorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+            authorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
+            timestamp: originalPost.timestamp?.toISOString?.() || new Date().toISOString(),
+          }
         };
       }
     }

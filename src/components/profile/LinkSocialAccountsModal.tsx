@@ -182,7 +182,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
               </svg>
-              <h3 className="font-semibold">Twitter / X</h3>
+              <h3 className="font-semibold">X</h3>
               {user?.hasTwitter && (
                 <span className="ml-auto flex items-center gap-1 text-sm text-green-500">
                   <Check className="w-4 h-4" />
@@ -196,7 +196,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 <Check className="w-4 h-4 text-green-500" />
                 <span className="text-sm font-medium">@{user.twitterUsername}</span>
                 <a
-                  href={`https://twitter.com/${user.twitterUsername}`}
+                  href={`https://x.com/${user.twitterUsername}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-auto text-primary hover:text-primary/80"
@@ -209,7 +209,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
                   <Shield className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    You&apos;ll be redirected to Twitter to authorize access. We&apos;ll verify your account ownership.
+                    You&apos;ll be redirected to X to authorize access. We&apos;ll verify your account ownership.
                   </p>
                 </div>
                 <button
@@ -229,7 +229,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                   ) : (
                     <>
                       <Shield className="w-4 h-4" />
-                      <span>Connect with Twitter</span>
+                      <span>Connect with X</span>
                     </>
                   )}
                 </button>
@@ -259,7 +259,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 <Check className="w-4 h-4 text-green-500" />
                 <span className="text-sm font-medium">@{user.farcasterUsername}</span>
                 <a
-                  href={`https://warpcast.com/${user.farcasterUsername}`}
+                  href={`https://farcaster.xyz/${user.farcasterUsername}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-auto text-primary hover:text-primary/80"

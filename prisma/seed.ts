@@ -208,11 +208,8 @@ async function seedWorldFacts() {
   // Load world facts from markdown file
   const worldFacts = parseFactsFromMarkdown(join(dataDir, 'world-facts.md'));
   
-  // Load reality grounding facts from markdown file
-  const realityGroundingFacts = parseFactsFromMarkdown(join(dataDir, 'reality-grounding.md'));
-
-  if (worldFacts.length === 0 && realityGroundingFacts.length === 0) {
-    logger.warn('No facts found in data/world-facts.md or data/reality-grounding.md', undefined, 'SeedWorldFacts');
+  if (worldFacts.length === 0) {
+    logger.warn('No facts found in data/world-facts.md', undefined, 'SeedWorldFacts');
     return;
   }
 
@@ -241,32 +238,7 @@ async function seedWorldFacts() {
     });
   }
 
-  // Seed reality grounding facts (category: 'reality-grounding')
-  for (const value of realityGroundingFacts) {
-    const key = generateKey(value);
-    const label = generateLabel(value);
-
-    await prisma.worldFact.upsert({
-      where: { category_key: { category: 'reality-grounding', key } },
-      create: {
-        id: await generateSnowflakeId(),
-        category: 'reality-grounding',
-        key,
-        label,
-        value,
-        source: 'default',
-        priority: 0,
-        lastUpdated: new Date(),
-      },
-      update: {
-        label,
-        value,
-        lastUpdated: new Date(),
-      },
-    });
-  }
-
-  logger.info(`Seeded ${worldFacts.length} world facts and ${realityGroundingFacts.length} reality grounding facts`, undefined, 'SeedWorldFacts');
+  logger.info(`Seeded ${worldFacts.length} world facts`, undefined, 'SeedWorldFacts');
 }
 
 async function seedRSSFeeds() {

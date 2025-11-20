@@ -243,11 +243,11 @@ export class NewsArticlePacingEngine {
    * @param stage - Article stage
    * @returns Orgs that should publish (respects pacing rules)
    */
-  selectOrgsForStage(
-    availableOrgs: Array<{ id: string; name: string }>,
+  selectOrgsForStage<T extends { id: string; name: string }>(
+    availableOrgs: T[],
     questionId: number,
     stage: ArticleStage
-  ): Array<{ id: string; name: string }> {
+  ): T[] {
     // Validate inputs
     if (!availableOrgs || availableOrgs.length === 0) {
       throw new Error('availableOrgs cannot be empty');

@@ -26,13 +26,13 @@ worldContext = {
 ```typescript
 import {
   // Batch (multiple posts)
-  ambientPosts, reactions, newsPosts, journalistPosts,
-  companyPosts, governmentPosts, conspiracy, commentary, replies,
+  ambientPosts, reactions, newsPosts,
+  conspiracy, commentary, replies,
   
   // Individual (single post)
-  ambientPost, reply, directReaction, journalistPost,
-  conspiracyPost, mediaPost, expertCommentary, companyPost,
-  governmentPost, analystReaction, stockTicker, minuteAmbient,
+  companyPost, governmentPost,
+  analystReaction, stockTicker, minuteAmbient,
+  reply,
 } from '@/prompts';
 ```
 

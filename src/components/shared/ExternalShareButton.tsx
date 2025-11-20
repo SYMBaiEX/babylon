@@ -15,7 +15,7 @@
  * ```
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Share2, Twitter, Link as LinkIcon, Check } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ShareVerificationModal } from './ShareVerificationModal'
@@ -64,17 +64,63 @@ export function ExternalShareButton({
     shareId: string
     platform: 'twitter' | 'farcaster'
   } | null>(null)
+  const [earnedPlatforms, setEarnedPlatforms] = useState<Set<string>>(new Set())
 
   const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '')
   const shareText = text || 'Check this out!'
+
+  // Check for existing earned shares on mount
+  useEffect(() => {
+    const checkExistingShares = async () => {
+      if (!authenticated || !user) return
+
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) return
+
+      try {
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          const shares = data.shares || []
+          
+          // Track which platforms have already earned points
+          const earned = new Set<string>()
+          shares.forEach((share: { platform: string }) => {
+            earned.add(share.platform)
+          })
+          setEarnedPlatforms(earned)
+        }
+      } catch (error) {
+        console.error('Failed to check existing shares:', error)
+      }
+    }
+
+    checkExistingShares()
+  }, [authenticated, user, contentType])
 
   const handleShareToTwitter = async () => {
     // Check if shareText already contains the URL to avoid duplication
     const textContainsUrl = shareText.includes(shareUrl)
     const twitterUrl = textContainsUrl
-      ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
-      : `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+      ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+      : `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
     window.open(twitterUrl, '_blank', 'width=550,height=420')
+    
+    // If already earned, skip verification
+    if (earnedPlatforms.has('twitter')) {
+      setShared(true)
+      setTimeout(() => setShared(false), 2000)
+      setShowMenu(false)
+      return
+    }
     
     const result = authenticated && user
       ? await trackExternalShare({
@@ -108,6 +154,14 @@ export function ExternalShareButton({
       : `${shareText}\n\n${shareUrl}`  // Add link if not present
     const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}&embeds[]=${encodeURIComponent(shareUrl)}`
     window.open(warpcastUrl, '_blank', 'width=550,height=600')
+    
+    // If already earned, skip verification
+    if (earnedPlatforms.has('farcaster')) {
+      setShared(true)
+      setTimeout(() => setShared(false), 2000)
+      setShowMenu(false)
+      return
+    }
     
     const result = authenticated && user
       ? await trackExternalShare({

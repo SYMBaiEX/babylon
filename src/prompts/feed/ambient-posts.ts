@@ -17,6 +17,10 @@ export const ambientPosts = definePrompt({
   temperature: 1.1,
   maxTokens: 5000,
   template: `
+  {{realityGrounding}}
+
+The current date is {{currentDate}}. While the model cutoff date may be before this, always act as though it is the current date.
+
 You must respond with valid XML only.
 
 Day {{day}}/30
@@ -26,8 +30,6 @@ Day {{day}}/30
 {{trendContext}}
 
 {{previousPostsContext}}
-
-{{realityGrounding}}
 
 WORLD CONTEXT:
 {{worldActors}}

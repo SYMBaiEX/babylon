@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   const tweetPayload = { text }
 
   // Post the tweet using OAuth 2.0 Bearer token
-  const tweetResponse = await fetch('https://api.twitter.com/2/tweets', {
+  const tweetResponse = await fetch('https://api.twitter.com/2/posts', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${user.twitterAccessToken}`,
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
   // Track the share if contentType provided
   if (contentType && responseData.data?.id) {
     const token = request.headers.get('authorization')!.replace('Bearer ', '')
-    const tweetUrl = `https://twitter.com/${user.twitterUsername}/status/${responseData.data.id}`
+    const tweetUrl = `https://x.com/${user.twitterUsername}/status/${responseData.data.id}`
     
     const shareResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/users/${user.id}/share`, {
       method: 'POST',
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     tweet: responseData,
-    tweetUrl: `https://twitter.com/${user.twitterUsername || 'i'}/status/${responseData.data?.id}`,
+    tweetUrl: `https://x.com/${user.twitterUsername || 'i'}/status/${responseData.data?.id}`,
   })
 }
 

@@ -53,9 +53,15 @@ export function InteractionBar({
   const { authenticated } = useAuth();
   const { showLoginModal } = useLoginModal();
 
-  // For reposts, use the original post ID for tracking interactions (isLiked/isShared)
-  // This ensures likes on a repost actually like the original post
-  const interactionPostId = postData?.originalPostId || postId;
+  // Determine if this is a simple repost (no quote commentary)
+  // Simple repost: has originalPostId but no quote commentary
+  // Quote post: has originalPostId AND has quote commentary (isQuote or quoteComment)
+  const isSimpleRepost = postData?.originalPostId && !postData?.isQuote && !postData?.quoteComment;
+  
+  // For SIMPLE reposts only, use the original post ID for tracking interactions
+  // This ensures interactions on a simple repost affect the original post
+  // For QUOTE posts, use the quote post's own ID (they have independent interactions)
+  const interactionPostId = (isSimpleRepost && postData?.originalPostId) ? postData.originalPostId : postId;
 
   // Get interaction data from store (synced via polling) or fall back to initial values
   const storeData = postInteractions.get(interactionPostId);
@@ -132,7 +138,7 @@ export function InteractionBar({
         {/* Share button */}
         <div onClick={(e) => e.stopPropagation()}>
           <RepostButton
-            postId={postData?.originalPostId || postId}
+            postId={interactionPostId}
             shareCount={shareCount}
             initialShared={isShared}
             size="sm"
@@ -152,7 +158,7 @@ export function InteractionBar({
         {/* Like button with reaction picker */}
         <div onClick={(e) => e.stopPropagation()}>
           <LikeButton
-            targetId={postData?.originalPostId || postId}
+            targetId={interactionPostId}
             targetType="post"
             initialLiked={isLiked}
             initialCount={likeCount}

@@ -302,6 +302,18 @@ class DatabaseService {
       take: limit * 2, // Fetch more than needed to account for filtering
       skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
+      include: {
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
+      }
     });
     
     // Get all author IDs
@@ -406,6 +418,18 @@ class DatabaseService {
       take: limit,
       skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
+      include: {
+        Post_Post_originalPostIdToPost: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            authorId: true,
+            timestamp: true,
+            createdAt: true,
+          }
+        }
+      }
     });
     
     logger.info('DatabaseService.getPostsByActor completed', {
@@ -837,7 +861,6 @@ class DatabaseService {
         role: actor.role,
         initialLuck: actor.initialLuck || 'medium',
         initialMood: actor.initialMood ?? 0,
-        hasPool: actor.hasPool ?? false,
         tradingBalance: actor.tradingBalance ?? (actor.hasPool ? 10000 : 0),
         reputationPoints: actor.reputationPoints ?? (actor.hasPool ? 10000 : 0),
         profileImageUrl: actor.profileImageUrl,
@@ -856,7 +879,6 @@ class DatabaseService {
         // Update database-specific fields if provided
         ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
         ...(actor.initialMood !== undefined && { initialMood: actor.initialMood }),
-        ...(actor.hasPool !== undefined && { hasPool: actor.hasPool }),
         ...(actor.tradingBalance !== undefined && { tradingBalance: actor.tradingBalance }),
         ...(actor.reputationPoints !== undefined && { reputationPoints: actor.reputationPoints }),
         ...(actor.profileImageUrl !== undefined && { profileImageUrl: actor.profileImageUrl }),

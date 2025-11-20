@@ -188,7 +188,6 @@ export default function TrendingTagPage() {
                   <PostCard
                     key={post.id}
                     post={post}
-                    onClick={() => router.push(`/post/${post.id}`)}
                   />
                 ))}
                 
@@ -241,7 +240,6 @@ export default function TrendingTagPage() {
               <PostCard
                 key={post.id}
                 post={post}
-                onClick={() => router.push(`/post/${post.id}`)}
               />
             ))}
             

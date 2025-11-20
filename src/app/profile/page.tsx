@@ -104,15 +104,21 @@ export default function ProfilePage() {
     authorProfileImageUrl?: string | null
     isLiked?: boolean
     isShared?: boolean
+    // New clean repost structure
     isRepost?: boolean
-    originalPostId?: string | null
-    originalAuthorId?: string | null
-    originalAuthorName?: string | null
-    originalAuthorUsername?: string | null
-    originalAuthorProfileImageUrl?: string | null
-    originalContent?: string | null
+    isQuote?: boolean
     quoteComment?: string | null
-  }>>([])
+    originalPostId?: string | null
+    originalPost?: {
+      id: string
+      content: string
+      authorId: string
+      authorName: string
+      authorUsername: string | null
+      authorProfileImageUrl: string | null
+      timestamp: string
+    } | null
+  }>>([]);
   const [replies, setReplies] = useState<Array<{
     id: string
     content: string
@@ -585,7 +591,7 @@ export default function ProfilePage() {
                     {user.hasTwitter && user.twitterUsername && (
                       <div className="flex items-center justify-between group">
                         <a
-                          href={`https://twitter.com/${user.twitterUsername}`}
+                          href={`https://x.com/${user.twitterUsername}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -614,7 +620,7 @@ export default function ProfilePage() {
                     {user.hasFarcaster && user.farcasterUsername && (
                       <div className="flex items-center justify-between group">
                         <a
-                          href={`https://warpcast.com/${user.farcasterUsername}`}
+                          href={`https://farcaster.xyz/${user.farcasterUsername}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -769,26 +775,21 @@ export default function ProfilePage() {
                         isShared: item.isShared,
                         // Repost metadata
                         isRepost: item.isRepost || false,
-                        originalPostId: item.originalPostId || null,
-                        originalAuthorId: item.originalAuthorId || null,
-                        originalAuthorName: item.originalAuthorName || null,
-                        originalAuthorUsername: item.originalAuthorUsername || null,
-                        originalAuthorProfileImageUrl: item.originalAuthorProfileImageUrl || null,
-                        originalContent: item.originalContent || null,
+                        isQuote: item.isQuote || false,
                         quoteComment: item.quoteComment || null,
+                        originalPostId: item.originalPostId || null,
+                        originalPost: item.originalPost || null,
                       };
                       
                       return postData.type === 'article' ? (
                         <ArticleCard
                           key={item.id}
                           post={postData}
-                          onClick={() => router.push(`/post/${item.id}`)}
                         />
                       ) : (
                         <PostCard
                           key={item.id}
                           post={postData}
-                          onClick={() => router.push(`/post/${item.id}`)}
                           showInteractions
                         />
                       )

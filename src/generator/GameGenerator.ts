@@ -45,7 +45,7 @@ import {
   questionRankings,
   groupChatName,
   dayEvents,
-  resolutionEvent,
+  questionResolutionValidation,
   groupMessages,
   groupMessage
 } from '@/prompts';
@@ -1579,10 +1579,11 @@ Max 120 characters, one sentence.`;
     const outcome = question.outcome ? 'YES' : 'NO';
     const outcomeContext = question.outcome ? 'PROVES it happened' : 'PROVES it failed/was cancelled';
 
-    const prompt = renderPrompt(resolutionEvent, {
+    const prompt = renderPrompt(questionResolutionValidation, {
       questionText: question.text,
       outcome,
       eventHistory,
+      contextInfo: '', // Not used in resolutionEvent, adding empty string
       outcomeContext
     });
 

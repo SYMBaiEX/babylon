@@ -207,7 +207,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           profileImageUrl: true,
           tradingBalance: true,
           reputationPoints: true,
-          hasPool: true,
           createdAt: true,
           _count: {
             select: {
@@ -232,7 +231,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         role: actor.role,
         balance: actor.tradingBalance.toString(),
         reputationPoints: actor.reputationPoints,
-        hasPool: actor.hasPool,
         createdAt: actor.createdAt,
         stats: {
           pools: actor._count.Pool,
