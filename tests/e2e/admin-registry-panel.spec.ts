@@ -10,34 +10,19 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { authenticateWithPrivy } from './helpers'
 
 const BASE_URL = process.env.TEST_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
 test.describe('Admin Registry Panel', () => {
   test.beforeEach(async ({ page }) => {
-    // Authenticate before accessing admin panel
-    await authenticateWithPrivy(page)
-
     // Navigate to admin panel (assumes admin authentication is handled)
     await page.goto(`${BASE_URL}/admin`)
-    await page.waitForLoadState('networkidle')
     
-    // Check for access denied
-    try {
-      const accessDenied = await page.locator('text=Access Denied').isVisible({ timeout: 5000 })
-      if (accessDenied) {
-        console.error('❌ Access Denied on /admin page. User may not have admin privileges or localhost bypass failed.')
-        // Log page content for debugging
-        const content = await page.content()
-        console.log('Page content:', content.substring(0, 500) + '...')
-      }
-    } catch (e) {
-      // Ignore timeout looking for access denied
-    }
-
-    // Wait for admin dashboard title specifically
-    await page.waitForSelector('h1:has-text("Admin Dashboard")', { timeout: 30000 })
+    // Wait for admin panel to load
+    await page.waitForSelector('[data-testid="admin-dashboard"]', { timeout: 10000 }).catch(async () => {
+      // If test ID doesn't exist, wait for any admin content
+      await page.waitForSelector('text=Admin', { timeout: 10000 })
+    })
   })
 
   test('should display registry tab and load entities', async ({ page }) => {

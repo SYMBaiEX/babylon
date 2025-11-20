@@ -31,6 +31,8 @@ export interface PredictionResolutionEvent {
   liquidity?: number;
   totalPayout: number;
   timestamp: string;
+  resolutionProofUrl?: string;
+  resolutionDescription?: string;
 }
 
 export class PredictionMarketEventService {

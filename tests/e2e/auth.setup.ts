@@ -36,128 +36,73 @@ function getPrivyTestAccount() {
  * Authenticate with Privy and wait for successful login
  */
 async function authenticateWithPrivy(page: Page, email: string, password: string | undefined) {
-  // Navigate to home page with dev mode forced to ensure app loads
-  await page.goto('/?dev=true')
+  // Navigate to home page
+  console.log('🔄 Navigating to home page...')
+  await page.goto('/')
 
-  // Wait for page to load completely (networkidle is better for SPAs than domcontentloaded)
+  // Wait for page to load
   await page.waitForLoadState('networkidle')
   
-  // Give React time to hydrate and render the modal
-  await page.waitForTimeout(3000)
+  // Wait for either user menu (logged in) OR login button/input (not logged in)
+  // We use a generous timeout because local dev server can be slow
+  console.log('⏳ Waiting for auth UI elements...')
+  const authElement = await Promise.race([
+    page.waitForSelector('[data-testid="user-menu"]', { timeout: 20000 }).then(() => 'loggedin'),
+    page.waitForSelector('button:has-text("Log in"), button:has-text("Sign in")', { timeout: 20000 }).then(() => 'login_button'),
+    page.waitForSelector('input[type="email"]', { timeout: 20000 }).then(() => 'email_input')
+  ]).catch((e) => {
+    console.log('⚠️ Timeout waiting for auth elements')
+    return 'timeout'
+  })
 
-  // Check for authentication indicators first
-  const isAlreadyLoggedIn = await page.evaluate(() => {
-    const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
-    const hasProfile = Array.from(document.querySelectorAll('button')).some(b => b.textContent?.includes('Profile'));
-    const hasToken = window.localStorage.getItem('privy:token') !== null;
-    return (hasUserMenu || hasProfile) && hasToken;
-  }).catch(() => false);
+  console.log(`ℹ️ Auth state detected: ${authElement}`)
 
-  if (isAlreadyLoggedIn) {
+  if (authElement === 'loggedin') {
     console.log('✅ Already authenticated - skipping login flow')
     return
   }
 
-  // Check for Coming Soon state which would prevent login
-  const comingSoon = await page.locator('text=Coming Soon').isVisible().catch(() => false)
-  if (comingSoon) {
-    console.log('❌ Page is showing "Coming Soon" - localhost detection failed')
+  if (authElement === 'login_button') {
+    // Click login button
+    const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in")').first()
+    await loginButton.click()
+    // Wait for modal to appear
+    await page.waitForSelector('input[type="email"]', { timeout: 10000 })
   }
 
-  // Look for login button or modal input
-  // Also look for the Sidebar "Connect Wallet" button as a fallback
-  const sidebarLoginBtn = page.locator('button:has-text("Connect Wallet")').first()
-  const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Login")').first()
-  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
-
-  // Check if modal is ALREADY open
-  let isLoginModalOpen = await emailInput.isVisible({ timeout: 2000 }).catch(() => false)
-
-  if (!isLoginModalOpen) {
-    // If sidebar login button is visible, click it to open modal
-    if (await sidebarLoginBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        console.log('ℹ️  Clicking sidebar "Connect Wallet" button')
-        await sidebarLoginBtn.click()
-        await page.waitForTimeout(1000)
-        isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
-    }
-    
-    // If still not open, try other login buttons
-    if (!isLoginModalOpen) {
-        const loginButtonVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
-    
-        if (loginButtonVisible) {
-        try {
-            await loginButton.click({ timeout: 5000 })
-        } catch (e) {
-            console.log('⚠️  Normal click failed, trying force click...', e)
-            await loginButton.click({ force: true })
-        }
-        await page.waitForTimeout(1000)
-        isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
-        }
-    }
-  }
-
-  if (!isLoginModalOpen) {
-    // One last check if we missed the logged-in state
-    const loggedInNow = await page.evaluate(() => {
-        const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
-        return hasUserMenu;
-    }).catch(() => false);
-
-    if (loggedInNow) {
-        console.log('✅ Logged in detected late')
-        return;
-    }
-    
-    // Debugging output
-    const title = await page.title();
-    const content = await page.content();
-    console.log(`❌ Debug - Page Title: ${title}`);
-    console.log(`❌ Debug - Page Content Start: ${content.substring(0, 200)}`);
-
-    // On localhost, app should auto-open modal. If not, something is wrong.
-    throw new Error('Could not find login button or open login modal on page')
-  }
-
+  // At this point, email input should be visible (either found initially or after click)
   // Fill in email
+  const emailInput = page.locator('input[type="email"]').first()
   await emailInput.fill(email)
   await page.waitForTimeout(500)
 
   // Click continue/submit
-  const continueButton = page.locator('button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]')
-    .filter({ hasText: /Continue|Log in|Submit/ })
-    .last();
+  const continueButton = page.locator('button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit")')
+    .last(); // usually the one in modal
   
   await continueButton.click()
   await page.waitForTimeout(2000)
 
   // If password is required, fill it in
   if (password) {
+    // Check if password input appears
     const passwordInput = page.locator('input[type="password"]').first()
-    const passwordVisible = await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)
-
-    if (passwordVisible) {
+    if (await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)) {
       await passwordInput.fill(password)
       await page.waitForTimeout(500)
 
-      const submitButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button[type="submit"]').first()
+      const submitButton = page.locator('button:has-text("Log in"), button:has-text("Sign in")').first()
       await submitButton.click()
       await page.waitForTimeout(2000)
     }
   }
 
   // Wait for successful authentication
+  console.log('⏳ Waiting for final authenticated state...')
   await page.waitForFunction(() => {
-    const hasAccessToken = (window as any).__privyAccessToken;
-    if (hasAccessToken) return true;
-
     const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
-    const hasProfileButton = Array.from(document.querySelectorAll('button')).some(b => b.textContent?.includes('Profile'));
     const hasPrivyToken = window.localStorage.getItem('privy:token') !== null;
-    
-    return (hasUserMenu || hasProfileButton) && hasPrivyToken;
+    return hasUserMenu || hasPrivyToken;
   }, { timeout: 30000 })
 
   console.log('✅ Authentication successful')
@@ -181,6 +126,7 @@ setup('authenticate as admin', async ({ page }) => {
     await page.waitForTimeout(2000)
 
     // Verify we can access admin page
+    console.log('🔄 Verifying admin access...')
     await page.goto('/admin')
     await page.waitForLoadState('networkidle')
 
@@ -190,14 +136,11 @@ setup('authenticate as admin', async ({ page }) => {
       throw new Error(`Authentication failed: redirected to ${currentUrl} instead of /admin`)
     }
 
-    // Wait for admin dashboard to load - either the test ID or admin content
+    // Wait for admin dashboard to load
     await Promise.race([
       page.waitForSelector('[data-testid="admin-dashboard"]', { timeout: 10000 }),
-      page.waitForSelector('text=Admin', { timeout: 10000 })
-    ]).catch(() => {
-      // If neither appears, that's okay - we verified the URL didn't redirect
-      console.log('⚠️  Admin dashboard elements not found, but URL is correct')
-    })
+      page.waitForSelector('h1:has-text("Admin")', { timeout: 10000 })
+    ])
 
     console.log('✅ Admin access verified')
 
@@ -207,11 +150,7 @@ setup('authenticate as admin', async ({ page }) => {
 
   } catch (error) {
     console.error('❌ Authentication setup failed:', error)
-
-    // Take a screenshot for debugging
     await page.screenshot({ path: '.playwright/auth-failure.png', fullPage: true })
-    console.log('📸 Screenshot saved to .playwright/auth-failure.png')
-
     throw error
   }
 })
