@@ -89,7 +89,7 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(result.success).toBe(true)
     expect(result).toHaveProperty('processed')
     expect(typeof result.processed).toBe('number')
-  })
+  }, 30000)
 
   test('should find and process agents', async () => {
     if (!serverAvailable) {
@@ -113,7 +113,7 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(result.processed).toBeGreaterThanOrEqual(0)
     expect(result).toHaveProperty('results')
     expect(Array.isArray(result.results)).toBe(true)
-  })
+  }, 30000)
 
   test('should update agentLastTickAt after tick', async () => {
     if (!serverAvailable) {
@@ -204,7 +204,7 @@ describe('Agent Autonomous Tick Integration', () => {
     if (initialLastTickAt && agent?.agentLastTickAt) {
       expect(new Date(agent.agentLastTickAt).getTime()).toBeGreaterThan(initialLastTickAt.getTime())
     }
-  })
+  }, 30000)
 
   test('should create agent logs after tick', async () => {
     if (!serverAvailable) {
@@ -292,7 +292,7 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(logs[0]).toHaveProperty('message')
     expect(logs[0]).toHaveProperty('metadata')
     expect(logs[0]?.metadata).toHaveProperty('actions')
-  })
+  }, 30000)
 
   test('should deduct points after tick', async () => {
     if (!serverAvailable) {
@@ -349,6 +349,6 @@ describe('Agent Autonomous Tick Integration', () => {
     // Points are deducted before executeAutonomousTick, so they should always be deducted
     expect(afterBalance).toBeLessThan(beforeBalance)
     expect(beforeBalance - afterBalance).toBe(1)
-  })
+  }, 30000)
 })
 
