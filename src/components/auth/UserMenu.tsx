@@ -143,8 +143,8 @@ export function UserMenu() {
   }, [user?.id])
 
   const handleCopyReferralCode = async () => {
-    if (!user?.id) return
-    const referralUrl = getReferralUrl(user.id)
+    if (!user?.username) return
+    const referralUrl = getReferralUrl(user.username)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedCode(true)
     setTimeout(() => setCopiedCode(false), 2000)
@@ -198,7 +198,7 @@ export function UserMenu() {
         </div>
       )}
       
-      {user?.id && (
+      {user?.username && (
         <DropdownItem onClick={handleCopyReferralCode}>
           <div className="flex items-center gap-3 py-2">
             {copiedCode ? (
@@ -212,7 +212,7 @@ export function UserMenu() {
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-sm font-semibold text-foreground">Copy Referral Link</span>
                   <span className="text-xs text-muted-foreground font-mono truncate">
-                    {getDisplayReferralUrl(user.id)}
+                    {getDisplayReferralUrl(user.username)}
                   </span>
                 </div>
               </>

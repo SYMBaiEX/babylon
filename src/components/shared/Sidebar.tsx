@@ -94,9 +94,9 @@ function SidebarContent() {
   }, [authenticated, user])
 
   const copyReferralCode = async () => {
-    if (!user?.id) return
+    if (!user?.username) return
     
-    const referralUrl = getReferralUrl(user.id)
+    const referralUrl = getReferralUrl(user.username)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
@@ -345,7 +345,7 @@ function SidebarContent() {
           {showMdMenu && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto bg-sidebar border border-border rounded-lg shadow-lg overflow-hidden z-50">
               {/* Referral Code */}
-              {user.id && (
+              {user.username && (
                 <button
                   onClick={copyReferralCode}
                   className="w-full flex items-center justify-center p-3 hover:bg-sidebar-accent transition-colors"
@@ -361,7 +361,7 @@ function SidebarContent() {
               )}
               
               {/* Separator */}
-              {user.id && <div className="border-t border-border" />}
+              {user.username && <div className="border-t border-border" />}
               
               {/* Logout */}
               <button

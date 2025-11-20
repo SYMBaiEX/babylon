@@ -18,18 +18,18 @@ export function getBaseUrl(): string {
 /**
  * Generate a shareable referral URL for a user
  * 
- * @param userId - The user's ID (DID format)
- * @returns Full shareable referral URL (e.g., https://babylon.market/share/referral/{userId})
+ * @param usernameOrCode - The user's username or referral code
+ * @returns Full shareable referral URL (e.g., https://babylon.market?ref=ai16z)
  * 
  * @example
  * ```typescript
- * const url = getReferralUrl('did:privy:123')
- * // Returns: "https://babylon.market/share/referral/did:privy:123"
+ * const url = getReferralUrl('ai16z')
+ * // Returns: "https://babylon.market?ref=ai16z"
  * ```
  */
-export function getReferralUrl(userId: string): string {
+export function getReferralUrl(usernameOrCode: string): string {
   const baseUrl = getBaseUrl()
-  return `${baseUrl}/share/referral/${encodeURIComponent(userId)}`
+  return `${baseUrl}?ref=${encodeURIComponent(usernameOrCode)}`
 }
 
 /**
@@ -54,38 +54,36 @@ export function getShortReferralUrl(referralCode: string): string {
 /**
  * Format referral URL for display (truncated)
  * 
- * @param userId - The user's ID
- * @param maxLength - Maximum length of user ID to display (default: 20)
+ * @param usernameOrCode - The user's username or referral code
  * @returns Display-friendly referral URL
  * 
  * @example
  * ```typescript
- * const display = getDisplayReferralUrl('did:privy:cmi08xz3300ifjp0cj6le151v')
- * // Returns: "localhost:3000/share/referral/did:privy:cmi08xz33..."
+ * const display = getDisplayReferralUrl('ai16z')
+ * // Returns: "localhost:3000?ref=ai16z"
  * ```
  */
-export function getDisplayReferralUrl(userId: string, maxLength: number = 20): string {
+export function getDisplayReferralUrl(usernameOrCode: string): string {
   const host = typeof window !== 'undefined' ? window.location.host : 'babylon.market'
-  const truncatedId = userId.length > maxLength ? `${userId.slice(0, maxLength)}...` : userId
-  return `${host}/share/referral/${truncatedId}`
+  return `${host}?ref=${usernameOrCode}`
 }
 
 /**
  * Generate referral share text for social media
  * 
- * @param userId - The user's ID
+ * @param usernameOrCode - The user's username or referral code
  * @param customMessage - Optional custom message (default: "Join me on Babylon! 🎮")
  * @returns Formatted text with referral URL for sharing
  * 
  * @example
  * ```typescript
- * const text = getReferralShareText('did:privy:123')
- * // Returns: "Join me on Babylon! 🎮\n\nhttps://babylon.market/share/referral/did:privy:123"
+ * const text = getReferralShareText('ai16z')
+ * // Returns: "Join me on Babylon! 🎮\n\nhttps://babylon.market?ref=ai16z"
  * ```
  */
-export function getReferralShareText(userId: string, customMessage?: string): string {
+export function getReferralShareText(usernameOrCode: string, customMessage?: string): string {
   const message = customMessage || 'Join me on Babylon! 🎮'
-  const url = getReferralUrl(userId)
+  const url = getReferralUrl(usernameOrCode)
   return `${message}\n\n${url}`
 }
 
