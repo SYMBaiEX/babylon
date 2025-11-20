@@ -1358,7 +1358,8 @@ Trending system not initialized yet.
       }
     }
 
-    throw new Error(`Failed to generate conspiracy posts batch after ${maxRetries} attempts`);
+    logger.error(`Failed to generate conspiracy posts batch after ${maxRetries} attempts. Returning empty batch.`, undefined, 'FeedGenerator');
+    return [];
   }
 
   /**
@@ -1445,7 +1446,13 @@ Trending system not initialized yet.
       }
     }
 
-    throw new Error(`Failed to generate valid company post after ${maxRetries} attempts for ${company.name}`);
+    logger.error(`Failed to generate valid company post after ${maxRetries} attempts for ${company.name}. Using fallback.`, undefined, 'FeedGenerator');
+    return {
+      post: `${company.name} has issued a statement regarding the recent ${event.type}.`,
+      sentiment: 0,
+      clueStrength: 0.1,
+      pointsToward: null
+    };
   }
 
   /**

@@ -39,6 +39,17 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
   // Wait for Privy to be available
   await page.waitForTimeout(2000)
 
+  // Check if already logged in
+  // Use exact testId or text that only appears when logged in (UserMenu has data-testid="user-menu")
+  // Avoid generic text like "Profile" which might appear in navigation
+  const userMenu = page.locator('[data-testid="user-menu"]').first()
+  const isLoggedIn = await userMenu.isVisible({ timeout: 3000 }).catch(() => false)
+  
+  if (isLoggedIn) {
+    console.log('✅ User already logged in, skipping login flow')
+    return
+  }
+
   // Check if email input is already visible (modal already open)
   const emailInput = page.locator('input[type="email"], input[name="email"]').first()
   let emailInputVisible = await emailInput.isVisible({ timeout: 2000 }).catch(() => false)
@@ -65,18 +76,33 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
   }
   
   if (emailInputVisible) {
-    await emailInput.fill(account.email)
+      await emailInput.fill(account.email)
       await page.waitForTimeout(500)
 
-      // Look for continue/submit button - prioritize type="submit" to avoid background buttons
-      const continueButton = page.locator('button[type="submit"]').first()
-      const continueVisible = await continueButton.isVisible({ timeout: 2000 }).catch(() => false)
+      // Find the modal context from the email input
+      // This ensures we target the button INSIDE the modal, not the background "Log in" button
+      const modalContext = emailInput.locator('xpath=ancestor::*[contains(@class, "Dialog") or @role="dialog"][1]')
       
-      if (continueVisible) {
-        await continueButton.click()
+      let submitButton
+      if (await modalContext.isVisible().catch(() => false)) {
+        // Look for submit button inside the modal
+        submitButton = modalContext.locator('button[type="submit"]').first()
+        if (!(await submitButton.isVisible().catch(() => false))) {
+           submitButton = modalContext.locator('button').filter({ hasText: /Continue|Log in|Submit/i }).first()
+        }
       } else {
-        // Fallback to text matching if submit button not found
-        await page.locator('button:has-text("Continue"), button:has-text("Log in")').filter({ hasText: /Continue|Log in/ }).first().click()
+        // Fallback: look for any visible submit button
+        submitButton = page.locator('button[type="submit"]').first()
+      }
+
+      if (await submitButton.isVisible().catch(() => false)) {
+        await submitButton.click()
+      } else {
+        console.warn('⚠️  Could not find submit button for login form')
+        // Only use loose text matching as a last resort, and try to avoid the header button
+        // The header button usually has "Connect Wallet" or "Log in"
+        // The modal button usually has "Continue" or "Submit"
+        await page.locator('button:has-text("Continue")').first().click()
       }
       
       await page.waitForTimeout(2000)
@@ -111,7 +137,7 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
         }
       }
     } else {
-    // Check if already logged in
+    // Check if already logged in (re-check)
     const userMenu = page.locator('[data-testid="user-menu"], button:has-text("Profile")').first()
     const isLoggedIn = await userMenu.isVisible({ timeout: 3000 }).catch(() => false)
     
@@ -122,4 +148,14 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
 
   // Wait for authentication to complete
   await page.waitForTimeout(2000)
+
+  // Verify authentication success
+  const userMenuFinal = page.locator('[data-testid="user-menu"]').first()
+  const isAuthenticated = await userMenuFinal.isVisible({ timeout: 5000 }).catch(() => false)
+  
+  if (isAuthenticated) {
+     console.log('✅ Privy authentication successful')
+  } else {
+     console.warn('⚠️ Privy authentication verification failed - user menu not visible')
+  }
 }

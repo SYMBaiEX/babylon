@@ -45,7 +45,7 @@ test.describe('Chats Page - Updated Design', () => {
     // Check for filter tabs (handle multiple instances)
     await expect.poll(async () => {
       const checkVisible = async (text: string) => {
-        const elements = await page.getByText(text).all()
+        const elements = await page.getByRole('button', { name: text, exact: true }).all()
         for (const el of elements) {
           if (await el.isVisible().catch(() => false)) return true
         }
@@ -56,8 +56,9 @@ test.describe('Chats Page - Updated Design', () => {
       const hasDMsTab = await checkVisible('DMs')
       const hasGroupsTab = await checkVisible('Groups')
       
-      return hasAllTab || hasDMsTab || hasGroupsTab
-    }, { message: 'Could not find any filter tabs', timeout: 10000 }).toBeTruthy()
+      // We expect ALL tabs to be visible if the page is loaded correctly
+      return hasAllTab && hasDMsTab && hasGroupsTab
+    }, { message: 'Could not find all filter tabs (All, DMs, Groups)', timeout: 10000 }).toBeTruthy()
     
     console.log('✅ Filter tabs visible')
   })
@@ -65,7 +66,8 @@ test.describe('Chats Page - Updated Design', () => {
   test('should switch between filter tabs', async ({ page }) => {
     // Helper to find first visible element
     const findVisible = async (text: string) => {
-      const elements = await page.getByText(text).all()
+      // Use button role and exact match to avoid finding text in other elements
+      const elements = await page.getByRole('button', { name: text, exact: true }).all()
       for (const el of elements) {
         if (await el.isVisible().catch(() => false)) return el
       }

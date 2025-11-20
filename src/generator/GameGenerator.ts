@@ -884,7 +884,7 @@ Otherwise, start fresh.`;
     // Handle XML structure - may be nested like { scenarios: { scenario: [...] } }
     let scenarios: Scenario[];
     
-    if ('response' in rawResult && rawResult.response && rawResult.response.scenarios) {
+    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response && rawResult.response.scenarios) {
       const responseSc = rawResult.response.scenarios;
       if (Array.isArray(responseSc)) {
         scenarios = responseSc;
@@ -1507,7 +1507,7 @@ Otherwise, start fresh.`;
     // Handle XML structure - may be nested like { events: { event: [...] } }
     let events: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> = [];
     
-    if ('response' in rawResponse && rawResponse.response && rawResponse.response.events) {
+    if (typeof rawResponse === 'object' && rawResponse !== null && 'response' in rawResponse && rawResponse.response && rawResponse.response.events) {
       if (Array.isArray(rawResponse.response.events)) {
         events = rawResponse.response.events;
       } else if (typeof rawResponse.response.events === 'object' && 'event' in rawResponse.response.events) {
@@ -1523,7 +1523,12 @@ Otherwise, start fresh.`;
       }
     }
 
-    return events;
+    // Validate and sanitize events
+    return events.map((e, i) => ({
+      eventNumber: e.eventNumber || (i + 1),
+      event: (typeof e.event === 'string' && e.event.length > 0) ? e.event : 'Generic event involving actors',
+      pointsToward: e.pointsToward || null
+    }));
   }
 
   /**
