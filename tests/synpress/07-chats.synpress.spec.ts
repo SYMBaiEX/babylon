@@ -16,90 +16,65 @@ import { ROUTES } from './helpers/test-data'
 
 test.describe('Chats Page - Updated Design', () => {
   test.beforeEach(async ({ page }) => {
+    // Set a consistent viewport size to ensure consistent rendering
+    // Use 1920x1080 to ensure we're in desktop layout (xl breakpoint is 1280px)
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    
     await navigateTo(page, ROUTES.HOME)
     await loginWithPrivyEmail(page, getPrivyTestAccount())
     await navigateTo(page, ROUTES.CHATS)
     await waitForPageLoad(page)
+    
+    // Wait for the page to be ready by waiting for a specific element that indicates content is loaded
+    // The "Messages" header appears when the main content is rendered (after auth check)
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
   })
 
   test('should load chats page with new design', async ({ page }) => {
     expect(page.url()).toContain('/chats')
     
-    // Check for Messages header (handle multiple instances due to responsive layout)
-    // We use expect.poll because we need to wait for at least ONE of the headers to be visible
-    await expect.poll(async () => {
-      const messagesHeaders = await page.getByText('Messages').all()
-      for (const header of messagesHeaders) {
-        if (await header.isVisible().catch(() => false)) {
-          return true
-        }
-      }
-      return false
-    }, { message: 'Could not find visible "Messages" header', timeout: 10000 }).toBeTruthy()
+    // Playwright's getByText automatically waits for the element to be visible
+    // Check for Messages header - it appears in both desktop and mobile layouts
+    const messagesHeader = page.getByRole('heading', { name: 'Messages', exact: true }).first()
+    await expect(messagesHeader).toBeVisible()
     
     await page.screenshot({ path: 'test-results/screenshots/07-chats-page-new.png', fullPage: true })
     console.log('✅ Chats page loaded with new design')
   })
 
   test('should display All/DMs/Groups filter tabs', async ({ page }) => {
-    // Check for filter tabs (handle multiple instances)
-    await expect.poll(async () => {
-      const checkVisible = async (text: string) => {
-        const elements = await page.getByRole('button', { name: text, exact: true }).all()
-        for (const el of elements) {
-          if (await el.isVisible().catch(() => false)) return true
-        }
-        return false
-      }
-
-      const hasAllTab = await checkVisible('All')
-      const hasDMsTab = await checkVisible('DMs')
-      const hasGroupsTab = await checkVisible('Groups')
-      
-      // We expect ALL tabs to be visible if the page is loaded correctly
-      return hasAllTab && hasDMsTab && hasGroupsTab
-    }, { message: 'Could not find all filter tabs (All, DMs, Groups)', timeout: 10000 }).toBeTruthy()
+    // Playwright's getByRole automatically waits for elements to be visible
+    // Check for all three filter tabs - they appear in the same container
+    const allTab = page.getByRole('button', { name: 'All', exact: true }).first()
+    const dmsTab = page.getByRole('button', { name: 'DMs', exact: true }).first()
+    const groupsTab = page.getByRole('button', { name: 'Groups', exact: true }).first()
+    
+    await expect(allTab).toBeVisible()
+    await expect(dmsTab).toBeVisible()
+    await expect(groupsTab).toBeVisible()
     
     console.log('✅ Filter tabs visible')
   })
 
   test('should switch between filter tabs', async ({ page }) => {
-    // Helper to find first visible element
-    const findVisible = async (text: string) => {
-      // Use button role and exact match to avoid finding text in other elements
-      const elements = await page.getByRole('button', { name: text, exact: true }).all()
-      for (const el of elements) {
-        if (await el.isVisible().catch(() => false)) return el
-      }
-      return null
-    }
-
-    // Poll until we find all tabs
-    await expect.poll(async () => {
-      const dmsTab = await findVisible('DMs')
-      const groupsTab = await findVisible('Groups')
-      const allTab = await findVisible('All')
-      return !!(dmsTab && groupsTab && allTab)
-    }, { message: 'Could not find all filter tabs for switching', timeout: 10000 }).toBeTruthy()
-
-    const dmsTab = await findVisible('DMs')
-    const groupsTab = await findVisible('Groups')
-    const allTab = await findVisible('All')
+    // Playwright's getByRole automatically waits for elements and handles clicks
+    const allTab = page.getByRole('button', { name: 'All', exact: true }).first()
+    const dmsTab = page.getByRole('button', { name: 'DMs', exact: true }).first()
+    const groupsTab = page.getByRole('button', { name: 'Groups', exact: true }).first()
     
-    if (dmsTab && groupsTab && allTab) {
-      await dmsTab.click()
-      await page.waitForTimeout(500)
-      
-      await groupsTab.click()
-      await page.waitForTimeout(500)
-      
-      await allTab.click()
-      await page.waitForTimeout(500)
-      
-      await page.screenshot({ path: 'test-results/screenshots/07-filter-tabs.png' })
-      
-      console.log('✅ Filter tabs switching works')
-    }
+    // Verify all tabs are visible
+    await expect(allTab).toBeVisible()
+    await expect(dmsTab).toBeVisible()
+    await expect(groupsTab).toBeVisible()
+    
+    // Click through each tab - Playwright waits for elements to be actionable
+    await dmsTab.click()
+    await groupsTab.click()
+    await allTab.click()
+    
+    await page.screenshot({ path: 'test-results/screenshots/07-filter-tabs.png' })
+    
+    console.log('✅ Filter tabs switching works')
   })
 
   test('should display search conversations', async ({ page }) => {
@@ -128,6 +103,9 @@ test.describe('Chat Messaging - New Implementation', () => {
     await loginWithPrivyEmail(page, getPrivyTestAccount())
     await navigateTo(page, ROUTES.CHATS)
     await waitForPageLoad(page)
+    
+    // Wait for the page to be ready by waiting for a specific element
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
   })
 
   test('should display chat list', async ({ page }) => {
@@ -242,7 +220,10 @@ test.describe('Real-time Updates', () => {
 
   test('should connect to SSE for real-time messages', async ({ page }) => {
     await navigateTo(page, ROUTES.CHATS)
-    await page.waitForTimeout(3000)
+    await waitForPageLoad(page)
+    
+    // Wait for the page to be ready
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
     
     // Check for SSE connection in network tab
     // Note: Actual SSE testing requires multiple browsers
@@ -254,17 +235,14 @@ test.describe('Real-time Updates', () => {
 
   test('should display Live/Connecting status', async ({ page }) => {
     await navigateTo(page, ROUTES.CHATS)
-    await page.waitForTimeout(2000)
+    await waitForPageLoad(page)
     
-    // Look for status indicator
-    const indicators = await page.getByText(/Live|Connecting/i).all()
-    let hasStatus = false
-    for (const indicator of indicators) {
-        if (await indicator.isVisible().catch(() => false)) {
-            hasStatus = true
-            break
-        }
-    }
+    // Wait for the page to be ready
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    
+    // Look for status indicator - use Playwright's built-in waiting
+    const indicators = page.getByText(/Live|Connecting/i)
+    const hasStatus = await indicators.first().isVisible({ timeout: 5000 }).catch(() => false)
     
     console.log(`✅ SSE status indicator: ${hasStatus}`)
   })

@@ -711,6 +711,7 @@ export default function ChatsPage() {
                   <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
+                      aria-label="Show all conversations"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
@@ -720,6 +721,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
+                      aria-label="Show direct messages"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
@@ -729,6 +731,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
+                      aria-label="Show group chats"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
@@ -1190,6 +1193,7 @@ export default function ChatsPage() {
                   <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
+                      aria-label="Show all conversations"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
@@ -1199,6 +1203,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
+                      aria-label="Show direct messages"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
@@ -1208,6 +1213,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
+                      aria-label="Show group chats"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
