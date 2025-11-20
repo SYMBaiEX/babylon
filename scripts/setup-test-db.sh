@@ -29,18 +29,24 @@ EOF
 echo "🗄️ Resetting database and applying all migrations..."
 if [ "$SKIP_SEED" == "true" ]; then
   bunx prisma migrate reset --force --skip-seed --skip-generate || {
-    echo "❌ Migration reset failed. Attempting manual migration..."
+    echo "❌ Migration reset failed. Attempting migrate deploy..."
     bunx prisma migrate deploy || {
-      echo "❌ Migration deploy also failed"
-      exit 1
+      echo "⚠️  Migrate deploy failed. Attempting db push to sync schema..."
+      bunx prisma db push --skip-generate --accept-data-loss || {
+        echo "❌ All migration methods failed"
+        exit 1
+      }
     }
   }
 else
   bunx prisma migrate reset --force --skip-generate || {
-    echo "❌ Migration reset failed. Attempting manual migration..."
+    echo "❌ Migration reset failed. Attempting migrate deploy..."
     bunx prisma migrate deploy || {
-      echo "❌ Migration deploy also failed"
-      exit 1
+      echo "⚠️  Migrate deploy failed. Attempting db push to sync schema..."
+      bunx prisma db push --skip-generate --accept-data-loss || {
+        echo "❌ All migration methods failed"
+        exit 1
+      }
     }
   }
 fi

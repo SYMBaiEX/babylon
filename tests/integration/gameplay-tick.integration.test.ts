@@ -22,7 +22,69 @@ mock.module('@/generator/llm/openai-client', () => {
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
         generateJSON: async (_prompt: string, schema: any) => {
-          // Return mock responses based on schema properties
+          // Detect if this is for questions generation
+          // Questions prompt contains: "ORGANIZATIONS IN PLAY", "Scenario X:", or asks to create questions
+          const isQuestionGeneration = _prompt.includes('ORGANIZATIONS IN PLAY') ||
+                                      _prompt.includes('Create prediction market questions') ||
+                                      (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'));
+          
+          // Extract actor IDs from MAIN ACTORS section
+          const mainActorsMatch = _prompt.match(/MAIN ACTORS[:\s]*\n((?:- [^\n]+\n?)+)/i);
+          let actorIds = ["actor-1", "actor-2", "actor-3"]; // Default fallback
+          
+          if (mainActorsMatch && mainActorsMatch[1]) {
+            const actorsSection = mainActorsMatch[1];
+            const actorLines = actorsSection.match(/- ([^:]+):/g) || [];
+            actorIds = actorLines.slice(0, 3).map((m) => {
+              const name = m.replace(/^- |:/g, '').trim();
+              // Extract just the name part before any description
+              const nameOnly = name.split(' - ')[0] || name.split(' [')[0] || name;
+              // Convert to actor ID format
+              return nameOnly.toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '')
+                .substring(0, 50) || `actor-${actorIds.length + 1}`;
+            });
+            if (actorIds.length === 0) {
+              actorIds = ["actor-1", "actor-2", "actor-3"];
+            }
+          }
+          
+          // Handle undefined schema or schema without properties
+          if (!schema || !schema.properties) {
+            if (isQuestionGeneration) {
+              // Return questions format
+              return {
+                questions: [
+                  {
+                    id: 1,
+                    text: "Will testing succeed?",
+                    scenario: 1,
+                    outcome: true,
+                    rank: 1,
+                    createdDate: new Date().toISOString(),
+                    resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                    status: "active"
+                  }
+                ]
+              };
+            } else {
+              // Return scenarios format
+              return {
+                scenarios: [
+                  {
+                    id: 1,
+                    title: "Test Scenario: Will Testing Succeed?",
+                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                    mainActors: actorIds,
+                    theme: "testing",
+                    involvedOrganizations: []
+                  }
+                ]
+              };
+            }
+          }
+          
           if (schema.properties && schema.properties.question) {
             return {
               question: "Will testing succeed?",
@@ -44,6 +106,39 @@ mock.module('@/generator/llm/openai-client', () => {
             return {
               post: "This is a mock post content."
             };
+          }
+          
+          // Handle scenarios or questions based on prompt content
+          if (schema.properties && (schema.properties.scenarios || schema.properties.response)) {
+            if (isQuestionGeneration) {
+              return {
+                questions: [
+                  {
+                    id: 1,
+                    text: "Will testing succeed?",
+                    scenario: 1,
+                    outcome: true,
+                    rank: 1,
+                    createdDate: new Date().toISOString(),
+                    resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                    status: "active"
+                  }
+                ]
+              };
+            } else {
+              return {
+                scenarios: [
+                  {
+                    id: 1,
+                    title: "Test Scenario: Will Testing Succeed?",
+                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                    mainActors: actorIds,
+                    theme: "testing",
+                    involvedOrganizations: []
+                  }
+                ]
+              };
+            }
           }
           
           return {};
