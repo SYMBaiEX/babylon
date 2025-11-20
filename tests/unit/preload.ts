@@ -168,5 +168,28 @@ mock.module('ioredis', () => {
   }
 })
 
+// Mock logger for all tests
+mock.module('@/lib/logger', () => {
+  const mockLogger = {
+    debug: mock(() => {}),
+    info: mock(() => {}),
+    warn: mock(() => {}),
+    error: mock(() => {}),
+    setLevel: mock(() => {}),
+    getLevel: mock(() => 'debug'),
+  }
+  return {
+    logger: mockLogger,
+    Logger: class MockLogger {
+      debug = mockLogger.debug
+      info = mockLogger.info
+      warn = mockLogger.warn
+      error = mockLogger.error
+      setLevel = mockLogger.setLevel
+      getLevel = mockLogger.getLevel
+    }
+  }
+})
+
 // Mock other external dependencies if needed
 console.log('Unit test environment initialized with mocked dependencies')

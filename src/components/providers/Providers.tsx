@@ -32,7 +32,13 @@ import { PostHogProvider } from './PostHogProvider';
  * @param props - PrivyProvider component props
  * @returns PrivyProvider wrapped in fix container
  */
-function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeof PrivyProvider>) {
+function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProps<typeof PrivyProvider>) {
+  // Only check if appId is provided - let Privy validate the format
+  // This allows tests to work while still preventing crashes from empty appId
+  if (!appId || appId.trim() === '') {
+    return <>{children}</>;
+  }
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,9 +122,12 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
   }, []);
 
   // Wrap children in Fragment to ensure proper key handling
+  // Ensure appId is trimmed and valid before passing to PrivyProvider
+  const trimmedAppId = appId.trim();
+  
   return (
     <div ref={containerRef}>
-      <PrivyProvider {...props}>
+      <PrivyProvider appId={trimmedAppId} {...props}>
         {children}
       </PrivyProvider>
     </div>

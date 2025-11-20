@@ -353,7 +353,7 @@ async function ensureConnection(forceReconnect = false) {
  */
 export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const {
-    channels: _initialChannels = [],
+    channels: initialChannels = [],
     autoReconnect = true,
     reconnectDelay = 3000,
     maxReconnectAttempts = 5,
@@ -470,6 +470,17 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
       void ensureConnection(true);
     }
   }, []);
+
+  useEffect(() => {
+    // Subscribe to initial channels provided in options
+    if (initialChannels.length > 0) {
+      initialChannels.forEach(channel => subscribe(channel, () => {}));
+      return () => {
+        initialChannels.forEach(channel => unsubscribe(channel));
+      };
+    }
+    return undefined;
+  }, [initialChannels, subscribe, unsubscribe]);
 
   useEffect(() => {
     return () => {

@@ -34,14 +34,39 @@ import { describe, test, expect } from 'bun:test';
 import { GameGenerator } from '@/generator/GameGenerator';
 import type { GeneratedGame, WorldEvent, FeedPost, Actor } from '@/shared/types';
 import { logger } from '@/lib/logger';
+import { existsSync, readFileSync } from 'fs';
 
-// Check if LLM API keys are available
+// Load environment variables from .env files if they exist (for CI and local environments)
+// Priority: process.env > .env.test > .env.local
+const loadEnvFile = (filePath: string) => {
+  if (!existsSync(filePath)) return
+  const envContent = readFileSync(filePath, 'utf-8')
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed && !trimmed.startsWith('#')) {
+      const [key, ...valueParts] = trimmed.split('=')
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').replace(/^["']|["']$/g, '')
+        // Only set if not already in process.env (env vars take precedence)
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+    }
+  }
+}
+
+// Load .env.test first (created by CI prepare-env.sh), then .env.local (for local dev)
+loadEnvFile('.env.test')
+loadEnvFile('.env.local')
+
+// Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
-  process.env.WANDB_API_KEY ||
-  process.env.GROQ_API_KEY ||
-  process.env.ANTHROPIC_API_KEY ||
-  process.env.OPENAI_API_KEY
-);
+  (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
+)
 
 /**
  * Calculate information certainty from events
