@@ -81,6 +81,7 @@ export function ComingSoon() {
   const [showRankImprovement, setShowRankImprovement] = useState(false)
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [leaderboardPage, setLeaderboardPage] = useState(1)
+  const [leaderboardTab, setLeaderboardTab] = useState<'leaderboard' | 'inviters'>('leaderboard')
   const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
@@ -1587,34 +1588,71 @@ export function ComingSoon() {
 
             {/* Right Column - Leaderboard */}
             {topUsers.length > 0 && (() => {
-              const totalPages = Math.ceil(topUsers.length / usersPerPage)
+              // Sort users based on active tab
+              const sortedUsers = [...topUsers].sort((a, b) => {
+                if (leaderboardTab === 'leaderboard') {
+                  return b.reputationPoints - a.reputationPoints
+                } else {
+                  return b.invitePoints - a.invitePoints
+                }
+              }).map((user, index) => ({ ...user, rank: index + 1 }))
+
+              const totalPages = Math.ceil(sortedUsers.length / usersPerPage)
               const startIndex = (leaderboardPage - 1) * usersPerPage
               const endIndex = startIndex + usersPerPage
-              const paginatedUsers = topUsers.slice(startIndex, endIndex)
-              const currentUserRank = waitlistData.position
+              const paginatedUsers = sortedUsers.slice(startIndex, endIndex)
+              const currentUserRank = sortedUsers.findIndex(u => u.id === dbUser.id) + 1
               const currentUserInPage = paginatedUsers.some(u => u.id === dbUser.id)
-              
+
               return (
                 <div className="lg:col-span-3">
                   <div className="bg-primary/5 border border-primary/10 rounded-xl p-6 lg:p-8 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <TrendingUp className="w-6 h-6 text-primary shrink-0" />
-                        <h3 className="text-xl lg:text-2xl font-bold">Top Inviters</h3>
-                        <span className="text-sm text-muted-foreground">
-                          ({topUsers.length} total)
-                        </span>
-                      </div>
+                    {/* Tab Navigation */}
+                    <div className="flex items-center gap-1 mb-6 border-b border-border/50">
+                      <button
+                        onClick={() => {
+                          setLeaderboardTab('leaderboard')
+                          setLeaderboardPage(1)
+                        }}
+                        className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+                          leaderboardTab === 'leaderboard'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Leaderboard
+                        {leaderboardTab === 'leaderboard' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLeaderboardTab('inviters')
+                          setLeaderboardPage(1)
+                        }}
+                        className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+                          leaderboardTab === 'inviters'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Top Inviters
+                        {leaderboardTab === 'inviters' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                      <span className="ml-auto text-sm text-muted-foreground">
+                        {sortedUsers.length} total
+                      </span>
                     </div>
-                    
+
                     {/* Leaderboard List */}
                     <div className="space-y-3 mb-6">
-                      {paginatedUsers.map((topUser, index) => {
+                      {paginatedUsers.map((topUser) => {
                         const isCurrentUser = topUser.id === dbUser.id
-                        const displayRank = startIndex + index + 1
                         return (
                           <div
-                            key={topUser.id || `user-${displayRank}`}
+                            key={topUser.id || `user-${topUser.rank}`}
                             onClick={() => {
                               setSelectedUserId(topUser.id)
                               setShowPlayerStatsModal(true)
@@ -1632,7 +1670,7 @@ export function ComingSoon() {
                             }`}
                           >
                             <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div className={`text-lg lg:text-xl font-bold shrink-0 w-16 text-center ${
+                              <div className={`text-lg lg:text-xl font-bold shrink-0 w-12 text-center ${
                                 topUser.rank === 1 ? 'text-yellow-500' :
                                 topUser.rank === 2 ? 'text-gray-400' :
                                 topUser.rank === 3 ? 'text-orange-500' :
@@ -1650,15 +1688,17 @@ export function ComingSoon() {
                                   )}
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-0.5">
-                                  {topUser.referralCount} {topUser.referralCount === 1 ? 'invite' : 'invites'}
+                                  {topUser.referralCount} {topUser.referralCount === 1 ? 'referral' : 'referrals'}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {(topUser.reputationPoints ?? topUser.invitePoints).toLocaleString()}
+                                {(leaderboardTab === 'leaderboard' ? topUser.reputationPoints : topUser.invitePoints).toLocaleString()}
                               </div>
-                              <div className="text-sm text-muted-foreground">points</div>
+                              <div className="text-sm text-muted-foreground">
+                                {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}
+                              </div>
                             </div>
                           </div>
                         )
@@ -1666,34 +1706,40 @@ export function ComingSoon() {
                     </div>
 
                     {/* Show current user if not on current page */}
-                    {!currentUserInPage && currentUserRank > 0 && (
-                      <div className="mb-6 pt-4 border-t border-border/50">
-                        <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
-                          <div className="flex items-center gap-4 min-w-0 flex-1">
-                            <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-16 text-center">
-                              #{currentUserRank}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
-                                You
-                                <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
-                                  YOU
-                                </span>
+                    {!currentUserInPage && currentUserRank > 0 && (() => {
+                      const currentUser = sortedUsers.find(u => u.id === dbUser.id)
+                      if (!currentUser) return null
+                      return (
+                        <div className="mb-6 pt-4 border-t border-border/50">
+                          <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
+                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                              <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-12 text-center">
+                                #{currentUserRank}
                               </div>
-                              <div className="text-sm text-muted-foreground mt-0.5">
-                                {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
+                                  You
+                                  <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
+                                    YOU
+                                  </span>
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-0.5">
+                                  {currentUser.referralCount} {currentUser.referralCount === 1 ? 'referral' : 'referrals'}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="text-right shrink-0 ml-4">
-                            <div className="font-bold text-primary text-lg lg:text-xl">
-                              {waitlistData.points.toLocaleString()}
+                            <div className="text-right shrink-0 ml-4">
+                              <div className="font-bold text-primary text-lg lg:text-xl">
+                                {(leaderboardTab === 'leaderboard' ? currentUser.reputationPoints : currentUser.invitePoints).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}
+                              </div>
                             </div>
-                            <div className="text-sm text-muted-foreground">points</div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {/* Pagination Controls */}
                     {totalPages > 1 && (
