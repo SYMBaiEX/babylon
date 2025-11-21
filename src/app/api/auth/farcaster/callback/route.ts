@@ -128,15 +128,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { message, signature, fid, username, displayName, pfpUrl, state } = parsed.data;
 
   // Verify state format and get user ID
-  const stateParts = state.split(':')
-  if (stateParts.length < 2) {
-    return NextResponse.json(
-      { error: 'Invalid state format' },
-      { status: 400 }
-    )
-  }
+  // State format: userId|timestamp|random (using pipe because userId may contain colons like did:privy:xxx)
+  // Also support legacy colon format for backward compatibility
+  const separator = state.includes('|') ? '|' : ':'
+  const stateParts = state.split(separator)
 
-  const [userId, timestampStr] = stateParts
+  // For pipe separator: [userId, timestamp, random]
+  // For colon separator with did:privy:xxx: we need to reconstruct userId from all but last 2 parts
+  let userId: string
+  let timestampStr: string
+
+  if (separator === '|') {
+    // New format: userId|timestamp|random
+    if (stateParts.length < 2 || !stateParts[0] || !stateParts[1]) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    userId = stateParts[0]
+    timestampStr = stateParts[1]
+  } else {
+    // Legacy format: userId:timestamp:random
+    // Handle case where userId contains colons (e.g., did:privy:xxx)
+    if (stateParts.length < 3) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    // Last part is random, second to last is timestamp, everything before is userId
+    const timestampPart = stateParts[stateParts.length - 2]
+    if (!timestampPart) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    timestampStr = timestampPart
+    userId = stateParts.slice(0, -2).join(':')
+  }
   if (!userId || !timestampStr) {
     return NextResponse.json(
       { error: 'Invalid state format' },
