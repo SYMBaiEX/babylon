@@ -351,15 +351,29 @@ export class PointsService {
       };
     }
 
-    // Check IP addresses for self-referral detection
+    // Check IP addresses and other identifiers for self-referral detection
     const [referrer, referredUser] = await Promise.all([
       prisma.user.findUnique({
         where: { id: referrerId },
-        select: { registrationIpHash: true, createdAt: true },
+        select: { 
+          registrationIpHash: true, 
+          createdAt: true,
+          walletAddress: true,
+          privyId: true,
+          farcasterFid: true,
+          twitterId: true,
+        },
       }),
       prisma.user.findUnique({
         where: { id: referredUserId },
-        select: { registrationIpHash: true, createdAt: true },
+        select: { 
+          registrationIpHash: true, 
+          createdAt: true,
+          walletAddress: true,
+          privyId: true,
+          farcasterFid: true,
+          twitterId: true,
+        },
       }),
     ]);
 
@@ -367,32 +381,76 @@ export class PointsService {
     if (referrer?.registrationIpHash && referredUser?.registrationIpHash) {
       if (referrer.registrationIpHash === referredUser.registrationIpHash) {
         const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime()
-        const oneHour = 60 * 60 * 1000
+        const fifteenMinutes = 15 * 60 * 1000
         const twentyFourHours = 24 * 60 * 60 * 1000
 
-        // Same IP within 1 hour = automatic block
-        if (timeDiff >= 0 && timeDiff < oneHour) {
+        // Check if users have different identifiers (wallet, privyId, social accounts)
+        // If they have different identifiers, it's likely a legitimate referral even with same IP
+        const hasDifferentWallet = referrer.walletAddress && referredUser.walletAddress && 
+          referrer.walletAddress !== referredUser.walletAddress
+        const hasDifferentPrivyId = referrer.privyId && referredUser.privyId && 
+          referrer.privyId !== referredUser.privyId
+        const hasDifferentFarcaster = referrer.farcasterFid && referredUser.farcasterFid && 
+          referrer.farcasterFid !== referredUser.farcasterFid
+        const hasDifferentTwitter = referrer.twitterId && referredUser.twitterId && 
+          referrer.twitterId !== referredUser.twitterId
+        
+        const hasDifferentIdentifiers = hasDifferentWallet || hasDifferentPrivyId || 
+          hasDifferentFarcaster || hasDifferentTwitter
+
+        // Only block if same IP AND no different identifiers AND within 15 minutes
+        // This prevents blocking legitimate referrals from same WiFi/office/VPN
+        if (timeDiff >= 0 && timeDiff < fifteenMinutes && !hasDifferentIdentifiers) {
           logger.warn(
-            `Self-referral detected: same IP within 1 hour`,
-            { referrerId, referredUserId, timeDiffMs: timeDiff },
+            `Self-referral detected: same IP within 15 minutes with no different identifiers`,
+            { 
+              referrerId, 
+              referredUserId, 
+              timeDiffMs: timeDiff,
+              referrerWallet: referrer.walletAddress,
+              referredWallet: referredUser.walletAddress,
+              referrerPrivyId: referrer.privyId,
+              referredPrivyId: referredUser.privyId,
+            },
             'PointsService'
           )
           return {
             success: false,
             pointsAwarded: 0,
             newTotal: 0,
-            error: 'Self-referral detected: accounts created from same IP within 1 hour',
+            error: 'Self-referral detected: accounts created from same IP within 15 minutes with no different identifiers',
           }
         }
 
         // Same IP within 24 hours = flag for review (still award but mark suspicious)
-        if (timeDiff >= 0 && timeDiff < twentyFourHours) {
+        if (timeDiff >= 0 && timeDiff < twentyFourHours && !hasDifferentIdentifiers) {
           logger.warn(
-            `Potential self-referral: same IP within 24 hours`,
-            { referrerId, referredUserId, timeDiffMs: timeDiff },
+            `Potential self-referral: same IP within 24 hours with no different identifiers`,
+            { 
+              referrerId, 
+              referredUserId, 
+              timeDiffMs: timeDiff,
+              referrerWallet: referrer.walletAddress,
+              referredWallet: referredUser.walletAddress,
+            },
             'PointsService'
           )
           // Continue to award points but mark as suspicious
+        } else if (hasDifferentIdentifiers) {
+          // Log that we're allowing this despite same IP because of different identifiers
+          logger.info(
+            `Allowing referral despite same IP: users have different identifiers`,
+            {
+              referrerId,
+              referredUserId,
+              timeDiffMs: timeDiff,
+              hasDifferentWallet,
+              hasDifferentPrivyId,
+              hasDifferentFarcaster,
+              hasDifferentTwitter,
+            },
+            'PointsService'
+          )
         }
       }
     }

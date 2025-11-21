@@ -303,27 +303,20 @@ export function ComingSoon() {
     void setupWaitlist(dbUser.id)
   }, [authenticated, dbUser?.id, dbUser?.profileComplete, dbUser?.username, privyUser, searchParams])
 
-  // Award wallet/email bonuses when user connects wallet or adds email
+  // Award wallet bonus when user connects wallet
   // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
   useEffect(() => {
     if (!authenticated || !dbUser?.id) return
 
-    const checkAndAwardBonuses = async () => {
+    const checkAndAwardWalletBonus = async () => {
       try {
-        // Check for email bonus
-        const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
-        const emailFromOAuth = privyUser?.email?.address || googleEmail
-        if (emailFromOAuth) {
-          await awardEmailBonus(dbUser.id, emailFromOAuth)
-        }
-
         // Check for wallet bonus
         const walletAddress = privyUser?.wallet?.address
         if (walletAddress) {
           await awardWalletBonus(dbUser.id, walletAddress)
         }
       } catch (error) {
-        logger.error('Error checking bonuses', {
+        logger.error('Error checking wallet bonus', {
           userId: dbUser.id,
           error: error instanceof Error ? error.message : String(error),
         }, 'ComingSoon')
@@ -332,11 +325,11 @@ export function ComingSoon() {
 
     // Small delay to ensure privyUser state is stable
     const timeoutId = setTimeout(() => {
-      void checkAndAwardBonuses()
+      void checkAndAwardWalletBonus()
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [authenticated, dbUser?.id, privyUser?.wallet?.address, privyUser?.email?.address])
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address])
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
