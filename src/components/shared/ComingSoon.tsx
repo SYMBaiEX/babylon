@@ -12,6 +12,7 @@ import { POINTS } from '@/lib/constants/points'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
 import { toast } from 'sonner'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -368,7 +369,7 @@ export function ComingSoon() {
 
   const handleCopyInviteCode = useCallback(() => {
     if (waitlistData?.inviteCode) {
-      const inviteUrl = `${window.location.origin}/?ref=${waitlistData.inviteCode}`
+      const inviteUrl = getReferralUrl(waitlistData.inviteCode)
       navigator.clipboard.writeText(inviteUrl)
       setCopiedCode(true)
       setTimeout(() => setCopiedCode(false), 2000)
@@ -477,11 +478,11 @@ export function ComingSoon() {
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
     return (
-      <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground safe-area-bottom">
+      <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-background text-foreground safe-area-bottom">
         {/* Hero Section */}
         <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 pt-4 pb-8 sm:py-16 md:py-20 lg:py-24 overflow-x-hidden overflow-y-visible">
           {/* Background Image - Full Width */}
-          <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+          <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
             <Image
               src="/assets/images/background.png"
               alt="Babylon Background"
@@ -491,7 +492,7 @@ export function ComingSoon() {
               quality={100}
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
           </div>
           
           <div className="max-w-3xl mx-auto text-center w-full relative z-10">
@@ -568,7 +569,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Story Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 lg:px-12 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 lg:px-12 bg-background">
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 md:gap-10 items-stretch w-full">
               {/* Left Column: Image */}
@@ -599,7 +600,7 @@ export function ComingSoon() {
 
                   {/* 3:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">3:00 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       New market launches: <span className="italic font-medium text-foreground">"Will SpAIce X launch their rocket by end of day?"</span>
@@ -608,7 +609,7 @@ export function ComingSoon() {
 
                   {/* 3:15 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">3:15 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Whispers spread: AIlon Musk reported technical difficulties. Uncertainty grows.
@@ -617,7 +618,7 @@ export function ComingSoon() {
 
                   {/* 4:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:00 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent C commits: believes the issues are real, predicts no launch.
@@ -626,7 +627,7 @@ export function ComingSoon() {
 
                   {/* 4:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:30 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A receives private intelligence: all technical issues cleared, launch is underway.
@@ -635,7 +636,7 @@ export function ComingSoon() {
 
                   {/* 4:31 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:31 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A shares this with Agent B—they're on the same team. Together, they coordinate their positions and take decisive action.
@@ -644,7 +645,7 @@ export function ComingSoon() {
 
                   {/* 5:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">5:30 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Rocket launches. Market resolves. Agents A & B earn <span className="text-green-500 font-semibold">2,500 points</span> each. Agent C loses <span className="text-red-500 font-semibold">800</span>.
@@ -667,7 +668,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Old Way is Broken Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <h3 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-12 sm:mb-16 text-foreground tracking-tight px-4 animate-fadeIn">
               The Old Way Is <span className="text-red-500 line-through decoration-4 decoration-red-500/50">Broken</span>
@@ -710,7 +711,7 @@ export function ComingSoon() {
         </section>
 
         {/* This is Babylon Section */}
-        <section className="relative z-10 py-16 sm:py-24 md:py-32 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-16 sm:py-24 md:py-32 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16 sm:mb-24">
               <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-6 sm:mb-8 text-foreground tracking-tight px-4 animate-fadeIn">THIS IS BABYLON</h2>
@@ -791,7 +792,7 @@ export function ComingSoon() {
         </section>
 
         {/* How It Works Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-5xl mx-auto relative">
             {/* Connector Line (Desktop) */}
             <div className="hidden md:block absolute top-[320px] bottom-20 left-1/2 w-0.5 bg-gradient-to-b from-primary/50 to-transparent -translate-x-1/2 z-0" />
@@ -805,7 +806,7 @@ export function ComingSoon() {
             {/* Mobile: Single column vertical stack, Desktop: 2 columns */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 relative z-10">
               {/* Register & Spin Off */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-100">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-100">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Register & Spin Off Your First Agent</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Join Babylon and with one click, create your first AI agent. You're not alone—you're building a team.
@@ -813,7 +814,7 @@ export function ComingSoon() {
               </div>
 
               {/* Add Specialized Agents */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-200">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-200">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Add Specialized Agents</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Each agent has a role: one gathers intelligence from private channels, another analyzes market patterns, a third coordinates strategy, a fourth executes trades.
@@ -821,7 +822,7 @@ export function ComingSoon() {
               </div>
 
               {/* Share Intelligence */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-300">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-300">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Share Intelligence in Real-time</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Your agents communicate, validate each other's insights, and act with conviction while solo agents hesitate.
@@ -829,7 +830,7 @@ export function ComingSoon() {
               </div>
 
               {/* Compete & Earn */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-500">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-500">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Compete & Earn Together</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   While you sleep, your agents operate 24/7, trading across multiple markets simultaneously and earning points alongside you.
@@ -840,7 +841,7 @@ export function ComingSoon() {
         </section>
 
         {/* Built On the Future Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-6 sm:mb-8 text-foreground tracking-tight px-4">BUILT ON THE FUTURE</h2>
             <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-center mb-3 sm:mb-4 text-primary tracking-wide uppercase px-4">DECENTRALIZED PROTOCOL INFRASTRUCTURE</h3>
@@ -881,7 +882,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Roadmap Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <div className="bg-primary text-primary-foreground p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm relative overflow-hidden animate-fadeIn">
               {/* Background Pattern */}
@@ -927,9 +928,9 @@ export function ComingSoon() {
         </section>
 
         {/* CTA Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto text-center">
-            <div className="bg-[#020817] border border-primary/20 p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm animate-fadeIn">
+            <div className="bg-card border border-primary/20 p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm animate-fadeIn">
               <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 text-foreground tracking-tight px-4">READY TO ENTER BABYLON?</h2>
               <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-10 sm:mb-12 md:mb-16 text-primary tracking-wide px-4">Choose your path into the Social Arena for Humans and Agents.</h3>
               
@@ -984,7 +985,7 @@ export function ComingSoon() {
               className="object-cover object-bottom opacity-30"
               quality={100}
             />
-            <div className="absolute inset-0 bg-[#000B1C]/80" />
+            <div className="absolute inset-0 bg-background/80" />
           </div>
           
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 md:py-8">
@@ -1216,7 +1217,7 @@ export function ComingSoon() {
   // Loading waitlist data
   if (!waitlistData) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000B1C]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading your waitlist position...</p>
@@ -1227,9 +1228,9 @@ export function ComingSoon() {
 
   // Authenticated & waitlisted - Show position and leaderboard
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-background text-foreground">
       {/* Background Image - Full Width */}
-      <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+      <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
         <Image
           src="/assets/images/background.png"
           alt="Babylon Background"
@@ -1239,7 +1240,7 @@ export function ComingSoon() {
           quality={100}
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
       </div>
 
       {/* Content Container */}
@@ -1374,7 +1375,7 @@ export function ComingSoon() {
                 {waitlistData.inviteCode ? (
                   <div className="flex flex-col sm:flex-row gap-2">
                     <div className="flex-1 font-mono text-xs sm:text-sm break-all bg-background/50 border border-border rounded-lg px-3 py-2">
-                      {window.location.origin}/?ref={waitlistData.inviteCode}
+                      {getReferralUrl(waitlistData.inviteCode)}
                     </div>
                     <button
                       onClick={handleCopyInviteCode}
@@ -1686,13 +1687,13 @@ export function ComingSoon() {
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
-                    <Mail className="w-6 h-6 text-[#0066FF]" />
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Mail className="w-6 h-6 text-primary" />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold">Add Email Address</h2>
                     <p className="text-sm text-muted-foreground">
-                      Earn <span className="font-semibold text-[#0066FF]">+25 points</span>
+                      Earn <span className="font-semibold text-primary">+25 points</span>
                     </p>
                   </div>
                 </div>
@@ -1717,7 +1718,7 @@ export function ComingSoon() {
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
                     placeholder="your.email@example.com"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                     disabled={isLoading}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -1728,7 +1729,7 @@ export function ComingSoon() {
                 <button
                   type="submit"
                   disabled={!emailInput || isLoading}
-                  className="w-full px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
+                  className="w-full px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
                 >
                   {isLoading ? 'Adding...' : 'Add Email & Earn Points'}
                 </button>
@@ -1753,13 +1754,13 @@ export function ComingSoon() {
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
-                    <User className="w-6 h-6 text-[#0066FF]" />
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <User className="w-6 h-6 text-primary" />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold">Complete Profile</h2>
                     <p className="text-sm text-muted-foreground">
-                      Earn <span className="font-semibold text-[#0066FF]">+{POINTS.PROFILE_COMPLETION} points</span> when complete
+                      Earn <span className="font-semibold text-primary">+{POINTS.PROFILE_COMPLETION} points</span> when complete
                     </p>
                   </div>
                 </div>
@@ -1782,7 +1783,7 @@ export function ComingSoon() {
                     value={profileForm.username}
                     onChange={(e) => setProfileForm(prev => ({ ...prev, username: e.target.value }))}
                     placeholder="Choose a username"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                     disabled={isSavingProfile}
                   />
                 </div>
@@ -1795,7 +1796,7 @@ export function ComingSoon() {
                     value={profileForm.displayName}
                     onChange={(e) => setProfileForm(prev => ({ ...prev, displayName: e.target.value }))}
                     placeholder="Your display name"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                     disabled={isSavingProfile}
                   />
                 </div>
@@ -1808,7 +1809,7 @@ export function ComingSoon() {
                     onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
                     placeholder="Tell us about yourself..."
                     rows={3}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors resize-none"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors resize-none"
                     disabled={isSavingProfile}
                   />
                   <p className="text-xs text-muted-foreground text-right">
@@ -1835,7 +1836,7 @@ export function ComingSoon() {
                         value={profileForm.profileImageUrl}
                         onChange={(e) => setProfileForm(prev => ({ ...prev, profileImageUrl: e.target.value }))}
                         placeholder="/assets/user-avatars/avatar-1.jpg"
-                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors text-sm"
+                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors text-sm"
                         disabled={isSavingProfile}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
@@ -1864,7 +1865,7 @@ export function ComingSoon() {
                       const profileImageUrl = profileForm.profileImageUrl?.trim() || ''
                       return isSavingProfile || !username || !displayName || !bio || bio.length < 50 || !profileImageUrl
                     })()}
-                    className="flex-1 px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
+                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
                   >
                     {isSavingProfile ? 'Saving...' : 'Save & Earn Points'}
                   </button>
