@@ -107,7 +107,7 @@ export async function GET() {
   </head>
   <body>
     <h1>Babylon Frame</h1>
-    <p>This is a Farcaster Frame. Open in Warpcast to interact.</p>
+    <p>This is a Farcaster Frame. Open in a Farcaster client (e.g., Warpcast) to interact.</p>
   </body>
 </html>`,
     {

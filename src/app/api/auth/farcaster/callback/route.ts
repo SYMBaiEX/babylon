@@ -104,6 +104,7 @@ import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { z } from 'zod';
+import { createAppClient, viemConnector } from '@farcaster/auth-client';
 
 const FarcasterCallbackBodySchema = z.object({
   message: z.string(),
@@ -128,15 +129,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { message, signature, fid, username, displayName, pfpUrl, state } = parsed.data;
 
   // Verify state format and get user ID
-  const stateParts = state.split(':')
-  if (stateParts.length < 2) {
-    return NextResponse.json(
-      { error: 'Invalid state format' },
-      { status: 400 }
-    )
-  }
+  // State format: userId|timestamp|random (using pipe because userId may contain colons like did:privy:xxx)
+  // Also support legacy colon format for backward compatibility
+  const separator = state.includes('|') ? '|' : ':'
+  const stateParts = state.split(separator)
 
-  const [userId, timestampStr] = stateParts
+  // For pipe separator: [userId, timestamp, random]
+  // For colon separator with did:privy:xxx: we need to reconstruct userId from all but last 2 parts
+  let userId: string
+  let timestampStr: string
+
+  if (separator === '|') {
+    // New format: userId|timestamp|random
+    if (stateParts.length < 2 || !stateParts[0] || !stateParts[1]) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    userId = stateParts[0]
+    timestampStr = stateParts[1]
+  } else {
+    // Legacy format: userId:timestamp:random
+    // Handle case where userId contains colons (e.g., did:privy:xxx)
+    if (stateParts.length < 3) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    // Last part is random, second to last is timestamp, everything before is userId
+    const timestampPart = stateParts[stateParts.length - 2]
+    if (!timestampPart) {
+      return NextResponse.json(
+        { error: 'Invalid state format' },
+        { status: 400 }
+      )
+    }
+    timestampStr = timestampPart
+    userId = stateParts.slice(0, -2).join(':')
+  }
   if (!userId || !timestampStr) {
     return NextResponse.json(
       { error: 'Invalid state format' },
@@ -162,12 +194,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     )
   }
 
-  // Verify Farcaster signature
-  const isValid = await verifyFarcasterSignature(message, signature, fid)
+  // Verify Farcaster signature and SIWF message content
+  const verificationResult = await verifyFarcasterSignature(
+    message,
+    signature,
+    fid,
+    request.nextUrl.origin
+  )
   
-  if (!isValid) {
+  if (!verificationResult.valid) {
     return NextResponse.json(
-      { error: 'Invalid signature' },
+      { error: verificationResult.error || 'Invalid signature' },
       { status: 401 }
     )
   }
@@ -242,37 +279,132 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 });
 
 /**
- * Verify Farcaster signature using Neynar API or direct hub verification
+ * Parse SIWF message to extract domain, expiration, and other fields
+ * SIWF messages follow EIP-4361 format
+ */
+function parseSiwfMessage(message: string): {
+  domain?: string
+  expirationTime?: string
+  issuedAt?: string
+  nonce?: string
+  uri?: string
+} {
+  const result: {
+    domain?: string
+    expirationTime?: string
+    issuedAt?: string
+    nonce?: string
+    uri?: string
+  } = {}
+
+  // Extract domain (first line format: "domain.com wants you to sign in...")
+  const domainMatch = message.match(/^([^\s]+)\s+wants\s+you\s+to\s+sign/)
+  if (domainMatch) {
+    result.domain = domainMatch[1]
+  }
+
+  // Extract fields from structured format
+  const expirationMatch = message.match(/Expiration Time:\s*([^\n]+)/i)
+  if (expirationMatch && expirationMatch[1]) {
+    result.expirationTime = expirationMatch[1].trim()
+  }
+
+  const issuedAtMatch = message.match(/Issued At:\s*([^\n]+)/i)
+  if (issuedAtMatch && issuedAtMatch[1]) {
+    result.issuedAt = issuedAtMatch[1].trim()
+  }
+
+  const nonceMatch = message.match(/Nonce:\s*([^\n]+)/i)
+  if (nonceMatch && nonceMatch[1]) {
+    result.nonce = nonceMatch[1].trim()
+  }
+
+  const uriMatch = message.match(/URI:\s*([^\n]+)/i)
+  if (uriMatch && uriMatch[1]) {
+    result.uri = uriMatch[1].trim()
+  }
+
+  return result
+}
+
+/**
+ * Verify Farcaster signature using @farcaster/auth-client
+ * Uses the official SIWF verification method with viem connector
  */
 async function verifyFarcasterSignature(
   message: string,
   signature: string,
-  fid: number
-): Promise<boolean> {
-  const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'api_key': process.env.NEYNAR_API_KEY!,
-    },
-    body: JSON.stringify({
-      message,
-      signature,
-      fid,
-    }),
-  })
+  fid: number,
+  requestOrigin?: string
+): Promise<{ valid: boolean; error?: string }> {
+  // Parse SIWF message to extract domain and nonce
+  const siwfFields = parseSiwfMessage(message)
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Neynar verification failed', { 
-      status: response.status, 
-      error: errorText,
-      fid 
-    }, 'verifyFarcasterSignature')
-    return false
+  // Get the domain for verification
+  const appDomain = process.env.NEXT_PUBLIC_APP_URL
+    ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
+    : requestOrigin
+      ? new URL(requestOrigin).hostname
+      : null
+
+  if (!appDomain) {
+    logger.error('No domain available for SIWF verification', { fid }, 'verifyFarcasterSignature')
+    return { valid: false, error: 'Configuration error: no domain available' }
   }
 
-  const data = await response.json() as { valid: boolean }
-  return data.valid
+  // Log domain info for debugging
+  if (siwfFields.domain && siwfFields.domain !== appDomain && siwfFields.domain !== `www.${appDomain}`) {
+    logger.warn('SIWF domain in message differs from app domain', {
+      messageDomain: siwfFields.domain,
+      appDomain,
+      fid,
+    }, 'verifyFarcasterSignature')
+  }
+
+  try {
+    // Create the Farcaster auth client with viem connector for signature verification
+    const appClient = createAppClient({
+      ethereum: viemConnector(),
+    })
+
+    // Verify the sign-in message using the official Farcaster auth-client
+    const verifyResult = await appClient.verifySignInMessage({
+      message,
+      signature: signature as `0x${string}`,
+      domain: siwfFields.domain || appDomain,
+      nonce: siwfFields.nonce || '',
+    })
+
+    if (!verifyResult.success) {
+      logger.error('SIWF signature verification failed', {
+        fid,
+        providedFid: fid,
+        verifiedFid: verifyResult.fid,
+      }, 'verifyFarcasterSignature')
+      return { valid: false, error: 'Signature verification failed' }
+    }
+
+    // Verify the FID matches (convert both to string for comparison)
+    if (verifyResult.fid.toString() !== fid.toString()) {
+      logger.error('SIWF FID mismatch', {
+        providedFid: fid,
+        verifiedFid: verifyResult.fid.toString(),
+      }, 'verifyFarcasterSignature')
+      return { valid: false, error: 'FID mismatch' }
+    }
+
+    logger.info('SIWF signature verified successfully', {
+      fid,
+      domain: siwfFields.domain,
+    }, 'verifyFarcasterSignature')
+
+    return { valid: true }
+  } catch (error) {
+    logger.error('SIWF verification error', {
+      error: error instanceof Error ? error.message : String(error),
+      fid,
+    }, 'verifyFarcasterSignature')
+    return { valid: false, error: 'Signature verification failed' }
+  }
 }
 

@@ -389,52 +389,76 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const referralResult = await PointsService.awardReferralSignup(result.referrerId, result.user.id)
     pointsAwarded.referral = referralResult.pointsAwarded
     
-    // Award bonus to NEW USER (referee) for using referral code
-    const refereeBonus = await PointsService.awardPoints(
-      result.user.id,
-      POINTS.REFERRAL_BONUS,
-      'referral_bonus',
-      { referrerId: result.referrerId }
-    )
-    pointsAwarded.referralBonus = refereeBonus.pointsAwarded
-    
-    // Update referral status to completed
-    if (result.referralRecordId) {
-      await prisma.referral.update({
-        where: { id: result.referralRecordId },
-        data: {
-          status: 'completed',
-          completedAt: new Date(),
+    // Only proceed with referral rewards if referrer was successfully awarded
+    if (referralResult.success) {
+      // Award bonus to NEW USER (referee) for using referral code
+      const refereeBonus = await PointsService.awardPoints(
+        result.user.id,
+        POINTS.REFERRAL_BONUS,
+        'referral_bonus',
+        { referrerId: result.referrerId }
+      )
+      pointsAwarded.referralBonus = refereeBonus.pointsAwarded
+      
+      // Update referral status to completed
+      if (result.referralRecordId) {
+        await prisma.referral.update({
+          where: { id: result.referralRecordId },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+          },
+        })
+      }
+      
+      // Auto-follow the referrer (new user follows the person who referred them)
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: result.user.id,       // New user is the follower
+            followingId: result.referrerId,   // Referrer is being followed
+          },
+        },
+        update: {},
+        create: {
+          id: await generateSnowflakeId(),
+          followerId: result.user.id,
+          followingId: result.referrerId,
         },
       })
-    }
-    
-    // Auto-follow the referrer (new user follows the person who referred them)
-    await prisma.follow.upsert({
-      where: {
-        followerId_followingId: {
-          followerId: result.user.id,       // New user is the follower
-          followingId: result.referrerId,   // Referrer is being followed
+      
+      logger.info(
+        'Awarded referral points to both referrer and referee',
+        { 
+          referrerId: result.referrerId, 
+          referredUserId: result.user.id, 
+          referrerPoints: referralResult.pointsAwarded,
+          refereeBonus: refereeBonus.pointsAwarded,
         },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
-        followerId: result.user.id,
-        followingId: result.referrerId,
-      },
-    })
-    
-    logger.info(
-      'Awarded referral points to both referrer and referee',
-      { 
-        referrerId: result.referrerId, 
-        referredUserId: result.user.id, 
-        referrerPoints: referralResult.pointsAwarded,
-        refereeBonus: refereeBonus.pointsAwarded,
-      },
-      'POST /api/users/signup'
-    )
+        'POST /api/users/signup'
+      )
+    } else {
+      // Referral was blocked (self-referral, weekly limit, etc.)
+      // Update referral status to rejected
+      if (result.referralRecordId) {
+        await prisma.referral.update({
+          where: { id: result.referralRecordId },
+          data: {
+            status: 'rejected',
+          },
+        })
+      }
+      
+      logger.warn(
+        'Referral blocked - referrer not rewarded',
+        { 
+          referrerId: result.referrerId, 
+          referredUserId: result.user.id, 
+          error: referralResult.error,
+        },
+        'POST /api/users/signup'
+      )
+    }
   }
 
   if (identityFarcasterUsername || importedFarcaster) {

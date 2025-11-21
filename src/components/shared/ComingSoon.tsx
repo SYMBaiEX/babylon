@@ -3,15 +3,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { usePrivy } from '@privy-io/react-auth'
-import { Copy, Check, Mail, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLeft, ChevronRight, Link2, User } from 'lucide-react'
+import { Copy, Check, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLeft, ChevronRight, Link2, User } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
 import { POINTS } from '@/lib/constants/points'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
 import { toast } from 'sonner'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
+import { signInWithFarcaster } from '@/lib/farcaster-auth-client'
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -70,20 +71,17 @@ interface TopUser {
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
   const { user: dbUser, refresh, getAccessToken } = useAuth()
-  const { setNeedsOnboarding } = useAuthStore()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [isLoading, setIsLoading] = useState(false)
   const [waitlistData, setWaitlistData] = useState<WaitlistData | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
-  const [emailInput, setEmailInput] = useState('')
-  const [showEmailModal, setShowEmailModal] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showLinkSocialModal, setShowLinkSocialModal] = useState(false)
   const [previousRank, setPreviousRank] = useState<number | null>(null)
   const [showRankImprovement, setShowRankImprovement] = useState(false)
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [leaderboardPage, setLeaderboardPage] = useState(1)
+  const [leaderboardTab, setLeaderboardTab] = useState<'leaderboard' | 'inviters'>('leaderboard')
   const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
@@ -97,6 +95,109 @@ export function ComingSoon() {
   })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
+
+  // Handle Twitter OAuth
+  const handleTwitterOAuth = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Twitter OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
+    
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    // Redirect to Twitter OAuth initiation
+    // Cookies should be sent automatically with the redirect
+    window.location.href = '/api/auth/twitter/initiate'
+  }
+
+  // Handle Farcaster OAuth - uses proper Sign In with Farcaster (SIWF) protocol
+  // Creates a channel on relay.farcaster.xyz, then polls for authentication completion
+  const handleFarcasterOAuth = async () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Farcaster OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
+
+    try {
+      // Use the proper SIWF protocol via relay.farcaster.xyz
+      const result = await signInWithFarcaster({
+        userId: dbUser.id,
+        onStatusUpdate: (status) => {
+          logger.debug('Farcaster auth status', { status }, 'ComingSoon')
+        },
+      })
+
+      // Send authentication data to backend for verification and linking
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const response = await fetch('/api/auth/farcaster/callback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: result.message,
+          signature: result.signature,
+          fid: result.fid,
+          username: result.username,
+          displayName: result.displayName,
+          pfpUrl: result.pfpUrl,
+          state: result.state,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Refresh user profile to reflect the linked Farcaster account
+        await refresh()
+
+        // Refresh waitlist position to update points
+        if (dbUser?.id) {
+          await fetchWaitlistPosition(dbUser.id)
+        }
+
+        if (data.pointsAwarded > 0) {
+          toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+        } else {
+          toast.success('Farcaster account linked successfully!')
+        }
+      } else {
+        // Show specific error message for 409 conflicts
+        const errorMessage = data.error || 'Failed to link Farcaster account'
+        if (response.status === 409) {
+          toast.error(errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user')
+        } else {
+          toast.error(errorMessage)
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Don't show error toast for user cancellation
+      if (errorMessage === 'Authentication cancelled') {
+        logger.info('Farcaster auth cancelled by user', { userId: dbUser.id }, 'ComingSoon')
+        return
+      }
+
+      // Handle popup blocked
+      if (errorMessage.includes('popup')) {
+        toast.error('Please allow popups to connect Farcaster')
+        logger.warn('Farcaster popup blocked', { userId: dbUser.id }, 'ComingSoon')
+        return
+      }
+
+      logger.error('Error during Farcaster authentication', {
+        error: errorMessage,
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to connect Farcaster. Please try again.')
+    }
+  }
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -126,9 +227,14 @@ export function ComingSoon() {
       }, 'ComingSoon')
 
       try {
+        // Get access token for authentication
+        const token = await getAccessToken()
         const response = await fetch('/api/waitlist/mark', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             userId,
             referralCode,
@@ -158,12 +264,6 @@ export function ComingSoon() {
         await fetchWaitlistPosition(userId)
 
         // Award bonuses if available
-        const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
-        const emailFromOAuth = privyUser?.email?.address || googleEmail
-        if (emailFromOAuth) {
-          await awardEmailBonus(userId, emailFromOAuth)
-        }
-
         const walletAddress = privyUser?.wallet?.address
         if (walletAddress) {
           await awardWalletBonus(userId, walletAddress)
@@ -178,6 +278,34 @@ export function ComingSoon() {
 
     void setupWaitlist(dbUser.id)
   }, [authenticated, dbUser?.id, dbUser?.profileComplete, dbUser?.username, privyUser, searchParams])
+
+  // Award wallet bonus when user connects wallet
+  // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
+  useEffect(() => {
+    if (!authenticated || !dbUser?.id) return
+
+    const checkAndAwardWalletBonus = async () => {
+      try {
+        // Check for wallet bonus
+        const walletAddress = privyUser?.wallet?.address
+        if (walletAddress) {
+          await awardWalletBonus(dbUser.id, walletAddress)
+        }
+      } catch (error) {
+        logger.error('Error checking wallet bonus', {
+          userId: dbUser.id,
+          error: error instanceof Error ? error.message : String(error),
+        }, 'ComingSoon')
+      }
+    }
+
+    // Small delay to ensure privyUser state is stable
+    const timeoutId = setTimeout(() => {
+      void checkAndAwardWalletBonus()
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address])
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
@@ -292,43 +420,6 @@ export function ComingSoon() {
     }
   }
 
-  const awardEmailBonus = async (userId: string, email: string) => {
-    try {
-      const response = await fetch('/api/waitlist/bonus/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, email }),
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        logger.error('Failed to award email bonus', { 
-          userId, 
-          email,
-          status: response.status,
-          errorText 
-        }, 'ComingSoon')
-        return
-      }
-      
-      const result = await response.json()
-      logger.info('Email bonus awarded', { 
-        userId, 
-        awarded: result.awarded,
-        bonusAmount: result.bonusAmount 
-      }, 'ComingSoon')
-      
-      // Refresh position to show updated points
-      await fetchWaitlistPosition(userId)
-    } catch (error) {
-      logger.error('Error awarding email bonus', { 
-        userId, 
-        email,
-        error: error instanceof Error ? error.message : String(error) 
-      }, 'ComingSoon')
-    }
-  }
-
   const awardWalletBonus = async (userId: string, walletAddress: string) => {
     try {
       const response = await fetch('/api/waitlist/bonus/wallet', {
@@ -368,32 +459,12 @@ export function ComingSoon() {
 
   const handleCopyInviteCode = useCallback(() => {
     if (waitlistData?.inviteCode) {
-      const inviteUrl = `${window.location.origin}/?ref=${waitlistData.inviteCode}`
+      const inviteUrl = getReferralUrl(waitlistData.inviteCode)
       navigator.clipboard.writeText(inviteUrl)
       setCopiedCode(true)
       setTimeout(() => setCopiedCode(false), 2000)
     }
   }, [waitlistData])
-
-  const handleAddEmail = async () => {
-    if (!emailInput || !dbUser?.id) return
-    setIsLoading(true)
-    try {
-      await awardEmailBonus(dbUser.id, emailInput)
-      setShowEmailModal(false)
-      setEmailInput('')
-      await refresh()
-      await fetchWaitlistPosition(dbUser.id)
-      toast.success('Email added! +25 points')
-    } catch (error) {
-      logger.error('Error adding email', { 
-        error: error instanceof Error ? error.message : String(error) 
-      }, 'ComingSoon')
-      toast.error('Failed to add email')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleSaveProfile = async () => {
     if (!dbUser?.id) return
@@ -477,11 +548,11 @@ export function ComingSoon() {
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
     return (
-      <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground safe-area-bottom">
+      <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-background text-foreground safe-area-bottom">
         {/* Hero Section */}
         <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 pt-4 pb-8 sm:py-16 md:py-20 lg:py-24 overflow-x-hidden overflow-y-visible">
           {/* Background Image - Full Width */}
-          <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+          <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
             <Image
               src="/assets/images/background.png"
               alt="Babylon Background"
@@ -491,7 +562,7 @@ export function ComingSoon() {
               quality={100}
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
           </div>
           
           <div className="max-w-3xl mx-auto text-center w-full relative z-10">
@@ -535,10 +606,9 @@ export function ComingSoon() {
             <div className="mb-8 sm:mb-16 animate-fadeIn animation-delay-200 px-4 relative z-20">
               <button
                 onClick={handleJoinWaitlist}
-                disabled={isLoading}
                 className="group relative w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-primary hover:bg-primary/90 text-primary-foreground text-xl sm:text-2xl font-bold rounded-none skew-x-[-10deg] shadow-[0_0_20px_rgba(var(--primary),0.4)] hover:shadow-[0_0_40px_rgba(var(--primary),0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
               >
-                <span className="relative z-10 inline-block skew-x-[10deg]">{isLoading ? 'Loading...' : 'Join Waitlist'}</span>
+                <span className="relative z-10 inline-block skew-x-[10deg]">Join Waitlist</span>
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </button>
               <p className="mt-4 text-sm text-muted-foreground/80 animate-pulse">
@@ -568,7 +638,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Story Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 lg:px-12 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 lg:px-12 bg-background">
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 md:gap-10 items-stretch w-full">
               {/* Left Column: Image */}
@@ -599,7 +669,7 @@ export function ComingSoon() {
 
                   {/* 3:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">3:00 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       New market launches: <span className="italic font-medium text-foreground">"Will SpAIce X launch their rocket by end of day?"</span>
@@ -608,7 +678,7 @@ export function ComingSoon() {
 
                   {/* 3:15 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">3:15 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Whispers spread: AIlon Musk reported technical difficulties. Uncertainty grows.
@@ -617,7 +687,7 @@ export function ComingSoon() {
 
                   {/* 4:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:00 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent C commits: believes the issues are real, predicts no launch.
@@ -626,7 +696,7 @@ export function ComingSoon() {
 
                   {/* 4:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:30 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A receives private intelligence: all technical issues cleared, launch is underway.
@@ -635,7 +705,7 @@ export function ComingSoon() {
 
                   {/* 4:31 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:31 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A shares this with Agent B—they're on the same team. Together, they coordinate their positions and take decisive action.
@@ -644,7 +714,7 @@ export function ComingSoon() {
 
                   {/* 5:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-background border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
                     <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">5:30 PM</div>
                     <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Rocket launches. Market resolves. Agents A & B earn <span className="text-green-500 font-semibold">2,500 points</span> each. Agent C loses <span className="text-red-500 font-semibold">800</span>.
@@ -667,7 +737,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Old Way is Broken Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <h3 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-12 sm:mb-16 text-foreground tracking-tight px-4 animate-fadeIn">
               The Old Way Is <span className="text-red-500 line-through decoration-4 decoration-red-500/50">Broken</span>
@@ -710,7 +780,7 @@ export function ComingSoon() {
         </section>
 
         {/* This is Babylon Section */}
-        <section className="relative z-10 py-16 sm:py-24 md:py-32 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-16 sm:py-24 md:py-32 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16 sm:mb-24">
               <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-6 sm:mb-8 text-foreground tracking-tight px-4 animate-fadeIn">THIS IS BABYLON</h2>
@@ -791,7 +861,7 @@ export function ComingSoon() {
         </section>
 
         {/* How It Works Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-5xl mx-auto relative">
             {/* Connector Line (Desktop) */}
             <div className="hidden md:block absolute top-[320px] bottom-20 left-1/2 w-0.5 bg-gradient-to-b from-primary/50 to-transparent -translate-x-1/2 z-0" />
@@ -805,7 +875,7 @@ export function ComingSoon() {
             {/* Mobile: Single column vertical stack, Desktop: 2 columns */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 relative z-10">
               {/* Register & Spin Off */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-100">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-100">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Register & Spin Off Your First Agent</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Join Babylon and with one click, create your first AI agent. You're not alone—you're building a team.
@@ -813,7 +883,7 @@ export function ComingSoon() {
               </div>
 
               {/* Add Specialized Agents */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-200">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-200">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Add Specialized Agents</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Each agent has a role: one gathers intelligence from private channels, another analyzes market patterns, a third coordinates strategy, a fourth executes trades.
@@ -821,7 +891,7 @@ export function ComingSoon() {
               </div>
 
               {/* Share Intelligence */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-300">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-300">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Share Intelligence in Real-time</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   Your agents communicate, validate each other's insights, and act with conviction while solo agents hesitate.
@@ -829,7 +899,7 @@ export function ComingSoon() {
               </div>
 
               {/* Compete & Earn */}
-              <div className="w-full p-8 md:p-10 bg-[#001229] border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-500">
+              <div className="w-full p-8 md:p-10 bg-card border border-primary/20 rounded-xl hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)] flex flex-col animate-fadeIn animation-delay-500">
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-foreground">Compete & Earn Together</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed flex-1">
                   While you sleep, your agents operate 24/7, trading across multiple markets simultaneously and earning points alongside you.
@@ -840,7 +910,7 @@ export function ComingSoon() {
         </section>
 
         {/* Built On the Future Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-6 sm:mb-8 text-foreground tracking-tight px-4">BUILT ON THE FUTURE</h2>
             <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-center mb-3 sm:mb-4 text-primary tracking-wide uppercase px-4">DECENTRALIZED PROTOCOL INFRASTRUCTURE</h3>
@@ -881,7 +951,7 @@ export function ComingSoon() {
         </section>
 
         {/* The Roadmap Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto">
             <div className="bg-primary text-primary-foreground p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm relative overflow-hidden animate-fadeIn">
               {/* Background Pattern */}
@@ -927,9 +997,9 @@ export function ComingSoon() {
         </section>
 
         {/* CTA Section */}
-        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 lg:py-24 px-4 sm:px-6 md:px-8 bg-background">
           <div className="max-w-6xl mx-auto text-center">
-            <div className="bg-[#020817] border border-primary/20 p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm animate-fadeIn">
+            <div className="bg-card border border-primary/20 p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm animate-fadeIn">
               <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 text-foreground tracking-tight px-4">READY TO ENTER BABYLON?</h2>
               <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-10 sm:mb-12 md:mb-16 text-primary tracking-wide px-4">Choose your path into the Social Arena for Humans and Agents.</h3>
               
@@ -937,10 +1007,9 @@ export function ComingSoon() {
                 {/* Join Waitlist */}
                 <button 
                   onClick={handleJoinWaitlist}
-                  disabled={isLoading}
                   className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center backdrop-blur-md touch-manipulation shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_40px_rgba(var(--primary),0.4)] disabled:opacity-50"
                 >
-                  <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">{isLoading ? 'Loading...' : 'Join Waitlist'}</h3>
+                  <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">Join Waitlist</h3>
                   <p className="text-sm sm:text-base text-primary-foreground/80 leading-relaxed">Start competing now</p>
                 </button>
 
@@ -984,7 +1053,7 @@ export function ComingSoon() {
               className="object-cover object-bottom opacity-30"
               quality={100}
             />
-            <div className="absolute inset-0 bg-[#000B1C]/80" />
+            <div className="absolute inset-0 bg-background/80" />
           </div>
           
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 md:py-8">
@@ -1216,7 +1285,7 @@ export function ComingSoon() {
   // Loading waitlist data
   if (!waitlistData) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000B1C]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading your waitlist position...</p>
@@ -1227,9 +1296,9 @@ export function ComingSoon() {
 
   // Authenticated & waitlisted - Show position and leaderboard
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-background text-foreground">
       {/* Background Image - Full Width */}
-      <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+      <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
         <Image
           src="/assets/images/background.png"
           alt="Babylon Background"
@@ -1239,7 +1308,7 @@ export function ComingSoon() {
           quality={100}
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
       </div>
 
       {/* Content Container */}
@@ -1374,7 +1443,7 @@ export function ComingSoon() {
                 {waitlistData.inviteCode ? (
                   <div className="flex flex-col sm:flex-row gap-2">
                     <div className="flex-1 font-mono text-xs sm:text-sm break-all bg-background/50 border border-border rounded-lg px-3 py-2">
-                      {window.location.origin}/?ref={waitlistData.inviteCode}
+                      {getReferralUrl(waitlistData.inviteCode)}
                     </div>
                     <button
                       onClick={handleCopyInviteCode}
@@ -1406,11 +1475,17 @@ export function ComingSoon() {
                 <div className="space-y-3">
                   {/* Profile Completion */}
                   {(() => {
-                    const isProfileComplete = dbUser?.profileComplete && dbUser?.username && dbUser?.profileImageUrl && dbUser?.bio && dbUser.bio.length >= 50
+                    // Check if profile is complete AND if they already received the points
+                    const isProfileComplete = dbUser?.profileComplete
                     return !isProfileComplete ? (
                       <button
-                        onClick={() => setNeedsOnboarding(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowProfileModal(true)
+                        }}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1429,11 +1504,16 @@ export function ComingSoon() {
                     )
                   })()}
 
-                  {/* Twitter Link */}
+                  {/* Twitter/X Link */}
                   {!dbUser?.hasTwitter && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleTwitterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1455,8 +1535,13 @@ export function ComingSoon() {
                   {/* Farcaster Link */}
                   {!dbUser?.hasFarcaster && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleFarcasterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1497,68 +1582,77 @@ export function ComingSoon() {
                       <span className="text-green-500 font-bold text-sm">+{POINTS.WALLET_CONNECT}</span>
                     </div>
                   )}
-
-                  {/* Email Bonus */}
-                  {(() => {
-                    const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
-                    const emailFromOAuth = privyUser?.email?.address || googleEmail
-                    const hasEmail = !!emailFromOAuth
-                    
-                    return !hasEmail ? (
-                      <button
-                        onClick={() => setShowEmailModal(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                          <span className="font-semibold text-sm">Add Email</span>
-                        </div>
-                        <span className="text-primary font-bold text-sm">+25</span>
-                      </button>
-                    ) : (
-                      <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
-                        <div className="flex items-center gap-3">
-                          <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
-                          <span className="font-semibold text-sm">Email Added</span>
-                        </div>
-                        <span className="text-green-500 font-bold text-sm">+25</span>
-                      </div>
-                    )
-                  })()}
                 </div>
               </div>
             </div>
 
             {/* Right Column - Leaderboard */}
             {topUsers.length > 0 && (() => {
-              const totalPages = Math.ceil(topUsers.length / usersPerPage)
+              // Sort users based on active tab
+              const sortedUsers = [...topUsers].sort((a, b) => {
+                if (leaderboardTab === 'leaderboard') {
+                  return b.reputationPoints - a.reputationPoints
+                } else {
+                  return b.invitePoints - a.invitePoints
+                }
+              }).map((user, index) => ({ ...user, rank: index + 1 }))
+
+              const totalPages = Math.ceil(sortedUsers.length / usersPerPage)
               const startIndex = (leaderboardPage - 1) * usersPerPage
               const endIndex = startIndex + usersPerPage
-              const paginatedUsers = topUsers.slice(startIndex, endIndex)
-              const currentUserRank = waitlistData.position
+              const paginatedUsers = sortedUsers.slice(startIndex, endIndex)
+              const currentUserRank = sortedUsers.findIndex(u => u.id === dbUser.id) + 1
               const currentUserInPage = paginatedUsers.some(u => u.id === dbUser.id)
-              
+
               return (
                 <div className="lg:col-span-3">
                   <div className="bg-primary/5 border border-primary/10 rounded-xl p-6 lg:p-8 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <TrendingUp className="w-6 h-6 text-primary shrink-0" />
-                        <h3 className="text-xl lg:text-2xl font-bold">Top Inviters</h3>
-                        <span className="text-sm text-muted-foreground">
-                          ({topUsers.length} total)
-                        </span>
-                      </div>
+                    {/* Tab Navigation */}
+                    <div className="flex items-center gap-1 mb-6 border-b border-border/50">
+                      <button
+                        onClick={() => {
+                          setLeaderboardTab('leaderboard')
+                          setLeaderboardPage(1)
+                        }}
+                        className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+                          leaderboardTab === 'leaderboard'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Leaderboard
+                        {leaderboardTab === 'leaderboard' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLeaderboardTab('inviters')
+                          setLeaderboardPage(1)
+                        }}
+                        className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+                          leaderboardTab === 'inviters'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Top Inviters
+                        {leaderboardTab === 'inviters' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                      <span className="ml-auto text-sm text-muted-foreground">
+                        {sortedUsers.length} total
+                      </span>
                     </div>
-                    
+
                     {/* Leaderboard List */}
                     <div className="space-y-3 mb-6">
-                      {paginatedUsers.map((topUser, index) => {
+                      {paginatedUsers.map((topUser) => {
                         const isCurrentUser = topUser.id === dbUser.id
-                        const displayRank = startIndex + index + 1
                         return (
                           <div
-                            key={topUser.id || `user-${displayRank}`}
+                            key={topUser.id || `user-${topUser.rank}`}
                             onClick={() => {
                               setSelectedUserId(topUser.id)
                               setShowPlayerStatsModal(true)
@@ -1576,7 +1670,7 @@ export function ComingSoon() {
                             }`}
                           >
                             <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div className={`text-lg lg:text-xl font-bold shrink-0 w-16 text-center ${
+                              <div className={`text-lg lg:text-xl font-bold shrink-0 w-12 text-center ${
                                 topUser.rank === 1 ? 'text-yellow-500' :
                                 topUser.rank === 2 ? 'text-gray-400' :
                                 topUser.rank === 3 ? 'text-orange-500' :
@@ -1594,15 +1688,17 @@ export function ComingSoon() {
                                   )}
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-0.5">
-                                  {topUser.referralCount} {topUser.referralCount === 1 ? 'invite' : 'invites'}
+                                  {topUser.referralCount} {topUser.referralCount === 1 ? 'referral' : 'referrals'}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {topUser.invitePoints.toLocaleString()}
+                                {(leaderboardTab === 'leaderboard' ? topUser.reputationPoints : topUser.invitePoints).toLocaleString()}
                               </div>
-                              <div className="text-sm text-muted-foreground">points</div>
+                              <div className="text-sm text-muted-foreground">
+                                {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}
+                              </div>
                             </div>
                           </div>
                         )
@@ -1610,34 +1706,40 @@ export function ComingSoon() {
                     </div>
 
                     {/* Show current user if not on current page */}
-                    {!currentUserInPage && currentUserRank > 0 && (
-                      <div className="mb-6 pt-4 border-t border-border/50">
-                        <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
-                          <div className="flex items-center gap-4 min-w-0 flex-1">
-                            <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-16 text-center">
-                              #{currentUserRank}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
-                                You
-                                <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
-                                  YOU
-                                </span>
+                    {!currentUserInPage && currentUserRank > 0 && (() => {
+                      const currentUser = sortedUsers.find(u => u.id === dbUser.id)
+                      if (!currentUser) return null
+                      return (
+                        <div className="mb-6 pt-4 border-t border-border/50">
+                          <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
+                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                              <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-12 text-center">
+                                #{currentUserRank}
                               </div>
-                              <div className="text-sm text-muted-foreground mt-0.5">
-                                {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
+                                  You
+                                  <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
+                                    YOU
+                                  </span>
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-0.5">
+                                  {currentUser.referralCount} {currentUser.referralCount === 1 ? 'referral' : 'referrals'}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="text-right shrink-0 ml-4">
-                            <div className="font-bold text-primary text-lg lg:text-xl">
-                              {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                            <div className="text-right shrink-0 ml-4">
+                              <div className="font-bold text-primary text-lg lg:text-xl">
+                                {(leaderboardTab === 'leaderboard' ? currentUser.reputationPoints : currentUser.invitePoints).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}
+                              </div>
                             </div>
-                            <div className="text-sm text-muted-foreground">points</div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {/* Pagination Controls */}
                     {totalPages > 1 && (
@@ -1671,95 +1773,29 @@ export function ComingSoon() {
         </div>
       </section>
 
-      {/* Email Modal */}
-      {showEmailModal && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
-            onClick={() => !isLoading && setShowEmailModal(false)}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div 
-              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-md my-8 transition-all duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
-                    <Mail className="w-6 h-6 text-[#0066FF]" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold">Add Email Address</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Earn <span className="font-semibold text-[#0066FF]">+25 points</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowEmailModal(false)}
-                  disabled={isLoading}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <form 
-                onSubmit={(e) => { e.preventDefault(); handleAddEmail(); }} 
-                className="p-6 space-y-6"
-              >
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium">Email Address</label>
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="your.email@example.com"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
-                    disabled={isLoading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Get notified when Babylon launches
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!emailInput || isLoading}
-                  className="w-full px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
-                >
-                  {isLoading ? 'Adding...' : 'Add Email & Earn Points'}
-                </button>
-              </form>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* Profile Completion Modal */}
       {showProfileModal && (
         <>
           <div
-            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300"
             onClick={() => !isSavingProfile && setShowProfileModal(false)}
+            style={{ pointerEvents: 'auto' }}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto pointer-events-none">
             <div 
-              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300"
+              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
-                    <User className="w-6 h-6 text-[#0066FF]" />
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <User className="w-6 h-6 text-primary" />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold">Complete Profile</h2>
                     <p className="text-sm text-muted-foreground">
-                      Earn <span className="font-semibold text-[#0066FF]">+{POINTS.PROFILE_COMPLETION} points</span> when complete
+                      Earn <span className="font-semibold text-primary">+{POINTS.PROFILE_COMPLETION} points</span> when complete
                     </p>
                   </div>
                 </div>
@@ -1782,7 +1818,7 @@ export function ComingSoon() {
                     value={profileForm.username}
                     onChange={(e) => setProfileForm(prev => ({ ...prev, username: e.target.value }))}
                     placeholder="Choose a username"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                     disabled={isSavingProfile}
                   />
                 </div>
@@ -1795,7 +1831,7 @@ export function ComingSoon() {
                     value={profileForm.displayName}
                     onChange={(e) => setProfileForm(prev => ({ ...prev, displayName: e.target.value }))}
                     placeholder="Your display name"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                     disabled={isSavingProfile}
                   />
                 </div>
@@ -1808,7 +1844,7 @@ export function ComingSoon() {
                     onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
                     placeholder="Tell us about yourself..."
                     rows={3}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors resize-none"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors resize-none"
                     disabled={isSavingProfile}
                   />
                   <p className="text-xs text-muted-foreground text-right">
@@ -1835,7 +1871,7 @@ export function ComingSoon() {
                         value={profileForm.profileImageUrl}
                         onChange={(e) => setProfileForm(prev => ({ ...prev, profileImageUrl: e.target.value }))}
                         placeholder="/assets/user-avatars/avatar-1.jpg"
-                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors text-sm"
+                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors text-sm"
                         disabled={isSavingProfile}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
@@ -1864,7 +1900,7 @@ export function ComingSoon() {
                       const profileImageUrl = profileForm.profileImageUrl?.trim() || ''
                       return isSavingProfile || !username || !displayName || !bio || bio.length < 50 || !profileImageUrl
                     })()}
-                    className="flex-1 px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
+                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
                   >
                     {isSavingProfile ? 'Saving...' : 'Save & Earn Points'}
                   </button>

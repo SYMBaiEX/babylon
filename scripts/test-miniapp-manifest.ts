@@ -157,7 +157,7 @@ async function validateManifest(): Promise<void> {
       console.log('2. ✅ Test manifest at: https://YOUR-DOMAIN/.well-known/farcaster.json');
       console.log('3. 💰 Add account association for rewards:');
       console.log('   https://farcaster.xyz/~/developers/mini-apps/manifest');
-      console.log('4. 🧪 Test in Warpcast mobile app');
+      console.log('4. 🧪 Test in a Farcaster client (e.g., Warpcast mobile app)');
       console.log('\n🎉 Your manifest is ready for deployment!');
     } else {
       console.log('❌ Fix the errors above before deploying\n');
