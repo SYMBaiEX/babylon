@@ -199,7 +199,7 @@ See `.env.example` for complete list.
 
 ## 📱 Farcaster Mini App Setup
 
-Babylon is configured as a **Farcaster Mini App** with automatic authentication. Users opening your app from Farcaster/Warpcast are logged in automatically!
+Babylon is configured as a **Farcaster Mini App** with automatic authentication. Users opening your app from any Farcaster client (e.g., Warpcast) are logged in automatically!
 
 ### Prerequisites
 
@@ -245,7 +245,7 @@ vercel --prod
 
 #### 4. Test in Farcaster
 
-Create a cast in Warpcast:
+Create a cast in a Farcaster client (e.g., Warpcast):
 ```
 Check out Babylon! 🏛️
 

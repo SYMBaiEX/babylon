@@ -221,8 +221,9 @@ export function PnLShareModal({
       setShowTwitterConfirm(true)
       setSharing(null)
     } else {
-      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`
-      window.open(warpcastUrl, '_blank', 'width=550,height=600')
+      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+      const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`
+      window.open(farcasterComposeUrl, '_blank', 'width=550,height=600')
 
       await trackExternalShare({
         platform,

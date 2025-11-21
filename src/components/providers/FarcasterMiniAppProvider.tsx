@@ -264,8 +264,9 @@ export function FarcasterMiniAppProvider({ children }: { children: React.ReactNo
     }
 
     try {
+      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
       await sdk.actions.openUrl(
-        `https://warpcast.com/~/compose?text=${encodeURIComponent(options.text || '')}${
+        `https://farcaster.xyz/~/compose?text=${encodeURIComponent(options.text || '')}${
           options.url ? `&embeds[]=${encodeURIComponent(options.url)}` : ''
         }`
       )

@@ -7,7 +7,6 @@ import { Copy, Check, Mail, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLef
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
 import { POINTS } from '@/lib/constants/points'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
@@ -71,7 +70,6 @@ interface TopUser {
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
   const { user: dbUser, refresh, getAccessToken } = useAuth()
-  const { setNeedsOnboarding } = useAuthStore()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -98,6 +96,135 @@ export function ComingSoon() {
   })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
+
+  // Handle Twitter OAuth
+  const handleTwitterOAuth = () => {
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    // Redirect to Twitter OAuth initiation
+    window.location.href = '/api/auth/twitter/initiate'
+  }
+
+  // Handle Farcaster OAuth - uses official Farcaster protocol (Sign In with Farcaster)
+  const handleFarcasterOAuth = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Farcaster OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
+    
+    // Open Farcaster protocol authentication popup
+    // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
+    const state = `${dbUser.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${state}`
+    
+    const width = 600
+    const height = 700
+    const left = (window.screen.width - width) / 2
+    const top = (window.screen.height - height) / 2
+    
+    let popup: Window | null = null
+    try {
+      popup = window.open(
+        authUrl,
+        'farcaster-auth',
+        `width=${width},height=${height},left=${left},top=${top}`
+      )
+    } catch (error) {
+      logger.error('Error opening Farcaster popup', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to open Farcaster authentication. Please try again.')
+      return
+    }
+
+    if (!popup) {
+      toast.error('Please allow popups to connect Farcaster')
+      logger.warn('Farcaster popup blocked by browser', { userId: dbUser.id }, 'ComingSoon')
+      return
+    }
+
+    // Listen for Farcaster auth callback from popup
+    const handleMessage = async (event: MessageEvent) => {
+      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
+      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
+      const allowedOrigins = [
+        'https://farcaster.xyz',
+        'https://www.farcaster.xyz',
+        window.location.origin, // Also allow same-origin for development/testing
+      ]
+      if (!allowedOrigins.includes(event.origin)) {
+        logger.warn('Rejected message from unauthorized origin', { origin: event.origin }, 'ComingSoon')
+        return
+      }
+
+      if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
+        const { fid, username, displayName, pfpUrl } = event.data
+        
+        try {
+          const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+          const response = await fetch('/api/auth/farcaster/callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              message: event.data.message,
+              signature: event.data.signature,
+              fid,
+              username,
+              displayName,
+              pfpUrl,
+              state,
+            }),
+          })
+
+          const data = await response.json()
+
+          if (response.ok && data.success) {
+            // Refresh user profile to reflect the linked Farcaster account
+            await refresh()
+
+            // Refresh waitlist position to update points
+            if (dbUser?.id) {
+              await fetchWaitlistPosition(dbUser.id)
+            }
+
+            if (data.pointsAwarded > 0) {
+              toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+            } else {
+              toast.success('Farcaster account linked successfully!')
+            }
+          } else {
+            toast.error(data.error || 'Failed to link Farcaster account')
+          }
+        } catch (error) {
+          logger.error('Error linking Farcaster account', {
+            error: error instanceof Error ? error.message : String(error),
+          }, 'ComingSoon')
+          toast.error('Failed to link Farcaster account')
+        } finally {
+          window.removeEventListener('message', handleMessage)
+          if (popup && !popup.closed) {
+            popup.close()
+          }
+        }
+      }
+    }
+
+    // Add message listener for popup response
+    window.addEventListener('message', handleMessage)
+
+    // Clean up listener if popup closes without authenticating
+    const checkPopupClosed = setInterval(() => {
+      if (popup && popup.closed) {
+        clearInterval(checkPopupClosed)
+        window.removeEventListener('message', handleMessage)
+      }
+    }, 1000)
+  }
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -127,9 +254,14 @@ export function ComingSoon() {
       }, 'ComingSoon')
 
       try {
+        // Get access token for authentication
+        const token = await getAccessToken()
         const response = await fetch('/api/waitlist/mark', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             userId,
             referralCode,
@@ -179,6 +311,41 @@ export function ComingSoon() {
 
     void setupWaitlist(dbUser.id)
   }, [authenticated, dbUser?.id, dbUser?.profileComplete, dbUser?.username, privyUser, searchParams])
+
+  // Award wallet/email bonuses when user connects wallet or adds email
+  // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
+  useEffect(() => {
+    if (!authenticated || !dbUser?.id) return
+
+    const checkAndAwardBonuses = async () => {
+      try {
+        // Check for email bonus
+        const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
+        const emailFromOAuth = privyUser?.email?.address || googleEmail
+        if (emailFromOAuth) {
+          await awardEmailBonus(dbUser.id, emailFromOAuth)
+        }
+
+        // Check for wallet bonus
+        const walletAddress = privyUser?.wallet?.address
+        if (walletAddress) {
+          await awardWalletBonus(dbUser.id, walletAddress)
+        }
+      } catch (error) {
+        logger.error('Error checking bonuses', {
+          userId: dbUser.id,
+          error: error instanceof Error ? error.message : String(error),
+        }, 'ComingSoon')
+      }
+    }
+
+    // Small delay to ensure privyUser state is stable
+    const timeoutId = setTimeout(() => {
+      void checkAndAwardBonuses()
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address, privyUser?.email?.address])
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
@@ -1407,11 +1574,17 @@ export function ComingSoon() {
                 <div className="space-y-3">
                   {/* Profile Completion */}
                   {(() => {
-                    const isProfileComplete = dbUser?.profileComplete && dbUser?.username && dbUser?.profileImageUrl && dbUser?.bio && dbUser.bio.length >= 50
+                    // Check if profile is complete AND if they already received the points
+                    const isProfileComplete = dbUser?.profileComplete
                     return !isProfileComplete ? (
                       <button
-                        onClick={() => setNeedsOnboarding(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowProfileModal(true)
+                        }}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1430,11 +1603,16 @@ export function ComingSoon() {
                     )
                   })()}
 
-                  {/* Twitter Link */}
+                  {/* Twitter/X Link */}
                   {!dbUser?.hasTwitter && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleTwitterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1456,8 +1634,13 @@ export function ComingSoon() {
                   {/* Farcaster Link */}
                   {!dbUser?.hasFarcaster && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleFarcasterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1504,11 +1687,17 @@ export function ComingSoon() {
                     const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
                     const emailFromOAuth = privyUser?.email?.address || googleEmail
                     const hasEmail = !!emailFromOAuth
+                    const emailBonusAwarded = dbUser?.pointsAwardedForEmail ?? false
                     
-                    return !hasEmail ? (
+                    return !emailBonusAwarded && !hasEmail ? (
                       <button
-                        onClick={() => setShowEmailModal(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowEmailModal(true)
+                        }}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1601,7 +1790,7 @@ export function ComingSoon() {
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {topUser.invitePoints.toLocaleString()}
+                                {(topUser.reputationPoints ?? topUser.invitePoints).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">points</div>
                             </div>
@@ -1632,7 +1821,7 @@ export function ComingSoon() {
                           </div>
                           <div className="text-right shrink-0 ml-4">
                             <div className="font-bold text-primary text-lg lg:text-xl">
-                              {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                              {waitlistData.points.toLocaleString()}
                             </div>
                             <div className="text-sm text-muted-foreground">points</div>
                           </div>
@@ -1743,12 +1932,13 @@ export function ComingSoon() {
       {showProfileModal && (
         <>
           <div
-            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300"
             onClick={() => !isSavingProfile && setShowProfileModal(false)}
+            style={{ pointerEvents: 'auto' }}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto pointer-events-none">
             <div 
-              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300"
+              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

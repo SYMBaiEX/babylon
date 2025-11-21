@@ -148,12 +148,12 @@ export function ExternalShareButton({
   }
 
   const handleShareToFarcaster = async () => {
-    // Warpcast compose URL format - use shareText which now includes the link
+    // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
     const castText = shareText.includes('http') 
       ? shareText  // Already has link in text
       : `${shareText}\n\n${shareUrl}`  // Add link if not present
-    const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}&embeds[]=${encodeURIComponent(shareUrl)}`
-    window.open(warpcastUrl, '_blank', 'width=550,height=600')
+    const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}&embeds[]=${encodeURIComponent(shareUrl)}`
+    window.open(farcasterComposeUrl, '_blank', 'width=550,height=600')
     
     // If already earned, skip verification
     if (earnedPlatforms.has('farcaster')) {

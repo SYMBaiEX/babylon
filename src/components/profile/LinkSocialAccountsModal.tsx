@@ -47,8 +47,16 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     if (!isOpen) return
 
     const handleMessage = async (event: MessageEvent) => {
-      // Verify origin
-      if (event.origin !== window.location.origin) return
+      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
+      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
+      const allowedOrigins = [
+        'https://farcaster.xyz',
+        'https://www.farcaster.xyz',
+        window.location.origin, // Also allow same-origin for development/testing
+      ]
+      if (!allowedOrigins.includes(event.origin)) {
+        return
+      }
 
       if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
         const { fid, username, displayName, pfpUrl } = event.data
@@ -127,9 +135,10 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     
     setLinking('farcaster')
 
-    // Open Farcaster Auth in popup
+    // Open Farcaster protocol authentication popup
+    // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
     const state = `${user.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-    const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
+    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${state}`
     
     const width = 600
     const height = 700
