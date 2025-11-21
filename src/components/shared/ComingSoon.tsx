@@ -107,7 +107,11 @@ export function ComingSoon() {
 
   // Handle Farcaster OAuth - uses official Farcaster protocol (Sign In with Farcaster)
   const handleFarcasterOAuth = () => {
-    if (!dbUser?.id) return
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Farcaster OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
     
     // Open Farcaster protocol authentication popup
     // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
@@ -119,14 +123,25 @@ export function ComingSoon() {
     const left = (window.screen.width - width) / 2
     const top = (window.screen.height - height) / 2
     
-    const popup = window.open(
-      authUrl,
-      'farcaster-auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    )
+    let popup: Window | null = null
+    try {
+      popup = window.open(
+        authUrl,
+        'farcaster-auth',
+        `width=${width},height=${height},left=${left},top=${top}`
+      )
+    } catch (error) {
+      logger.error('Error opening Farcaster popup', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to open Farcaster authentication. Please try again.')
+      return
+    }
 
     if (!popup) {
       toast.error('Please allow popups to connect Farcaster')
+      logger.warn('Farcaster popup blocked by browser', { userId: dbUser.id }, 'ComingSoon')
       return
     }
 
@@ -204,7 +219,7 @@ export function ComingSoon() {
 
     // Clean up listener if popup closes without authenticating
     const checkPopupClosed = setInterval(() => {
-      if (popup.closed) {
+      if (popup && popup.closed) {
         clearInterval(checkPopupClosed)
         window.removeEventListener('message', handleMessage)
       }
@@ -239,9 +254,14 @@ export function ComingSoon() {
       }, 'ComingSoon')
 
       try {
+        // Get access token for authentication
+        const token = await getAccessToken()
         const response = await fetch('/api/waitlist/mark', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             userId,
             referralCode,
@@ -1558,8 +1578,13 @@ export function ComingSoon() {
                     const isProfileComplete = dbUser?.profileComplete
                     return !isProfileComplete ? (
                       <button
-                        onClick={() => setShowProfileModal(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowProfileModal(true)
+                        }}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1578,11 +1603,16 @@ export function ComingSoon() {
                     )
                   })()}
 
-                  {/* Twitter Link */}
+                  {/* Twitter/X Link */}
                   {!dbUser?.hasTwitter && (
                     <button
-                      onClick={handleTwitterOAuth}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleTwitterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1604,8 +1634,13 @@ export function ComingSoon() {
                   {/* Farcaster Link */}
                   {!dbUser?.hasFarcaster && (
                     <button
-                      onClick={handleFarcasterOAuth}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleFarcasterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1652,11 +1687,17 @@ export function ComingSoon() {
                     const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
                     const emailFromOAuth = privyUser?.email?.address || googleEmail
                     const hasEmail = !!emailFromOAuth
+                    const emailBonusAwarded = dbUser?.pointsAwardedForEmail ?? false
                     
-                    return !hasEmail ? (
+                    return !emailBonusAwarded && !hasEmail ? (
                       <button
-                        onClick={() => setShowEmailModal(true)}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowEmailModal(true)
+                        }}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
@@ -1749,7 +1790,7 @@ export function ComingSoon() {
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {topUser.invitePoints.toLocaleString()}
+                                {(topUser.reputationPoints ?? topUser.invitePoints).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">points</div>
                             </div>
@@ -1780,7 +1821,7 @@ export function ComingSoon() {
                           </div>
                           <div className="text-right shrink-0 ml-4">
                             <div className="font-bold text-primary text-lg lg:text-xl">
-                              {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                              {waitlistData.points.toLocaleString()}
                             </div>
                             <div className="text-sm text-muted-foreground">points</div>
                           </div>
@@ -1891,12 +1932,13 @@ export function ComingSoon() {
       {showProfileModal && (
         <>
           <div
-            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300"
             onClick={() => !isSavingProfile && setShowProfileModal(false)}
+            style={{ pointerEvents: 'auto' }}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto pointer-events-none">
             <div 
-              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300"
+              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
