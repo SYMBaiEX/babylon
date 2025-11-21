@@ -242,8 +242,9 @@ export function ShareEarnModal({
     // If already earned, just open share window without verification
     if (shareStatus.farcaster.earned) {
       const castText = `${shareText}\n\n${shareUrl}`
-      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
-      window.open(warpcastUrl, '_blank', 'width=550,height=600')
+      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+      const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`
+      window.open(farcasterComposeUrl, '_blank', 'width=550,height=600')
       return
     }
 
@@ -253,8 +254,9 @@ export function ShareEarnModal({
     }))
 
     const castText = `${shareText}\n\n${shareUrl}`
-    const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
-    window.open(warpcastUrl, '_blank', 'width=550,height=600')
+    // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+    const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`
+    window.open(farcasterComposeUrl, '_blank', 'width=550,height=600')
     
     const result = await trackShare('farcaster')
     

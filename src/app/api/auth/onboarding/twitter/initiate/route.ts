@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   const state = `onboarding:${userId}:${Date.now()}:${Math.random().toString(36).substring(7)}`
 
-  const twitterAuthUrl = new URL('https://twitter.com/i/oauth2/authorize')
+  const twitterAuthUrl = new URL('https://x.com/i/oauth2/authorize')
   twitterAuthUrl.searchParams.set('response_type', 'code')
   twitterAuthUrl.searchParams.set('client_id', process.env.TWITTER_CLIENT_ID!)
   twitterAuthUrl.searchParams.set(
