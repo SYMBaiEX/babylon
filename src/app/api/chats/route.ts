@@ -252,8 +252,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     fullUser: user
   }, 'GET /api/chats');
 
-  // Get user's chats - TEMPORARILY BYPASS RLS FOR DEBUGGING
-  const { groupChats, directChats } = await asSystem(async (db) => {
+  // Get user's chats with proper RLS context
+  const { groupChats, directChats } = await asUser(user, async (db) => {
     // Get user's group chat memberships
     const memberships = await db.groupChatMembership.findMany({
       where: {
@@ -288,10 +288,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    logger.info('Found DM participants (using asSystem bypass)', { 
-      userId: user.userId, 
-      count: dmParticipants.length,
-      participants: dmParticipants 
+    logger.info('Found DM participants', {
+      userId: user.userId,
+      count: dmParticipants.length
     }, 'GET /api/chats');
 
     const dmChatIds = dmParticipants.map((p) => p.chatId);
