@@ -477,7 +477,7 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const channelsKey = initialChannels.join(',');
   const memoizedInitialChannels = useMemo(
     () => initialChannels,
-    [channelsKey, initialChannels]
+    [channelsKey]
   );
 
   useEffect(() => {
