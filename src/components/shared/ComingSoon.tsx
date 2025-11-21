@@ -7,7 +7,6 @@ import { Copy, Check, Mail, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLef
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
 import { POINTS } from '@/lib/constants/points'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
@@ -71,7 +70,6 @@ interface TopUser {
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
   const { user: dbUser, refresh, getAccessToken } = useAuth()
-  const { setNeedsOnboarding } = useAuthStore()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -1407,10 +1405,11 @@ export function ComingSoon() {
                 <div className="space-y-3">
                   {/* Profile Completion */}
                   {(() => {
-                    const isProfileComplete = dbUser?.profileComplete && dbUser?.username && dbUser?.profileImageUrl && dbUser?.bio && dbUser.bio.length >= 50
+                    // Check if profile is complete AND if they already received the points
+                    const isProfileComplete = dbUser?.profileComplete
                     return !isProfileComplete ? (
                       <button
-                        onClick={() => setNeedsOnboarding(true)}
+                        onClick={() => setShowProfileModal(true)}
                         className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                       >
                         <div className="flex items-center gap-3">
