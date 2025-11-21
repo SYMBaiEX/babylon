@@ -753,14 +753,14 @@ describeWaitlist('WaitlistService', () => {
         const awarded2 = await WaitlistService.awardWalletBonus(user.id, '0x5678')
         expect(awarded2).toBe(false) // Should not award twice
 
-        // Verify only 25 points awarded
+        // Verify only 300 points awarded (wallet bonus amount)
         const updatedUser = await prisma.user.findUnique({
           where: { id: user.id },
           select: { bonusPoints: true, reputationPoints: true },
         })
 
-        expect(updatedUser?.bonusPoints).toBe(25)
-        expect(updatedUser?.reputationPoints).toBe(125)
+        expect(updatedUser?.bonusPoints).toBe(300)
+        expect(updatedUser?.reputationPoints).toBe(400)
       })
     })
 
