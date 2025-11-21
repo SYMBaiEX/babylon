@@ -115,6 +115,14 @@ export function OnboardingProvider({
     return () => clearTimeout(timer);
   }, [authenticated, loadingProfile, hasInitialized]);
 
+  // If needsOnboarding is manually set to true, show modal immediately
+  useEffect(() => {
+    if (needsOnboarding && authenticated && !loadingProfile) {
+      setIsReadyToShow(true);
+      setHasInitialized(true);
+    }
+  }, [needsOnboarding, authenticated, loadingProfile]);
+
   const shouldShowModal = useMemo(() => {
     // Check if dev mode is enabled via URL parameter
     if (typeof window !== 'undefined') {

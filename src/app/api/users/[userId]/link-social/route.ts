@@ -189,6 +189,19 @@ export const POST = withErrorHandling(async (
         pointsResult = await PointsService.awardWalletConnect(canonicalUserId, address);
         break;
     }
+
+    // Check if this qualifies a referral (award bonus to referrer)
+    // This happens after linking social account, so user now has at least one social account
+    if (pointsResult?.success) {
+      await PointsService.checkAndQualifyReferral(canonicalUserId).catch((error) => {
+        // Log error but don't fail the request if qualification check fails
+        logger.warn(
+          `Failed to check and qualify referral for user ${canonicalUserId}`,
+          { userId: canonicalUserId, error },
+          'POST /api/users/[userId]/link-social'
+        );
+      });
+    }
   }
 
   logger.info(

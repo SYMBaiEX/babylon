@@ -258,7 +258,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Update referral code if username is changing and username is available
-  let referralCodeUpdate: { referralCode?: string } = {}
+  const referralCodeUpdate: { referralCode?: string } = {}
   if (isUsernameChanging && normalizedUsername) {
     // Check if username is available as referral code (not taken by another user)
     const existingUserWithCode = await prisma.user.findFirst({
@@ -341,6 +341,16 @@ export const POST = withErrorHandling(async (
 
         await notifyProfileComplete(canonicalUserId, result.pointsAwarded);
         logger.info('Profile completion notification sent', { userId: canonicalUserId }, 'POST /api/users/[userId]/update-profile');
+
+        // Award referral qualification bonus to referrer if user was referred
+        const referralQualificationResult = await PointsService.checkAndQualifyReferral(canonicalUserId);
+        if (referralQualificationResult && referralQualificationResult.success) {
+          logger.info(
+            `Awarded ${referralQualificationResult.pointsAwarded} referral qualification points to referrer`,
+            { referredUserId: canonicalUserId, points: referralQualificationResult.pointsAwarded },
+            'POST /api/users/[userId]/update-profile'
+          );
+        }
       }
     }
   }

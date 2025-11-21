@@ -28,7 +28,7 @@ import { logger } from '@/lib/logger'
  */
 export async function getOrCreateReferralCode(userId: string): Promise<string> {
   // Get user with username and referral code
-  let user = await prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,

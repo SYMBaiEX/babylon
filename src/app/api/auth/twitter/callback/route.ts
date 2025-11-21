@@ -276,6 +276,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Award points if this is the first time linking Twitter
   const pointsResult = await PointsService.awardTwitterLink(userId, twitterUsername)
 
+  // Check if this qualifies a referral (award bonus to referrer)
+  if (pointsResult.success) {
+    await PointsService.checkAndQualifyReferral(userId).catch((error) => {
+      // Log error but don't fail the request if qualification check fails
+      logger.warn(
+        `Failed to check and qualify referral for user ${userId}`,
+        { userId, error },
+        'TwitterCallback'
+      );
+    });
+  }
+
   logger.info(
     'Twitter account linked successfully',
     { userId, twitterUsername, pointsAwarded: pointsResult.pointsAwarded },
