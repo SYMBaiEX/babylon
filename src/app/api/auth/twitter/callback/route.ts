@@ -65,6 +65,9 @@ import { PointsService } from '@/lib/services/points-service'
 import { z } from 'zod'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 
+// Configurable redirect destination after OAuth completion
+const OAUTH_REDIRECT_PATH = process.env.OAUTH_REDIRECT_PATH || '/rewards'
+
 const TwitterCallbackQuerySchema = z.object({
   code: z.string().optional(),
   state: z.string().optional(),
@@ -77,7 +80,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!parsed.success) {
     return NextResponse.redirect(
-      new URL(`/rewards?error=${encodeURIComponent('Invalid parameters received from Twitter')}`, request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=${encodeURIComponent('Invalid parameters received from Twitter')}`, request.url)
     )
   }
 
@@ -87,14 +90,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (oauthError) {
     logger.error('Twitter OAuth error', { oauthError }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL(`/rewards?error=${encodeURIComponent('Twitter authentication failed')}`, request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=${encodeURIComponent('Twitter authentication failed')}`, request.url)
     )
   }
 
   if (!code || !state) {
     logger.warn('Twitter callback missing code or state', { hasCode: !!code, hasState: !!state }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=missing_params', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=missing_params`, request.url)
     )
   }
 
@@ -104,7 +107,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (stateParts.length < 2) {
     logger.warn('Twitter callback invalid state format', { state }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=invalid_state', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=invalid_state`, request.url)
     )
   }
 
@@ -112,7 +115,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (!userId || !timestampStr) {
     logger.warn('Twitter callback missing userId or timestamp in state', { state }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=invalid_state', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=invalid_state`, request.url)
     )
   }
 
@@ -120,7 +123,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (isNaN(stateTimestamp)) {
     logger.warn('Twitter callback invalid timestamp in state', { state, timestampStr }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=invalid_state', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=invalid_state`, request.url)
     )
   }
 
@@ -130,7 +133,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (now - stateTimestamp > 10 * 60 * 1000) {
     logger.warn('Twitter callback state expired', { stateTimestamp, now, ageMs: now - stateTimestamp }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=state_expired', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=state_expired`, request.url)
     )
   }
 
@@ -170,7 +173,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }, 'TwitterCallback')
     
     return NextResponse.redirect(
-      new URL(`/rewards?error=invalid_stat`, request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=invalid_state`, request.url)
     )
   }
 
@@ -202,7 +205,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const errorData = await tokenResponse.text()
     logger.error('Failed to exchange Twitter code', { errorData }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=token_exchange_failed', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=token_exchange_failed`, request.url)
     )
   }
 
@@ -219,7 +222,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (!userResponse.ok) {
     logger.error('Failed to get Twitter user info', {}, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=failed_to_get_user', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=failed_to_get_user`, request.url)
     )
   }
 
@@ -236,7 +239,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (!userData.data?.id || !userData.data?.username) {
     logger.error('Invalid Twitter user data received', { userData }, 'TwitterCallback')
     return NextResponse.redirect(
-      new URL('/rewards?error=invalid_twitter_data', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=invalid_twitter_data`, request.url)
     )
   }
 
@@ -254,7 +257,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (existingLink) {
     return NextResponse.redirect(
-      new URL('/rewards?error=twitter_already_linked', request.url)
+      new URL(`${OAUTH_REDIRECT_PATH}?error=twitter_already_linked`, request.url)
     )
   }
 
@@ -294,10 +297,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'TwitterCallback'
   )
 
-  // Redirect back to rewards page with success
+  // Redirect back to configured destination with success
   return NextResponse.redirect(
     new URL(
-      `/rewards?success=twitter_linked&points=${pointsResult.pointsAwarded}`,
+      `${OAUTH_REDIRECT_PATH}?success=twitter_linked&points=${pointsResult.pointsAwarded}`,
       request.url
     )
   )
