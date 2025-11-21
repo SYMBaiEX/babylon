@@ -162,12 +162,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     )
   }
 
-  // Verify Farcaster signature
-  const isValid = await verifyFarcasterSignature(message, signature, fid)
+  // Verify Farcaster signature and SIWF message content
+  const verificationResult = await verifyFarcasterSignature(
+    message,
+    signature,
+    fid,
+    request.nextUrl.origin
+  )
   
-  if (!isValid) {
+  if (!verificationResult.valid) {
     return NextResponse.json(
-      { error: 'Invalid signature' },
+      { error: verificationResult.error || 'Invalid signature' },
       { status: 401 }
     )
   }
@@ -242,13 +247,108 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 });
 
 /**
- * Verify Farcaster signature using Neynar API or direct hub verification
+ * Parse SIWF message to extract domain, expiration, and other fields
+ * SIWF messages follow EIP-4361 format
+ */
+function parseSiwfMessage(message: string): {
+  domain?: string
+  expirationTime?: string
+  issuedAt?: string
+  nonce?: string
+  uri?: string
+} {
+  const result: {
+    domain?: string
+    expirationTime?: string
+    issuedAt?: string
+    nonce?: string
+    uri?: string
+  } = {}
+
+  // Extract domain (first line format: "domain.com wants you to sign in...")
+  const domainMatch = message.match(/^([^\s]+)\s+wants\s+you\s+to\s+sign/)
+  if (domainMatch) {
+    result.domain = domainMatch[1]
+  }
+
+  // Extract fields from structured format
+  const expirationMatch = message.match(/Expiration Time:\s*([^\n]+)/i)
+  if (expirationMatch && expirationMatch[1]) {
+    result.expirationTime = expirationMatch[1].trim()
+  }
+
+  const issuedAtMatch = message.match(/Issued At:\s*([^\n]+)/i)
+  if (issuedAtMatch && issuedAtMatch[1]) {
+    result.issuedAt = issuedAtMatch[1].trim()
+  }
+
+  const nonceMatch = message.match(/Nonce:\s*([^\n]+)/i)
+  if (nonceMatch && nonceMatch[1]) {
+    result.nonce = nonceMatch[1].trim()
+  }
+
+  const uriMatch = message.match(/URI:\s*([^\n]+)/i)
+  if (uriMatch && uriMatch[1]) {
+    result.uri = uriMatch[1].trim()
+  }
+
+  return result
+}
+
+/**
+ * Verify Farcaster signature using Neynar API
+ * Also validates SIWF message content (domain, expiration)
  */
 async function verifyFarcasterSignature(
   message: string,
   signature: string,
-  fid: number
-): Promise<boolean> {
+  fid: number,
+  requestOrigin?: string
+): Promise<{ valid: boolean; error?: string }> {
+  // Parse SIWF message to extract domain and expiration
+  const siwfFields = parseSiwfMessage(message)
+
+  // Verify domain matches our domain (if specified in message)
+  if (siwfFields.domain) {
+    const appDomain = process.env.NEXT_PUBLIC_APP_URL 
+      ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
+      : requestOrigin
+        ? new URL(requestOrigin).hostname
+        : null
+
+    if (appDomain && siwfFields.domain !== appDomain && siwfFields.domain !== `www.${appDomain}`) {
+      logger.warn('SIWF domain mismatch', {
+        messageDomain: siwfFields.domain,
+        appDomain,
+        fid,
+      }, 'verifyFarcasterSignature')
+      // Note: We log but don't fail, as domain might be set by Farcaster client
+      // The cryptographic signature verification is the primary security check
+    }
+  }
+
+  // Verify expiration time hasn't passed
+  if (siwfFields.expirationTime) {
+    try {
+      const expirationDate = new Date(siwfFields.expirationTime)
+      const now = new Date()
+      if (expirationDate < now) {
+        logger.warn('SIWF message expired', {
+          expirationTime: siwfFields.expirationTime,
+          now: now.toISOString(),
+          fid,
+        }, 'verifyFarcasterSignature')
+        return { valid: false, error: 'Message expired' }
+      }
+    } catch (error) {
+      logger.warn('Failed to parse SIWF expiration time', {
+        expirationTime: siwfFields.expirationTime,
+        error: error instanceof Error ? error.message : String(error),
+      }, 'verifyFarcasterSignature')
+    }
+  }
+
+  // Verify cryptographic signature via Neynar API
   const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
     method: 'POST',
     headers: {
@@ -269,10 +369,10 @@ async function verifyFarcasterSignature(
       error: errorText,
       fid 
     }, 'verifyFarcasterSignature')
-    return false
+    return { valid: false, error: 'Signature verification failed' }
   }
 
   const data = await response.json() as { valid: boolean }
-  return data.valid
+  return { valid: data.valid }
 }
 

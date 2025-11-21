@@ -47,8 +47,16 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     if (!isOpen) return
 
     const handleMessage = async (event: MessageEvent) => {
-      // Verify origin
-      if (event.origin !== window.location.origin) return
+      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
+      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
+      const allowedOrigins = [
+        'https://farcaster.xyz',
+        'https://www.farcaster.xyz',
+        window.location.origin, // Also allow same-origin for development/testing
+      ]
+      if (!allowedOrigins.includes(event.origin)) {
+        return
+      }
 
       if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
         const { fid, username, displayName, pfpUrl } = event.data

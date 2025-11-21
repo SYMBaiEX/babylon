@@ -94,39 +94,6 @@ export function ComingSoon() {
     bio: dbUser?.bio || '',
     profileImageUrl: dbUser?.profileImageUrl || '',
   })
-
-  // Handle Twitter OAuth
-  const handleTwitterOAuth = () => {
-    // Store current URL to return to
-    sessionStorage.setItem('oauth_return_url', window.location.pathname)
-    // Redirect to Twitter OAuth initiation
-    window.location.href = '/api/auth/twitter/initiate'
-  }
-
-  // Handle Farcaster OAuth - directly open the popup
-  const handleFarcasterOAuth = () => {
-    if (!dbUser?.id) return
-    
-    // Open Farcaster Auth in popup directly
-    const state = `${dbUser.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-    const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
-    
-    const width = 600
-    const height = 700
-    const left = (window.screen.width - width) / 2
-    const top = (window.screen.height - height) / 2
-    
-    const popup = window.open(
-      authUrl,
-      'farcaster-auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    )
-
-    if (!popup) {
-      alert('Please allow popups to connect Farcaster')
-      return
-    }
-  }
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
 
@@ -165,8 +132,17 @@ export function ComingSoon() {
 
     // Listen for Farcaster auth callback from popup
     const handleMessage = async (event: MessageEvent) => {
-      // Verify origin for security
-      if (event.origin !== window.location.origin) return
+      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
+      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
+      const allowedOrigins = [
+        'https://farcaster.xyz',
+        'https://www.farcaster.xyz',
+        window.location.origin, // Also allow same-origin for development/testing
+      ]
+      if (!allowedOrigins.includes(event.origin)) {
+        logger.warn('Rejected message from unauthorized origin', { origin: event.origin }, 'ComingSoon')
+        return
+      }
 
       if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
         const { fid, username, displayName, pfpUrl } = event.data
@@ -315,6 +291,41 @@ export function ComingSoon() {
 
     void setupWaitlist(dbUser.id)
   }, [authenticated, dbUser?.id, dbUser?.profileComplete, dbUser?.username, privyUser, searchParams])
+
+  // Award wallet/email bonuses when user connects wallet or adds email
+  // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
+  useEffect(() => {
+    if (!authenticated || !dbUser?.id) return
+
+    const checkAndAwardBonuses = async () => {
+      try {
+        // Check for email bonus
+        const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
+        const emailFromOAuth = privyUser?.email?.address || googleEmail
+        if (emailFromOAuth) {
+          await awardEmailBonus(dbUser.id, emailFromOAuth)
+        }
+
+        // Check for wallet bonus
+        const walletAddress = privyUser?.wallet?.address
+        if (walletAddress) {
+          await awardWalletBonus(dbUser.id, walletAddress)
+        }
+      } catch (error) {
+        logger.error('Error checking bonuses', {
+          userId: dbUser.id,
+          error: error instanceof Error ? error.message : String(error),
+        }, 'ComingSoon')
+      }
+    }
+
+    // Small delay to ensure privyUser state is stable
+    const timeoutId = setTimeout(() => {
+      void checkAndAwardBonuses()
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address, privyUser?.email?.address])
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)

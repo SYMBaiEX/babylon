@@ -59,8 +59,15 @@ export async function openFarcasterOnboardingPopup(
 
     // Listen for message from popup
     const handleMessage = async (event: MessageEvent) => {
-      // Security: verify origin
-      if (event.origin !== window.location.origin) {
+      // Security: verify origin - allow messages from farcaster.xyz (protocol domain)
+      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
+      const allowedOrigins = [
+        'https://farcaster.xyz',
+        'https://www.farcaster.xyz',
+        window.location.origin, // Also allow same-origin for development/testing
+      ]
+      if (!allowedOrigins.includes(event.origin)) {
+        logger.warn('Rejected message from unauthorized origin', { origin: event.origin }, 'FarcasterOnboarding')
         return
       }
 
