@@ -105,6 +105,7 @@ import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 import { getHashedClientIp } from '@/lib/utils/ip-utils'
+import { ConflictError } from '@/lib/errors'
 
 interface SignupRequestBody {
   username: string
@@ -196,16 +197,24 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
     () => prisma.$transaction(async (tx) => {
-      await tx.user.findUnique({
+      // Check if username is already taken by another user
+      const existingUsername = await tx.user.findUnique({
         where: { username: parsedProfile.username },
         select: { id: true },
       })
+      if (existingUsername && existingUsername.id !== canonicalUserId) {
+        throw new ConflictError('Username is already taken', 'User.username')
+      }
 
+      // Check if wallet address is already linked to another user
       if (walletAddress) {
-        await tx.user.findUnique({
+        const existingWallet = await tx.user.findUnique({
           where: { walletAddress: walletAddress },
           select: { id: true },
         })
+        if (existingWallet && existingWallet.id !== canonicalUserId) {
+          throw new ConflictError('Wallet address is already linked to another account', 'User.walletAddress')
+        }
       }
 
       // Resolve referral (if provided)

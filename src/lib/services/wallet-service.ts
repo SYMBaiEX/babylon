@@ -254,6 +254,9 @@ export class WalletService {
 
   /**
    * Record PnL (update lifetime PnL and earned points)
+   *
+   * Uses a transaction to atomically update both lifetimePnL and earnedPoints
+   * to prevent race conditions that could cause sync issues.
    */
   static async recordPnL(
     userId: string,
@@ -265,37 +268,42 @@ export class WalletService {
     newLifetimePnL: number;
     earnedPointsDelta: number;
   }> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new Error(`User not found: ${userId}`);
+      }
+
+      const previousLifetimePnL = Number(user.lifetimePnL);
+      const newLifetimePnL = previousLifetimePnL + pnl;
+
+      // Update lifetimePnL first within the transaction
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          lifetimePnL: newLifetimePnL,
+        },
+      });
+
+      // Now award earned points within the same transaction
+      // This ensures atomicity and prevents race conditions
+      const earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
+        userId,
+        newLifetimePnL,
+        tradeType,
+        relatedId,
+        tx
+      );
+
+      return {
+        previousLifetimePnL,
+        newLifetimePnL,
+        earnedPointsDelta,
+      };
     });
-
-    if (!user) {
-      throw new Error(`User not found: ${userId}`);
-    }
-
-    const previousLifetimePnL = Number(user.lifetimePnL);
-    const newLifetimePnL = previousLifetimePnL + pnl;
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        lifetimePnL: newLifetimePnL,
-      },
-    });
-
-    const earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
-      userId,
-      previousLifetimePnL,
-      newLifetimePnL,
-      tradeType,
-      relatedId
-    );
-
-    return {
-      previousLifetimePnL,
-      newLifetimePnL,
-      earnedPointsDelta,
-    };
   }
 
   /**

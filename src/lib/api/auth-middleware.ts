@@ -79,15 +79,23 @@ export interface AuthenticatedUser {
 
 /**
  * Authenticate request and return user info
- * 
- * @description Authenticates an API request by checking for authentication tokens
- * in the Authorization header or privy-token cookie. Supports both Privy user
- * tokens and agent session tokens. Throws AuthenticationError if authentication fails.
- * 
+ *
+ * @description Authenticates an API request by checking for authentication tokens.
+ * With HTTP-only cookies enabled, the privy-token cookie is preferred over the
+ * Authorization header because the cookie is automatically managed and refreshed
+ * by Privy. Falls back to Authorization header for backwards compatibility with
+ * agents or external clients that may still use header-based auth.
+ *
+ * Token Priority:
+ * 1. privy-token cookie (preferred - auto-refreshed by Privy)
+ * 2. Authorization Bearer header (fallback for agents/external clients)
+ *
  * @param {NextRequest} request - Next.js request object
  * @returns {Promise<AuthenticatedUser>} Authenticated user information
  * @throws {AuthenticationError} If authentication fails
- * 
+ *
+ * @see https://docs.privy.io/guide/react/configuration/cookies
+ *
  * @example
  * ```typescript
  * try {
@@ -104,10 +112,16 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
-  if (authHeader?.startsWith('Bearer ')) {
+  // With HTTP-only cookies enabled, prefer the cookie over the Authorization header.
+  // The cookie is automatically managed and refreshed by Privy, while the header
+  // may contain stale tokens from localStorage. Fall back to header for agents
+  // or external clients that don't use cookies.
+  const cookieToken = request.cookies.get('privy-token')?.value;
+
+  if (cookieToken) {
+    token = cookieToken;
+  } else if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
-  } else {
-    token = request.cookies.get('privy-token')?.value;
   }
 
   if (!token) {
@@ -183,22 +197,30 @@ export async function authenticateWithDbUser(request: NextRequest): Promise<Auth
 
 /**
  * Optional authentication - returns user if authenticated, null otherwise
- * 
+ *
  * @description Attempts to authenticate the request but returns null instead
  * of throwing if authentication fails. Useful for endpoints that work for
  * both authenticated and unauthenticated users.
- * 
+ *
+ * With HTTP-only cookies enabled, prefers the privy-token cookie over the
+ * Authorization header for the same reasons as the authenticate function.
+ *
  * @param {NextRequest} request - Next.js request object
  * @returns {Promise<AuthenticatedUser | null>} Authenticated user or null
+ *
+ * @see https://docs.privy.io/guide/react/configuration/cookies
  */
 export async function optionalAuth(request: NextRequest): Promise<AuthenticatedUser | null> {
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
-  if (authHeader?.startsWith('Bearer ')) {
+  // Prefer cookie over header - see authenticate() for detailed rationale
+  const cookieToken = request.cookies.get('privy-token')?.value;
+
+  if (cookieToken) {
+    token = cookieToken;
+  } else if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
-  } else {
-    token = request.cookies.get('privy-token')?.value;
   }
 
   if (!token) {

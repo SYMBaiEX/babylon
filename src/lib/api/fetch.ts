@@ -1,17 +1,23 @@
 /**
  * API Fetch Options
- * 
+ *
  * @description Extended fetch options with authentication and retry configuration.
- * Extends standard RequestInit with Babylon-specific options for automatic token
- * attachment and 401 retry logic.
+ * Extends standard RequestInit with Babylon-specific options for cookie-based
+ * authentication and 401 retry logic.
+ *
+ * With HTTP-only cookies enabled in Privy, authentication is handled via the
+ * `privy-token` cookie which is automatically sent when `credentials: 'include'`
+ * is set. No Authorization header is needed for browser requests.
+ *
+ * @see https://docs.privy.io/guide/react/configuration/cookies
  */
 export interface ApiFetchOptions extends RequestInit {
   /**
-   * When true (default), the current Privy access token is attached if available.
+   * When true (default), credentials are included to send the privy-token cookie.
    */
   auth?: boolean;
   /**
-   * When true (default), automatically retry with a fresh token if the request fails with 401.
+   * When true (default), automatically retry with a refreshed token if the request fails with 401.
    */
   autoRetryOn401?: boolean;
 }
@@ -49,26 +55,30 @@ export async function getPrivyAccessToken(): Promise<string | null> {
 
 /**
  * Lightweight wrapper around fetch that decorates requests with authentication
- * 
- * @description Wrapper around fetch that automatically adds Privy access tokens
- * to requests. Centralizes authentication logic and avoids direct window lookups
- * across the codebase. Automatically retries requests with a fresh token if a
- * 401 error is received.
- * 
+ *
+ * @description Wrapper around fetch that uses Privy's HTTP-only cookie authentication.
+ * With cookies enabled, the `privy-token` cookie is automatically sent by the browser
+ * when `credentials: 'include'` is set. No Authorization header is needed.
+ *
+ * On 401 errors, triggers a token refresh via `getAccessToken()` which updates the
+ * cookie, then retries the request.
+ *
  * @param {RequestInfo} input - Request URL or Request object
  * @param {ApiFetchOptions} [init] - Fetch options with auth configuration
- * @param {boolean} [init.auth=true] - Whether to attach auth token (default: true)
+ * @param {boolean} [init.auth=true] - Whether to include credentials (default: true)
  * @param {boolean} [init.autoRetryOn401=true] - Whether to retry on 401 (default: true)
  * @returns {Promise<Response>} Fetch response
- * 
+ *
+ * @see https://docs.privy.io/guide/react/configuration/cookies
+ *
  * @example
  * ```typescript
- * // With authentication (default)
+ * // With authentication (default) - cookie sent automatically
  * const response = await apiFetch('/api/posts');
- * 
+ *
  * // Without authentication
  * const response = await apiFetch('/api/public', { auth: false });
- * 
+ *
  * // Custom headers
  * const response = await apiFetch('/api/data', {
  *   headers: { 'Custom-Header': 'value' }
@@ -79,33 +89,28 @@ export async function apiFetch(input: RequestInfo, init: ApiFetchOptions = {}) {
   const { auth = true, autoRetryOn401 = true, headers, ...rest } = init;
   const finalHeaders = new Headers(headers ?? {});
 
-  if (auth) {
-    // Always try to get a fresh token first, fallback to cached token
-    const token = await getPrivyAccessToken();
-
-    if (token) {
-      finalHeaders.set('Authorization', `Bearer ${token}`);
-    }
-  }
+  // With HTTP-only cookies enabled, authentication is handled via the privy-token cookie
+  // which is automatically sent when credentials: 'include' is set.
+  // No Authorization header is needed - the cookie takes precedence on the server.
 
   let response = await fetch(input, {
     ...rest,
     headers: finalHeaders,
+    credentials: auth ? 'include' : (rest.credentials ?? 'same-origin'),
   });
 
-  // If we get a 401 and auto-retry is enabled, try to refresh the token and retry
+  // If we get a 401 and auto-retry is enabled, refresh the token and retry
+  // getAccessToken() updates the privy-token cookie automatically
   if (response.status === 401 && auth && autoRetryOn401) {
-    const freshToken = await getPrivyAccessToken();
-    
-    if (freshToken) {
-      const retryHeaders = new Headers(headers ?? {});
-      retryHeaders.set('Authorization', `Bearer ${freshToken}`);
-      
-      response = await fetch(input, {
-        ...rest,
-        headers: retryHeaders,
-      });
-    }
+    // Trigger token refresh - this updates the cookie
+    await getPrivyAccessToken();
+
+    // Retry with the refreshed cookie
+    response = await fetch(input, {
+      ...rest,
+      headers: finalHeaders,
+      credentials: 'include',
+    });
   }
 
   return response;

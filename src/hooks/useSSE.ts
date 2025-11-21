@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { usePrivy } from '@privy-io/react-auth';
 
@@ -471,16 +471,25 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
     }
   }, []);
 
+  // Memoize initial channels to prevent unnecessary re-subscriptions
+  // This ensures that the effect only runs when the actual channel values change,
+  // not just when the array reference changes
+  const channelsKey = initialChannels.join(',');
+  const memoizedInitialChannels = useMemo(
+    () => initialChannels,
+    [channelsKey]
+  );
+
   useEffect(() => {
     // Subscribe to initial channels provided in options
-    if (initialChannels.length > 0) {
-      initialChannels.forEach(channel => subscribe(channel, () => {}));
+    if (memoizedInitialChannels.length > 0) {
+      memoizedInitialChannels.forEach(channel => subscribe(channel, () => {}));
       return () => {
-        initialChannels.forEach(channel => unsubscribe(channel));
+        memoizedInitialChannels.forEach(channel => unsubscribe(channel));
       };
     }
     return undefined;
-  }, [initialChannels, subscribe, unsubscribe]);
+  }, [memoizedInitialChannels, subscribe, unsubscribe]);
 
   useEffect(() => {
     return () => {
@@ -530,8 +539,16 @@ export function useSSEChannel(
   channel: Channel | null,
   onMessage: (data: Record<string, unknown>) => void
 ) {
+  // Memoize the channels array to prevent unnecessary re-subscriptions
+  // Without this, every render creates a new array reference, causing the
+  // useSSE hook's initialChannels effect to re-run and reconnect
+  const channels = useMemo(
+    () => (channel ? [channel] : []),
+    [channel]
+  );
+
   const { isConnected, subscribe, unsubscribe } = useSSE({
-    channels: channel ? [channel] : [],
+    channels,
   });
 
   const onMessageRef = useRef(onMessage);
