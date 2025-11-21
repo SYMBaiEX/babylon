@@ -120,6 +120,7 @@ export function OnboardingProvider({
     if (needsOnboarding && authenticated && !loadingProfile) {
       setIsReadyToShow(true);
       setHasInitialized(true);
+      setUserDismissed(false); // Reset dismissed state when explicitly requesting onboarding
     }
   }, [needsOnboarding, authenticated, loadingProfile]);
 

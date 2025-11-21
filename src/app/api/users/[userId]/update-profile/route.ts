@@ -343,7 +343,15 @@ export const POST = withErrorHandling(async (
         logger.info('Profile completion notification sent', { userId: canonicalUserId }, 'POST /api/users/[userId]/update-profile');
 
         // Award referral qualification bonus to referrer if user was referred
-        const referralQualificationResult = await PointsService.checkAndQualifyReferral(canonicalUserId);
+        const referralQualificationResult = await PointsService.checkAndQualifyReferral(canonicalUserId).catch((error) => {
+          // Log error but don't fail the request if qualification check fails
+          logger.warn(
+            `Failed to check and qualify referral for user ${canonicalUserId}`,
+            { userId: canonicalUserId, error },
+            'POST /api/users/[userId]/update-profile'
+          );
+          return null;
+        });
         if (referralQualificationResult && referralQualificationResult.success) {
           logger.info(
             `Awarded ${referralQualificationResult.pointsAwarded} referral qualification points to referrer`,
