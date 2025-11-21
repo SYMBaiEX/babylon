@@ -1,4 +1,5 @@
 import { CHAIN } from '@/constants/chains';
+import { isOnChainEnabled } from '@/lib/config/perp-modes';
 import db from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
@@ -142,10 +143,21 @@ export class PriceUpdateService {
 
   /**
    * Write prices to blockchain using PriceStorageFacet
+   * Only writes when on-chain settlement mode is enabled
    */
   private static async writePricesToChain(
     updates: AppliedPriceUpdate[]
   ): Promise<void> {
+    // Check if on-chain mode is enabled via configuration
+    if (!isOnChainEnabled()) {
+      logger.debug(
+        'Skipping on-chain price update - off-chain mode configured',
+        undefined,
+        'PriceUpdateService'
+      );
+      return;
+    }
+
     const { getContractAddresses, getRpcUrl } = await import('@/lib/deployment/addresses');
     const { diamond: diamondAddress } = getContractAddresses();
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;

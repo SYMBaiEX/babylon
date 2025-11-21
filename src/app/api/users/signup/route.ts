@@ -105,6 +105,7 @@ import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 import { getHashedClientIp } from '@/lib/utils/ip-utils'
+import { ConflictError } from '@/lib/errors'
 
 interface SignupRequestBody {
   username: string
@@ -196,25 +197,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
     () => prisma.$transaction(async (tx) => {
-      await tx.user.findUnique({
+      // Check if username is already taken by another user
+      const existingUsername = await tx.user.findUnique({
         where: { username: parsedProfile.username },
         select: { id: true },
       })
+      if (existingUsername && existingUsername.id !== canonicalUserId) {
+        throw new ConflictError('Username is already taken', 'User.username')
+      }
 
+      // Check if wallet address is already linked to another user
       if (walletAddress) {
-        await tx.user.findUnique({
+        const existingWallet = await tx.user.findUnique({
           where: { walletAddress: walletAddress },
           select: { id: true },
         })
+        if (existingWallet && existingWallet.id !== canonicalUserId) {
+          throw new ConflictError('Wallet address is already linked to another account', 'User.walletAddress')
+        }
       }
 
       // Resolve referral (if provided)
       let resolvedReferrerId: string | null = null
       let resolvedReferralRecordId: string | null = null
+      const normalizedCode = referralCode?.trim() || null
 
-      if (referralCode) {
-        const normalizedCode = referralCode.trim()
-
+      if (normalizedCode) {
         // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
@@ -235,31 +243,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }
         }
 
-        // Create or update referral record (idempotent for retries)
-        if (resolvedReferrerId) {
-          const newReferralRecord = await tx.referral.upsert({
-            where: {
-              referralCode_referredUserId: {
-                referralCode: normalizedCode,
-                referredUserId: canonicalUserId,
-              },
-            },
-            create: {
-              id: await generateSnowflakeId(),
-              referrerId: resolvedReferrerId,
-              referralCode: normalizedCode,
-              referredUserId: canonicalUserId,
-              status: 'pending',
-            },
-            update: {
-              // On retry, keep existing record but ensure status is pending
-              status: 'pending',
-            },
-            select: { id: true },
-          })
-          
-          resolvedReferralRecordId = newReferralRecord.id
-        }
+        // Note: Referral record will be created AFTER user upsert to satisfy FK constraint
       }
 
       const baseUserData = {
@@ -339,14 +323,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         select: selectUserSummary,
       })
 
-      if (resolvedReferralRecordId) {
-        await tx.referral.update({
-          where: { id: resolvedReferralRecordId },
-          data: {
+      // Create referral record AFTER user exists (to satisfy FK constraint)
+      if (resolvedReferrerId && normalizedCode) {
+        const referralRecord = await tx.referral.upsert({
+          where: {
+            referralCode_referredUserId: {
+              referralCode: normalizedCode,
+              referredUserId: user.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            referrerId: resolvedReferrerId,
+            referralCode: normalizedCode,
             referredUserId: user.id,
             status: 'pending',
           },
+          update: {
+            // On retry, keep existing record but ensure status is pending
+            status: 'pending',
+          },
+          select: { id: true },
         })
+        resolvedReferralRecordId = referralRecord.id
       }
 
       return {
