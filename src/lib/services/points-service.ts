@@ -422,13 +422,13 @@ export class PointsService {
 
         if (isSuspicious || isBlocked) {
           // Find the referral record and update it
+          // Note: Record may still have status 'pending' at this point, so we don't filter by status
           const referralRecord = await prisma.referral.findFirst({
             where: {
               referrerId,
               referredUserId,
-              status: 'completed',
             },
-            orderBy: { completedAt: 'desc' },
+            orderBy: { createdAt: 'desc' },
           })
 
           if (referralRecord) {
@@ -462,6 +462,104 @@ export class PointsService {
     }
 
     return result;
+  }
+
+  /**
+   * Check and qualify referral when referred user links social account
+   * Awards bonus points to referrer when referred user links their first social account
+   * 
+   * @description When a referred user links a social account (Farcaster, Twitter, or Wallet),
+   * this checks if they have a referrer and if the referral hasn't been qualified yet.
+   * If conditions are met, marks the referral as qualified and awards bonus points to the referrer.
+   * 
+   * @param {string} referredUserId - User ID who just linked a social account
+   * @returns {Promise<AwardPointsResult | null>} Result if referral was qualified, null otherwise
+   */
+  static async checkAndQualifyReferral(
+    referredUserId: string
+  ): Promise<AwardPointsResult | null> {
+    // Get user with referrer info and social account status
+    const user = await prisma.user.findUnique({
+      where: { id: referredUserId },
+      select: {
+        referredBy: true,
+        hasFarcaster: true,
+        hasTwitter: true,
+        walletAddress: true,
+      },
+    });
+
+    if (!user || !user.referredBy) {
+      // User has no referrer, nothing to qualify
+      return null;
+    }
+
+    // Check if user has at least one social account linked
+    const hasSocialAccount = user.hasFarcaster || user.hasTwitter || !!user.walletAddress;
+    if (!hasSocialAccount) {
+      // User doesn't have any social accounts linked yet
+      return null;
+    }
+
+    // Find the referral record
+    const referral = await prisma.referral.findFirst({
+      where: {
+        referrerId: user.referredBy,
+        referredUserId: referredUserId,
+        status: 'completed',
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (!referral) {
+      // No referral record found
+      logger.warn(
+        `No referral record found for referrer ${user.referredBy} and referred user ${referredUserId}`,
+        { referrerId: user.referredBy, referredUserId },
+        'PointsService'
+      );
+      return null;
+    }
+
+    // Check if already qualified
+    if (referral.qualifiedAt) {
+      // Already qualified, nothing to do
+      return null;
+    }
+
+    // Qualify the referral and award bonus points to referrer
+    const qualificationResult = await this.awardPoints(
+      user.referredBy,
+      POINTS.REFERRAL_QUALIFIED,
+      'referral_qualified',
+      {
+        referredUserId,
+        qualifiedAt: new Date().toISOString(),
+      }
+    );
+
+    if (qualificationResult.success) {
+      // Update referral record to mark as qualified
+      await prisma.referral.update({
+        where: { id: referral.id },
+        data: {
+          qualifiedAt: new Date(),
+        },
+      });
+
+      logger.info(
+        `Referral qualified: referrer ${user.referredBy} earned ${POINTS.REFERRAL_QUALIFIED} points for qualified referral`,
+        {
+          referrerId: user.referredBy,
+          referredUserId,
+          referralId: referral.id,
+          pointsAwarded: qualificationResult.pointsAwarded,
+        },
+        'PointsService'
+      );
+    }
+
+    return qualificationResult;
   }
 
   /**
@@ -561,6 +659,10 @@ export class PointsService {
         return user.pointsAwardedForWallet;
       case 'referral_bonus':
         return user.pointsAwardedForReferralBonus;
+      case 'referral_qualified':
+        // Qualified referrals can happen multiple times (one per referred user)
+        // But we track this per referral, not per user, so always allow
+        return false;
       case 'share_action':
       case 'share_to_twitter':
         return user.pointsAwardedForShare;

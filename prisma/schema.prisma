@@ -989,6 +989,7 @@ model Referral {
   status                             String    @default("pending")
   createdAt                          DateTime  @default(now())
   completedAt                        DateTime?
+  qualifiedAt                        DateTime?
   suspiciousReferralFlags                                            Json?
   User_Referral_referredUserIdToUser User?     @relation("Referral_referredUserIdToUser", fields: [referredUserId], references: [id])
   User_Referral_referrerIdToUser     User      @relation("Referral_referrerIdToUser", fields: [referrerId], references: [id], onDelete: Cascade)
@@ -998,6 +999,7 @@ model Referral {
   @@index([referrerId])
   @@index([referredUserId])
   @@index([status, createdAt(sort: Desc)])
+  @@index([qualifiedAt])
 }
 
 model Share {

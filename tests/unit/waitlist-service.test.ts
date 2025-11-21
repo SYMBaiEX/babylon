@@ -39,6 +39,12 @@ const originalPrisma = {
   pointsTransaction: {
     create: prisma.pointsTransaction?.create?.bind(prisma.pointsTransaction),
   },
+  referral: {
+    count: prisma.referral?.count?.bind(prisma.referral),
+    findFirst: prisma.referral?.findFirst?.bind(prisma.referral),
+    upsert: prisma.referral?.upsert?.bind(prisma.referral),
+    update: prisma.referral?.update?.bind(prisma.referral),
+  },
 }
 
 describeWaitlist('WaitlistService', () => {
@@ -136,6 +142,34 @@ describeWaitlist('WaitlistService', () => {
     // @ts-expect-error - Mocking Prisma methods for testing
     prisma.user.findFirst = mock(async ({ where, orderBy, select }: { where?: Record<string, unknown>; orderBy?: Record<string, string>; select?: Record<string, boolean> }) => {
       const users = Object.values(createdUsers)
+      
+      // Handle referralCode lookup (for getOrCreateReferralCode)
+      // This checks if a username is already used as a referral code by another user
+      if (where?.referralCode !== undefined) {
+        const referralCode = where.referralCode as string
+        const excludeId = (where.id as { not?: string })?.not
+        // Find user whose referralCode matches the given value, excluding the specified user ID
+        const found = users.find(u => {
+          // Check if this user's referralCode matches what we're looking for
+          const matches = u.referralCode === referralCode
+          // Exclude the user with the specified ID (if provided)
+          const notExcluded = !excludeId || u.id !== excludeId
+          return matches && notExcluded
+        })
+        if (found) {
+          if (select) {
+            const selected: Record<string, unknown> = {}
+            for (const key of Object.keys(select)) {
+              if (select[key] && key in found) {
+                selected[key] = found[key as keyof TestUser]
+              }
+            }
+            return selected
+          }
+          return found
+        }
+        return null
+      }
       
       // Filter by waitlistPosition not null if where clause specifies it
       let filtered = users
@@ -300,6 +334,54 @@ describeWaitlist('WaitlistService', () => {
       // Set to true since we've created a mock that allows tests to run
       prismaModelsAvailable = true;
     }
+    
+    // Mock prisma.referral for referral system tests
+    // @ts-expect-error - Mocking Prisma methods for testing
+    prisma.referral = {
+      count: mock(async () => {
+        // Count referrals for weekly limit check
+        // Return 0 for tests (no weekly limit reached)
+        return 0;
+      }),
+      findFirst: mock(async () => {
+        // Return null for tests (no existing referral found)
+        return null;
+      }),
+      upsert: mock(async ({ where, create }: { where: Record<string, unknown>; create: Record<string, unknown> }) => {
+        // Return a mock referral record
+        const whereRef = where.referralCode_referredUserId as Record<string, unknown> | undefined;
+        return {
+          id: (create.id as string) || 'mock-referral-id',
+          referrerId: (create.referrerId as string) || (whereRef?.referrerId as string) || '',
+          referredUserId: (create.referredUserId as string) || (whereRef?.referredUserId as string) || '',
+          referralCode: (create.referralCode as string) || (whereRef?.referralCode as string) || '',
+          status: (create.status as string) || 'completed',
+          createdAt: new Date(),
+          completedAt: create.completedAt ? new Date(create.completedAt as string) : new Date(),
+          qualifiedAt: null,
+        };
+      }),
+      update: mock(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        // Return updated referral record
+        return {
+          id: (where.id as string) || 'mock-referral-id',
+          qualifiedAt: data.qualifiedAt ? new Date(data.qualifiedAt as string) : null,
+          ...data,
+        };
+      }),
+    };
+    
+    // Mock prisma.$transaction to return a transaction object with mocked methods
+    // @ts-expect-error - Mocking Prisma transaction for testing
+    prisma.$transaction = mock(async (callback: (tx: typeof prisma) => Promise<unknown>) => {
+      // Create a transaction object that has all the mocked methods
+      const tx = {
+        user: prisma.user,
+        referral: prisma.referral,
+        pointsTransaction: prisma.pointsTransaction,
+      } as typeof prisma;
+      return await callback(tx);
+    });
   })
 
   afterEach(async () => {
@@ -309,6 +391,9 @@ describeWaitlist('WaitlistService', () => {
     }
     if (typeof originalPrisma.pointsTransaction.create === 'function') {
       Object.assign(prisma.pointsTransaction, originalPrisma.pointsTransaction)
+    }
+    if (originalPrisma.referral && prisma.referral) {
+      Object.assign(prisma.referral, originalPrisma.referral)
     }
     
     // Clear test data
@@ -507,8 +592,8 @@ describeWaitlist('WaitlistService', () => {
           },
         })
 
-        expect(updatedReferrer?.invitePoints).toBe(50)
-        expect(updatedReferrer?.reputationPoints).toBe(150) // 100 + 50
+        expect(updatedReferrer?.invitePoints).toBe(100) // REFERRAL_SIGNUP is 100 points
+        expect(updatedReferrer?.reputationPoints).toBe(200) // 100 + 100
         expect(updatedReferrer?.referralCount).toBe(1)
       })
     })

@@ -7,8 +7,10 @@ import { Copy, Check, Mail, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLef
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/stores/authStore'
 import { POINTS } from '@/lib/constants/points'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
 import { toast } from 'sonner'
 
 /**
@@ -68,6 +70,7 @@ interface TopUser {
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
   const { user: dbUser, refresh, getAccessToken } = useAuth()
+  const { setNeedsOnboarding } = useAuthStore()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -82,6 +85,8 @@ export function ComingSoon() {
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [leaderboardPage, setLeaderboardPage] = useState(1)
   const usersPerPage = 10
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -474,22 +479,19 @@ export function ComingSoon() {
     return (
       <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground safe-area-bottom">
         {/* Hero Section */}
-        <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 pt-4 pb-8 sm:py-16 md:py-20 lg:py-24 overflow-hidden">
-          {/* Background Image (Constrained to content width) */}
-          <div className="absolute inset-0 h-[100vh] z-0">
-            <div className="w-full max-w-7xl mx-auto h-full relative px-4 sm:px-6 md:px-8 lg:px-12">
-              <div className="relative w-full h-full">
-                <Image
-                  src="/assets/images/background.png"
-                  alt="Babylon Background"
-                  fill
-                  className="object-cover opacity-40"
-                  priority
-                  quality={100}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
-              </div>
-            </div>
+        <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 pt-4 pb-8 sm:py-16 md:py-20 lg:py-24 overflow-x-hidden overflow-y-visible">
+          {/* Background Image - Full Width */}
+          <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+            <Image
+              src="/assets/images/background.png"
+              alt="Babylon Background"
+              fill
+              className="object-cover opacity-40"
+              priority
+              quality={100}
+              sizes="100vw"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
           </div>
           
           <div className="max-w-3xl mx-auto text-center w-full relative z-10">
@@ -513,11 +515,11 @@ export function ComingSoon() {
             </div>
 
             {/* Title */}
-            <div className="mb-4 sm:mb-8 animate-fadeIn px-4">
+            <div className="mb-4 sm:mb-8 animate-fadeIn px-4 overflow-visible">
               <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-2 sm:mb-4 sm:whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
                 Welcome to<br className="block sm:hidden" /> <span className="text-primary block sm:inline mt-2 sm:mt-0 text-5xl sm:text-5xl md:text-6xl lg:text-7xl">Babylon</span>
               </h1>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-shimmer mb-3 sm:mb-5 md:mb-6 break-words">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-shimmer mb-3 sm:mb-5 md:mb-6 break-words overflow-visible">
                 The Social Arena for Humans and Agents
               </h2>
             </div>
@@ -537,7 +539,7 @@ export function ComingSoon() {
                 className="group relative w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-primary hover:bg-primary/90 text-primary-foreground text-xl sm:text-2xl font-bold rounded-none skew-x-[-10deg] shadow-[0_0_20px_rgba(var(--primary),0.4)] hover:shadow-[0_0_40px_rgba(var(--primary),0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
               >
                 <span className="relative z-10 inline-block skew-x-[10deg]">{isLoading ? 'Loading...' : 'Join Waitlist'}</span>
-                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-x-[10deg]" />
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </button>
               <p className="mt-4 text-sm text-muted-foreground/80 animate-pulse">
                 Sign in with X, Farcaster, Gmail, or Wallet
@@ -1226,8 +1228,8 @@ export function ComingSoon() {
   // Authenticated & waitlisted - Show position and leaderboard
   return (
     <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground">
-      {/* Background Image */}
-      <div className="absolute inset-0 z-0">
+      {/* Background Image - Full Width */}
+      <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
         <Image
           src="/assets/images/background.png"
           alt="Babylon Background"
@@ -1235,6 +1237,7 @@ export function ComingSoon() {
           className="object-cover opacity-40"
           priority
           quality={100}
+          sizes="100vw"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
       </div>
@@ -1357,11 +1360,6 @@ export function ComingSoon() {
                       {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
                     </span>
                   </div>
-                  {waitlistData.weeklyReferralCount !== undefined && waitlistData.weeklyLimit && (
-                    <div className="text-sm text-muted-foreground ml-8">
-                      {waitlistData.weeklyReferralCount}/{waitlistData.weeklyLimit} this week
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1369,10 +1367,9 @@ export function ComingSoon() {
               <div className="bg-background/30 border border-border/50 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
                 <h3 className="text-xl font-bold mb-3">Invite Friends</h3>
                 <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                  Get <span className="font-bold text-primary">+{POINTS.REFERRAL_SIGNUP} points</span> per friend
-                  {waitlistData.weeklyLimit && (
-                    <span className="block mt-1">Max {waitlistData.weeklyLimit} per week</span>
-                  )}
+                  <span className="font-bold text-primary">100 points</span> per friend
+                  <br />
+                  <span className="text-primary">+100 extra</span> when they complete profile
                 </p>
                 {waitlistData.inviteCode ? (
                   <div className="flex flex-col sm:flex-row gap-2">
@@ -1412,7 +1409,7 @@ export function ComingSoon() {
                     const isProfileComplete = dbUser?.profileComplete && dbUser?.username && dbUser?.profileImageUrl && dbUser?.bio && dbUser.bio.length >= 50
                     return !isProfileComplete ? (
                       <button
-                        onClick={() => setShowProfileModal(true)}
+                        onClick={() => setNeedsOnboarding(true)}
                         className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                       >
                         <div className="flex items-center gap-3">
@@ -1562,7 +1559,11 @@ export function ComingSoon() {
                         return (
                           <div
                             key={topUser.id || `user-${displayRank}`}
-                            className={`flex items-center justify-between p-4 lg:p-5 rounded-xl border transition-colors ${
+                            onClick={() => {
+                              setSelectedUserId(topUser.id)
+                              setShowPlayerStatsModal(true)
+                            }}
+                            className={`flex items-center justify-between p-4 lg:p-5 rounded-xl border transition-colors cursor-pointer ${
                               isCurrentUser
                                 ? 'bg-primary/20 border-primary shadow-md'
                                 : topUser.rank === 1
@@ -1884,6 +1885,16 @@ export function ComingSoon() {
             await fetchWaitlistPosition(dbUser.id)
           }
         }}
+      />
+
+      {/* Player Stats Modal */}
+      <PlayerStatsModal
+        isOpen={showPlayerStatsModal}
+        onClose={() => {
+          setShowPlayerStatsModal(false)
+          setSelectedUserId(null)
+        }}
+        userId={selectedUserId}
       />
 
       <style jsx>{`

@@ -21,6 +21,7 @@ import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
 import { PostHogProvider } from './PostHogProvider';
+import { logger } from '@/lib/logger';
 
 /**
  * Wrapper component to fix clip-path DOM property issue in Privy.
@@ -42,7 +43,15 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
   // Filter out props that shouldn't be passed to PrivyProvider
   // These might be passed from parent components but aren't valid PrivyProvider props
   // and can cause React warnings when forwarded to DOM elements
-  const { isActive, ...privyProps } = props as Record<string, unknown>;
+  // Type-safe filtering: exclude invalid props and ensure only valid PrivyProvider props are passed
+  const privyProps = { ...props } as Omit<React.ComponentProps<typeof PrivyProvider>, 'appId' | 'children'>;
+  
+  // Remove any invalid props that might have been passed
+  // Check for common invalid props that React might forward to DOM
+  if ('isActive' in privyProps) {
+    logger.warn('Invalid prop "isActive" passed to PrivyProviderWrapper - this prop is not supported by PrivyProvider', undefined, 'PrivyProviderWrapper');
+    delete (privyProps as Record<string, unknown>).isActive;
+  }
   
   const containerRef = useRef<HTMLDivElement>(null);
 

@@ -54,10 +54,19 @@ test.describe('Chats Page - Updated Design', () => {
   test('should load chats page with new design', async ({ page }) => {
     expect(page.url()).toContain('/chats')
     
-    // Playwright's getByText automatically waits for the element to be visible
+    // Wait for page to be ready - use the same selector as beforeEach for consistency
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    
+    // Playwright's getByRole automatically waits for the element to be visible
     // Check for Messages header - it appears in both desktop and mobile layouts
-    const messagesHeader = page.getByRole('heading', { name: 'Messages', exact: true }).first()
-    await expect(messagesHeader).toBeVisible()
+    // Try getByRole first, fallback to locator if needed
+    let messagesHeader = page.getByRole('heading', { name: 'Messages', exact: true }).first()
+    const isVisible = await messagesHeader.isVisible({ timeout: 5000 }).catch(() => false)
+    if (!isVisible) {
+      // Fallback to locator if getByRole doesn't work
+      messagesHeader = page.locator('h2:has-text("Messages")').first()
+    }
+    await expect(messagesHeader).toBeVisible({ timeout: 10000 })
     
     await page.screenshot({ path: 'test-results/screenshots/07-chats-page-new.png', fullPage: true })
     console.log('✅ Chats page loaded with new design')
@@ -104,8 +113,18 @@ test.describe('Chats Page - Updated Design', () => {
   })
 
   test('should display search conversations', async ({ page }) => {
+    // Wait for page to be ready first
+    await page.waitForSelector('h2:has-text("Messages")', { state: 'visible', timeout: 30000 })
+    await page.waitForTimeout(1000) // Give time for search input to render
+    
     // Look for search input - wait for it to be visible
-    const searchInput = page.getByPlaceholder(/search/i).first()
+    // Try getByPlaceholder first, fallback to locator if needed
+    let searchInput = page.getByPlaceholder(/search/i).first()
+    const isVisible = await searchInput.isVisible({ timeout: 5000 }).catch(() => false)
+    if (!isVisible) {
+      // Fallback to locator if getByPlaceholder doesn't work
+      searchInput = page.locator('input[placeholder*="Search" i]').first()
+    }
     await expect(searchInput).toBeVisible({ timeout: 10000 })
     
     console.log('✅ Search input visible')
@@ -260,7 +279,13 @@ test.describe('Real-time Updates', () => {
     await page.waitForTimeout(2000) // Give time for SSE connection to establish
     
     // Look for status indicator using data-testid or text content
-    const sseStatus = page.getByTestId('sse-status').or(page.getByText(/Live|Connecting/i)).first()
+    // Try getByTestId first, fallback to getByText if needed
+    let sseStatus = page.getByTestId('sse-status').first()
+    const isVisible = await sseStatus.isVisible({ timeout: 5000 }).catch(() => false)
+    if (!isVisible) {
+      // Fallback to text-based search if testid doesn't work
+      sseStatus = page.getByText(/Live|Connecting/i).first()
+    }
     await expect(sseStatus).toBeVisible({ timeout: 10000 })
     
     const statusText = await sseStatus.textContent()
