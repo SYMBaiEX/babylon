@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X as XIcon, Check, ExternalLink, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import { signInWithFarcaster } from '@/lib/farcaster-auth-client'
 
 /**
  * Link social accounts modal component for connecting social accounts.
@@ -42,78 +43,6 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
   const { user, setUser } = useAuthStore()
   const [linking, setLinking] = useState<string | null>(null)
 
-  // Handle OAuth callback messages (for Farcaster)
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleMessage = async (event: MessageEvent) => {
-      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
-      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
-      const allowedOrigins = [
-        'https://farcaster.xyz',
-        'https://www.farcaster.xyz',
-        window.location.origin, // Also allow same-origin for development/testing
-      ]
-      if (!allowedOrigins.includes(event.origin)) {
-        return
-      }
-
-      if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
-        const { fid, username, displayName, pfpUrl } = event.data
-        
-        setLinking('farcaster')
-        
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const state = `${user?.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-        
-        const response = await fetch('/api/auth/farcaster/callback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            message: event.data.message,
-            signature: event.data.signature,
-            fid,
-            username,
-            displayName,
-            pfpUrl,
-            state,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (response.ok && data.success) {
-          if (user) {
-            setUser({
-              ...user,
-              hasFarcaster: true,
-              farcasterUsername: username,
-              reputationPoints: data.newTotal || user.reputationPoints,
-            })
-          }
-
-          if (data.pointsAwarded > 0) {
-            toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
-          } else {
-            toast.success('Farcaster account linked successfully!')
-          }
-
-          onClose()
-        } else {
-          setLinking(null)
-          throw new Error(data.error || 'Failed to link account')
-        }
-        setLinking(null)
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [isOpen, user, setUser, onClose])
-
   if (!isOpen) return null
 
   const handleTwitterOAuth = async () => {
@@ -130,41 +59,81 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     window.location.href = initiateUrl
   }
 
-  const handleFarcasterAuth = () => {
+  const handleFarcasterAuth = async () => {
     if (!user?.id) return
-    
+
     setLinking('farcaster')
 
-    // Open Farcaster protocol authentication popup
-    // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
-    const state = `${user.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-    // URL encode the channelToken to ensure special characters are properly handled
-    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${encodeURIComponent(state)}`
-    
-    const width = 600
-    const height = 700
-    const left = (window.screen.width - width) / 2
-    const top = (window.screen.height - height) / 2
-    
-    const popup = window.open(
-      authUrl,
-      'farcaster-auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    )
+    try {
+      // Use the proper SIWF protocol via relay.farcaster.xyz
+      const result = await signInWithFarcaster({
+        userId: user.id,
+      })
 
-    if (!popup) {
-      toast.error('Please allow popups to connect Farcaster')
-      setLinking(null)
-      return
-    }
+      // Send authentication data to backend for verification and linking
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const response = await fetch('/api/auth/farcaster/callback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: result.message,
+          signature: result.signature,
+          fid: result.fid,
+          username: result.username,
+          displayName: result.displayName,
+          pfpUrl: result.pfpUrl,
+          state: result.state,
+        }),
+      })
 
-    // Monitor popup
-    const checkPopup = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkPopup)
-        setLinking(null)
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setUser({
+          ...user,
+          hasFarcaster: true,
+          farcasterUsername: result.username,
+          reputationPoints: data.newTotal || user.reputationPoints,
+        })
+
+        if (data.pointsAwarded > 0) {
+          toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+        } else {
+          toast.success('Farcaster account linked successfully!')
+        }
+
+        onClose()
+      } else {
+        const errorMessage = data.error || 'Failed to link Farcaster account'
+        if (response.status === 409) {
+          toast.error(errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user')
+        } else {
+          toast.error(errorMessage)
+        }
       }
-    }, 1000)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Don't show error for user cancellation
+      if (errorMessage === 'Authentication cancelled') {
+        return
+      }
+
+      // Handle popup blocked
+      if (errorMessage.includes('popup')) {
+        toast.error('Please allow popups to connect Farcaster')
+        return
+      }
+
+      toast.error('Failed to connect Farcaster. Please try again.')
+    } finally {
+      setLinking(null)
+    }
   }
 
   return (

@@ -12,6 +12,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
 import { toast } from 'sonner'
 import { getReferralUrl } from '@/lib/referral/referral-utils'
+import { signInWithFarcaster } from '@/lib/farcaster-auth-client'
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -96,140 +97,105 @@ export function ComingSoon() {
 
   // Handle Twitter OAuth
   const handleTwitterOAuth = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Twitter OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
+    
     // Store current URL to return to
     sessionStorage.setItem('oauth_return_url', window.location.pathname)
     // Redirect to Twitter OAuth initiation
+    // Cookies should be sent automatically with the redirect
     window.location.href = '/api/auth/twitter/initiate'
   }
 
-  // Handle Farcaster OAuth - uses official Farcaster protocol (Sign In with Farcaster)
-  const handleFarcasterOAuth = () => {
+  // Handle Farcaster OAuth - uses proper Sign In with Farcaster (SIWF) protocol
+  // Creates a channel on relay.farcaster.xyz, then polls for authentication completion
+  const handleFarcasterOAuth = async () => {
     if (!dbUser?.id) {
       toast.error('Please complete your profile first')
       logger.warn('Farcaster OAuth attempted without user ID', {}, 'ComingSoon')
       return
     }
-    
-    // Open Farcaster protocol authentication popup
-    // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
-    const state = `${dbUser.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-    // URL encode the channelToken to ensure special characters are properly handled
-    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${encodeURIComponent(state)}`
-    
-    const width = 600
-    const height = 700
-    const left = (window.screen.width - width) / 2
-    const top = (window.screen.height - height) / 2
-    
-    let popup: Window | null = null
+
     try {
-      popup = window.open(
-        authUrl,
-        'farcaster-auth',
-        `width=${width},height=${height},left=${left},top=${top}`
-      )
-    } catch (error) {
-      logger.error('Error opening Farcaster popup', {
-        error: error instanceof Error ? error.message : String(error),
+      // Use the proper SIWF protocol via relay.farcaster.xyz
+      const result = await signInWithFarcaster({
         userId: dbUser.id,
-      }, 'ComingSoon')
-      toast.error('Failed to open Farcaster authentication. Please try again.')
-      return
-    }
+        onStatusUpdate: (status) => {
+          logger.debug('Farcaster auth status', { status }, 'ComingSoon')
+        },
+      })
 
-    if (!popup) {
-      toast.error('Please allow popups to connect Farcaster')
-      logger.warn('Farcaster popup blocked by browser', { userId: dbUser.id }, 'ComingSoon')
-      return
-    }
+      // Send authentication data to backend for verification and linking
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const response = await fetch('/api/auth/farcaster/callback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: result.message,
+          signature: result.signature,
+          fid: result.fid,
+          username: result.username,
+          displayName: result.displayName,
+          pfpUrl: result.pfpUrl,
+          state: result.state,
+        }),
+      })
 
-    // Listen for Farcaster auth callback from popup
-    const handleMessage = async (event: MessageEvent) => {
-      // Verify origin for security - allow messages from farcaster.xyz (protocol domain)
-      // The popup at farcaster.xyz/~/sign-in-with-farcaster posts messages back to parent
-      const allowedOrigins = [
-        'https://farcaster.xyz',
-        'https://www.farcaster.xyz',
-        window.location.origin, // Also allow same-origin for development/testing
-      ]
-      if (!allowedOrigins.includes(event.origin)) {
-        logger.warn('Rejected message from unauthorized origin', { origin: event.origin }, 'ComingSoon')
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Refresh user profile to reflect the linked Farcaster account
+        await refresh()
+
+        // Refresh waitlist position to update points
+        if (dbUser?.id) {
+          await fetchWaitlistPosition(dbUser.id)
+        }
+
+        if (data.pointsAwarded > 0) {
+          toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+        } else {
+          toast.success('Farcaster account linked successfully!')
+        }
+      } else {
+        // Show specific error message for 409 conflicts
+        const errorMessage = data.error || 'Failed to link Farcaster account'
+        if (response.status === 409) {
+          toast.error(errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user')
+        } else {
+          toast.error(errorMessage)
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Don't show error toast for user cancellation
+      if (errorMessage === 'Authentication cancelled') {
+        logger.info('Farcaster auth cancelled by user', { userId: dbUser.id }, 'ComingSoon')
         return
       }
 
-      if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
-        const { fid, username, displayName, pfpUrl } = event.data
-        
-        try {
-          const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-          const response = await fetch('/api/auth/farcaster/callback', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              message: event.data.message,
-              signature: event.data.signature,
-              fid,
-              username,
-              displayName,
-              pfpUrl,
-              state,
-            }),
-          })
-
-          const data = await response.json()
-
-          if (response.ok && data.success) {
-            // Refresh user profile to reflect the linked Farcaster account
-            await refresh()
-
-            // Refresh waitlist position to update points
-            if (dbUser?.id) {
-              await fetchWaitlistPosition(dbUser.id)
-            }
-
-            if (data.pointsAwarded > 0) {
-              toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
-            } else {
-              toast.success('Farcaster account linked successfully!')
-            }
-          } else {
-            // Show specific error message for 409 conflicts
-            const errorMessage = data.error || 'Failed to link Farcaster account'
-            if (response.status === 409) {
-              toast.error(errorMessage.includes('already linked') 
-                ? errorMessage 
-                : 'This Farcaster account is already linked to another user')
-            } else {
-              toast.error(errorMessage)
-            }
-          }
-        } catch (error) {
-          logger.error('Error linking Farcaster account', {
-            error: error instanceof Error ? error.message : String(error),
-          }, 'ComingSoon')
-          toast.error('Failed to link Farcaster account')
-        } finally {
-          window.removeEventListener('message', handleMessage)
-          if (popup && !popup.closed) {
-            popup.close()
-          }
-        }
+      // Handle popup blocked
+      if (errorMessage.includes('popup')) {
+        toast.error('Please allow popups to connect Farcaster')
+        logger.warn('Farcaster popup blocked', { userId: dbUser.id }, 'ComingSoon')
+        return
       }
+
+      logger.error('Error during Farcaster authentication', {
+        error: errorMessage,
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to connect Farcaster. Please try again.')
     }
-
-    // Add message listener for popup response
-    window.addEventListener('message', handleMessage)
-
-    // Clean up listener if popup closes without authenticating
-    const checkPopupClosed = setInterval(() => {
-      if (popup && popup.closed) {
-        clearInterval(checkPopupClosed)
-        window.removeEventListener('message', handleMessage)
-      }
-    }, 1000)
   }
 
   // If user completes onboarding, mark as waitlisted and fetch position
