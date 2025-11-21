@@ -211,10 +211,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // Resolve referral (if provided)
       let resolvedReferrerId: string | null = null
       let resolvedReferralRecordId: string | null = null
+      const normalizedCode = referralCode?.trim() || null
 
-      if (referralCode) {
-        const normalizedCode = referralCode.trim()
-
+      if (normalizedCode) {
         // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
@@ -235,31 +234,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }
         }
 
-        // Create or update referral record (idempotent for retries)
-        if (resolvedReferrerId) {
-          const newReferralRecord = await tx.referral.upsert({
-            where: {
-              referralCode_referredUserId: {
-                referralCode: normalizedCode,
-                referredUserId: canonicalUserId,
-              },
-            },
-            create: {
-              id: await generateSnowflakeId(),
-              referrerId: resolvedReferrerId,
-              referralCode: normalizedCode,
-              referredUserId: canonicalUserId,
-              status: 'pending',
-            },
-            update: {
-              // On retry, keep existing record but ensure status is pending
-              status: 'pending',
-            },
-            select: { id: true },
-          })
-          
-          resolvedReferralRecordId = newReferralRecord.id
-        }
+        // Note: Referral record will be created AFTER user upsert to satisfy FK constraint
       }
 
       const baseUserData = {
@@ -339,14 +314,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         select: selectUserSummary,
       })
 
-      if (resolvedReferralRecordId) {
-        await tx.referral.update({
-          where: { id: resolvedReferralRecordId },
-          data: {
+      // Create referral record AFTER user exists (to satisfy FK constraint)
+      if (resolvedReferrerId && normalizedCode) {
+        const referralRecord = await tx.referral.upsert({
+          where: {
+            referralCode_referredUserId: {
+              referralCode: normalizedCode,
+              referredUserId: user.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            referrerId: resolvedReferrerId,
+            referralCode: normalizedCode,
             referredUserId: user.id,
             status: 'pending',
           },
+          update: {
+            // On retry, keep existing record but ensure status is pending
+            status: 'pending',
+          },
+          select: { id: true },
         })
+        resolvedReferralRecordId = referralRecord.id
       }
 
       return {
