@@ -7,6 +7,7 @@ import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { cn } from '@/lib/utils'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
 import { Bell, Bot, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -95,7 +96,8 @@ function SidebarContent() {
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
     
-    await navigator.clipboard.writeText(user.referralCode)
+    const referralUrl = getReferralUrl(user.referralCode)
+    await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
   }

@@ -27,6 +27,7 @@ import type {
 } from 'agent0-sdk'
 import type { JsonValue } from '@/types/common'
 import { parseCapabilities } from './capabilities-schema'
+import { getContractAddresses } from '@/lib/deployment/addresses'
 
 export class Agent0Client implements IAgent0Client {
   private sdk: SDK | null
@@ -94,6 +95,29 @@ export class Agent0Client implements IAgent0Client {
           ipfsNodeUrl = 'https://ipfs.io'
         }
         
+        // Get contract addresses for registry overrides (needed for localnet)
+        let registryOverrides: SDKConfig['registryOverrides'] | undefined
+        if (this.chainId === 31337) {
+          // For localnet, provide reputation registry address from local deployment
+          try {
+            const contracts = getContractAddresses()
+            if (contracts.reputationSystem && contracts.reputationSystem !== '0x0000000000000000000000000000000000000000') {
+              registryOverrides = {
+                [this.chainId]: {
+                  REPUTATION: contracts.reputationSystem as `0x${string}`,
+                  IDENTITY: contracts.identityRegistry as `0x${string}`
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn(
+              'Failed to get contract addresses for registry overrides',
+              { error: error instanceof Error ? error.message : String(error) },
+              'Agent0Client'
+            )
+          }
+        }
+        
         const sdkConfig: SDKConfig = {
           chainId: this.chainId,
           rpcUrl: this.config.rpcUrl,
@@ -102,7 +126,8 @@ export class Agent0Client implements IAgent0Client {
           ipfsNodeUrl: ipfsNodeUrl,
           pinataJwt: this.config.pinataJwt,
           filecoinPrivateKey: this.config.filecoinPrivateKey,
-          subgraphUrl: this.config.subgraphUrl
+          subgraphUrl: this.config.subgraphUrl,
+          registryOverrides
         }
         
         this.sdk = new SDK(sdkConfig)

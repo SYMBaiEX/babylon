@@ -40,6 +40,8 @@ export interface PredictionResolutionSSE {
   liquidity?: number;
   totalPayout: number;
   timestamp: string;
+  resolutionProofUrl?: string;
+  resolutionDescription?: string;
 }
 
 /**

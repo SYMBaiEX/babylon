@@ -166,6 +166,18 @@ export const GET = withErrorHandling(async (
   
   const totalFeesEarned = Number(feeEarnings._sum.referrerFee || 0)
 
+  // Calculate weekly referral count (last 7 days)
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weeklyReferralCount = await prisma.referral.count({
+    where: {
+      referrerId: canonicalUserId,
+      status: 'completed',
+      completedAt: {
+        gte: oneWeekAgo,
+      },
+    },
+  });
+
   // Check if referrer (current user) is following the referred users
   const referredUserIds = referrals
     .map(r => r.referredUserId)
@@ -228,6 +240,8 @@ export const GET = withErrorHandling(async (
       totalFeesEarned,
       feeShareRate: 0.50, // 50% of fees
       followingCount: followingUserIds.size,
+      weeklyReferralCount,
+      weeklyLimit: 10,
     },
     referredUsers,
     referralUrl,

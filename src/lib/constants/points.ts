@@ -15,14 +15,17 @@
  */
 export const POINTS = {
   INITIAL_SIGNUP: 1000,
-  PROFILE_COMPLETION: 1000, // Username + Profile Image + Bio (consolidated)
-  FARCASTER_LINK: 1000,
-  TWITTER_LINK: 1000,
-  WALLET_CONNECT: 1000,
-  SHARE_ACTION: 1000,
-  SHARE_TO_TWITTER: 1000,
-  REFERRAL_SIGNUP: 250, // Reward for referrer
-  REFERRAL_BONUS: 250,  // Bonus for new user who used a referral code
+  PROFILE_COMPLETION: 200, // Username + Profile Image + Bio (consolidated)
+  FARCASTER_LINK: 300,
+  TWITTER_LINK: 300,
+  WALLET_CONNECT: 300,
+  SHARE_ACTION: 500,
+  SHARE_TO_TWITTER: 500,
+  REFERRAL_SIGNUP: 100, // Reward for referrer when someone signs up
+  REFERRAL_BONUS: 100,  // Bonus for new user who used a referral code (on top of base signup)
+  REFERRAL_QUALIFIED: 100, // Bonus for referrer when referred user completes profile
+  PRIVATE_GROUP_CREATE: 200, // Reward for creating a private group
+  PRIVATE_CHANNEL_CREATE: 200, // Reward for creating a private channel
 } as const;
 
 /**
@@ -41,6 +44,9 @@ export type PointsReason =
   | 'share_to_twitter'
   | 'referral_signup'
   | 'referral_bonus'
+  | 'referral_qualified'
+  | 'private_group_create'
+  | 'private_channel_create'
   | 'admin_award'
   | 'admin_deduction'
   | 'purchase'

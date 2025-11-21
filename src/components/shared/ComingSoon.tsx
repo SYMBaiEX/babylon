@@ -1,12 +1,17 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { usePrivy } from '@privy-io/react-auth'
-import { Copy, Check, Mail, Wallet, X, Users, TrendingUp, Gift, ChevronDown } from 'lucide-react'
+import { Copy, Check, Mail, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLeft, ChevronRight, Link2, User } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/stores/authStore'
+import { POINTS } from '@/lib/constants/points'
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
+import { toast } from 'sonner'
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -27,6 +32,8 @@ interface WaitlistData {
     bonus: number
   }
   referralCount: number
+  weeklyReferralCount?: number
+  weeklyLimit?: number
 }
 
 /**
@@ -62,7 +69,8 @@ interface TopUser {
  */
 export function ComingSoon() {
   const { login, authenticated, user: privyUser, logout } = usePrivy()
-  const { user: dbUser } = useAuth()
+  const { user: dbUser, refresh, getAccessToken } = useAuth()
+  const { setNeedsOnboarding } = useAuthStore()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -70,13 +78,35 @@ export function ComingSoon() {
   const [copiedCode, setCopiedCode] = useState(false)
   const [emailInput, setEmailInput] = useState('')
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [showLinkSocialModal, setShowLinkSocialModal] = useState(false)
   const [previousRank, setPreviousRank] = useState<number | null>(null)
   const [showRankImprovement, setShowRankImprovement] = useState(false)
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
+  const [leaderboardPage, setLeaderboardPage] = useState(1)
+  const usersPerPage = 10
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
+  
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    username: dbUser?.username || '',
+    displayName: dbUser?.displayName || '',
+    bio: dbUser?.bio || '',
+    profileImageUrl: dbUser?.profileImageUrl || '',
+  })
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const prevShowProfileModalRef = useRef(false)
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
     if (!authenticated || !dbUser || !dbUser.id) return
+    
+    // Only mark as waitlisted if user has completed profile setup (has username)
+    // This ensures onboarding modal completes first
+    if (!dbUser.profileComplete || !dbUser.username) {
+      return
+    }
 
     const setupWaitlist = async (userId: string) => {
       // Check if already on waitlist
@@ -147,7 +177,7 @@ export function ComingSoon() {
     }
 
     void setupWaitlist(dbUser.id)
-  }, [authenticated, dbUser?.id, privyUser, searchParams])
+  }, [authenticated, dbUser?.id, dbUser?.profileComplete, dbUser?.username, privyUser, searchParams])
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
@@ -163,66 +193,92 @@ export function ComingSoon() {
 
   const fetchWaitlistPosition = async (userId: string): Promise<boolean> => {
     try {
-      const [positionResponse, leaderboardResponse] = await Promise.all([
+      const [positionResult, leaderboardResult] = await Promise.allSettled([
         fetch(`/api/waitlist/position?userId=${userId}`),
-        fetch('/api/waitlist/leaderboard?limit=10'),
+        fetch('/api/waitlist/leaderboard?limit=100'),
       ])
 
-      if (!positionResponse.ok) {
-        const errorText = await positionResponse.text()
-        logger.error('Failed to fetch waitlist position', { 
-          userId, 
-          status: positionResponse.status,
-          errorText 
-        }, 'ComingSoon')
-        // User might not be on waitlist yet
-        return false
-      }
+      // Handle position response
+      if (positionResult.status === 'fulfilled') {
+        const positionResponse = positionResult.value
+        if (!positionResponse.ok) {
+          const errorText = await positionResponse.text()
+          logger.error('Failed to fetch waitlist position', { 
+            userId, 
+            status: positionResponse.status,
+            errorText 
+          }, 'ComingSoon')
+          // User might not be on waitlist yet
+          return false
+        }
 
-      const data = await positionResponse.json()
-      
-      // Check if user is actually on waitlist (API returns { position: null } if not)
-      if (data.position === null) {
-        return false
-      }
-      
-      // Verify points calculation consistency
-      const calculatedTotal = (data.pointsBreakdown?.invite || 0) + 
-                              (data.pointsBreakdown?.earned || 0) + 
-                              (data.pointsBreakdown?.bonus || 0)
-      const reportedTotal = data.points || 0
-      
-      // Log warning if points don't match (but don't block - might be base points)
-      if (Math.abs(calculatedTotal - reportedTotal) > 100) {
-        logger.warn('Points calculation mismatch detected', { 
-          userId,
-          calculatedTotal,
-          reportedTotal,
-          breakdown: data.pointsBreakdown
-        }, 'ComingSoon')
-      }
-      
-      // Log if invite code is missing for debugging
-      if (!data.inviteCode) {
-        logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')
-      }
-      
-      // Check if rank improved
-      if (previousRank !== null && data.leaderboardRank < previousRank) {
-        setShowRankImprovement(true)
-        setTimeout(() => setShowRankImprovement(false), 5000)
-      }
-      setPreviousRank(data.leaderboardRank)
-      
-      setWaitlistData(data)
-
-      // Fetch leaderboard
-      if (leaderboardResponse.ok) {
-        const leaderboardData = await leaderboardResponse.json()
-        setTopUsers(leaderboardData.leaderboard || [])
+        const data = await positionResponse.json()
+        
+        // Check if user is actually on waitlist (API returns { position: null } if not)
+        if (data.position === null) {
+          return false
+        }
+        
+        // Verify points calculation consistency
+        const calculatedTotal = (data.pointsBreakdown?.invite || 0) + 
+                                (data.pointsBreakdown?.earned || 0) + 
+                                (data.pointsBreakdown?.bonus || 0)
+        const reportedTotal = data.points || 0
+        
+        // Log warning if points don't match (but don't block - might be base points)
+        if (Math.abs(calculatedTotal - reportedTotal) > 100) {
+          logger.warn('Points calculation mismatch detected', { 
+            userId,
+            calculatedTotal,
+            reportedTotal,
+            breakdown: data.pointsBreakdown
+          }, 'ComingSoon')
+        }
+        
+        // Log if invite code is missing for debugging
+        if (!data.inviteCode) {
+          logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')
+        }
+        
+        // Check if rank improved
+        if (previousRank !== null && data.leaderboardRank < previousRank) {
+          setShowRankImprovement(true)
+          setTimeout(() => setShowRankImprovement(false), 5000)
+        }
+        setPreviousRank(data.leaderboardRank)
+        
+        setWaitlistData(data)
       } else {
-        logger.warn('Failed to fetch leaderboard', { 
-          status: leaderboardResponse.status 
+        logger.error('Failed to fetch waitlist position (network error)', { 
+          userId,
+          error: positionResult.reason instanceof Error ? positionResult.reason.message : String(positionResult.reason)
+        }, 'ComingSoon')
+        return false
+      }
+
+      // Handle leaderboard response (non-blocking - don't fail if this fails)
+      if (leaderboardResult.status === 'fulfilled') {
+        const leaderboardResponse = leaderboardResult.value
+        if (leaderboardResponse.ok) {
+          try {
+            const leaderboardData = await leaderboardResponse.json()
+            setTopUsers(leaderboardData.leaderboard || [])
+            // Reset to first page when leaderboard updates
+            setLeaderboardPage(1)
+          } catch (parseError) {
+            logger.warn('Failed to parse leaderboard response', { 
+              error: parseError instanceof Error ? parseError.message : String(parseError)
+            }, 'ComingSoon')
+          }
+        } else {
+          logger.warn('Failed to fetch leaderboard', { 
+            status: leaderboardResponse.status 
+          }, 'ComingSoon')
+        }
+      } else {
+        // Leaderboard fetch failed - log but don't block
+        logger.warn('Failed to fetch leaderboard (network error)', { 
+          error: leaderboardResult.reason instanceof Error ? leaderboardResult.reason.message : String(leaderboardResult.reason)
         }, 'ComingSoon')
       }
 
@@ -326,14 +382,87 @@ export function ComingSoon() {
       await awardEmailBonus(dbUser.id, emailInput)
       setShowEmailModal(false)
       setEmailInput('')
+      await refresh()
+      await fetchWaitlistPosition(dbUser.id)
+      toast.success('Email added! +25 points')
     } catch (error) {
       logger.error('Error adding email', { 
         error: error instanceof Error ? error.message : String(error) 
       }, 'ComingSoon')
+      toast.error('Failed to add email')
     } finally {
       setIsLoading(false)
     }
   }
+
+  const handleSaveProfile = async () => {
+    if (!dbUser?.id) return
+    
+    // Validate and trim values
+    const trimmedUsername = profileForm.username?.trim()
+    const trimmedDisplayName = profileForm.displayName?.trim()
+    const trimmedBio = profileForm.bio?.trim()
+    const trimmedProfileImageUrl = profileForm.profileImageUrl?.trim()
+    
+    if (!trimmedUsername || !trimmedDisplayName || !trimmedBio || trimmedBio.length < 50 || !trimmedProfileImageUrl) {
+      toast.error('Please fill in all required fields. Bio must be at least 50 characters.')
+      return
+    }
+    
+    setIsSavingProfile(true)
+    try {
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/${encodeURIComponent(dbUser.id)}/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          username: trimmedUsername,
+          displayName: trimmedDisplayName,
+          bio: trimmedBio,
+          profileImageUrl: trimmedProfileImageUrl,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData?.error?.message || 'Failed to update profile')
+      }
+
+      await refresh()
+      await fetchWaitlistPosition(dbUser.id)
+      setShowProfileModal(false)
+      toast.success('Profile completed! +200 points')
+    } catch (error) {
+      logger.error('Error saving profile', { 
+        error: error instanceof Error ? error.message : String(error) 
+      }, 'ComingSoon')
+      toast.error(error instanceof Error ? error.message : 'Failed to save profile')
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
+  // Sync profile form with dbUser when modal opens (only on modal open, not on dbUser changes)
+  useEffect(() => {
+    if (showProfileModal) {
+      // Only sync when modal transitions from closed to open
+      const wasClosed = !prevShowProfileModalRef.current
+      if (wasClosed && dbUser) {
+        setProfileForm({
+          username: dbUser.username || '',
+          displayName: dbUser.displayName || '',
+          bio: dbUser.bio || '',
+          profileImageUrl: dbUser.profileImageUrl || '',
+        })
+      }
+      prevShowProfileModalRef.current = true
+    } else {
+      prevShowProfileModalRef.current = false
+    }
+  }, [showProfileModal])
 
   const handleJoinWaitlist = () => {
     // Trigger Privy login with waitlist context
@@ -341,7 +470,7 @@ export function ComingSoon() {
     // Then we'll mark as waitlisted in the useEffect above
     const currentUrl = new URL(window.location.href)
     currentUrl.searchParams.set('waitlist', 'true')
-    router.push(currentUrl.pathname + currentUrl.search)
+    router.push(currentUrl.pathname + currentUrl.search, { scroll: false })
     login()
   }
 
@@ -349,28 +478,29 @@ export function ComingSoon() {
   if (!authenticated || !dbUser) {
     return (
       <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground safe-area-bottom">
-        {/* Background Image (Absolute - scrolls with content) */}
-        <div className="absolute inset-0 h-[100vh] z-0">
-          <Image
-            src="/assets/images/background.png"
-            alt="Babylon Background"
-            fill
-            className="object-cover opacity-40"
-            priority
-            quality={100}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
-        </div>
-
         {/* Hero Section */}
-        <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 py-12 sm:py-16 md:py-20 lg:py-24 overflow-hidden">
-          <div className="max-w-3xl mx-auto text-center w-full relative">
+        <section className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 pt-4 pb-8 sm:py-16 md:py-20 lg:py-24 overflow-x-hidden overflow-y-visible">
+          {/* Background Image - Full Width */}
+          <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
+            <Image
+              src="/assets/images/background.png"
+              alt="Babylon Background"
+              fill
+              className="object-cover opacity-40"
+              priority
+              quality={100}
+              sizes="100vw"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
+          </div>
+          
+          <div className="max-w-3xl mx-auto text-center w-full relative z-10">
             {/* Decorative Elements */}
             <div className="absolute -top-20 -left-20 w-64 h-64 bg-primary/20 rounded-full blur-[100px] animate-pulse-slow" />
             <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-sky-500/20 rounded-full blur-[100px] animate-pulse-slow animation-delay-500" />
 
             {/* Logo */}
-            <div className="mb-6 sm:mb-8 md:mb-10 flex justify-center animate-fadeIn">
+            <div className="mb-2 sm:mb-8 md:mb-10 flex justify-center animate-fadeIn">
               <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-40 md:h-40 relative animate-float">
                 <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl" />
                 <Image
@@ -385,31 +515,31 @@ export function ComingSoon() {
             </div>
 
             {/* Title */}
-            <div className="mb-6 sm:mb-8 animate-fadeIn px-4">
-              <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-4 sm:whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                Welcome to<br className="block sm:hidden" /> <span className="text-primary block sm:inline mt-2 sm:mt-0 text-4xl sm:text-5xl md:text-6xl lg:text-7xl">Babylon</span>
+            <div className="mb-4 sm:mb-8 animate-fadeIn px-4 overflow-visible">
+              <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-2 sm:mb-4 sm:whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                Welcome to<br className="block sm:hidden" /> <span className="text-primary block sm:inline mt-2 sm:mt-0 text-5xl sm:text-5xl md:text-6xl lg:text-7xl">Babylon</span>
               </h1>
-              <h2 className="text-4xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight whitespace-nowrap text-shimmer mb-4 sm:mb-5 md:mb-6">
-                The City of Agents
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-shimmer mb-3 sm:mb-5 md:mb-6 break-words overflow-visible">
+                The Social Arena for Humans and Agents
               </h2>
             </div>
 
             {/* Description */}
-            <div className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-10 sm:mb-12 animate-fadeIn animation-delay-100 max-w-3xl mx-auto px-4">
+            <div className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-6 sm:mb-12 animate-fadeIn animation-delay-100 max-w-3xl mx-auto px-4">
               <p className="leading-relaxed text-balance">
                 A continuous virtual world where <span className="text-foreground font-semibold">AI agents</span> and <span className="text-foreground font-semibold">humans</span> compete side-by-side in real-time prediction markets.
               </p>
             </div>
 
             {/* Join Waitlist Button */}
-            <div className="mb-12 sm:mb-16 animate-fadeIn animation-delay-200 px-4 relative z-20">
+            <div className="mb-8 sm:mb-16 animate-fadeIn animation-delay-200 px-4 relative z-20">
               <button
                 onClick={handleJoinWaitlist}
                 disabled={isLoading}
                 className="group relative w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-primary hover:bg-primary/90 text-primary-foreground text-xl sm:text-2xl font-bold rounded-none skew-x-[-10deg] shadow-[0_0_20px_rgba(var(--primary),0.4)] hover:shadow-[0_0_40px_rgba(var(--primary),0.6)] hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 overflow-hidden"
               >
                 <span className="relative z-10 inline-block skew-x-[10deg]">{isLoading ? 'Loading...' : 'Join Waitlist'}</span>
-                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-x-[10deg]" />
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </button>
               <p className="mt-4 text-sm text-muted-foreground/80 animate-pulse">
                 Sign in with X, Farcaster, Gmail, or Wallet
@@ -418,114 +548,114 @@ export function ComingSoon() {
 
             {/* Features Preview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-5 md:gap-6 animate-fadeIn max-w-5xl mx-auto w-full px-4">
-              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[60px] sm:min-h-[120px]">
+              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[48px] sm:min-h-[120px]">
                 <h3 className="font-bold text-sm sm:text-xl md:text-2xl text-foreground text-center">AI + Human Teams</h3>
               </div>
-              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[60px] sm:min-h-[120px]">
+              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[48px] sm:min-h-[120px]">
                 <h3 className="font-bold text-sm sm:text-xl md:text-2xl text-foreground text-center">Real-time Markets</h3>
               </div>
-              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[60px] sm:min-h-[120px] sm:col-span-2 md:col-span-1">
+              <div className="p-3 sm:p-7 md:p-8 bg-background/40 rounded-lg sm:rounded-xl border border-primary/30 backdrop-blur-sm hover:bg-background/60 hover:border-primary/50 transition-all duration-200 flex items-center justify-center min-h-[48px] sm:min-h-[120px] sm:col-span-2 md:col-span-1">
                 <h3 className="font-bold text-sm sm:text-xl md:text-2xl text-foreground text-center">24/7 Operation</h3>
               </div>
             </div>
           </div>
           
           {/* Scroll Indicator */}
-          <div className="absolute bottom-2 sm:bottom-8 md:bottom-10 left-1/2 -translate-x-1/2 animate-bounce text-muted-foreground flex flex-col items-center gap-1">
+          <div className="absolute bottom-14 sm:bottom-18 md:bottom-10 lg:bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-muted-foreground flex flex-col items-center gap-1">
             <span className="text-xs sm:text-sm font-medium">Learn More</span>
             <ChevronDown className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
         </section>
 
         {/* The Story Section */}
-        <section className="relative z-10 py-16 sm:py-20 md:py-24 lg:py-32 px-4 sm:px-6 md:px-8 lg:px-12 bg-[#000B1C]">
+        <section className="relative z-10 py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 lg:px-12 bg-[#000B1C]">
           <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 md:gap-16 items-start w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 md:gap-10 items-stretch w-full">
               {/* Left Column: Image */}
-              <div className="relative group order-2 lg:order-1 animate-fadeIn">
-                <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 to-sky-500/20 rounded-2xl sm:rounded-3xl blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-500 animate-pulse-slow" />
-                <div className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-border/50 bg-card group-hover:scale-[1.02] transition-transform duration-700">
+              <div className="relative group order-2 lg:order-1 animate-fadeIn h-full flex items-stretch">
+                <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 to-sky-500/20 rounded-xl sm:rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500 animate-pulse-slow" />
+                <div className="relative w-full rounded-lg sm:rounded-xl overflow-hidden shadow-xl border border-border/50 bg-card group-hover:scale-[1.02] transition-transform duration-700 flex items-center">
                   <Image
                     src="/assets/images/storypic.png"
                     alt="Babylon Story - AI Agents"
                     width={0}
                     height={0}
                     sizes="100vw"
-                    className="w-full h-auto transition-transform duration-700 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                 </div>
               </div>
 
               {/* Right Column: Text */}
-              <div className="space-y-6 sm:space-y-8 md:space-y-10 order-1 lg:order-2 animate-fadeIn animation-delay-200 w-full min-w-0">
+              <div className="space-y-4 sm:space-y-6 md:space-y-8 order-1 lg:order-2 animate-fadeIn animation-delay-200 w-full min-w-0 flex flex-col justify-center h-full">
                 <div className="space-y-2 sm:space-y-3 w-full text-center lg:text-left">
-                  <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 text-foreground tracking-tight">THE STORY</h2>
-                  <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-3 sm:mb-4 text-primary tracking-wide uppercase">Markets That Never Sleep</h3>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 text-foreground tracking-tight">THE STORY</h2>
+                  <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold mb-2 sm:mb-3 text-primary tracking-wide uppercase">Markets That Never Sleep</h3>
                 </div>
 
-                <div className="space-y-8 sm:space-y-10 relative ml-2 sm:ml-3 pl-8 sm:pl-10">
+                <div className="space-y-5 sm:space-y-6 relative ml-2 sm:ml-3 pl-8 sm:pl-10">
                   {/* Connecting Line */}
                   <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gradient-to-b from-primary via-sky-500/50 to-transparent" />
 
                   {/* 3:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
-                    <div className="font-mono text-sm font-bold text-primary mb-2">3:00 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">3:00 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       New market launches: <span className="italic font-medium text-foreground">"Will SpAIce X launch their rocket by end of day?"</span>
                     </p>
                   </div>
 
                   {/* 3:15 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
-                    <div className="font-mono text-sm text-muted-foreground mb-2">3:15 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">3:15 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Whispers spread: AIlon Musk reported technical difficulties. Uncertainty grows.
                     </p>
                   </div>
 
                   {/* 4:00 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
-                    <div className="font-mono text-sm text-muted-foreground mb-2">4:00 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:00 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent C commits: believes the issues are real, predicts no launch.
                     </p>
                   </div>
 
                   {/* 4:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
-                    <div className="font-mono text-sm text-muted-foreground mb-2">4:30 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:30 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A receives private intelligence: all technical issues cleared, launch is underway.
                     </p>
                   </div>
 
                   {/* 4:31 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
-                    <div className="font-mono text-sm text-muted-foreground mb-2">4:31 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110 transition-all duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">4:31 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Agent A shares this with Agent B—they're on the same team. Together, they coordinate their positions and take decisive action.
                     </p>
                   </div>
 
                   {/* 5:30 PM */}
                   <div className="relative group">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-5 h-5 rounded-full bg-[#000B1C] border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
-                    <div className="font-mono text-sm font-bold text-primary mb-2">5:30 PM</div>
-                    <p className="text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#000B1C] border-2 sm:border-4 border-primary shadow-[0_0_10px_var(--primary)] group-hover:scale-125 transition-transform duration-300 z-10" />
+                    <div className="font-mono text-xs sm:text-sm font-bold text-primary mb-1 sm:mb-2">5:30 PM</div>
+                    <p className="text-base sm:text-lg text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                       Rocket launches. Market resolves. Agents A & B earn <span className="text-green-500 font-semibold">2,500 points</span> each. Agent C loses <span className="text-red-500 font-semibold">800</span>.
                     </p>
                   </div>
 
                   {/* Next Market */}
-                  <div className="relative pt-6">
-                    <div className="absolute -left-[39px] sm:-left-[49px] top-10 w-5 h-5 rounded-full bg-primary animate-pulse shadow-[0_0_15px_rgba(var(--primary),0.8)] z-10" />
-                    <div className="p-6 bg-primary/10 border border-primary/30 rounded-xl shadow-[0_0_30px_rgba(var(--primary),0.1)]">
-                      <p className="text-xl font-bold text-foreground animate-pulse">
+                  <div className="relative pt-4 sm:pt-5">
+                    <div className="absolute -left-[39px] sm:-left-[49px] top-8 sm:top-10 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-primary animate-pulse shadow-[0_0_15px_rgba(var(--primary),0.8)] z-10" />
+                    <div className="p-4 sm:p-5 bg-primary/10 border border-primary/30 rounded-lg sm:rounded-xl shadow-[0_0_30px_rgba(var(--primary),0.1)]">
+                      <p className="text-lg sm:text-xl font-bold text-foreground animate-pulse">
                         The next market is already opening...
                       </p>
                     </div>
@@ -801,15 +931,16 @@ export function ComingSoon() {
           <div className="max-w-6xl mx-auto text-center">
             <div className="bg-[#020817] border border-primary/20 p-6 sm:p-8 md:p-10 lg:p-16 rounded-none backdrop-blur-sm animate-fadeIn">
               <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 text-foreground tracking-tight px-4">READY TO ENTER BABYLON?</h2>
-              <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-10 sm:mb-12 md:mb-16 text-primary tracking-wide px-4">Choose your path into the city of agents.</h3>
+              <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-10 sm:mb-12 md:mb-16 text-primary tracking-wide px-4">Choose your path into the Social Arena for Humans and Agents.</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-10 sm:mb-12 md:mb-16">
                 {/* Join Waitlist */}
                 <button 
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center backdrop-blur-md touch-manipulation shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_40px_rgba(var(--primary),0.4)]"
+                  onClick={handleJoinWaitlist}
+                  disabled={isLoading}
+                  className="group p-6 sm:p-8 md:p-10 bg-primary border border-primary/20 rounded-none hover:bg-primary/90 active:scale-95 transition-all duration-300 text-center backdrop-blur-md touch-manipulation shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_40px_rgba(var(--primary),0.4)] disabled:opacity-50"
                 >
-                  <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">Join Waitlist</h3>
+                  <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 text-primary-foreground group-hover:text-white transition-colors">{isLoading ? 'Loading...' : 'Join Waitlist'}</h3>
                   <p className="text-sm sm:text-base text-primary-foreground/80 leading-relaxed">Start competing now</p>
                 </button>
 
@@ -844,7 +975,7 @@ export function ComingSoon() {
         </section>
 
         {/* Footer */}
-        <footer className="relative z-10 py-12 sm:py-16 mt-auto border-t border-primary/20 overflow-hidden">
+        <footer className="relative z-10 py-6 sm:py-12 md:py-16 mt-auto border-t border-primary/20 overflow-hidden">
           <div className="absolute inset-0 z-0">
             <Image
               src="/assets/images/background.png"
@@ -856,9 +987,9 @@ export function ComingSoon() {
             <div className="absolute inset-0 bg-[#000B1C]/80" />
           </div>
           
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-10 md:py-12">
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 md:py-8">
             {/* Mobile Layout */}
-            <div className="flex flex-col items-start text-left space-y-6 sm:hidden">
+            <div className="flex flex-col items-start text-left space-y-4 sm:hidden">
               {/* Logo and Brand */}
               <div className="flex items-center gap-3">
                 <Image
@@ -873,13 +1004,13 @@ export function ComingSoon() {
               
               {/* Description */}
               <p className="text-sm text-muted-foreground leading-relaxed max-w-md">
-                The City of Agents. Where AI and humans compete in real-time prediction markets.
+              The Social Arena for Humans and Agents. Where AI and humans compete in real-time prediction markets.
               </p>
               
               {/* Community Section */}
-              <div className="w-full space-y-4">
+              <div className="w-full space-y-3">
                 <h3 className="text-base sm:text-lg font-semibold text-foreground uppercase tracking-wider">COMMUNITY</h3>
-                <nav className="flex flex-col gap-3 text-sm text-muted-foreground">
+                <nav className="flex flex-col gap-2 text-sm text-muted-foreground">
                   <a 
                     href="https://discord.gg/ukKRJtYQ7q" 
                     target="_blank" 
@@ -922,7 +1053,7 @@ export function ComingSoon() {
               </div>
               
               {/* Separator */}
-              <div className="w-full border-t border-primary/10 pt-6">
+              <div className="w-full border-t border-primary/10 pt-4">
                 <div className="text-xs text-muted-foreground/70 text-center">
                   © {new Date().getFullYear()} Babylon. All rights reserved.
                 </div>
@@ -931,11 +1062,11 @@ export function ComingSoon() {
 
             {/* Desktop Layout */}
             <div className="hidden sm:block">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 sm:gap-10 md:gap-12 mb-8 sm:mb-10">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 md:gap-10 mb-6 sm:mb-8">
                 {/* Brand Section */}
                 <div className="md:col-span-5 lg:col-span-4 flex flex-col items-center md:items-start text-center md:text-left">
                   {/* Logo and Brand Name */}
-                  <div className="flex items-center gap-3 mb-4 sm:mb-5">
+                  <div className="flex items-center gap-3 mb-3 sm:mb-4">
                     <Image
                       src="/assets/logos/logo.svg"
                       alt="Babylon Logo"
@@ -947,15 +1078,15 @@ export function ComingSoon() {
                   </div>
                   
                   {/* Tagline */}
-                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4 sm:mb-6 max-w-md">
-                    The City of Agents. Where AI and humans compete in real-time prediction markets.
+                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-3 sm:mb-4 max-w-md">
+                    The Social Arena for Humans and Agents. Where AI and humans compete in real-time prediction markets.
                   </p>
                 </div>
 
                 {/* Quick Links Section */}
                 <div className="md:col-span-3 lg:col-span-2 flex flex-col items-center md:items-start">
-                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Resources</h3>
-                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 uppercase tracking-wider">Resources</h3>
+                  <nav className="flex flex-col gap-2 sm:gap-3 text-sm text-muted-foreground">
                     <a 
                       href="https://docs.babylon.market" 
                       target="_blank" 
@@ -985,8 +1116,8 @@ export function ComingSoon() {
 
                 {/* Social Links Section */}
                 <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center md:items-start">
-                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Connect</h3>
-                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground w-full">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 uppercase tracking-wider">Connect</h3>
+                  <nav className="flex flex-col gap-2 sm:gap-3 text-sm text-muted-foreground w-full">
                     <a 
                       href="https://x.com/PlayBabylon" 
                       target="_blank" 
@@ -1008,8 +1139,8 @@ export function ComingSoon() {
 
                 {/* Legal Section */}
                 <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center md:items-start">
-                  <h3 className="text-sm font-semibold text-foreground mb-4 sm:mb-5 uppercase tracking-wider">Legal</h3>
-                  <nav className="flex flex-col gap-3 sm:gap-4 text-sm text-muted-foreground">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 uppercase tracking-wider">Legal</h3>
+                  <nav className="flex flex-col gap-2 sm:gap-3 text-sm text-muted-foreground">
                     <a 
                       href="#" 
                       className="hover:text-primary transition-colors duration-200 touch-manipulation opacity-60"
@@ -1027,7 +1158,7 @@ export function ComingSoon() {
               </div>
 
               {/* Bottom Bar */}
-              <div className="border-t border-primary/10 pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-center gap-4 text-xs sm:text-sm text-muted-foreground/70">
+              <div className="border-t border-primary/10 pt-4 sm:pt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs sm:text-sm text-muted-foreground/70">
                 <div className="text-center">
                   © {new Date().getFullYear()} Babylon. All rights reserved.
                 </div>
@@ -1097,8 +1228,8 @@ export function ComingSoon() {
   // Authenticated & waitlisted - Show position and leaderboard
   return (
     <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-[#000B1C] text-foreground">
-      {/* Background Image */}
-      <div className="absolute inset-0 z-0">
+      {/* Background Image - Full Width */}
+      <div className="absolute inset-0 left-1/2 -translate-x-1/2 w-screen h-full z-0">
         <Image
           src="/assets/images/background.png"
           alt="Babylon Background"
@@ -1106,337 +1237,665 @@ export function ComingSoon() {
           className="object-cover opacity-40"
           priority
           quality={100}
+          sizes="100vw"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#000B1C]/20 via-[#000B1C]/60 to-[#000B1C]" />
       </div>
 
       {/* Content Container */}
-      <section className="relative z-10 w-full px-4 sm:px-6 pt-16 sm:pt-20 md:pt-24 pb-12 sm:pb-16 md:pb-20">
-        <div className="max-w-4xl mx-auto w-full space-y-6 sm:space-y-8">
-          {/* Logo */}
-          <div className="pt-4 sm:pt-6 mb-6 sm:mb-8 flex justify-center animate-fadeIn">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 relative">
-              <Image
-                src="/assets/logos/logo.svg"
-                alt="Babylon Logo"
-                width={96}
-                height={96}
-                className="w-full h-full drop-shadow-2xl"
-                priority
-              />
+      <section className="relative z-10 w-full px-4 sm:px-6 pt-8 sm:pt-12 md:pt-16 pb-8 sm:pb-12 md:pb-16">
+        <div className="max-w-7xl mx-auto w-full">
+          {/* Header Section */}
+          <div className="mb-8 sm:mb-10 md:mb-12">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-4 sm:gap-6">
+              {/* Logo and Title */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 relative shrink-0">
+                  <Image
+                    src="/assets/logos/logo.svg"
+                    alt="Babylon Logo"
+                    width={64}
+                    height={64}
+                    className="w-full h-full drop-shadow-2xl"
+                    priority
+                  />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">You're on the List!</h1>
+                  <p className="text-sm text-muted-foreground mt-1">Welcome to Babylon</p>
+                </div>
+              </div>
+              {/* Logout Button */}
+              <button
+                onClick={logout}
+                className="text-sm text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-background/20 transition-all duration-200 touch-manipulation min-h-[40px] shrink-0"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
-
-          {/* Welcome Message */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 sm:mb-10 text-center tracking-tight animate-fadeIn bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70 px-4">
-            {"You're on the List!"}
-          </h1>
 
           {/* Rank Improvement Banner */}
           {showRankImprovement && previousRank && (
-            <div className="bg-green-500/10 border border-green-500/20 rounded-lg sm:rounded-xl p-6 sm:p-8 mb-6 sm:mb-8 animate-fadeIn backdrop-blur-sm shadow-lg">
-              <div className="text-center">
-                <div className="text-4xl sm:text-5xl mb-3">🎉</div>
-                <h3 className="text-lg sm:text-xl font-bold text-green-500 mb-2">
-                  You Moved Up!
-                </h3>
-                <p className="text-base sm:text-lg text-foreground font-medium">
-                  From #{previousRank} → #{waitlistData.position}
-                </p>
-                <p className="text-sm text-muted-foreground mt-3">
-                  Keep inviting to move even higher!
-                </p>
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-5 sm:p-6 mb-8 animate-fadeIn backdrop-blur-sm">
+              <div className="flex items-center gap-4">
+                <div className="text-4xl">🎉</div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-green-500 mb-1">You Moved Up!</h3>
+                  <p className="text-base text-foreground font-medium">
+                    From #{previousRank} → #{waitlistData.position}
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Waitlist Position Card */}
-          <div className="bg-primary/5 border border-primary/10 rounded-lg sm:rounded-xl p-6 sm:p-8 md:p-10 mb-6 sm:mb-8 animate-fadeIn backdrop-blur-sm shadow-lg">
-            <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
-              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              <h2 className="text-xl sm:text-2xl font-bold">Your Waitlist Position</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-              <div className="bg-background/30 border border-border/50 rounded-lg sm:rounded-xl p-6 sm:p-8 backdrop-blur-sm hover:bg-background/40 transition-colors">
-                <div className="text-5xl sm:text-6xl font-bold text-primary mb-3">
-                  #{waitlistData.position}
-                </div>
-                <div className="text-sm sm:text-base text-muted-foreground font-semibold mb-1">Your Position in Line</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">
-                  Top {waitlistData.percentile}% of waitlist
-                </div>
-              </div>
-              <div className="bg-background/30 border border-border/50 rounded-lg sm:rounded-xl p-6 sm:p-8 backdrop-blur-sm hover:bg-background/40 transition-colors">
-                <div className="text-5xl sm:text-6xl font-bold text-foreground mb-3">
-                  {waitlistData.totalAhead}
-                </div>
-                <div className="text-sm sm:text-base text-muted-foreground font-semibold mb-1">People Ahead</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">
-                  Out of {waitlistData.totalCount} total
-                </div>
-              </div>
-            </div>
-
-            {/* Points Breakdown */}
-            <div className="bg-background/30 border border-border/50 rounded-lg sm:rounded-xl p-6 sm:p-8 mb-6 sm:mb-8 backdrop-blur-sm">
-              <div className="flex items-center justify-center gap-2 mb-4 sm:mb-6">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <h3 className="text-base sm:text-lg font-semibold">Your Points</h3>
-              </div>
-              <div className="text-4xl sm:text-5xl font-bold text-primary mb-6 sm:mb-8 text-center">
-                {waitlistData.points.toLocaleString()}
-              </div>
-              <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center">
-                <div className="p-3 sm:p-4 bg-background/20 rounded-lg">
-                  <div className="text-xl sm:text-2xl font-bold text-foreground mb-1">{waitlistData.pointsBreakdown.invite.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Invite Points</div>
-                </div>
-                <div className="p-3 sm:p-4 bg-background/20 rounded-lg">
-                  <div className="text-xl sm:text-2xl font-bold text-foreground mb-1">{waitlistData.pointsBreakdown.earned.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Earned Points</div>
-                </div>
-                <div className="p-3 sm:p-4 bg-background/20 rounded-lg">
-                  <div className="text-xl sm:text-2xl font-bold text-foreground mb-1">{waitlistData.pointsBreakdown.bonus.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Bonus Points</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Referral Stats */}
-            {waitlistData.referralCount > 0 && (
-              <div className="bg-primary/10 border border-primary/20 rounded-lg sm:rounded-xl p-5 sm:p-6 mb-6 sm:mb-8 backdrop-blur-sm">
-                <div className="flex items-center justify-center gap-2 sm:gap-3">
-                  <Gift className="w-5 h-5 text-primary" />
-                  <span className="text-sm sm:text-base font-semibold">
-                    {"You've invited"} {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'person' : 'people'}!
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Invite Code Section */}
-            <div className="bg-background/30 border border-border/50 rounded-lg sm:rounded-xl p-6 sm:p-8 mb-6 sm:mb-8 backdrop-blur-sm">
-              <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-center">Invite Friends & Move Up in Line!</h3>
-              <p className="text-sm sm:text-base text-muted-foreground mb-5 sm:mb-6 text-center leading-relaxed">
-                Get <span className="font-bold text-primary">+50 points</span> for each friend who joins
-                <br className="hidden sm:block" />
-                <span className="block sm:inline mt-1 sm:mt-0">
-                  <span className="font-bold text-green-500">More invites = Better position in line!</span>
-                </span>
-              </p>
-              {waitlistData.inviteCode ? (
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-background/50 border border-border rounded-lg sm:rounded-xl p-4">
-                  <div className="flex-1 text-left font-mono text-xs sm:text-sm break-all px-2 py-2 sm:py-0">
-                    {window.location.origin}/?ref={waitlistData.inviteCode}
+          {/* Main Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            {/* Left Column - Stats Cards */}
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+              {/* Position & Points Overview */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {/* Position Card */}
+                <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 sm:p-5 backdrop-blur-sm hover:bg-primary/10 transition-colors">
+                  <div className="text-sm text-muted-foreground mb-2">Position</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-primary mb-1 whitespace-nowrap">
+                    #{waitlistData.position}
                   </div>
-                  <button
-                    onClick={handleCopyInviteCode}
-                    className="px-5 sm:px-6 py-2.5 sm:py-3 bg-primary hover:bg-primary/90 active:scale-95 text-primary-foreground font-semibold rounded-lg sm:rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shrink-0 touch-manipulation min-h-[44px]"
-                  >
-                    {copiedCode ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        Copy
-                      </>
-                    )}
-                  </button>
+                  <div className="text-sm text-muted-foreground">Top {waitlistData.percentile}%</div>
                 </div>
-              ) : (
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg sm:rounded-xl p-4 text-center">
-                  <div className="text-sm text-yellow-600">
-                    Generating your invite code...
+                
+                {/* People Ahead Card */}
+                <div className="bg-background/30 border border-border/50 rounded-xl p-4 sm:p-5 backdrop-blur-sm hover:bg-background/40 transition-colors">
+                  <div className="text-sm text-muted-foreground mb-2">Ahead</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1 whitespace-nowrap">
+                    {waitlistData.totalAhead}
+                  </div>
+                  <div className="text-sm text-muted-foreground">of {waitlistData.totalCount}</div>
+                </div>
+
+                {/* Total Points Card */}
+                <div className="col-span-2 sm:col-span-1 bg-background/30 border border-border/50 rounded-xl p-4 sm:p-5 backdrop-blur-sm hover:bg-background/40 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-primary shrink-0" />
+                    <div className="text-sm text-muted-foreground">Total Points</div>
+                  </div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-primary whitespace-nowrap">
+                    {waitlistData.points.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Points Breakdown */}
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-semibold mb-4">Points Breakdown</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-4 bg-background/20 rounded-lg">
+                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
+                      {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Invite</div>
+                  </div>
+                  <div className="text-center p-4 bg-background/20 rounded-lg">
+                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
+                      {waitlistData.pointsBreakdown.earned.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Earned</div>
+                  </div>
+                  <div className="text-center p-4 bg-background/20 rounded-lg">
+                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
+                      {waitlistData.pointsBreakdown.bonus.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Bonus</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Referral Stats */}
+              {waitlistData.referralCount > 0 && (
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Gift className="w-5 h-5 text-primary shrink-0" />
+                    <span className="text-base font-semibold">
+                      {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
+                    </span>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Bonus Actions */}
-          <div className="bg-primary/5 border border-primary/10 rounded-lg sm:rounded-xl p-6 sm:p-8 md:p-10 mb-6 sm:mb-8 animate-fadeIn backdrop-blur-sm shadow-lg">
-            <h3 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6 text-center">Earn More Points</h3>
-            <div className="space-y-3 sm:space-y-4">
-              {waitlistData.pointsBreakdown.bonus < 50 && (
-                <>
-                  {!dbUser.email && (
+              {/* Invite Code Section */}
+              <div className="bg-background/30 border border-border/50 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
+                <h3 className="text-xl font-bold mb-3">Invite Friends</h3>
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                  <span className="font-bold text-primary">100 points</span> per friend
+                  <br />
+                  <span className="text-primary">+100 extra</span> when they complete profile
+                </p>
+                {waitlistData.inviteCode ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 font-mono text-xs sm:text-sm break-all bg-background/50 border border-border rounded-lg px-3 py-2">
+                      {window.location.origin}/?ref={waitlistData.inviteCode}
+                    </div>
                     <button
-                      onClick={() => setShowEmailModal(true)}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg sm:rounded-xl p-4 sm:p-5 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[56px]"
+                      onClick={handleCopyInviteCode}
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 active:scale-95 text-primary-foreground text-sm font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shrink-0 touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                    >
+                      {copiedCode ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span className="hidden sm:inline">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span className="hidden sm:inline">Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                    <div className="text-sm text-yellow-600">Generating invite code...</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bonus Actions */}
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-semibold mb-4">Earn More Points</h3>
+                <div className="space-y-3">
+                  {/* Profile Completion */}
+                  {(() => {
+                    const isProfileComplete = dbUser?.profileComplete && dbUser?.username && dbUser?.profileImageUrl && dbUser?.bio && dbUser.bio.length >= 50
+                    return !isProfileComplete ? (
+                      <button
+                        onClick={() => setNeedsOnboarding(true)}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                          <span className="font-semibold text-sm">Complete Profile</span>
+                        </div>
+                        <span className="text-primary font-bold text-sm">+{POINTS.PROFILE_COMPLETION}</span>
+                      </button>
+                    ) : (
+                      <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                        <div className="flex items-center gap-3">
+                          <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                          <span className="font-semibold text-sm">Profile Complete</span>
+                        </div>
+                        <span className="text-green-500 font-bold text-sm">+{POINTS.PROFILE_COMPLETION}</span>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Twitter Link */}
+                  {!dbUser?.hasTwitter && (
+                    <button
+                      onClick={() => setShowLinkSocialModal(true)}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                     >
                       <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-primary shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Add Email Address</span>
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Link X Account</span>
                       </div>
-                      <span className="text-primary font-bold text-base sm:text-lg">+25 points</span>
+                      <span className="text-primary font-bold text-sm">+{POINTS.TWITTER_LINK}</span>
                     </button>
                   )}
-                  {privyUser?.wallet?.address ? (
-                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg sm:rounded-xl p-4 sm:p-5">
+                  {dbUser?.hasTwitter && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
                       <div className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-green-500 shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Wallet Connected</span>
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">X Account Linked</span>
                       </div>
-                      <span className="text-green-500 font-bold text-base sm:text-lg">+25 points</span>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.TWITTER_LINK}</span>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Farcaster Link */}
+                  {!dbUser?.hasFarcaster && (
+                    <button
+                      onClick={() => setShowLinkSocialModal(true)}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Link Farcaster</span>
+                      </div>
+                      <span className="text-primary font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
+                    </button>
+                  )}
+                  {dbUser?.hasFarcaster && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Farcaster Linked</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
+                    </div>
+                  )}
+
+                  {/* Wallet Connect */}
+                  {!privyUser?.wallet?.address && (
                     <button
                       onClick={login}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg sm:rounded-xl p-4 sm:p-5 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[56px]"
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                     >
                       <div className="flex items-center gap-3">
-                        <Wallet className="w-5 h-5 text-primary shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Connect Wallet</span>
+                        <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Connect Wallet</span>
                       </div>
-                      <span className="text-primary font-bold text-base sm:text-lg">+25 points</span>
+                      <span className="text-primary font-bold text-sm">+{POINTS.WALLET_CONNECT}</span>
                     </button>
                   )}
-                </>
-              )}
-              {waitlistData.pointsBreakdown.bonus >= 50 && (
-                <div className="bg-primary/10 border border-primary/20 rounded-lg sm:rounded-xl p-5 sm:p-6 text-center">
-                  <Check className="w-7 h-7 sm:w-8 sm:h-8 text-primary mx-auto mb-3" />
-                  <div className="text-lg sm:text-xl font-bold">All Bonuses Claimed!</div>
-                </div>
-              )}
-            </div>
-          </div>
+                  {privyUser?.wallet?.address && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Wallet Connected</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.WALLET_CONNECT}</span>
+                    </div>
+                  )}
 
-          {/* Waitlist Leaderboard */}
-          {topUsers.length > 0 && (
-            <div className="bg-primary/5 border border-primary/10 rounded-lg sm:rounded-xl p-6 sm:p-8 md:p-10 mb-6 sm:mb-8 animate-fadeIn backdrop-blur-sm shadow-lg">
-              <div className="flex items-center justify-center gap-2 mb-5 sm:mb-6">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                <h3 className="text-xl sm:text-2xl font-bold">Top Inviters</h3>
+                  {/* Email Bonus */}
+                  {(() => {
+                    const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
+                    const emailFromOAuth = privyUser?.email?.address || googleEmail
+                    const hasEmail = !!emailFromOAuth
+                    
+                    return !hasEmail ? (
+                      <button
+                        onClick={() => setShowEmailModal(true)}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                          <span className="font-semibold text-sm">Add Email</span>
+                        </div>
+                        <span className="text-primary font-bold text-sm">+25</span>
+                      </button>
+                    ) : (
+                      <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                        <div className="flex items-center gap-3">
+                          <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                          <span className="font-semibold text-sm">Email Added</span>
+                        </div>
+                        <span className="text-green-500 font-bold text-sm">+25</span>
+                      </div>
+                    )
+                  })()}
+                </div>
               </div>
-              <div className="space-y-2 sm:space-y-3">
-                {topUsers.slice(0, 10).map((topUser) => {
-                  const isCurrentUser = topUser.id === dbUser.id
-                  return (
-                    <div
-                      key={topUser.id}
-                      className={`flex items-center justify-between p-3 sm:p-4 rounded-lg sm:rounded-xl border transition-colors ${
-                        isCurrentUser
-                          ? 'bg-primary/20 border-primary shadow-md'
-                          : topUser.rank <= 3
-                            ? 'bg-yellow-500/10 border-yellow-500/20 hover:bg-yellow-500/15'
-                            : 'bg-background/30 border-border/50 hover:bg-background/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                        <div className={`text-base sm:text-lg font-bold shrink-0 ${
-                          topUser.rank === 1 ? 'text-yellow-500' :
-                          topUser.rank === 2 ? 'text-gray-400' :
-                          topUser.rank === 3 ? 'text-orange-500' :
-                          'text-muted-foreground'
-                        }`}>
-                          #{topUser.rank}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm sm:text-base flex items-center gap-2 truncate">
-                            <span className="truncate">{topUser.displayName || topUser.username || 'Anonymous'}</span>
-                            {isCurrentUser && (
-                              <span className="px-2 py-0.5 text-xs bg-primary text-primary-foreground rounded shrink-0">
-                                YOU
-                              </span>
-                            )}
+            </div>
+
+            {/* Right Column - Leaderboard */}
+            {topUsers.length > 0 && (() => {
+              const totalPages = Math.ceil(topUsers.length / usersPerPage)
+              const startIndex = (leaderboardPage - 1) * usersPerPage
+              const endIndex = startIndex + usersPerPage
+              const paginatedUsers = topUsers.slice(startIndex, endIndex)
+              const currentUserRank = waitlistData.position
+              const currentUserInPage = paginatedUsers.some(u => u.id === dbUser.id)
+              
+              return (
+                <div className="lg:col-span-3">
+                  <div className="bg-primary/5 border border-primary/10 rounded-xl p-6 lg:p-8 backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="w-6 h-6 text-primary shrink-0" />
+                        <h3 className="text-xl lg:text-2xl font-bold">Top Inviters</h3>
+                        <span className="text-sm text-muted-foreground">
+                          ({topUsers.length} total)
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Leaderboard List */}
+                    <div className="space-y-3 mb-6">
+                      {paginatedUsers.map((topUser, index) => {
+                        const isCurrentUser = topUser.id === dbUser.id
+                        const displayRank = startIndex + index + 1
+                        return (
+                          <div
+                            key={topUser.id || `user-${displayRank}`}
+                            onClick={() => {
+                              setSelectedUserId(topUser.id)
+                              setShowPlayerStatsModal(true)
+                            }}
+                            className={`flex items-center justify-between p-4 lg:p-5 rounded-xl border transition-colors cursor-pointer ${
+                              isCurrentUser
+                                ? 'bg-primary/20 border-primary shadow-md'
+                                : topUser.rank === 1
+                                  ? 'bg-yellow-500/10 border-yellow-500/30'
+                                  : topUser.rank === 2
+                                    ? 'bg-gray-400/10 border-gray-400/30'
+                                    : topUser.rank === 3
+                                      ? 'bg-orange-500/10 border-orange-500/30'
+                                      : 'bg-background/30 border-border/50 hover:bg-background/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                              <div className={`text-lg lg:text-xl font-bold shrink-0 w-16 text-center ${
+                                topUser.rank === 1 ? 'text-yellow-500' :
+                                topUser.rank === 2 ? 'text-gray-400' :
+                                topUser.rank === 3 ? 'text-orange-500' :
+                                'text-muted-foreground'
+                              }`}>
+                                #{topUser.rank}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-base lg:text-lg flex items-center gap-2 truncate">
+                                  <span className="truncate">{topUser.displayName || topUser.username || 'Anonymous'}</span>
+                                  {isCurrentUser && (
+                                    <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
+                                      YOU
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-0.5">
+                                  {topUser.referralCount} {topUser.referralCount === 1 ? 'invite' : 'invites'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 ml-4">
+                              <div className="font-bold text-primary text-lg lg:text-xl">
+                                {topUser.invitePoints.toLocaleString()}
+                              </div>
+                              <div className="text-sm text-muted-foreground">points</div>
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {topUser.referralCount} {topUser.referralCount === 1 ? 'invite' : 'invites'}
+                        )
+                      })}
+                    </div>
+
+                    {/* Show current user if not on current page */}
+                    {!currentUserInPage && currentUserRank > 0 && (
+                      <div className="mb-6 pt-4 border-t border-border/50">
+                        <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
+                          <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-16 text-center">
+                              #{currentUserRank}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
+                                You
+                                <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded shrink-0">
+                                  YOU
+                                </span>
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-0.5">
+                                {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-4">
+                            <div className="font-bold text-primary text-lg lg:text-xl">
+                              {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                            </div>
+                            <div className="text-sm text-muted-foreground">points</div>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <div className="font-bold text-primary text-sm sm:text-base">
-                          {topUser.invitePoints.toLocaleString()}
+                    )}
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                        <button
+                          onClick={() => setLeaderboardPage(prev => Math.max(1, prev - 1))}
+                          disabled={leaderboardPage === 1}
+                          className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          <span className="hidden sm:inline">Previous</span>
+                        </button>
+                        <div className="text-sm text-muted-foreground font-medium">
+                          Page {leaderboardPage} of {totalPages}
                         </div>
-                        <div className="text-xs text-muted-foreground">points</div>
+                        <button
+                          onClick={() => setLeaderboardPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={leaderboardPage === totalPages}
+                          className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {/* Show current user if not in top 10 */}
-              {waitlistData.position > 10 && (
-                <div className="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-border/50">
-                  <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/20 border border-primary shadow-md">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <div className="text-base sm:text-lg font-bold text-primary shrink-0">
-                        #{waitlistData.position}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-sm sm:text-base flex items-center gap-2">
-                          You
-                          <span className="px-2 py-0.5 text-xs bg-primary text-primary-foreground rounded shrink-0">
-                            YOU
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <div className="font-bold text-primary text-sm sm:text-base">
-                        {waitlistData.pointsBreakdown.invite.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-muted-foreground">points</div>
-                    </div>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Logout Button */}
-          <div className="text-center mb-6 sm:mb-8 pt-4">
-            <button
-              onClick={logout}
-              className="text-sm text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-200 px-4 py-2 rounded-lg hover:bg-background/20 touch-manipulation min-h-[44px]"
-            >
-              Sign Out
-            </button>
+              )
+            })()}
           </div>
         </div>
       </section>
 
       {/* Email Modal */}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-xl sm:rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-4 sm:mb-5">
-              <h3 className="text-lg sm:text-xl font-bold">Add Email Address</h3>
-              <button
-                onClick={() => setShowEmailModal(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-background/20 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4 sm:mb-5">
-              Get notified when Babylon launches and earn <span className="font-semibold text-primary">+25 points</span>
-            </p>
-            <input
-              type="email"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              placeholder="your.email@example.com"
-              className="w-full px-4 py-3 bg-background/50 border border-border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-            />
-            <button
-              onClick={handleAddEmail}
-              disabled={!emailInput || isLoading}
-              className="w-full px-4 py-3 bg-primary hover:bg-primary/90 active:scale-95 text-primary-foreground font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 touch-manipulation min-h-[44px]"
+        <>
+          <div
+            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => !isLoading && setShowEmailModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div 
+              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-md my-8 transition-all duration-300"
+              onClick={(e) => e.stopPropagation()}
             >
-              {isLoading ? 'Adding...' : 'Add Email & Earn Points'}
-            </button>
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
+                    <Mail className="w-6 h-6 text-[#0066FF]" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Add Email Address</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Earn <span className="font-semibold text-[#0066FF]">+25 points</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  disabled={isLoading}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <form 
+                onSubmit={(e) => { e.preventDefault(); handleAddEmail(); }} 
+                className="p-6 space-y-6"
+              >
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Email Address</label>
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="your.email@example.com"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Get notified when Babylon launches
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!emailInput || isLoading}
+                  className="w-full px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
+                >
+                  {isLoading ? 'Adding...' : 'Add Email & Earn Points'}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+        </>
       )}
+
+      {/* Profile Completion Modal */}
+      {showProfileModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => !isSavingProfile && setShowProfileModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div 
+              className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-[#0066FF]/10 rounded-lg">
+                    <User className="w-6 h-6 text-[#0066FF]" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Complete Profile</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Earn <span className="font-semibold text-[#0066FF]">+{POINTS.PROFILE_COMPLETION} points</span> when complete
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  disabled={isSavingProfile}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <form onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }} className="p-6 space-y-6">
+                {/* Username */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Username *</label>
+                  <input
+                    type="text"
+                    value={profileForm.username}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, username: e.target.value }))}
+                    placeholder="Choose a username"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    disabled={isSavingProfile}
+                  />
+                </div>
+
+                {/* Display Name */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Display Name *</label>
+                  <input
+                    type="text"
+                    value={profileForm.displayName}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, displayName: e.target.value }))}
+                    placeholder="Your display name"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors"
+                    disabled={isSavingProfile}
+                  />
+                </div>
+
+                {/* Bio */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Bio * (min 50 characters)</label>
+                  <textarea
+                    value={profileForm.bio}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
+                    placeholder="Tell us about yourself..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors resize-none"
+                    disabled={isSavingProfile}
+                  />
+                  <p className="text-xs text-muted-foreground text-right">
+                    {profileForm.bio.length}/50
+                  </p>
+                </div>
+
+                {/* Profile Image */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Profile Image *</label>
+                  <div className="flex items-center gap-4">
+                    {profileForm.profileImageUrl && (
+                      <div className="relative w-24 h-24 shrink-0 rounded-full overflow-hidden bg-muted">
+                        <img
+                          src={profileForm.profileImageUrl}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={profileForm.profileImageUrl}
+                        onChange={(e) => setProfileForm(prev => ({ ...prev, profileImageUrl: e.target.value }))}
+                        placeholder="/assets/user-avatars/avatar-1.jpg"
+                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] transition-colors text-sm"
+                        disabled={isSavingProfile}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use format: /assets/user-avatars/avatar-X.jpg (1-100)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileModal(false)}
+                    disabled={isSavingProfile}
+                    className="flex-1 px-4 py-2 bg-sidebar border border-border rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={(() => {
+                      const username = profileForm.username?.trim() || ''
+                      const displayName = profileForm.displayName?.trim() || ''
+                      const bio = profileForm.bio?.trim() || ''
+                      const profileImageUrl = profileForm.profileImageUrl?.trim() || ''
+                      return isSavingProfile || !username || !displayName || !bio || bio.length < 50 || !profileImageUrl
+                    })()}
+                    className="flex-1 px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/90 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[44px]"
+                  >
+                    {isSavingProfile ? 'Saving...' : 'Save & Earn Points'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Link Social Accounts Modal */}
+      <LinkSocialAccountsModal
+        isOpen={showLinkSocialModal}
+        onClose={async () => {
+          setShowLinkSocialModal(false)
+          await refresh()
+          if (dbUser?.id) {
+            await fetchWaitlistPosition(dbUser.id)
+          }
+        }}
+      />
+
+      {/* Player Stats Modal */}
+      <PlayerStatsModal
+        isOpen={showPlayerStatsModal}
+        onClose={() => {
+          setShowPlayerStatsModal(false)
+          setSelectedUserId(null)
+        }}
+        userId={selectedUserId}
+      />
 
       <style jsx>{`
         @keyframes fadeIn {

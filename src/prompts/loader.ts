@@ -109,9 +109,15 @@ export function renderPrompt(
 export function getPromptParams(prompt: PromptDefinition): {
   temperature?: number;
   maxTokens?: number;
+  format?: 'xml' | 'json';
+  promptType?: string;
+  promptTemplate?: string;
 } {
   return {
     temperature: prompt.temperature,
     maxTokens: prompt.maxTokens,
+    format: 'xml', // All our prompts use XML
+    promptType: prompt.id,
+    promptTemplate: prompt.template,
   };
 }

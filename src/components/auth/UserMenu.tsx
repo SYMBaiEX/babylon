@@ -4,6 +4,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { getReferralUrl, getDisplayReferralUrl } from '@/lib/referral/referral-utils'
 import { Check, Copy, LogOut } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -32,7 +33,6 @@ export function UserMenu() {
   const { logout } = useAuth()
   const { user } = useAuthStore()
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
-  const [referralCode, setReferralCode] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const lastFetchedUserIdRef = useRef<string | null>(null)
 
@@ -49,7 +49,6 @@ export function UserMenu() {
       if (!user?.id || !isMounted) {
         if (!isMounted) return
         setPointsData(null)
-        setReferralCode(null)
         lastFetchedUserIdRef.current = null
         return
       }
@@ -92,24 +91,6 @@ export function UserMenu() {
               available: Number(data.balance || 0),
               total: Number(data.totalDeposited || 0),
             })
-          }
-        }
-
-        // Fetch referral code
-        const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { 
-          headers,
-          signal: fetchController.signal
-        })
-        
-        if (!isMounted || fetchController.signal.aborted) {
-          userMenuFetchInFlight = false
-          return
-        }
-
-        if (referralResponse.ok) {
-          const data = await referralResponse.json()
-          if (isMounted && !fetchController.signal.aborted) {
-            setReferralCode(data.user?.referralCode || null)
           }
         }
 
@@ -162,9 +143,8 @@ export function UserMenu() {
   }, [user?.id])
 
   const handleCopyReferralCode = async () => {
-    if (!referralCode) return
-    // Create full referral URL
-    const referralUrl = `${window.location.origin}?ref=${referralCode}`
+    if (!user?.referralCode) return
+    const referralUrl = getReferralUrl(user.referralCode)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedCode(true)
     setTimeout(() => setCopiedCode(false), 2000)
@@ -178,7 +158,7 @@ export function UserMenu() {
   const username = user.username || `user${user.id.slice(0, 8)}`
 
   const trigger = (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-full hover:bg-sidebar-accent cursor-pointer transition-colors">
+    <div data-testid="user-menu" className="flex items-center gap-3 px-3 py-2.5 rounded-full hover:bg-sidebar-accent cursor-pointer transition-colors">
       <Avatar
         id={user.id}
         name={displayName}
@@ -218,7 +198,7 @@ export function UserMenu() {
         </div>
       )}
       
-      {referralCode && (
+      {user?.referralCode && (
         <DropdownItem onClick={handleCopyReferralCode}>
           <div className="flex items-center gap-3 py-2">
             {copiedCode ? (
@@ -232,7 +212,7 @@ export function UserMenu() {
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-sm font-semibold text-foreground">Copy Referral Link</span>
                   <span className="text-xs text-muted-foreground font-mono truncate">
-                    {typeof window !== 'undefined' && `${window.location.host}?ref=${referralCode}`}
+                    {getDisplayReferralUrl(user.referralCode)}
                   </span>
                 </div>
               </>

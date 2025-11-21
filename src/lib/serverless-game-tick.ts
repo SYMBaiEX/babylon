@@ -24,7 +24,7 @@ import { QuestionManager } from '@/engine/QuestionManager';
 import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { ActorTier, WorldEvent } from '@/shared/types';
+import type { ActorTier, WorldEvent, DayTimeline, SelectedActor, Question } from '@/shared/types';
 import db from './database-service';
 import { logger } from './logger';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
@@ -45,6 +45,7 @@ import { rssFeedService } from './services/rss-feed-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 import { characterMappingService } from './services/character-mapping-service';
+import { loadActorsData } from '@/lib/data/actors-loader';
 
 /**
  * Game tick execution result
@@ -215,10 +216,103 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
         'GameTick'
       );
 
+      // Load required data for proof generation
+      const actorsData = loadActorsData();
+      // Cast actors to SelectedActor[] as they are compatible for this purpose
+      const allActors = actorsData.actors as unknown as SelectedActor[];
+      const organizations = actorsData.organizations;
+      
+      // Get recent events for context
+      const recentPrismaEvents = await prisma.worldEvent.findMany({
+        where: {
+          timestamp: {
+            gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // Last 3 days
+          }
+        },
+        orderBy: { timestamp: 'desc' }
+      });
+
+      // Convert to DayTimeline format for QuestionManager
+      const mappedEvents: WorldEvent[] = recentPrismaEvents.map(e => ({
+        id: e.id,
+        day: e.dayNumber || 0,
+        type: e.eventType as unknown as WorldEvent['type'],
+        description: e.description,
+        actors: e.actors as string[],
+        relatedQuestion: e.relatedQuestion || undefined,
+        pointsToward: e.pointsToward as unknown as WorldEvent['pointsToward'],
+        visibility: e.visibility as unknown as WorldEvent['visibility']
+      }));
+
+      const recentTimelines: DayTimeline[] = [{
+          day: 0,
+          events: mappedEvents,
+          summary: 'Recent events context',
+          groupChats: {},
+          feedPosts: [],
+          luckChanges: [],
+          moodChanges: []
+      }];
+
+      const questionManager = new QuestionManager(llmClient);
+
       // Resolve payouts with error handling to continue processing remaining questions
       // Question status is updated atomically within resolveQuestionPayouts
       for (const question of questionsToResolve) {
         try {
+          // Generate resolution proof content
+          // We cast question to Question type - Prisma question fields are compatible
+          const questionForManager: Question = {
+            id: question.questionNumber,
+            text: question.text,
+            scenario: question.scenarioId || 1,
+            outcome: question.outcome,
+            rank: question.rank || 1,
+            status: 'active',
+          };
+          
+          const { description, proof } = await questionManager.generateResolutionWithProof(
+            questionForManager,
+            allActors,
+            organizations,
+            recentTimelines
+          );
+
+          // Save proof article if exists
+          if (proof && proof.type === 'article') {
+             // Create article in database
+             await prisma.post.create({
+               data: {
+                 id: proof.article.id,
+                 type: 'article',
+                 content: proof.article.summary, // Use summary for content preview
+                 fullContent: proof.article.content,
+                 articleTitle: proof.article.title,
+                 authorId: proof.article.authorOrgId,
+                 gameId: 'continuous',
+                 timestamp: new Date(),
+                 category: proof.article.category,
+                 sentiment: proof.article.sentiment,
+                 slant: proof.article.slant,
+                 biasScore: proof.article.biasScore,
+               }
+             });
+             
+             // Update question with proof URL
+             await prisma.question.update({
+               where: { id: question.id },
+               data: {
+                 resolutionDescription: description,
+                 resolutionProofUrl: proof.url
+               }
+             });
+             
+             logger.info(`Generated resolution proof for Q${question.questionNumber}`, { 
+               proofUrl: proof.url,
+               articleId: proof.article.id 
+             }, 'GameTick');
+          }
+
           await resolveQuestionPayouts(question.questionNumber);
           result.questionsResolved++;
         } catch (error) {
@@ -1062,6 +1156,9 @@ async function generateArticles(
     take: 10,
   });
 
+  // CRITICAL: Ensure each active question has 1-3 articles
+  const questionArticlesCreated = await generateArticlesForActiveQuestions(llm, deadlineMs);
+  
   // If no recent events, generate baseline articles about general topics
   if (recentEvents.length === 0) {
     logger.info('No recent events - generating baseline articles in parallel', {}, 'GameTick');
@@ -1072,10 +1169,11 @@ async function generateArticles(
     
     if (newsOrgs.length === 0) {
       logger.warn('No news organizations found for baseline articles', {}, 'GameTick');
-      return 0;
+      return questionArticlesCreated;
     }
     
-    return await generateBaselineArticlesParallel(newsOrgs, timestamp, llm, deadlineMs);
+    const baselineArticlesCreated = await generateBaselineArticlesParallel(newsOrgs, timestamp, llm, deadlineMs);
+    return questionArticlesCreated + baselineArticlesCreated;
   }
 
   // Get news organizations and actors in parallel
@@ -1281,7 +1379,238 @@ async function generateArticles(
     failed: results.filter(r => r.status === 'rejected').length,
   }, 'GameTick');
 
-  return articlesCreated;
+  return questionArticlesCreated + articlesCreated;
+}
+
+/**
+ * Generate articles for active questions - ensures each question has 1-3 articles
+ */
+async function generateArticlesForActiveQuestions(
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
+  // Get all active questions
+  const activeQuestions = await prisma.question.findMany({
+    where: { status: 'active' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (activeQuestions.length === 0) {
+    return 0;
+  }
+
+  // Get news organizations and actors
+  const [newsOrgs, actors] = await Promise.all([
+    prisma.organization.findMany({
+      where: { type: 'media' },
+    }),
+    prisma.actor.findMany({
+      take: 50,
+      orderBy: { tier: 'asc' },
+    }),
+  ]);
+
+  if (newsOrgs.length === 0 || actors.length === 0) {
+    logger.warn('Missing news orgs or actors for question articles', {
+      newsOrgs: newsOrgs.length,
+      actors: actors.length,
+    }, 'GameTick');
+    return 0;
+  }
+
+  // Get existing articles from last 24 hours to check coverage
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentArticles = await prisma.post.findMany({
+    where: {
+      type: 'article',
+      timestamp: { gte: oneDayAgo },
+      deletedAt: null,
+    },
+    select: {
+      content: true,
+      articleTitle: true,
+    },
+  });
+
+  // Map organization and actor data
+  const organizations = newsOrgs.map((org: typeof newsOrgs[number]) => ({
+    id: org.id,
+    name: org.name || 'Unknown Organization',
+    description: org.description || '',
+    type: (org.type as 'company' | 'media' | 'government') || 'media',
+    canBeInvolved: org.canBeInvolved,
+    initialPrice: org.initialPrice || undefined,
+    currentPrice: org.currentPrice || undefined,
+  }));
+
+  const actorList = actors
+    .filter((a: typeof actors[number]) => a && a.id && a.name)
+    .map((a: typeof actors[number]) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description || '',
+      domain: Array.isArray(a.domain) ? a.domain : [a.domain || 'tech'],
+      personality: a.personality || undefined,
+      tier: (a.tier as ActorTier) || undefined,
+      affiliations: a.affiliations || [],
+      postStyle: a.postStyle || undefined,
+      postExample: a.postExample || '',
+      role: (a.role as 'main' | 'supporting' | 'extra') || undefined,
+      initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
+      initialMood: a.initialMood || 0,
+    }));
+
+  // Initialize article generator
+  const articleGen = new ArticleGenerator(llm);
+
+  // Check each question and generate articles if needed (1-3 per question)
+  let totalArticlesCreated = 0;
+  const articlePromises: Array<Promise<number>> = [];
+
+  for (const question of activeQuestions) {
+    if (Date.now() > deadlineMs) {
+      logger.warn('Article generation for questions aborted due to deadline', {
+        questionsProcessed: totalArticlesCreated,
+      }, 'GameTick');
+      break;
+    }
+
+    // Count existing articles about this question
+    const questionKeywords = question.text.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const existingArticleCount = recentArticles.filter(article => {
+      const articleText = `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
+      // Check if article mentions at least 2 keywords from the question
+      const matchingKeywords = questionKeywords.filter(keyword => articleText.includes(keyword));
+      return matchingKeywords.length >= 2;
+    }).length;
+
+    // Generate 1-3 articles per question
+    // If none exist, generate 1-3. If 1-2 exist, fill up to 3. If 3+ exist, skip.
+    let targetArticleCount: number;
+    if (existingArticleCount === 0) {
+      // No articles yet - generate 1-3 articles
+      targetArticleCount = Math.min(1 + Math.floor(Math.random() * 3), newsOrgs.length); // Random 1-3, capped by available orgs
+    } else if (existingArticleCount < 3) {
+      // Some articles exist - fill up to 3 total
+      targetArticleCount = Math.min(3 - existingArticleCount, newsOrgs.length);
+    } else {
+      // Already has 3+ articles - skip
+      targetArticleCount = 0;
+    }
+
+    if (targetArticleCount <= 0) {
+      logger.debug(`Question Q${question.questionNumber} already has ${existingArticleCount} articles, skipping`, {
+        questionId: question.id,
+        questionText: question.text,
+      }, 'GameTick');
+      continue;
+    }
+
+    logger.info(`Generating ${targetArticleCount} articles for question Q${question.questionNumber}`, {
+      questionId: question.id,
+      questionText: question.text,
+      existingArticles: existingArticleCount,
+      targetArticles: targetArticleCount,
+    }, 'GameTick');
+
+    // Select random news organizations for this question
+    const shuffledOrgs = [...organizations].sort(() => Math.random() - 0.5);
+    const orgsForQuestion = shuffledOrgs.slice(0, targetArticleCount);
+
+    // Generate articles for this question in parallel
+    for (const org of orgsForQuestion) {
+      const articlePromise = (async () => {
+        try {
+          // Use 'commentary' stage for ongoing questions
+          const article = await articleGen.generateArticleForQuestion(
+            {
+              id: question.id,
+              text: question.text,
+              scenario: question.scenarioId || 1,
+              outcome: question.outcome ?? false,
+              rank: question.rank || 1,
+              createdDate: question.createdAt.toISOString().split('T')[0]!,
+              resolutionDate: question.resolutionDate?.toISOString().split('T')[0] || '',
+              status: question.status as 'active' | 'resolved' | 'cancelled',
+            },
+            org,
+            'commentary', // Use commentary stage for active questions
+            actorList,
+            [] // No recent events needed for question articles
+          );
+
+          // Transform content to replace real names with parody names
+          const transformedSummary = await characterMappingService.transformText(article.summary || '');
+          const transformedContent = await characterMappingService.transformText(article.content || '');
+          const transformedTitle = await characterMappingService.transformText(article.title || 'Untitled');
+          
+          if (transformedSummary.replacementCount > 0 || transformedContent.replacementCount > 0 || transformedTitle.replacementCount > 0) {
+            logger.warn(`Fixed ${transformedSummary.replacementCount + transformedContent.replacementCount + transformedTitle.replacementCount} real name(s) in question article`, {
+              questionId: question.id,
+              title: article.title,
+            }, 'GameTick');
+          }
+
+          await db().createPostWithAllFields({
+            id: await generateSnowflakeId(),
+            type: 'article',
+            content: transformedSummary.transformedText,
+            fullContent: transformedContent.transformedText,
+            articleTitle: transformedTitle.transformedText,
+            byline: article.byline || undefined,
+            biasScore: article.biasScore || undefined,
+            sentiment: article.sentiment || undefined,
+            slant: article.slant || undefined,
+            category: article.category || undefined,
+            authorId: article.authorOrgId,
+            gameId: 'continuous',
+            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+            timestamp: article.publishedAt || new Date(),
+          });
+
+          logger.debug('Created article for question', {
+            questionId: question.id,
+            questionNumber: question.questionNumber,
+            org: org.name,
+            title: article.title,
+          }, 'GameTick');
+
+          return 1;
+        } catch (error) {
+          logger.warn('Failed to generate article for question', {
+            error: error instanceof Error ? error.message : String(error),
+            questionId: question.id,
+            orgId: org.id,
+          }, 'GameTick');
+          return 0;
+        }
+      })();
+
+      articlePromises.push(articlePromise);
+    }
+  }
+
+  // Wait for all article generation to complete
+  const results = await Promise.allSettled(articlePromises);
+  
+  totalArticlesCreated = results.reduce((sum, result) => {
+    if (result.status === 'fulfilled') {
+      return sum + result.value;
+    } else {
+      logger.warn('Failed to generate question article', { error: result.reason }, 'GameTick');
+      return sum;
+    }
+  }, 0);
+
+  logger.info(`Question article generation complete`, {
+    articlesCreated: totalArticlesCreated,
+    questionsProcessed: activeQuestions.length,
+    attempted: articlePromises.length,
+    successful: results.filter(r => r.status === 'fulfilled').length,
+    failed: results.filter(r => r.status === 'rejected').length,
+  }, 'GameTick');
+
+  return totalArticlesCreated;
 }
 
 /**
@@ -1904,6 +2233,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
     liquidity: Number(resolvedMarket?.liquidity ?? 0),
     totalPayout,
     timestamp: resolutionTimestamp.toISOString(),
+    resolutionProofUrl: question.resolutionProofUrl ?? undefined,
+    resolutionDescription: question.resolutionDescription ?? undefined,
   });
 
   logger.info(

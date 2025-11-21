@@ -16,14 +16,39 @@
 import { describe, test, expect } from 'bun:test';
 import { GameGenerator } from '@/generator/GameGenerator';
 import type { Question } from '@/shared/types';
+import { existsSync, readFileSync } from 'fs';
 
-// Check if LLM API keys are available
+// Load environment variables from .env files if they exist (for CI and local environments)
+// Priority: process.env > .env.test > .env.local
+const loadEnvFile = (filePath: string) => {
+  if (!existsSync(filePath)) return
+  const envContent = readFileSync(filePath, 'utf-8')
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed && !trimmed.startsWith('#')) {
+      const [key, ...valueParts] = trimmed.split('=')
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').replace(/^["']|["']$/g, '')
+        // Only set if not already in process.env (env vars take precedence)
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+    }
+  }
+}
+
+// Load .env.test first (created by CI prepare-env.sh), then .env.local (for local dev)
+loadEnvFile('.env.test')
+loadEnvFile('.env.local')
+
+// Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
-  process.env.WANDB_API_KEY ||
-  process.env.GROQ_API_KEY ||
-  process.env.ANTHROPIC_API_KEY ||
-  process.env.OPENAI_API_KEY
-);
+  (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
+  (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
+)
 
 describe('Security: Prevent Cheating', () => {
   describe('No Predetermined Outcome Access', () => {
@@ -52,9 +77,12 @@ describe('Security: Prevent Cheating', () => {
       );
       
       for (const q of activeQuestions) {
+        if ((q as Question).outcome !== undefined) {
+             console.log('FAILED CHEATING TEST DEBUG:', JSON.stringify(q, null, 2));
+        }
         expect((q as Question).outcome).toBeUndefined();
       }
-    });
+    }, 300000);
     
     test('posts dont directly reveal predetermined outcomes', async () => {
       if (!hasLLMKey) {
@@ -92,7 +120,7 @@ describe('Security: Prevent Cheating', () => {
       const suspiciousRate = suspiciousPosts / totalPosts;
       
       expect(suspiciousRate).toBeLessThan(0.01); // Less than 1%
-    });
+    }, 300000);
   });
   
   describe('No Future Information Access', () => {
@@ -157,7 +185,7 @@ describe('Security: Prevent Cheating', () => {
         expect(actor.persona).toBeUndefined();
         expect((actor as typeof game.setup.mainActors[0]).trackRecord).toBeUndefined();
       }
-    });
+    }, 300000);
     
     test('insider status not visible to users', async () => {
       if (!hasLLMKey) {
@@ -182,7 +210,7 @@ describe('Security: Prevent Cheating', () => {
       for (const q of publicQuestions) {
         expect(q.metadata).toBeUndefined();
       }
-    });
+    }, 300000);
   });
   
   describe('Information Gradient Integrity', () => {
@@ -209,7 +237,7 @@ describe('Security: Prevent Cheating', () => {
       
       // Allow variance but ensure not too many hints
       expect(hintRate).toBeLessThan(0.30); // Max 30% in early game
-    });
+    }, 300000);
     
     test('late game provides sufficient clarity', async () => {
       if (!hasLLMKey) {
@@ -233,7 +261,7 @@ describe('Security: Prevent Cheating', () => {
       
       // Should be at least 70% in late game
       expect(hintRate).toBeGreaterThan(0.60); // At least 60%
-    });
+    }, 300000);
   });
   
   describe('Fair Information Distribution', () => {

@@ -24,6 +24,8 @@ export function getPrivyTestAccount(): PrivyTestAccount {
     throw new Error('PRIVY_TEST_EMAIL environment variable is required for synpress tests')
   }
 
+  console.log(`📧 Privy test credentials loaded for: ${email}`)
+
   return {
     email,
     password,
@@ -33,50 +35,162 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 }
 
 /**
+ * Wait for Privy SDK to be initialized and ready
+ * 
+ * @description Waits for Privy SDK to be loaded and ready before attempting authentication.
+ * Verifies that PrivyProvider is rendered (not the fallback UI) and that the SDK
+ * has finished initializing. This is critical because Privy SDK must be ready before
+ * any authentication UI interactions can succeed.
+ */
+async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
+  console.log('⏳ Waiting for Privy SDK to initialize...')
+  
+  try {
+    // First, verify PrivyProvider is rendered (check for Privy-specific DOM elements)
+    // If PrivyProvider didn't render, it means NEXT_PUBLIC_PRIVY_APP_ID wasn't set at build time
+    const privyRoot = page.locator('[data-privy-root]').first()
+    const privyRootVisible = await privyRoot.isVisible({ timeout: 5000 }).catch(() => false)
+    
+    if (!privyRootVisible) {
+      // Check if we're in the fallback UI (no PrivyProvider)
+      const hasPrivyConfig = await page.evaluate(() => {
+        // Check if window has Privy SDK
+        return typeof window !== 'undefined' && typeof (window as { privy?: unknown }).privy !== 'undefined'
+      }).catch(() => false)
+      
+      if (!hasPrivyConfig) {
+        throw new Error(
+          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build. ' +
+          'Check CI workflow: Build production step must include NEXT_PUBLIC_PRIVY_APP_ID in env: section.'
+        )
+      }
+    }
+    
+    // Wait for Privy SDK to be available and ready
+    await page.waitForFunction(
+      () => {
+        // Check if Privy SDK is loaded
+        if (typeof window === 'undefined') {
+          return false
+        }
+        
+        // Check for Privy SDK on window object
+        const privy = (window as { privy?: { ready?: boolean } }).privy
+        if (!privy) {
+          return false
+        }
+        
+        // Check if SDK is ready
+        return privy.ready === true
+      },
+      { timeout }
+    )
+    
+    console.log('✅ Privy SDK is ready')
+  } catch (error) {
+    // Log console errors for debugging
+    const consoleMessages = await page.evaluate(() => {
+      // Try to get console errors if available
+      return 'Console errors not accessible in Playwright'
+    }).catch(() => 'Could not access console')
+    
+    throw new Error(
+      `Privy SDK failed to initialize: ${error instanceof Error ? error.message : String(error)}\n` +
+      `Console: ${consoleMessages}\n` +
+      `This usually means:\n` +
+      `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
+      `2. Privy SDK script failed to load\n` +
+      `3. Network issues preventing Privy API calls`
+    )
+  }
+}
+
+/**
  * Login with Privy email authentication
  */
 export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount): Promise<void> {
-  // Wait for Privy to be available
-  await page.waitForTimeout(2000)
+  console.log('🔄 Starting Privy login flow...')
+  
+  // CRITICAL: Wait for Privy SDK to be ready before attempting any UI interactions
+  // This ensures the SDK has finished initializing and authentication UI is available
+  await waitForPrivyReady(page)
+
+  // Check if already logged in
+  // Use exact testId or text that only appears when logged in (UserMenu has data-testid="user-menu")
+  // Avoid generic text like "Profile" which might appear in navigation
+  const userMenu = page.locator('[data-testid="user-menu"]').first()
+  const isLoggedIn = await userMenu.isVisible({ timeout: 3000 }).catch(() => false)
+  
+  if (isLoggedIn) {
+    console.log('✅ User already logged in, skipping login flow')
+    return
+  } else {
+    console.log('ℹ️ User not logged in, proceeding with login')
+  }
 
   // Check if email input is already visible (modal already open)
   const emailInput = page.locator('input[type="email"], input[name="email"]').first()
   let emailInputVisible = await emailInput.isVisible({ timeout: 2000 }).catch(() => false)
+  console.log(`ℹ️ Email input visible initially: ${emailInputVisible}`)
 
   if (!emailInputVisible) {
     // Look for Privy login button or modal
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), [data-testid="privy-login"]').first()
+    const loginButton = page.locator('button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Connect Wallet"), [data-testid="privy-login"]').first()
     
+    // Check if enabled
+    const isEnabled = await loginButton.isEnabled({ timeout: 2000 }).catch(() => false)
+    console.log(`ℹ️ Login button found and enabled: ${isEnabled}`)
+
     const isVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
+    console.log(`ℹ️ Login button visible: ${isVisible}`)
     
     if (isVisible) {
       // Try to click, but handle potential overlays
       try {
-        await loginButton.click({ timeout: 5000 })
+        console.log('🖱️ Clicking login button...')
+        // Force click if it's disabled or covered
+        await loginButton.click({ timeout: 5000, force: true })
       } catch (e) {
         console.log('⚠️  Click on login button failed, checking if modal is already open or blocked:', e)
-        // Check if modal appeared anyway or if we need to handle an overlay
       }
       await page.waitForTimeout(1000)
       
       // Re-check email input
       emailInputVisible = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
+      console.log(`ℹ️ Email input visible after click: ${emailInputVisible}`)
     }
   }
   
   if (emailInputVisible) {
-    await emailInput.fill(account.email)
+      console.log(`⌨️ Filling email: ${account.email}`)
+      await emailInput.fill(account.email)
       await page.waitForTimeout(500)
 
-      // Look for continue/submit button - prioritize type="submit" to avoid background buttons
-      const continueButton = page.locator('button[type="submit"]').first()
-      const continueVisible = await continueButton.isVisible({ timeout: 2000 }).catch(() => false)
+      // Find the modal context from the email input
+      // This ensures we target the button INSIDE the modal, not the background "Log in" button
+      const modalContext = emailInput.locator('xpath=ancestor::*[contains(@class, "Dialog") or @role="dialog"][1]')
       
-      if (continueVisible) {
-        await continueButton.click()
+      let submitButton
+      if (await modalContext.isVisible().catch(() => false)) {
+        // Look for submit button inside the modal
+        submitButton = modalContext.locator('button[type="submit"]').first()
+        if (!(await submitButton.isVisible().catch(() => false))) {
+           submitButton = modalContext.locator('button').filter({ hasText: /Continue|Log in|Submit/i }).first()
+        }
       } else {
-        // Fallback to text matching if submit button not found
-        await page.locator('button:has-text("Continue"), button:has-text("Log in")').filter({ hasText: /Continue|Log in/ }).first().click()
+        // Fallback: look for any visible submit button
+        submitButton = page.locator('button[type="submit"]').first()
+      }
+
+      if (await submitButton.isVisible().catch(() => false)) {
+        console.log('🖱️ Clicking submit button')
+        await submitButton.click()
+      } else {
+        console.warn('⚠️  Could not find submit button for login form')
+        // Only use loose text matching as a last resort, and try to avoid the header button
+        // The header button usually has "Connect Wallet" or "Log in"
+        // The modal button usually has "Continue" or "Submit"
+        await page.locator('button:has-text("Continue")').first().click()
       }
       
       await page.waitForTimeout(2000)
@@ -87,6 +201,7 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
         const passwordVisible = await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)
         
         if (passwordVisible) {
+          console.log('⌨️ Filling password')
           await passwordInput.fill(account.password)
           await page.waitForTimeout(500)
           
@@ -96,22 +211,48 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
         }
       }
 
-      // If OTP is required
-      if (account.otp) {
-        const otpInput = page.locator('input[type="text"][maxlength="6"], input[name="otp"]').first()
-        const otpVisible = await otpInput.isVisible({ timeout: 5000 }).catch(() => false)
+      // If OTP is required or requested
+      // Check for OTP screen by text or input
+      const otpText = page.getByText('Enter confirmation code').first()
+      const otpInput = page.locator('input[autocomplete="one-time-code"], input[name="code"], input[name="otp"], input[data-privy-otp-input]').first()
+      
+      const isOtpScreen = await otpText.isVisible({ timeout: 5000 }).catch(() => false) || 
+                          await otpInput.isVisible({ timeout: 1000 }).catch(() => false)
+
+      if (isOtpScreen) {
+        console.log('ℹ️ OTP screen detected')
+        const code = account.otp || '000000' // Default to 000000 if not provided
         
-        if (otpVisible) {
-          await otpInput.fill(account.otp)
-          await page.waitForTimeout(500)
-          
-          const verifyButton = page.locator('button:has-text("Verify"), button[type="submit"]').first()
-          await verifyButton.click()
-          await page.waitForTimeout(2000)
+        console.log(`⌨️ Filling OTP: ${code}`)
+        // Privy often uses 6 separate inputs or one input. 
+        // Best strategy is to focus the input and type the code
+        
+        if (await otpInput.isVisible()) {
+            await otpInput.click() // Focus
+            await page.waitForTimeout(100)
+            await page.keyboard.type(code)
+        } else {
+            // Try typing blindly if input is hidden/custom
+            await page.keyboard.type(code)
         }
+        await page.waitForTimeout(1000)
+        
+        // Check for error message
+        const errorMsg = page.getByText('Invalid code').first()
+        if (await errorMsg.isVisible().catch(() => false)) {
+            console.error('❌ Invalid OTP code detected')
+        }
+        
+        // Click verify if button exists (sometimes auto-submits)
+        // Be specific to avoid clicking "Resend code"
+        const verifyButton = page.locator('button:has-text("Verify"), button[type="submit"]').first()
+        if (await verifyButton.isVisible()) {
+             await verifyButton.click()
+        }
+        await page.waitForTimeout(2000)
       }
     } else {
-    // Check if already logged in
+    // Check if already logged in (re-check)
     const userMenu = page.locator('[data-testid="user-menu"], button:has-text("Profile")').first()
     const isLoggedIn = await userMenu.isVisible({ timeout: 3000 }).catch(() => false)
     
@@ -122,4 +263,14 @@ export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount)
 
   // Wait for authentication to complete
   await page.waitForTimeout(2000)
+
+  // Verify authentication success
+  const userMenuFinal = page.locator('[data-testid="user-menu"]').first()
+  const isAuthenticated = await userMenuFinal.isVisible({ timeout: 5000 }).catch(() => false)
+  
+  if (isAuthenticated) {
+     console.log('✅ Privy authentication successful')
+  } else {
+     console.warn('⚠️ Privy authentication verification failed - user menu not visible')
+  }
 }

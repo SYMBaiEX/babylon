@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Avatar } from '@/components/shared/Avatar'
+import { getReferralUrl, getDisplayReferralUrl } from '@/lib/referral/referral-utils'
 import { Suspense } from 'react'
 
 /**
@@ -142,8 +143,7 @@ function MobileHeaderContent() {
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
     
-    // Create full referral URL
-    const referralUrl = `${window.location.origin}?ref=${user.referralCode}`
+    const referralUrl = getReferralUrl(user.referralCode)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
@@ -338,33 +338,33 @@ function MobileHeaderContent() {
 
             {/* Bottom Section - Referral & Logout */}
             <div className="shrink-0 border-t border-border bg-sidebar pb-20">
-              {/* Referral Code Button */}
-              {user?.referralCode && (
-                <button
-                  onClick={copyReferralCode}
-                  className="flex items-center gap-4 px-4 py-3 w-full text-left hover:bg-sidebar-accent transition-colors font-semibold"
-                >
-                  {copiedReferral ? (
-                    <>
-                      <Check className="w-5 h-5 text-green-500" />
-                      <span className="text-base text-green-500">Referral Link Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-5 h-5" style={{ color: '#0066FF' }} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base text-foreground">Copy Referral Link</div>
-                        <div className="text-xs text-muted-foreground font-mono truncate">
-                          {typeof window !== 'undefined' && `${window.location.host}?ref=${user.referralCode}`}
-                        </div>
+            {/* Referral Code Button */}
+            {user?.referralCode && (
+              <button
+                onClick={copyReferralCode}
+                className="flex items-center gap-4 px-4 py-3 w-full text-left hover:bg-sidebar-accent transition-colors font-semibold"
+              >
+                {copiedReferral ? (
+                  <>
+                    <Check className="w-5 h-5 text-green-500" />
+                    <span className="text-base text-green-500">Referral Link Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-5 h-5" style={{ color: '#0066FF' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-base text-foreground">Copy Referral Link</div>
+                      <div className="text-xs text-muted-foreground font-mono truncate">
+                        {getDisplayReferralUrl(user.referralCode)}
                       </div>
-                    </>
-                  )}
-                </button>
-              )}
-              
-              {/* Separator */}
-              {user?.referralCode && <div className="border-t border-border" />}
+                    </div>
+                  </>
+                )}
+              </button>
+            )}
+            
+            {/* Separator */}
+            {user?.referralCode && <div className="border-t border-border" />}
               
               {/* Logout Button */}
               <button

@@ -208,7 +208,7 @@ export function ExternalShareButton({
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-primary-foreground transition-colors ${className}`}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 text-foreground transition-colors ${className}`}
         aria-label="Share"
       >
         {shared ? (
@@ -234,29 +234,29 @@ export function ExternalShareButton({
           />
 
           {/* Menu */}
-          <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden z-50">
+          <div className="absolute right-0 mt-2 w-48 bg-sidebar rounded-lg shadow-lg border border-border overflow-hidden z-50">
             <button
               onClick={handleShareToTwitter}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-sidebar-accent text-left transition-colors"
             >
               <Twitter className="w-4 h-4 text-blue-400" />
-              <span className="text-sm text-gray-200">Share to X</span>
+              <span className="text-sm text-foreground">Share to X</span>
             </button>
 
             <button
               onClick={handleShareToFarcaster}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-sidebar-accent text-left transition-colors"
             >
               <FarcasterIcon className="w-4 h-4 text-purple-400" />
-              <span className="text-sm text-gray-200">Share to Farcaster</span>
+              <span className="text-sm text-foreground">Share to Farcaster</span>
             </button>
 
             <button
               onClick={handleCopyLink}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-sidebar-accent text-left transition-colors"
             >
-              <LinkIcon className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-gray-200">Copy Link</span>
+              <LinkIcon className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-foreground">Copy Link</span>
             </button>
           </div>
         </>

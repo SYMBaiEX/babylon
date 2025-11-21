@@ -62,7 +62,7 @@ mock.module('@/lib/agents/autonomous', () => ({
 }))
 
 mock.module('@/lib/services/cron-relay-service', () => ({
-  relayCronToStaging: async () => {}
+  relayCronToStaging: async () => ({ forwarded: false })
 }))
 
 // Import the route handler

@@ -221,15 +221,15 @@ describe('MarketDecisionEngine - Token Management', () => {
     });
 
     test('should split large NPC count into multiple batches', async () => {
-      // Create 400 NPCs (should require 4 batches with current config)
-      // Actual implementation: 800 tokens per NPC, 128450 max context, 80% safety = ~128 NPCs per batch
-      // Max NPCs per batch: (128450 * 0.8) / 800 = 128, so 400 NPCs = 4 batches
-      const npcs = Array.from({ length: 400 }, (_, i) => 
+      // Create 100 NPCs (should require 4 batches with current config: 32 NPCs per batch)
+      // Actual implementation: 2000 tokens per NPC, ~128k max context, 50% safety = 32 NPCs per batch
+      // 100 NPCs / 32 = 3.125 -> 4 batches
+      const npcs = Array.from({ length: 100 }, (_, i) => 
         createMockNPC(`npc-${i}`, `NPC ${i}`)
       );
       mockContext.setMockNPCs(npcs);
 
-      // Mock responses for each batch (128 NPCs per batch)
+      // Mock responses for each batch (32 NPCs per batch)
       const createBatch = (start: number, count: number) => 
         npcs.slice(start, start + count).map(npc => ({
           npcId: npc.npcId,
@@ -242,15 +242,15 @@ describe('MarketDecisionEngine - Token Management', () => {
           timestamp: new Date().toISOString(),
         }));
 
-      mockLLMInstance.setMockResponse(createBatch(0, 128));
-      mockLLMInstance.setMockResponse(createBatch(128, 128));
-      mockLLMInstance.setMockResponse(createBatch(256, 128));
-      mockLLMInstance.setMockResponse(createBatch(384, 16)); // Last batch has 16 NPCs
+      mockLLMInstance.setMockResponse(createBatch(0, 32));
+      mockLLMInstance.setMockResponse(createBatch(32, 32));
+      mockLLMInstance.setMockResponse(createBatch(64, 32));
+      mockLLMInstance.setMockResponse(createBatch(96, 4)); // Last batch has 4 NPCs
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       const decisions = await engine.generateBatchDecisions();
 
-      expect(decisions.length).toBe(400);
+      expect(decisions.length).toBe(100);
       expect(mockLLMInstance.getCallCount()).toBe(4); // Should be exactly 4 batches
     });
   });

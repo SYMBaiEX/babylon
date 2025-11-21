@@ -216,6 +216,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Award points if this is the first time linking Farcaster
   const pointsResult = await PointsService.awardFarcasterLink(userId, username)
 
+  // Check if this qualifies a referral (award bonus to referrer)
+  if (pointsResult.success) {
+    await PointsService.checkAndQualifyReferral(userId).catch((error) => {
+      // Log error but don't fail the request if qualification check fails
+      logger.warn(
+        `Failed to check and qualify referral for user ${userId}`,
+        { userId, error },
+        'FarcasterCallback'
+      );
+    });
+  }
+
   logger.info(
     'Farcaster account linked successfully',
     { userId, farcasterUsername: username, fid: fid, pointsAwarded: pointsResult.pointsAwarded },

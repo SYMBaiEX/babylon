@@ -876,10 +876,15 @@ Otherwise, start fresh.`;
       maxTokens: 8000,
     });
     
+    if (!rawResult) {
+      logger.error('LLM returned null/undefined scenarios response', undefined, 'GameGenerator');
+      throw new Error('LLM returned no response for scenarios');
+    }
+    
     // Handle XML structure - may be nested like { scenarios: { scenario: [...] } }
     let scenarios: Scenario[];
     
-    if ('response' in rawResult && rawResult.response && rawResult.response.scenarios) {
+    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response && rawResult.response.scenarios) {
       const responseSc = rawResult.response.scenarios;
       if (Array.isArray(responseSc)) {
         scenarios = responseSc;
@@ -900,6 +905,10 @@ Otherwise, start fresh.`;
         logger.error('Invalid scenarios structure:', JSON.stringify(rawResult.scenarios, null, 2), 'GameGenerator');
         throw new Error('LLM returned invalid scenarios structure');
       }
+    } else if (rawResult && 'questions' in rawResult && rawResult.questions) {
+      // LLM returned questions instead of scenarios - this is a format error
+      logger.error('LLM returned questions instead of scenarios. Expected scenarios array with mainActors, involvedOrganizations, etc.', JSON.stringify(rawResult, null, 2), 'GameGenerator');
+      throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
     } else {
       logger.error('No scenarios found in response:', JSON.stringify(rawResult, null, 2), 'GameGenerator');
       throw new Error('LLM returned no scenarios');
@@ -952,6 +961,11 @@ Otherwise, start fresh.`;
       temperature: 0.85,
       maxTokens: 8000,
     });
+    
+    if (!rawResult) {
+      logger.error('LLM returned null/undefined questions response', undefined, 'GameGenerator');
+      throw new Error('LLM returned no response for questions');
+    }
     
     // Handle both possible response formats:
     // 1. { questions: [...] } - expected format
@@ -1016,6 +1030,11 @@ Otherwise, start fresh.`;
     });
 
     const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt);
+    
+    if (!rawResult) {
+      logger.warn('LLM returned null/undefined rankings response, using default ranking', undefined, 'GameGenerator');
+      return questions.slice(0, 3);
+    }
     
     // Handle XML structure - may be nested like { rankings: { ranking: [...] } }
     let rankings: Array<{ questionId: number; rank: number }> = [];
@@ -1166,10 +1185,23 @@ Otherwise, start fresh.`;
       required: ['name']
     });
 
+    let parsedResponse = rawResponse;
+    if (typeof rawResponse === 'string') {
+      try {
+         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+      } catch {
+         // ignore
+      }
+    }
+
+    if (!parsedResponse || typeof parsedResponse !== 'object') {
+      return `${admin.name}'s Group`; // Fallback
+    }
+
     // Handle XML structure
-    const response = 'response' in rawResponse && rawResponse.response
-      ? rawResponse.response
-      : rawResponse as { name: string };
+    const response = 'response' in parsedResponse && parsedResponse.response
+      ? parsedResponse.response
+      : parsedResponse as { name: string };
 
     return response.name.toLowerCase();
   }
@@ -1479,26 +1511,59 @@ Otherwise, start fresh.`;
       }
     }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000 });
 
+    if (!rawResponse) {
+      logger.warn('LLM returned null/undefined events response, falling back to simple events', undefined, 'GameGenerator');
+      // Fallback generation if LLM fails
+      return eventRequests.map(req => ({
+        eventNumber: req.eventNumber,
+        event: `${req.actors.map(a => a.name).join(' and ')} involved in ${req.type}`,
+        pointsToward: null
+      }));
+    }
+
+    let parsedResponse = rawResponse;
+    if (typeof rawResponse === 'string') {
+      try {
+         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
+      } catch {
+         // ignore
+      }
+    }
+
+    if (typeof parsedResponse !== 'object') {
+       logger.warn('LLM returned non-object events response', { type: typeof parsedResponse }, 'GameGenerator');
+       return eventRequests.map(req => ({
+        eventNumber: req.eventNumber,
+        event: `${req.actors.map(a => a.name).join(' and ')} involved in ${req.type}`,
+        pointsToward: null
+      }));
+    }
+
     // Handle XML structure - may be nested like { events: { event: [...] } }
     let events: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> = [];
     
-    if ('response' in rawResponse && rawResponse.response && rawResponse.response.events) {
-      if (Array.isArray(rawResponse.response.events)) {
-        events = rawResponse.response.events;
-      } else if (typeof rawResponse.response.events === 'object' && 'event' in rawResponse.response.events) {
-        const nested = (rawResponse.response.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
+    if ('response' in parsedResponse && parsedResponse.response && parsedResponse.response.events) {
+      if (Array.isArray(parsedResponse.response.events)) {
+        events = parsedResponse.response.events;
+      } else if (typeof parsedResponse.response.events === 'object' && 'event' in parsedResponse.response.events) {
+        const nested = (parsedResponse.response.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
         events = Array.isArray(nested) ? nested : [nested];
       }
-    } else if (rawResponse && 'events' in rawResponse && rawResponse.events) {
-      if (Array.isArray(rawResponse.events)) {
-        events = rawResponse.events;
-      } else if (typeof rawResponse.events === 'object' && 'event' in rawResponse.events) {
-        const nested = (rawResponse.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
+    } else if ('events' in parsedResponse && parsedResponse.events) {
+      if (Array.isArray(parsedResponse.events)) {
+        events = parsedResponse.events;
+      } else if (typeof parsedResponse.events === 'object' && 'event' in parsedResponse.events) {
+        const nested = (parsedResponse.events as { event: Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }> }).event;
         events = Array.isArray(nested) ? nested : [nested];
       }
     }
 
-    return events;
+    // Validate and sanitize events
+    return events.map((e, i) => ({
+      eventNumber: e.eventNumber || (i + 1),
+      event: (typeof e.event === 'string' && e.event.length > 0) ? e.event : 'Generic event involving actors',
+      pointsToward: e.pointsToward || null
+    }));
   }
 
   /**
@@ -1823,6 +1888,16 @@ ${req.members.map((m, idx) => {
         { required: ['groups'] },
         { temperature: 1.0, maxTokens: 5000 }
       );
+
+      if (!rawResponse) {
+        logger.warn(`LLM returned null/undefined group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        // Fallback for last attempt
+        return messages;
+      }
 
       // Handle XML structure
       const response = 'response' in rawResponse && rawResponse.response

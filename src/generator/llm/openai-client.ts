@@ -169,6 +169,8 @@ export class BabylonLLMClient {
       temperature?: number;
       maxTokens?: number;
       format?: 'xml' | 'json'; // Default to XML for robustness
+      promptType?: string; // For debug logging
+      promptTemplate?: string; // For debug logging
     } = {}
   ): Promise<T> {
     const defaultModel = this.getDefaultModel();
@@ -178,6 +180,8 @@ export class BabylonLLMClient {
       temperature = 0.7,
       maxTokens = 16000,
       format = 'xml', // Default to XML for more robust parsing
+      promptType = 'unknown',
+      promptTemplate,
     } = options;
 
     // OpenAI can enforce JSON mode, but we default to XML for robustness
@@ -224,6 +228,17 @@ export class BabylonLLMClient {
 
         let content = response.choices[0]!.message.content!;
         let finishReason = response.choices[0]!.finish_reason;
+
+        // Debug logging: Log raw prompt and response
+        await this.logPromptDebug(prompt, content, {
+          promptType,
+          promptTemplate,
+          provider: this.provider,
+          model,
+          temperature,
+          maxTokens,
+          format,
+        });
 
         // Handle truncation by continuing generation (for models with 32k+ context)
         if (finishReason === 'length') {
@@ -299,6 +314,9 @@ export class BabylonLLMClient {
             isArray: Array.isArray(xmlResult.data),
           }, 'BabylonLLMClient');
           
+          // Log parsed output for debugging
+          await this.logParsedOutput(xmlResult.data, promptType);
+          
           return xmlResult.data as T;
         } else {
           // Use JSON parser (legacy)
@@ -327,6 +345,9 @@ export class BabylonLLMClient {
           if (schema && !this.validateSchema(parsed, schema)) {
             throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
           }
+
+          // Log parsed output for debugging
+          await this.logParsedOutput(parsed, promptType);
 
           return parsed as T;
         }
@@ -357,6 +378,70 @@ export class BabylonLLMClient {
         // Re-throw if not a retryable error or retries exhausted
         throw error;
       }
+    }
+  }
+
+  /**
+   * Log parsed output for debugging
+   */
+  private async logParsedOutput(data: JsonValue, promptType: string): Promise<void> {
+    try {
+      const { isPromptLoggingEnabled } = await import('@/lib/debug/prompt-logger');
+      
+      if (!isPromptLoggingEnabled()) {
+        return;
+      }
+
+      // The parsed output is already logged in logPromptDebug via the main flow
+      // This is just for additional structured data if needed
+      logger.debug('Parsed LLM output', {
+        promptType,
+        dataType: Array.isArray(data) ? 'array' : typeof data,
+      }, 'BabylonLLMClient');
+    } catch {
+      // Ignore logging errors
+    }
+  }
+
+  /**
+   * Log prompt and response for debugging
+   */
+  private async logPromptDebug(
+    input: string,
+    output: string,
+    metadata: {
+      promptType?: string;
+      promptTemplate?: string;
+      provider?: string;
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+      format?: string;
+    }
+  ): Promise<void> {
+    try {
+      const { logPrompt, isPromptLoggingEnabled } = await import('@/lib/debug/prompt-logger');
+      
+      if (!isPromptLoggingEnabled()) {
+        return;
+      }
+
+      await logPrompt({
+        promptType: metadata.promptType || 'unknown',
+        promptTemplate: metadata.promptTemplate,
+        input,
+        output,
+        metadata: {
+          provider: metadata.provider,
+          model: metadata.model,
+          temperature: metadata.temperature,
+          maxTokens: metadata.maxTokens,
+          format: metadata.format,
+        },
+      });
+    } catch (error) {
+      // Logging failure should not break generation
+      logger.debug('Failed to log prompt debug', { error }, 'BabylonLLMClient');
     }
   }
 

@@ -38,7 +38,7 @@ describe('Swagger/OpenAPI Documentation', () => {
     expect(spec.info.title).toBe('Babylon API');
     expect(spec).toHaveProperty('paths');
     expect(typeof spec.paths).toBe('object');
-  });
+  }, 30000);
 
   test('should include common API routes in spec', async () => {
     if (!serverAvailable) {
@@ -56,7 +56,7 @@ describe('Swagger/OpenAPI Documentation', () => {
     expect(spec.paths).toHaveProperty('/api/agents');
     expect(spec.paths).toHaveProperty('/api/chats');
     expect(spec.paths).toHaveProperty('/api/users/me');
-  });
+  }, 30000);
 
   test('should have proper security schemes defined', async () => {
     if (!serverAvailable) {
@@ -72,7 +72,7 @@ describe('Swagger/OpenAPI Documentation', () => {
     expect(spec.components.securitySchemes).toHaveProperty('PrivyAuth');
     expect(spec.components.securitySchemes).toHaveProperty('BearerAuth');
     expect(spec.components.securitySchemes).toHaveProperty('CronSecret');
-  });
+  }, 30000);
 
   test('should have tags defined for route grouping', async () => {
     if (!serverAvailable) {
@@ -89,7 +89,7 @@ describe('Swagger/OpenAPI Documentation', () => {
       expect(tagNames).toContain('System');
       expect(tagNames).toContain('Documentation');
     }
-  });
+  }, 30000);
 
   test('should have Swagger UI page accessible', async () => {
     if (!serverAvailable) {
@@ -101,7 +101,7 @@ describe('Swagger/OpenAPI Documentation', () => {
     // Should return HTML page (200 OK)
     expect(response.ok).toBe(true);
     expect(response.headers.get('content-type')).toContain('text/html');
-  });
+  }, 30000);
 });
 
 
