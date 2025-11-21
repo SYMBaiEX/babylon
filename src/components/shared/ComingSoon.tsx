@@ -130,6 +130,111 @@ export function ComingSoon() {
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
 
+  // Handle Twitter OAuth
+  const handleTwitterOAuth = () => {
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    // Redirect to Twitter OAuth initiation
+    window.location.href = '/api/auth/twitter/initiate'
+  }
+
+  // Handle Farcaster OAuth - uses official Farcaster protocol (Sign In with Farcaster)
+  const handleFarcasterOAuth = () => {
+    if (!dbUser?.id) return
+    
+    // Open Farcaster protocol authentication popup
+    // Uses Sign In with Farcaster (SIWF) via official protocol endpoint (farcaster.xyz)
+    const state = `${dbUser.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${state}`
+    
+    const width = 600
+    const height = 700
+    const left = (window.screen.width - width) / 2
+    const top = (window.screen.height - height) / 2
+    
+    const popup = window.open(
+      authUrl,
+      'farcaster-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
+
+    if (!popup) {
+      toast.error('Please allow popups to connect Farcaster')
+      return
+    }
+
+    // Listen for Farcaster auth callback from popup
+    const handleMessage = async (event: MessageEvent) => {
+      // Verify origin for security
+      if (event.origin !== window.location.origin) return
+
+      if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
+        const { fid, username, displayName, pfpUrl } = event.data
+        
+        try {
+          const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+          const response = await fetch('/api/auth/farcaster/callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              message: event.data.message,
+              signature: event.data.signature,
+              fid,
+              username,
+              displayName,
+              pfpUrl,
+              state,
+            }),
+          })
+
+          const data = await response.json()
+
+          if (response.ok && data.success) {
+            // Refresh user profile to reflect the linked Farcaster account
+            await refresh()
+
+            // Refresh waitlist position to update points
+            if (dbUser?.id) {
+              await fetchWaitlistPosition(dbUser.id)
+            }
+
+            if (data.pointsAwarded > 0) {
+              toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+            } else {
+              toast.success('Farcaster account linked successfully!')
+            }
+          } else {
+            toast.error(data.error || 'Failed to link Farcaster account')
+          }
+        } catch (error) {
+          logger.error('Error linking Farcaster account', {
+            error: error instanceof Error ? error.message : String(error),
+          }, 'ComingSoon')
+          toast.error('Failed to link Farcaster account')
+        } finally {
+          window.removeEventListener('message', handleMessage)
+          if (popup && !popup.closed) {
+            popup.close()
+          }
+        }
+      }
+    }
+
+    // Add message listener for popup response
+    window.addEventListener('message', handleMessage)
+
+    // Clean up listener if popup closes without authenticating
+    const checkPopupClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkPopupClosed)
+        window.removeEventListener('message', handleMessage)
+      }
+    }, 1000)
+  }
+
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
     if (!authenticated || !dbUser || !dbUser.id) return

@@ -1,6 +1,7 @@
 /**
  * Farcaster Sign-In utilities for onboarding
- * Handles Warpcast popup flow and profile data fetching
+ * Handles Farcaster protocol authentication flow and profile data fetching
+ * Uses official Farcaster protocol endpoints (farcaster.xyz)
  */
 
 import { logger } from './logger'
@@ -13,7 +14,7 @@ export interface FarcasterOnboardingProfile {
   bio?: string
 }
 
-interface WarpcastAuthResponse {
+interface FarcasterAuthResponse {
   message: string
   signature: string
   fid: number
@@ -24,7 +25,8 @@ interface WarpcastAuthResponse {
 }
 
 /**
- * Open Warpcast Sign-In popup and handle authentication
+ * Open Farcaster Sign-In popup and handle authentication
+ * Uses official Farcaster protocol endpoints via connect.farcaster.xyz
  */
 export async function openFarcasterOnboardingPopup(
   userId: string
@@ -33,10 +35,10 @@ export async function openFarcasterOnboardingPopup(
     // Generate state for verification
     const state = `onboarding:${userId}:${Date.now()}:${Math.random().toString(36).substring(7)}`
     
-    // Build Warpcast auth URL
-    const authUrl = new URL('https://warpcast.com/~/sign-in-with-farcaster')
-    authUrl.searchParams.set('redirect_url', window.location.origin)
-    authUrl.searchParams.set('state', state)
+    // Build Farcaster protocol auth URL using official protocol endpoint
+    // Uses farcaster.xyz (protocol domain) instead of warpcast.com (client domain)
+    // The channelToken parameter is used for the Sign In with Farcaster flow
+    const authUrl = `https://farcaster.xyz/~/sign-in-with-farcaster?channelToken=${state}`
     
     // Open popup
     const width = 500
@@ -45,7 +47,7 @@ export async function openFarcasterOnboardingPopup(
     const top = window.screen.height / 2 - height / 2
     
     const popup = window.open(
-      authUrl.toString(),
+      authUrl,
       'Farcaster Sign In',
       `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
     )
@@ -62,9 +64,9 @@ export async function openFarcasterOnboardingPopup(
         return
       }
 
-      const data = event.data as WarpcastAuthResponse & { type?: string }
+      const data = event.data as FarcasterAuthResponse & { type?: string }
 
-      if (data.type !== 'farcaster_auth') {
+      if (data.type !== 'FARCASTER_AUTH_SUCCESS') {
         return
       }
 
@@ -146,7 +148,7 @@ export async function openNeynarFarcasterAuth(
   userId: string
 ): Promise<FarcasterOnboardingProfile> {
   // This would use Neynar's auth widget if available
-  // For now, we'll use the custom Warpcast flow above
+  // For now, we'll use the Farcaster protocol flow above
   return openFarcasterOnboardingPopup(userId)
 }
 
