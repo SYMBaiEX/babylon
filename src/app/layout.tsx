@@ -78,6 +78,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const waitlistModeEnabled =
+    (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) === 'true'
+
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">
       <body className="antialiased bg-background font-sans overscroll-none" suppressHydrationWarning>
@@ -88,15 +91,19 @@ export default function RootLayout({
           </Suspense>
 
           {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
-          <Suspense fallback={null}>
-            <MobileHeader />
-          </Suspense>
+          {!waitlistModeEnabled && (
+            <Suspense fallback={null}>
+              <MobileHeader />
+            </Suspense>
+          )}
 
           <div className="flex min-h-screen max-w-screen-xl mx-auto bg-sidebar">
             {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
-            <Suspense fallback={null}>
-              <Sidebar />
-            </Suspense>
+            {!waitlistModeEnabled && (
+              <Suspense fallback={null}>
+                <Sidebar />
+              </Suspense>
+            )}
 
             {/* Main Content Area - Scrollable content with pull-to-refresh */}
             <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background">
@@ -104,15 +111,19 @@ export default function RootLayout({
             </main>
 
             {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
-            <Suspense fallback={null}>
-              <BottomNav />
-            </Suspense>
+            {!waitlistModeEnabled && (
+              <Suspense fallback={null}>
+                <BottomNav />
+              </Suspense>
+            )}
           </div>
 
           {/* Auth Banner - shows on all pages when not authenticated */}
-          <Suspense fallback={null}>
-            <FeedAuthBanner />
-          </Suspense>
+          {!waitlistModeEnabled && (
+            <Suspense fallback={null}>
+              <FeedAuthBanner />
+            </Suspense>
+          )}
         </Providers>
         <Analytics />
         <SpeedInsights />

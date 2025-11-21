@@ -1,3 +1,9 @@
+const waitlistFlag =
+  process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? 'false'
+const waitlistEnabled = ['true', '1', 'yes', 'on'].includes(
+  waitlistFlag.toLowerCase()
+)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,6 +15,22 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+
+  },
+  env: {
+    WAITLIST_MODE: process.env.WAITLIST_MODE ?? 'false',
+  },
+  async redirects() {
+    if (!waitlistEnabled) return []
+
+    return [
+      {
+        // Redirect everything except root and static/API assets to home during waitlist
+        source:
+          '/:path((?!$|_next|api|assets|static|images|fonts|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|\\.well-known|monitoring).*)',
+        destination: '/',
+        permanent: false,
+      },
+    ]
   },
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,
