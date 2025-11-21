@@ -1,6 +1,7 @@
 export interface OnboardingProfilePayload {
   username: string
   displayName?: string
+  email?: string
   bio?: string
   profileImageUrl?: string | null
   coverImageUrl?: string | null

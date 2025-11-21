@@ -104,6 +104,7 @@ import { generateSnowflakeId } from '@/lib/snowflake'
 import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
+import { getHashedClientIp } from '@/lib/utils/ip-utils'
 
 interface SignupRequestBody {
   username: string
@@ -162,6 +163,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const canonicalUserId = authUser.dbUserId ?? authUser.userId
   const privyId = authUser.privyId ?? authUser.userId
   const walletAddress = authUser.walletAddress?.toLowerCase() ?? null
+
+  // Capture and hash IP address for self-referral detection
+  const registrationIpHash = getHashedClientIp(request)
 
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined
@@ -261,6 +265,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       const baseUserData = {
         username: parsedProfile.username,
         displayName: parsedProfile.displayName,
+        email: parsedProfile.email || null,
         bio: parsedProfile.bio ?? '',
         profileImageUrl: parsedProfile.profileImageUrl ?? null,
         coverImageUrl: parsedProfile.coverImageUrl ?? null,
@@ -271,6 +276,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         hasProfileImage: Boolean(parsedProfile.profileImageUrl),
         // Waitlist users start with 100 points instead of 1000
         ...(isWaitlist ? { reputationPoints: 100 } : {}),
+        // Store IP hash for self-referral detection
+        ...(registrationIpHash ? { registrationIpHash } : {}),
         // Legal acceptance (GDPR compliance)
         ...(parsedProfile.tosAccepted ? {
           tosAccepted: true,

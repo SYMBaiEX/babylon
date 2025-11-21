@@ -64,8 +64,8 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
 
   const handleCopyReferral = async (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!user?.username) return
-    const referralUrl = getReferralUrl(user.username)
+    if (!user?.referralCode) return
+    const referralUrl = getReferralUrl(user.referralCode)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedReferral(true)
     setTimeout(() => setCopiedReferral(false), 2000)
@@ -110,7 +110,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     onDismiss?.()
   }
 
-  if (!user?.referralCode || !user?.username) {
+  if (!user?.referralCode) {
     return null
   }
 

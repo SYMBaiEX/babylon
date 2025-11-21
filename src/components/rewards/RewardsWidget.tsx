@@ -6,6 +6,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { POINTS } from '@/lib/constants/points'
 
 /**
  * Referred user structure for rewards widget.
@@ -29,6 +30,8 @@ interface ReferralStats {
   totalPointsEarned: number
   pointsPerReferral: number
   followingCount: number
+  weeklyReferralCount?: number
+  weeklyLimit?: number
 }
 
 /**
@@ -191,12 +194,28 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
         </div>
 
         {/* Total Referrals */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Total</span>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Total</span>
+            </div>
+            <span className="text-lg font-bold text-foreground">{data.stats.totalReferrals}</span>
           </div>
-          <span className="text-lg font-bold text-foreground">{data.stats.totalReferrals}</span>
+          {data.stats.weeklyReferralCount !== undefined && data.stats.weeklyLimit !== undefined && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">This Week</span>
+              <span className={`font-semibold ${
+                data.stats.weeklyReferralCount >= data.stats.weeklyLimit
+                  ? 'text-red-500'
+                  : data.stats.weeklyReferralCount >= data.stats.weeklyLimit * 0.8
+                  ? 'text-yellow-500'
+                  : 'text-foreground'
+              }`}>
+                {data.stats.weeklyReferralCount}/{data.stats.weeklyLimit}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Points Earned */}
@@ -267,7 +286,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
                   )}
                 </div>
                 <div className="shrink-0 flex items-center gap-1">
-                  <span className="text-xs font-semibold text-yellow-500">+250</span>
+                  <span className="text-xs font-semibold text-yellow-500">+{POINTS.REFERRAL_SIGNUP}</span>
                   {referredUser.isFollowing && (
                     <UserPlus className="w-3 h-3 text-[#0066FF]" />
                   )}

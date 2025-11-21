@@ -171,6 +171,7 @@ import { asSystem, asUser } from '@/lib/db/context';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { PointsService } from '@/lib/services/points-service';
 import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 
@@ -436,6 +437,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     return newChat;
   });
+
+  // Award points for creating a private channel (group chat created directly, not through UserGroup)
+  if (isGroup && !chat.groupId) {
+    await PointsService.awardPrivateChannelCreate(user.userId, chat.id).catch((error: unknown) => {
+      // Log error but don't fail chat creation if points award fails
+      logger.error('Failed to award points for private channel creation', { error, userId: user.userId, chatId: chat.id }, 'POST /api/chats');
+    });
+  }
 
   logger.info('Chat created successfully', { chatId: chat.id, userId: user.userId, isGroup, participantCount: (participantIds?.length || 0) + 1 }, 'POST /api/chats');
 

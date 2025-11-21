@@ -257,6 +257,23 @@ export const POST = withErrorHandling(async (
     }
   }
 
+  // Update referral code if username is changing and username is available
+  let referralCodeUpdate: { referralCode?: string } = {}
+  if (isUsernameChanging && normalizedUsername) {
+    // Check if username is available as referral code (not taken by another user)
+    const existingUserWithCode = await prisma.user.findFirst({
+      where: {
+        referralCode: normalizedUsername,
+        id: { not: canonicalUserId },
+      },
+    })
+    
+    // Only update referral code if username is available
+    if (!existingUserWithCode) {
+      referralCodeUpdate.referralCode = normalizedUsername
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: canonicalUserId },
     data: {
@@ -269,6 +286,7 @@ export const POST = withErrorHandling(async (
       ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
       ...(showWalletPublic !== undefined && { showWalletPublic }),
       ...(isUsernameChanging && { usernameChangedAt: new Date() }),
+      ...referralCodeUpdate,
       hasUsername: normalizedUsername !== undefined ? normalizedUsername.length > 0 : undefined,
       hasBio: normalizedBio !== undefined ? normalizedBio.length > 0 : undefined,
       hasProfileImage: normalizedProfileImageUrl !== undefined ? normalizedProfileImageUrl.length > 0 : undefined,

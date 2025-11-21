@@ -82,7 +82,7 @@ export function getDisplayReferralUrl(usernameOrCode: string): string {
  * ```
  */
 export function getReferralShareText(usernameOrCode: string, customMessage?: string): string {
-  const message = customMessage || 'Join me on Babylon! 🎮'
+  const message = customMessage || 'Join me in Babylon, a real-time simulation where humans and AI agents battle across prediction markets, form alliances, and shape outcomes—together.'
   const url = getReferralUrl(usernameOrCode)
   return `${message}\n\n${url}`
 }

@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { X as XIcon, Twitter, Check, Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
+import { POINTS } from '@/lib/constants/points'
 import { ShareVerificationModal } from './ShareVerificationModal'
 
 // Farcaster icon component
@@ -299,7 +300,7 @@ export function ShareEarnModal({
           {/* Content */}
           <div className="p-6 space-y-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Share to earn +1000 points per platform
+              Share to earn +{POINTS.SHARE_ACTION} points (one-time reward)
             </p>
 
             {checkingExistingShares ? (
@@ -353,7 +354,7 @@ export function ShareEarnModal({
                     : shareStatus.twitter.loading
                     ? 'Processing...'
                     : shareStatus.twitter.earned
-                      ? 'Earned +1000 points - Share again!'
+                      ? `Earned +${POINTS.SHARE_TO_TWITTER} points`
                       : 'Share your profile'}
                 </p>
               </div>
@@ -362,7 +363,7 @@ export function ShareEarnModal({
               ) : shareStatus.twitter.earned ? (
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-green-500" />
-                  <span className="text-xs font-semibold text-green-500">+1000</span>
+                  <span className="text-xs font-semibold text-green-500">+{POINTS.SHARE_TO_TWITTER}</span>
                 </div>
               ) : null}
             </button>
@@ -386,14 +387,14 @@ export function ShareEarnModal({
                   {shareStatus.farcaster.loading
                     ? 'Processing...'
                     : shareStatus.farcaster.earned
-                    ? 'Earned +1000 points - Share again!'
+                    ? `Earned +${POINTS.SHARE_ACTION} points`
                     : 'Share your profile'}
                 </p>
               </div>
               {shareStatus.farcaster.earned && (
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-green-500" />
-                  <span className="text-xs font-semibold text-green-500">+1000</span>
+                  <span className="text-xs font-semibold text-green-500">+{POINTS.SHARE_ACTION}</span>
                 </div>
               )}
             </button>

@@ -77,6 +77,7 @@ interface OnboardingModalProps {
     onChainRegistered?: boolean
   } | null
   importedData?: ImportedProfileData | null
+  initialEmail?: string | null
 }
 
 /**
@@ -141,9 +142,11 @@ export function OnboardingModal({
   onLogout,
   user,
   importedData,
+  initialEmail,
 }: OnboardingModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [bio, setBio] = useState('')
   const [profilePictureIndex, setProfilePictureIndex] = useState(1)
   const [bannerIndex, setBannerIndex] = useState(1)
@@ -249,6 +252,13 @@ export function OnboardingModal({
 
     void initializeProfile()
   }, [isOpen, stage, importedData])
+  
+  // Initialize email from initialEmail prop when available
+  useEffect(() => {
+    if (initialEmail && !email && stage === 'PROFILE') {
+      setEmail(initialEmail)
+    }
+  }, [initialEmail, email, stage])
 
   useEffect(() => {
     if (stage !== 'PROFILE') return
@@ -327,11 +337,12 @@ export function OnboardingModal({
     const profilePayload: OnboardingProfilePayload = {
       username: username.trim().toLowerCase(),
       displayName: displayName.trim(),
+      email: email.trim() || undefined,
       bio: bio.trim() || undefined,
       profileImageUrl: resolveAssetUrl(uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`),
       coverImageUrl: resolveAssetUrl(uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`),
       // Include imported social account data if available
-      // These fields trigger automatic reward point awards (1000 points per social account)
+      // These fields trigger automatic reward point awards (300 points per social account)
       importedFrom: importedData?.platform || null,
       twitterId: importedData?.platform === 'twitter' ? importedData.twitterId : null,
       twitterUsername: importedData?.platform === 'twitter' ? importedData.username : null,
@@ -446,6 +457,23 @@ export function OnboardingModal({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="email" className="block text-sm font-medium">
+          Email <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your.email@example.com"
+          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
+        />
+        <p className="text-xs text-muted-foreground">
+          Used for important updates and marketing (optional)
+        </p>
       </div>
 
       <div className="space-y-2">

@@ -39,6 +39,11 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
     return <>{children}</>;
   }
   
+  // Filter out props that shouldn't be passed to PrivyProvider
+  // These might be passed from parent components but aren't valid PrivyProvider props
+  // and can cause React warnings when forwarded to DOM elements
+  const { isActive, ...privyProps } = props as Record<string, unknown>;
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,7 +132,7 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
   
   return (
     <div ref={containerRef}>
-      <PrivyProvider appId={trimmedAppId} {...props}>
+      <PrivyProvider appId={trimmedAppId} {...privyProps}>
         {children}
       </PrivyProvider>
     </div>

@@ -312,73 +312,102 @@ export function useAuth(): UseAuthReturn {
     try {
       // Only link accounts that aren't already linked
       if (userWithFarcaster.farcaster && !user.hasFarcaster) {
-      const farcaster = userWithFarcaster.farcaster;
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'farcaster',
-            username: farcaster.username || farcaster.displayName,
-          }),
+        const farcaster = userWithFarcaster.farcaster;
+        const response = await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'farcaster',
+              username: farcaster.username || farcaster.displayName,
+            }),
+          }
+        );
+        
+        if (!response.ok && response.status !== 409) {
+          // Log non-409 errors but don't throw - we don't want to break auth flow
+          const errorText = await response.text().catch(() => 'Unknown error');
+          logger.warn(
+            'Failed to link Farcaster account',
+            { username: farcaster.username, status: response.status, error: errorText },
+            'useAuth'
+          );
         }
-      );
-      logger.info(
-        'Linked Farcaster account during auth sync',
-        { username: farcaster.username },
-        'useAuth'
-      );
-    }
+        // 409 means already linked to this user - that's fine, no action needed
+        // 200 means successfully linked - that's also fine
+      }
 
       if (userWithTwitter.twitter && !user.hasTwitter) {
-      const twitter = userWithTwitter.twitter;
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'twitter',
-            username: twitter.username,
-          }),
+        const twitter = userWithTwitter.twitter;
+        const response = await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'twitter',
+              username: twitter.username,
+            }),
+          }
+        );
+        
+        if (!response.ok && response.status !== 409) {
+          // Log non-409 errors but don't throw - we don't want to break auth flow
+          const errorText = await response.text().catch(() => 'Unknown error');
+          logger.warn(
+            'Failed to link Twitter account',
+            { username: twitter.username, status: response.status, error: errorText },
+            'useAuth'
+          );
         }
-      );
-      logger.info(
-        'Linked Twitter account during auth sync',
-        { username: twitter.username },
-        'useAuth'
-      );
-    }
+        // 409 means already linked to this user - that's fine, no action needed
+        // 200 means successfully linked - that's also fine
+      }
 
       // Only link wallet if it's different from the stored wallet address
       if (wallet?.address && user.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()) {
-      await apiFetch(
-        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'wallet',
-            address: wallet.address.toLowerCase(),
-          }),
+        const response = await apiFetch(
+          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: 'wallet',
+              address: wallet.address.toLowerCase(),
+            }),
+          }
+        );
+        
+        // 409 means wallet already linked to another account - expected, skip
+        // Other errors are logged but don't break auth flow
+        if (!response.ok && response.status !== 409) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          logger.warn(
+            'Failed to link wallet',
+            { address: wallet.address, status: response.status, error: errorText },
+            'useAuth'
+          );
         }
-      );
-      logger.info(
-        'Linked wallet during auth sync',
-        { address: wallet.address },
+      }
+    } catch (error) {
+      // Catch any unexpected errors and log them, but don't break the auth flow
+      logger.error(
+        'Unexpected error during social account linking',
+        { error: error instanceof Error ? error.message : String(error) },
         'useAuth'
       );
-      }
     } finally {
       // Mark as completed and remove from in-progress set
       linkingInProgress.delete(privyUser.id);
+      // Always mark as "linked" to prevent retries, even if some links failed
+      // The function checks if accounts are already linked before attempting
       linkedSocialUsers.add(privyUser.id);
     }
   };

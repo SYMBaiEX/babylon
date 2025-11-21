@@ -47,6 +47,8 @@ interface ReferralStats {
   pointsPerReferral?: number
   feeShareRate?: number
   followingCount: number
+  weeklyReferralCount?: number
+  weeklyLimit?: number
 }
 
 interface ReferralData {
@@ -125,8 +127,8 @@ export default function RewardsPage() {
   }, [user?.id, ready, authenticated, fetchReferralData])
 
   const handleCopyUrl = async () => {
-    if (!referralData?.user.username) return
-    const referralUrl = getReferralUrl(referralData.user.username)
+    if (!referralData?.user.referralCode) return
+    const referralUrl = getReferralUrl(referralData.user.referralCode)
     await navigator.clipboard.writeText(referralUrl)
     setCopiedUrl(true)
     setTimeout(() => setCopiedUrl(false), 2000)
@@ -295,6 +297,36 @@ export default function RewardsPage() {
                 <div className="text-3xl font-bold text-foreground">
                   {referralData.stats.totalReferrals}
                 </div>
+                {referralData.stats.weeklyReferralCount !== undefined && referralData.stats.weeklyLimit !== undefined && (
+                  <div className="mt-2 pt-2 border-t border-border">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-muted-foreground">This Week</span>
+                      <span className={`font-semibold ${
+                        referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit
+                          ? 'text-red-500'
+                          : referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit * 0.8
+                          ? 'text-yellow-500'
+                          : 'text-foreground'
+                      }`}>
+                        {referralData.stats.weeklyReferralCount}/{referralData.stats.weeklyLimit}
+                      </span>
+                    </div>
+                    <div className="w-full bg-background rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${
+                          referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit
+                            ? 'bg-red-500'
+                            : referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit * 0.8
+                            ? 'bg-yellow-500'
+                            : 'bg-[#0066FF]'
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -351,7 +383,7 @@ export default function RewardsPage() {
                   <div>
                     <h2 className="text-base font-bold text-foreground">Share & Earn</h2>
                     <p className="text-sm text-muted-foreground">
-                      Share content to earn +{POINTS.SHARE_ACTION} points per share
+                      Share content to earn +{POINTS.SHARE_ACTION} points (one-time reward)
                     </p>
                   </div>
                 </div>
@@ -371,20 +403,20 @@ export default function RewardsPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Gift className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-base font-bold text-foreground">Referral Link</h2>
-                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points per signup</span>
+                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points per signup (max 10/week)</span>
               </div>
 
               <div className="space-y-3">
                 {/* URL Display */}
                 <div className="flex gap-2">
                   <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border truncate">
-                    {referralData.user.username 
-                      ? getReferralUrl(referralData.user.username)
-                      : 'Set a username to get your referral link'}
+                    {referralData.user.referralCode 
+                      ? getReferralUrl(referralData.user.referralCode)
+                      : 'Generating your referral link...'}
                   </div>
                   <button
                     onClick={handleCopyUrl}
-                    disabled={!referralData.user.username}
+                    disabled={!referralData.user.referralCode}
                     className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center gap-1.5 border border-border disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {copiedUrl ? (
@@ -402,16 +434,16 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {referralData.user.username && (
+                {referralData.user.referralCode && (
                   <ExternalShareButton
                     contentType="referral"
-                    text={getReferralShareText(referralData.user.username)}
-                    url={getReferralUrl(referralData.user.username)}
+                    text={getReferralShareText(referralData.user.referralCode)}
+                    url={getReferralUrl(referralData.user.referralCode)}
                     className="w-full"
                   />
                 )}
 
-                {!referralData.user.username && (
+                {!referralData.user.referralCode && (
                   <p className="text-xs text-muted-foreground">
                     Sign in to get your referral link
                   </p>
@@ -531,6 +563,36 @@ export default function RewardsPage() {
                 <div className="text-2xl font-bold text-foreground">
                   {referralData.stats.totalReferrals}
                 </div>
+                {referralData.stats.weeklyReferralCount !== undefined && referralData.stats.weeklyLimit !== undefined && (
+                  <div className="mt-1.5 pt-1.5 border-t border-border">
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <span className="text-muted-foreground">Week</span>
+                      <span className={`font-semibold ${
+                        referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit
+                          ? 'text-red-500'
+                          : referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit * 0.8
+                          ? 'text-yellow-500'
+                          : 'text-foreground'
+                      }`}>
+                        {referralData.stats.weeklyReferralCount}/{referralData.stats.weeklyLimit}
+                      </span>
+                    </div>
+                    <div className="w-full bg-background rounded-full h-1">
+                      <div
+                        className={`h-1 rounded-full transition-all ${
+                          referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit
+                            ? 'bg-red-500'
+                            : referralData.stats.weeklyReferralCount >= referralData.stats.weeklyLimit * 0.8
+                            ? 'bg-yellow-500'
+                            : 'bg-[#0066FF]'
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -584,7 +646,7 @@ export default function RewardsPage() {
                 Share & Earn
               </h2>
               <p className="text-sm text-muted-foreground">
-                Share content to earn +{POINTS.SHARE_ACTION} points per share
+                Share content to earn +{POINTS.SHARE_ACTION} points (one-time reward)
               </p>
               <div className="relative">
                 <button
@@ -607,20 +669,20 @@ export default function RewardsPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Gift className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-base font-bold text-foreground">Referral Link</h2>
-                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points</span>
+                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points per signup (max 10/week)</span>
               </div>
 
               <div className="space-y-3">
                 {/* URL Display */}
                 <div className="flex gap-2">
                   <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border break-all">
-                    {referralData.user.username 
-                      ? getReferralUrl(referralData.user.username)
-                      : 'Set a username to get your referral link'}
+                    {referralData.user.referralCode 
+                      ? getReferralUrl(referralData.user.referralCode)
+                      : 'Generating your referral link...'}
                   </div>
                   <button
                     onClick={handleCopyUrl}
-                    disabled={!referralData.user.username}
+                    disabled={!referralData.user.referralCode}
                     className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     aria-label="Copy referral link"
                   >
@@ -633,16 +695,16 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {referralData.user.username && (
+                {referralData.user.referralCode && (
                   <ExternalShareButton
                     contentType="referral"
-                    text={getReferralShareText(referralData.user.username)}
-                    url={getReferralUrl(referralData.user.username)}
+                    text={getReferralShareText(referralData.user.referralCode)}
+                    url={getReferralUrl(referralData.user.referralCode)}
                     className="w-full"
                   />
                 )}
 
-                {!referralData.user.username && (
+                {!referralData.user.referralCode && (
                   <p className="text-xs text-muted-foreground">
                     Sign in to get your referral link
                   </p>

@@ -112,6 +112,7 @@ import { prisma } from '@/lib/prisma';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { withErrorHandling } from '@/lib/errors/error-handler';
+import { PointsService } from '@/lib/services/points-service';
 import { z } from 'zod';
 
 const createGroupSchema = z.object({
@@ -241,6 +242,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       UserGroupMember: true,
       UserGroupAdmin: true,
     },
+  });
+
+  // Award points for creating a private group
+  // User groups are private by default (only members can see/access)
+  await PointsService.awardPrivateGroupCreate(user.userId, groupId).catch((error) => {
+    // Log error but don't fail group creation if points award fails
+    console.error('Failed to award points for private group creation:', error);
   });
 
   // Add initial members if provided

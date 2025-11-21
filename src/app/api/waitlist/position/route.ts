@@ -105,6 +105,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }, 'GET /api/waitlist/position')
   }
   
+  // Calculate weekly referral count
+  const { prisma } = await import('@/lib/prisma')
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const weeklyReferralCount = await prisma.referral.count({
+    where: {
+      referrerId: userId,
+      status: 'completed',
+      completedAt: {
+        gte: oneWeekAgo,
+      },
+    },
+  })
+  const WEEKLY_REFERRAL_LIMIT = 10
+
   return successResponse({
     // IMPORTANT: Return leaderboardRank as "position" for UI compatibility
     position: position.leaderboardRank,      // Dynamic rank based on invite points
@@ -122,6 +136,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       bonus: position.bonusPoints,
     },
     referralCount: position.referralCount,
+    weeklyReferralCount,
+    weeklyLimit: WEEKLY_REFERRAL_LIMIT,
   })
 })
 
