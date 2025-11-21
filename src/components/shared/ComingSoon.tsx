@@ -94,6 +94,39 @@ export function ComingSoon() {
     bio: dbUser?.bio || '',
     profileImageUrl: dbUser?.profileImageUrl || '',
   })
+
+  // Handle Twitter OAuth
+  const handleTwitterOAuth = () => {
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    // Redirect to Twitter OAuth initiation
+    window.location.href = '/api/auth/twitter/initiate'
+  }
+
+  // Handle Farcaster OAuth - directly open the popup
+  const handleFarcasterOAuth = () => {
+    if (!dbUser?.id) return
+    
+    // Open Farcaster Auth in popup directly
+    const state = `${dbUser.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+    const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
+    
+    const width = 600
+    const height = 700
+    const left = (window.screen.width - width) / 2
+    const top = (window.screen.height - height) / 2
+    
+    const popup = window.open(
+      authUrl,
+      'farcaster-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
+
+    if (!popup) {
+      alert('Please allow popups to connect Farcaster')
+      return
+    }
+  }
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
 
@@ -1432,7 +1465,7 @@ export function ComingSoon() {
                   {/* Twitter Link */}
                   {!dbUser?.hasTwitter && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
+                      onClick={handleTwitterOAuth}
                       className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                     >
                       <div className="flex items-center gap-3">
@@ -1455,7 +1488,7 @@ export function ComingSoon() {
                   {/* Farcaster Link */}
                   {!dbUser?.hasFarcaster && (
                     <button
-                      onClick={() => setShowLinkSocialModal(true)}
+                      onClick={handleFarcasterOAuth}
                       className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px]"
                     >
                       <div className="flex items-center gap-3">

@@ -424,7 +424,7 @@ export class WaitlistService {
       return false
     }
 
-    const bonusAmount = 25
+    const bonusAmount = 300
     const newBonusPoints = user.bonusPoints + bonusAmount
     const newReputationPoints = user.reputationPoints + bonusAmount
 
