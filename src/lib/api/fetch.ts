@@ -18,27 +18,33 @@ export interface ApiFetchOptions extends RequestInit {
 
 /**
  * Get a fresh Privy access token
- * 
- * @description Retrieves a fresh Privy access token from the window object.
- * Uses the Privy hook's getAccessToken if available, otherwise falls back
- * to cached token. Returns null in server-side environments.
- * 
+ *
+ * @description Retrieves a fresh Privy access token by calling Privy's getAccessToken().
+ * Per Privy best practices, this function ALWAYS calls getAccessToken() on-demand
+ * which automatically refreshes tokens nearing expiration. Never relies on cached
+ * tokens which can become stale. Returns null in server-side environments.
+ *
+ * @see https://docs.privy.io/authentication/user-authentication/access-tokens
  * @returns {Promise<string | null>} Access token or null if unavailable
  * @private
  */
-async function getPrivyAccessToken(): Promise<string | null> {
+export async function getPrivyAccessToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-  
-  // Use the Privy hook's getAccessToken if available (preferred - gets fresh token)
+
+  // ALWAYS call getAccessToken() on-demand - it auto-refreshes expired tokens
+  // Per Privy best practices: never rely on cached tokens, always fetch fresh
   if (window.__privyGetAccessToken) {
-    const token = await window.__privyGetAccessToken();
-    // Update the cached token
-    window.__privyAccessToken = token;
-    return token;
+    try {
+      const token = await window.__privyGetAccessToken();
+      return token;
+    } catch {
+      // If getAccessToken fails, user will be logged out by Privy automatically
+      return null;
+    }
   }
-  
-  // Fallback to cached token
-  return window.__privyAccessToken ?? null;
+
+  // No token available - user not authenticated via Privy hook
+  return null;
 }
 
 /**
