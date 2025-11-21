@@ -96,6 +96,7 @@
     "@elizaos/core": "^1.6.4",
     "@elizaos/plugin-sql": "^1.6.4",
     "@fal-ai/client": "^1.7.2",
+    "@farcaster/auth-client": "^0.7.0",
     "@farcaster/auth-kit": "^0.8.1",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@hookform/resolvers": "^5.2.2",

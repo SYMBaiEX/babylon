@@ -104,6 +104,7 @@ import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { z } from 'zod';
+import { createAppClient, viemConnector } from '@farcaster/auth-client';
 
 const FarcasterCallbackBodySchema = z.object({
   message: z.string(),
@@ -327,8 +328,8 @@ function parseSiwfMessage(message: string): {
 }
 
 /**
- * Verify Farcaster signature using Neynar API
- * Also validates SIWF message content (domain, expiration)
+ * Verify Farcaster signature using @farcaster/auth-client
+ * Uses the official SIWF verification method with viem connector
  */
 async function verifyFarcasterSignature(
   message: string,
@@ -336,74 +337,74 @@ async function verifyFarcasterSignature(
   fid: number,
   requestOrigin?: string
 ): Promise<{ valid: boolean; error?: string }> {
-  // Parse SIWF message to extract domain and expiration
+  // Parse SIWF message to extract domain and nonce
   const siwfFields = parseSiwfMessage(message)
 
-  // Verify domain matches our domain (if specified in message)
-  if (siwfFields.domain) {
-    const appDomain = process.env.NEXT_PUBLIC_APP_URL 
-      ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
-      : requestOrigin
-        ? new URL(requestOrigin).hostname
-        : null
+  // Get the domain for verification
+  const appDomain = process.env.NEXT_PUBLIC_APP_URL
+    ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
+    : requestOrigin
+      ? new URL(requestOrigin).hostname
+      : null
 
-    if (appDomain && siwfFields.domain !== appDomain && siwfFields.domain !== `www.${appDomain}`) {
-      logger.warn('SIWF domain mismatch', {
-        messageDomain: siwfFields.domain,
-        appDomain,
-        fid,
-      }, 'verifyFarcasterSignature')
-      // Note: We log but don't fail, as domain might be set by Farcaster client
-      // The cryptographic signature verification is the primary security check
-    }
+  if (!appDomain) {
+    logger.error('No domain available for SIWF verification', { fid }, 'verifyFarcasterSignature')
+    return { valid: false, error: 'Configuration error: no domain available' }
   }
 
-  // Verify expiration time hasn't passed
-  if (siwfFields.expirationTime) {
-    try {
-      const expirationDate = new Date(siwfFields.expirationTime)
-      const now = new Date()
-      if (expirationDate < now) {
-        logger.warn('SIWF message expired', {
-          expirationTime: siwfFields.expirationTime,
-          now: now.toISOString(),
-          fid,
-        }, 'verifyFarcasterSignature')
-        return { valid: false, error: 'Message expired' }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse SIWF expiration time', {
-        expirationTime: siwfFields.expirationTime,
-        error: error instanceof Error ? error.message : String(error),
-      }, 'verifyFarcasterSignature')
-    }
-  }
-
-  // Verify cryptographic signature via Neynar API
-  const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'api_key': process.env.NEYNAR_API_KEY!,
-    },
-    body: JSON.stringify({
-      message,
-      signature,
+  // Log domain info for debugging
+  if (siwfFields.domain && siwfFields.domain !== appDomain && siwfFields.domain !== `www.${appDomain}`) {
+    logger.warn('SIWF domain in message differs from app domain', {
+      messageDomain: siwfFields.domain,
+      appDomain,
       fid,
-    }),
-  })
+    }, 'verifyFarcasterSignature')
+  }
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Neynar verification failed', { 
-      status: response.status, 
-      error: errorText,
-      fid 
+  try {
+    // Create the Farcaster auth client with viem connector for signature verification
+    const appClient = createAppClient({
+      ethereum: viemConnector(),
+    })
+
+    // Verify the sign-in message using the official Farcaster auth-client
+    const verifyResult = await appClient.verifySignInMessage({
+      message,
+      signature: signature as `0x${string}`,
+      domain: siwfFields.domain || appDomain,
+      nonce: siwfFields.nonce || '',
+    })
+
+    if (!verifyResult.success) {
+      logger.error('SIWF signature verification failed', {
+        fid,
+        providedFid: fid,
+        verifiedFid: verifyResult.fid,
+      }, 'verifyFarcasterSignature')
+      return { valid: false, error: 'Signature verification failed' }
+    }
+
+    // Verify the FID matches (convert both to string for comparison)
+    if (verifyResult.fid.toString() !== fid.toString()) {
+      logger.error('SIWF FID mismatch', {
+        providedFid: fid,
+        verifiedFid: verifyResult.fid.toString(),
+      }, 'verifyFarcasterSignature')
+      return { valid: false, error: 'FID mismatch' }
+    }
+
+    logger.info('SIWF signature verified successfully', {
+      fid,
+      domain: siwfFields.domain,
+    }, 'verifyFarcasterSignature')
+
+    return { valid: true }
+  } catch (error) {
+    logger.error('SIWF verification error', {
+      error: error instanceof Error ? error.message : String(error),
+      fid,
     }, 'verifyFarcasterSignature')
     return { valid: false, error: 'Signature verification failed' }
   }
-
-  const data = await response.json() as { valid: boolean }
-  return { valid: data.valid }
 }
 
