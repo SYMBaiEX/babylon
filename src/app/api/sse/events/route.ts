@@ -137,10 +137,11 @@ export async function GET(request: NextRequest) {
             version?: string;
           };
 
-          const eventType = typeof payload.type === 'string' ? payload.type : 'message';
+          // Always emit 'message' events; actual type stays in the payload for fan-out client-side.
+          const eventType = 'message';
           const sseData = JSON.stringify({
             channel,
-            type: eventType,
+            type: typeof payload.type === 'string' ? payload.type : 'message',
             data: payload.data ?? payload,
             timestamp: payload.timestamp ?? Date.now(),
             version: payload.version,
