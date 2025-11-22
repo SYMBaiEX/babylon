@@ -4,6 +4,7 @@ import { streamAdd } from '@/lib/redis'
 import type { RealtimeChannel, RealtimeEventEnvelope } from './index'
 import { toStreamKey } from './index'
 import { randomUUID } from 'crypto'
+import type { Prisma } from '@prisma/client'
 
 const MAX_ATTEMPTS = 5
 const BATCH_SIZE = 100
@@ -13,13 +14,14 @@ const BATCH_SIZE = 100
  */
 export async function enqueueOutbox(event: RealtimeEventEnvelope): Promise<void> {
   try {
+    const payload = event as unknown as Prisma.InputJsonValue
     await prisma.realtimeOutbox.create({
       data: {
         id: randomUUID(),
         channel: event.channel,
         type: event.type,
         version: event.version ?? 'v1',
-        payload: event as unknown as Record<string, unknown>,
+        payload,
       },
     })
   } catch (error) {

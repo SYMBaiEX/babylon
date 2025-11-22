@@ -254,6 +254,8 @@ async function ensureConnection(forceReconnect = false) {
   connecting = true;
   closeEventSource();
 
+  const channelsList = Array.from(requestedChannels);
+
   const token = await getAuthToken(channelsList);
 
   if (!token) {
@@ -262,8 +264,6 @@ async function ensureConnection(forceReconnect = false) {
     scheduleTokenRetry();
     return;
   }
-
-  const channelsList = Array.from(requestedChannels);
 
   const cursorPayload: Record<string, string> = {};
   for (const ch of channelsList) {

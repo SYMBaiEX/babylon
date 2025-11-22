@@ -185,13 +185,18 @@ export async function streamRead(
     }
 
     if (redisType === 'standard') {
-      const countArgs = opts?.count ? ['COUNT', String(opts.count)] : []
-      const res = await (redis as IORedis).xread(
-        ...countArgs,
-        'STREAMS',
-        ...streams,
-        ...ids
-      )
+    const args: Array<string | number> = []
+    if (opts?.count) {
+      args.push('COUNT', String(opts.count))
+    }
+    args.push('STREAMS', ...streams, ...ids)
+
+    // ioredis typings expect the literal "STREAMS" first, then keys, then ids.
+    const res = await (redis as IORedis).xread(
+      'STREAMS',
+      ...(streams as string[]),
+      ...(ids as string[])
+    )
 
       // ioredis returns the same general structure as Redis CLI
       const parsed: StreamMessage[] = []

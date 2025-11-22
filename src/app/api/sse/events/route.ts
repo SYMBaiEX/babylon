@@ -1,23 +1,14 @@
 import { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
 import { connections } from '@/lib/realtime/connection-registry';
-import { generateConnectionId, verifyRealtimeToken, type RealtimeChannel, toStreamKey } from '@/lib/realtime';
+import { generateConnectionId, verifyRealtimeToken, toStreamKey, type RealtimeChannel } from '@/lib/realtime';
 import { streamRead, redis } from '@/lib/redis';
-import { prisma } from '@/lib/prisma';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for SSE connections
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const PUBLIC_CHANNELS = new Set<RealtimeChannel>([
-  'feed',
-  'markets',
-  'breaking-news',
-  'upcoming-events',
-]);
 
 const MAX_CHANNELS = 50;
 
@@ -49,77 +40,18 @@ const sleep = (ms: number, signal: AbortSignal) =>
     );
   });
 
-async function filterChannelsForUser(
-  userId: string,
-  requested: RealtimeChannel[]
-): Promise<RealtimeChannel[]> {
-  const safeChannels: RealtimeChannel[] = [];
-
-  const chatIds = requested
-    .filter((ch) => ch.startsWith('chat:'))
-    .map((ch) => ch.replace('chat:', ''));
-
-  const allowedChats =
-    chatIds.length > 0
-      ? await prisma.chatParticipant.findMany({
-          where: { userId, chatId: { in: chatIds } },
-          select: { chatId: true },
-        })
-      : [];
-
-  const allowedChatIds = new Set(allowedChats.map((c) => c.chatId));
-
-  for (const channel of requested) {
-    if (PUBLIC_CHANNELS.has(channel)) {
-      safeChannels.push(channel);
-    } else if (channel.startsWith('chat:')) {
-      const chatId = channel.replace('chat:', '');
-      if (allowedChatIds.has(chatId)) {
-        safeChannels.push(channel);
-      } else {
-        logger.warn('Dropping unauthorized chat channel', { userId, chatId }, 'SSE');
-      }
-    } else if (channel.startsWith('notifications:')) {
-      const targetUserId = channel.replace('notifications:', '');
-      if (targetUserId === userId) {
-        safeChannels.push(channel);
-      }
-    }
-  }
-
-  // Deduplicate while preserving order
-  return Array.from(new Set(safeChannels));
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tokenParam = searchParams.get('token');
-  const channelsParam = searchParams.get('channels');
   const cursorParam = searchParams.get('cursor');
 
   if (!tokenParam) {
     return new Response('Missing token', { status: 401 });
   }
 
-  // Try realtime token first
   const realtimePayload = verifyRealtimeToken(tokenParam);
   let userId: string | null = realtimePayload?.userId ?? null;
   let allowedChannels: RealtimeChannel[] = realtimePayload?.channels ?? [];
-
-  // Fallback: treat token as Privy auth token (legacy mode)
-  if (!realtimePayload) {
-    const modifiedRequest = new NextRequest(request.url, {
-      headers: {
-        Authorization: `Bearer ${tokenParam}`,
-      },
-    });
-    const user = await authenticate(modifiedRequest);
-    userId = user.userId;
-    const requested = channelsParam
-      ? (channelsParam.split(',') as RealtimeChannel[])
-      : ['feed'];
-    allowedChannels = await filterChannelsForUser(user.userId, requested);
-  }
 
   if (!userId) {
     return new Response('Unauthorized', { status: 401 });

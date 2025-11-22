@@ -7,7 +7,6 @@
  * to avoid touching all call sites.
  */
 
-import { logger } from '@/lib/logger';
 import type { JsonValue } from '@/types/common';
 import { publishEvent, type RealtimeChannel } from '@/lib/realtime';
 
