@@ -131,22 +131,38 @@ export async function GET(request: NextRequest) {
           const channel = keyToChannel.get(msg.stream);
           if (!channel) continue;
 
-          const payload = msg.payload as {
-            type?: string;
-            data?: unknown;
-            timestamp?: number;
-            channel?: string;
-            version?: string;
-          };
+          // Unwrap payload if encoded as { payload: {...} }
+          const raw = msg.payload as Record<string, unknown>;
+          const payload = raw && typeof raw === 'object' && 'payload' in raw
+            ? (raw as { payload: Record<string, unknown> }).payload
+            : raw;
 
           // Always emit 'message' events; actual type stays in the payload for fan-out client-side.
           const eventType = 'message';
+          const innerType =
+            payload && typeof payload === 'object' && 'type' in payload && typeof (payload as { type: unknown }).type === 'string'
+              ? (payload as { type: string }).type
+              : 'message';
+          const innerTimestamp =
+            payload && typeof payload === 'object' && 'timestamp' in payload && typeof (payload as { timestamp: unknown }).timestamp === 'number'
+              ? (payload as { timestamp: number }).timestamp
+              : Date.now();
+          const innerVersion =
+            payload && typeof payload === 'object' && 'version' in payload && typeof (payload as { version: unknown }).version === 'string'
+              ? (payload as { version: string }).version
+              : undefined;
+
+          const innerData =
+            payload && typeof payload === 'object' && 'data' in payload
+              ? (payload as { data: unknown }).data
+              : payload;
+
           const sseData = JSON.stringify({
             channel,
-            type: typeof payload.type === 'string' ? payload.type : 'message',
-            data: payload.data ?? payload,
-            timestamp: payload.timestamp ?? Date.now(),
-            version: payload.version,
+            type: innerType,
+            data: innerData,
+            timestamp: innerTimestamp,
+            version: innerVersion,
           });
 
           const packet = `id: ${msg.id}\nevent: ${eventType}\ndata: ${sseData}\n\n`;
