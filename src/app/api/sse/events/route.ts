@@ -1,247 +1,249 @@
-/**
- * Server-Sent Events (SSE) API
- * 
- * @description
- * Real-time event streaming endpoint using Server-Sent Events (SSE).
- * Provides live updates for feeds, markets, chats, and news without
- * requiring WebSocket connections. Vercel-compatible alternative to
- * traditional WebSockets with automatic reconnection support.
- * 
- * **Supported Channels:**
- * - **feed:** New posts and social feed updates
- * - **markets:** Market price changes and trading activity
- * - **breaking-news:** Breaking news and important announcements
- * - **upcoming-events:** New prediction questions and events
- * - **chat:{chatId}:** Real-time chat messages for specific chat ID
- * 
- * **Features:**
- * - Multi-channel subscription (comma-separated)
- * - Automatic keepalive pings (every 15 seconds)
- * - Graceful disconnection handling
- * - Client reconnection support
- * - Per-user authentication
- * - Channel-based access control
- * 
- * **Connection Lifecycle:**
- * 1. Client connects with auth token and channels
- * 2. Server sends `connected` event with client ID
- * 3. Server broadcasts events to subscribed channels
- * 4. Server sends periodic `:ping` keepalives
- * 5. Client or server closes connection when done
- * 6. Client auto-reconnects if connection lost
- * 
- * **Vercel Compatibility:**
- * - Uses Server-Sent Events (not WebSocket)
- * - Works with serverless functions
- * - No persistent connections required
- * - Auto-reconnection on timeout
- * 
- * @openapi
- * /api/sse/events:
- *   get:
- *     tags:
- *       - Real-time
- *     summary: Subscribe to real-time events
- *     description: Opens Server-Sent Events stream for live updates (Vercel-compatible)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: query
- *         name: token
- *         required: true
- *         schema:
- *           type: string
- *         description: Authentication token (Privy JWT)
- *       - in: query
- *         name: channels
- *         schema:
- *           type: string
- *         description: Comma-separated channels (feed,markets,breaking-news,etc)
- *         example: feed,markets
- *     responses:
- *       200:
- *         description: SSE event stream (text/event-stream)
- *         content:
- *           text/event-stream:
- *             schema:
- *               type: string
- *               description: Server-Sent Events stream
- *       401:
- *         description: Unauthorized
- * 
- * @example
- * ```typescript
- * // Subscribe to multiple channels
- * const eventSource = new EventSource(
- *   `/api/sse/events?token=${token}&channels=feed,markets`
- * );
- * 
- * // Handle connected event
- * eventSource.addEventListener('connected', (e) => {
- *   const { clientId, channels } = JSON.parse(e.data);
- *   console.log(`Connected as ${clientId} to: ${channels.join(', ')}`);
- * });
- * 
- * // Handle new posts
- * eventSource.addEventListener('new_post', (e) => {
- *   const post = JSON.parse(e.data);
- *   addPostToFeed(post);
- * });
- * 
- * // Handle market updates
- * eventSource.addEventListener('market_update', (e) => {
- *   const { marketId, price } = JSON.parse(e.data);
- *   updateMarketPrice(marketId, price);
- * });
- * 
- * // Handle errors and reconnection
- * eventSource.onerror = () => {
- *   console.log('Connection lost, reconnecting...');
- *   // EventSource auto-reconnects
- * };
- * 
- * // Close connection when done
- * eventSource.close();
- * ```
- * 
- * **Event Types:**
- * - `connected`: Initial connection confirmation
- * - `new_post`: New post in feed
- * - `market_update`: Market price change
- * - `chat_message`: New chat message
- * - `breaking_news`: Breaking news alert
- * - `:ping`: Keepalive ping (every 15s)
- * 
- * @see {@link /lib/sse/event-broadcaster} Event broadcaster
- * @see {@link /src/hooks/useSSE} SSE React hook
- */
-
 import { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { getEventBroadcaster, type SSEClient, type Channel } from '@/lib/sse/event-broadcaster';
-import { SSEChannelsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { connections } from '@/lib/realtime/connection-registry';
+import { generateConnectionId, verifyRealtimeToken, type RealtimeChannel, toStreamKey } from '@/lib/realtime';
+import { streamRead, redis } from '@/lib/redis';
+import { prisma } from '@/lib/prisma';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for SSE connections
 
-// Disable buffering for SSE
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const PUBLIC_CHANNELS = new Set<RealtimeChannel>([
+  'feed',
+  'markets',
+  'breaking-news',
+  'upcoming-events',
+]);
+
+const MAX_CHANNELS = 50;
+
+interface CursorMap {
+  [channel: string]: string;
+}
+
+const parseCursor = (raw: string | null): CursorMap => {
+  if (!raw) return {};
+  try {
+    const decoded = decodeURIComponent(raw);
+    const parsed = JSON.parse(decoded) as CursorMap;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
+
+async function filterChannelsForUser(
+  userId: string,
+  requested: RealtimeChannel[]
+): Promise<RealtimeChannel[]> {
+  const safeChannels: RealtimeChannel[] = [];
+
+  const chatIds = requested
+    .filter((ch) => ch.startsWith('chat:'))
+    .map((ch) => ch.replace('chat:', ''));
+
+  const allowedChats =
+    chatIds.length > 0
+      ? await prisma.chatParticipant.findMany({
+          where: { userId, chatId: { in: chatIds } },
+          select: { chatId: true },
+        })
+      : [];
+
+  const allowedChatIds = new Set(allowedChats.map((c) => c.chatId));
+
+  for (const channel of requested) {
+    if (PUBLIC_CHANNELS.has(channel)) {
+      safeChannels.push(channel);
+    } else if (channel.startsWith('chat:')) {
+      const chatId = channel.replace('chat:', '');
+      if (allowedChatIds.has(chatId)) {
+        safeChannels.push(channel);
+      } else {
+        logger.warn('Dropping unauthorized chat channel', { userId, chatId }, 'SSE');
+      }
+    } else if (channel.startsWith('notifications:')) {
+      const targetUserId = channel.replace('notifications:', '');
+      if (targetUserId === userId) {
+        safeChannels.push(channel);
+      }
+    }
+  }
+
+  // Deduplicate while preserving order
+  return Array.from(new Set(safeChannels));
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const queryParams = {
-    token: searchParams.get('token'),
-    channels: searchParams.get('channels')
+  const { searchParams } = new URL(request.url);
+  const tokenParam = searchParams.get('token');
+  const channelsParam = searchParams.get('channels');
+  const cursorParam = searchParams.get('cursor');
+
+  if (!tokenParam) {
+    return new Response('Missing token', { status: 401 });
   }
-  
-  const validatedQuery = SSEChannelsQuerySchema.parse(queryParams)
-  const token = validatedQuery.token!
 
-  const modifiedRequest = new NextRequest(request.url, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-  const user = await authenticate(modifiedRequest)
-  
-  const channelsParam = validatedQuery.channels
-  const channels = channelsParam ? channelsParam.split(',') as Channel[] : ['feed']
+  // Try realtime token first
+  const realtimePayload = verifyRealtimeToken(tokenParam);
+  let userId: string | null = realtimePayload?.userId ?? null;
+  let allowedChannels: RealtimeChannel[] = realtimePayload?.channels ?? [];
 
-  logger.info(`SSE connection request from user ${user.userId} for channels: ${channels.join(', ')}`, { userId: user.userId, channels }, 'SSE')
-
-  const encoder = new TextEncoder()
-  const clientId = await generateSnowflakeId()
-  
-  let pingIntervalId: NodeJS.Timeout | null = null
-  let streamClosed = false
-  let controllerRef: ReadableStreamDefaultController | null = null
-  let broadcasterRef: ReturnType<typeof getEventBroadcaster> | null = null
-
-  const cleanup = (reason: string) => {
-    if (streamClosed) return
-    streamClosed = true
-    if (pingIntervalId) {
-      clearInterval(pingIntervalId)
-      pingIntervalId = null
-    }
-    if (broadcasterRef) {
-      broadcasterRef.removeClient(clientId)
-    }
-    try {
-      controllerRef?.close()
-    } catch {
-      // ignore
-    }
-    logger.info(`SSE client disconnected (${reason})`, { clientId, userId: user.userId }, 'SSE')
+  // Fallback: treat token as Privy auth token (legacy mode)
+  if (!realtimePayload) {
+    const modifiedRequest = new NextRequest(request.url, {
+      headers: {
+        Authorization: `Bearer ${tokenParam}`,
+      },
+    });
+    const user = await authenticate(modifiedRequest);
+    userId = user.userId;
+    const requested = channelsParam
+      ? (channelsParam.split(',') as RealtimeChannel[])
+      : ['feed'];
+    allowedChannels = await filterChannelsForUser(user.userId, requested);
   }
+
+  if (!userId) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  if (!redis) {
+    logger.error('Redis/Upstash not configured - realtime disabled', undefined, 'SSE');
+    return new Response('Realtime unavailable', { status: 503 });
+  }
+
+  if (allowedChannels.length === 0) {
+    return new Response('No channels authorized', { status: 403 });
+  }
+
+  if (allowedChannels.length > MAX_CHANNELS) {
+    return new Response('Too many channels requested', { status: 400 });
+  }
+
+  const encoder = new TextEncoder();
+  const connectionId = generateConnectionId();
+  const cursors = parseCursor(cursorParam);
+  const streamKeys = allowedChannels.map(toStreamKey);
+  const keyToChannel = new Map(streamKeys.map((k, idx) => [k, allowedChannels[idx]]));
+  const lastIds = new Map<string, string>();
 
   const stream = new ReadableStream({
     start: async (controller) => {
-      controllerRef = controller
-      const broadcaster = getEventBroadcaster()
-      broadcasterRef = broadcaster
-
-      const client: SSEClient = {
-        id: clientId,
-        userId: user.userId,
-        channels: new Set(channels),
-        controller,
-        lastPing: Date.now()
-      }
-
-      broadcaster.addClient(client)
-
-      for (const channel of channels) {
-        broadcaster.subscribeToChannel(clientId, channel)
-      }
+      connections.add({
+        id: connectionId,
+        userId,
+        channels: allowedChannels,
+        connectedAt: Date.now(),
+      });
 
       const send = (payload: string) => {
-        if (streamClosed || controller.desiredSize === null) {
-          return false
-        }
         try {
-          controller.enqueue(encoder.encode(payload))
-          return true
+          controller.enqueue(encoder.encode(payload));
+          return true;
         } catch {
-          logger.debug('Failed to enqueue SSE payload (client likely disconnected)', { clientId }, 'SSE')
-          cleanup('enqueue_error')
-          return false
+          return false;
+        }
+      };
+
+      // Initial connected event
+      send(
+        `event: connected\n` +
+          `data: ${JSON.stringify({
+            connectionId,
+            channels: allowedChannels,
+            timestamp: Date.now(),
+          })}\n\n`
+      );
+
+      const abortListener = () => {
+        controller.close();
+      };
+      request.signal.addEventListener('abort', abortListener, { once: true });
+
+      while (!request.signal.aborted) {
+        const ids = streamKeys.map((k) => {
+          const channelName = keyToChannel.get(k)
+          const cursorId = channelName ? cursors[channelName] : undefined
+          return lastIds.get(k) || cursorId || '>'
+        });
+
+        const messages = await streamRead(streamKeys, ids, { count: 100 });
+
+        if (messages.length === 0) {
+          await sleep(1000, request.signal);
+          continue;
+        }
+
+        for (const msg of messages) {
+          const channel = keyToChannel.get(msg.stream);
+          if (!channel) continue;
+
+          const payload = msg.payload as {
+            type?: string;
+            data?: unknown;
+            timestamp?: number;
+            channel?: string;
+            version?: string;
+          };
+
+          const eventType = typeof payload.type === 'string' ? payload.type : 'message';
+          const sseData = JSON.stringify({
+            channel,
+            type: eventType,
+            data: payload.data ?? payload,
+            timestamp: payload.timestamp ?? Date.now(),
+            version: payload.version,
+          });
+
+          const packet = `id: ${msg.id}\nevent: ${eventType}\ndata: ${sseData}\n\n`;
+          const ok = send(packet);
+          if (!ok) {
+            logger.debug('Failed to enqueue SSE payload (client disconnected)', { connectionId }, 'SSE');
+            controller.close();
+            break;
+          }
+
+          lastIds.set(msg.stream, msg.id);
         }
       }
 
-      if (!send(`event: connected\ndata: ${JSON.stringify({ 
-        clientId, 
-        channels: Array.from(client.channels),
-        timestamp: Date.now() 
-      })}\n\n`)) {
-        return
-      }
-
-      pingIntervalId = setInterval(() => {
-        if (!send(`:ping ${Date.now()}\n\n`)) {
-          logger.debug('Ping failed, closing SSE client', { clientId }, 'SSE')
-        }
-      }, 15000)
-
-      request.signal.addEventListener('abort', () => cleanup('abort'))
-
-      logger.info(`SSE client connected: ${clientId}`, { clientId, userId: user.userId, channels }, 'SSE')
+      connections.remove(connectionId);
     },
-    
     cancel() {
-      cleanup('cancel')
-    }
-  })
+      connections.remove(connectionId);
+    },
+  });
+
+  logger.info(
+    'SSE connection established',
+    { userId, connectionId, channels: allowedChannels },
+    'SSE'
+  );
 
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     },
-  })
+  });
 }

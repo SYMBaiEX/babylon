@@ -87,6 +87,76 @@ let authenticatedRef = false;
 let autoReconnectRef = true;
 let reconnectDelayRef = 3000;
 let maxReconnectAttemptsRef = 5;
+const lastEventIds = new Map<Channel, string>();
+let cachedRealtimeToken: {
+  token: string;
+  expiresAt: number;
+  channelsKey: string;
+} | null = null;
+
+const channelsKeyFromList = (channels: Channel[]) =>
+  channels.slice().sort().join(',');
+
+const shouldUseCachedToken = (channels: Channel[]) => {
+  if (!cachedRealtimeToken) return false;
+  const now = Date.now();
+  if (cachedRealtimeToken.expiresAt - now < 30_000) return false; // refresh if <30s
+  return cachedRealtimeToken.channelsKey === channelsKeyFromList(channels);
+};
+
+const fetchRealtimeToken = async (channels: Channel[]): Promise<string | null> => {
+  if (!getAccessTokenRef) return null;
+  const accessToken = await getAccessTokenRef().catch((error) => {
+    logger.warn('Realtime token: failed to get access token', { error }, 'useSSE');
+    return null;
+  });
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch('/api/realtime/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channels,
+        includeNotifications: true,
+      }),
+    });
+
+    if (!res.ok) {
+      logger.debug('Realtime token request failed', { status: res.status }, 'useSSE');
+      return null;
+    }
+    const json = (await res.json()) as {
+      token?: string;
+      expiresAt?: number;
+    };
+    if (!json?.token) return null;
+    const expiresAt =
+      typeof json.expiresAt === 'number'
+        ? json.expiresAt
+        : Date.now() + 14 * 60 * 1000; // default ~14min
+    cachedRealtimeToken = {
+      token: json.token,
+      expiresAt,
+      channelsKey: channelsKeyFromList(channels),
+    };
+    return json.token;
+  } catch (error) {
+    logger.warn('Realtime token fetch error', { error }, 'useSSE');
+    return null;
+  }
+};
+
+const getAuthToken = async (channels: Channel[]): Promise<string | null> => {
+  if (shouldUseCachedToken(channels)) {
+    return cachedRealtimeToken?.token ?? null;
+  }
+  const realtime = await fetchRealtimeToken(channels);
+  return realtime;
+};
 
 const hasBrowserEnv = () =>
   typeof window !== 'undefined' && typeof EventSource !== 'undefined';
@@ -181,29 +251,36 @@ async function ensureConnection(forceReconnect = false) {
     return;
   }
 
-  const getToken = getAccessTokenRef;
-  if (!getToken) {
-    notifyConnectionStatus(false, 'Missing access token for SSE');
-    return;
-  }
-
   connecting = true;
   closeEventSource();
 
-  const token = await getToken().catch((error) => {
-    logger.warn('SSE: failed to obtain access token', { error }, 'useSSE');
-    return null;
-  });
+  const token = await getAuthToken(channelsList);
 
   if (!token) {
     connecting = false;
-    notifyConnectionStatus(false, 'Missing access token for SSE');
+    notifyConnectionStatus(false, 'Missing realtime token for SSE');
     scheduleTokenRetry();
     return;
   }
 
   const channelsList = Array.from(requestedChannels);
-  const url = `${window.location.origin}/api/sse/events?channels=${encodeURIComponent(channelsList.join(','))}&token=${encodeURIComponent(token)}`;
+
+  const cursorPayload: Record<string, string> = {};
+  for (const ch of channelsList) {
+    const lastId = lastEventIds.get(ch);
+    if (lastId) {
+      cursorPayload[ch] = lastId;
+    }
+  }
+
+  const cursorParam =
+    Object.keys(cursorPayload).length > 0
+      ? `&cursor=${encodeURIComponent(JSON.stringify(cursorPayload))}`
+      : '';
+
+  const url = `${window.location.origin}/api/sse/events?channels=${encodeURIComponent(
+    channelsList.join(',')
+  )}&token=${encodeURIComponent(token)}${cursorParam}`;
 
   logger.debug(
     'Connecting to SSE endpoint...',
@@ -242,6 +319,9 @@ async function ensureConnection(forceReconnect = false) {
   eventSource.addEventListener('message', (event) => {
     try {
       const message: SSEMessage = JSON.parse(event.data);
+      if (event.lastEventId) {
+        lastEventIds.set(message.channel, event.lastEventId);
+      }
       const subs = channelSubscribers.get(message.channel);
       if (subs && subs.size > 0) {
         subs.forEach((callback) => {

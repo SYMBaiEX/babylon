@@ -106,6 +106,28 @@ model NPCInteraction {
   @@index([interactionType])
 }
 
+enum RealtimeOutboxStatus {
+  pending
+  sent
+  failed
+}
+
+model RealtimeOutbox {
+  id        String               @id
+  channel   String
+  type      String
+  version   String?              @default("v1")
+  payload   Json
+  status    RealtimeOutboxStatus @default(pending)
+  attempts  Int                  @default(0)
+  lastError String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@index([channel, status])
+}
+
 model AgentLog {
   id          String   @id
   type        String
