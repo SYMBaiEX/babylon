@@ -9,6 +9,7 @@
 
 import type { JsonValue } from '@/types/common';
 import { publishEvent, type RealtimeChannel } from '@/lib/realtime';
+import { logger } from '@/lib/logger';
 
 export type Channel = RealtimeChannel;
 
