@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
         const ids = streamKeys.map((k) => {
           const channelName = keyToChannel.get(k)
           const cursorId = channelName ? cursors[channelName] : undefined
-          return lastIds.get(k) || cursorId || '>'
+          // Upstash XREAD does not accept ">" (reserved for groups). Use "$" to start from latest.
+          return lastIds.get(k) || cursorId || '$'
         });
 
         const messages = await streamRead(streamKeys, ids, { count: 100 });
