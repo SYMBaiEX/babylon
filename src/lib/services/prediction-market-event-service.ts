@@ -38,8 +38,10 @@ export interface PredictionResolutionEvent {
 export class PredictionMarketEventService {
   static emitTradeUpdate(event: PredictionTradeEvent): void {
     try {
+      logger.info('Emitting prediction trade update', { marketId: event.marketId, side: event.trade.side, price: event.trade.price }, 'PredictionMarketEventService');
       broadcastToChannel('markets', {
         type: 'prediction_trade',
+        version: 'v1',
         ...event,
       });
     } catch (error) {
@@ -49,8 +51,10 @@ export class PredictionMarketEventService {
 
   static emitResolution(event: PredictionResolutionEvent): void {
     try {
+      logger.info('Emitting prediction resolution', { marketId: event.marketId, winningSide: event.winningSide }, 'PredictionMarketEventService');
       broadcastToChannel('markets', {
         type: 'prediction_resolution',
+        version: 'v1',
         ...event,
       });
     } catch (error) {
