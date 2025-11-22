@@ -108,7 +108,7 @@ export function ComingSoon() {
   const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
-  const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('pending')
+  const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('qualified')
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -1487,19 +1487,6 @@ export function ComingSoon() {
                   <>
                     <div className="flex items-center gap-1 mb-4 border-b border-border/50">
                       <button
-                        onClick={() => setReferralTab('pending')}
-                        className={`px-4 py-2 text-sm font-semibold transition-colors relative ${
-                          referralTab === 'pending'
-                            ? 'text-primary'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        Pending ({waitlistData.invitedCount ?? 0})
-                        {referralTab === 'pending' && (
-                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                        )}
-                      </button>
-                      <button
                         onClick={() => setReferralTab('qualified')}
                         className={`px-4 py-2 text-sm font-semibold transition-colors relative ${
                           referralTab === 'qualified'
@@ -1512,13 +1499,27 @@ export function ComingSoon() {
                           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
                         )}
                       </button>
+                      
+                      <button
+                        onClick={() => setReferralTab('pending')}
+                        className={`px-4 py-2 text-sm font-semibold transition-colors relative ${
+                          referralTab === 'pending'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Pending ({waitlistData.invitedCount ?? 0})
+                        {referralTab === 'pending' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
                     </div>
 
                     {/* Referral User Lists */}
                     <div className="space-y-2 max-h-56 overflow-y-auto transition-all duration-300 ease-in-out">
                       {/* Pending Users Tab */}
                       {referralTab === 'pending' && (
-                        <div className="animate-in fade-in duration-300">
+                        <div className="flex flex-col gap-1 animate-in fade-in duration-300">
                           {waitlistData.invitedUsers && waitlistData.invitedUsers.length > 0 ? (
                             waitlistData.invitedUsers.map((user) => {
                               const displayName = getReferralUserDisplayName(user)
@@ -1531,6 +1532,8 @@ export function ComingSoon() {
                                 >
                                   {/* Avatar */}
                                   <Avatar
+                                    id={user.id}
+                                    type="user"
                                     src={user.profileImageUrl || undefined}
                                     alt={displayName}
                                     size="sm"
@@ -1538,14 +1541,11 @@ export function ComingSoon() {
 
                                   {/* User Info */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
+                                    
                                       <h3 className="text-sm font-semibold text-foreground truncate">
                                         {displayName}
                                       </h3>
-                                      <span className="px-1.5 py-0.5 text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded shrink-0">
-                                        Pending
-                                      </span>
-                                    </div>
+                                   
                                     
                                       <p className="text-xs text-muted-foreground truncate">
                                         {subtitle || `@${displayName}`}
@@ -1558,7 +1558,9 @@ export function ComingSoon() {
 
                                   {/* Status */}
                                   <div className="text-xs text-yellow-600 dark:text-yellow-400 shrink-0">
-                                    Not completed
+                                    <span className="px-1.5 py-0.5 text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded shrink-0">
+                                      Pending
+                                    </span>
                                   </div>
                                 </div>
                               )
@@ -1573,7 +1575,7 @@ export function ComingSoon() {
 
                       {/* Qualified Users Tab */}
                       {referralTab === 'qualified' && (
-                        <div className="animate-in fade-in duration-300">
+                        <div className="flex flex-col gap-1 animate-in fade-in duration-300">
                           {waitlistData.qualifiedUsers && waitlistData.qualifiedUsers.length > 0 ? (
                             waitlistData.qualifiedUsers.map((user) => {
                               const displayName = getReferralUserDisplayName(user)
@@ -1586,6 +1588,8 @@ export function ComingSoon() {
                                 >
                                   {/* Avatar */}
                                   <Avatar
+                                    id={user.id}
+                                    type="user"
                                     src={user.profileImageUrl || undefined}
                                     alt={displayName}
                                     size="sm"
