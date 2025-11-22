@@ -39,7 +39,7 @@ function SidebarContent() {
   // Hide sidebar on production (babylon.market) on home page unless ?dev=true
   const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
   const isHomePage = pathname === '/'
-  const shouldHideSidebar = isProduction && isHomePage && !isDevMode
+  const shouldHideSidebar = true
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false

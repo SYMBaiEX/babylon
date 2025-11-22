@@ -1515,10 +1515,10 @@ export function ComingSoon() {
                     </div>
 
                     {/* Referral User Lists */}
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="space-y-2 max-h-56 overflow-y-auto transition-all duration-300 ease-in-out">
                       {/* Pending Users Tab */}
                       {referralTab === 'pending' && (
-                        <>
+                        <div className="animate-in fade-in duration-300">
                           {waitlistData.invitedUsers && waitlistData.invitedUsers.length > 0 ? (
                             waitlistData.invitedUsers.map((user) => {
                               const displayName = getReferralUserDisplayName(user)
@@ -1546,11 +1546,11 @@ export function ComingSoon() {
                                         Pending
                                       </span>
                                     </div>
-                                    {subtitle && (
+                                    
                                       <p className="text-xs text-muted-foreground truncate">
-                                        {subtitle}
+                                        {subtitle || `@${displayName}`}
                                       </p>
-                                    )}
+                                    
                                     <p className="text-xs text-muted-foreground mt-0.5">
                                       Signed up {new Date(user.createdAt).toLocaleDateString()}
                                     </p>
@@ -1568,12 +1568,12 @@ export function ComingSoon() {
                               No pending referrals yet
                             </div>
                           )}
-                        </>
+                        </div>
                       )}
 
                       {/* Qualified Users Tab */}
                       {referralTab === 'qualified' && (
-                        <>
+                        <div className="animate-in fade-in duration-300">
                           {waitlistData.qualifiedUsers && waitlistData.qualifiedUsers.length > 0 ? (
                             waitlistData.qualifiedUsers.map((user) => {
                               const displayName = getReferralUserDisplayName(user)
@@ -1613,7 +1613,7 @@ export function ComingSoon() {
                               No qualified referrals yet
                             </div>
                           )}
-                        </>
+                        </div>
                       )}
                     </div>
                   </>
