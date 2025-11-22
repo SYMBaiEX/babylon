@@ -9,6 +9,11 @@
  * profile status, social connections, reputation, and onboarding state.
  * Central endpoint for user session management and profile data.
  * 
+ * **Automatic User Creation:**
+ * Creates a minimal user record in the database on first authentication if
+ * one doesn't exist. This allows tracking of users through the onboarding
+ * funnel and ensures a user record is always available for authenticated requests.
+ * 
  * @openapi
  * /api/users/me:
  *   get:
@@ -67,7 +72,7 @@
  * - **Permissions:** admin status, actor/agent flag
  * 
  * **Onboarding States:**
- * - `needsOnboarding: true` - User needs to complete profile setup
+ * - `needsOnboarding: true` - User exists in DB but hasn't completed profile setup
  * - `needsOnchain: true` - Profile complete but not registered on-chain
  * - Both false - Fully onboarded user
  * 
@@ -85,7 +90,7 @@
  * @property {boolean} authenticated - Always true (auth required)
  * @property {boolean} needsOnboarding - Whether user needs profile setup
  * @property {boolean} needsOnchain - Whether user needs on-chain registration
- * @property {object|null} user - User profile object (null if no profile yet)
+ * @property {object} user - User profile object (minimal record until profile completed)
  * @property {object} user.stats - Cached profile statistics
  * 
  * **User Object Fields:**
@@ -137,7 +142,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { authenticate } from '@/lib/api/auth-middleware'
+import { authenticate, getPrivyClient } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -152,6 +157,7 @@ const userSelect = {
   profileImageUrl: true,
   coverImageUrl: true,
   walletAddress: true,
+  email: true, // For displaying pending referrals
   profileComplete: true,
   hasUsername: true,
   hasBio: true,
@@ -178,31 +184,195 @@ const userSelect = {
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request)
   const privyId = authUser.privyId ?? authUser.userId
+  const canonicalUserId = authUser.dbUserId ?? authUser.userId
+
+  // Extract referralCode from query params (passed from frontend)
+  const { searchParams } = new URL(request.url)
+  const referralCode = searchParams.get('ref') || null
 
   logger.info(
     'Fetching user profile',
-    { privyId, dbUserId: authUser.dbUserId },
+    { privyId, dbUserId: authUser.dbUserId, hasReferralCode: !!referralCode },
     'GET /api/users/me'
   )
 
-  const dbUser = await prisma.user.findUnique({
+  let dbUser = await prisma.user.findUnique({
     where: { privyId },
     select: userSelect,
   })
 
+  // Create minimal user record on first authentication
   if (!dbUser) {
+    // Fetch user data from Privy to get email and social accounts
+    let email: string | null = null
+    let farcasterUsername: string | null = null
+    let farcasterFid: string | null = null
+    let twitterUsername: string | null = null
+    let twitterId: string | null = null
+
+    try {
+      const privyClient = getPrivyClient()
+      const privyUser = await privyClient.getUser(privyId)
+      
+      // Extract email from linked accounts
+      if (privyUser.email?.address) {
+        email = privyUser.email.address
+      }
+      
+      // Extract Farcaster info
+      if (privyUser.farcaster) {
+        farcasterUsername = privyUser.farcaster.username ?? null
+        farcasterFid = privyUser.farcaster.fid ? String(privyUser.farcaster.fid) : null
+      }
+      
+      // Extract Twitter info
+      if (privyUser.twitter) {
+        twitterUsername = privyUser.twitter.username ?? null
+        twitterId = privyUser.twitter.subject ?? null
+      }
+      
+      logger.info(
+        'Fetched Privy user data for new user',
+        { 
+          privyId, 
+          hasEmail: !!email, 
+          hasFarcaster: !!farcasterUsername, 
+          hasTwitter: !!twitterUsername 
+        },
+        'GET /api/users/me'
+      )
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch Privy user data',
+        { privyId, error },
+        'GET /api/users/me'
+      )
+      // Continue with user creation even if Privy fetch fails
+    }
+
+    // Resolve referrer if referralCode provided
+    let resolvedReferrerId: string | null = null
+    if (referralCode) {
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode },
+        select: { id: true, username: true },
+      })
+      
+      // Only set referrer if valid and not self-referral
+      if (referrer && referrer.id !== canonicalUserId) {
+        resolvedReferrerId = referrer.id
+        
+        logger.info(
+          'Found valid referrer for new user',
+          { referrerId: referrer.id, referrerUsername: referrer.username, referredUserId: canonicalUserId, referralCode },
+          'GET /api/users/me'
+        )
+      } else if (referrer?.id === canonicalUserId) {
+        logger.warn(
+          'Self-referral attempt blocked',
+          { userId: canonicalUserId, referralCode },
+          'GET /api/users/me'
+        )
+      } else {
+        logger.warn(
+          'Invalid referral code provided',
+          { referralCode, userId: canonicalUserId },
+          'GET /api/users/me'
+        )
+      }
+    }
+
     logger.info(
-      'Authenticated user has no profile record yet',
-      { privyId, dbUserId: authUser.dbUserId },
+      'Creating minimal user record on first authentication',
+      { 
+        privyId, 
+        userId: canonicalUserId, 
+        walletAddress: authUser.walletAddress, 
+        referredBy: resolvedReferrerId,
+        email,
+        farcasterUsername,
+        twitterUsername,
+      },
       'GET /api/users/me'
     )
 
-    return successResponse({
-      authenticated: true,
-      needsOnboarding: true,
-      needsOnchain: false,
-      user: null,
+    dbUser = await prisma.user.create({
+      data: {
+        id: canonicalUserId,
+        privyId,
+        walletAddress: authUser.walletAddress?.toLowerCase() ?? null,
+        referredBy: resolvedReferrerId,
+        email,
+        farcasterUsername,
+        farcasterFid,
+        twitterUsername,
+        twitterId,
+        hasFarcaster: !!farcasterUsername,
+        hasTwitter: !!twitterUsername,
+        profileComplete: false,
+        hasUsername: false,
+        hasBio: false,
+        hasProfileImage: false,
+        updatedAt: new Date(),
+      },
+      select: userSelect,
     })
+
+    logger.info(
+      'Minimal user record created',
+      { userId: dbUser.id, privyId, referredBy: dbUser.referredBy, email: dbUser.email },
+      'GET /api/users/me'
+    )
+  } else if (referralCode && !dbUser.profileComplete) {
+    // User exists BUT profile not complete - update referredBy with latest referral code (latest wins!)
+    // ⚠️ IMPORTANT: Only allow referral changes BEFORE profile completion to prevent gaming
+    const referrer = await prisma.user.findUnique({
+      where: { referralCode },
+      select: { id: true, username: true },
+    })
+    
+    if (referrer && referrer.id !== dbUser.id) {
+      const previousReferrer = dbUser.referredBy
+      
+      dbUser = await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { referredBy: referrer.id },
+        select: userSelect,
+      })
+      
+      if (previousReferrer && previousReferrer !== referrer.id) {
+        logger.info(
+          'Updated user with NEW referrer (latest referral wins)',
+          { 
+            userId: dbUser.id, 
+            previousReferrer, 
+            newReferrer: referrer.id, 
+            referrerUsername: referrer.username, 
+            referralCode 
+          },
+          'GET /api/users/me'
+        )
+      } else if (!previousReferrer) {
+        logger.info(
+          'Updated existing user with referrer',
+          { userId: dbUser.id, referrerId: referrer.id, referrerUsername: referrer.username, referralCode },
+          'GET /api/users/me'
+        )
+      }
+    } else if (referrer?.id === dbUser.id) {
+      logger.warn(
+        'Self-referral attempt blocked for existing user',
+        { userId: dbUser.id, referralCode },
+        'GET /api/users/me'
+      )
+    }
+  } else if (referralCode && dbUser.profileComplete) {
+    // User has completed profile - don't allow referral changes anymore
+    logger.warn(
+      'Referral change blocked - profile already complete',
+      { userId: dbUser.id, referralCode, existingReferrer: dbUser.referredBy },
+      'GET /api/users/me'
+    )
   }
 
   // Get cached profile stats

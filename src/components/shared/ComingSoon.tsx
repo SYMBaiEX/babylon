@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { usePrivy } from '@privy-io/react-auth'
-import { Copy, Check, Wallet, X, TrendingUp, Gift, ChevronDown, ChevronLeft, ChevronRight, Link2, User } from 'lucide-react'
+import { Copy, Check, Wallet, X, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Link2, User, Users } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -13,6 +13,7 @@ import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal'
 import { toast } from 'sonner'
 import { getReferralUrl } from '@/lib/referral/referral-utils'
 import { signInWithFarcaster } from '@/lib/farcaster-auth-client'
+import { Avatar } from '@/components/shared/Avatar'
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -35,6 +36,12 @@ interface WaitlistData {
   referralCount: number
   weeklyReferralCount?: number
   weeklyLimit?: number
+  // Referral breakdown
+  invitedCount?: number      // Users who signed up (pending)
+  qualifiedCount?: number    // Users who completed profile (qualified)
+  totalReferralPoints?: number // Total points from referrals
+  invitedUsers?: ReferralUser[]  // Pending users list
+  qualifiedUsers?: ReferralUser[] // Qualified users list
 }
 
 /**
@@ -49,6 +56,22 @@ interface TopUser {
   reputationPoints: number
   referralCount: number
   rank: number
+}
+
+/**
+ * Referral user structure for invited/qualified users display.
+ */
+interface ReferralUser {
+  id: string
+  username: string | null
+  displayName: string | null
+  profileImageUrl: string | null
+  email?: string | null
+  farcasterUsername?: string | null
+  twitterUsername?: string | null
+  createdAt: string
+  completedAt?: string
+  status: 'pending' | 'qualified'
 }
 
 /**
@@ -85,6 +108,7 @@ export function ComingSoon() {
   const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
+  const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('pending')
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -95,6 +119,34 @@ export function ComingSoon() {
   })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const prevShowProfileModalRef = useRef(false)
+
+  // Helper function to get the best display name for a referral user
+  const getReferralUserDisplayName = (user: ReferralUser): string => {
+    // Priority: displayName > username > farcasterUsername > twitterUsername > email (first part) > Anonymous
+    if (user.displayName) return user.displayName
+    if (user.username) return user.username
+    if (user.farcasterUsername) return user.farcasterUsername
+    if (user.twitterUsername) return `@${user.twitterUsername}`
+    if (user.email) {
+      // Show first part of email (before @)
+      const emailParts = user.email.split('@')
+      const emailPrefix = emailParts[0] || user.email
+      return emailPrefix.length > 20 ? `${emailPrefix.slice(0, 17)}...` : emailPrefix
+    }
+    return 'Anonymous'
+  }
+
+  // Helper function to get subtitle/handle for a referral user
+  const getReferralUserSubtitle = (user: ReferralUser): string | null => {
+    // Show username as subtitle if displayName exists, otherwise show email/social
+    if (user.username && user.displayName) {
+      return `@${user.username}`
+    }
+    if (user.email && !user.username) {
+      return user.email
+    }
+    return null
+  }
 
   // Handle Twitter OAuth
   const handleTwitterOAuth = () => {
@@ -1395,42 +1447,190 @@ export function ComingSoon() {
                 </div>
               </div>
 
-              {/* Points Breakdown */}
+              {/* Referral Breakdown with Tabs */}
               <div className="bg-primary/5 border border-primary/10 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
-                <h3 className="text-lg font-semibold mb-4">Points Breakdown</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <h3 className="text-lg font-semibold mb-4">Referral Progress</h3>
+                
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {/* Invited (Pending) */}
                   <div className="text-center p-4 bg-background/20 rounded-lg">
-                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
-                      {waitlistData.pointsBreakdown.invite.toLocaleString()}
+                    <div className="text-2xl sm:text-3xl font-bold text-yellow-500 mb-1">
+                      {waitlistData.invitedCount ?? 0}
                     </div>
-                    <div className="text-sm text-muted-foreground">Invite</div>
+                    <div className="text-sm text-muted-foreground">Invited</div>
+                    <div className="text-xs text-muted-foreground/70 mt-1">Pending</div>
                   </div>
+                  
+                  {/* Qualified (Completed) */}
                   <div className="text-center p-4 bg-background/20 rounded-lg">
-                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
-                      {waitlistData.pointsBreakdown.earned.toLocaleString()}
+                    <div className="text-2xl sm:text-3xl font-bold text-green-500 mb-1">
+                      {waitlistData.qualifiedCount ?? 0}
                     </div>
-                    <div className="text-sm text-muted-foreground">Earned</div>
+                    <div className="text-sm text-muted-foreground">Qualified</div>
+                    <div className="text-xs text-muted-foreground/70 mt-1">Completed</div>
                   </div>
+                  
+                  {/* Total Referral Points */}
                   <div className="text-center p-4 bg-background/20 rounded-lg">
-                    <div className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
-                      {waitlistData.pointsBreakdown.bonus.toLocaleString()}
+                    <div className="text-2xl sm:text-3xl font-bold text-primary mb-1">
+                      {(waitlistData.totalReferralPoints ?? waitlistData.pointsBreakdown.invite).toLocaleString()}
                     </div>
-                    <div className="text-sm text-muted-foreground">Bonus</div>
+                    <div className="text-sm text-muted-foreground">Points</div>
+                    <div className="text-xs text-muted-foreground/70 mt-1">From referrals</div>
                   </div>
                 </div>
-              </div>
 
-              {/* Referral Stats */}
-              {waitlistData.referralCount > 0 && (
-                <div className="bg-primary/10 border border-primary/20 rounded-xl p-5 sm:p-6 backdrop-blur-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Gift className="w-5 h-5 text-primary shrink-0" />
-                    <span className="text-base font-semibold">
-                      {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'invite' : 'invites'}
-                    </span>
+                {/* Tab Navigation */}
+                {((waitlistData.invitedUsers && waitlistData.invitedUsers.length > 0) || 
+                  (waitlistData.qualifiedUsers && waitlistData.qualifiedUsers.length > 0)) && (
+                  <>
+                    <div className="flex items-center gap-1 mb-4 border-b border-border/50">
+                      <button
+                        onClick={() => setReferralTab('pending')}
+                        className={`px-4 py-2 text-sm font-semibold transition-colors relative ${
+                          referralTab === 'pending'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Pending ({waitlistData.invitedCount ?? 0})
+                        {referralTab === 'pending' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setReferralTab('qualified')}
+                        className={`px-4 py-2 text-sm font-semibold transition-colors relative ${
+                          referralTab === 'qualified'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Qualified ({waitlistData.qualifiedCount ?? 0})
+                        {referralTab === 'qualified' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Referral User Lists */}
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {/* Pending Users Tab */}
+                      {referralTab === 'pending' && (
+                        <>
+                          {waitlistData.invitedUsers && waitlistData.invitedUsers.length > 0 ? (
+                            waitlistData.invitedUsers.map((user) => {
+                              const displayName = getReferralUserDisplayName(user)
+                              const subtitle = getReferralUserSubtitle(user)
+                              
+                              return (
+                                <div
+                                  key={user.id}
+                                  className="flex items-center gap-3 p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/30 hover:bg-yellow-500/15 transition-colors"
+                                >
+                                  {/* Avatar */}
+                                  <Avatar
+                                    src={user.profileImageUrl || undefined}
+                                    alt={displayName}
+                                    size="sm"
+                                  />
+
+                                  {/* User Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <h3 className="text-sm font-semibold text-foreground truncate">
+                                        {displayName}
+                                      </h3>
+                                      <span className="px-1.5 py-0.5 text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded shrink-0">
+                                        Pending
+                                      </span>
+                                    </div>
+                                    {subtitle && (
+                                      <p className="text-xs text-muted-foreground truncate">
+                                        {subtitle}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Signed up {new Date(user.createdAt).toLocaleDateString()}
+                                    </p>
+                                  </div>
+
+                                  {/* Status */}
+                                  <div className="text-xs text-yellow-600 dark:text-yellow-400 shrink-0">
+                                    Not completed
+                                  </div>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="text-center py-8 text-sm text-muted-foreground">
+                              No pending referrals yet
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Qualified Users Tab */}
+                      {referralTab === 'qualified' && (
+                        <>
+                          {waitlistData.qualifiedUsers && waitlistData.qualifiedUsers.length > 0 ? (
+                            waitlistData.qualifiedUsers.map((user) => {
+                              const displayName = getReferralUserDisplayName(user)
+                              const subtitle = getReferralUserSubtitle(user)
+                              
+                              return (
+                                <div
+                                  key={user.id}
+                                  className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                                >
+                                  {/* Avatar */}
+                                  <Avatar
+                                    src={user.profileImageUrl || undefined}
+                                    alt={displayName}
+                                    size="sm"
+                                  />
+
+                                  {/* User Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-semibold text-foreground truncate">
+                                      {displayName}
+                                    </h3>
+                                    {subtitle && (
+                                      <p className="text-xs text-muted-foreground truncate">
+                                        {subtitle}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {new Date(user.completedAt || user.createdAt).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="text-center py-8 text-sm text-muted-foreground">
+                              No qualified referrals yet
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* No Referrals Yet */}
+                {(!waitlistData.invitedUsers || waitlistData.invitedUsers.length === 0) && 
+                 (!waitlistData.qualifiedUsers || waitlistData.qualifiedUsers.length === 0) && (
+                  <div className="text-center py-8 bg-background/20 rounded-lg border border-border/50">
+                    <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                    <h3 className="text-sm font-semibold text-foreground mb-1">No referrals yet</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Share your invite link to start earning points
+                    </p>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Invite Code Section */}
               <div className="bg-background/30 border border-border/50 rounded-xl p-5 sm:p-6 backdrop-blur-sm">

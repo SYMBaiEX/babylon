@@ -182,7 +182,15 @@ export function useAuth(): UseAuthReturn {
         return;
       }
 
-      const response = await apiFetch('/api/users/me');
+      // Get referral code from sessionStorage (if user clicked a referral link)
+      const referralCode = typeof window !== 'undefined' ? sessionStorage.getItem('referralCode') : null;
+      
+      // Build URL with referral code if present
+      const url = referralCode 
+        ? `/api/users/me?ref=${encodeURIComponent(referralCode)}`
+        : '/api/users/me';
+      
+      const response = await apiFetch(url);
       const data = await response.json();
 
         const me = data as {

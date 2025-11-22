@@ -217,12 +217,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }
       }
 
-      // Resolve referral (if provided)
+      // Resolve referral (if provided AND not already set)
       let resolvedReferrerId: string | null = null
       let resolvedReferralRecordId: string | null = null
       const normalizedCode = referralCode?.trim() || null
 
-      if (normalizedCode) {
+      // Check if user already has referredBy (set in /api/users/me)
+      const existingUser = await tx.user.findUnique({
+        where: { id: canonicalUserId },
+        select: { referredBy: true },
+      })
+
+      // Only resolve referral if not already set
+      if (!existingUser?.referredBy && normalizedCode) {
         // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
@@ -244,6 +251,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }
 
         // Note: Referral record will be created AFTER user upsert to satisfy FK constraint
+      } else if (existingUser?.referredBy) {
+        // User already has referredBy (set in /api/users/me)
+        resolvedReferrerId = existingUser.referredBy
+        logger.info('Using existing referredBy from user record', {
+          userId: canonicalUserId,
+          referredBy: resolvedReferrerId,
+        }, 'POST /api/users/signup')
       }
 
       const baseUserData = {
@@ -255,6 +269,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         coverImageUrl: parsedProfile.coverImageUrl ?? null,
         walletAddress,
         profileComplete: true,
+        profileSetupCompletedAt: new Date(), // Track when profile was completed
         hasUsername: true,
         hasBio: Boolean(parsedProfile.bio && parsedProfile.bio.trim().length > 0),
         hasProfileImage: Boolean(parsedProfile.profileImageUrl),
