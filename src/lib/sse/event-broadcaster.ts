@@ -86,6 +86,7 @@ export async function broadcastChatMessage(
     isDMChat?: boolean;
   }
 ): Promise<void> {
+  logger.info('Broadcasting chat message', { chatId, messageId: message.id }, 'Realtime');
   await broadcastToChannel(`chat:${chatId}`, {
     type: 'new_message',
     message,
