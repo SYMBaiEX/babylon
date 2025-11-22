@@ -8,6 +8,9 @@ import { ComingSoon } from '@/components/shared/ComingSoon'
 import { Suspense } from 'react'
 import { Skeleton } from '@/components/shared/Skeleton'
 
+const waitlistModeEnabled =
+  (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) === 'true'
+
 function HomePageContent() {
   const router = useRouter()
   const { authenticated } = useAuth()
@@ -17,6 +20,13 @@ function HomePageContent() {
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
+    // Enforce waitlist mode via environment flag instead of relying on URL
+    if (waitlistModeEnabled) {
+      setShouldShowApp(false)
+      setIsChecking(false)
+      return
+    }
+
     // Check if force coming soon mode is enabled via URL parameter (?comingsoon=true)
     const forceComingSoon = searchParams.get('comingsoon') === 'true'
     
