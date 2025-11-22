@@ -253,32 +253,56 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Resolve referrer if referralCode provided
     let resolvedReferrerId: string | null = null
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({
-        where: { referralCode },
+      const normalizedCode = referralCode.trim()
+      
+      // First, try to find referrer by username (legacy system)
+      const referrerByUsername = await prisma.user.findUnique({
+        where: { username: normalizedCode },
         select: { id: true, username: true },
       })
       
-      // Only set referrer if valid and not self-referral
-      if (referrer && referrer.id !== canonicalUserId) {
-        resolvedReferrerId = referrer.id
+      if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
+        resolvedReferrerId = referrerByUsername.id
         
         logger.info(
-          'Found valid referrer for new user',
-          { referrerId: referrer.id, referrerUsername: referrer.username, referredUserId: canonicalUserId, referralCode },
+          'Found valid referrer by username for new user',
+          { referrerId: referrerByUsername.id, referrerUsername: referrerByUsername.username, referredUserId: canonicalUserId, referralCode: normalizedCode },
           'GET /api/users/me'
         )
-      } else if (referrer?.id === canonicalUserId) {
+      } else if (referrerByUsername?.id === canonicalUserId) {
         logger.warn(
-          'Self-referral attempt blocked',
-          { userId: canonicalUserId, referralCode },
+          'Self-referral attempt blocked (username lookup)',
+          { userId: canonicalUserId, referralCode: normalizedCode },
           'GET /api/users/me'
         )
       } else {
-        logger.warn(
-          'Invalid referral code provided',
-          { referralCode, userId: canonicalUserId },
-          'GET /api/users/me'
-        )
+        // If not found by username, try by referralCode
+        const referrerByCode = await prisma.user.findUnique({
+          where: { referralCode: normalizedCode },
+          select: { id: true, username: true },
+        })
+        
+        if (referrerByCode && referrerByCode.id !== canonicalUserId) {
+          resolvedReferrerId = referrerByCode.id
+          
+          logger.info(
+            'Found valid referrer by referralCode for new user',
+            { referrerId: referrerByCode.id, referrerUsername: referrerByCode.username, referredUserId: canonicalUserId, referralCode: normalizedCode },
+            'GET /api/users/me'
+          )
+        } else if (referrerByCode?.id === canonicalUserId) {
+          logger.warn(
+            'Self-referral attempt blocked (referralCode lookup)',
+            { userId: canonicalUserId, referralCode: normalizedCode },
+            'GET /api/users/me'
+          )
+        } else {
+          logger.warn(
+            'Invalid referral code provided (not found by username or referralCode)',
+            { referralCode: normalizedCode, userId: canonicalUserId },
+            'GET /api/users/me'
+          )
+        }
       }
     }
 
@@ -326,10 +350,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   } else if (referralCode && !dbUser.profileComplete) {
     // User exists BUT profile not complete - update referredBy with latest referral code (latest wins!)
     // ⚠️ IMPORTANT: Only allow referral changes BEFORE profile completion to prevent gaming
-    const referrer = await prisma.user.findUnique({
-      where: { referralCode },
+    const normalizedCode = referralCode.trim()
+    
+    // First, try to find referrer by username (legacy system)
+    let referrer = await prisma.user.findUnique({
+      where: { username: normalizedCode },
       select: { id: true, username: true },
     })
+    
+    // If not found by username, try by referralCode
+    if (!referrer) {
+      referrer = await prisma.user.findUnique({
+        where: { referralCode: normalizedCode },
+        select: { id: true, username: true },
+      })
+    }
     
     if (referrer && referrer.id !== dbUser.id) {
       const previousReferrer = dbUser.referredBy
