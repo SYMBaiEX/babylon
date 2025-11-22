@@ -113,6 +113,7 @@ export async function publishEvent(
     if (!res) {
       throw new Error('streamAdd returned null (Redis not available)')
     }
+    logger.debug('Realtime event published', { channel: event.channel, type: event.type, streamId: res }, 'Realtime')
   } catch (error) {
     logger.warn('Failed to publish realtime event (queued for retry)', {
       channel: event.channel,

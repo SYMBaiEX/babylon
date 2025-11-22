@@ -125,6 +125,8 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        logger.debug('Realtime stream read', { connectionId, count: messages.length }, 'SSE');
+
         for (const msg of messages) {
           const channel = keyToChannel.get(msg.stream);
           if (!channel) continue;
