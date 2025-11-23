@@ -40,6 +40,7 @@ describe('PredictionMarketEventService', () => {
 
     expect(broadcastSpy).toHaveBeenCalledWith('markets', {
       type: 'prediction_trade',
+      version: 'v1',
       ...payload,
     });
   });
@@ -59,6 +60,7 @@ describe('PredictionMarketEventService', () => {
 
     expect(broadcastSpy).toHaveBeenCalledWith('markets', {
       type: 'prediction_resolution',
+      version: 'v1',
       ...payload,
     });
   });
