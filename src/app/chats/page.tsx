@@ -198,6 +198,10 @@ export default function ChatsPage() {
     pendingScrollAdjustRef.current = null
   }, [isLoadingMore, realtimeMessages.length])
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
+
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   
@@ -646,10 +650,6 @@ export default function ChatsPage() {
       sendMessage()
     }
   }
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    messagesEndRef.current?.scrollIntoView({ behavior })
-  }, [])
 
   useEffect(() => {
     const container = chatContainerRef.current
