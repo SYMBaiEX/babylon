@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { useSSEChannel } from '@/hooks/useSSE'
 
 /**
  * Article item structure for latest news panel.
@@ -232,7 +233,13 @@ export function LatestNewsPanel() {
     return () => unregisterRefresh('latest-news')
   }, [registerRefresh, unregisterRefresh, fetchArticles])
 
-  // Note: Real-time updates via SSE removed - using manual pull-to-refresh
+  // Real-time refresh on feed/breaking-news events
+  useSSEChannel('feed', () => {
+    void fetchArticles(true)
+  })
+  useSSEChannel('breaking-news', () => {
+    void fetchArticles(true)
+  })
 
   const getSentimentIcon = (sentiment?: string) => {
     switch (sentiment) {
@@ -305,4 +312,3 @@ export function LatestNewsPanel() {
     </>
   )
 }
-

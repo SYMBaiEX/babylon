@@ -22,6 +22,7 @@ import { useGameStore } from '@/stores/gameStore'
 import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSSEChannel } from '@/hooks/useSSE'
 
 const PAGE_SIZE = 20
 
@@ -133,7 +134,7 @@ function FeedPageContent() {
     }
   }, [registerOptimisticPostCallback, unregisterOptimisticPostCallback])
 
-  const fetchLatestPosts = useCallback(async (requestCursor: string | null, append = false, skipLoadingState = false) => {
+  const fetchLatestPosts = useCallback(async (requestCursor: string | null, append = false, skipLoadingState = false, forceNoStore = false) => {
     if (tab !== 'latest') return
     
     // Guard against concurrent fetches (use ref for synchronous check)
@@ -154,7 +155,9 @@ function FeedPageContent() {
         ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
         : `/api/posts?limit=${PAGE_SIZE}`;
       
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        cache: forceNoStore ? 'no-store' : undefined,
+      })
       if (!response.ok) {
         if (append) setHasMore(false)
         return
@@ -258,6 +261,11 @@ function FeedPageContent() {
       fetchLatestPosts(null, false) // Initial load with no cursor
     }
   }, [tab, fetchLatestPosts])
+
+  // Live refresh on feed events
+  useSSEChannel('feed', () => {
+    void fetchLatestPosts(null, false, true, true)
+  })
 
   // Infinite scroll observer for latest tab
   useEffect(() => {

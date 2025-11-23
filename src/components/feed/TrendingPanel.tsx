@@ -5,6 +5,7 @@ import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { useSSEChannel } from '@/hooks/useSSE'
 
 /**
  * Trending item structure for trending panel (supports grouped trends).
@@ -86,7 +87,10 @@ export function TrendingPanel() {
     return () => unregisterRefresh('trending')
   }, [registerRefresh, unregisterRefresh, fetchTrending])
 
-  // Note: Real-time updates via SSE removed - using manual pull-to-refresh
+  // Real-time refresh on feed events
+  useSSEChannel('feed', () => {
+    void fetchTrending(true)
+  })
 
   const handleTrendingClick = (item: TrendingItem) => {
     // If multiple tags, navigate to grouped view; otherwise single tag view
@@ -155,4 +159,3 @@ export function TrendingPanel() {
     </div>
   )
 }
-

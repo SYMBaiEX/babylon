@@ -35,10 +35,10 @@ export interface QualityCheckResult {
  */
 export class MessageQualityChecker {
   /**
-   * Minimum message length (10 characters)
+   * Minimum message length (1 character, empty not allowed)
    * @private
    */
-  private static readonly MIN_LENGTH = 10;
+  private static readonly MIN_LENGTH = 1;
   
   /**
    * Ideal minimum message length (30 characters)
@@ -86,7 +86,7 @@ export class MessageQualityChecker {
     const warnings: string[] = [];
 
     // 1. Check length
-    const lengthScore = this.checkLength(message, errors, warnings);
+    const lengthScore = this.checkLength(message, contextType, errors, warnings);
 
     // 2. Check for duplicates
     const uniquenessScore = await this.checkUniqueness(
@@ -99,7 +99,7 @@ export class MessageQualityChecker {
     );
 
     // 3. Check content quality
-    const contentScore = this.checkContent(message, errors, warnings);
+    const contentScore = this.checkContent(message, contextType, errors, warnings);
 
     // Calculate overall score (weighted average)
     const score = lengthScore * 0.3 + uniquenessScore * 0.4 + contentScore * 0.3;
@@ -122,13 +122,14 @@ export class MessageQualityChecker {
    */
   private static checkLength(
     message: string,
+    contextType: 'reply' | 'groupchat' | 'dm',
     errors: string[],
     warnings: string[]
   ): number {
     const length = message.trim().length;
 
     if (length < this.MIN_LENGTH) {
-      errors.push(`Message too short (min ${this.MIN_LENGTH} characters)`);
+      errors.push('Message cannot be empty');
       return 0;
     }
 
@@ -137,8 +138,13 @@ export class MessageQualityChecker {
       return 0;
     }
 
+    // DMs: allow any non-empty length without soft warnings
+    if (contextType === 'dm') {
+      return 1.0;
+    }
+
     if (length < this.IDEAL_MIN_LENGTH) {
-      warnings.push('Message is a bit short for best quality score');
+      warnings.push('Message is short (still allowed)');
       return 0.6;
     }
 
@@ -233,6 +239,7 @@ export class MessageQualityChecker {
    */
   private static checkContent(
     message: string,
+    contextType: 'reply' | 'groupchat' | 'dm',
     errors: string[],
     warnings: string[]
   ): number {
@@ -259,11 +266,13 @@ export class MessageQualityChecker {
       return 0.7;
     }
 
-    // Check word count (need actual words)
-    const words = trimmed.split(/\s+/).filter((w) => w.length > 0);
-    if (words.length < 3) {
-      errors.push('Message must contain at least 3 words');
-      return 0;
+    // Skip word-count softness for DMs; keep for public/group contexts.
+    if (contextType !== 'dm') {
+      const words = trimmed.split(/\s+/).filter((w) => w.length > 0);
+      if (words.length < 3) {
+        warnings.push('Message has very few words (still allowed)');
+        return 0.6;
+      }
     }
 
     // Check for URL spam (multiple URLs)
@@ -338,5 +347,3 @@ export class MessageQualityChecker {
     };
   }
 }
-
-
