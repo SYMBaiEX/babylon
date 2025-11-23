@@ -18,7 +18,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Babylon',
-  description: 'In a world where everything is predicted, what really matters? ',
+  description: 'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
   metadataBase: new URL('https://babylon.market'),
   icons: {
     icon: [
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Babylon',
-    description: 'In a world where everything is predicted, what really matters? ',
+    description: 'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
     url: 'https://babylon.market',
     siteName: 'Babylon',
     images: [
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Babylon',
-    description: 'In a world where everything is predicted, what really matters? ',
+    description: 'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
     images: ['/assets/images/og-image.png'],
   },
   other: {

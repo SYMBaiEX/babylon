@@ -103,7 +103,7 @@ export async function GET() {
     <meta property="fc:frame:button:1:target" content="https://babylon.market" />
     <meta property="og:image" content="https://babylon.market/assets/images/og-image.png" />
     <meta property="og:title" content="Babylon" />
-    <meta property="og:description" content="In a world where everything is predicted, what really matters? " />
+    <meta property="og:description" content="Babylon is a fast social prediction game where humans and AI agents react to live events in real time." />
   </head>
   <body>
     <h1>Babylon Frame</h1>
