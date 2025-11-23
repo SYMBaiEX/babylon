@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "RealtimeOutboxStatus" AS ENUM ('pending', 'sent', 'failed');
+
+-- CreateEnum
 CREATE TYPE "OnboardingStatus" AS ENUM ('PENDING_PROFILE', 'PENDING_ONCHAIN', 'ONCHAIN_IN_PROGRESS', 'ONCHAIN_FAILED', 'COMPLETED');
 
 -- CreateEnum
@@ -75,6 +78,22 @@ CREATE TABLE "NPCInteraction" (
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "NPCInteraction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RealtimeOutbox" (
+    "id" TEXT NOT NULL,
+    "channel" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "version" TEXT DEFAULT 'v1',
+    "payload" JSONB NOT NULL,
+    "status" "RealtimeOutboxStatus" NOT NULL DEFAULT 'pending',
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "lastError" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RealtimeOutbox_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -785,6 +804,8 @@ CREATE TABLE "Question" (
     "oracleRevealTxHash" TEXT,
     "oracleSaltEncrypted" TEXT,
     "oracleSessionId" TEXT,
+    "resolutionProofUrl" TEXT,
+    "resolutionDescription" TEXT,
 
     CONSTRAINT "Question_pkey" PRIMARY KEY ("id")
 );
@@ -810,6 +831,8 @@ CREATE TABLE "Referral" (
     "status" TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" TIMESTAMP(3),
+    "qualifiedAt" TIMESTAMP(3),
+    "suspiciousReferralFlags" JSONB,
 
     CONSTRAINT "Referral_pkey" PRIMARY KEY ("id")
 );
@@ -949,9 +972,14 @@ CREATE TABLE "User" (
     "pointsAwardedForUsername" BOOLEAN NOT NULL DEFAULT false,
     "pointsAwardedForWallet" BOOLEAN NOT NULL DEFAULT false,
     "pointsAwardedForReferralBonus" BOOLEAN NOT NULL DEFAULT false,
+    "pointsAwardedForShare" BOOLEAN NOT NULL DEFAULT false,
+    "pointsAwardedForPrivateGroup" BOOLEAN NOT NULL DEFAULT false,
+    "pointsAwardedForPrivateChannel" BOOLEAN NOT NULL DEFAULT false,
     "referralCode" TEXT,
     "referralCount" INTEGER NOT NULL DEFAULT 0,
     "referredBy" TEXT,
+    "registrationIpHash" TEXT,
+    "lastReferralIpHash" TEXT,
     "registrationTxHash" TEXT,
     "reputationPoints" INTEGER NOT NULL DEFAULT 1000,
     "twitterUsername" TEXT,
@@ -1651,6 +1679,12 @@ CREATE INDEX "NPCInteraction_actor2Id_idx" ON "NPCInteraction"("actor2Id");
 CREATE INDEX "NPCInteraction_interactionType_idx" ON "NPCInteraction"("interactionType");
 
 -- CreateIndex
+CREATE INDEX "RealtimeOutbox_status_createdAt_idx" ON "RealtimeOutbox"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "RealtimeOutbox_channel_status_idx" ON "RealtimeOutbox"("channel", "status");
+
+-- CreateIndex
 CREATE INDEX "AgentLog_agentUserId_createdAt_idx" ON "AgentLog"("agentUserId", "createdAt" DESC);
 
 -- CreateIndex
@@ -2158,6 +2192,9 @@ CREATE INDEX "Referral_referredUserId_idx" ON "Referral"("referredUserId");
 CREATE INDEX "Referral_status_createdAt_idx" ON "Referral"("status", "createdAt" DESC);
 
 -- CreateIndex
+CREATE INDEX "Referral_qualifiedAt_idx" ON "Referral"("qualifiedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Referral_referralCode_referredUserId_key" ON "Referral"("referralCode", "referredUserId");
 
 -- CreateIndex
@@ -2306,6 +2343,12 @@ CREATE INDEX "User_waitlistPosition_idx" ON "User"("waitlistPosition");
 
 -- CreateIndex
 CREATE INDEX "User_walletAddress_idx" ON "User"("walletAddress");
+
+-- CreateIndex
+CREATE INDEX "User_registrationIpHash_idx" ON "User"("registrationIpHash");
+
+-- CreateIndex
+CREATE INDEX "User_lastReferralIpHash_idx" ON "User"("lastReferralIpHash");
 
 -- CreateIndex
 CREATE INDEX "UserActorFollow_actorId_idx" ON "UserActorFollow"("actorId");
