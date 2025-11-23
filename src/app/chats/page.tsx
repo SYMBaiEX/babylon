@@ -102,6 +102,7 @@ export default function ChatsPage() {
   const [loadingChat, setLoadingChat] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [sendWarning, setSendWarning] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [isLeavingChat, setIsLeavingChat] = useState(false)
@@ -114,6 +115,7 @@ export default function ChatsPage() {
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const pendingScrollAdjustRef = useRef<{ previousHeight: number; previousTop: number } | null>(null)
+  const lastMessageIdRef = useRef<string | null>(null)
   
   // Use SSE for real-time messages with pagination
   const { 
@@ -472,6 +474,7 @@ export default function ChatsPage() {
 
   // Load selected chat details from database
   useEffect(() => {
+    lastMessageIdRef.current = null
     if (selectedChatId) {
       loadChatDetails(selectedChatId)
     }
@@ -490,9 +493,14 @@ export default function ChatsPage() {
     }
   }, [realtimeMessages])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when the newest message changes (initial load, new message, or chat switch)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const msgs = chatDetails?.messages || []
+    const lastId = msgs.length > 0 ? msgs[msgs.length - 1]?.id : null
+    if (lastId && lastId !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = lastId
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [chatDetails?.messages])
 
   const handleLeaveChat = async () => {
@@ -567,6 +575,7 @@ export default function ChatsPage() {
 
     setSending(true)
     setSendError(null)
+    setSendWarning(null)
     setSendSuccess(false)
 
     const token = await getAccessToken()
@@ -593,13 +602,23 @@ export default function ChatsPage() {
 
     const data = await response.json()
 
-    if (data.warnings && data.warnings.length > 0) {
-      setSendError(data.warnings.join('. '))
-      setTimeout(() => setSendError(null), 5000)
-    } else {
-      setSendSuccess(true)
-      setTimeout(() => setSendSuccess(false), 2000)
+    if (!response.ok) {
+      const message =
+        (data && (data.error || data.message)) ||
+        'Failed to send message. Please try again.'
+      setSendError(message)
+      setSending(false)
+      return
     }
+
+    const warnings = Array.isArray(data?.warnings) ? data.warnings : []
+    if (warnings.length > 0) {
+      setSendWarning(warnings.join('. '))
+      setTimeout(() => setSendWarning(null), 5000)
+    }
+
+    setSendSuccess(true)
+    setTimeout(() => setSendSuccess(false), 2000)
 
     // SSE will handle adding the message in real-time
     setMessageInput('')
@@ -1111,12 +1130,20 @@ export default function ChatsPage() {
                     </div>
 
                     {/* Feedback Messages */}
-                    {authenticated && (sendError || sendSuccess) && (
+                    {authenticated && (sendError || sendSuccess || sendWarning) && (
                       <div className="px-4">
                         {sendError && (
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
                             <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                             <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
+                          </div>
+                        )}
+                        {sendWarning && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#3b82f6' }}>
+                            <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#3b82f6' }} />
+                            <span className="text-xs" style={{ color: '#3b82f6' }}>
+                              Sent · {sendWarning}
+                            </span>
                           </div>
                         )}
                         {sendSuccess && (
@@ -1595,12 +1622,20 @@ export default function ChatsPage() {
                   </div>
 
                   {/* Feedback Messages */}
-                  {authenticated && (sendError || sendSuccess) && (
+                  {authenticated && (sendError || sendSuccess || sendWarning) && (
                     <div className="px-4">
                       {sendError && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
                           <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                           <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
+                        </div>
+                      )}
+                      {sendWarning && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#3b82f6' }}>
+                          <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#3b82f6' }} />
+                          <span className="text-xs" style={{ color: '#3b82f6' }}>
+                            Sent · {sendWarning}
+                          </span>
                         </div>
                       )}
                       {sendSuccess && (
