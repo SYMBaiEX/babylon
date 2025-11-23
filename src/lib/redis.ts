@@ -120,15 +120,20 @@ export async function streamAdd(
   }
 
   if (redisType === 'standard') {
-    const args: (string | number)[] = [stream, '*']
+    // Build args in correct Redis XADD order:
+    // XADD key [MAXLEN [= | ~] threshold] <* | id> field value [field value ...]
+    // See: https://redis.io/docs/latest/commands/xadd/
+    const args: (string | number)[] = [stream]
+
+    // MAXLEN must come after the stream key and before the entry ID
+    if (opts?.maxlen !== undefined) {
+      args.push('MAXLEN', '~', opts.maxlen)
+    }
+
+    args.push('*')
     Object.entries(entry).forEach(([key, value]) => {
       args.push(key, String(value))
     })
-
-    // ioredis supports approximate trimming via MAXLEN ~ N
-    if (opts?.maxlen !== undefined) {
-      args.unshift('MAXLEN', '~', opts.maxlen)
-    }
 
     return await (redis as IORedis).xadd(...(args as [string, string]))
   }
@@ -185,18 +190,15 @@ export async function streamRead(
     }
 
     if (redisType === 'standard') {
-    const args: Array<string | number> = []
-    if (opts?.count) {
-      args.push('COUNT', String(opts.count))
-    }
-    args.push('STREAMS', ...streams, ...ids)
+    // ioredis xread requires literal tokens for type safety
+    // See: https://redis.io/docs/latest/commands/xread/
+    const ioredis = redis as IORedis
+    const streamArgs = [...streams, ...ids] as string[]
 
-    // ioredis typings expect the literal "STREAMS" first, then keys, then ids.
-    const res = await (redis as IORedis).xread(
-      'STREAMS',
-      ...(streams as string[]),
-      ...(ids as string[])
-    )
+    // Call appropriate overload based on whether COUNT is specified
+    const res = opts?.count
+      ? await ioredis.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
+      : await ioredis.xread('STREAMS', ...streamArgs)
 
       // ioredis returns the same general structure as Redis CLI
       const parsed: StreamMessage[] = []

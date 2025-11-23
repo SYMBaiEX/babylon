@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { logger } from '@/lib/logger';
 import { connections } from '@/lib/realtime/connection-registry';
 import { generateConnectionId, verifyRealtimeToken, toStreamKey, type RealtimeChannel } from '@/lib/realtime';
@@ -51,12 +51,13 @@ export async function GET(request: NextRequest) {
   }
 
   const realtimePayload = verifyRealtimeToken(tokenParam);
-  let userId: string | null = realtimePayload?.userId ?? null;
   let allowedChannels: RealtimeChannel[] = realtimePayload?.channels ?? [];
 
-  if (!userId) {
+  if (!realtimePayload?.userId) {
     return new Response('Unauthorized', { status: 401 });
   }
+
+  const userId = realtimePayload.userId;
 
   if (!redis) {
     logger.error('Redis/Upstash not configured - realtime disabled', undefined, 'SSE');

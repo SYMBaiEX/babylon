@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger'
 import { streamAdd } from '@/lib/redis'
 import type { RealtimeChannel, RealtimeEventEnvelope } from './index'
 import { toStreamKey } from './index'
+import type { JsonValue } from '@/types/common'
 import { randomUUID } from 'crypto'
 import type { Prisma } from '@prisma/client'
 
@@ -54,7 +55,7 @@ export async function drainOutboxBatch(limit: number = BATCH_SIZE): Promise<{
   for (const row of rows) {
     const envelope = row.payload as unknown as RealtimeEventEnvelope
     try {
-      await streamAdd(toStreamKey(envelope.channel as RealtimeChannel), envelope as Record<string, any>, {
+      await streamAdd(toStreamKey(envelope.channel as RealtimeChannel), envelope as unknown as Record<string, JsonValue>, {
         maxlen: 10_000,
       })
       await prisma.realtimeOutbox.update({
