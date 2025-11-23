@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/logger'
 import { AlertCircle, Newspaper, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -43,6 +44,7 @@ interface ArticleItem {
  * @returns Latest news panel element
  */
 export function LatestNewsPanel() {
+  const router = useRouter()
   const [articles, setArticles] = useState<ArticleItem[]>([])
   const [loading, setLoading] = useState(true)
   const { getLatestNews, setLatestNews } = useWidgetCacheStore()
@@ -268,8 +270,8 @@ export function LatestNewsPanel() {
   }
 
   const handleArticleClick = (articleId: string) => {
-    // Navigate to post detail page (will redirect to /article/[id] if needed)
-    window.location.href = `/post/${articleId}`
+    // Navigate directly to article page (LatestNewsPanel only shows article-type posts)
+    router.push(`/article/${articleId}`)
   }
 
   return (

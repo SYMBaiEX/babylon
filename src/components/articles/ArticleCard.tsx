@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
@@ -63,6 +64,7 @@ export const ArticleCard = memo(function ArticleCard({
   className,
   onClick,
 }: ArticleCardProps) {
+  const router = useRouter();
   const publishedDate = new Date(post.timestamp);
   const now = new Date();
   const diffMs = now.getTime() - publishedDate.getTime();
@@ -89,10 +91,8 @@ export const ArticleCard = memo(function ArticleCard({
     if (onClick) {
       onClick();
     } else {
-      // Default behavior: navigate to article page
-      // Navigate to /post/[id] which will redirect to /article/[id] if needed
-      // Using window.location.href for reliable navigation (matches LatestNewsPanel pattern)
-      window.location.href = `/post/${post.id}`;
+      // Navigate directly to article page (ArticleCard is only used for article-type posts)
+      router.push(`/article/${post.id}`);
     }
   };
 
