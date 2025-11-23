@@ -184,7 +184,7 @@ export function usePerpTrade(options: UsePerpTradeOptions = {}) {
 
   const closePosition = useCallback(
     async (positionId: string): Promise<ClosePerpResponse> => {
-      return await callApi(`/api/markets/perps/${positionId}/close`, {
+      return await callApi(`/api/markets/perps/position/${positionId}/close`, {
         method: 'POST',
       });
     },

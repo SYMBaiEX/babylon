@@ -35,12 +35,85 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 }
 
 /**
+ * Wait for Privy SDK to be initialized and ready
+ * 
+ * @description Waits for Privy SDK to be loaded and ready before attempting authentication.
+ * Verifies that PrivyProvider is rendered (not the fallback UI) and that the SDK
+ * has finished initializing. This is critical because Privy SDK must be ready before
+ * any authentication UI interactions can succeed.
+ */
+async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
+  console.log('⏳ Waiting for Privy SDK to initialize...')
+  
+  try {
+    // First, verify PrivyProvider is rendered (check for Privy-specific DOM elements)
+    // If PrivyProvider didn't render, it means NEXT_PUBLIC_PRIVY_APP_ID wasn't set at build time
+    const privyRoot = page.locator('[data-privy-root]').first()
+    const privyRootVisible = await privyRoot.isVisible({ timeout: 5000 }).catch(() => false)
+    
+    if (!privyRootVisible) {
+      // Check if we're in the fallback UI (no PrivyProvider)
+      const hasPrivyConfig = await page.evaluate(() => {
+        // Check if window has Privy SDK
+        return typeof window !== 'undefined' && typeof (window as { privy?: unknown }).privy !== 'undefined'
+      }).catch(() => false)
+      
+      if (!hasPrivyConfig) {
+        throw new Error(
+          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build. ' +
+          'Check CI workflow: Build production step must include NEXT_PUBLIC_PRIVY_APP_ID in env: section.'
+        )
+      }
+    }
+    
+    // Wait for Privy SDK to be available and ready
+    await page.waitForFunction(
+      () => {
+        // Check if Privy SDK is loaded
+        if (typeof window === 'undefined') {
+          return false
+        }
+        
+        // Check for Privy SDK on window object
+        const privy = (window as { privy?: { ready?: boolean } }).privy
+        if (!privy) {
+          return false
+        }
+        
+        // Check if SDK is ready
+        return privy.ready === true
+      },
+      { timeout }
+    )
+    
+    console.log('✅ Privy SDK is ready')
+  } catch (error) {
+    // Log console errors for debugging
+    const consoleMessages = await page.evaluate(() => {
+      // Try to get console errors if available
+      return 'Console errors not accessible in Playwright'
+    }).catch(() => 'Could not access console')
+    
+    throw new Error(
+      `Privy SDK failed to initialize: ${error instanceof Error ? error.message : String(error)}\n` +
+      `Console: ${consoleMessages}\n` +
+      `This usually means:\n` +
+      `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
+      `2. Privy SDK script failed to load\n` +
+      `3. Network issues preventing Privy API calls`
+    )
+  }
+}
+
+/**
  * Login with Privy email authentication
  */
 export async function loginWithPrivyEmail(page: Page, account: PrivyTestAccount): Promise<void> {
   console.log('🔄 Starting Privy login flow...')
-  // Wait for Privy to be available
-  await page.waitForTimeout(2000)
+  
+  // CRITICAL: Wait for Privy SDK to be ready before attempting any UI interactions
+  // This ensures the SDK has finished initializing and authentication UI is available
+  await waitForPrivyReady(page)
 
   // Check if already logged in
   // Use exact testId or text that only appears when logged in (UserMenu has data-testid="user-menu")

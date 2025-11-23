@@ -87,7 +87,8 @@ export const GET = withErrorHandling(async (
   await optionalAuth(request).catch(() => null);
 
   const { ticker: tickerParam } = await context.params;
-  const ticker = tickerParam.toUpperCase();
+  // Organization IDs are stored lowercase in the database
+  const ticker = tickerParam.toLowerCase();
   
   // Parse query parameters
   const { searchParams } = new URL(request.url);

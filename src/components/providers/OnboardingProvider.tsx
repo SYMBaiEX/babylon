@@ -11,6 +11,7 @@ import {
 
 import { apiFetch } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
+import { POINTS } from '@/lib/constants/points';
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
 import {
   WALLET_ERROR_MESSAGES,
@@ -114,6 +115,15 @@ export function OnboardingProvider({
     return () => clearTimeout(timer);
   }, [authenticated, loadingProfile, hasInitialized]);
 
+  // If needsOnboarding is manually set to true, show modal immediately
+  useEffect(() => {
+    if (needsOnboarding && authenticated && !loadingProfile) {
+      setIsReadyToShow(true);
+      setHasInitialized(true);
+      setUserDismissed(false); // Reset dismissed state when explicitly requesting onboarding
+    }
+  }, [needsOnboarding, authenticated, loadingProfile]);
+
   const shouldShowModal = useMemo(() => {
     // Check if dev mode is enabled via URL parameter
     if (typeof window !== 'undefined') {
@@ -121,9 +131,11 @@ export function OnboardingProvider({
       const isDevMode = params.get('dev') === 'true';
       const isProduction = window.location.hostname === 'babylon.market';
       const isHomePage = window.location.pathname === '/';
+      const isWaitlistFlow = params.get('waitlist') === 'true';
 
       // Hide onboarding modal on production (babylon.market) on home page unless ?dev=true
-      if (isProduction && isHomePage && !isDevMode) {
+      // BUT allow it if user is in waitlist flow (coming from waitlist signup)
+      if (isProduction && isHomePage && !isDevMode && !isWaitlistFlow) {
         return false;
       }
     }
@@ -277,7 +289,7 @@ export function OnboardingProvider({
           hasBio: !!profileData.bio,
           hasProfileImage: !!profileImage,
           rewardEligible: true,
-          expectedPoints: 1000 // FARCASTER_LINK points
+          expectedPoints: POINTS.FARCASTER_LINK
         },
         'OnboardingProvider'
       );
@@ -314,7 +326,7 @@ export function OnboardingProvider({
           twitterId: profileData.twitterId,
           hasProfileImage: !!profileImageUrl,
           rewardEligible: true,
-          expectedPoints: 1000 // TWITTER_LINK points
+          expectedPoints: POINTS.TWITTER_LINK
         },
         'OnboardingProvider'
       );
@@ -714,6 +726,7 @@ export function OnboardingProvider({
           onLogout={logout}
           user={user}
           importedData={importedProfileData}
+          initialEmail={privyUser?.email?.address || null}
         />
       )}
     </>

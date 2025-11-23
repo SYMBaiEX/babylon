@@ -257,6 +257,23 @@ export const POST = withErrorHandling(async (
     }
   }
 
+  // Update referral code if username is changing and username is available
+  const referralCodeUpdate: { referralCode?: string } = {}
+  if (isUsernameChanging && normalizedUsername) {
+    // Check if username is available as referral code (not taken by another user)
+    const existingUserWithCode = await prisma.user.findFirst({
+      where: {
+        referralCode: normalizedUsername,
+        id: { not: canonicalUserId },
+      },
+    })
+    
+    // Only update referral code if username is available
+    if (!existingUserWithCode) {
+      referralCodeUpdate.referralCode = normalizedUsername
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: canonicalUserId },
     data: {
@@ -269,6 +286,7 @@ export const POST = withErrorHandling(async (
       ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
       ...(showWalletPublic !== undefined && { showWalletPublic }),
       ...(isUsernameChanging && { usernameChangedAt: new Date() }),
+      ...referralCodeUpdate,
       hasUsername: normalizedUsername !== undefined ? normalizedUsername.length > 0 : undefined,
       hasBio: normalizedBio !== undefined ? normalizedBio.length > 0 : undefined,
       hasProfileImage: normalizedProfileImageUrl !== undefined ? normalizedProfileImageUrl.length > 0 : undefined,
@@ -323,6 +341,24 @@ export const POST = withErrorHandling(async (
 
         await notifyProfileComplete(canonicalUserId, result.pointsAwarded);
         logger.info('Profile completion notification sent', { userId: canonicalUserId }, 'POST /api/users/[userId]/update-profile');
+
+        // Award referral qualification bonus to referrer if user was referred
+        const referralQualificationResult = await PointsService.checkAndQualifyReferral(canonicalUserId).catch((error) => {
+          // Log error but don't fail the request if qualification check fails
+          logger.warn(
+            `Failed to check and qualify referral for user ${canonicalUserId}`,
+            { userId: canonicalUserId, error },
+            'POST /api/users/[userId]/update-profile'
+          );
+          return null;
+        });
+        if (referralQualificationResult && referralQualificationResult.success) {
+          logger.info(
+            `Awarded ${referralQualificationResult.pointsAwarded} referral qualification points to referrer`,
+            { referredUserId: canonicalUserId, points: referralQualificationResult.pointsAwarded },
+            'POST /api/users/[userId]/update-profile'
+          );
+        }
       }
     }
   }

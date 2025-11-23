@@ -905,6 +905,10 @@ Otherwise, start fresh.`;
         logger.error('Invalid scenarios structure:', JSON.stringify(rawResult.scenarios, null, 2), 'GameGenerator');
         throw new Error('LLM returned invalid scenarios structure');
       }
+    } else if (rawResult && 'questions' in rawResult && rawResult.questions) {
+      // LLM returned questions instead of scenarios - this is a format error
+      logger.error('LLM returned questions instead of scenarios. Expected scenarios array with mainActors, involvedOrganizations, etc.', JSON.stringify(rawResult, null, 2), 'GameGenerator');
+      throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
     } else {
       logger.error('No scenarios found in response:', JSON.stringify(rawResult, null, 2), 'GameGenerator');
       throw new Error('LLM returned no scenarios');

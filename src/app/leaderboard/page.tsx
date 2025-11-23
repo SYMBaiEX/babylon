@@ -175,7 +175,7 @@ export default function LeaderboardPage() {
                   Earn {baseMinPoints.toLocaleString()} reputation points to appear on the leaderboard!
                 </p>
                 <p className="text-xs">
-                  Complete your profile, link socials, share, and refer friends to earn up to 7,000 points
+                  Complete your profile, link socials, share, and refer friends to earn points
                 </p>
               </>
             )}
@@ -429,7 +429,7 @@ export default function LeaderboardPage() {
                     Earn {baseMinPoints.toLocaleString()} reputation points to appear on the leaderboard!
                   </p>
                   <p className="text-xs">
-                    Complete your profile, link socials, share, and refer friends to earn up to 7,000 points.
+                    Complete your profile, link socials, share, and refer friends to earn points.
                   </p>
                 </>
               )}

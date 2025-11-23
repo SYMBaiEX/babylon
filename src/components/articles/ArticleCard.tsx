@@ -88,6 +88,11 @@ export const ArticleCard = memo(function ArticleCard({
   const handleClick = () => {
     if (onClick) {
       onClick();
+    } else {
+      // Default behavior: navigate to article page
+      // Navigate to /post/[id] which will redirect to /article/[id] if needed
+      // Using window.location.href for reliable navigation (matches LatestNewsPanel pattern)
+      window.location.href = `/post/${post.id}`;
     }
   };
 
@@ -142,6 +147,7 @@ export const ArticleCard = memo(function ArticleCard({
           {post.articleTitle || 'Untitled Article'}
         </h2>
         <button
+          type="button"
           className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
           onClick={handleClick}
         >

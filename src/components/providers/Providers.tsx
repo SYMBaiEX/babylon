@@ -21,6 +21,7 @@ import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
 import { PostHogProvider } from './PostHogProvider';
+import { logger } from '@/lib/logger';
 
 /**
  * Wrapper component to fix clip-path DOM property issue in Privy.
@@ -32,7 +33,26 @@ import { PostHogProvider } from './PostHogProvider';
  * @param props - PrivyProvider component props
  * @returns PrivyProvider wrapped in fix container
  */
-function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeof PrivyProvider>) {
+function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProps<typeof PrivyProvider>) {
+  // Only check if appId is provided - let Privy validate the format
+  // This allows tests to work while still preventing crashes from empty appId
+  if (!appId || appId.trim() === '') {
+    return <>{children}</>;
+  }
+  
+  // Filter out props that shouldn't be passed to PrivyProvider
+  // These might be passed from parent components but aren't valid PrivyProvider props
+  // and can cause React warnings when forwarded to DOM elements
+  // Type-safe filtering: exclude invalid props and ensure only valid PrivyProvider props are passed
+  const privyProps = { ...props } as Omit<React.ComponentProps<typeof PrivyProvider>, 'appId' | 'children'>;
+  
+  // Remove any invalid props that might have been passed
+  // Check for common invalid props that React might forward to DOM
+  if ('isActive' in privyProps) {
+    logger.warn('Invalid prop "isActive" passed to PrivyProviderWrapper - this prop is not supported by PrivyProvider', undefined, 'PrivyProviderWrapper');
+    delete (privyProps as Record<string, unknown>).isActive;
+  }
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,9 +136,12 @@ function PrivyProviderWrapper({ children, ...props }: React.ComponentProps<typeo
   }, []);
 
   // Wrap children in Fragment to ensure proper key handling
+  // Ensure appId is trimmed and valid before passing to PrivyProvider
+  const trimmedAppId = appId.trim();
+  
   return (
     <div ref={containerRef}>
-      <PrivyProvider {...props}>
+      <PrivyProvider appId={trimmedAppId} {...privyProps}>
         {children}
       </PrivyProvider>
     </div>

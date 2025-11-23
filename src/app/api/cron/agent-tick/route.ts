@@ -89,6 +89,8 @@ export async function POST(_req: NextRequest) {
       skipped: true,
       reason: 'Relayed to staging environment',
       relayStatus: relayResult.status,
+      processed: 0,
+      skippedLocked: 0,
     });
   }
 
@@ -102,6 +104,8 @@ export async function POST(_req: NextRequest) {
       success: true,
       skipped: true,
       reason: 'Game disabled via GAME_START environment variable',
+      processed: 0,
+      skippedLocked: 0,
     });
   }
 
@@ -110,9 +114,24 @@ export async function POST(_req: NextRequest) {
     where: { isContinuous: true }
   })
 
-  // Allow agent tick to run if there is NO game (test environment) or if game is running
-  // This fixes tests that run without setting up a game first
-  if (gameState && !gameState.isRunning) {
+  // Skip if no continuous game exists
+  if (!gameState) {
+    logger.info('⏸️  Agent tick skipped (No continuous game found)', {
+      status: 'skipped'
+    }, 'AgentTick')
+
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'No continuous game found',
+      duration: Date.now() - startTime,
+      processed: 0,
+      skippedLocked: 0,
+    })
+  }
+
+  // Skip if game exists but is not running
+  if (!gameState.isRunning) {
     logger.info('⏸️  Agent tick paused (Game is not running)', {
       gameId: gameState.id,
       status: 'paused'
@@ -124,6 +143,8 @@ export async function POST(_req: NextRequest) {
       reason: 'Game is paused',
       gameId: gameState.id,
       duration: Date.now() - startTime,
+      processed: 0,
+      skippedLocked: 0,
     })
   }
 
@@ -185,6 +206,7 @@ export async function POST(_req: NextRequest) {
       processed: 0,
       duration: Date.now() - startTime,
       results: [],
+      skippedLocked: 0,
       warning: 'No agents found with autonomous features enabled and sufficient points'
     })
   }

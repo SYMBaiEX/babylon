@@ -583,7 +583,7 @@ export default function ActorProfilePage() {
               ) : null
             })()}
             <div className={cn(
-              "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
+              "absolute inset-0 w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 pointer-events-none",
               actorInfo.type === 'actor' || actorInfo.type === 'organization' ? "hidden" : ""
             )} />
           </div>
@@ -891,7 +891,7 @@ export default function ActorProfilePage() {
                 ) : null
               })()}
               <div className={cn(
-                "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
+                "absolute inset-0 w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 pointer-events-none",
                 actorInfo.type === 'actor' || actorInfo.type === 'organization' ? "hidden" : ""
               )} />
             </div>

@@ -83,6 +83,9 @@ export class PointsService {
         pointsAwardedForTwitter: true,
         pointsAwardedForWallet: true,
         pointsAwardedForReferralBonus: true,
+        pointsAwardedForShare: true,
+        pointsAwardedForPrivateGroup: true,
+        pointsAwardedForPrivateChannel: true,
       },
     });
 
@@ -119,6 +122,9 @@ export class PointsService {
       pointsAwardedForTwitter?: boolean
       pointsAwardedForWallet?: boolean
       pointsAwardedForReferralBonus?: boolean
+      pointsAwardedForShare?: boolean
+      pointsAwardedForPrivateGroup?: boolean
+      pointsAwardedForPrivateChannel?: boolean
     } = {
       reputationPoints: pointsAfter,
     };
@@ -151,6 +157,15 @@ export class PointsService {
       case 'share_action':
       case 'share_to_twitter':
         updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForShare = true;
+        break;
+      case 'private_group_create':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForPrivateGroup = true;
+        break;
+      case 'private_channel_create':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForPrivateChannel = true;
         break;
       default:
         // For admin awards, purchases, etc - add to bonus
@@ -271,28 +286,338 @@ export class PointsService {
   }
 
   /**
+   * Award points for creating a private group
+   */
+  static async awardPrivateGroupCreate(
+    userId: string,
+    groupId?: string
+  ): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.PRIVATE_GROUP_CREATE,
+      'private_group_create',
+      groupId ? { groupId } : undefined
+    );
+  }
+
+  /**
+   * Award points for creating a private channel
+   */
+  static async awardPrivateChannelCreate(
+    userId: string,
+    channelId?: string
+  ): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.PRIVATE_CHANNEL_CREATE,
+      'private_channel_create',
+      channelId ? { channelId } : undefined
+    );
+  }
+
+  /**
    * Award points for referral signup
+   * Enforces weekly limit of 10 referrals per week
+   * Checks IP addresses to detect self-referrals
    */
   static async awardReferralSignup(
     referrerId: string,
     referredUserId: string
   ): Promise<AwardPointsResult> {
+    // Check weekly referral limit (max 10 referrals per week)
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    const weeklyReferralCount = await prisma.referral.count({
+      where: {
+        referrerId,
+        status: 'completed',
+        completedAt: {
+          gte: oneWeekAgo,
+        },
+      },
+    });
+
+    if (weeklyReferralCount >= 10) {
+      logger.warn(
+        `Weekly referral limit reached for user ${referrerId}`,
+        { referrerId, weeklyReferralCount },
+        'PointsService'
+      );
+      return {
+        success: false,
+        pointsAwarded: 0,
+        newTotal: 0,
+        error: 'Weekly referral limit reached (10 referrals per week)',
+      };
+    }
+
+    // Check IP addresses and other identifiers for self-referral detection
+    const [referrer, referredUser] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: referrerId },
+        select: { 
+          registrationIpHash: true, 
+          createdAt: true,
+          walletAddress: true,
+          privyId: true,
+          farcasterFid: true,
+          twitterId: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: referredUserId },
+        select: { 
+          registrationIpHash: true, 
+          createdAt: true,
+          walletAddress: true,
+          privyId: true,
+          farcasterFid: true,
+          twitterId: true,
+        },
+      }),
+    ]);
+
+    // Check if IP addresses match (potential self-referral)
+    if (referrer?.registrationIpHash && referredUser?.registrationIpHash) {
+      if (referrer.registrationIpHash === referredUser.registrationIpHash) {
+        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime()
+        const fifteenMinutes = 15 * 60 * 1000
+        const twentyFourHours = 24 * 60 * 60 * 1000
+
+        // Check if users have different identifiers (wallet, privyId, social accounts)
+        // If they have different identifiers, it's likely a legitimate referral even with same IP
+        const hasDifferentWallet = referrer.walletAddress && referredUser.walletAddress && 
+          referrer.walletAddress !== referredUser.walletAddress
+        const hasDifferentPrivyId = referrer.privyId && referredUser.privyId && 
+          referrer.privyId !== referredUser.privyId
+        const hasDifferentFarcaster = referrer.farcasterFid && referredUser.farcasterFid && 
+          referrer.farcasterFid !== referredUser.farcasterFid
+        const hasDifferentTwitter = referrer.twitterId && referredUser.twitterId && 
+          referrer.twitterId !== referredUser.twitterId
+        
+        const hasDifferentIdentifiers = hasDifferentWallet || hasDifferentPrivyId || 
+          hasDifferentFarcaster || hasDifferentTwitter
+
+        // Only block if same IP AND no different identifiers AND within 15 minutes
+        // This prevents blocking legitimate referrals from same WiFi/office/VPN
+        if (timeDiff >= 0 && timeDiff < fifteenMinutes && !hasDifferentIdentifiers) {
+          logger.warn(
+            `Self-referral detected: same IP within 15 minutes with no different identifiers`,
+            { 
+              referrerId, 
+              referredUserId, 
+              timeDiffMs: timeDiff,
+              referrerWallet: referrer.walletAddress,
+              referredWallet: referredUser.walletAddress,
+              referrerPrivyId: referrer.privyId,
+              referredPrivyId: referredUser.privyId,
+            },
+            'PointsService'
+          )
+          return {
+            success: false,
+            pointsAwarded: 0,
+            newTotal: 0,
+            error: 'Self-referral detected: accounts created from same IP within 15 minutes with no different identifiers',
+          }
+        }
+
+        // Same IP within 24 hours = flag for review (still award but mark suspicious)
+        if (timeDiff >= 0 && timeDiff < twentyFourHours && !hasDifferentIdentifiers) {
+          logger.warn(
+            `Potential self-referral: same IP within 24 hours with no different identifiers`,
+            { 
+              referrerId, 
+              referredUserId, 
+              timeDiffMs: timeDiff,
+              referrerWallet: referrer.walletAddress,
+              referredWallet: referredUser.walletAddress,
+            },
+            'PointsService'
+          )
+          // Continue to award points but mark as suspicious
+        } else if (hasDifferentIdentifiers) {
+          // Log that we're allowing this despite same IP because of different identifiers
+          logger.info(
+            `Allowing referral despite same IP: users have different identifiers`,
+            {
+              referrerId,
+              referredUserId,
+              timeDiffMs: timeDiff,
+              hasDifferentWallet,
+              hasDifferentPrivyId,
+              hasDifferentFarcaster,
+              hasDifferentTwitter,
+            },
+            'PointsService'
+          )
+        }
+      }
+    }
+
     const result = await this.awardPoints(
       referrerId,
       POINTS.REFERRAL_SIGNUP,
       'referral_signup',
-      { referredUserId }
-    );
+      { 
+        referredUserId,
+        // Include IP hash info in metadata for tracking
+        referrerIpHash: referrer?.registrationIpHash || null,
+        referredIpHash: referredUser?.registrationIpHash || null,
+        sameIp: referrer?.registrationIpHash === referredUser?.registrationIpHash,
+      }
+    )
 
-    // Also increment referral count
+    // Update referral record with suspicious flags if IPs match
+    if (result.success && referrer?.registrationIpHash && referredUser?.registrationIpHash) {
+      if (referrer.registrationIpHash === referredUser.registrationIpHash) {
+        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime()
+        const oneHour = 60 * 60 * 1000
+        const twentyFourHours = 24 * 60 * 60 * 1000
+        
+        const isSuspicious = timeDiff >= 0 && timeDiff < twentyFourHours
+        const isBlocked = timeDiff >= 0 && timeDiff < oneHour
+
+        if (isSuspicious || isBlocked) {
+          // Find the referral record and update it
+          // Note: Record may still have status 'pending' at this point, so we don't filter by status
+          const referralRecord = await prisma.referral.findFirst({
+            where: {
+              referrerId,
+              referredUserId,
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+
+          if (referralRecord) {
+            await prisma.referral.update({
+              where: { id: referralRecord.id },
+              data: {
+                suspiciousReferralFlags: {
+                  sameIp: true,
+                  timeDiffMs: timeDiff,
+                  flaggedAt: new Date().toISOString(),
+                  blocked: isBlocked,
+                  flagged: isSuspicious && !isBlocked,
+                },
+              },
+            })
+          }
+        }
+      }
+    }
+
+    // Also increment referral count only if points were successfully awarded
     if (result.success) {
       await prisma.user.update({
         where: { id: referrerId },
-        data: { referralCount: { increment: 1 } },
+        data: { 
+          referralCount: { increment: 1 },
+          // Update last referral IP hash for tracking
+          lastReferralIpHash: referredUser?.registrationIpHash || null,
+        },
       });
     }
 
     return result;
+  }
+
+  /**
+   * Check and qualify referral when referred user links social account
+   * Awards bonus points to referrer when referred user links their first social account
+   * 
+   * @description When a referred user links a social account (Farcaster, Twitter, or Wallet),
+   * this checks if they have a referrer and if the referral hasn't been qualified yet.
+   * If conditions are met, marks the referral as qualified and awards bonus points to the referrer.
+   * 
+   * @param {string} referredUserId - User ID who just linked a social account
+   * @returns {Promise<AwardPointsResult | null>} Result if referral was qualified, null otherwise
+   */
+  static async checkAndQualifyReferral(
+    referredUserId: string
+  ): Promise<AwardPointsResult | null> {
+    // Get user with referrer info and social account status
+    const user = await prisma.user.findUnique({
+      where: { id: referredUserId },
+      select: {
+        referredBy: true,
+        hasFarcaster: true,
+        hasTwitter: true,
+        walletAddress: true,
+      },
+    });
+
+    if (!user || !user.referredBy) {
+      // User has no referrer, nothing to qualify
+      return null;
+    }
+
+    // Check if user has at least one social account linked
+    const hasSocialAccount = user.hasFarcaster || user.hasTwitter || !!user.walletAddress;
+    if (!hasSocialAccount) {
+      // User doesn't have any social accounts linked yet
+      return null;
+    }
+
+    // Find the referral record
+    const referral = await prisma.referral.findFirst({
+      where: {
+        referrerId: user.referredBy,
+        referredUserId: referredUserId,
+        status: 'completed',
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (!referral) {
+      // No referral record found
+      logger.warn(
+        `No referral record found for referrer ${user.referredBy} and referred user ${referredUserId}`,
+        { referrerId: user.referredBy, referredUserId },
+        'PointsService'
+      );
+      return null;
+    }
+
+    // Check if already qualified
+    if (referral.qualifiedAt) {
+      // Already qualified, nothing to do
+      return null;
+    }
+
+    // Qualify the referral and award bonus points to referrer
+    const qualificationResult = await this.awardPoints(
+      user.referredBy,
+      POINTS.REFERRAL_QUALIFIED,
+      'referral_qualified',
+      {
+        referredUserId,
+        qualifiedAt: new Date().toISOString(),
+      }
+    );
+
+    if (qualificationResult.success) {
+      // Update referral record to mark as qualified
+      await prisma.referral.update({
+        where: { id: referral.id },
+        data: {
+          qualifiedAt: new Date(),
+        },
+      });
+
+      logger.info(
+        `Referral qualified: referrer ${user.referredBy} earned ${POINTS.REFERRAL_QUALIFIED} points for qualified referral`,
+        {
+          referrerId: user.referredBy,
+          referredUserId,
+          referralId: referral.id,
+          pointsAwarded: qualificationResult.pointsAwarded,
+        },
+        'PointsService'
+      );
+    }
+
+    return qualificationResult;
   }
 
   /**
@@ -377,6 +702,7 @@ export class PointsService {
       pointsAwardedForTwitter: boolean;
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
+      pointsAwardedForShare: boolean;
     },
     reason: PointsReason
   ): boolean {
@@ -391,8 +717,15 @@ export class PointsService {
         return user.pointsAwardedForWallet;
       case 'referral_bonus':
         return user.pointsAwardedForReferralBonus;
+      case 'referral_qualified':
+        // Qualified referrals can happen multiple times (one per referred user)
+        // But we track this per referral, not per user, so always allow
+        return false;
+      case 'share_action':
+      case 'share_to_twitter':
+        return user.pointsAwardedForShare;
       default:
-        return false; // For share actions and referrals, allow multiple awards
+        return false; // For referrals, allow multiple awards (with weekly limit)
     }
   }
 

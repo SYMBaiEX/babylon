@@ -104,6 +104,8 @@ import { generateSnowflakeId } from '@/lib/snowflake'
 import { withRetry, isRetryableError } from '@/lib/prisma-retry'
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
+import { getHashedClientIp } from '@/lib/utils/ip-utils'
+import { ConflictError } from '@/lib/errors'
 
 interface SignupRequestBody {
   username: string
@@ -163,6 +165,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const privyId = authUser.privyId ?? authUser.userId
   const walletAddress = authUser.walletAddress?.toLowerCase() ?? null
 
+  // Capture and hash IP address for self-referral detection
+  const registrationIpHash = getHashedClientIp(request)
+
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined
   let identityTwitterUsername: string | undefined
@@ -192,25 +197,39 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
     () => prisma.$transaction(async (tx) => {
-      await tx.user.findUnique({
+      // Check if username is already taken by another user
+      const existingUsername = await tx.user.findUnique({
         where: { username: parsedProfile.username },
         select: { id: true },
       })
+      if (existingUsername && existingUsername.id !== canonicalUserId) {
+        throw new ConflictError('Username is already taken', 'User.username')
+      }
 
+      // Check if wallet address is already linked to another user
       if (walletAddress) {
-        await tx.user.findUnique({
+        const existingWallet = await tx.user.findUnique({
           where: { walletAddress: walletAddress },
           select: { id: true },
         })
+        if (existingWallet && existingWallet.id !== canonicalUserId) {
+          throw new ConflictError('Wallet address is already linked to another account', 'User.walletAddress')
+        }
       }
 
-      // Resolve referral (if provided)
+      // Resolve referral (if provided AND not already set)
       let resolvedReferrerId: string | null = null
       let resolvedReferralRecordId: string | null = null
+      const normalizedCode = referralCode?.trim() || null
 
-      if (referralCode) {
-        const normalizedCode = referralCode.trim()
+      // Check if user already has referredBy (set in /api/users/me)
+      const existingUser = await tx.user.findUnique({
+        where: { id: canonicalUserId },
+        select: { referredBy: true },
+      })
 
+      // Only resolve referral if not already set
+      if (!existingUser?.referredBy && normalizedCode) {
         // First, try to find referrer by username (legacy system)
         const referrerByUsername = await tx.user.findUnique({
           where: { username: normalizedCode },
@@ -231,46 +250,33 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }
         }
 
-        // Create or update referral record (idempotent for retries)
-        if (resolvedReferrerId) {
-          const newReferralRecord = await tx.referral.upsert({
-            where: {
-              referralCode_referredUserId: {
-                referralCode: normalizedCode,
-                referredUserId: canonicalUserId,
-              },
-            },
-            create: {
-              id: await generateSnowflakeId(),
-              referrerId: resolvedReferrerId,
-              referralCode: normalizedCode,
-              referredUserId: canonicalUserId,
-              status: 'pending',
-            },
-            update: {
-              // On retry, keep existing record but ensure status is pending
-              status: 'pending',
-            },
-            select: { id: true },
-          })
-          
-          resolvedReferralRecordId = newReferralRecord.id
-        }
+        // Note: Referral record will be created AFTER user upsert to satisfy FK constraint
+      } else if (existingUser?.referredBy) {
+        // User already has referredBy (set in /api/users/me)
+        resolvedReferrerId = existingUser.referredBy
+        logger.info('Using existing referredBy from user record', {
+          userId: canonicalUserId,
+          referredBy: resolvedReferrerId,
+        }, 'POST /api/users/signup')
       }
 
       const baseUserData = {
         username: parsedProfile.username,
         displayName: parsedProfile.displayName,
+        email: parsedProfile.email || null,
         bio: parsedProfile.bio ?? '',
         profileImageUrl: parsedProfile.profileImageUrl ?? null,
         coverImageUrl: parsedProfile.coverImageUrl ?? null,
         walletAddress,
         profileComplete: true,
+        profileSetupCompletedAt: new Date(), // Track when profile was completed
         hasUsername: true,
         hasBio: Boolean(parsedProfile.bio && parsedProfile.bio.trim().length > 0),
         hasProfileImage: Boolean(parsedProfile.profileImageUrl),
         // Waitlist users start with 100 points instead of 1000
         ...(isWaitlist ? { reputationPoints: 100 } : {}),
+        // Store IP hash for self-referral detection
+        ...(registrationIpHash ? { registrationIpHash } : {}),
         // Legal acceptance (GDPR compliance)
         ...(parsedProfile.tosAccepted ? {
           tosAccepted: true,
@@ -332,14 +338,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         select: selectUserSummary,
       })
 
-      if (resolvedReferralRecordId) {
-        await tx.referral.update({
-          where: { id: resolvedReferralRecordId },
-          data: {
+      // Create referral record AFTER user exists (to satisfy FK constraint)
+      if (resolvedReferrerId && normalizedCode) {
+        const referralRecord = await tx.referral.upsert({
+          where: {
+            referralCode_referredUserId: {
+              referralCode: normalizedCode,
+              referredUserId: user.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            referrerId: resolvedReferrerId,
+            referralCode: normalizedCode,
             referredUserId: user.id,
             status: 'pending',
           },
+          update: {
+            // On retry, keep existing record but ensure status is pending
+            status: 'pending',
+          },
+          select: { id: true },
         })
+        resolvedReferralRecordId = referralRecord.id
       }
 
       return {
@@ -382,52 +403,76 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const referralResult = await PointsService.awardReferralSignup(result.referrerId, result.user.id)
     pointsAwarded.referral = referralResult.pointsAwarded
     
-    // Award bonus to NEW USER (referee) for using referral code
-    const refereeBonus = await PointsService.awardPoints(
-      result.user.id,
-      POINTS.REFERRAL_BONUS,
-      'referral_bonus',
-      { referrerId: result.referrerId }
-    )
-    pointsAwarded.referralBonus = refereeBonus.pointsAwarded
-    
-    // Update referral status to completed
-    if (result.referralRecordId) {
-      await prisma.referral.update({
-        where: { id: result.referralRecordId },
-        data: {
-          status: 'completed',
-          completedAt: new Date(),
+    // Only proceed with referral rewards if referrer was successfully awarded
+    if (referralResult.success) {
+      // Award bonus to NEW USER (referee) for using referral code
+      const refereeBonus = await PointsService.awardPoints(
+        result.user.id,
+        POINTS.REFERRAL_BONUS,
+        'referral_bonus',
+        { referrerId: result.referrerId }
+      )
+      pointsAwarded.referralBonus = refereeBonus.pointsAwarded
+      
+      // Update referral status to completed
+      if (result.referralRecordId) {
+        await prisma.referral.update({
+          where: { id: result.referralRecordId },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+          },
+        })
+      }
+      
+      // Auto-follow the referrer (new user follows the person who referred them)
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: result.user.id,       // New user is the follower
+            followingId: result.referrerId,   // Referrer is being followed
+          },
+        },
+        update: {},
+        create: {
+          id: await generateSnowflakeId(),
+          followerId: result.user.id,
+          followingId: result.referrerId,
         },
       })
-    }
-    
-    // Auto-follow the referrer (new user follows the person who referred them)
-    await prisma.follow.upsert({
-      where: {
-        followerId_followingId: {
-          followerId: result.user.id,       // New user is the follower
-          followingId: result.referrerId,   // Referrer is being followed
+      
+      logger.info(
+        'Awarded referral points to both referrer and referee',
+        { 
+          referrerId: result.referrerId, 
+          referredUserId: result.user.id, 
+          referrerPoints: referralResult.pointsAwarded,
+          refereeBonus: refereeBonus.pointsAwarded,
         },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
-        followerId: result.user.id,
-        followingId: result.referrerId,
-      },
-    })
-    
-    logger.info(
-      'Awarded referral points to both referrer and referee',
-      { 
-        referrerId: result.referrerId, 
-        referredUserId: result.user.id, 
-        referrerPoints: referralResult.pointsAwarded,
-        refereeBonus: refereeBonus.pointsAwarded,
-      },
-      'POST /api/users/signup'
-    )
+        'POST /api/users/signup'
+      )
+    } else {
+      // Referral was blocked (self-referral, weekly limit, etc.)
+      // Update referral status to rejected
+      if (result.referralRecordId) {
+        await prisma.referral.update({
+          where: { id: result.referralRecordId },
+          data: {
+            status: 'rejected',
+          },
+        })
+      }
+      
+      logger.warn(
+        'Referral blocked - referrer not rewarded',
+        { 
+          referrerId: result.referrerId, 
+          referredUserId: result.user.id, 
+          error: referralResult.error,
+        },
+        'POST /api/users/signup'
+      )
+    }
   }
 
   if (identityFarcasterUsername || importedFarcaster) {

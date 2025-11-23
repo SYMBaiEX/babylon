@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useChatMessages } from '@/hooks/useChatMessages'
 import { useChatParam } from '@/hooks/useChatParam'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useSSE } from '@/hooks/useSSE'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
@@ -85,6 +86,12 @@ export default function ChatsPage() {
   useA2A()
   useChatParam()
   
+  // Get global SSE connection status for status indicator
+  // Subscribe to 'feed' channel to ensure connection is established (any valid channel works)
+  const { isConnected: globalSSEConnected } = useSSE({
+    channels: ['feed'], // Subscribe to feed channel to establish SSE connection
+  })
+  
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
@@ -95,10 +102,12 @@ export default function ChatsPage() {
   const [loadingChat, setLoadingChat] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [sendWarning, setSendWarning] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [isLeavingChat, setIsLeavingChat] = useState(false)
   const [leaveChatError, setLeaveChatError] = useState<string | null>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   // Group modals
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [isGroupManagementModalOpen, setIsGroupManagementModalOpen] = useState(false)
@@ -107,11 +116,12 @@ export default function ChatsPage() {
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const pendingScrollAdjustRef = useRef<{ previousHeight: number; previousTop: number } | null>(null)
+  const lastMessageIdRef = useRef<string | null>(null)
   
   // Use SSE for real-time messages with pagination
   const { 
     messages: realtimeMessages, 
-    isConnected: _sseConnected,
+    isConnected: sseConnected, // Connection status for the selected chat channel
     isLoadingMore,
     hasMore,
     loadMore
@@ -187,6 +197,18 @@ export default function ChatsPage() {
     container.scrollTop = previousTop + delta
     pendingScrollAdjustRef.current = null
   }, [isLoadingMore, realtimeMessages.length])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = chatContainerRef.current
+    if (container) {
+      // Use rAF to ensure layout is measured after render
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight
+      })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' })
+    }
+  }, [])
 
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -465,6 +487,8 @@ export default function ChatsPage() {
 
   // Load selected chat details from database
   useEffect(() => {
+    lastMessageIdRef.current = null
+    setIsAtBottom(true)
     if (selectedChatId) {
       loadChatDetails(selectedChatId)
     }
@@ -481,12 +505,30 @@ export default function ChatsPage() {
         }
       })
     }
-  }, [realtimeMessages, chatDetails])
+  }, [realtimeMessages])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when the newest message changes (initial load, new message, or chat switch)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatDetails?.messages])
+    const msgs = chatDetails?.messages || []
+    const lastId = msgs.length > 0 ? msgs[msgs.length - 1]?.id : null
+    if (!lastId) return
+
+    const isNewMessage = lastId !== lastMessageIdRef.current
+    const shouldForce =
+      lastMessageIdRef.current === null // first load after chat switch
+    lastMessageIdRef.current = lastId
+
+    if (shouldForce) {
+      scrollToBottom('auto')
+      setIsAtBottom(true)
+      return
+    }
+
+    if (isNewMessage && isAtBottom) {
+      scrollToBottom('smooth')
+      setIsAtBottom(true)
+    }
+  }, [chatDetails?.messages, isAtBottom, scrollToBottom])
 
   const handleLeaveChat = async () => {
     if (!selectedChatId) return
@@ -560,6 +602,7 @@ export default function ChatsPage() {
 
     setSending(true)
     setSendError(null)
+    setSendWarning(null)
     setSendSuccess(false)
 
     const token = await getAccessToken()
@@ -586,13 +629,23 @@ export default function ChatsPage() {
 
     const data = await response.json()
 
-    if (data.warnings && data.warnings.length > 0) {
-      setSendError(data.warnings.join('. '))
-      setTimeout(() => setSendError(null), 5000)
-    } else {
-      setSendSuccess(true)
-      setTimeout(() => setSendSuccess(false), 2000)
+    if (!response.ok) {
+      const message =
+        (data && (data.error || data.message)) ||
+        'Failed to send message. Please try again.'
+      setSendError(message)
+      setSending(false)
+      return
     }
+
+    const warnings = Array.isArray(data?.warnings) ? data.warnings : []
+    if (warnings.length > 0) {
+      setSendWarning(warnings.join('. '))
+      setTimeout(() => setSendWarning(null), 5000)
+    }
+
+    setSendSuccess(true)
+    setTimeout(() => setSendSuccess(false), 2000)
 
     // SSE will handle adding the message in real-time
     setMessageInput('')
@@ -607,6 +660,25 @@ export default function ChatsPage() {
       sendMessage()
     }
   }
+
+  useEffect(() => {
+    const container = chatContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const threshold = 50
+      const atBottom =
+        container.scrollTop + container.clientHeight >= container.scrollHeight - threshold
+      setIsAtBottom(atBottom)
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    // Initialize
+    handleScroll()
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, [selectedChatId])
 
   // Filter chats based on active filter
   const filteredByType = activeFilter === 'all' 
@@ -696,7 +768,20 @@ export default function ChatsPage() {
                 {/* Header with Filters */}
                 <div className="px-4 py-3">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                      {globalSSEConnected ? (
+                        <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="sse-status">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          Live
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="sse-status">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Connecting
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -711,6 +796,7 @@ export default function ChatsPage() {
                   <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
+                      aria-label="Show all conversations"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
@@ -720,6 +806,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
+                      aria-label="Show direct messages"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
@@ -729,6 +816,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
+                      aria-label="Show group chats"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
@@ -840,7 +928,7 @@ export default function ChatsPage() {
               <Separator orientation="vertical" className="shrink-0" />
 
               {/* Right Column: Chat View */}
-              <div className="flex-1 flex flex-col bg-background">
+              <div className="flex-1 flex flex-col bg-background min-h-screen h-screen">
                 {selectedChatId && chatDetails ? (
                   <>
                     {/* Chat Header */}
@@ -860,11 +948,25 @@ export default function ChatsPage() {
                           />
                         )}
                         <div>
-                          <h3 className="text-lg font-bold text-foreground">
-                            {chatDetails.chat.name || 
-                             chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
-                             'Chat'}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-foreground">
+                              {chatDetails.chat.name || 
+                               chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
+                               'Chat'}
+                            </h3>
+                            {/* Show chat-specific SSE connection status */}
+                            {sseConnected ? (
+                              <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="chat-sse-status">
+                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                Live
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="chat-sse-status">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Connecting
+                              </span>
+                            )}
+                          </div>
                           {chatDetails.chat.isGroup && (
                             <p className="text-xs text-muted-foreground">
                               {chatDetails.participants.length} participants
@@ -1074,12 +1176,20 @@ export default function ChatsPage() {
                     </div>
 
                     {/* Feedback Messages */}
-                    {authenticated && (sendError || sendSuccess) && (
+                    {authenticated && (sendError || sendSuccess || sendWarning) && (
                       <div className="px-4">
                         {sendError && (
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
                             <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                             <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
+                          </div>
+                        )}
+                        {sendWarning && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#3b82f6' }}>
+                            <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#3b82f6' }} />
+                            <span className="text-xs" style={{ color: '#3b82f6' }}>
+                              Sent · {sendWarning}
+                            </span>
                           </div>
                         )}
                         {sendSuccess && (
@@ -1175,7 +1285,20 @@ export default function ChatsPage() {
                 {/* Mobile Header with Tabs */}
                 <div className="px-4 py-3">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                      {globalSSEConnected ? (
+                        <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="sse-status">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          Live
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="sse-status">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Connecting
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1190,6 +1313,7 @@ export default function ChatsPage() {
                   <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
+                      aria-label="Show all conversations"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
@@ -1199,6 +1323,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
+                      aria-label="Show direct messages"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
@@ -1208,6 +1333,7 @@ export default function ChatsPage() {
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
+                      aria-label="Show group chats"
                       className={cn(
                         'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
                         activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
@@ -1324,7 +1450,7 @@ export default function ChatsPage() {
               {selectedChatId && chatDetails && (
                 <div
                   className={cn(
-                    'flex-1 flex-col bg-background',
+                    'flex-1 flex-col bg-background min-h-screen h-screen',
                     !selectedChatId ? 'hidden lg:flex' : 'flex',
                   )}
                 >
@@ -1352,11 +1478,25 @@ export default function ChatsPage() {
                         />
                       )}
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-foreground">
-                          {chatDetails.chat.name || 
-                           chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
-                           'Chat'}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-foreground">
+                            {chatDetails.chat.name || 
+                             chatDetails.participants.find(p => p.id !== user?.id)?.displayName ||
+                             'Chat'}
+                          </h3>
+                          {/* Show chat-specific SSE connection status */}
+                          {sseConnected ? (
+                            <span className="text-xs font-medium text-green-500 flex items-center gap-1" data-testid="chat-sse-status">
+                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-yellow-500 flex items-center gap-1" data-testid="chat-sse-status">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Connecting
+                            </span>
+                          )}
+                        </div>
                         {chatDetails.chat.isGroup && (
                           <p className="text-xs text-muted-foreground">
                             {chatDetails.participants.length} participants
@@ -1528,12 +1668,20 @@ export default function ChatsPage() {
                   </div>
 
                   {/* Feedback Messages */}
-                  {authenticated && (sendError || sendSuccess) && (
+                  {authenticated && (sendError || sendSuccess || sendWarning) && (
                     <div className="px-4">
                       {sendError && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
                           <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                           <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
+                        </div>
+                      )}
+                      {sendWarning && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#3b82f6' }}>
+                          <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#3b82f6' }} />
+                          <span className="text-xs" style={{ color: '#3b82f6' }}>
+                            Sent · {sendWarning}
+                          </span>
                         </div>
                       )}
                       {sendSuccess && (

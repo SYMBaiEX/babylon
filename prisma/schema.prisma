@@ -106,6 +106,28 @@ model NPCInteraction {
   @@index([interactionType])
 }
 
+enum RealtimeOutboxStatus {
+  pending
+  sent
+  failed
+}
+
+model RealtimeOutbox {
+  id        String               @id
+  channel   String
+  type      String
+  version   String?              @default("v1")
+  payload   Json
+  status    RealtimeOutboxStatus @default(pending)
+  attempts  Int                  @default(0)
+  lastError String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@index([channel, status])
+}
+
 model AgentLog {
   id          String   @id
   type        String
@@ -989,6 +1011,8 @@ model Referral {
   status                             String    @default("pending")
   createdAt                          DateTime  @default(now())
   completedAt                        DateTime?
+  qualifiedAt                        DateTime?
+  suspiciousReferralFlags                                            Json?
   User_Referral_referredUserIdToUser User?     @relation("Referral_referredUserIdToUser", fields: [referredUserId], references: [id])
   User_Referral_referrerIdToUser     User      @relation("Referral_referrerIdToUser", fields: [referrerId], references: [id], onDelete: Cascade)
 
@@ -997,6 +1021,7 @@ model Referral {
   @@index([referrerId])
   @@index([referredUserId])
   @@index([status, createdAt(sort: Desc)])
+  @@index([qualifiedAt])
 }
 
 model Share {
@@ -1149,9 +1174,14 @@ model User {
   pointsAwardedForUsername                                          Boolean                  @default(false)
   pointsAwardedForWallet                                            Boolean                  @default(false)
   pointsAwardedForReferralBonus                                     Boolean                  @default(false)
+  pointsAwardedForShare                                             Boolean                  @default(false)
+  pointsAwardedForPrivateGroup                                     Boolean                  @default(false)
+  pointsAwardedForPrivateChannel                                    Boolean                  @default(false)
   referralCode                                                      String?                  @unique
   referralCount                                                     Int                      @default(0)
   referredBy                                                        String?
+  registrationIpHash                                                String?
+  lastReferralIpHash                                                String?
   registrationTxHash                                                String?
   reputationPoints                                                  Int                      @default(1000)
   twitterUsername                                                   String?
@@ -1312,6 +1342,8 @@ model User {
   @@index([waitlistJoinedAt])
   @@index([waitlistPosition])
   @@index([walletAddress])
+  @@index([registrationIpHash])
+  @@index([lastReferralIpHash])
 }
 
 model UserActorFollow {

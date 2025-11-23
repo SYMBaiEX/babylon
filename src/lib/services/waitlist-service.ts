@@ -8,6 +8,8 @@ import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { nanoid } from 'nanoid';
 import { NotFoundError } from '@/lib/errors';
+import { PointsService } from '@/lib/services/points-service';
+import { getOrCreateReferralCode } from '@/lib/services/referral-service';
 
 export interface WaitlistMarkResult {
   success: boolean
@@ -164,43 +166,58 @@ export class WaitlistService {
           }, 'WaitlistService')
           referrerRewarded = false
         }
-        // Valid referral - award points!
+        // Valid referral - use unified referral system
         else {
-          // Award +50 points to referrer
-          const newInvitePoints = referrer.invitePoints + 50
-          const newReputationPoints = referrer.reputationPoints + 50
+          // Use PointsService.awardReferralSignup for unified referral processing
+          // This handles weekly limits, IP checks, and creates proper Referral records
+          const referralResult = await PointsService.awardReferralSignup(referrer.id, userId)
           
-          await prisma.user.update({
-            where: { id: referrer.id },
-            data: {
-              invitePoints: newInvitePoints,
-              reputationPoints: newReputationPoints,
-              referralCount: { increment: 1 },
-            },
-          })
-
-          // Create points transaction for referrer
-          await prisma.pointsTransaction.create({
-            data: {
-              id: await generateSnowflakeId(),
-              userId: referrer.id,
-              amount: 50,
-              pointsBefore: referrer.reputationPoints,
-              pointsAfter: newReputationPoints,
-              reason: 'referral',
-              metadata: JSON.stringify({
-                type: 'waitlist_referral',
+          if (referralResult.success) {
+            // Create or update Referral record if it doesn't exist
+            // (PointsService doesn't create the record, signup does, but waitlist marking might happen first)
+            await prisma.referral.upsert({
+              where: {
+                referralCode_referredUserId: {
+                  referralCode,
+                  referredUserId: userId,
+                },
+              },
+              create: {
+                id: await generateSnowflakeId(),
+                referrerId: referrer.id,
+                referralCode,
                 referredUserId: userId,
-              }),
-            },
-          })
+                status: 'completed',
+                completedAt: new Date(),
+              },
+              update: {
+                status: 'completed',
+                completedAt: new Date(),
+              },
+            })
 
-          referrerRewarded = true
-          
-          logger.info(`Rewarded referrer ${referrer.id} with 50 points`, {
-            referrerId: referrer.id,
-            newPoints: newReputationPoints,
-          }, 'WaitlistService')
+            // Update referredBy field on user
+            await prisma.user.update({
+              where: { id: userId },
+              data: { referredBy: referrer.id },
+            })
+
+            referrerRewarded = true
+            
+            logger.info(`Rewarded referrer ${referrer.id} with ${referralResult.pointsAwarded} points via unified system`, {
+              referrerId: referrer.id,
+              pointsAwarded: referralResult.pointsAwarded,
+              newTotal: referralResult.newTotal,
+            }, 'WaitlistService')
+          } else {
+            // Referral failed (weekly limit, IP check, etc.)
+            logger.warn(`Failed to award referral points: ${referralResult.error}`, {
+              referrerId: referrer.id,
+              referredUserId: userId,
+              error: referralResult.error,
+            }, 'WaitlistService')
+            referrerRewarded = false
+          }
         }
       } else {
         logger.warn(`Invalid referral code: ${referralCode}`, {
@@ -210,9 +227,14 @@ export class WaitlistService {
       }
     }
 
+    // Ensure user has a referral code
+    if (!user.referralCode) {
+      await getOrCreateReferralCode(userId)
+    }
+
     // Update user as waitlisted
     // IMPORTANT: Don't change reputationPoints here - they should already have correct amount from onboarding
-    // Only set referredBy if referrerRewarded (valid referral)
+    // referredBy is already set above if referral was processed
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -220,12 +242,6 @@ export class WaitlistService {
         waitlistJoinedAt: new Date(),
         isWaitlistActive: true,
         referralCode: inviteCode,
-        ...(referrerRewarded && referralCode ? {
-          referredBy: (await prisma.user.findUnique({
-            where: { referralCode },
-            select: { id: true }
-          }))?.id
-        } : {}),
       },
     })
 
@@ -329,64 +345,6 @@ export class WaitlistService {
   }
 
   /**
-   * Award bonus points for email verification
-   */
-  static async awardEmailBonus(userId: string, email: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        pointsAwardedForEmail: true,
-        reputationPoints: true,
-        bonusPoints: true,
-      },
-    })
-
-    if (!user) {
-      return false
-    }
-
-    // Don't award if already awarded
-    if (user.pointsAwardedForEmail) {
-      return false
-    }
-
-    const bonusAmount = 25
-    const newBonusPoints = user.bonusPoints + bonusAmount
-    const newReputationPoints = user.reputationPoints + bonusAmount
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        email,
-        emailVerified: true,
-        pointsAwardedForEmail: true,
-        bonusPoints: newBonusPoints,
-        reputationPoints: newReputationPoints,
-      },
-    })
-
-    // Create points transaction
-    await prisma.pointsTransaction.create({
-      data: {
-        id: await generateSnowflakeId(),
-        userId,
-        amount: bonusAmount,
-        pointsBefore: user.reputationPoints,
-        pointsAfter: newReputationPoints,
-        reason: 'email_verification',
-        metadata: JSON.stringify({ email }),
-      },
-    })
-
-    logger.info(`Awarded email bonus to user ${userId}`, {
-      userId,
-      bonusAmount,
-    }, 'WaitlistService')
-
-    return true
-  }
-
-  /**
    * Award bonus points for wallet connection
    */
   static async awardWalletBonus(userId: string, walletAddress: string): Promise<boolean> {
@@ -408,7 +366,7 @@ export class WaitlistService {
       return false
     }
 
-    const bonusAmount = 25
+    const bonusAmount = 300
     const newBonusPoints = user.bonusPoints + bonusAmount
     const newReputationPoints = user.reputationPoints + bonusAmount
 
@@ -460,13 +418,20 @@ export class WaitlistService {
    * Sorted by invite points (most invites = best position)
    */
   static async getTopWaitlistUsers(limit: number = 10) {
+    // Ensure limit is reasonable
+    const safeLimit = Math.min(Math.max(1, limit), 100)
+    
     const users = await prisma.user.findMany({
-      where: { isWaitlistActive: true },
+      where: { 
+        isWaitlistActive: true,
+        // Only include users with usernames (required for referral codes)
+        username: { not: null },
+      },
       orderBy: [
         { invitePoints: 'desc' },       // Primary: Most invite points
         { waitlistJoinedAt: 'asc' },    // Tie-breaker: Earlier signup
       ],
-      take: limit,
+      take: safeLimit,
       select: {
         id: true,
         username: true,
@@ -480,7 +445,16 @@ export class WaitlistService {
     })
 
     return users.map((user, index) => ({
-      ...user,
+      id: user.id, // Keep id for frontend compatibility
+      userId: user.id, // Also include userId for consistency
+      username: user.username,
+      displayName: user.displayName,
+      profileImageUrl: user.profileImageUrl,
+      invitePoints: user.invitePoints, // Keep invitePoints for frontend compatibility
+      points: user.invitePoints, // Also include points for consistency
+      reputationPoints: user.reputationPoints,
+      referralCount: user.referralCount,
+      waitlistJoinedAt: user.waitlistJoinedAt,
       rank: index + 1,
     }))
   }

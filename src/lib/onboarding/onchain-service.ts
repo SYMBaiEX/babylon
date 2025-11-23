@@ -681,61 +681,97 @@ export async function processOnchainRegistration({
     // Award points to REFERRER
     const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
 
-    // Award bonus to NEW USER (referee) for using referral code
-    const refereeBonus = await PointsService.awardPoints(
-      dbUser.id,
-      POINTS.REFERRAL_BONUS,
-      'referral_bonus',
-      { referrerId }
-    )
+    // Only proceed with referral rewards if referrer was successfully awarded
+    if (referralResult.success) {
+      // Award bonus to NEW USER (referee) for using referral code
+      const refereeBonus = await PointsService.awardPoints(
+        dbUser.id,
+        POINTS.REFERRAL_BONUS,
+        'referral_bonus',
+        { referrerId }
+      )
 
-    if (referralCode) {
-      // Create or update referral record (idempotent for retries)
-      await prisma.referral.upsert({
-        where: {
-          referralCode_referredUserId: {
+      if (referralCode) {
+        // Create or update referral record (idempotent for retries)
+        await prisma.referral.upsert({
+          where: {
+            referralCode_referredUserId: {
+              referralCode,
+              referredUserId: dbUser.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            referrerId,
             referralCode,
             referredUserId: dbUser.id,
+            status: 'completed',
+            completedAt: new Date(),
+          },
+          update: {
+            // On retry, ensure status is completed
+            status: 'completed',
+            completedAt: new Date(),
+          },
+        })
+      }
+
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: dbUser.id,      // New user is the follower
+            followingId: referrerId,     // Referrer is being followed
           },
         },
+        update: {},
         create: {
           id: await generateSnowflakeId(),
-          referrerId,
-          referralCode,
-          referredUserId: dbUser.id,
-          status: 'completed',
-          completedAt: new Date(),
-        },
-        update: {
-          // On retry, ensure status is completed
-          status: 'completed',
-          completedAt: new Date(),
+          followerId: dbUser.id,
+          followingId: referrerId,
         },
       })
-    }
-
-    await prisma.follow.upsert({
-      where: {
-        followerId_followingId: {
-          followerId: dbUser.id,      // New user is the follower
-          followingId: referrerId,     // Referrer is being followed
+      
+      logger.info('New user auto-followed referrer', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
+      logger.info('Awarded referral points to both referrer and referee', { 
+        referrerId, 
+        referredUserId: dbUser.id, 
+        referrerPoints: referralResult.pointsAwarded,
+        refereeBonus: refereeBonus.pointsAwarded,
+      }, 'OnboardingOnchain')
+    } else {
+      // Referral was blocked (self-referral, weekly limit, etc.)
+      // Update referral status to rejected
+      if (referralCode) {
+        await prisma.referral.upsert({
+          where: {
+            referralCode_referredUserId: {
+              referralCode,
+              referredUserId: dbUser.id,
+            },
+          },
+          create: {
+            id: await generateSnowflakeId(),
+            referrerId,
+            referralCode,
+            referredUserId: dbUser.id,
+            status: 'rejected',
+          },
+          update: {
+            status: 'rejected',
+          },
+        })
+      }
+      
+      logger.warn(
+        'Referral blocked during onchain registration - referrer not rewarded',
+        { 
+          referrerId, 
+          referredUserId: dbUser.id, 
+          error: referralResult.error,
         },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
-        followerId: dbUser.id,
-        followingId: referrerId,
-      },
-    })
-
-    logger.info('New user auto-followed referrer', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
-    logger.info('Awarded referral points to both referrer and referee', { 
-      referrerId, 
-      referredUserId: dbUser.id, 
-      referrerPoints: referralResult.pointsAwarded,
-      refereeBonus: refereeBonus.pointsAwarded,
-    }, 'OnboardingOnchain')
+        'OnboardingOnchain'
+      )
+    }
   }
 
   return {

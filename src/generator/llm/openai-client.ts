@@ -218,12 +218,18 @@ export class BabylonLLMClient {
 
     while (true) {
       try {
+        // For qwen3 models, disable reasoning to prevent token consumption on thinking
+        // See: https://console.groq.com/docs/reasoning
+        const isQwen3Model = model.includes('qwen3');
+
         const response = await this.client.chat.completions.create({
           model,
           messages,
           ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
           temperature,
           max_tokens: maxTokens,
+          // Disable reasoning for qwen3 models to prevent thinking tokens from consuming output budget
+          ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
         });
 
         let content = response.choices[0]!.message.content!;
@@ -277,6 +283,7 @@ export class BabylonLLMClient {
               ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
               temperature,
               max_tokens: maxTokens,
+              ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
             });
             
             const continuationContent = continuationResponse.choices[0]!.message.content!;

@@ -48,16 +48,15 @@
 
 import type { NextRequest } from 'next/server'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { getEventBroadcaster } from '@/lib/sse/event-broadcaster'
+import { connections } from '@/lib/realtime/connection-registry'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
-  const broadcaster = getEventBroadcaster()
-  const stats = broadcaster.getStats()
+  const stats = connections.snapshot()
 
-  logger.info('SSE stats fetched successfully', { totalClients: stats.totalClients }, 'GET /api/sse/stats')
+  logger.info('SSE stats fetched successfully', { totalClients: stats.totalConnections }, 'GET /api/sse/stats')
 
   return successResponse({
     success: true,
@@ -65,4 +64,3 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
     timestamp: Date.now()
   })
 })
-

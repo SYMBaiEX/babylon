@@ -38,6 +38,11 @@ import { BabylonLLMClient } from '@/generator/llm/openai-client';
 
 // Mock LLM client for testing
 class MockLLMClient extends BabylonLLMClient {
+  constructor() {
+    // Initialize with empty strings to avoid API key requirements in tests
+    super('', undefined, 'groq');
+  }
+  
   async generateJSON<T>(): Promise<T> {
     return { questions: [] } as T;
   }

@@ -10,6 +10,7 @@ import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import type { User } from '@/stores/authStore'
 import { trackExternalShare } from '@/lib/share/trackExternalShare'
 import { useTwitterAuth } from '@/hooks/useTwitterAuth'
+import { getReferralUrl } from '@/lib/referral/referral-utils'
 
 /**
  * Market category type for PnL share modal.
@@ -129,26 +130,24 @@ export function PnLShareModal({
   const categoryLabel = type === 'category' && category ? categoryLabels[category] : ''
   const contentId = type === 'portfolio' ? 'portfolio-pnl' : `${category}-pnl`
 
-  // Generate shareable link with OG embed
+  // Generate shareable link with referral code (waitlist format)
   const shareableLink = useMemo(() => {
-    if (!user?.id) return null
-    const appUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : 'https://babylon.market'
-    return `${appUrl}/share/pnl/${user.id}`
-  }, [user?.id])
+    if (!user?.referralCode) return null
+    // Use waitlist referral format: /?ref=CODE
+    return getReferralUrl(user.referralCode)
+  }, [user?.referralCode])
 
   const shareText = useMemo(() => {
     const link = shareableLink || shareUrl
+    const standardMessage = 'Join me in Babylon, a real-time simulation where humans and AI agents battle across prediction markets, form alliances, and shape outcomes—together.'
+    
     if (type === 'portfolio' && portfolioData) {
-      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${link}`
+      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`
     }
     if (type === 'category' && categoryData) {
-      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${link}`
+      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`
     }
-    return type === 'portfolio' 
-      ? `Check out the markets on Babylon.\n\n${link}`
-      : `Check out ${categoryLabel} on Babylon.\n\n${link}`
+    return `${standardMessage}\n\n${link}`
   }, [type, portfolioData, categoryData, categoryLabel, shareUrl, shareableLink])
   
   // Set initial tweet text
@@ -222,8 +221,9 @@ export function PnLShareModal({
       setShowTwitterConfirm(true)
       setSharing(null)
     } else {
-      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`
-      window.open(warpcastUrl, '_blank', 'width=550,height=600')
+      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+      const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`
+      window.open(farcasterComposeUrl, '_blank', 'width=550,height=600')
 
       await trackExternalShare({
         platform,

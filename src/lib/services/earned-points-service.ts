@@ -6,6 +6,7 @@
  * points for trades.
  */
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -108,30 +109,31 @@ export class EarnedPointsService {
    * Use this when recording a trade's P&L for incremental updates.
    * 
    * @param {string} userId - User ID
-   * @param {number} previousLifetimePnL - Previous lifetime P&L
-   * @param {number} newLifetimePnL - New lifetime P&L
+   * @param {number} newLifetimePnL - New lifetime P&L (after this trade)
    * @param {string} tradeType - Type of trade (for transaction record)
    * @param {string} [relatedId] - Optional related entity ID (trade ID, etc.)
+   * @param {Prisma.TransactionClient} [tx] - Optional transaction client for atomic operations
    * @returns {Promise<number>} Points awarded (can be negative)
    * @throws {Error} If user not found
    */
   static async awardEarnedPointsForPnL(
     userId: string,
-    previousLifetimePnL: number,
     newLifetimePnL: number,
     tradeType: string,
-    relatedId?: string
+    relatedId?: string,
+    tx?: Prisma.TransactionClient
   ): Promise<number> {
-    const previousPoints = this.pnlToPoints(previousLifetimePnL)
+    const db = tx || prisma
     const computedEarnedPoints = this.pnlToPoints(newLifetimePnL)
 
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: userId },
       select: {
         earnedPoints: true,
         invitePoints: true,
         bonusPoints: true,
         reputationPoints: true,
+        lifetimePnL: true,
       },
     })
 
@@ -140,13 +142,26 @@ export class EarnedPointsService {
     }
 
     const currentEarnedPoints = user.earnedPoints
+    const storedLifetimePnL = Number(user.lifetimePnL)
+
+    // Compute what earnedPoints should be based on the NEW lifetimePnL
+    // The newLifetimePnL was already written to the DB in the same transaction
+    // so storedLifetimePnL should equal newLifetimePnL
     const earnedPointsDelta = computedEarnedPoints - currentEarnedPoints
 
-    // Detect sync issues - fail fast if earned points don't match computed value
-    if (previousPoints !== currentEarnedPoints && earnedPointsDelta !== 0) {
-      throw new Error(
-        `Earned points out of sync! Previous P&L $${previousLifetimePnL} should give ${previousPoints} points, but user has ${currentEarnedPoints} earned points`
-      )
+    // Log if there was a pre-existing mismatch (for monitoring purposes)
+    // This can happen if points got out of sync due to previous bugs
+    const expectedPointsFromPreviousPnL = this.pnlToPoints(storedLifetimePnL - (newLifetimePnL - storedLifetimePnL))
+    if (expectedPointsFromPreviousPnL !== currentEarnedPoints && storedLifetimePnL !== newLifetimePnL) {
+      // Note: storedLifetimePnL should == newLifetimePnL since we're in the same tx
+      // If they differ, something unexpected happened
+      logger.warn('Earned points may have been out of sync (auto-correcting)', {
+        userId,
+        storedLifetimePnL,
+        newLifetimePnL,
+        currentEarnedPoints,
+        computedNewPoints: computedEarnedPoints,
+      }, 'EarnedPointsService')
     }
 
     if (earnedPointsDelta === 0) {
@@ -158,41 +173,37 @@ export class EarnedPointsService {
     const newReputationPoints = basePoints + user.invitePoints + newEarnedPoints + user.bonusPoints
 
     // Update user and create transaction
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          earnedPoints: newEarnedPoints,
-          reputationPoints: newReputationPoints,
-        },
-      })
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        earnedPoints: newEarnedPoints,
+        reputationPoints: newReputationPoints,
+      },
+    })
 
-      await tx.pointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId,
-          amount: earnedPointsDelta,
-          pointsBefore: user.reputationPoints,
-          pointsAfter: newReputationPoints,
-          reason: 'trading_pnl',
-          metadata: JSON.stringify({
-            tradeType,
-            relatedId,
-            pnl: newLifetimePnL - previousLifetimePnL,
-            previousLifetimePnL,
-            newLifetimePnL,
-            previousPointsFromPnL: previousPoints,
-            previousEarnedPoints: currentEarnedPoints,
-            newEarnedPoints,
-            earnedPointsDelta,
-          }),
-        },
-      })
+    await db.pointsTransaction.create({
+      data: {
+        id: await generateSnowflakeId(),
+        userId,
+        amount: earnedPointsDelta,
+        pointsBefore: user.reputationPoints,
+        pointsAfter: newReputationPoints,
+        reason: 'trading_pnl',
+        metadata: JSON.stringify({
+          tradeType,
+          relatedId,
+          storedLifetimePnL,
+          newLifetimePnL,
+          previousEarnedPoints: currentEarnedPoints,
+          newEarnedPoints,
+          earnedPointsDelta,
+        }),
+      },
     })
 
     logger.info('Awarded earned points for P&L', {
       userId,
-      previousLifetimePnL,
+      storedLifetimePnL,
       newLifetimePnL,
       earnedPointsDelta,
       totalEarnedPoints: newEarnedPoints,

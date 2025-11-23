@@ -132,7 +132,7 @@ export const GET = withErrorHandling(async (
   }
 
   // Get all completed referrals
-  const referrals = await prisma.referral.findMany({
+  const completedReferrals = await prisma.referral.findMany({
     where: {
       referrerId: canonicalUserId,
       status: 'completed',
@@ -146,11 +146,37 @@ export const GET = withErrorHandling(async (
           profileImageUrl: true,
           createdAt: true,
           reputationPoints: true,
+          profileComplete: true,
         },
       },
     },
     orderBy: {
       completedAt: 'desc',
+    },
+  });
+
+  // Get pending referrals (users who haven't completed profile yet)
+  // We find users where referredBy = currentUser but no completed referral exists
+  const pendingReferredUsers = await prisma.user.findMany({
+    where: {
+      referredBy: canonicalUserId,
+      profileComplete: false, // Not completed profile yet
+    },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      profileImageUrl: true,
+      createdAt: true,
+      reputationPoints: true,
+      profileComplete: true,
+      // Include fallback identifiers for pending users
+      email: true,
+      farcasterUsername: true,
+      twitterUsername: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
     },
   });
 
@@ -166,15 +192,29 @@ export const GET = withErrorHandling(async (
   
   const totalFeesEarned = Number(feeEarnings._sum.referrerFee || 0)
 
+  // Calculate weekly referral count (last 7 days) - only completed
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weeklyReferralCount = await prisma.referral.count({
+    where: {
+      referrerId: canonicalUserId,
+      status: 'completed',
+      completedAt: {
+        gte: oneWeekAgo,
+      },
+    },
+  });
+
   // Check if referrer (current user) is following the referred users
-  const referredUserIds = referrals
+  const completedUserIds = completedReferrals
     .map(r => r.referredUserId)
     .filter((id): id is string => id !== null);
+  const pendingUserIds = pendingReferredUsers.map(u => u.id);
+  const allReferredUserIds = [...completedUserIds, ...pendingUserIds];
 
   const followStatuses = await prisma.follow.findMany({
     where: {
       followerId: canonicalUserId,
-      followingId: { in: referredUserIds },
+      followingId: { in: allReferredUserIds },
     },
     select: {
       followingId: true,
@@ -183,8 +223,8 @@ export const GET = withErrorHandling(async (
 
   const followingUserIds = new Set(followStatuses.map(f => f.followingId));
 
-  // Format referred users with follow status
-  const referredUsers = referrals
+  // Format completed referred users with follow status
+  const completedReferredUsers = completedReferrals
     .filter(r => r.User_Referral_referredUserIdToUser)
     .map(r => ({
       id: r.User_Referral_referredUserIdToUser!.id,
@@ -195,7 +235,25 @@ export const GET = withErrorHandling(async (
       reputationPoints: r.User_Referral_referredUserIdToUser!.reputationPoints,
       isFollowing: followingUserIds.has(r.User_Referral_referredUserIdToUser!.id),
       joinedAt: r.completedAt,
+      status: 'completed' as const,
     }));
+
+  // Format pending referred users
+  const formattedPendingUsers = pendingReferredUsers.map(u => ({
+    id: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    profileImageUrl: u.profileImageUrl,
+    createdAt: u.createdAt,
+    reputationPoints: u.reputationPoints,
+    isFollowing: followingUserIds.has(u.id),
+    joinedAt: null, // No completion date yet
+    status: 'pending' as const,
+    // Include fallback identifiers for pending users
+    email: u.email,
+    farcasterUsername: u.farcasterUsername,
+    twitterUsername: u.twitterUsername,
+  }));
 
   // Use username as referral code (without @)
   const referralCode = user.username || null;
@@ -203,7 +261,11 @@ export const GET = withErrorHandling(async (
     ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'}?ref=${referralCode}`
     : null;
 
-  logger.info('Referrals fetched successfully', { userId: canonicalUserId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
+  logger.info('Referrals fetched successfully', { 
+    userId: canonicalUserId, 
+    completedReferrals: completedReferrals.length,
+    pendingReferrals: pendingReferredUsers.length,
+  }, 'GET /api/users/[userId]/referrals');
 
   return successResponse({
     user: {
@@ -224,12 +286,16 @@ export const GET = withErrorHandling(async (
       walletAddress: user.walletAddress,
     },
     stats: {
-      totalReferrals: referrals.length,
+      totalReferrals: completedReferrals.length, // Only completed count
+      pendingReferrals: pendingReferredUsers.length, // NEW: Pending count
       totalFeesEarned,
       feeShareRate: 0.50, // 50% of fees
       followingCount: followingUserIds.size,
+      weeklyReferralCount,
+      weeklyLimit: 10,
     },
-    referredUsers,
+    referredUsers: completedReferredUsers, // Completed users
+    pendingReferredUsers: formattedPendingUsers, // NEW: Pending users
     referralUrl,
   });
 });

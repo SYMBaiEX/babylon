@@ -59,9 +59,10 @@ jobs:
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # Pass secrets with correct names (not _VAR suffix)
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
-          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          # Use NEXT_PUBLIC_PRIVY_APP_ID secret for both server-side (PRIVY_APP_ID) and client-side (NEXT_PUBLIC_PRIVY_APP_ID)
+          PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
@@ -89,15 +90,24 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          # CRITICAL: NEXT_PUBLIC_* variables must be set at BUILD TIME (not runtime)
+          # Next.js embeds these values into the JavaScript bundle during build
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
         run: |
           echo "🏗️ Building production..."
+          if [ -z "$NEXT_PUBLIC_PRIVY_APP_ID" ]; then
+            echo "❌ ERROR: NEXT_PUBLIC_PRIVY_APP_ID is not set or empty!"
+            echo "Please ensure the GitHub secret NEXT_PUBLIC_PRIVY_APP_ID is configured."
+            exit 1
+          fi
+          echo "🔑 NEXT_PUBLIC_PRIVY_APP_ID is set (length: ${#NEXT_PUBLIC_PRIVY_APP_ID}, starts with: ${NEXT_PUBLIC_PRIVY_APP_ID:0:10}...)"
           bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           echo "✅ Build complete"
 
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
+          echo "🔑 Verifying NEXT_PUBLIC_PRIVY_APP_ID is available (length: ${#NEXT_PUBLIC_PRIVY_APP_ID})"
           SKIP_ENV_VALIDATION=1 bun scripts/validation/check-environment.ts || echo "⚠️  Environment check skipped in CI"
           bunx --bun next start > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
@@ -122,6 +132,9 @@ jobs:
           NODE_ENV: production
           PORT: 3000
           PLAYWRIGHT_BASE_URL: http://localhost:3000
+          # NEXT_PUBLIC_* variables are embedded at build time, but ensure they're available
+          # at runtime for any server-side rendering or API routes that might need them
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
 
       - name: Run Synpress Tests (Wallet E2E)
         run: bunx playwright test --config=synpress.config.ts --reporter=list,json
