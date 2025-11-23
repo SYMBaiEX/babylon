@@ -193,7 +193,7 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
     'dump-organization': 'Trump Organization',
     'sucker-carlton-tonight': 'Tucker Carlson Tonight',
     'infobores': 'InfoWars',
-    'america-worst': 'America First',
+    'aimerica-first': 'America First',
     'cnbs': 'CNBC',
     'the-fud': 'Federal Reserve',
     'nvidiot': 'NVIDIA',

@@ -73,6 +73,7 @@ REDIS_URL="redis://localhost:6380"
 DEPLOYMENT_ENV=localnet
 NEXT_PUBLIC_CHAIN_ID=31337
 NEXT_PUBLIC_RPC_URL=http://localhost:8545
+NEXT_PUBLIC_PRIVY_APP_ID=""
 `
   writeFileSync(envPath, envTemplate)
   logger.info('✅ .env created', undefined, 'Script')

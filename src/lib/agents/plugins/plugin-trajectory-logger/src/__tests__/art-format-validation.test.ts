@@ -9,7 +9,7 @@
  * NOTE: Requires trajectory schema and TrajectoryLoggerService
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, mock } from 'bun:test';
 import { TrajectoryLoggerService } from '../TrajectoryLoggerService';
 import { 
   toARTMessages, 
@@ -26,6 +26,65 @@ import * as path from 'node:path';
 
 import type { IAgentRuntime, UUID, Logger } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
+
+// Store created trajectories for retrieval
+const createdTrajectories: any[] = [];
+
+// Mock Prisma
+const mockPrisma = {
+  trajectory: {
+    create: mock(async (args: any) => {
+      const trajectory = {
+        ...args.data,
+        startTime: args.data.startTime instanceof Date ? args.data.startTime : new Date(args.data.startTime),
+        endTime: args.data.endTime instanceof Date ? args.data.endTime : new Date(args.data.endTime),
+        metrics: args.data.metricsJson ? JSON.parse(args.data.metricsJson) : {},
+        metadata: args.data.metadataJson ? JSON.parse(args.data.metadataJson) : {}
+      };
+      createdTrajectories.push(trajectory);
+      return trajectory;
+    }),
+    deleteMany: mock(async () => {
+      // clear created trajectories
+      // createdTrajectories.length = 0; // don't clear because we might need them for findMany
+      return { count: 1 };
+    }),
+    findUnique: mock(async (args: any) => {
+      return createdTrajectories.find(t => t.trajectoryId === args.where.trajectoryId) || null;
+    }),
+    findMany: mock(async (args: any) => {
+      // Simple filtering mock
+      let result = [...createdTrajectories];
+      
+      if (args?.where?.trajectoryId?.in) {
+        result = result.filter(t => args.where.trajectoryId.in.includes(t.trajectoryId));
+      }
+      
+      if (args?.where?.scenarioId?.in) {
+        result = result.filter(t => args.where.scenarioId.in.includes(t.scenarioId));
+      }
+
+      return result;
+    }),
+    groupBy: mock(async (args: any) => {
+      // Mock grouping for scenario discovery
+      // args: { by: ['scenarioId'], where: {...} }
+      if (args?.by?.includes('scenarioId')) {
+         const scenarios = new Set(createdTrajectories.map(t => t.scenarioId).filter(Boolean));
+         return Array.from(scenarios).map(id => ({ scenarioId: id }));
+      }
+      return [];
+    })
+  },
+  llmCallLog: {
+    create: mock(async () => ({})),
+    deleteMany: mock(async () => ({ count: 1 }))
+  }
+};
+
+mock.module('@/lib/prisma', () => ({
+  prisma: mockPrisma
+}));
 
 describe('ART Format Validation', () => {
   let mockRuntime: Partial<IAgentRuntime>;
@@ -440,19 +499,11 @@ describe('ART Format Validation', () => {
         if (!traj) {
           const { prisma } = await import('@/lib/prisma');
           const fromDB = await prisma.trajectory.findUnique({ where: { trajectoryId: trajId } });
-          if (!fromDB) throw new Error('Trajectory not found');
-          const steps = JSON.parse(fromDB.stepsJson);
-          trajectories.push({
-            ...fromDB,
-            trajectoryId: fromDB.trajectoryId,
-            agentId: fromDB.agentId,
-            startTime: fromDB!.startTime.getTime(),
-            endTime: fromDB!.endTime.getTime(),
-            steps,
-            rewardComponents: JSON.parse(fromDB!.rewardComponentsJson),
-            metrics: JSON.parse(fromDB!.metricsJson),
-            metadata: JSON.parse(fromDB!.metadataJson)
-          } as Trajectory);
+          if (!fromDB) {
+            throw new Error('Trajectory not found');
+          }
+          // Note: the mock returns object with same structure as passed to create
+          trajectories.push(fromDB as unknown as Trajectory);
         } else {
           trajectories.push(traj);
         }
@@ -886,4 +937,3 @@ async function createCompleteARTTrajectory(
 
   return trajId;
 }
-
