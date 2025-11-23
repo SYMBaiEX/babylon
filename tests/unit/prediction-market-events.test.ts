@@ -8,7 +8,7 @@ describe('PredictionMarketEventService', () => {
 
   beforeEach(() => {
     broadcastSpy = spyOn(broadcaster, 'broadcastToChannel');
-    broadcastSpy.mockReturnValue(undefined);
+    broadcastSpy.mockResolvedValue(undefined);
   });
 
   afterEach(() => {

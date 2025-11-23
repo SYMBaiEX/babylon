@@ -36,29 +36,35 @@ export interface PredictionResolutionEvent {
 }
 
 export class PredictionMarketEventService {
+  /**
+   * Emit a prediction trade update event.
+   * Fires and forgets - errors are logged but don't propagate to callers.
+   */
   static emitTradeUpdate(event: PredictionTradeEvent): void {
-    try {
-      logger.info('Emitting prediction trade update', { marketId: event.marketId, side: event.trade.side, price: event.trade.price }, 'PredictionMarketEventService');
-      broadcastToChannel('markets', {
-        type: 'prediction_trade',
-        version: 'v1',
-        ...event,
-      });
-    } catch (error) {
+    logger.info('Emitting prediction trade update', { marketId: event.marketId, side: event.trade.side, price: event.trade.price }, 'PredictionMarketEventService');
+
+    void broadcastToChannel('markets', {
+      type: 'prediction_trade',
+      version: 'v1',
+      ...event,
+    }).catch((error) => {
       logger.warn('Failed to broadcast prediction trade update', { error, marketId: event.marketId }, 'PredictionMarketEventService');
-    }
+    });
   }
 
+  /**
+   * Emit a prediction resolution event.
+   * Fires and forgets - errors are logged but don't propagate to callers.
+   */
   static emitResolution(event: PredictionResolutionEvent): void {
-    try {
-      logger.info('Emitting prediction resolution', { marketId: event.marketId, winningSide: event.winningSide }, 'PredictionMarketEventService');
-      broadcastToChannel('markets', {
-        type: 'prediction_resolution',
-        version: 'v1',
-        ...event,
-      });
-    } catch (error) {
+    logger.info('Emitting prediction resolution', { marketId: event.marketId, winningSide: event.winningSide }, 'PredictionMarketEventService');
+
+    void broadcastToChannel('markets', {
+      type: 'prediction_resolution',
+      version: 'v1',
+      ...event,
+    }).catch((error) => {
       logger.warn('Failed to broadcast prediction resolution update', { error, marketId: event.marketId }, 'PredictionMarketEventService');
-    }
+    });
   }
 }
