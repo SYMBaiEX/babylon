@@ -199,7 +199,15 @@ export default function ChatsPage() {
   }, [isLoadingMore, realtimeMessages.length])
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    messagesEndRef.current?.scrollIntoView({ behavior })
+    const container = chatContainerRef.current
+    if (container) {
+      // Use rAF to ensure layout is measured after render
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight
+      })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' })
+    }
   }, [])
 
   // Debug mode: enabled in localhost
@@ -512,11 +520,13 @@ export default function ChatsPage() {
 
     if (shouldForce) {
       scrollToBottom('auto')
+      setIsAtBottom(true)
       return
     }
 
     if (isNewMessage && isAtBottom) {
       scrollToBottom('smooth')
+      setIsAtBottom(true)
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom])
 
