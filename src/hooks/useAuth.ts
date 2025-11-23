@@ -437,13 +437,8 @@ export function useAuth(): UseAuthReturn {
           if (response.status === 409) {
             // 409 = wallet already linked to another account - don't retry
             failedLinkAttempts.add(walletKey);
-            const shortAddress = `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`;
-            toast.error('Wallet Already Linked', {
-              description: `The wallet ${shortAddress} is already linked to another Babylon account.`,
-              duration: 6000,
-            });
             logger.info(
-              'Wallet already linked to another user, skipping future retries',
+              'Wallet already linked to another account, skipping future retries',
               { address: wallet.address },
               'useAuth'
             );
