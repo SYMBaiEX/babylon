@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tokenParam = searchParams.get('token');
   const cursorParam = searchParams.get('cursor');
+  const requestedChannelsParam = searchParams.get('channels');
 
   if (!tokenParam) {
     return new Response('Missing token', { status: 401 });
@@ -60,6 +61,17 @@ export async function GET(request: NextRequest) {
   if (!redis) {
     logger.error('Redis/Upstash not configured - realtime disabled', undefined, 'SSE');
     return new Response('Realtime unavailable', { status: 503 });
+  }
+
+  // If the client passed an explicit channels list, intersect with token-authorized channels.
+  if (requestedChannelsParam) {
+    const decoded = decodeURIComponent(requestedChannelsParam);
+    const requested = decoded
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean) as RealtimeChannel[];
+    const requestedSet = new Set(requested);
+    allowedChannels = allowedChannels.filter((ch) => requestedSet.has(ch));
   }
 
   if (allowedChannels.length === 0) {

@@ -22,6 +22,12 @@ const PUBLIC_CHANNELS: RealtimeChannel[] = [
 ]
 
 const dedupe = <T>(items: T[]) => Array.from(new Set(items))
+const isDmChatId = (id: string, userId: string) => {
+  if (!id.startsWith('dm-')) return false
+  const parts = id.substring('dm-'.length).split('-').filter(Boolean)
+  if (parts.length !== 2) return false
+  return parts.includes(userId)
+}
 
 export async function POST(request: NextRequest) {
   const user = await authenticate(request)
@@ -50,24 +56,36 @@ export async function POST(request: NextRequest) {
       .map((ch) => ch.replace('chat:', '')),
   ]).filter(Boolean)
 
-  const allowedChats =
-    derivedChatIds.length > 0
-      ? await prisma.chatParticipant.findMany({
-          where: { userId: user.userId, chatId: { in: derivedChatIds } },
-          select: { chatId: true },
-        })
-      : []
+  // Determine which chats are authorized for this user.
+  const allowedChatIds = new Set<string>()
 
-  const allowedChatIds = new Set(allowedChats.map((c) => c.chatId))
-  const chatChannels: RealtimeChannel[] = []
+  if (derivedChatIds.length > 0) {
+    const allowedChats = await prisma.chatParticipant.findMany({
+      where: { userId: user.userId, chatId: { in: derivedChatIds } },
+      select: { chatId: true },
+    })
+    allowedChats.forEach((c) => allowedChatIds.add(c.chatId))
+  }
 
-  for (const chId of chatIds) {
-    if (allowedChatIds.has(chId)) {
-      chatChannels.push(`chat:${chId}`)
-    } else {
-      logger.warn('Realtime token: skipping unauthorized chat', { userId: user.userId, chatId: chId }, 'Realtime')
+  // Allow deterministic DM channels even if the chat row/participants are not yet created.
+  for (const chId of derivedChatIds) {
+    if (isDmChatId(chId, user.userId)) {
+      allowedChatIds.add(chId)
     }
   }
+
+  const unauthorizedChats = derivedChatIds.filter((id) => !allowedChatIds.has(id))
+  if (unauthorizedChats.length > 0) {
+    logger.warn('Realtime token: unauthorized chat channels requested', { userId: user.userId, unauthorizedChats }, 'Realtime')
+    return NextResponse.json(
+      { error: 'Unauthorized chat channels', unauthorizedChats },
+      { status: 403 }
+    )
+  }
+
+  const chatChannels: RealtimeChannel[] = Array.from(allowedChatIds).map(
+    (id) => `chat:${id}` as RealtimeChannel
+  )
 
   // Only allow explicitly known public channels from the request
   const requestedPublic = requestedChannels.filter((ch) =>

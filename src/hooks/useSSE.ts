@@ -97,10 +97,14 @@ let cachedRealtimeToken: {
 const channelsKeyFromList = (channels: Channel[]) =>
   channels.slice().sort().join(',');
 
+const includesChatChannel = (channels: Channel[]) =>
+  channels.some((ch) => typeof ch === 'string' && ch.startsWith('chat:'));
+
 const shouldUseCachedToken = (channels: Channel[]) => {
   if (!cachedRealtimeToken) return false;
   const now = Date.now();
   if (cachedRealtimeToken.expiresAt - now < 30_000) return false; // refresh if <30s
+  if (includesChatChannel(channels)) return false; // chat channels need fresh auth (membership can change)
   return cachedRealtimeToken.channelsKey === channelsKeyFromList(channels);
 };
 
@@ -306,6 +310,13 @@ async function ensureConnection(forceReconnect = false) {
   eventSource.addEventListener('connected', (event) => {
     try {
       const data = JSON.parse(event.data);
+      if (Array.isArray(data.channels)) {
+        connectedChannels = new Set(data.channels);
+        const missing = Array.from(requestedChannels).filter((ch) => !connectedChannels.has(ch));
+        if (missing.length > 0) {
+          logger.warn('SSE connected without some requested channels', { requested: Array.from(requestedChannels), granted: data.channels }, 'useSSE');
+        }
+      }
       logger.debug('SSE connected event received', { clientId: data.clientId, channels: data.channels }, 'useSSE');
       // Connection is confirmed, update state
       connecting = false;
