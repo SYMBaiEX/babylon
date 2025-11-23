@@ -107,6 +107,7 @@ export default function ChatsPage() {
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [isLeavingChat, setIsLeavingChat] = useState(false)
   const [leaveChatError, setLeaveChatError] = useState<string | null>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   // Group modals
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [isGroupManagementModalOpen, setIsGroupManagementModalOpen] = useState(false)
@@ -475,6 +476,7 @@ export default function ChatsPage() {
   // Load selected chat details from database
   useEffect(() => {
     lastMessageIdRef.current = null
+    setIsAtBottom(true)
     if (selectedChatId) {
       loadChatDetails(selectedChatId)
     }
@@ -497,11 +499,22 @@ export default function ChatsPage() {
   useEffect(() => {
     const msgs = chatDetails?.messages || []
     const lastId = msgs.length > 0 ? msgs[msgs.length - 1]?.id : null
-    if (lastId && lastId !== lastMessageIdRef.current) {
-      lastMessageIdRef.current = lastId
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!lastId) return
+
+    const isNewMessage = lastId !== lastMessageIdRef.current
+    const shouldForce =
+      lastMessageIdRef.current === null // first load after chat switch
+    lastMessageIdRef.current = lastId
+
+    if (shouldForce) {
+      scrollToBottom('auto')
+      return
     }
-  }, [chatDetails?.messages])
+
+    if (isNewMessage && isAtBottom) {
+      scrollToBottom('smooth')
+    }
+  }, [chatDetails?.messages, isAtBottom, scrollToBottom])
 
   const handleLeaveChat = async () => {
     if (!selectedChatId) return
@@ -633,6 +646,29 @@ export default function ChatsPage() {
       sendMessage()
     }
   }
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
+
+  useEffect(() => {
+    const container = chatContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const threshold = 50
+      const atBottom =
+        container.scrollTop + container.clientHeight >= container.scrollHeight - threshold
+      setIsAtBottom(atBottom)
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    // Initialize
+    handleScroll()
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, [selectedChatId])
 
   // Filter chats based on active filter
   const filteredByType = activeFilter === 'all' 
