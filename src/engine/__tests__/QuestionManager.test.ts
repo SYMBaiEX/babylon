@@ -34,21 +34,19 @@
 import { describe, test, expect } from 'bun:test';
 import type { Question } from '@/shared/types';
 import { QuestionManager } from '../QuestionManager';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 
-// Mock LLM client for testing
-class MockLLMClient extends BabylonLLMClient {
-  constructor() {
-    // Initialize with empty strings to avoid API key requirements in tests
-    super('', undefined, 'groq');
-  }
-  
-  async generateJSON<T>(): Promise<T> {
+// Mock LLM client for testing - uses interface instead of extending class
+// to avoid constructor issues with API key requirements
+const mockLLM = {
+  generateJSON: async <T>(): Promise<T> => {
     return { questions: [] } as T;
-  }
-}
-
-const mockLLM = new MockLLMClient();
+  },
+  getProvider: () => 'groq' as const,
+  getWandbModel: () => undefined,
+  setWandbModel: () => {},
+  getStats: () => ({ provider: 'groq' as const, model: 'test', totalTokens: 0, totalCost: 0 }),
+} as unknown as BabylonLLMClient;
 
 describe('QuestionManager', () => {
   test('detects questions that should be resolved', () => {

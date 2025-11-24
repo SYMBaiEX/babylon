@@ -1210,7 +1210,12 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     // Handle XML structure
     const response = 'response' in parsedResponse && parsedResponse.response
       ? parsedResponse.response
-      : parsedResponse as { name: string };
+      : parsedResponse as { name?: string };
+
+    // Handle missing name property
+    if (!response || typeof response.name !== 'string') {
+      return `${admin.name}'s Group`; // Fallback
+    }
 
     return response.name.toLowerCase();
   }

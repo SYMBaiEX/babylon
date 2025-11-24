@@ -9,13 +9,36 @@ import { chromium, type APIRequestContext } from 'playwright'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-const authFile = path.join(__dirname, '../../.playwright/auth.json')
-const tokenFile = path.join(__dirname, '../../.playwright/test-tokens.json')
+const authFile = path.join(__dirname, '../../../.playwright/auth.json')
+const tokenFile = path.join(__dirname, '../../../.playwright/test-tokens.json')
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || process.env.API_URL?.replace('/api', '') || 'http://localhost:3000'
 
 let apiRequest: APIRequestContext | null = null
 let testUserId: string | null = null
 let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null
+
+/**
+ * Check if Playwright authentication is available (without throwing errors)
+ * 
+ * Use this to conditionally skip tests when auth isn't set up.
+ * 
+ * @returns {boolean} True if auth file exists and tests can run
+ */
+export function isAuthAvailable(): boolean {
+  return existsSync(authFile)
+}
+
+/**
+ * Get a descriptive reason why auth is not available
+ * 
+ * @returns {string} Description of why auth is unavailable
+ */
+export function getAuthUnavailableReason(): string {
+  if (!existsSync(authFile)) {
+    return 'Playwright auth not set up (run: bunx playwright test --project=setup)'
+  }
+  return 'Unknown auth issue'
+}
 
 /**
  * Initialize Playwright API request context with authentication

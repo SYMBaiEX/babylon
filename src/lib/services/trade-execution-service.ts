@@ -130,7 +130,14 @@ export class TradeExecutionService {
       const cleanedAmount = String(decision.amount).replace(/,/g, '');
       decision.amount = parseFloat(cleanedAmount);
     }
-    if (isNaN(decision.amount) || decision.amount <= 0) {
+    
+    // For close_position, amount=0 is valid (we close the full position)
+    // For other actions, amount must be > 0
+    const isClosePosition = decision.action === 'close_position';
+    if (isNaN(decision.amount)) {
+      throw new Error(`Invalid amount (NaN): ${decision.amount}`);
+    }
+    if (!isClosePosition && decision.amount <= 0) {
       throw new Error(`Invalid amount: ${decision.amount}`);
     }
     

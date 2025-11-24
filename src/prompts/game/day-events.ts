@@ -24,8 +24,7 @@ The current date is {{currentDate}}. Always act as though it is the current date
 
 {{worldEventExamples}}
 
-━━━ GENERATE DAY {{day}} EVENTS ━━━
-
+DAY {{day}} EVENTS:
 {{phaseContext}}
 
 {{relationshipContext}}

@@ -52,22 +52,47 @@ export class CharacterMappingService {
       return; // Use cached data
     }
 
-    this.characterMappingsCache = await prisma.characterMapping.findMany({
-      where: { isActive: true },
-      orderBy: { priority: 'desc' }, // Higher priority first
-    });
+    // Handle case where prisma models are not available (e.g., test environment without database)
+    if (!prisma?.characterMapping || !prisma?.organizationMapping) {
+      logger.warn(
+        'CharacterMappingService: Database not available, using empty mappings',
+        undefined,
+        'CharacterMappingService'
+      );
+      this.characterMappingsCache = [];
+      this.organizationMappingsCache = [];
+      this.lastCacheUpdate = now;
+      return;
+    }
 
-    this.organizationMappingsCache = await prisma.organizationMapping.findMany({
-      where: { isActive: true },
-      orderBy: { priority: 'desc' },
-    });
+    try {
+      this.characterMappingsCache = await prisma.characterMapping.findMany({
+        where: { isActive: true },
+        orderBy: { priority: 'desc' }, // Higher priority first
+      });
 
-    this.lastCacheUpdate = now;
-    logger.info(
-      `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
-      undefined,
-      'CharacterMappingService'
-    );
+      this.organizationMappingsCache = await prisma.organizationMapping.findMany({
+        where: { isActive: true },
+        orderBy: { priority: 'desc' },
+      });
+
+      this.lastCacheUpdate = now;
+      logger.info(
+        `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
+        undefined,
+        'CharacterMappingService'
+      );
+    } catch (error) {
+      // Handle database connection errors gracefully
+      logger.warn(
+        'CharacterMappingService: Failed to load mappings from database, using empty mappings',
+        { error: error instanceof Error ? error.message : String(error) },
+        'CharacterMappingService'
+      );
+      this.characterMappingsCache = [];
+      this.organizationMappingsCache = [];
+      this.lastCacheUpdate = now;
+    }
   }
 
   /**

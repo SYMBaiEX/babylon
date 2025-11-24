@@ -44,6 +44,28 @@ mock.module('@/generator/llm/openai-client', () => {
           
           // Priority 2: Schema-based detection (more reliable than prompt parsing)
           if (schema?.properties) {
+            // Question generation (has questions array property)
+            if (schema.properties.questions) {
+              return {
+                response: {
+                  questions: [
+                    {
+                      text: "Will AIlon Musk tweet about Mars this week?",
+                      resolutionCriteria: "If AIlon Musk posts about Mars on social media",
+                      daysUntilResolution: 3,
+                      expectedOutcome: "yes"
+                    },
+                    {
+                      text: "Will Sam AIltman announce a new AI feature?",
+                      resolutionCriteria: "If OpenAGI announces a new feature",
+                      daysUntilResolution: 5,
+                      expectedOutcome: "yes"
+                    }
+                  ]
+                }
+              };
+            }
+            
             // Question resolution (has response.event property)
             if (schema.properties.response?.properties?.event) {
               return {
@@ -56,25 +78,45 @@ mock.module('@/generator/llm/openai-client', () => {
             
             // Market decisions (has npcId property)
             if (schema.properties.npcId || schema.properties.decisions) {
-              return {
-                decisions: [
-                  {
-                    npcId: "test-npc",
-                    npcName: "Test NPC",
-                    reasoning: "Mock reasoning",
+              // Extract from ID=xxx NAME="yyy" patterns in TRADERS section
+              const idMatches = _prompt.matchAll(/ID=([^\s]+)\s+NAME="([^"]+)"/g);
+              const npcsFromPrompt = Array.from(idMatches).slice(0, 3);
+              
+              if (npcsFromPrompt.length > 0) {
+                // All hold actions to avoid balance warnings
+                return {
+                  decisions: npcsFromPrompt.map(([, id, name]) => ({
+                    npcId: id,
+                    npcName: name,
+                    reasoning: `Mock reasoning for ${name} - holding for now`,
                     action: "hold",
-                    confidence: 0.5
-                  }
-                ]
-              };
+                    confidence: 0.5,
+                    marketType: null,
+                    marketId: null,
+                    amount: 0
+                  }))
+                };
+              }
+              // Fallback - no trades (empty decisions means no warnings)
+              return { decisions: [] };
             }
             
-            // Article generation (has title and article properties)
-            if (schema.properties.title && schema.properties.article) {
+            // Article generation (has title and/or article properties)
+            if (schema.properties.title || schema.properties.article || schema.properties.content) {
+              // Extract question context from prompt if available
+              const questionMatch = _prompt.match(/Question[:\s]*([^\n]+)/i);
+              const questionText = questionMatch?.[1]?.trim() || 'Market Update';
+              
               return {
-                title: "Mock Article Title",
-                summary: "Mock article summary for testing.",
-                article: "Mock article body content that is long enough.\n\nIt has multiple paragraphs.\n\nTo satisfy length requirements.\n\nAnd validation checks."
+                response: {
+                  title: `Breaking: ${questionText.substring(0, 50)}`,
+                  summary: `Analysis of the latest developments regarding ${questionText.substring(0, 100)}`,
+                  content: `This is a comprehensive mock article analyzing the current market situation.\n\nThe question "${questionText}" has generated significant interest.\n\nExperts weigh in on the potential outcomes.\n\nMarket participants remain divided on the final resolution.`,
+                  slant: "Neutral analysis of market conditions",
+                  sentiment: "neutral",
+                  category: "markets",
+                  tags: { tag: ["markets", "analysis", "prediction"] }
+                }
               };
             }
             
@@ -150,43 +192,63 @@ mock.module('@/generator/llm/openai-client', () => {
           
           // Priority 3: No schema - infer from prompt content
           if (!schema || !schema.properties) {
-            // Question generation prompts
-            const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios') || 
-                                      (_prompt.includes('Scenario') && _prompt.includes('Actors:') && _prompt.includes('MAIN ACTORS'));
+            // Question generation prompts - look for "Generate X prediction market questions"
+            const isQuestionGeneration = _prompt.includes('prediction market questions') ||
+                                         _prompt.includes('COMPANIES:') ||
+                                         _prompt.includes('ACTORS:');
             
-            if (!isScenarioGeneration && (
-                _prompt.includes('ORGANIZATIONS IN PLAY') || 
-                _prompt.includes('Create prediction market questions') ||
-                (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'))
-            )) {
+            if (isQuestionGeneration) {
               return {
-                questions: [
+                response: {
+                  questions: [
+                    {
+                      text: "Will AIlon Musk tweet about Mars this week?",
+                      resolutionCriteria: "If AIlon Musk posts about Mars on social media",
+                      daysUntilResolution: 3,
+                      expectedOutcome: "yes"
+                    },
+                    {
+                      text: "Will Sam AIltman announce a new AI feature?",
+                      resolutionCriteria: "If OpenAGI announces a new feature",
+                      daysUntilResolution: 5,
+                      expectedOutcome: "yes"
+                    }
+                  ]
+                }
+              };
+            }
+            
+            // Scenario generation prompts
+            const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios') || 
+                                      (_prompt.includes('Scenario') && _prompt.includes('MAIN ACTORS'));
+            
+            if (isScenarioGeneration) {
+              return {
+                scenarios: [
                   {
                     id: 1,
-                    text: "Will testing succeed?",
-                    scenario: 1,
-                    outcome: true,
-                    rank: 1,
-                    createdDate: new Date().toISOString(),
-                    resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                    status: "active"
+                    title: "Test Scenario: Will Testing Succeed?",
+                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                    mainActors: ["actor-1", "actor-2", "actor-3"],
+                    theme: "testing",
+                    involvedOrganizations: []
                   }
                 ]
               };
             }
             
-            // Default: return scenarios format (safest fallback)
+            // Default fallback - return question format as safest
             return {
-              scenarios: [
-                {
-                  id: 1,
-                  title: "Test Scenario: Will Testing Succeed?",
-                  description: "A test scenario to verify the gameplay tick functionality works correctly.",
-                  mainActors: ["actor-1", "actor-2", "actor-3"],
-                  theme: "testing",
-                  involvedOrganizations: []
-                }
-              ]
+              response: {
+                questions: [
+                  {
+                    text: "Will the test pass successfully?",
+                    resolutionCriteria: "If tests complete without errors",
+                    daysUntilResolution: 1,
+                    expectedOutcome: "yes"
+                  }
+                ]
+              }
             };
           }
           
@@ -204,19 +266,29 @@ mock.module('@/generator/llm/openai-client', () => {
       forGroq: () => ({ 
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
-        generateJSON: async () => {
-           // Market decisions mock
-           return {
-             decisions: [
-               {
-                 npcId: "test-npc",
-                 npcName: "Test NPC",
-                 reasoning: "Mock reasoning",
+        generateJSON: async (_prompt: string) => {
+           // Market decisions mock - extract NPC IDs from prompt
+           const idMatches = _prompt.matchAll(/ID=([^\s]+)\s+NAME="([^"]+)"/g);
+           const npcsFromPrompt = Array.from(idMatches).slice(0, 3);
+           
+           if (npcsFromPrompt.length > 0) {
+             // All hold actions to avoid balance warnings
+             return {
+               decisions: npcsFromPrompt.map(([, id, name]) => ({
+                 npcId: id,
+                 npcName: name,
+                 reasoning: `Mock reasoning for ${name} - holding for now`,
                  action: "hold",
-                 confidence: 0.5
-               }
-             ]
-           };
+                 confidence: 0.5,
+                 marketType: null,
+                 marketId: null,
+                 amount: 0
+               }))
+             };
+           }
+           
+           // Fallback - return empty decisions (no trades, no warnings)
+           return { decisions: [] };
         },
         complete: async () => "Mock completion"
       }),
@@ -252,7 +324,7 @@ describe('Gameplay Tick Integration', () => {
       return await db.game.findFirst({
         where: { isContinuous: true }
       })
-    })
+    }, 'gameplay-tick-test-get-game-state')
 
     if (!gameState) {
       // Create game state if it doesn't exist
@@ -266,7 +338,7 @@ describe('Gameplay Tick Integration', () => {
             updatedAt: new Date()
           }
         })
-      })
+      }, 'gameplay-tick-test-create-game-state')
     } else {
       initialGameRunning = gameState.isRunning
       // Ensure game is running for tests
@@ -276,7 +348,7 @@ describe('Gameplay Tick Integration', () => {
             where: { isContinuous: true },
             data: { isRunning: true }
           })
-        })
+        }, 'gameplay-tick-test-enable-game')
       }
     }
 
@@ -325,7 +397,7 @@ describe('Gameplay Tick Integration', () => {
           where: { isContinuous: true },
           data: { isRunning: initialGameRunning }
         })
-      })
+      }, 'gameplay-tick-test-restore-game-state')
     }
 
     // Cleanup test data

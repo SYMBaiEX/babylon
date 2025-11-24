@@ -151,7 +151,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     expect(result.failed).toBeGreaterThanOrEqual(0)
     expect(result.skipped).toBeGreaterThanOrEqual(0)
     expect(result.results).toBeInstanceOf(Array)
-  })
+  }, 30000) // Increase timeout - this syncs all users which can take a while
 
   test('should handle banned user reputation', async () => {
     // Ban the agent

@@ -406,7 +406,10 @@ function createLazyPrismaProxy(): PrismaClient {
         
         // Check if value is undefined and prop is a string (likely a model name)
         // This catches cases where Prisma models aren't initialized
-        if (value === undefined && typeof prop === 'string' && prop !== '$connect' && prop !== '$disconnect') {
+        // Exclude internal properties (starting with _ or $) and known symbols
+        const propStr = typeof prop === 'string' ? prop : '';
+        const isInternalProp = propStr.startsWith('_') || propStr.startsWith('$');
+        if (value === undefined && typeof prop === 'string' && !isInternalProp) {
           const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
           const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
           

@@ -23,9 +23,8 @@ The current date is {{currentDate}}. Always act as though it is the current date
 
 {{fullContext}}{{scenarioContext}}{{questionContext}}
 
-━━━ PRIVATE GROUP CHATS FOR DAY {{day}} ━━━
-
-This is PRIVATE. Members say things here they would NEVER say publicly:
+PRIVATE GROUP CHATS (Day {{day}}):
+Members share things they would NEVER say publicly:
 - Vulnerabilities, fears, doubts
 - Real insider knowledge about their companies
 - Strategic planning and market manipulation

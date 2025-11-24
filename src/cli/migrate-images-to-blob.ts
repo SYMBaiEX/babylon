@@ -43,6 +43,10 @@ const IMAGE_DIRS = [
   { source: 'public/images/actor-banners', blobPrefix: 'images/actor-banners' },
   { source: 'public/images/organizations', blobPrefix: 'images/organizations' },
   { source: 'public/images/org-banners', blobPrefix: 'images/org-banners' },
+  // User uploads (from local development)
+  { source: 'public/uploads/profiles', blobPrefix: 'profiles' },
+  { source: 'public/uploads/covers', blobPrefix: 'covers' },
+  { source: 'public/uploads/posts', blobPrefix: 'posts' },
 ];
 
 interface UploadJob {

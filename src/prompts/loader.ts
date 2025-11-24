@@ -49,7 +49,7 @@ export function renderPrompt(
     optionalVars?: string[];
   } = {}
 ): string {
-  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades', 'realityGrounding', 'worldFacts', 'worldEventExamples', 'currentDateTime', 'currentDate', 'currentTime', 'currentYear', 'currentMonth', 'currentDay', 'examples'] } = options;
+  const { allowEmpty = false, optionalVars = ['trendContext', 'previousPostsContext', 'worldActors', 'currentMarkets', 'activePredictions', 'recentTrades', 'realityGrounding', 'worldFacts', 'worldEventExamples', 'currentDateTime', 'currentDate', 'currentTime', 'currentYear', 'currentMonth', 'currentDay', 'examples', 'contextInfo', 'relatedQuestionContext'] } = options;
   
   let rendered = prompt.template;
 

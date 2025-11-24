@@ -79,3 +79,10 @@ public/images/actors/
 public/images/actor-banners/
 public/images/organizations/
 public/images/org-banners/
+
+# User uploads (stored in Vercel Blob in production)
+public/uploads/profiles/*
+public/uploads/covers/*
+public/uploads/posts/*
+!public/uploads/.gitkeep
+!public/uploads/*/.gitkeep

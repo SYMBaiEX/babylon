@@ -20,6 +20,10 @@ export interface LockOptions {
 export class DistributedLockService {
   /**
    * Acquire a distributed lock
+   * 
+   * Uses a "check-first, create-second" pattern to avoid triggering P2002 errors
+   * in normal cases. Race conditions (multiple processes checking and creating 
+   * simultaneously) may still produce P2002 errors which are handled gracefully.
    */
   static async acquireLock(options: LockOptions): Promise<boolean> {
     const { lockId, durationMs, operation, processId } = options;
@@ -29,7 +33,51 @@ export class DistributedLockService {
     // Generate serverless-safe unique ID if not provided
     const lockHolder = processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
     
-    // Try to create the lock first - this is atomic
+    // First, check if lock already exists (avoids P2002 errors in most cases)
+    const existingLock = await prisma.generationLock.findUnique({
+      where: { id: lockId }
+    });
+    
+    if (existingLock) {
+      // Lock exists - check if it's expired
+      if (existingLock.expiresAt <= now) {
+        // Expired - try to recover atomically using CAS
+        const result = await prisma.generationLock.updateMany({
+          where: {
+            id: lockId,
+            expiresAt: { lte: now } // Only update if STILL expired
+          },
+          data: {
+            lockedBy: lockHolder,
+            lockedAt: now,
+            expiresAt: expiry,
+            operation,
+          }
+        });
+        
+        if (result.count > 0) {
+          logger.info(`Lock ${lockId} acquired (recovered stale)`, {
+            lockId,
+            lockHolder,
+            expiresAt: expiry,
+          }, 'DistributedLockService');
+          return true;
+        }
+        // Someone else recovered it between our check and update - fall through to log
+      }
+      
+      // Lock exists and is valid (or was just recovered by another process)
+      const ageMinutes = Math.round((now.getTime() - existingLock.lockedAt.getTime()) / 1000 / 60);
+      logger.info(`Lock ${lockId} held by ${existingLock.lockedBy} - skipping`, {
+        lockId,
+        holder: existingLock.lockedBy,
+        ageMinutes,
+        expiresIn: Math.round((existingLock.expiresAt.getTime() - now.getTime()) / 1000),
+      }, 'DistributedLockService');
+      return false;
+    }
+    
+    // No lock exists - try to create it
     try {
       await prisma.generationLock.create({
         data: {
@@ -48,49 +96,23 @@ export class DistributedLockService {
       }, 'DistributedLockService');
       return true;
     } catch (error: unknown) {
-      // P2002 = Unique constraint violation (lock exists)
+      // P2002 = Unique constraint violation (race condition - another process created it first)
       if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002') {
-        // Lock exists, check if it's expired and atomically update if so
-        // We use updateMany to ensure we only update if it is STILL expired
-        // This acts as a Compare-And-Swap (CAS)
-        const result = await prisma.generationLock.updateMany({
-          where: {
-            id: lockId,
-            expiresAt: { lte: now } // Only update if expired
-          },
-          data: {
-            lockedBy: lockHolder,
-            lockedAt: now,
-            expiresAt: expiry,
-            operation,
-          }
+        // Another process created it between our check and create - that's fine, just skip
+        const currentLock = await prisma.generationLock.findUnique({
+          where: { id: lockId }
         });
-
-        if (result.count > 0) {
-          logger.info(`Lock ${lockId} acquired (recovered stale)`, {
+        
+        if (currentLock) {
+          const ageMinutes = Math.round((now.getTime() - currentLock.lockedAt.getTime()) / 1000 / 60);
+          logger.info(`Lock ${lockId} held by ${currentLock.lockedBy} - skipping`, {
             lockId,
-            lockHolder,
-            expiresAt: expiry,
+            holder: currentLock.lockedBy,
+            ageMinutes,
+            expiresIn: Math.round((currentLock.expiresAt.getTime() - now.getTime()) / 1000),
           }, 'DistributedLockService');
-          return true;
-        } else {
-          // Lock exists and is valid (or someone else recovered it just now)
-          // Let's log who holds it for debugging
-          const currentLock = await prisma.generationLock.findUnique({
-            where: { id: lockId }
-          });
-          
-          if (currentLock) {
-            const ageMinutes = Math.round((now.getTime() - currentLock.lockedAt.getTime()) / 1000 / 60);
-            logger.info(`Lock ${lockId} held by ${currentLock.lockedBy} - skipping`, {
-              lockId,
-              holder: currentLock.lockedBy,
-              ageMinutes,
-              expiresIn: Math.round((currentLock.expiresAt.getTime() - now.getTime()) / 1000),
-            }, 'DistributedLockService');
-          }
-          return false;
         }
+        return false;
       }
       
       // Other error
