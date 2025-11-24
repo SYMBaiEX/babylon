@@ -80,8 +80,8 @@ add_secret() {
 # Required secrets
 SECRETS=(
     "TEST_DATABASE_URL"
-    "NEXTAUTH_SECRET"
     "PRIVY_APP_ID"
+    "NEXT_PUBLIC_PRIVY_APP_ID"
     "PRIVY_APP_SECRET"
     "PRIVY_TEST_EMAIL"
     "PRIVY_TEST_PASSWORD"

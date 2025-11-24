@@ -131,8 +131,10 @@ export function validateEnvironment(env?: DeploymentEnv): EnvValidationResult {
     errors.push('DATABASE_URL is required')
   }
 
-  if (!process.env.NEXT_PUBLIC_PRIVY_APP_ID) {
-    errors.push('NEXT_PUBLIC_PRIVY_APP_ID is required')
+  // Check either NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_ID (interchangeable)
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID
+  if (!privyAppId) {
+    errors.push('NEXT_PUBLIC_PRIVY_APP_ID (or PRIVY_APP_ID) is required')
   }
 
   // Network-specific validation
@@ -250,7 +252,8 @@ function validateMainnet(errors: string[], warnings: string[]): void {
 
   // Production checks
   if (process.env.NODE_ENV === 'production') {
-    if (!process.env.PRIVY_APP_ID || !process.env.PRIVY_APP_SECRET) {
+    const privyAppId = process.env.PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID
+    if (!privyAppId || !process.env.PRIVY_APP_SECRET) {
       errors.push('Privy credentials required for production')
     }
 
