@@ -73,3 +73,9 @@ playwright-report/
 
 # Debug stuff
 debug/
+
+# Generated actor images (stored in Vercel Blob instead)
+public/images/actors/
+public/images/actor-banners/
+public/images/organizations/
+public/images/org-banners/

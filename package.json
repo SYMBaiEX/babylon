@@ -60,6 +60,7 @@
     "testnet:setup": "bun run scripts/post-deploy/testnet-setup.ts",
     "command:validate": "bun run src/cli/validate-actors.ts",
     "command:images": "bun run src/cli/generate-actor-images.ts",
+    "command:images:migrate": "bun run src/cli/migrate-images-to-blob.ts",
     "command:simulate": "bun run src/cli/run-game.ts",
     "command:simulate:batch": "bun run src/cli/run-game.ts --count=100 --fast",
     "command:world": "bun run src/cli/generate-world.ts",

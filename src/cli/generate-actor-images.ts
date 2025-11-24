@@ -68,7 +68,7 @@
  */
 
 import { fal } from "@fal-ai/client";
-import { writeFile, access } from "fs/promises";
+import { writeFile, access, mkdir } from "fs/promises";
 // readFile - not used
 import { join } from "path";
 import { config } from "dotenv";
@@ -561,6 +561,14 @@ async function main() {
   const actorsBannersDir = join(process.cwd(), "public", "images", "actor-banners");
   const orgsImagesDir = join(process.cwd(), "public", "images", "organizations");
   const orgsBannersDir = join(process.cwd(), "public", "images", "org-banners");
+
+  // Create directories if they don't exist
+  await Promise.all([
+    mkdir(actorsImagesDir, { recursive: true }),
+    mkdir(actorsBannersDir, { recursive: true }),
+    mkdir(orgsImagesDir, { recursive: true }),
+    mkdir(orgsBannersDir, { recursive: true }),
+  ]);
   
   let skippedCount = 0;
   const jobs: ImageJob[] = [];
@@ -658,6 +666,11 @@ async function main() {
   }, 'CLI');
 }
 
-main();
-
-
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error: Error) => {
+    logger.error('Fatal error:', error, 'CLI');
+    process.exit(1);
+  });

@@ -889,6 +889,10 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
         logger.error('Invalid scenarios structure:', JSON.stringify(rawResult.scenarios, null, 2), 'GameGenerator');
         throw new Error('LLM returned invalid scenarios structure');
       }
+    } else if (rawResult && 'scenario' in rawResult && rawResult.scenario) {
+      // LLM returned singular 'scenario' instead of 'scenarios' - handle this common variation
+      const scenarioData = (rawResult as { scenario: Scenario[] | Scenario }).scenario;
+      scenarios = Array.isArray(scenarioData) ? scenarioData : [scenarioData];
     } else if (rawResult && 'questions' in rawResult && rawResult.questions) {
       // LLM returned questions instead of scenarios - try to recover or fail gracefully
       logger.error('LLM returned questions instead of scenarios. Retrying with stricter prompt...', undefined, 'GameGenerator');
