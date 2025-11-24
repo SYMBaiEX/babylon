@@ -19,6 +19,8 @@ import {
 import { generateObject, generateText } from 'ai'
 import { type TiktokenModel, encodingForModel } from 'js-tiktoken'
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 function getBaseURL(runtime: { getSetting: (key: string) => string | undefined }): string {
   return (
@@ -77,6 +79,20 @@ async function generateGroqText(
   })
   const latencyMs = Date.now() - startTime
 
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: params.actionType || params.purpose || 'groq_plugin_text',
+      input: `System: ${params.system || ''}\n\nUser: ${params.prompt}`,
+      output: result.text,
+      metadata: {
+        provider: 'groq_plugin',
+        model,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens
+      }
+    })
+  }
+
   // Log to trajectory if available
   if (params.trajectoryLogger && params.trajectoryId) {
     const stepId = params.trajectoryLogger.getCurrentStepId(params.trajectoryId)
@@ -112,6 +128,20 @@ async function generateGroqObject(
     prompt: params.prompt,
     temperature: params.temperature,
   })
+
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: 'groq_plugin_object',
+      input: params.prompt,
+      output: JSON.stringify(object, null, 2),
+      metadata: {
+        provider: 'groq_plugin',
+        model,
+        temperature: params.temperature
+      }
+    })
+  }
+
   return object
 }
 

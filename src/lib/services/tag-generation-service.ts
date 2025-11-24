@@ -7,6 +7,7 @@
 
 import { logger } from '@/lib/logger'
 import type OpenAI from 'openai'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 type OpenAIClient = OpenAI
 
@@ -115,6 +116,21 @@ If no good tags can be extracted, return: <tags></tags>`
   })
 
   const content_text = response.choices[0]?.message?.content?.trim()
+
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: 'tag_generation',
+      input: `System: You are an XML-only assistant for tag extraction. You must respond ONLY with valid XML. No JSON, no explanations, no markdown.\n\nUser: ${prompt}`,
+      output: content_text || '',
+      metadata: {
+        provider: process.env.GROQ_API_KEY ? 'groq' : 'openai',
+        model,
+        temperature: 0.3,
+        maxTokens: 500
+      }
+    })
+  }
+
   if (!content_text) {
     logger.warn('No content in tag generation response', { content }, 'TagGenerationService')
     return []

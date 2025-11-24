@@ -103,6 +103,7 @@ import { generateText } from 'ai'
 import { logger } from '@/lib/logger'
 import { authenticateUser } from '@/lib/server-auth'
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 export async function POST(req: NextRequest) {
   try {
@@ -144,6 +145,20 @@ export async function POST(req: NextRequest) {
 
       generatedValue = result.text.trim()
       logger.info('Generated agent field with Groq', { fieldName, provider: 'groq' }, 'GenerateField')
+
+      if (isPromptLoggingEnabled()) {
+        await logPrompt({
+          promptType: `generate_field_${fieldName}`,
+          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+          output: generatedValue,
+          metadata: {
+            provider: 'groq',
+            model: 'qwen/qwen3-32b',
+            temperature: 0.8,
+            maxTokens: 300
+          }
+        })
+      }
     } else if (process.env.ANTHROPIC_API_KEY) {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -163,6 +178,20 @@ export async function POST(req: NextRequest) {
       const firstContent = message.content[0]!
       generatedValue = (firstContent as { text: string }).text.trim()
       logger.info('Generated agent field with Claude', { fieldName, provider: 'claude' }, 'GenerateField')
+
+      if (isPromptLoggingEnabled()) {
+        await logPrompt({
+          promptType: `generate_field_${fieldName}`,
+          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+          output: generatedValue,
+          metadata: {
+            provider: 'claude',
+            model: 'claude-sonnet-4-5',
+            temperature: 0.8,
+            maxTokens: 300
+          }
+        })
+      }
     } else {
       return NextResponse.json(
         { 

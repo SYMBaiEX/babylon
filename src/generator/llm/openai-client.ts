@@ -236,7 +236,8 @@ export class BabylonLLMClient {
         let finishReason = response.choices[0]!.finish_reason;
 
         // Debug logging: Log raw prompt and response
-        await this.logPromptDebug(prompt, content, {
+        const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
+        await this.logPromptDebug(fullInput, content, {
           promptType,
           promptTemplate,
           provider: this.provider,

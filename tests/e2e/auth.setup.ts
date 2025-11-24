@@ -37,12 +37,41 @@ function getPrivyTestAccount() {
  */
 async function authenticateWithPrivy(page: Page, email: string, password: string | undefined) {
   // Navigate to home page with dev mode forced to ensure app loads
-  await page.goto('/?dev=true')
+  // Wait for navigation to complete, including any redirects
+  await page.goto('/?dev=true', { waitUntil: 'domcontentloaded' })
+
+  // Wait for any redirects to complete (page might redirect to /feed)
+  try {
+    await page.waitForURL('**/?dev=true**', { timeout: 5000 }).catch(() => {
+      // If redirected, wait for the new URL to be ready
+      return page.waitForLoadState('domcontentloaded')
+    })
+  } catch (e) {
+    // Continue if URL check times out - page might have redirected
+    await page.waitForLoadState('domcontentloaded')
+  }
+
+  // Wait for React to hydrate before checking for "Coming Soon"
+  // Give the page time to initialize and run useEffect hooks
+  await page.waitForTimeout(2000)
+
+  // Check for Coming Soon state after React has hydrated
+  const comingSoon = await page.locator('text=Coming Soon').isVisible().catch(() => false)
+  if (comingSoon) {
+    console.log('❌ Page is showing "Coming Soon" - localhost detection failed or dev mode not working')
+    // Try to force reload with dev parameter
+    console.log('🔄 Reloading page with dev=true...')
+    await page.goto('/?dev=true', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2000) // Wait for React hydration
+    if (await page.locator('text=Coming Soon').isVisible().catch(() => false)) {
+       throw new Error('Page is showing "Coming Soon" preventing login flow - dev mode may not be working in CI')
+    }
+  }
 
   // Wait for page to load completely (networkidle is better for SPAs than domcontentloaded)
   // In CI, networkidle can be flaky if there are background requests
   try {
-    await page.waitForLoadState('networkidle', { timeout: 15000 })
+    await page.waitForLoadState('networkidle', { timeout: 30000 })
   } catch (e) {
     console.log('⚠️  Network idle timed out, continuing...')
   }
@@ -87,6 +116,10 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   // Give React time to hydrate and render components
   await page.waitForTimeout(2000)
 
+  // Check current URL - page might have redirected to /feed
+  const currentUrl = page.url()
+  console.log(`📍 Current URL: ${currentUrl}`)
+
   // Check for authentication indicators first
   const isAlreadyLoggedIn = await page.evaluate(() => {
     const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;
@@ -100,10 +133,16 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     return
   }
 
+  // If we're on /feed, we're good - the GlobalLoginModal should be available or we can find a login button
+  if (currentUrl.includes('/feed') && !isAlreadyLoggedIn) {
+    console.log('ℹ️  Redirected to /feed - continuing login flow from here')
+  }
+
   // Check for Coming Soon state which would prevent login
-  const comingSoon = await page.locator('text=Coming Soon').isVisible().catch(() => false)
-  if (comingSoon) {
+  const comingSoonAgain = await page.locator('text=Coming Soon').isVisible().catch(() => false)
+  if (comingSoonAgain) {
     console.log('❌ Page is showing "Coming Soon" - localhost detection failed')
+    throw new Error('Page is showing "Coming Soon" preventing login flow')
   }
 
   // Look for login button or modal input
@@ -260,8 +299,9 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   const otpText = page.getByText('Enter confirmation code').first()
   const otpInput = page.locator('input[autocomplete="one-time-code"], input[name="code"], input[name="otp"], input[data-privy-otp-input]').first()
   
-  const isOtpScreen = await otpText.isVisible({ timeout: 5000 }).catch(() => false) || 
-                      await otpInput.isVisible({ timeout: 1000 }).catch(() => false)
+  // Increase timeout for OTP detection - emails can be slow
+  const isOtpScreen = await otpText.isVisible({ timeout: 10000 }).catch(() => false) || 
+                      await otpInput.isVisible({ timeout: 5000 }).catch(() => false)
 
   if (isOtpScreen) {
     console.log('ℹ️ OTP screen detected')
@@ -325,10 +365,24 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
  * The authenticated state is saved to .playwright/auth.json and reused.
  */
 setup('authenticate as admin', async ({ page }) => {
-  setup.setTimeout(90000) // Increase timeout to 90s for auth flow in CI
+  setup.setTimeout(120000) // Increase timeout to 120s for auth flow in CI (Blacksmith runners may be slower)
   const { email, password } = getPrivyTestAccount()
 
   console.log(`🔐 Authenticating with email: ${email}`)
+  console.log(`🌐 Base URL: ${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}`)
+
+  // Verify server is responding before starting auth flow
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+  try {
+    const response = await page.request.get(`${baseURL}/api/health`)
+    if (!response.ok()) {
+      throw new Error(`Server health check failed: ${response.status()}`)
+    }
+    console.log('✅ Server health check passed')
+  } catch (error) {
+    console.error('❌ Server health check failed:', error)
+    throw new Error(`Server is not responding at ${baseURL}. Please ensure the server is running.`)
+  }
 
   try {
     await authenticateWithPrivy(page, email, password)
@@ -344,7 +398,7 @@ setup('authenticate as admin', async ({ page }) => {
     // Check that we're not redirected away (which would happen if not authenticated)
     // Use waitForURL for more reliable verification (Playwright best practice)
     try {
-      await page.waitForURL('**/admin**', { timeout: 5000 })
+      await page.waitForURL('**/admin**', { timeout: 10000 })
       console.log('✅ Admin page URL verified')
     } catch {
       const currentUrl = page.url()

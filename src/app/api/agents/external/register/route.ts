@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import type { ExternalAgentConnectionParams } from '@/types/agent-registry.types'
 import { generateApiKey, hashApiKey } from '@/lib/crypto/api-keys'
+import { authenticate } from '@/lib/api/auth-middleware'
 
 // Validation schema for external agent registration
 const ExternalAgentRegisterSchema = z.object({
@@ -70,7 +71,7 @@ const ExternalAgentRegisterSchema = z.object({
 
 export async function POST(req: NextRequest) {
   // Authenticate the request (requires valid Privy session)
-  // const authUser = await authenticate(req)
+  const authUser = await authenticate(req)
 
   try {
     // Parse and validate request body
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
       },
       apiKey, // Only returned on registration, never again!
       message: 'External agent registered successfully. Save your API key - it will not be shown again.',
-      // registeredBy: authUser.userId,
+      registeredBy: authUser.userId,
     }, { status: 201 })
 
   } catch (error) {

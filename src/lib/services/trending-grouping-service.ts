@@ -9,6 +9,7 @@
 
 import { logger } from '@/lib/logger'
 import OpenAI from 'openai'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 // Configuration
 const LLM_TIMEOUT_MS = 15000 // 15 seconds
@@ -265,6 +266,20 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.`
     }, 'TrendingGroupingService')
 
     const content = response.choices[0]?.message?.content?.trim()
+    if (content && isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'trending_grouping_analysis',
+        input: `System: You are a JSON-only assistant that analyzes trending topics. You must respond ONLY with valid JSON. No markdown, no explanations.\n\nUser: ${prompt}`,
+        output: content,
+        metadata: {
+          provider: useGroq ? 'groq' : 'openai',
+          model: GROUPING_MODEL,
+          temperature: 0.3,
+          maxTokens: 2000
+        }
+      })
+    }
+
     if (!content) {
       logger.warn('No content in grouping response, using fallback', undefined, 'TrendingGroupingService')
       return fallbackGrouping(tags)
@@ -378,6 +393,21 @@ One sentence summary:`
     }, 'TrendingGroupingService')
 
     let summary = response.choices[0]?.message?.content?.trim() || fallbackSummary
+    
+    if (isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'trending_group_summary',
+        input: `System: You are a trending topics summarization expert. Generate concise, engaging summaries.\n\nUser: ${prompt}`,
+        output: summary,
+        metadata: {
+          provider: useGroq ? 'groq' : 'openai',
+          model: SUMMARY_MODEL,
+          temperature: 0.7,
+          maxTokens: 50
+        }
+      })
+    }
+
     summary = summary.replace(/^["']|["']$/g, '').replace(/\.$/, '').trim()
     
     if (!summary.endsWith('.') && !summary.endsWith('!') && !summary.endsWith('?')) {
@@ -469,6 +499,20 @@ One sentence summary:`
       ?.replace(/^["']|["']$/g, '')
       ?.replace(/\.$/, '')
       ?.trim() || ''
+
+    if (isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'trending_single_summary',
+        input: `System: You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.\n\nUser: ${prompt}`,
+        output: response.choices[0]?.message?.content || '',
+        metadata: {
+          provider: useGroq ? 'groq' : 'openai',
+          model: SUMMARY_MODEL,
+          temperature: 0.7,
+          maxTokens: 50
+        }
+      })
+    }
     
     if (!cleanSummary) {
       return `Trending topic in ${category || 'general'} discussions`
