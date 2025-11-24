@@ -69,6 +69,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { WaitlistService } from '@/lib/services/waitlist-service'
 import { logger } from '@/lib/logger'
 import { getCache, setCache } from '@/lib/cache-service'
+import { authenticate } from '@/lib/api/auth-middleware'
 
 type PositionResponse = {
   position: number | null
@@ -117,16 +118,18 @@ type PositionResponse = {
 }
 
 const CACHE_KEY_NAMESPACE = 'waitlist:position'
-const CACHE_TTL_MS = Number(process.env.WAITLIST_POSITION_CACHE_MS ?? 5_000) // 5s default
+const CACHE_TTL_MS = Number(process.env.WAITLIST_POSITION_CACHE_MS ?? 30_000) // 30s default (increased from 5s)
 const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000))
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3
+const MAX_REFERRALS_PER_LIST = 25 // Limit referral lists to prevent unbounded payloads
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
+  // Require authentication - users can only see their own waitlist position
+  const authUser = await authenticate(request)
+  const userId = authUser.dbUserId || authUser.userId
 
   if (!userId) {
-    throw new Error('userId parameter is required')
+    throw new Error('User not found in database')
   }
 
   if (CACHE_TTL_MS > 0) {
@@ -166,7 +169,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const { prisma } = await import('@/lib/prisma')
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   
-  // Get completed referrals (qualified users)
+  // Get completed referrals (qualified users) - limit to prevent unbounded payloads
   const completedReferrals = await prisma.referral.findMany({
     where: {
       referrerId: userId,
@@ -186,13 +189,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     orderBy: {
       completedAt: 'desc',
     },
+    take: MAX_REFERRALS_PER_LIST,
   })
   
   const weeklyReferralCount = completedReferrals.filter(
     r => r.completedAt && r.completedAt >= oneWeekAgo
   ).length
   
-  // Get pending referrals (invited but not qualified)
+  // Get pending referrals (invited but not qualified) - limit to prevent unbounded payloads
   const pendingReferredUsers = await prisma.user.findMany({
     where: {
       referredBy: userId,
@@ -211,6 +215,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     orderBy: {
       createdAt: 'desc',
     },
+    take: MAX_REFERRALS_PER_LIST,
   })
   
   const WEEKLY_REFERRAL_LIMIT = 10

@@ -67,7 +67,7 @@ type LeaderboardResponse = {
 }
 
 const CACHE_KEY_NAMESPACE = 'waitlist:leaderboard'
-const CACHE_TTL_MS = Number(process.env.WAITLIST_LEADERBOARD_CACHE_MS ?? 15_000) // 15s default
+const CACHE_TTL_MS = Number(process.env.WAITLIST_LEADERBOARD_CACHE_MS ?? 120_000) // 120s default (increased from 15s)
 const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000))
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3
 
