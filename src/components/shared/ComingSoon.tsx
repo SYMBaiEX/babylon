@@ -32,6 +32,7 @@ interface WaitlistData {
     invite: number
     earned: number
     bonus: number
+    base: number
   }
   referralCount: number
   weeklyReferralCount?: number
