@@ -90,6 +90,9 @@ export async function updateProfileBackendSigned({
   });
 
   const registryAddress = getIdentityRegistryAddress();
+  if (!registryAddress) {
+    throw new Error('Identity registry not configured for this chain');
+  }
 
   // Prepare metadata JSON
   const metadataJson = JSON.stringify({

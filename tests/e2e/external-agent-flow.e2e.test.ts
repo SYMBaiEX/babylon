@@ -12,11 +12,12 @@ import { test, expect } from '@playwright/test'
 import type { AgentCapabilities } from '@/types/a2a'
 
 // Base URL for API calls
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
 
-// Test agent data
+// Test agent data - use timestamp to ensure unique IDs
+const timestamp = Date.now()
 const testAgent = {
-  externalId: `test-agent-${Date.now()}`,
+  externalId: `test-agent-${timestamp}`,
   name: 'E2E Test Agent',
   description: 'External agent for end-to-end testing',
   endpoint: 'https://test-agent.example.com/a2a',
@@ -29,7 +30,7 @@ const testAgent = {
   } as AgentCapabilities,
   agentCard: {
     version: '1.0' as const,
-    agentId: `test-agent-${Date.now()}`,
+    agentId: `test-agent-${timestamp}`,
     name: 'E2E Test Agent',
     description: 'External agent for end-to-end testing',
     endpoints: {
@@ -47,15 +48,26 @@ const testAgent = {
 let apiKey: string
 let agentId: string
 
-test.describe.configure({ mode: 'serial' })
-
 test.describe('External Agent E2E Flow', () => {
+  let authCookies: string
+
+  test.beforeAll(async ({ browser }) => {
+    // Get authentication cookies from saved state
+    const context = await browser.newContext({
+      storageState: '.playwright/auth.json'
+    })
+    const cookies = await context.cookies()
+    authCookies = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+    await context.close()
+  })
+
   test.describe('Phase 1: Agent Registration', () => {
     test('should register a new external agent', async () => {
       const response = await fetch(`${BASE_URL}/api/agents/external/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cookie': authCookies,
         },
         body: JSON.stringify(testAgent),
       })
@@ -82,8 +94,8 @@ test.describe('External Agent E2E Flow', () => {
       apiKey = data.apiKey
       agentId = data.registration.agentId
 
-      console.log(`Registered agent: ${agentId}`)
-      console.log(`API Key: ${apiKey.substring(0, 20)}...`)
+      console.log(`✅ Registered agent: ${agentId}`)
+      console.log(`✅ API Key: ${apiKey.substring(0, 20)}...`)
     })
 
     test('should reject duplicate registration', async () => {
@@ -91,6 +103,7 @@ test.describe('External Agent E2E Flow', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cookie': authCookies,
         },
         body: JSON.stringify(testAgent),
       })
@@ -114,6 +127,7 @@ test.describe('External Agent E2E Flow', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cookie': authCookies,
         },
         body: JSON.stringify(invalidAgent),
       })

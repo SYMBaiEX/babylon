@@ -55,6 +55,10 @@ export function useRegisterAgentTx() {
 
   const registerAgent = useCallback(
     async (profile: OnboardingProfilePayload) => {
+      if (!registryAddress) {
+        throw new Error('Identity registry not configured for this chain');
+      }
+
       if (!smartWalletReady || !smartWalletAddress) {
         throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }

@@ -76,17 +76,24 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     console.log('⚠️  Network idle timed out, continuing...')
   }
   
-  // Wait for Privy SDK to be loaded
+  // Wait for Privy SDK to be loaded - with extended timeout for CI
   try {
-  await page.waitForFunction(() => {
-    return (window as any).privy !== undefined || 
-           document.querySelector('script[src*="privy"]') !== null
-    }, { timeout: 30000 })
+    await page.waitForFunction(() => {
+      return (window as any).privy !== undefined || 
+             document.querySelector('script[src*="privy"]') !== null ||
+             document.querySelector('[data-privy]') !== null
+    }, { timeout: 45000 })
+    console.log('✅ Privy SDK detected')
   } catch (e) {
     console.log('❌ Privy SDK check timed out')
-    // Don't continue if SDK is missing, it will just fail later
+    // Log more diagnostic info
     const content = await page.content()
+    const scripts = await page.evaluate(() => {
+      const scriptTags = Array.from(document.querySelectorAll('script'))
+      return scriptTags.map(s => s.src).filter(src => src).slice(0, 10)
+    })
     console.log(`📄 Page content preview: ${content.substring(0, 500)}...`)
+    console.log(`📜 Script tags found:`, scripts)
     throw new Error('Privy SDK failed to load - cannot proceed with authentication')
   }
   
@@ -100,16 +107,26 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
       const loginBtn = buttons.find(btn => {
         const text = btn.textContent?.toLowerCase() || ''
         return (text.includes('connect wallet') || 
+                text.includes('connect') ||
                 text.includes('log in') || 
+                text.includes('login') ||
                 text.includes('sign in'))
       })
       
       // Button exists and is NOT disabled (meaning Privy is ready)
       return loginBtn !== undefined && !(loginBtn as HTMLButtonElement).disabled
-    }, { timeout: 30000 })
+    }, { timeout: 45000 })
     console.log('✅ Login button is enabled (Privy ready)')
   } catch (e) {
     console.log('❌ Login button enabled check timed out')
+    // Log what buttons we found
+    const buttons = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('button')).map(b => ({
+        text: b.textContent?.trim(),
+        disabled: b.disabled
+      })).slice(0, 10)
+    })
+    console.log('Buttons found:', buttons)
     throw new Error('Login button never became enabled - Privy might not be initialized correctly')
   }
   
@@ -159,13 +176,13 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     console.log('🔍 Looking for enabled login button...')
     
     const loginButton = page.locator(
-      'button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Connect Wallet"), [data-testid="privy-login"]'
+      'button:has-text("Log in"), button:has-text("Login"), button:has-text("Sign in"), button:has-text("Connect Wallet"), button:has-text("Connect"), [data-testid="privy-login"]'
     ).first()
     
     // Wait for button to be visible AND enabled
     // The button is disabled when Privy's `ready` state is false
     try {
-      await expect(loginButton).toBeVisible({ timeout: 10000 })
+      await expect(loginButton).toBeVisible({ timeout: 15000 })
       console.log('✅ Login button is visible')
       
       // Wait for button to be enabled (Privy ready)
@@ -174,18 +191,20 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
         const btn = buttons.find(b => {
           const text = b.textContent?.toLowerCase() || ''
           return (text.includes('connect wallet') || 
+                  text.includes('connect') ||
                   text.includes('log in') || 
+                  text.includes('login') ||
                   text.includes('sign in'))
         })
         return btn !== null && !(btn as HTMLButtonElement).disabled
-      }, { timeout: 10000 }).catch(() => {
+      }, { timeout: 15000 }).catch(() => {
         console.log('⚠️  Button enabled check timed out, will try clicking anyway')
       })
       
       console.log('🖱️ Clicking login button...')
       // Now click the button - it should be enabled
-      await loginButton.click({ timeout: 5000 })
-      await page.waitForTimeout(1500) // Wait for modal to open
+      await loginButton.click({ timeout: 10000 })
+      await page.waitForTimeout(2000) // Wait for modal to open
       
       // Re-check email input after click
       isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
@@ -198,8 +217,8 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
       try {
         const isVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false)
         if (isVisible) {
-          await loginButton.click({ timeout: 5000, force: true })
-          await page.waitForTimeout(1500)
+          await loginButton.click({ timeout: 10000, force: true })
+          await page.waitForTimeout(2000)
           
           // Re-check email input after force click
           isLoginModalOpen = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
