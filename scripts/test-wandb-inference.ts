@@ -10,6 +10,7 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import { generateText } from 'ai';
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger';
 
 async function testWandbInference() {
   const args = process.argv.slice(2);
@@ -47,6 +48,20 @@ async function testWandbInference() {
       temperature: 0.7,
     });
     const latencyMs = Date.now() - startTime;
+    
+    if (isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'test_wandb_inference',
+        input: 'System: You are a helpful AI assistant.\n\nUser: Say "W&B RL Model Test" if you are a trained reinforcement learning model. Otherwise say "Base Model".',
+        output: result.text,
+        metadata: {
+          provider: 'wandb',
+          model: modelId,
+          temperature: 0.7,
+          maxTokens: 50
+        }
+      });
+    }
     
     console.log('✅ Call succeeded!\n');
     console.log(`Response: ${result.text}\n`);

@@ -19,7 +19,6 @@ import {
 import { generateObject, generateText } from 'ai'
 import { type TiktokenModel, encodingForModel } from 'js-tiktoken'
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 function getBaseURL(runtime: { getSetting: (key: string) => string | undefined }): string {
