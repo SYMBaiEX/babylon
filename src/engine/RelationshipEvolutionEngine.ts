@@ -361,7 +361,7 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
         }>(
           prompt,
           { required: ['description', 'type', 'sentiment'] },
-          { maxTokens: 200, temperature: 0.8 }
+          { maxTokens: 200, temperature: 0.8, promptType: 'relationship_evolve' }
         );
 
         if (response.description && response.description.trim().length > 0) {

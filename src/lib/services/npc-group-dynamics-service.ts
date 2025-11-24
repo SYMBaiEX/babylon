@@ -473,7 +473,7 @@ Return your response as XML in this exact format:
               },
               required: ['message'],
             },
-            { temperature: 0.9, maxTokens: 100 }
+            { temperature: 0.9, maxTokens: 100, promptType: 'npc_group_dynamic_message' }
           );
 
           // Handle XML structure

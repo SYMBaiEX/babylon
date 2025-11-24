@@ -14,8 +14,12 @@ describe('Reputation Sync with Localnet Default Keys', () => {
   let testAgentUserId: string
 
   beforeAll(async () => {
-    // Create test agent
+    // Create test agent with unique wallet address
     testAgentUserId = await generateSnowflakeId()
+    
+    // Generate a unique wallet address to avoid conflicts
+    const uniqueWalletSuffix = Date.now().toString(16).padStart(40, '0')
+    const uniqueWalletAddress = `0x${uniqueWalletSuffix}`
 
     await prisma.user.create({
       data: {
@@ -24,7 +28,7 @@ describe('Reputation Sync with Localnet Default Keys', () => {
         displayName: 'Test Localnet Agent',
         isAgent: true,
         agent0TokenId: 12345,
-        walletAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Second Hardhat account
+        walletAddress: uniqueWalletAddress,
         updatedAt: new Date(),
       },
     })

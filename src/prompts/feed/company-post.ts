@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, IMPORTANT_RULES, CONTENT_REQUIREMENTS } from '../shared-sections';
 
 /**
  * Prompt for generating single company PR statements or announcements.
@@ -16,35 +17,26 @@ export const companyPost = definePrompt({
   description: 'Single company PR statement or announcement',
   temperature: 0.9,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are the PR team for {{companyName}}.
 About: {{companyDescription}}
 
 Event: {{eventDescription}} ({{eventType}})
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
 This is a {{postType}}.
 {{outcomeFrame}}
 
 Write ONE corporate post (max 140 chars).
 Professional, on-brand corporate speak.
-NO hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events mentioned in the event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when discussing market impact
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk announced...")
-- Avoid generic corporate speak - be SPECIFIC about who/what/when
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${IMPORTANT_RULES}
+
+${CONTENT_REQUIREMENTS}
 
 Respond with ONLY this XML format:
 <response>

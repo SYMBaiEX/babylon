@@ -110,12 +110,19 @@ export class BabylonLLMClient {
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
     this.wandbModel = wandbModelOverride || process.env.WANDB_MODEL || undefined; // Can be configured via admin
     
+    // Timeout configuration - shorter in test environments to fail fast
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+    // Test: 30 seconds, Production: 180 seconds (3 minutes)
+    const timeoutMs = isTestEnv ? 30000 : 180000;
+    
     // Force specific provider if requested (only for special cases, e.g., testing specific providers)
     if (forceProvider === 'groq' && this.groqKey) {
       logger.info('Using Groq (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
         apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
+        timeout: timeoutMs,
+        maxRetries: 2,
       });
       this.provider = 'groq';
     } else if (this.wandbKey && !forceProvider) {
@@ -123,6 +130,8 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.wandbKey,
         baseURL: 'https://api.inference.wandb.ai/v1',
+        timeout: timeoutMs,
+        maxRetries: 2,
       });
       this.provider = 'wandb';
     } else if (this.groqKey) {
@@ -130,6 +139,8 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
+        timeout: timeoutMs,
+        maxRetries: 2,
       });
       this.provider = 'groq';
     } else if (this.claudeKey) {
@@ -137,11 +148,17 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.claudeKey,
         baseURL: 'https://api.anthropic.com/v1',
+        timeout: timeoutMs,
+        maxRetries: 2,
       });
       this.provider = 'claude';
     } else if (this.openaiKey) {
       logger.info('Using OpenAI (fallback)', undefined, 'BabylonLLMClient');
-      this.client = new OpenAI({ apiKey: this.openaiKey });
+      this.client = new OpenAI({ 
+        apiKey: this.openaiKey,
+        timeout: timeoutMs,
+        maxRetries: 2,
+      });
       this.provider = 'openai';
     } else {
       throw new Error(

@@ -31,12 +31,24 @@ export { shuffleArray } from '@/lib/utils/randomization';
 export function formatActorVoiceContext(actor: {
   postStyle?: string;
   postExample?: string[];
+  voice?: string;
+  personality?: string;
 }): string {
-  if (!actor.postStyle && !actor.postExample) {
+  if (!actor.postStyle && !actor.postExample && !actor.voice && !actor.personality) {
     return '';
   }
 
   let context = '';
+
+  // Personality drives voice - include it first
+  if (actor.personality) {
+    context += `\n   Personality: ${actor.personality}`;
+  }
+
+  // Voice description is the most important for distinct character sound
+  if (actor.voice) {
+    context += `\n   Voice: ${actor.voice}`;
+  }
 
   if (actor.postStyle) {
     context += `\n   Writing Style: ${actor.postStyle}`;
@@ -52,6 +64,75 @@ export function formatActorVoiceContext(actor: {
   }
 
   return context;
+}
+
+/**
+ * Build comprehensive character voice block for LLM prompts
+ * 
+ * Creates a detailed voice context that helps the LLM stay in character.
+ * Includes identity, personality, voice description, writing style, and examples.
+ * 
+ * @param actor - Actor with voice-related fields
+ * @returns Formatted multi-line voice block for LLM prompts
+ * 
+ * @example
+ * ```typescript
+ * const voiceBlock = buildCharacterVoiceBlock({
+ *   name: "AIlon Musk",
+ *   personality: "erratic visionary",
+ *   voice: "Speaks in cryptic one-liners. Uses 'lol' unironically...",
+ *   postStyle: "Short, cryptic posts. Random memes at 3am.",
+ *   postExample: ["lol", "Mars by 2026. Maybe 2027."]
+ * });
+ * ```
+ */
+export function buildCharacterVoiceBlock(actor: {
+  name: string;
+  description?: string;
+  personality?: string;
+  voice?: string;
+  postStyle?: string;
+  postExample?: string[];
+  domain?: string[];
+}): string {
+  const lines: string[] = [];
+  
+  lines.push(`━━━ CHARACTER VOICE: ${actor.name} ━━━`);
+  
+  // Core identity
+  if (actor.description) {
+    lines.push(`IDENTITY: ${actor.description}`);
+  }
+  
+  // Personality archetype - drives how they sound
+  if (actor.personality) {
+    lines.push(`PERSONALITY: ${actor.personality}`);
+  }
+  
+  // Voice description - HOW they speak
+  if (actor.voice) {
+    lines.push(`VOICE: ${actor.voice}`);
+  }
+  
+  // Writing style - structural patterns
+  if (actor.postStyle) {
+    lines.push(`WRITING STYLE: ${actor.postStyle}`);
+  }
+  
+  // Example posts - concrete examples to match
+  if (actor.postExample && actor.postExample.length > 0) {
+    const shuffled = shuffleArray(actor.postExample);
+    lines.push(`EXAMPLE POSTS (match this voice):`);
+    shuffled.slice(0, 3).forEach(ex => {
+      lines.push(`  • "${ex}"`);
+    });
+  }
+  
+  // Voice check instruction
+  lines.push(`\n⚡ BEFORE WRITING: Ask yourself "How would ${actor.name} say this?" Stay in character.`);
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  
+  return lines.join('\n');
 }
 
 // Note: ID generation is handled by generateSnowflakeId() from @/lib/snowflake

@@ -173,7 +173,7 @@ export async function callGroqDirect(params: {
       }
     })
   }
-
+  
   return result.text
 }
 

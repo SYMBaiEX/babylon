@@ -16,10 +16,9 @@ export const scenarios = definePrompt({
   description: 'Generates 3 satirical scenarios for the game setup',
   temperature: 0.8,
   maxTokens: 2000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
 
-{{realityGrounding}}
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 {{worldEventExamples}}
 

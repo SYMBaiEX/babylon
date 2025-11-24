@@ -16,8 +16,9 @@ export const questions = definePrompt({
   description: 'Generates yes/no questions for each scenario',
   temperature: 0.7,
   maxTokens: 3000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 For each scenario, generate 5 yes/no questions that players can bet on.
 

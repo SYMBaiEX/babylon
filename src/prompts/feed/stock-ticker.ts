@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, IMPORTANT_RULES, CONTENT_REQUIREMENTS } from '../shared-sections';
 
 /**
  * Prompt for generating stock ticker style posts for price movements.
@@ -16,8 +17,9 @@ export const stockTicker = definePrompt({
   description: 'Generates stock ticker style posts for price movements',
   temperature: 0.6,
   maxTokens: 200,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a stock ticker style post for this price movement:
 
@@ -27,11 +29,7 @@ PRICE: \${{currentPrice}}
 CHANGE: {{priceChange}}% ({{direction}})
 VOLUME: {{volume}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
 Create a brief, professional stock ticker post.
 
@@ -39,18 +37,11 @@ Requirements:
 - Concise financial reporting style
 - Include key numbers
 - Max 150 characters
-- No hashtags or emojis
 - Professional but can be subtly satirical
-- NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events related to the price movement
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI") when relevant
-- MUST reference specific markets/predictions by their exact names when relevant
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk's announcement...")
-- Avoid generic ticker updates - be SPECIFIC about what caused the movement
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${IMPORTANT_RULES}
+
+${CONTENT_REQUIREMENTS}
 
 Example: "{{ticker}} \${{currentPrice}} {{direction}} {{priceChange}}% on news of [brief event mention]"
 

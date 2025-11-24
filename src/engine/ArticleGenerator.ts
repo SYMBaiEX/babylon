@@ -412,6 +412,7 @@ export class ArticleGenerator {
         maxTokens: 2500,
         ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
         format: 'xml', // Use XML for robustness
+        promptType: 'article_generate',
       }
     );
     

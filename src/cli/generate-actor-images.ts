@@ -86,7 +86,7 @@ const ActorSchema = z.object({
   description: z.string(),
   domain: z.array(z.string()).optional(),
   personality: z.string().optional(),
-  physicalDescription: z.string().optional(),
+  pfpDescription: z.string().optional(),
   profileBanner: z.string().optional(),
 });
 type Actor = z.infer<typeof ActorSchema>;
@@ -238,15 +238,15 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
  * - Images: 1
  * - Quality: Best for portraits
  * 
- * @param {Actor} actor - Actor object with physicalDescription field
+ * @param {Actor} actor - Actor object with pfpDescription field
  * @returns {Promise<string>} URL of generated image
- * @throws {Error} If actor missing physicalDescription or API fails
+ * @throws {Error} If actor missing pfpDescription or API fails
  * @example
  * ```typescript
  * const actor = {
  *   id: 'actor1',
  *   name: 'John Doe',
- *   physicalDescription: 'Middle-aged man with glasses',
+ *   pfpDescription: 'Middle-aged man with glasses',
  *   personality: 'analytical'
  * };
  * const imageUrl = await generateActorImage(actor);
@@ -261,7 +261,7 @@ async function generateActorImage(actor: Actor): Promise<string> {
   const prompt = renderPrompt(actorPortrait, {
     actorName: actor.name,
     realName: actor.realName || actor.name,
-    physicalDescription: actor.physicalDescription!,
+    pfpDescription: actor.pfpDescription!,
     descriptionParts,
     personality: actor.personality || 'satirical'
   });

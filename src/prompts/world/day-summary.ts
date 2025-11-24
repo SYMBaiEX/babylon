@@ -16,8 +16,9 @@ export const daySummary = definePrompt({
   description: 'Generates one-line summaries of daily events',
   temperature: 0.6,
   maxTokens: 100,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a summary for Day {{day}}.
 

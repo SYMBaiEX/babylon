@@ -241,8 +241,8 @@ export class NPCBootstrapService {
     }
 
     // Physical description adds immersion
-    if (actorData.physicalDescription) {
-      parts.push(`Physical appearance: ${actorData.physicalDescription}`)
+    if (actorData.pfpDescription) {
+      parts.push(`Physical appearance: ${actorData.pfpDescription}`)
     }
 
     // Role provides context

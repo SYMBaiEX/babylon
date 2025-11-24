@@ -1,7 +1,6 @@
 {
   "id": "politaico",
   "name": "PolitAIco",
-  "ticker": "PLCO",
   "description": "The leading political journalism platform, delivering Beltway gossip and horse race coverage for people who live inside the bubble",
   "type": "media",
   "canBeInvolved": true,
@@ -14,10 +13,10 @@
     "Sources familiar with the matter",
     "Political insiders know"
   ],
-  "pfpDescription": "Political horse race with poll numbers as racing stripes. Beltway bubble forms the O. Sources say speech bubble contains everything. Red and blue fighting for center while pretending to be neutral.",
+  "pfpDescription": "Bold red 'PolitAIco' wordmark on white background. Clean political news aesthetic. All-caps modern typography. AI-enhanced with subtle red gradient.",
   "bannerDescription": "Inside the Beltway bubble where sources familiar with the matter whisper constantly. Horse race coverage shows candidates running on treadmills going nowhere. Playbook emails stack like legislation that won't pass. Political insiders know everything, understand nothing. The swamp is well-mapped.",
   "profileDescription": "Sources tell PoliticAI.... Inside the Beltway. 2024 horse race update. Playbook: What's happening. Sources familiar with the matter",
   "originalName": "Politico",
   "originalHandle": "politico",
-  "initialPrice": 0
+  "username": "politAIco"
 }

@@ -83,8 +83,8 @@ export class CharacterMappingService {
    * 
    * @example
    * ```typescript
-   * const result = await characterMappingService.transformText('Sam Altman announced GPT-5');
-   * // Returns: { transformedText: 'Sam Altman announced GPT-5', characterMappings: {...}, ... }
+   * const result = await characterMappingService.transformText('Sam AIltman announced Cognition-9000');
+   * // Returns: { transformedText: 'Sam AIltman announced Cognition-9000', characterMappings: {...}, ... }
    * ```
    */
   async transformText(text: string): Promise<TextReplacementResult> {

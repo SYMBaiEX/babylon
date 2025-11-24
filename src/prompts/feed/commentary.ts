@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating expert commentary and analysis on world events.
@@ -16,8 +17,9 @@ export const commentary = definePrompt({
   description: 'Generates expert commentary/analysis on world events',
   temperature: 1,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 News: {{eventDescription}}
 
@@ -25,35 +27,17 @@ News: {{eventDescription}}
 
 {{groupContext}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
-IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
+${STANDARD_FEED_RULES}
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from the news/event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when analyzing market implications
-- MUST reference specific trades or market movements when discussing trading activity
-- Use @username format when mentioning users (e.g., "@ailonmusk's move...")
-- Avoid generic commentary - be SPECIFIC about who/what you're analyzing
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${characterVoiceGuidance('commentatorsList')}
 
 Generate expert analysis posts from these {{commentatorCount}} commentators:
 
 {{commentatorsList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 commentators):
 <response>
@@ -65,7 +49,7 @@ Respond with ONLY this XML format (example for 2 commentators):
       <pointsToward>null</pointsToward>
     </comment>
     <comment>
-      <post>OpenAGI's GPT-6 consciousness claims from @samailtman again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.</post>
+      <post>OpenAGI's Cognition-9000 consciousness claims from @samailtman again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.</post>
       <sentiment>-0.2</sentiment>
       <clueStrength>0.5</clueStrength>
       <pointsToward>false</pointsToward>

@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating brief conversations between NPCs about game events.
@@ -16,8 +17,9 @@ export const npcConversation = definePrompt({
   description: 'Generates brief conversations between NPCs about game events',
   temperature: 0.8,
   maxTokens: 300,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a brief conversation between NPCs on Day {{day}}.
 
@@ -27,11 +29,8 @@ Context:
 - Participants: {{participants}}
 - Recent events: {{recentEvents}}
 
-IMPORTANT RULES:
-- Use ONLY the exact participant names provided above ({{participants}})
-- NEVER use real-world person or organization names
-- NEVER "correct" or change parody names - use them exactly as shown
-- When referencing other actors mentioned in events, use their exact parody names
+${PARODY_NAME_RULES}
+Use ONLY the exact participant names provided above ({{participants}}).
 
 Generate a natural conversation where:
 - Insiders hint at what they know

@@ -731,7 +731,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       truthContext
     });
 
-    const rawResponse = await this.llm.generateJSON<{ headline: string; report: string } | { response: { headline: string; report: string } }>(prompt);
+    const rawResponse = await this.llm.generateJSON<{ headline: string; report: string } | { response: { headline: string; report: string } }>(
+      prompt,
+      undefined,
+      { promptType: 'world_generate_news_report' }
+    );
     
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -765,7 +769,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       outcomeHint
     });
 
-    const rawResponse = await this.llm.generateJSON<{ rumor: string } | { response: { rumor: string } }>(prompt);
+    const rawResponse = await this.llm.generateJSON<{ rumor: string } | { response: { rumor: string } }>(
+      prompt,
+      undefined,
+      { promptType: 'world_generate_rumor' }
+    );
     
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -793,7 +801,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       recentEvents: events.slice(-2).map(e => e.description).join('; ')
     });
 
-    const rawResponse = await this.llm.generateJSON<{ conversation: string } | { response: { conversation: string } }>(prompt);
+    const rawResponse = await this.llm.generateJSON<{ conversation: string } | { response: { conversation: string } }>(
+      prompt,
+      undefined,
+      { promptType: 'world_generate_npc_conversation' }
+    );
     
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -825,7 +837,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       reliabilityContext
     });
 
-    const rawResponse = await this.llm.generateJSON<{ analysis: string } | { response: { analysis: string } }>(prompt);
+    const rawResponse = await this.llm.generateJSON<{ analysis: string } | { response: { analysis: string } }>(
+      prompt,
+      undefined,
+      { promptType: 'world_generate_expert_analysis' }
+    );
     
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -853,7 +869,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       outcome: this.config.outcome ? 'YES' : 'NO'
     });
 
-    const rawResponse = await this.llm.generateJSON<{ summary: string } | { response: { summary: string } }>(prompt);
+    const rawResponse = await this.llm.generateJSON<{ summary: string } | { response: { summary: string } }>(
+      prompt,
+      undefined,
+      { promptType: 'world_generate_day_summary' }
+    );
     
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response

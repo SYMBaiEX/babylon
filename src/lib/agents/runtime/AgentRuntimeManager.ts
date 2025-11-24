@@ -455,8 +455,8 @@ export class AgentRuntimeManager {
     if (actorData.description) {
       bio.push(actorData.description)
     }
-    if (actorData.physicalDescription) {
-      bio.push(`Physical: ${actorData.physicalDescription}`)
+    if (actorData.pfpDescription) {
+      bio.push(`Physical: ${actorData.pfpDescription}`)
     }
     if (actorData.role) {
       bio.push(`Role: ${actorData.role}`)

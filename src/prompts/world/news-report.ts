@@ -16,8 +16,9 @@ export const newsReport = definePrompt({
   description: 'Generates news reports from journalists covering game events',
   temperature: 0.8,
   maxTokens: 300,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a news report for Day {{day}} of a prediction market game.
 

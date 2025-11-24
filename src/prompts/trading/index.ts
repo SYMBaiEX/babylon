@@ -2,7 +2,7 @@
  * Trading Prompts Index
  */
 
-export { npcMarketDecisions } from './npc-market-decisions';
+export { npcMarketDecisions, getShuffledExamplesText } from './npc-market-decisions';
 
 
 

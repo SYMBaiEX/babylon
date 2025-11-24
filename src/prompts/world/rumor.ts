@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating rumors and unconfirmed information for game world.
@@ -16,8 +17,9 @@ export const rumor = definePrompt({
   description: 'Generates rumors and unconfirmed information for game world',
   temperature: 0.9,
   maxTokens: 150,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a rumor for Day {{day}} of a prediction market game.
 
@@ -26,10 +28,7 @@ Context:
 - Real outcome: {{outcome}}
 - Recent events: {{recentEvents}}
 
-IMPORTANT RULES:
-- NEVER use real-world person or organization names
-- When referencing actors or companies from recent events, use their exact parody names
-- NEVER "correct" or change parody names - use them exactly as shown in events
+${PARODY_NAME_RULES}
 
 Generate a realistic rumor that:
 - Sounds like internet gossip or leaked information

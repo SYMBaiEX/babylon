@@ -122,14 +122,29 @@ export class TradeExecutionService {
   async executeSingleDecision(
     decision: TradingDecision
   ): Promise<ExecutedTrade> {
+    // Normalize NPC ID to lowercase for case-insensitive lookup
+    const normalizedNpcId = decision.npcId.toLowerCase();
+    
+    // Normalize amount - handle string amounts with commas (e.g., "12,000" -> 12000)
+    if (typeof decision.amount === 'string') {
+      const cleanedAmount = String(decision.amount).replace(/,/g, '');
+      decision.amount = parseFloat(cleanedAmount);
+    }
+    if (isNaN(decision.amount) || decision.amount <= 0) {
+      throw new Error(`Invalid amount: ${decision.amount}`);
+    }
+    
     // Get NPC actor
     const actor = await prisma.actor.findUnique({
-      where: { id: decision.npcId },
+      where: { id: normalizedNpcId },
     });
 
     if (!actor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
+    
+    // Update decision to use normalized ID
+    decision.npcId = normalizedNpcId;
 
     // Note: Balance checks are performed inside transactions to ensure atomicity
     // and prevent race conditions when multiple trades are queued for the same NPC
@@ -268,6 +283,30 @@ export class TradeExecutionService {
           tradingBalance: { decrement: totalCost },
         },
       });
+
+      // Ensure Pool exists for this actor (required for PoolPosition foreign key)
+      const existingPool = await tx.pool.findUnique({ where: { id: actorId } });
+      if (!existingPool) {
+        const now = new Date();
+        await tx.pool.create({
+          data: {
+            id: actorId,
+            npcActorId: actorId,
+            name: `${actor.name} Portfolio`,
+            description: `Auto-created portfolio for ${actor.name}`,
+            isActive: true,
+            totalValue: new Prisma.Decimal(0),
+            totalDeposits: new Prisma.Decimal(0),
+            availableBalance: new Prisma.Decimal(0),
+            lifetimePnL: new Prisma.Decimal(0),
+            performanceFeeRate: 0.05,
+            totalFeesCollected: new Prisma.Decimal(0),
+            openedAt: now,
+            updatedAt: now,
+            status: 'ACTIVE',
+          }
+        });
+      }
 
       // Create position (using actorId as poolId for backward compatibility)
       // Store the raw organization ID as ticker for database consistency

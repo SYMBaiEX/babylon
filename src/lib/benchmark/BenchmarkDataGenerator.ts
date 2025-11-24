@@ -220,16 +220,16 @@ export class BenchmarkDataGenerator {
   private generateInitialState(timestamp: number): GameState {
     const predictionMarkets: PredictionMarket[] = [];
     const questions = [
-      'Will Bitcoin reach $100k by end of month?',
-      'Will the next Fed meeting result in rate cut?',
-      'Will Trump win the 2024 election?',
-      'Will Ethereum merge be successful?',
-      'Will Tesla stock hit $300 this quarter?',
-      'Will GPT-5 be released this year?',
-      'Will inflation drop below 2%?',
-      'Will the S&P 500 reach new highs?',
-      'Will oil prices exceed $100/barrel?',
-      'Will Apple announce new product line?',
+      'Will BitcAIn reach $150k by end of month?',
+      'Will The FUD announce emergency rate cut?',
+      'Will Trump Terminal tweet cause market crash?',
+      'Will EtherAIum gas fees drop below $1?',
+      'Will TeslAI stock hit $500 this quarter?',
+      'Will OpenAGI release Cognition-9000 this year?',
+      'Will SolanAI flip EtherAIum in TVL?',
+      'Will AIlon Musk announce Mars colony launch?',
+      'Will Mark Zuckerborg rebrand MetAI again?',
+      'Will Sam AIltman declare AGI achieved?',
     ];
     
     for (let i = 0; i < this.config.numPredictionMarkets; i++) {
@@ -260,8 +260,8 @@ export class BenchmarkDataGenerator {
     }
     
     const perpetualMarkets: PerpetualMarket[] = [];
-    const tickers = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'];
-    const basePrices = [65000, 3200, 140, 35, 0.9];
+    const tickers = ['BTCAI', 'ETHAI', 'SOLAI', 'TSLA', 'META'];
+    const basePrices = [120000, 4000, 200, 450, 600];
     
     for (let i = 0; i < this.config.numPerpetualMarkets; i++) {
       const ticker = tickers[i % tickers.length]!;

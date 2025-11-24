@@ -15,7 +15,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { ContractAddresses, DeploymentInfo } from '../../src/lib/deployment/validation'
 import { saveDeployment, updateEnvFile } from '../../src/lib/deployment/validation'
 import { logger } from '../../src/lib/logger'
-import '../../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
+import '../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
 const HARDHAT_RPC_URL = 'http://localhost:8545'
 const HARDHAT_CHAIN_ID = 31337

@@ -464,9 +464,7 @@ export async function getReputationLeaderboard(limit = 100, minGames = 5) {
   }))
 }
 
-// ============================================================================
 // AUTO-FEEDBACK GENERATION FUNCTIONS
-// ============================================================================
 
 /**
  * Calculate feedback score from game performance metrics

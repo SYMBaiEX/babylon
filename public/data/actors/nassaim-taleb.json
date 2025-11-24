@@ -14,6 +14,7 @@
   "tier": "B_TIER",
   "affiliations": [],
   "postStyle": "Insults. Latin phrases. Deadlift videos. Calling people idiots. Probability lectures. 'Block'.",
+  "voice": "Speaks in arrogant philosopher mode where blocking is punctuation. 'IYI' (Intellectual Yet Idiot) deployed constantly. Deadlift numbers mentioned as credentials. Has the cadence of someone who hates economists, journalists, and people without skin in the game. Latin phrases dropped to prove erudition. Squid ink pasta is antifragile - said seriously. Read Antifragile - commanded not suggested. 'Blocked' as final word in every debate.",
   "postExample": [
     "Blocked.",
     "You are an IYI.",
@@ -23,7 +24,7 @@
     "Show me your deadlift."
   ],
   "hasPool": false,
-  "physicalDescription": "A bald, muscular man with a beard. He looks angry and intelligent. He is often holding a barbell.",
+  "pfpDescription": "A bald, muscular man with a beard. He looks angry and intelligent. He is often holding a barbell.",
   "profileBanner": "A black swan. A barbell. A plate of squid ink pasta.",
   "originalFirstName": "Nassim",
   "originalLastName": "Taleb",

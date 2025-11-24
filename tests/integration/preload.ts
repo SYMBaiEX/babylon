@@ -1,0 +1,178 @@
+/**
+ * Preload file for integration tests
+ *
+ * This file is loaded before all integration tests to:
+ * 1. Set up proper test environment
+ * 2. Configure Prisma for test isolation
+ * 3. Set up graceful cleanup handlers
+ * 4. Configure LLM timeouts for faster test failures
+ */
+
+// Set test environment first (before any imports)
+// Using bracket notation to bypass readonly property check
+(process.env as Record<string, string>)['NODE_ENV'] = 'test';
+(process.env as Record<string, string>)['BUN_ENV'] = 'test';
+
+// Reduce LLM timeout for tests (30 seconds instead of default)
+process.env.LLM_TIMEOUT_MS = '30000';
+
+import { prisma } from '@/lib/prisma';
+
+/**
+ * Global test lifecycle hooks for Prisma isolation
+ */
+
+// Cleanup stale locks before running tests
+async function cleanupStaleLocks(): Promise<void> {
+  try {
+    // Clean up any expired generation locks that might block tests
+    const expiredLocks = await prisma.generationLock.deleteMany({
+      where: {
+        expiresAt: { lt: new Date() }
+      }
+    });
+    
+    if (expiredLocks.count > 0) {
+      console.log(`[Test Preload] Cleaned up ${expiredLocks.count} expired generation locks`);
+    }
+    
+    // Also clean up any test-specific locks (from previous test runs)
+    const testLocks = await prisma.generationLock.deleteMany({
+      where: {
+        OR: [
+          { id: { contains: 'test' } },
+          { lockedBy: { contains: 'test' } },
+          // Clean up serverless locks older than 15 minutes
+          {
+            AND: [
+              { lockedBy: { startsWith: 'serverless-' } },
+              { lockedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } }
+            ]
+          }
+        ]
+      }
+    });
+    
+    if (testLocks.count > 0) {
+      console.log(`[Test Preload] Cleaned up ${testLocks.count} test-related locks`);
+    }
+  } catch (error) {
+    // Non-fatal - tests may still work
+    console.warn('[Test Preload] Could not cleanup stale locks:', error);
+  }
+}
+
+/**
+ * Cleanup test data that might interfere with other tests
+ */
+async function cleanupTestData(): Promise<void> {
+  try {
+    // Clean up test users (those created by tests with specific prefixes)
+    const testUsers = await prisma.user.deleteMany({
+      where: {
+        OR: [
+          { username: { startsWith: 'test-' } },
+          { username: { startsWith: 'lock-test-' } },
+          { username: { startsWith: 'endpoint-lock-' } },
+          { username: { contains: 'integration-test' } },
+        ]
+      }
+    });
+    
+    if (testUsers.count > 0) {
+      console.log(`[Test Preload] Cleaned up ${testUsers.count} test users`);
+    }
+    
+    // Clean up test questions/markets created in previous runs
+    const oldTestQuestions = await prisma.question.deleteMany({
+      where: {
+        AND: [
+          { text: { startsWith: 'Integration test:' } },
+          { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } } // older than 1 hour
+        ]
+      }
+    });
+    
+    if (oldTestQuestions.count > 0) {
+      console.log(`[Test Preload] Cleaned up ${oldTestQuestions.count} old test questions`);
+    }
+    
+    const oldTestMarkets = await prisma.market.deleteMany({
+      where: {
+        AND: [
+          { question: { startsWith: 'Integration test:' } },
+          { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } }
+        ]
+      }
+    });
+    
+    if (oldTestMarkets.count > 0) {
+      console.log(`[Test Preload] Cleaned up ${oldTestMarkets.count} old test markets`);
+    }
+  } catch (error) {
+    // Non-fatal
+    console.warn('[Test Preload] Could not cleanup test data:', error);
+  }
+}
+
+/**
+ * Initialize test environment
+ */
+async function initializeTestEnvironment(): Promise<void> {
+  console.log('[Test Preload] Initializing integration test environment...');
+  
+  // Verify database connection
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('[Test Preload] Database connection verified');
+    
+    // Clean up stale data from previous test runs
+    await cleanupStaleLocks();
+    await cleanupTestData();
+    
+    console.log('[Test Preload] Integration test environment ready');
+  } catch (error) {
+    // Database connection is optional - tests that need it will skip themselves
+    console.warn('[Test Preload] Database not available - some tests may be skipped');
+    console.warn('[Test Preload] Error:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Graceful shutdown handler
+ */
+async function gracefulShutdown(): Promise<void> {
+  console.log('[Test Preload] Shutting down test environment...');
+  
+  try {
+    // Clean up any remaining test data
+    await cleanupStaleLocks();
+    
+    // Disconnect Prisma
+    await prisma.$disconnect();
+    console.log('[Test Preload] Prisma disconnected');
+  } catch (error) {
+    console.warn('[Test Preload] Error during shutdown:', error);
+  }
+}
+
+// Run initialization
+initializeTestEnvironment().catch((error) => {
+  console.error('[Test Preload] Failed to initialize:', error);
+  process.exit(1);
+});
+
+// Register shutdown handlers
+process.on('beforeExit', gracefulShutdown);
+process.on('SIGINT', async () => {
+  await gracefulShutdown();
+  process.exit(0);
+});
+process.on('SIGTERM', async () => {
+  await gracefulShutdown();
+  process.exit(0);
+});
+
+// Export utilities for tests to use
+export { cleanupStaleLocks, cleanupTestData };
+

@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating private group chat messages for the day.
@@ -16,8 +17,9 @@ export const groupMessages = definePrompt({
   description: 'Generates private group chat messages for the day',
   temperature: 1,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 {{fullContext}}{{scenarioContext}}{{questionContext}}
 
@@ -34,11 +36,9 @@ This is PRIVATE. Members say things here they would NEVER say publicly:
 - Insider data (revenues, deals, failures)
 - What they're REALLY doing vs what they say publicly
 
-IMPORTANT RULES:
-- Use ONLY the exact actor names provided in the context above
-- NEVER use real-world person or organization names
-- NEVER "correct" or change parody names - use them exactly as shown
-- When referencing other actors, use their exact parody names from the game world
+${PARODY_NAME_RULES}
+
+${characterVoiceGuidance('groupsList')}
 
 Today's events: {{eventsList}}
 {{recentEventContext}}

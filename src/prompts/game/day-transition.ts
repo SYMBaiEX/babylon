@@ -16,8 +16,9 @@ export const dayTransition = definePrompt({
   description: 'Generates day transition summary events',
   temperature: 0.7,
   maxTokens: 500,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate a brief transition event marking the start of a new day.
 

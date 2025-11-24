@@ -13,8 +13,9 @@ export const questionResolutionValidation = definePrompt({
   description: 'Validates resolution outcome and generates proof event',
   temperature: 0.7,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Question: {{questionText}}
 Outcome: {{outcome}}

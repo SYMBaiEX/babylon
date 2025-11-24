@@ -16,8 +16,9 @@ export const dayEvents = definePrompt({
   description: 'Generates day-by-day event descriptions with narrative context',
   temperature: 0.9,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 {{fullContext}}
 

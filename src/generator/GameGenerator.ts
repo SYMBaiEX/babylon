@@ -83,29 +83,19 @@ interface SelectedActorsByTier {
 }
 
 /**
- * Generate context from previous month's game
+ * Generate context from previous month's game (compact format)
  */
 function generatePreviousMonthContext(previousHistory: GameHistory[]): string {
-  if (previousHistory.length === 0) {
-    return ''; // No previous history available
-  }
+  if (previousHistory.length === 0) return '';
   
   const lastGame = previousHistory[previousHistory.length - 1]!;
+  const outcomes = lastGame.keyOutcomes.map(o => `${o.questionText.substring(0, 40)}...→${o.outcome ? 'Y' : 'N'}`).join(' | ');
   
-  return `
-━━━ PREVIOUS MONTH CONTEXT ━━━
-${lastGame.summary}
-
-Prediction outcomes from last month:
-${lastGame.keyOutcomes.map(o => `- ${o.questionText} → ${o.outcome ? 'YES' : 'NO'}`).join('\n')}
-
-Key moments: ${lastGame.highlights.slice(0, 3).join('; ')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  return `PREV_MONTH: ${lastGame.summary.substring(0, 100)}... | OUTCOMES: ${outcomes}`;
 }
 
 /**
- * Generate current month setup context
+ * Generate current month setup context (compact format)
  */
 function generateCurrentMonthContext(
   mainActors: SelectedActor[],
@@ -113,37 +103,28 @@ function generateCurrentMonthContext(
   questions: Question[],
   day: number
 ): string {
-  return `
-━━━ CURRENT MONTH - DAY ${day}/30 ━━━
-
-MAIN ACTORS (focus on these):
-${mainActors.map(a => `- ${a.name}: ${a.description} [${a.affiliations?.join(', ') || 'independent'}]`).join('\n')}
-
-ACTIVE SCENARIOS:
-${scenarios.map(s => `- ${s.title}: ${s.description}`).join('\n')}
-
-PREDICTION MARKETS:
-${questions.map(q => `- ${q.text}`).join('\n')}
-
-ORGANIZATIONS: ${scenarios.flatMap(s => s.involvedOrganizations).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  const actors = mainActors.map(a => `${a.name}[${a.affiliations?.join(',') || 'ind'}]`).join(', ');
+  const scenarioList = scenarios.map(s => s.title).join(', ');
+  const questionList = questions.slice(0, 5).map(q => `"${q.text.substring(0, 40)}..."`).join(' | ');
+  const orgs = scenarios.flatMap(s => s.involvedOrganizations).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+  
+  return `DAY ${day}/30 | ACTORS: ${actors} | SCENARIOS: ${scenarioList} | QUESTIONS: ${questionList} | ORGS: ${orgs}`;
 }
 
 /**
- * Generate day-by-day summaries for this month
+ * Generate day-by-day summaries for this month (compact format)
  */
 function generateDaySummariesContext(previousDays: DayTimeline[]): string {
-  return `
-━━━ THIS MONTH SO FAR ━━━
-${previousDays.map(d => `Day ${d.day}: ${d.summary}
-Events: ${d.events.map(e => e.description).join('; ')}`).join('\n\n')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  const summaries = previousDays.slice(-5).map(d => {
+    const events = d.events.slice(0, 2).map(e => e.description.substring(0, 30)).join('; ');
+    return `D${d.day}:${d.summary.substring(0, 40)}...[${events}]`;
+  }).join(' | ');
+  
+  return `HISTORY(last5): ${summaries}`;
 }
 
 /**
- * Get actor's group context - all groups they're in + recent messages
+ * Get actor's group context - all groups they're in + recent messages (compact format)
  */
 function getActorGroupContext(
   actorId: string,
@@ -152,37 +133,33 @@ function getActorGroupContext(
   allActors: SelectedActor[]
 ): string {
   const memberOf = allGroups.filter(g => g.members.includes(actorId));
+  if (memberOf.length === 0) return '';
   
-  const groupContexts = memberOf.map(group => {
+  const groupContexts = memberOf.slice(0, 3).map(group => {
     const recentMessages: string[] = [];
     
-    for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 3); i--) {
+    for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 2); i--) {
       const dayData = previousDays[i];
       if (!dayData) continue;
       
       const msgs = dayData.groupChats?.[group.id] || [];
-      
-      msgs.slice(-3).forEach((msg: ChatMessage) => {
+      msgs.slice(-2).forEach((msg: ChatMessage) => {
         const actor = allActors.find(a => a.id === msg.from);
-        recentMessages.push(`${actor?.name || msg.from}: "${msg.message}"`);
+        const content = msg.message.length > 40 ? msg.message.substring(0, 40) + '...' : msg.message;
+        recentMessages.push(`${actor?.name || msg.from}:"${content}"`);
       });
     }
     
-    const memberNames = group.members
+    const members = group.members
       .map(id => allActors.find(a => a.id === id)?.name || id)
-      .filter(name => name !== allActors.find(a => a.id === actorId)?.name);
+      .filter(name => name !== allActors.find(a => a.id === actorId)?.name)
+      .slice(0, 3)
+      .join(',');
     
-    return `- "${group.name}": ${memberNames.join(', ')}
-  ${recentMessages.length > 0 ? `Recent: ${recentMessages.slice(-3).join('; ')}` : 'No recent messages'}`;
-  }).join('\n');
+    return `${group.name}[${members}]${recentMessages.length > 0 ? ':' + recentMessages.join('|') : ''}`;
+  }).join(' | ');
   
-  return memberOf.length > 0 ? `
-━━━ YOUR PRIVATE GROUP CHATS ━━━
-${groupContexts}
-
-You're aware of these conversations. They inform your knowledge and perspective.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-` : '';
+  return `GROUPS: ${groupContexts}`;
 }
 
 export function createScenarioPrompt(mainActors: Actor[], organizations?: Organization[]) {
@@ -1230,10 +1207,6 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     const response = 'response' in parsedResponse && parsedResponse.response
       ? parsedResponse.response
       : parsedResponse as { name: string };
-
-    if (!response || typeof response !== 'object' || !response.name || typeof response.name !== 'string') {
-      return `${admin.name}'s Group`; // Fallback
-    }
 
     return response.name.toLowerCase();
   }

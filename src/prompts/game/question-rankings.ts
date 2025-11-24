@@ -17,8 +17,6 @@ export const questionRankings = definePrompt({
   temperature: 0.5,
   maxTokens: 2000,
   template: `
-You must respond with valid XML only.
-
 Rank these questions by dramatic potential and entertainment value (1 = best, {{questionCount}} = worst):
 
 {{questionsList}}

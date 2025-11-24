@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating multiple reply posts creating conversations.
@@ -16,10 +17,9 @@ export const replies = definePrompt({
   description: 'Generates reply posts to existing posts, creating conversations',
   temperature: 1,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
 
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Post: @{{originalAuthorName}}: "{{originalContent}}"
 
@@ -27,34 +27,17 @@ Post: @{{originalAuthorName}}: "{{originalContent}}"
 
 {{groupContext}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
-IMPORTANT RULES:
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
+${STANDARD_FEED_RULES}
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from the original post or WORLD CONTEXT
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when discussing them
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk said...", "I agree with @samailtman...")
-- Avoid generic replies - be SPECIFIC about who/what you're responding to
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${characterVoiceGuidance('repliersList')}
 
 Generate reply posts from these {{replierCount}} actors:
 
 {{repliersList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 replies):
 <response>

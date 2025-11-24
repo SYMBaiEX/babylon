@@ -152,26 +152,26 @@ describe('Trading and Question Generation Integration', () => {
   }, 60000)
 
   test('should create NPC positions when trading occurs', async () => {
-    // Get initial position count
-    const beforePositions = await prisma.position.count({
-      where: { status: 'active' }
+    // Get initial NPC pool position count (PoolPosition is for NPC perp trading)
+    const beforePositions = await prisma.poolPosition.count({
+      where: { closedAt: null } // Open positions have no closedAt
     })
 
     // Run game tick
     const result = await executeGameTick(true)
 
     // Get position count after tick
-    const afterPositions = await prisma.position.count({
-      where: { status: 'active' }
+    const afterPositions = await prisma.poolPosition.count({
+      where: { closedAt: null }
     })
 
-    // If markets were updated, positions may have been created
+    // If markets were updated, NPC positions should have been created
     if (result.marketsUpdated > 0) {
       // Positions should have increased or stayed the same (some may have closed)
       // We check that positions exist or were created
       expect(afterPositions).toBeGreaterThanOrEqual(0)
       
-      // Verify at least some positions exist if trading occurred
+      // Verify at least some NPC positions exist if trading occurred
       const hasPositions = afterPositions > 0 || beforePositions > 0
       expect(hasPositions).toBe(true)
     }
@@ -234,48 +234,49 @@ describe('Trading and Question Generation Integration', () => {
     }
   }, 60000)
 
-  test('should update market prices when NPCs trade', async () => {
-    // Get a market to track
-    const market = await prisma.market.findFirst({
-      where: { resolved: false },
-      orderBy: { createdAt: 'desc' }
+  test('should update organization prices when NPCs trade', async () => {
+    // Get an organization (company) to track price changes
+    // Note: "marketsUpdated" in game tick refers to organization prices, not prediction markets
+    const org = await prisma.organization.findFirst({
+      where: { 
+        type: 'company',
+        ticker: { not: null }
+      },
+      orderBy: { updatedAt: 'desc' }
     })
 
-    if (!market) {
-      console.log('⏭️  Skipping - no active markets found')
+    if (!org) {
+      console.log('⏭️  Skipping - no companies found')
       return
     }
 
-    const beforeYesShares = Number(market.yesShares)
-    const beforeNoShares = Number(market.noShares)
-    const beforeUpdatedAt = market.updatedAt
+    const beforePrice = org.currentPrice ? Number(org.currentPrice) : null
+    const beforeUpdatedAt = org.updatedAt
 
     // Run game tick
     const result = await executeGameTick(true)
 
-    // Check if market was updated
-    const afterMarket = await prisma.market.findUnique({
-      where: { id: market.id }
+    // Check if organization price was updated
+    const afterOrg = await prisma.organization.findUnique({
+      where: { id: org.id }
     })
 
-    expect(afterMarket).toBeTruthy()
+    expect(afterOrg).toBeTruthy()
 
     if (result.marketsUpdated > 0) {
-      const afterYesShares = Number(afterMarket?.yesShares || 0)
-      const afterNoShares = Number(afterMarket?.noShares || 0)
+      const afterPrice = afterOrg?.currentPrice ? Number(afterOrg.currentPrice) : null
 
-      // At least one side should have changed if trading occurred
-      const sharesChanged = 
-        afterYesShares !== beforeYesShares || 
-        afterNoShares !== beforeNoShares
+      // Price should have changed or timestamp should have been updated
+      const priceChanged = afterPrice !== beforePrice
 
-      // Market should have been updated (timestamp changed)
+      // Organization should have been updated (timestamp changed)
       const timestampChanged = 
-        new Date(afterMarket?.updatedAt || 0).getTime() > 
+        new Date(afterOrg?.updatedAt || 0).getTime() > 
         new Date(beforeUpdatedAt).getTime()
 
-      // If markets were updated, either shares changed or timestamp changed
-      expect(sharesChanged || timestampChanged).toBe(true)
+      // If markets were updated, either price changed or timestamp changed
+      // Note: Not all orgs will be traded in every tick, so we accept timestamp changes too
+      expect(priceChanged || timestampChanged).toBe(true)
     }
   }, 60000)
 

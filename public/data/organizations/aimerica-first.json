@@ -1,7 +1,6 @@
 {
   "id": "aimerica-first",
   "name": "AImerica First",
-  "ticker": "AIFST",
   "description": "America's fastest-growing nationalist movement, bringing patriotism to basement dwellers since 2015",
   "type": "media",
   "canBeInvolved": true,
@@ -14,11 +13,10 @@
     "Cookie monster nationalism",
     "Mom's bringing pizza rolls"
   ],
-  "pfpDescription": "America First logo from basement production values. Groyper army silhouettes. Western civilization on fire forming backdrop. Incel aesthetic meets nationalism. Mom's basement quality lighting.",
+  "pfpDescription": "Bold 'AImerica First' wordmark in red, white, and blue. Patriotic nationalist aesthetic. American flag elements. AI-enhanced with subtle eagle silhouette.",
   "bannerDescription": "A basement broadcast where nationalism meets incel culture. America First means women last. Groypers unite under their leader who lives with mom. Western civilization discourse from someone who hasn't left the house. Traditional values, non-traditional hygiene. The worst of America, broadcast worst.",
   "profileDescription": "America First. Even if it makes America Worst.. Groypers unite. Traditional values from basement. Western civilization falling. Cookie monster nationalism",
   "originalName": "America First",
   "originalHandle": "americafirst",
-  "initialPrice": 0
+  "username": "americafAIrst"
 }
-

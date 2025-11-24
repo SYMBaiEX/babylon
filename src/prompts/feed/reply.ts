@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating individual reply posts to existing content.
@@ -16,29 +17,20 @@ export const reply = definePrompt({
   description: 'Generates individual reply posts to existing content',
   temperature: 0.9,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}
 Original post by {{originalAuthorName}}: "{{originalContent}}"
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
-Write a reply (max 140 chars) responding to this post. No hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
+Write a reply (max 140 chars) responding to this post.
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from the original post or WORLD CONTEXT
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when discussing them
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk said...", "I agree with @samailtman...")
-- Avoid generic replies - be SPECIFIC about who/what you're responding to
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${STANDARD_FEED_RULES}
+
 {{relationshipContext}}
 
 Also analyze:

@@ -71,5 +71,5 @@ test-results/
 playwright-report/
 .playwright/test-tokens.json
 
-# Debug prompts
-debug-prompts/
+# Debug stuff
+debug/

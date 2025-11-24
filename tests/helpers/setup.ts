@@ -2,7 +2,7 @@
  * Test Setup Helper
  *
  * Ensures consistent test environment setup across all test suites.
- * Handles Prisma initialization and database readiness checks.
+ * Handles Prisma initialization, database readiness checks, and test isolation.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -80,4 +80,103 @@ export function shouldSkipDatabaseTests(): boolean {
   const skipRequested = process.env.SKIP_DATABASE_TESTS === 'true';
 
   return !hasDatabase || skipRequested;
+}
+
+/**
+ * Clean up stale generation locks that might interfere with tests
+ * Call this in beforeAll() or beforeEach() if your tests use locks
+ */
+export async function cleanupStaleLocks(): Promise<number> {
+  try {
+    // Delete expired locks
+    const result = await prisma.generationLock.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          // Also clean up any locks from previous test runs
+          { id: { contains: 'test' } },
+          { lockedBy: { contains: 'test' } },
+        ]
+      }
+    });
+    return result.count;
+  } catch (error) {
+    console.warn('Could not cleanup stale locks:', error);
+    return 0;
+  }
+}
+
+/**
+ * Generate a unique test ID to avoid conflicts between parallel tests
+ */
+export function generateTestId(prefix: string = 'test'): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+/**
+ * Create an isolated test context with automatic cleanup
+ * Use this for tests that create database records
+ * 
+ * @example
+ * ```typescript
+ * const { cleanup, testPrefix } = await createIsolatedTestContext('my-test');
+ * // Create records with testPrefix in their IDs
+ * // ...
+ * // In afterAll:
+ * await cleanup();
+ * ```
+ */
+export async function createIsolatedTestContext(name: string): Promise<{
+  testPrefix: string;
+  cleanup: () => Promise<void>;
+}> {
+  const testPrefix = generateTestId(name);
+  
+  const cleanup = async () => {
+    try {
+      // Clean up any records created with this test prefix
+      await prisma.generationLock.deleteMany({
+        where: {
+          OR: [
+            { id: { contains: testPrefix } },
+            { lockedBy: { contains: testPrefix } },
+          ]
+        }
+      });
+      
+      await prisma.user.deleteMany({
+        where: {
+          OR: [
+            { username: { contains: testPrefix } },
+            { id: { contains: testPrefix } },
+          ]
+        }
+      });
+    } catch (error) {
+      // Non-fatal - log and continue
+      console.warn(`[${name}] Cleanup warning:`, error);
+    }
+  };
+  
+  return { testPrefix, cleanup };
+}
+
+/**
+ * Wrap a test operation in a timeout to prevent hanging
+ * Useful for tests that call external services
+ */
+export async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  operationName: string = 'operation'
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  
+  return Promise.race([operation, timeoutPromise]);
 }

@@ -55,9 +55,9 @@ export class ParodyHeadlineGenerator {
    * @example
    * ```typescript
    * const parody = await generator.generateParody(
-   *   'OpenAI announces GPT-5',
+   *   'OpenAGI announces Cognition-9000',
    *   'Full article content...',
-   *   'TechCrunch'
+   *   'TechCrAInch'
    * );
    * ```
    */
@@ -102,6 +102,7 @@ export class ParodyHeadlineGenerator {
         maxTokens: 500,
         ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
         format: 'xml',
+        promptType: 'parody_headline_generation',
       }
     );
 

@@ -32,6 +32,7 @@ export interface Actor {
   profileDescription?: string; // What the actor says about themselves on their profile
   domain?: string[];
   personality?: string;
+  voice?: string; // HOW they speak - verbal patterns, tone, sentence structure
   role?: string;
   affiliations?: string[]; // Organization IDs
   postStyle?: string; // Style guide for how they write posts
@@ -364,7 +365,7 @@ export interface ElizaCharacter {
 export interface ActorData extends Actor {
   realName: string;
   username: string;
-  physicalDescription?: string; // For image generation only
+  pfpDescription?: string; // For image generation only
   profileBanner?: string; // For image generation only
   originalFirstName: string; // For name replacement
   originalLastName: string; // For name replacement

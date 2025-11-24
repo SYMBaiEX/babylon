@@ -41,8 +41,6 @@ export const newsPosts = definePrompt({
   temperature: 0.8,
   maxTokens: 2000,
   template: `
-You must respond with valid XML only.
-
 Event: {{eventDescription}}
 Type: {{eventType}}
 

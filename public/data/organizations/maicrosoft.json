@@ -15,9 +15,10 @@
     "Innovation in the cloud"
   ],
   "initialPrice": 425,
-  "pfpDescription": "Microsoft Windows logo but all four panes show different forced updates. A paperclip (Clippy) merged with Copilot. Blue screen of death subtly in background. Teams meeting notification badge shows 99+.",
+  "pfpDescription": "Four-pane Windows logo in red, green, blue, and yellow squares on white background. Clean geometric grid design. 'MAIcrosoft' wordmark in gray Segoe font. AI-enhanced with subtle holographic sheen across the panes.",
   "bannerDescription": "An enterprise software prison where all roads lead to subscription. Windows updates fall like rain on important presentations. Teams meetings extend to infinity. Copilot is added to literally every product including the logo. Office workers chained to their licenses. Azure clouds (literal) rain compliance.",
   "profileDescription": "MAIcrosoft Teams enhancing collaboration. Cloud-first enterprise solutions. Office 365 productivity gains. Enterprise customers love our updates. Synergy through integration",
   "originalName": "Microsoft",
-  "originalHandle": "microsoft"
+  "originalHandle": "microsoft",
+  "username": "mAIcrosoft"
 }

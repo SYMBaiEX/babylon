@@ -249,6 +249,7 @@ export class QuestionManager {
     }>(prompt, undefined, {
       temperature: 0.9,
       maxTokens: 8000,
+      promptType: 'question_generate_batch',
     });
 
     // Handle XML structure
@@ -586,7 +587,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     const rawResponse = await this.llm.generateJSON<{ event: string; type: string } | { response: { event: string; type: string } }>(
       prompt,
       undefined,
-      { temperature: 0.7, maxTokens: 5000 }
+      { temperature: 0.7, maxTokens: 5000, promptType: 'question_resolution_event' }
     );
 
     // Handle XML structure
@@ -631,7 +632,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
           changesWorld: boolean;
           newFact: string | null;
         }
-      }>(prompt);
+      }>(prompt, undefined, { promptType: 'question_assess_world_impact' });
 
       // Handle potential wrapped response
       let result: { changesWorld: boolean; newFact: string | null };
@@ -877,114 +878,61 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       logger.warn('Failed to load question examples', { error }, 'QuestionManager');
     }
 
-    // Format context strings
+    // Format context strings - compact format
     const recentEventsContext = recentEvents.length > 0
-      ? `\n\nRECENT EVENTS (Last 7 days):\n${recentEvents
-          .slice(0, 15)
-          .map(e => `- ${e.description} (${e.eventType})`)
-          .join('\n')}`
-      : '\n\nNo recent events yet.';
+      ? `EVENTS(7d): ${recentEvents.slice(0, 10).map(e => `${e.description.substring(0, 60)}`).join(' | ')}`
+      : '';
 
     const activeQuestionsContext = activeQuestions.length > 0
-      ? `\n\nCURRENT ACTIVE QUESTIONS (${activeQuestions.length}):\n${activeQuestions
-          .slice(0, 15)
-          .map(q => `- ${q.text} (resolves ${q.resolutionDate ? new Date(q.resolutionDate).toISOString().split('T')[0] : 'unknown'})`)
-          .join('\n')}`
-      : '\n\nNo active questions yet.';
+      ? `ACTIVE(${activeQuestions.length}): ${activeQuestions.slice(0, 10).map(q => `"${q.text.substring(0, 50)}..."`).join(' | ')}`
+      : '';
 
     const resolvedQuestionsContext = resolvedQuestions.length > 0
-      ? `\n\nRECENTLY RESOLVED QUESTIONS (Last 7 days):\n${resolvedQuestions
-          .map(q => `- ${q.text} → ${q.resolvedOutcome ? 'YES' : 'NO'} (resolved ${q.resolutionDate ? new Date(q.resolutionDate).toISOString().split('T')[0] : 'unknown'})`)
-          .join('\n')}`
-      : '\n\nNo recently resolved questions.';
+      ? `RESOLVED(7d): ${resolvedQuestions.slice(0, 5).map(q => `"${q.text.substring(0, 40)}..."→${q.resolvedOutcome ? 'YES' : 'NO'}`).join(' | ')}`
+      : '';
 
     const actorsList = actors.length > 0
-      ? `\n\nKEY ACTORS:\n${actors
-          .slice(0, 20)
-          .map(a => `- ${a.name}: ${a.description || 'No description'}`)
-          .join('\n')}`
+      ? `ACTORS: ${actors.slice(0, 15).map(a => a.name).join(', ')}`
       : '';
 
     const orgsList = organizations.length > 0
-      ? `\n\nKEY COMPANIES:\n${organizations
-          .slice(0, 15)
-          .map(o => `- ${o.name}: ${o.description || 'No description'}`)
-          .join('\n')}`
+      ? `COMPANIES: ${organizations.slice(0, 10).map(o => o.name).join(', ')}`
       : '';
 
     const trendingContext = trendingTags.length > 0
-      ? `\n\nTRENDING TOPICS:\n${trendingTags
-          .slice(0, 10)
-          .map(tt => `- ${tt.Tag?.displayName || tt.Tag?.name || 'Unknown'}: ${tt.Tag?.category || 'General'} (score: ${tt.score.toFixed(1)})`)
-          .join('\n')}`
+      ? `TRENDING: ${trendingTags.slice(0, 5).map(tt => tt.Tag?.displayName || tt.Tag?.name || 'Unknown').join(', ')}`
       : '';
 
-    // Build the comprehensive prompt
-    const prompt = `You are generating prediction market questions for a satirical game.
+    // Build compact prompt
+    const contextParts = [
+      worldFactsContext,
+      worldContext.realityGrounding || '',
+      recentEventsContext,
+      activeQuestionsContext,
+      resolvedQuestionsContext,
+      actorsList,
+      orgsList,
+      trendingContext,
+      worldContext.currentMarkets ? `MARKETS: ${worldContext.currentMarkets}` : '',
+      worldContext.activePredictions ? `PREDICTIONS: ${worldContext.activePredictions}` : '',
+      worldContext.recentTrades ? `TRADES: ${worldContext.recentTrades}` : '',
+      exampleQuestions ? `EXAMPLES: ${exampleQuestions}` : '',
+    ].filter(Boolean).join('\n');
 
-${worldFactsContext}
+    const prompt = `Generate ${count} prediction market questions.
 
-${worldContext.realityGrounding || ''}
+${contextParts}
 
-${recentEventsContext}
-${activeQuestionsContext}
-${resolvedQuestionsContext}
-${actorsList}
-${orgsList}
-${trendingContext}
+RULES:
+- Use EXACT parody names from lists (AIlon Musk, Sam AIltman, Mark Zuckerborg)
+- YES/NO only, specific & measurable, future events, publicly verifiable
+- NO resignations/acquisitions/relationship-breaking
+- Resolution: 1-7 days (1-2d=fast, 3-5d=medium, 6-7d=slow)
+- Don't duplicate active questions
 
-${worldContext.currentMarkets ? `\n\nCURRENT MARKETS:\n${worldContext.currentMarkets}` : ''}
-${worldContext.activePredictions ? `\n\nACTIVE PREDICTIONS:\n${worldContext.activePredictions}` : ''}
-${worldContext.recentTrades ? `\n\nRECENT TRADES:\n${worldContext.recentTrades}` : ''}
+BAD: "Will X be happy?" (vague), "Will X secretly..." (unverifiable)
 
-${exampleQuestions ? `\n\nEXAMPLE QUESTIONS:\n${exampleQuestions}` : ''}
-
-TASK:
-Generate ${count} NEW prediction market questions that:
-
-CRITICAL RULES:
-- Use ONLY the exact actor names from KEY ACTORS list above
-- Use ONLY the exact company names from KEY COMPANIES list above
-- NEVER use real-world person or organization names
-- ALWAYS use the parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn, etc.)
-- NEVER "correct" or change parody names - use them exactly as shown
-
-REQUIREMENTS:
-✅ Must be about FUTURE events (not past events)
-✅ Must be clear YES/NO questions with unambiguous resolution criteria
-✅ Must be specific and measurable (include dates, numbers, or clear outcomes)
-✅ Must be satirical and entertaining (exaggerated tech-bro drama)
-✅ Should involve the main actors or companies from the lists above
-✅ Should build on recent events and ongoing storylines
-✅ Should NOT duplicate existing active questions
-✅ Can be about: product launches, public feuds, tech demos, partnerships, scandals, market activity
-
-❌ AVOID vague questions like "Will [ACTOR] be successful?" (not measurable)
-❌ AVOID questions that can't be verified like "Will [ACTOR] secretly do X?" (unverifiable)
-✅ PREFER specific, public, verifiable outcomes with clear resolution
-
-RESOLUTION TIME:
-Each question should resolve between 1-7 days from now:
-- 1-2 days: Fast-moving drama (feuds, announcements)
-- 3-5 days: Medium developments (product launches, investigations)
-- 6-7 days: Slower outcomes (market movements, long-term deals)
-
-CRITICAL: All questions must allow NPCs to maintain their current roles and company affiliations. NO forced resignations, acquisitions, or relationship-breaking events.
-
-Return your response as XML in this exact format:
-<response>
-  <questions>
-    <question>
-      <text>Will Mark Zuckerborg demo MetAI's new VR legs by Friday?</text>
-      <resolutionCriteria>Clear criteria for resolution - must be publicly verifiable</resolutionCriteria>
-      <daysUntilResolution>3</daysUntilResolution>
-      <expectedOutcome>yes</expectedOutcome>
-    </question>
-    <!-- More questions here -->
-  </questions>
-</response>
-
-Generate ${count} questions now. Each must have daysUntilResolution between 1-7, and expectedOutcome must be "yes" or "no" (not true/false).`;
+XML: <response><questions><question><text>...</text><resolutionCriteria>...</resolutionCriteria><daysUntilResolution>3</daysUntilResolution><expectedOutcome>yes</expectedOutcome></question></questions></response>`;
 
     // Generate questions in batch
     let response: {
@@ -1051,6 +999,7 @@ Generate ${count} questions now. Each must have daysUntilResolution between 1-7,
           maxTokens: 8000,
           ...(this.llm.getProvider() === 'wandb' ? { model: 'moonshotai/kimi-k2-instruct-0905' } : {}),
           format: 'xml',
+          promptType: 'question_generate_real_world',
         }
       );
 
