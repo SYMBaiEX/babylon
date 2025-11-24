@@ -15,6 +15,7 @@
 import { Redis as UpstashRedis } from '@upstash/redis'
 import IORedis from 'ioredis'
 import { logger } from './logger'
+import type { JsonValue } from '@/types/common'
 
 // Redis client types
 type RedisClient = UpstashRedis | IORedis | null
@@ -76,6 +77,176 @@ if (isBuildTime || isTestEnv) {
 
 export const redis = redisClient
 export const redisClientType = redisType
+
+/**
+ * Convert a payload object into Redis stream field/value pairs (stringified).
+ * Keeps a single `payload` field to avoid field explosion.
+ */
+const encodeStreamPayload = (payload: Record<string, JsonValue>) => {
+  return {
+    payload: JSON.stringify(payload),
+  }
+}
+
+/**
+ * Add an entry to a Redis stream with optional trimming.
+ */
+export async function streamAdd(
+  stream: string,
+  payload: Record<string, JsonValue>,
+  opts?: { maxlen?: number }
+): Promise<string | null> {
+  if (!redis) return null
+
+  const entry = encodeStreamPayload(payload)
+
+  if (redisType === 'upstash') {
+    const trim =
+      opts?.maxlen !== undefined
+        ? {
+            type: 'MAXLEN' as const,
+            threshold: opts.maxlen,
+            comparison: '~' as const,
+            limit: Math.max(1000, Math.min(opts.maxlen * 2, 50000)),
+          }
+        : undefined
+
+    return await (redis as UpstashRedis).xadd(
+      stream,
+      '*',
+      entry,
+      trim ? { trim } : undefined
+    )
+  }
+
+  if (redisType === 'standard') {
+    // Build args in correct Redis XADD order:
+    // XADD key [MAXLEN [= | ~] threshold] <* | id> field value [field value ...]
+    // See: https://redis.io/docs/latest/commands/xadd/
+    const args: (string | number)[] = [stream]
+
+    // MAXLEN must come after the stream key and before the entry ID
+    if (opts?.maxlen !== undefined) {
+      args.push('MAXLEN', '~', opts.maxlen)
+    }
+
+    args.push('*')
+    Object.entries(entry).forEach(([key, value]) => {
+      args.push(key, String(value))
+    })
+
+    return await (redis as IORedis).xadd(...(args as [string, string]))
+  }
+
+  return null
+}
+
+export interface StreamMessage<T = Record<string, unknown>> {
+  stream: string
+  id: string
+  payload: T
+}
+
+/**
+ * Read entries from Redis streams starting from the provided IDs.
+ *
+ * Note: Upstash REST does not support BLOCK. We emulate a short-polling loop
+ * on the caller side rather than relying on blocking reads.
+ */
+export async function streamRead(
+  streams: string[],
+  ids: string[],
+  opts?: { count?: number }
+): Promise<StreamMessage[]> {
+  if (!redis || streams.length === 0 || ids.length === 0) return []
+
+  try {
+    if (redisType === 'upstash') {
+      const res = (await (redis as UpstashRedis).xread(streams, ids, {
+        count: opts?.count,
+      })) as unknown
+
+      // Upstash returns: [[streamName, [[id, [field, value, ...]], ...]], ...]
+      const parsed: StreamMessage[] = []
+      if (Array.isArray(res)) {
+        for (const entry of res) {
+          if (!Array.isArray(entry) || entry.length < 2) continue
+          const [streamName, records] = entry as [string, unknown]
+          if (!Array.isArray(records)) continue
+
+          for (const record of records) {
+            if (!Array.isArray(record) || record.length < 2) continue
+            const [id, fields] = record as [string, unknown]
+            if (!Array.isArray(fields)) continue
+
+            const payload = extractPayload(fields)
+            if (payload) {
+              parsed.push({ stream: streamName, id, payload })
+            }
+          }
+        }
+      }
+      return parsed
+    }
+
+    if (redisType === 'standard') {
+    // ioredis xread requires literal tokens for type safety
+    // See: https://redis.io/docs/latest/commands/xread/
+    const ioredis = redis as IORedis
+    const streamArgs = [...streams, ...ids] as string[]
+
+    // Call appropriate overload based on whether COUNT is specified
+    const res = opts?.count
+      ? await ioredis.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
+      : await ioredis.xread('STREAMS', ...streamArgs)
+
+      // ioredis returns the same general structure as Redis CLI
+      const parsed: StreamMessage[] = []
+      if (Array.isArray(res)) {
+        for (const streamEntry of res) {
+          if (!Array.isArray(streamEntry) || streamEntry.length < 2) continue
+          const [streamName, records] = streamEntry as [string, unknown]
+          if (!Array.isArray(records)) continue
+          for (const record of records) {
+            if (!Array.isArray(record) || record.length < 2) continue
+            const [id, fields] = record as [string, unknown]
+            if (!Array.isArray(fields)) continue
+            const payload = extractPayload(fields)
+            if (payload) {
+              parsed.push({ stream: streamName, id, payload })
+            }
+          }
+        }
+      }
+      return parsed
+    }
+  } catch (error) {
+    logger.warn('streamRead failed', { error }, 'Redis')
+  }
+
+  return []
+}
+
+const extractPayload = (fields: unknown[]): Record<string, unknown> | null => {
+  const obj: Record<string, unknown> = {}
+  for (let i = 0; i < fields.length; i += 2) {
+    const key = fields[i]
+    const value = fields[i + 1]
+    if (typeof key === 'string') {
+      obj[key] = value
+    }
+  }
+
+  if (typeof obj.payload === 'string') {
+    try {
+      return JSON.parse(obj.payload)
+    } catch {
+      return { payload: obj.payload }
+    }
+  }
+
+  return obj
+}
 
 /**
  * Check if Redis is available

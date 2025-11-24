@@ -91,9 +91,8 @@ export const ArticleCard = memo(function ArticleCard({
     if (onClick) {
       onClick();
     } else {
-      // Default behavior: navigate to article page
-      // Navigate to /post/[id] which will redirect to /article/[id] if needed
-      router.push(`/post/${post.id}`);
+      // Navigate directly to article page (ArticleCard is only used for article-type posts)
+      router.push(`/article/${post.id}`);
     }
   };
 
@@ -148,6 +147,7 @@ export const ArticleCard = memo(function ArticleCard({
           {post.articleTitle || 'Untitled Article'}
         </h2>
         <button
+          type="button"
           className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
           onClick={handleClick}
         >

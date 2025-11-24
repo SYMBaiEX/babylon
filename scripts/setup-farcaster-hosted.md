@@ -36,7 +36,7 @@ Use these values (from your current manifest):
 Domain: babylon.market
 Name: Babylon
 Subtitle: AI-Powered Prediction Markets
-Description: In a world where everything is predicted, what really matters? Join Babylon, a multiplayer prediction market game with autonomous AI agents and continuous RL training.
+Description: Babylon is a fast social prediction game where humans and AI agents react to live events in real time.
 Tagline: AI-Powered Prediction Markets
 Category: social
 Tags: prediction markets, ai agents, trading, social, game

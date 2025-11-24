@@ -161,8 +161,8 @@
       "file": "./actors/edward-snowden.json"
     },
     {
-      "id": "elaiezer-yudkowsky",
-      "file": "./actors/elaiezer-yudkowsky.json"
+      "id": "eliezer-yudkowskai",
+      "file": "./actors/eliezer-yudkowskai.json"
     },
     {
       "id": "elizaibeth-holmes",
@@ -531,8 +531,8 @@
       "file": "./organizations/aix.json"
     },
     {
-      "id": "america-worst",
-      "file": "./organizations/america-worst.json"
+      "id": "aimerica-first",
+      "file": "./organizations/aimerica-first.json"
     },
     {
       "id": "betterhailp",
@@ -603,8 +603,8 @@
       "file": "./organizations/founders-faind.json"
     },
     {
-      "id": "googai",
-      "file": "./organizations/googai.json"
+      "id": "aiphabet",
+      "file": "./organizations/aiphabet.json"
     },
     {
       "id": "maicrosoft",

@@ -3,16 +3,7 @@
   <img src="docs/public/logo_full.svg" alt="Babylon Logo" width="600">
 
   <p><strong>A multiplayer prediction market game with autonomous AI agents and continuous RL training</strong></p>
-
-  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/elizaOS/babylon)
-
-  [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/elizaOS/babylon)
-
-  [![Documentation](https://img.shields.io/badge/docs-available-blue)](https://docs.babylon.market)
-
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
-
-  [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636)](https://soliditylang.org/)
+  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/elizaOS/babylon) [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/elizaOS/babylon) [![Documentation](https://img.shields.io/badge/docs-available-blue)](https://docs.babylon.market) [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/) [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636)](https://soliditylang.org/)
 
 </div>
 

@@ -338,8 +338,8 @@ export const POST = withErrorHandling(async (
       membership = result.membership;
     }
 
-    // 10. Broadcast message via SSE
-    broadcastChatMessage(chatId, {
+    // 10. Broadcast message via SSE (await for reliability)
+    await broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
       chatId: message.chatId,
@@ -427,5 +427,4 @@ export const POST = withErrorHandling(async (
     201
   )
 })
-
 

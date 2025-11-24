@@ -1,7 +1,7 @@
 {
-  "id": "america-worst",
-  "name": "America Worst",
-  "ticker": "AMWST",
+  "id": "aimerica-first",
+  "name": "AImerica First",
+  "ticker": "AIFST",
   "description": "America's fastest-growing nationalist movement, bringing patriotism to basement dwellers since 2015",
   "type": "media",
   "canBeInvolved": true,
@@ -21,3 +21,4 @@
   "originalHandle": "americafirst",
   "initialPrice": 0
 }
+

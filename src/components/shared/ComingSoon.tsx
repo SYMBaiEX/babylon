@@ -109,6 +109,7 @@ export function ComingSoon() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('qualified')
+  const [leaderboardLastFetched, setLeaderboardLastFetched] = useState<number>(0)
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -361,24 +362,45 @@ export function ComingSoon() {
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
+  // Skip leaderboard on polls to save bandwidth - it's fetched separately
   useEffect(() => {
     if (!authenticated || !dbUser?.id || !waitlistData) return
 
     const refreshInterval = setInterval(() => {
-      void fetchWaitlistPosition(dbUser.id)
+      void fetchWaitlistPosition(dbUser.id, true) // Skip leaderboard on polls
     }, 30000) // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval)
   }, [authenticated, dbUser?.id, waitlistData])
 
-  const fetchWaitlistPosition = async (userId: string): Promise<boolean> => {
+  const fetchWaitlistPosition = async (userId: string, skipLeaderboard = false): Promise<boolean> => {
     try {
-      const [positionResult, leaderboardResult] = await Promise.allSettled([
-        fetch(`/api/waitlist/position?userId=${userId}`),
-        fetch('/api/waitlist/leaderboard?limit=100'),
-      ])
+      // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
+      const now = Date.now()
+      const shouldFetchLeaderboard = !skipLeaderboard && (now - leaderboardLastFetched > 5 * 60 * 1000)
+      
+      // Get auth token for authenticated position endpoint
+      const token = await getAccessToken()
+      
+      const requests = [
+        fetch('/api/waitlist/position', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        })
+      ]
+      if (shouldFetchLeaderboard) {
+        requests.push(fetch('/api/waitlist/leaderboard?limit=100'))
+      }
+      
+      const results = await Promise.allSettled(requests)
+      const positionResult = results[0]
+      const leaderboardResult = shouldFetchLeaderboard ? results[1] : null
 
       // Handle position response
+      if (!positionResult) {
+        logger.error('Position result is undefined', { userId }, 'ComingSoon')
+        return false
+      }
+
       if (positionResult.status === 'fulfilled') {
         const positionResponse = positionResult.value
         if (!positionResponse.ok) {
@@ -437,12 +459,13 @@ export function ComingSoon() {
       }
 
       // Handle leaderboard response (non-blocking - don't fail if this fails)
-      if (leaderboardResult.status === 'fulfilled') {
+      if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
         const leaderboardResponse = leaderboardResult.value
         if (leaderboardResponse.ok) {
           try {
             const leaderboardData = await leaderboardResponse.json()
             setTopUsers(leaderboardData.leaderboard || [])
+            setLeaderboardLastFetched(now)
             // Reset to first page when leaderboard updates
             setLeaderboardPage(1)
           } catch (parseError) {
@@ -455,7 +478,7 @@ export function ComingSoon() {
             status: leaderboardResponse.status 
           }, 'ComingSoon')
         }
-      } else {
+      } else if (leaderboardResult && leaderboardResult.status === 'rejected') {
         // Leaderboard fetch failed - log but don't block
         logger.warn('Failed to fetch leaderboard (network error)', { 
           error: leaderboardResult.reason instanceof Error ? leaderboardResult.reason.message : String(leaderboardResult.reason)

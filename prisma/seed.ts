@@ -291,8 +291,8 @@ async function seedRSSFeeds() {
       category: 'crypto',
     },
     {
-      name: 'Reuters - Technology',
-      feedUrl: 'https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best',
+      name: 'BBC - Technology',
+      feedUrl: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
       category: 'tech',
     },
   ];

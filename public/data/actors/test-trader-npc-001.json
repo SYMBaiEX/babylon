@@ -1,0 +1,16 @@
+{
+  "id": "test-trader-npc-001",
+  "name": "Test Trader NPC",
+  "realName": "Test Trader",
+  "username": "test_trader",
+  "description": "Test trader NPC",
+  "domain": [],
+  "tier": "B_TIER",
+  "postStyle": "Test",
+  "postExample": [],
+  "personality": "Test",
+  "originalFirstName": "Test",
+  "originalLastName": "Trader",
+  "originalHandle": "test_trader"
+}
+

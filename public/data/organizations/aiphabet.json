@@ -1,7 +1,7 @@
 {
-  "id": "googai",
-  "name": "GoogAI",
-  "ticker": "GOOGAI",
+  "id": "aiphabet",
+  "name": "AIphabet",
+  "ticker": "AIPHB",
   "description": "The world's most popular search engine, organizing the world's information and selling it to the highest bidder since 1998",
   "type": "company",
   "canBeInvolved": true,
@@ -20,3 +20,4 @@
   "originalName": "Google",
   "originalHandle": "google"
 }
+

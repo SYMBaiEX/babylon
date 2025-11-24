@@ -78,17 +78,24 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
 
   // Format data for recharts - convert to percentages
   // Include both YES and NO for better visualization
-  const chartData = data.map(point => ({
-    timestamp: point.time,
-    probability: point.yesPrice * 100,
-    noProbability: point.noPrice * 100,
-    volume: point.volume,
-    date: new Date(point.time).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-    }),
-  }));
+  const chartData = data
+    .filter((point) =>
+      Number.isFinite(point.time) &&
+      Number.isFinite(point.yesPrice) &&
+      Number.isFinite(point.noPrice)
+    )
+    .sort((a, b) => a.time - b.time)
+    .map(point => ({
+      timestamp: point.time,
+      probability: point.yesPrice * 100,
+      noProbability: point.noPrice * 100,
+      volume: point.volume,
+      date: new Date(point.time).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+      }),
+    }));
 
   const getEvenlySpacedTimeTicks = (count: number): number[] => {
     if (chartData.length === 0) return [];
@@ -137,7 +144,7 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
       </div>
       
       <div className="bg-muted/20 rounded-lg p-3">
-        <ChartContainer config={chartConfig} className="aspect-auto h-[400px] w-full">
+        <ChartContainer key={marketId} config={chartConfig} className="aspect-auto h-[400px] w-full">
           <AreaChart
             accessibilityLayer
             data={chartData}
@@ -286,17 +293,6 @@ export function PredictionProbabilityChart({ data, marketId, showBrush = false }
               }}
             />
             
-            <Area
-              dataKey="probability"
-              type="monotone"
-              fill={`url(#fillProbability-${marketId})`}
-              fillOpacity={0.4}
-              stroke={lineColor}
-              strokeWidth={2.5}
-              dot={false}
-              activeDot={{ r: 5, strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
             
             {showBrush && (
               <Brush

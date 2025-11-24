@@ -43,7 +43,35 @@
  * @see {@link MarketContextService} - Context building tested
  */
 
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
+// Mock Prisma BEFORE importing MarketDecisionEngine
+const mockPrisma = {
+  actor: {
+    findMany: mock(async () => [])
+  },
+  organization: {
+    findMany: mock(async () => [])
+  },
+  organizationMapping: {
+    findMany: mock(async () => [])
+  },
+  question: {
+    findMany: mock(async () => [])
+  },
+  post: {
+    findMany: mock(async () => [])
+  },
+  // Add other models if needed
+  market: { findMany: mock(async () => []) },
+  nPCTrade: { findMany: mock(async () => []) },
+  worldFact: { findMany: mock(async () => []) },
+  agentTrade: { findMany: mock(async () => []) }
+};
+
+mock.module('@/lib/prisma', () => ({
+  prisma: mockPrisma
+}));
+
 import { MarketDecisionEngine } from '../MarketDecisionEngine';
 import { MarketContextService } from '@/lib/services/market-context-service';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
@@ -583,4 +611,3 @@ describe('MarketDecisionEngine - Token Management', () => {
     });
   });
 });
-

@@ -131,6 +131,10 @@ export function validateEnvironment(env?: DeploymentEnv): EnvValidationResult {
     errors.push('DATABASE_URL is required')
   }
 
+  if (!process.env.NEXT_PUBLIC_PRIVY_APP_ID) {
+    errors.push('NEXT_PUBLIC_PRIVY_APP_ID is required')
+  }
+
   // Network-specific validation
   switch (environment) {
     case 'localnet':

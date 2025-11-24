@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/logger'
 import { AlertCircle, Newspaper, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -7,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { useSSEChannel } from '@/hooks/useSSE'
 
 /**
  * Article item structure for latest news panel.
@@ -42,6 +44,7 @@ interface ArticleItem {
  * @returns Latest news panel element
  */
 export function LatestNewsPanel() {
+  const router = useRouter()
   const [articles, setArticles] = useState<ArticleItem[]>([])
   const [loading, setLoading] = useState(true)
   const { getLatestNews, setLatestNews } = useWidgetCacheStore()
@@ -232,7 +235,13 @@ export function LatestNewsPanel() {
     return () => unregisterRefresh('latest-news')
   }, [registerRefresh, unregisterRefresh, fetchArticles])
 
-  // Note: Real-time updates via SSE removed - using manual pull-to-refresh
+  // Real-time refresh on feed/breaking-news events
+  useSSEChannel('feed', () => {
+    void fetchArticles(true)
+  })
+  useSSEChannel('breaking-news', () => {
+    void fetchArticles(true)
+  })
 
   const getSentimentIcon = (sentiment?: string) => {
     switch (sentiment) {
@@ -261,8 +270,8 @@ export function LatestNewsPanel() {
   }
 
   const handleArticleClick = (articleId: string) => {
-    // Navigate to post detail page (will redirect to /article/[id] if needed)
-    window.location.href = `/post/${articleId}`
+    // Navigate directly to article page (LatestNewsPanel only shows article-type posts)
+    router.push(`/article/${articleId}`)
   }
 
   return (
@@ -305,4 +314,3 @@ export function LatestNewsPanel() {
     </>
   )
 }
-
