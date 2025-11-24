@@ -324,9 +324,9 @@ export class WaitlistService {
       // Get total waitlist count
       const totalCount = await this.getTotalWaitlistCount()
 
-      // Calculate percentile (what % of people are behind you)
+      // Calculate percentile (Top X% - what percentile you're in from the top)
       const percentile = totalCount > 0 
-        ? Math.round(((totalCount - usersAhead) / totalCount) * 100) 
+        ? Math.round((leaderboardRank / totalCount) * 100) 
         : 100
 
       return {
