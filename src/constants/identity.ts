@@ -10,13 +10,12 @@ export const CAPABILITIES_HASH =
 
 export const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
 
-export function getIdentityRegistryAddress(): Address {
+export function getIdentityRegistryAddress(): Address | null {
   const { identityRegistry } = getContractAddresses(CHAIN_ID);
 
   if (!identityRegistry || identityRegistry === zeroAddress) {
-    throw new Error(
-      'Identity registry contract address is not configured for this chain.'
-    );
+    // Return null instead of throwing to allow graceful degradation in test/dev environments
+    return null;
   }
 
   return identityRegistry;
