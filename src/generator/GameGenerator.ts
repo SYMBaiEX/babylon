@@ -1226,6 +1226,10 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
       ? parsedResponse.response
       : parsedResponse as { name: string };
 
+    if (!response || typeof response !== 'object' || !response.name || typeof response.name !== 'string') {
+      return `${admin.name}'s Group`; // Fallback
+    }
+
     return response.name.toLowerCase();
   }
 
