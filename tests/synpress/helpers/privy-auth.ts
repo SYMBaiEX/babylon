@@ -77,7 +77,8 @@ async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
         // Check for Privy SDK on window object
         const privy = (window as { privy?: { ready?: boolean } }).privy
         if (!privy) {
-          return false
+           // Also check for script tag as fallback for early loading state
+           return document.querySelector('script[src*="privy"]') !== null
         }
         
         // Check if SDK is ready

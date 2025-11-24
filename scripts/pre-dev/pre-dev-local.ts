@@ -4,7 +4,7 @@
  *
  * Sets up complete local development environment:
  * - Kills any processes on port 3000
- * - Starts Anvil (local blockchain)
+ * - Checks for Hardhat node
  * - Deploys contracts
  * - Starts PostgreSQL, Redis, MinIO
  * - Runs database migrations
@@ -17,11 +17,9 @@ import { existsSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../../src/lib/logger'
 import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'
-import { loadDeployment } from '../../src/lib/deployment/validation'
 import { killPort } from '../utils/kill-port'
 import '../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
-const ANVIL_CONTAINER = 'babylon-anvil'
 const POSTGRES_CONTAINER = 'babylon-postgres'
 const REDIS_CONTAINER = 'babylon-redis'
 const MINIO_CONTAINER = 'babylon-minio'
@@ -73,109 +71,31 @@ REDIS_URL="redis://localhost:6380"
 DEPLOYMENT_ENV=localnet
 NEXT_PUBLIC_CHAIN_ID=31337
 NEXT_PUBLIC_RPC_URL=http://localhost:8545
+DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 NEXT_PUBLIC_PRIVY_APP_ID=""
 `
   writeFileSync(envPath, envTemplate)
   logger.info('✅ .env created', undefined, 'Script')
 }
 
-// 3. Start Anvil
-const anvilRunning = await $`docker ps --filter name=${ANVIL_CONTAINER} --format "{{.Names}}"`.quiet().text()
+// 3. Start Hardhat Node (background process managed by concurrently in dev script)
+// The pre-dev script just checks if port 8545 is available
+logger.info('Checking port 8545 for Hardhat node...', undefined, 'Script')
 
-if (anvilRunning.trim() !== ANVIL_CONTAINER) {
-  logger.info('Starting Anvil...', undefined, 'Script')
-  await $`docker-compose up -d anvil`
-
-  // Wait for health check
-  let attempts = 0
-  while (attempts < 30) {
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${ANVIL_CONTAINER}`.quiet().text().catch(() => '')
-    if (health.trim() === 'healthy') {
-      logger.info('✅ Anvil is ready', undefined, 'Script')
-      break
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    attempts++
-  }
-
-  if (attempts === 30) {
-    logger.error('❌ Anvil health check timeout', undefined, 'Script')
-    process.exit(1)
-  }
-  
-  // Add a small delay to allow the RPC server to stabilize after the health check passes
-  await new Promise(resolve => setTimeout(resolve, 2000))
-} else {
-  logger.info('✅ Anvil is running', undefined, 'Script')
-}
-
-// Verify RPC endpoint is accessible
-logger.info('Verifying Anvil RPC endpoint...', undefined, 'Script')
-let rpcAttempts = 0
-while (rpcAttempts < 30) {
-  const rpcSuccess = await $`cast block-number --rpc-url http://localhost:8545`.text().then(() => true).catch((error: Error & { stderr?: Buffer }) => {
-    // Not ready yet
-    if (rpcAttempts === 0) { // Log the error only on the first attempt
-      const stderr = error.stderr ? error.stderr.toString() : 'No stderr output'
-      logger.error(`Initial RPC connection error: ${error.message}`, undefined, 'Script')
-      logger.error(`Stderr: ${stderr}`, undefined, 'Script')
-    }
-    return false
-  })
-  
-  if (rpcSuccess) {
-    logger.info('✅ Anvil RPC is ready', undefined, 'Script')
-    break
-  }
-  
+// Kill any process on port 8545 to ensure clean start
+const killed8545 = await killPort(8545, process.pid)
+if (killed8545 > 0) {
+  logger.info(`✅ Killed ${killed8545} process(es) on port 8545`, undefined, 'Script')
+  // Wait a moment for port to be fully released
   await new Promise(resolve => setTimeout(resolve, 1000))
-  rpcAttempts++
-}
-
-if (rpcAttempts === 30) {
-  logger.error('❌ Anvil RPC endpoint timeout', undefined, 'Script')
-  process.exit(1)
-}
-
-// 4. Check if contracts are deployed
-let needsDeployment = false
-const deployment = await loadDeployment('localnet')
-
-if (!deployment || !deployment.contracts.diamond) {
-  needsDeployment = true
-  logger.info('No contracts deployed yet', undefined, 'Script')
 } else {
-  // Verify contracts are still there
-  const code = await $`cast code ${deployment.contracts.diamond} --rpc-url http://localhost:8545`.quiet().text().catch(() => '0x')
-  if (code.trim() === '0x' || code.trim() === '0x0') {
-    needsDeployment = true
-    logger.warn('⚠️  Contracts not found (Anvil may have been reset)', undefined, 'Script')
-  } else {
-    logger.info('✅ Contracts are deployed', undefined, 'Script')
-  }
+  logger.info('✅ Port 8545 is free', undefined, 'Script')
 }
 
-// 5. Deploy contracts if needed
-if (needsDeployment) {
-  logger.info('Deploying contracts to Anvil...', undefined, 'Script')
-  logger.info('  - Diamond system', undefined, 'Script')
-  logger.info('  - Oracle system (BabylonGameOracle, Predimarket)', undefined, 'Script')
-  logger.info('  - Moderation system', undefined, 'Script')
-  await $`bun run deploy:local`
-  logger.info('✅ Contracts deployed', undefined, 'Script')
-  
-  // Verify oracle contracts deployed
-  const updatedDeployment = await loadDeployment('localnet')
-  if (updatedDeployment?.contracts.babylonOracle) {
-    logger.info('✅ Oracle contracts deployed:', undefined, 'Script')
-    logger.info(`   BabylonOracle: ${updatedDeployment.contracts.babylonOracle}`, undefined, 'Script')
-    logger.info(`   Predimarket:   ${updatedDeployment.contracts.predimarket}`, undefined, 'Script')
-    logger.info(`   TestToken:     ${updatedDeployment.contracts.testToken}`, undefined, 'Script')
-  }
-}
+logger.info('Note: Hardhat node will be started automatically by the dev script', undefined, 'Script')
+logger.info('      Contracts will be deployed once Hardhat is ready', undefined, 'Script')
 
-// 6. Start PostgreSQL
+// 4. Start PostgreSQL
 const postgresRunning = await $`docker ps --filter name=${POSTGRES_CONTAINER} --format "{{.Names}}"`.quiet().text()
 
 if (postgresRunning.trim() !== POSTGRES_CONTAINER) {
@@ -275,7 +195,7 @@ logger.info('='.repeat(60), undefined, 'Script')
 logger.info('✅ Localnet environment ready!', undefined, 'Script')
 logger.info('', undefined, 'Script')
 logger.info('Services:', undefined, 'Script')
-logger.info('  Anvil:      http://localhost:8545', undefined, 'Script')
+logger.info('  Hardhat:    http://localhost:8545 (will be started automatically)', undefined, 'Script')
 logger.info('  PostgreSQL: localhost:5433', undefined, 'Script')
 logger.info('  Redis:      localhost:6380', undefined, 'Script')
 logger.info('  MinIO:      http://localhost:9000 (console: :9001)', undefined, 'Script')
@@ -284,6 +204,6 @@ logger.info('App Routes:', undefined, 'Script')
 logger.info('  Main:       http://localhost:3000', undefined, 'Script')
 logger.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets)', undefined, 'Script')
 logger.info('', undefined, 'Script')
-logger.info('Starting Next.js...', undefined, 'Script')
+logger.info('Starting services (Hardhat, Next.js, Cron)...', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')
 

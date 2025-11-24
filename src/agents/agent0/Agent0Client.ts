@@ -56,7 +56,7 @@ export class Agent0Client implements IAgent0Client {
   }) {
     // Set chain ID based on network
     if (config.network === 'localnet') {
-      this.chainId = 31337 // Anvil default chain ID
+      this.chainId = 31337 // Hardhat default chain ID
     } else if (config.network === 'sepolia') {
       this.chainId = 11155111
     } else {

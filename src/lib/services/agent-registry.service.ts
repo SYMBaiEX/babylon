@@ -23,7 +23,8 @@ import type {
   AgentCapabilities,
 } from '@/types/agent-registry.types'
 import type { Prisma } from '@prisma/client'
-import { createCipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { verifyApiKey } from '@/lib/crypto/api-keys'
 
 const getEncryptionKey = () => {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET
@@ -595,6 +596,53 @@ export class AgentRegistryService {
   }
 
   /**
+   * Verify external agent API key
+   * 
+   * @description Verifies an API key against registered external agents.
+   * Decrypts stored credentials and checks hash.
+   * 
+   * @param {string} apiKey - API key to verify
+   * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration if valid, null otherwise
+   */
+  async verifyExternalAgentApiKey(apiKey: string): Promise<UnifiedAgentRegistration | null> {
+    const agents = await prisma.externalAgentConnection.findMany({
+      where: { authType: 'apiKey' },
+      include: {
+        AgentRegistry: {
+          include: {
+            capabilities: true,
+            User: true,
+            Actor: true,
+            externalConnection: true,
+          }
+        }
+      }
+    })
+
+    for (const agent of agents) {
+      if (!agent.authCredentials) continue
+
+      try {
+        const decrypted = this.decryptCredentials(agent.authCredentials)
+        const credentials = JSON.parse(decrypted)
+        
+        if (credentials?.apiKeyHash && verifyApiKey(apiKey, credentials.apiKeyHash)) {
+          if (!agent.AgentRegistry) {
+            console.warn(`[Auth] Valid key for external agent ${agent.externalId} but missing AgentRegistry link`)
+            return null
+          }
+          return this.mapToUnifiedRegistration(agent.AgentRegistry)
+        }
+      } catch {
+        // Continue if decryption or parsing fails
+        continue
+      }
+    }
+
+    return null
+  }
+
+  /**
    * Map Prisma model to UnifiedAgentRegistration type
    * 
    * @description Maps Prisma AgentRegistry model with relations to UnifiedAgentRegistration
@@ -735,6 +783,23 @@ export class AgentRegistryService {
     encrypted += cipher.final('hex')
     
     return `${iv.toString('hex')}:${encrypted}`
+  }
+
+  /**
+   * Decrypt credentials
+   */
+  private decryptCredentials(encrypted: string): string {
+    const [ivHex, encryptedHex] = encrypted.split(':')
+    if (!ivHex || !encryptedHex) throw new Error('Invalid encrypted format')
+    
+    const iv = Buffer.from(ivHex, 'hex')
+    const key = Buffer.from(getEncryptionKey().padEnd(32).slice(0, 32))
+    const decipher = createDecipheriv(ALGORITHM, key, iv)
+    
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    
+    return decrypted
   }
 
 }

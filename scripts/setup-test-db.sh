@@ -83,6 +83,7 @@ EOF
 
 # Count tables to ensure migration succeeded
 TABLE_COUNT=$(bunx prisma db execute --url="$DATABASE_URL" --stdin <<< "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public';" | grep -oE '[0-9]+' | tail -1)
+TABLE_COUNT=${TABLE_COUNT:-0}
 echo "✅ Found $TABLE_COUNT tables in database"
 
 if [ "$TABLE_COUNT" -lt "15" ]; then

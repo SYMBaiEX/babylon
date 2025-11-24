@@ -55,6 +55,19 @@ main() {
   create_env_files
   echo "✅ Environment files created: .env.test, .env, .env.local"
   echo "   DATABASE_URL: ${DB_URL}"
+
+  # Check for required secrets
+  if [[ -z "${NEXT_PUBLIC_PRIVY_APP_ID:-}" && -z "${PRIVY_APP_ID:-}" ]]; then
+    echo "❌ ERROR: NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_ID is required for tests."
+    echo "Please set this secret in your GitHub repository."
+    exit 1
+  fi
+
+  if [[ -z "${PRIVY_TEST_EMAIL:-}" ]]; then
+    echo "❌ ERROR: PRIVY_TEST_EMAIL is required for E2E tests."
+    echo "Please set this secret in your GitHub repository."
+    exit 1
+  fi
 }
 
 main "$@"

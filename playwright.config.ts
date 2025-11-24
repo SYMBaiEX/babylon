@@ -43,6 +43,11 @@ export default defineConfig({
 
     /* Video on failure */
     video: 'retain-on-failure',
+
+    /* Launch Options to prevent CI crashes */
+    launchOptions: {
+      args: ['--disable-dev-shm-usage'],
+    },
   },
 
   /* Configure projects for major browsers */
@@ -75,6 +80,17 @@ export default defineConfig({
         storageState: '.playwright/auth.json',
       },
       dependencies: ['setup'],
+      testIgnore: ['**/*.api.test.ts', '**/*.e2e.test.ts'], // Ignore API/E2E tests that don't need browser auth or have their own flow
+    },
+
+    // API/E2E Tests that handle their own auth or are public
+    {
+      name: 'api-e2e',
+      testMatch: ['**/*.e2e.test.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+      // No dependency on 'setup' to avoid auth requirement for public/API flows
     },
 
     // Uncomment to test on other browsers

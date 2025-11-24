@@ -33,7 +33,7 @@ export interface RealtimeTokenPayload {
 }
 
 const REALTIME_SECRET =
-  process.env.REALTIME_SIGNING_SECRET || process.env.JWT_SECRET
+  process.env.REALTIME_SIGNING_SECRET || process.env.JWT_SECRET || process.env.CRON_SECRET
 
 const base64url = (input: Buffer) =>
   input

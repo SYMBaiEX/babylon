@@ -5,6 +5,7 @@
  */
 
 import type { Address } from 'viem'
+import localDeployment from '../../../deployments/local/latest.json'
 
 // Subset of contract addresses for web3 operations
 // For full deployment contract addresses, see @/lib/deployment/validation
@@ -14,6 +15,15 @@ export interface Web3ContractAddresses {
   diamond: Address
   predictionMarketFacet: Address
   oracleFacet: Address
+}
+
+// Localnet (Hardhat) - Chain ID: 31337
+export const LOCAL_CONTRACTS: Web3ContractAddresses = {
+  identityRegistry: (localDeployment.contracts.identityRegistry || '0x0000000000000000000000000000000000000000') as Address,
+  reputationSystem: (localDeployment.contracts.reputationSystem || '0x0000000000000000000000000000000000000000') as Address,
+  diamond: (localDeployment.contracts.diamond || '0x0000000000000000000000000000000000000000') as Address,
+  predictionMarketFacet: (localDeployment.contracts.predictionMarketFacet || '0x0000000000000000000000000000000000000000') as Address,
+  oracleFacet: (localDeployment.contracts.oracleFacet || '0x0000000000000000000000000000000000000000') as Address,
 }
 
 // Base Sepolia (Primary Testnet) - Chain ID: 84532
@@ -48,6 +58,8 @@ export const MAINNET_CONTRACTS: Web3ContractAddresses = {
  */
 export function getContractAddresses(chainId: number): Web3ContractAddresses {
   switch (chainId) {
+    case 31337: // Localnet
+      return LOCAL_CONTRACTS
     case 84532: // Base Sepolia (primary)
       return BASE_SEPOLIA_CONTRACTS
     case 11155111: // Ethereum Sepolia (legacy)

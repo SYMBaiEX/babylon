@@ -30,14 +30,53 @@
  * @see {@link /docs/research/game-engine-analysis.md} - Research justifying these tests
  */
 
-import { describe, test, expect } from 'bun:test';
-import { GameGenerator } from '@/generator/GameGenerator';
+import { describe, test, expect, mock } from 'bun:test';
+// import { GameGenerator } from '@/generator/GameGenerator'; // Removed static import
 import type { GeneratedGame, WorldEvent, FeedPost, Actor } from '@/shared/types';
 import { logger } from '@/lib/logger';
 import { existsSync, readFileSync } from 'fs';
 
-// Load environment variables from .env files if they exist (for CI and local environments)
-// Priority: process.env > .env.test > .env.local
+// Mock world-context to avoid DB calls BEFORE importing GameGenerator
+const mockWorldContext = {
+  generateWorldContext: async () => ({
+    worldActors: 'Test Actor 1, Test Actor 2',
+    currentMarkets: 'Active Markets: None currently active',
+    activePredictions: 'Active Questions: None currently active',
+    recentTrades: 'Recent Trades: No recent activity',
+    currentDateTime: new Date().toISOString(),
+    currentDate: new Date().toDateString(),
+    currentTime: new Date().toTimeString(),
+    currentYear: '2025',
+    currentMonth: 'October',
+    currentDay: '15',
+    realityGrounding: 'Reality grounding context',
+    worldFacts: 'World facts context'
+  }),
+  generateCurrentMarkets: async () => 'Active Markets: None currently active',
+  generateActivePredictions: async () => 'Active Questions: None currently active',
+  generateRecentTrades: async () => 'Recent Trades: No recent activity',
+  generateWorldActors: () => 'Test Actor 1, Test Actor 2',
+  getParodyActorNames: () => ['Test Actor 1', 'Test Actor 2'],
+  getForbiddenRealNames: () => [],
+  validateNoRealNames: () => [],
+  validateGeneratedContent: () => ({ errors: [], isValid: true }),
+  getCurrentDateContext: () => ({
+    dateISO: new Date().toISOString(),
+    dateFull: new Date().toDateString(),
+    time: new Date().toTimeString(),
+    year: '2025',
+    month: 'October',
+    day: '15'
+  }),
+  getRealityGrounding: async () => 'Reality grounding context',
+  getMinimalRealityGrounding: async () => 'Minimal reality grounding',
+  getFullRealityGrounding: async () => 'Full reality grounding',
+  checkRealityGrounding: () => ({ score: 1, feedback: [] })
+};
+
+mock.module('@/prompts/world-context', () => mockWorldContext);
+
+// Load environment variables from .env files
 const loadEnvFile = (filePath: string) => {
   if (!existsSync(filePath)) return
   const envContent = readFileSync(filePath, 'utf-8')
@@ -47,7 +86,6 @@ const loadEnvFile = (filePath: string) => {
       const [key, ...valueParts] = trimmed.split('=')
       if (key && valueParts.length > 0) {
         const value = valueParts.join('=').replace(/^["']|["']$/g, '')
-        // Only set if not already in process.env (env vars take precedence)
         if (!process.env[key]) {
           process.env[key] = value
         }
@@ -56,11 +94,9 @@ const loadEnvFile = (filePath: string) => {
   }
 }
 
-// Load .env.test first (created by CI prepare-env.sh), then .env.local (for local dev)
 loadEnvFile('.env.test')
 loadEnvFile('.env.local')
 
-// Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
   (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
   (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
@@ -68,14 +104,7 @@ const hasLLMKey = !!(
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
 )
 
-/**
- * Calculate information certainty from events
- * 
- * @param events - Events to analyze
- * @param questionId - Question ID to filter for
- * @param actualOutcome - Actual question outcome
- * @returns Certainty from 0-1 (0.5 = no info, 1.0 = definitive)
- */
+// Helper functions need to be defined before usage but outside tests
 function calculateCertainty(
   events: WorldEvent[],
   questionId: number | string,
@@ -97,9 +126,6 @@ function calculateCertainty(
   return correctSignals / relevantEvents.length;
 }
 
-/**
- * Calculate certainty from feed posts
- */
 function calculateCertaintyFromPosts(
   posts: FeedPost[],
   actualOutcome: boolean
@@ -119,52 +145,14 @@ function calculateCertaintyFromPosts(
   return correctPosts.length / relevantPosts.length;
 }
 
-/**
- * Calculate accuracy for a group of NPCs
- */
-function calculateGroupAccuracy(
-  game: GeneratedGame,
-  npcs: Actor[]
-): number {
-  let total = 0;
-  let correct = 0;
-  
-  for (const npc of npcs) {
-    const posts = game.timeline
-      .flatMap(day => day.feedPosts)
-      .filter(p => 
-        p.author === npc.id &&
-        p.pointsToward !== null &&
-        p.pointsToward !== undefined &&
-        p.relatedQuestion !== null &&
-        p.relatedQuestion !== undefined
-      );
-    
-    for (const post of posts) {
-      const question = game.setup.questions.find(q => q.id === post.relatedQuestion);
-      if (!question) continue;
-      
-      total++;
-      const postPointsToYes = post.pointsToward === 'YES' || post.pointsToward === true;
-      const questionIsYes = question.outcome;
-      
-      if (postPointsToYes === questionIsYes) {
-        correct++;
-      }
-    }
-  }
-  
-  return total > 0 ? correct / total : 0.5;
-}
-
 describe('Game Learnability Integration Tests', () => {
   test('CRITICAL: information gradient exists (early unclear, late clear)', async () => {
     if (!hasLLMKey) {
-      console.log('⏭️  Skipping - No LLM API key available (WANDB_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required)');
+      console.log('⏭️  Skipping - No LLM API key available');
       return;
     }
     
-    // ✅ This test MUST pass for game to be learnable
+    const { GameGenerator } = await import('@/generator/GameGenerator');
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -172,11 +160,9 @@ describe('Game Learnability Integration Tests', () => {
     
     let allGradientsPass = true;
     
-    // For each question, verify information gradient
     for (const question of game.setup.questions) {
       const allEvents = game.timeline.flatMap(day => day.events);
       
-      // Calculate certainty for each phase
       const earlyEvents = allEvents.filter(e => e.day <= 10);
       const middleEvents = allEvents.filter(e => e.day >= 11 && e.day <= 20);
       const lateEvents = allEvents.filter(e => e.day >= 21);
@@ -190,14 +176,12 @@ describe('Game Learnability Integration Tests', () => {
       
       logger.info(`Question ${question.id}: ${(earlyCertainty * 100).toFixed(0)}% → ${(middleCertainty * 100).toFixed(0)}% → ${(lateCertainty * 100).toFixed(0)}% (gradient: ${(gradient * 100).toFixed(0)}%) ${hasGradient ? '✅' : '❌'}`, undefined, 'LearnabilityTest');
       
-      // Verify gradient exists
-      expect(lateCertainty).toBeGreaterThan(earlyCertainty + 0.15); // At least 15% improvement
-      expect(middleCertainty).toBeGreaterThanOrEqual(earlyCertainty); // Monotonic or equal
-      expect(lateCertainty).toBeGreaterThan(middleCertainty); // Late > middle
+      expect(lateCertainty).toBeGreaterThan(earlyCertainty + 0.15);
+      expect(middleCertainty).toBeGreaterThanOrEqual(earlyCertainty);
+      expect(lateCertainty).toBeGreaterThan(middleCertainty);
       
-      // Verify ranges
-      expect(earlyCertainty).toBeLessThan(0.65);      // Early: ambiguous (<65%)
-      expect(lateCertainty).toBeGreaterThan(0.70);   // Late: clear (>70%)
+      expect(earlyCertainty).toBeLessThan(0.65);
+      expect(lateCertainty).toBeGreaterThan(0.70);
       
       if (!hasGradient) {
         allGradientsPass = false;
@@ -207,15 +191,13 @@ describe('Game Learnability Integration Tests', () => {
     expect(allGradientsPass).toBe(true);
     logger.info(allGradientsPass ? '✅ PASS: All questions have information gradient' : '❌ FAIL: Some questions lack gradient', undefined, 'LearnabilityTest');
   }, {
-    timeout: 120000, // 2 minutes
+    timeout: 120000,
   });
   
   test('NPCs with high reliability are consistently accurate', async () => {
-    if (!hasLLMKey) {
-      console.log('⏭️  Skipping - No LLM API key available');
-      return;
-    }
+    if (!hasLLMKey) return;
     
+    const { GameGenerator } = await import('@/generator/GameGenerator');
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
@@ -226,15 +208,13 @@ describe('Game Learnability Integration Tests', () => {
       ...game.setup.supportingActors,
     ];
     
-    // Find NPCs marked as high reliability (>0.7)
     const highReliabilityNPCs = allActors.filter(a => 
       a.persona && a.persona.reliability > 0.7
     );
     
     logger.info(`Found ${highReliabilityNPCs.length} high reliability NPCs`, undefined, 'LearnabilityTest');
-    expect(highReliabilityNPCs.length).toBeGreaterThan(0); // Should have some
+    expect(highReliabilityNPCs.length).toBeGreaterThan(0);
     
-    // For each high reliability NPC, check their post accuracy
     for (const npc of highReliabilityNPCs) {
       const posts = game.timeline
         .flatMap(day => day.feedPosts)
@@ -244,14 +224,12 @@ describe('Game Learnability Integration Tests', () => {
           post.relatedQuestion !== null
         );
       
-      if (posts.length === 0) continue; // Skip if no relevant posts
+      if (posts.length === 0) continue;
       
-      // Get resolved questions to check accuracy
       const accuratePosts = posts.filter(post => {
         const question = game.setup.questions.find(q => q.id === post.relatedQuestion);
         if (!question) return false;
         
-        // Is this post's hint accurate?
         const postPointsToYes = post.pointsToward === 'YES' || post.pointsToward === true;
         return postPointsToYes === question.outcome;
       });
@@ -260,7 +238,6 @@ describe('Game Learnability Integration Tests', () => {
       
       logger.info(`${npc.name} (reliability ${npc.persona?.reliability.toFixed(2)}): ${(accuracy * 100).toFixed(0)}% accurate (${accuratePosts.length}/${posts.length} posts)`, undefined, 'LearnabilityTest');
       
-      // High reliability NPCs should be >60% accurate (allowing some variance)
       expect(accuracy).toBeGreaterThan(0.55);
     }
   }, {
@@ -268,18 +245,13 @@ describe('Game Learnability Integration Tests', () => {
   });
   
   test('simple betting strategy beats random guessing', async () => {
-    if (!hasLLMKey) {
-      console.log('⏭️  Skipping - No LLM API key available');
-      return;
-    }
-    
-    // ✅ This test proves the game is learnable
+    if (!hasLLMKey) return;
     
     logger.info('Testing learnability with simple strategy...', undefined, 'LearnabilityTest');
     logger.info('Generating 3 test games (this takes ~3-5 minutes)...', undefined, 'LearnabilityTest');
     
-    // Run 3 mini-games (9 questions total)
     const games: GeneratedGame[] = [];
+    const { GameGenerator } = await import('@/generator/GameGenerator');
     const generator = new GameGenerator();
     
     for (let i = 0; i < 3; i++) {
@@ -287,7 +259,6 @@ describe('Game Learnability Integration Tests', () => {
       games.push(await generator.generateCompleteGame());
     }
     
-    // Simulate simple strategy: Trust high clueStrength posts (>0.7)
     let totalPredictions = 0;
     let correctPredictions = 0;
     
@@ -295,7 +266,6 @@ describe('Game Learnability Integration Tests', () => {
       for (const question of game.setup.questions) {
         totalPredictions++;
         
-        // Get high-strength clues
         const strongClues = game.timeline
           .flatMap(day => day.feedPosts)
           .filter(post => 
@@ -305,12 +275,10 @@ describe('Game Learnability Integration Tests', () => {
           );
         
         if (strongClues.length === 0) {
-          // No strong clues - skip this question
           totalPredictions--;
           continue;
         }
         
-        // Vote based on majority
         const yesVotes = strongClues.filter(p => 
           p.pointsToward === 'YES' || p.pointsToward === true
         ).length;
@@ -336,29 +304,22 @@ describe('Game Learnability Integration Tests', () => {
     logger.info(accuracy > 0.65 && accuracy < 0.85 ? '✅ PASS: Game is learnable' : '❌ FAIL: Game not learnable', undefined, 'LearnabilityTest');
     logger.info('─'.repeat(50), undefined, 'LearnabilityTest');
     
-    // Should beat random guessing (50%) by at least 15%
     expect(accuracy).toBeGreaterThan(0.65);
-    
-    // But shouldn't be too easy
     expect(accuracy).toBeLessThan(0.90);
   }, {
-    timeout: 360000, // 6 minutes (3 full games)
+    timeout: 360000,
   });
   
   test('group chat information provides measurable advantage', async () => {
-    if (!hasLLMKey) {
-      console.log('⏭️  Skipping - No LLM API key available');
-      return;
-    }
+    if (!hasLLMKey) return;
     
+    const { GameGenerator } = await import('@/generator/GameGenerator');
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
     logger.info('Testing group chat advantage...', undefined, 'LearnabilityTest');
     
-    // For each question, compare public-only vs public+group chat accuracy
     for (const question of game.setup.questions) {
-      // Public posts only
       const publicPosts = game.timeline
         .flatMap(day => day.feedPosts)
         .filter(post => 
@@ -368,22 +329,18 @@ describe('Game Learnability Integration Tests', () => {
       
       const publicCertainty = calculateCertaintyFromPosts(publicPosts, question.outcome);
       
-      // Count group chat hints (simplified - just count relevant messages)
       const groupChatHints = game.timeline
         .flatMap(day => Object.values(day.groupChats).flat())
         .filter(msg => {
-          // Simple heuristic: message mentions question keywords
           const questionKeywords = question.text.toLowerCase().split(' ').filter(w => w.length > 4);
           const messageLower = msg.message.toLowerCase();
           return questionKeywords.some(keyword => messageLower.includes(keyword));
         });
       
-      const groupChatValue = groupChatHints.length * 0.04; // 4% bonus per relevant hint
+      const groupChatValue = groupChatHints.length * 0.04;
       
       logger.info(`Q${question.id}: Public ${(publicCertainty * 100).toFixed(0)}%, Group chats +${(groupChatValue * 100).toFixed(0)}% (${groupChatHints.length} hints)`, undefined, 'LearnabilityTest');
       
-      // Group chats should provide some advantage
-      // Note: This is a simplified test - real advantage comes from quality not quantity
       if (groupChatHints.length > 0) {
         expect(groupChatValue).toBeGreaterThan(0);
       }
@@ -393,32 +350,27 @@ describe('Game Learnability Integration Tests', () => {
   });
   
   test('questions have resolution verification events', async () => {
-    if (!hasLLMKey) {
-      console.log('⏭️  Skipping - No LLM API key available');
-      return;
-    }
+    if (!hasLLMKey) return;
     
+    const { GameGenerator } = await import('@/generator/GameGenerator');
     const generator = new GameGenerator();
     const game = await generator.generateCompleteGame();
     
     logger.info('Testing resolution verification...', undefined, 'LearnabilityTest');
     
-    // Each question should have at least one definitive verification event
     for (const question of game.setup.questions) {
       const allEvents = game.timeline.flatMap(day => day.events);
       
-      // Find events that definitively prove the outcome
       const verificationEvents = allEvents.filter(e => 
         e.relatedQuestion === question.id &&
         e.pointsToward === (question.outcome ? 'YES' : 'NO') &&
-        e.day >= 25 // Late game
+        e.day >= 25
       );
       
       logger.info(`Q${question.id}: ${verificationEvents.length} verification events (day 25+)`, undefined, 'LearnabilityTest');
       
       expect(verificationEvents.length).toBeGreaterThan(0);
       
-      // At least one should be a strong revelation or announcement
       const definitiveEvents = verificationEvents.filter(e => 
         e.type === 'revelation' || e.type === 'announcement'
       );

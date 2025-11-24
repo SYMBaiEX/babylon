@@ -2,7 +2,7 @@
  * Contract Address Loader
  * 
  * Loads deployed contract addresses based on current network
- * Supports: localnet (Anvil), Base Sepolia, Base mainnet
+ * Supports: localnet (Hardhat), Base Sepolia, Base mainnet
  */
 
 import type { Address } from 'viem'
@@ -26,7 +26,7 @@ export interface DeployedContracts {
 export function getContractAddresses(): DeployedContracts {
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)
   
-  // Localnet (Anvil)
+  // Localnet (Hardhat)
   if (chainId === 31337) {
     return {
       diamond: localDeployment.contracts.diamond as Address,
@@ -68,7 +68,7 @@ export function getContractAddresses(): DeployedContracts {
 }
 
 /**
- * Check if we're on localnet (Anvil)
+ * Check if we're on localnet (Hardhat)
  */
 export function isLocalnet(): boolean {
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)

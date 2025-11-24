@@ -40,15 +40,26 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   await page.goto('/?dev=true')
 
   // Wait for page to load completely (networkidle is better for SPAs than domcontentloaded)
-  await page.waitForLoadState('networkidle')
+  // In CI, networkidle can be flaky if there are background requests
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 15000 })
+  } catch (e) {
+    console.log('⚠️  Network idle timed out, continuing...')
+  }
   
   // Wait for Privy SDK to be loaded
+  try {
   await page.waitForFunction(() => {
     return (window as any).privy !== undefined || 
            document.querySelector('script[src*="privy"]') !== null
-  }, { timeout: 10000 }).catch(() => {
-    console.log('⚠️  Privy SDK check timed out, continuing anyway')
-  })
+    }, { timeout: 30000 })
+  } catch (e) {
+    console.log('❌ Privy SDK check timed out')
+    // Don't continue if SDK is missing, it will just fail later
+    const content = await page.content()
+    console.log(`📄 Page content preview: ${content.substring(0, 500)}...`)
+    throw new Error('Privy SDK failed to load - cannot proceed with authentication')
+  }
   
   // Wait for the login button to be enabled (not disabled)
   // This ensures Privy is ready and the button is clickable
@@ -66,10 +77,11 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
       
       // Button exists and is NOT disabled (meaning Privy is ready)
       return loginBtn !== undefined && !(loginBtn as HTMLButtonElement).disabled
-    }, { timeout: 15000 })
+    }, { timeout: 30000 })
     console.log('✅ Login button is enabled (Privy ready)')
   } catch (e) {
-    console.log('⚠️  Login button enabled check timed out, will try anyway')
+    console.log('❌ Login button enabled check timed out')
+    throw new Error('Login button never became enabled - Privy might not be initialized correctly')
   }
   
   // Give React time to hydrate and render components
@@ -252,9 +264,37 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
                       await otpInput.isVisible({ timeout: 1000 }).catch(() => false)
 
   if (isOtpScreen) {
-    console.log('ℹ️ OTP screen detected - authentication may require manual OTP entry')
-    // Note: OTP codes are typically time-sensitive and can't be automated easily
-    // Tests should use accounts that don't require OTP or handle it separately
+    console.log('ℹ️ OTP screen detected')
+    
+    // Try to get OTP from environment (CI/CD or .env)
+    const otp = process.env.PRIVY_TEST_OTP
+    
+    if (otp) {
+      console.log(`⌨️ Filling OTP from environment: ${otp}`)
+      // Privy often uses 6 separate inputs or one input. 
+      // Best strategy is to focus the input and type the code
+      
+      if (await otpInput.isVisible()) {
+          await otpInput.click() // Focus
+          await page.waitForTimeout(100)
+          await page.keyboard.type(otp)
+      } else {
+          // Try typing blindly if input is hidden/custom
+          await page.keyboard.type(otp)
+      }
+      await page.waitForTimeout(1000)
+      
+      // Click verify if button exists (sometimes auto-submits)
+      const verifyButton = page.locator('button:has-text("Verify"), button[type="submit"]').first()
+      if (await verifyButton.isVisible()) {
+           await verifyButton.click()
+      }
+      await page.waitForTimeout(2000)
+    } else {
+      console.log('❌ OTP required but PRIVY_TEST_OTP not found in environment')
+      // Note: OTP codes are typically time-sensitive and can't be automated easily without a fixed test secret
+      throw new Error('Authentication failed: OTP screen detected. Please use a test account that does not require OTP or provide PRIVY_TEST_OTP if applicable.')
+    }
   }
 
   // Wait for successful authentication using Playwright's recommended approach
@@ -285,6 +325,7 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
  * The authenticated state is saved to .playwright/auth.json and reused.
  */
 setup('authenticate as admin', async ({ page }) => {
+  setup.setTimeout(90000) // Increase timeout to 90s for auth flow in CI
   const { email, password } = getPrivyTestAccount()
 
   console.log(`🔐 Authenticating with email: ${email}`)

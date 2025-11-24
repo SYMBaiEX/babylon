@@ -11,21 +11,21 @@ import { join } from 'path'
 import { logger } from '../../src/lib/logger'
 import { $ } from 'bun'
 
-const ANVIL_RPC_URL = 'http://localhost:8545'
-const ANVIL_CHAIN_ID = 31337
-const ANVIL_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+const HARDHAT_RPC_URL = 'http://localhost:8545'
+const HARDHAT_CHAIN_ID = 31337
+const HARDHAT_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
 async function main() {
   logger.info('Setting up Agent0 for localnet testing...', undefined, 'Script')
   logger.info('='.repeat(60), undefined, 'Script')
 
-  // 1. Check Anvil is running
+  // 1. Check Hardhat is running
   try {
-    await $`cast block-number --rpc-url ${ANVIL_RPC_URL}`.quiet()
-    logger.info('✅ Anvil is running', undefined, 'Script')
+    await $`cast block-number --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+    logger.info('✅ Hardhat is running', undefined, 'Script')
   } catch {
-    logger.error('❌ Anvil is not running', undefined, 'Script')
-    logger.info('Start Anvil with: docker-compose up -d anvil', undefined, 'Script')
+    logger.error('❌ Hardhat is not running', undefined, 'Script')
+    logger.info('Start Hardhat with: npx hardhat node', undefined, 'Script')
     process.exit(1)
   }
 
@@ -38,8 +38,8 @@ async function main() {
   const updates: Record<string, string> = {
     AGENT0_ENABLED: 'true',
     AGENT0_NETWORK: 'localnet',
-    AGENT0_RPC_URL: ANVIL_RPC_URL,
-    AGENT0_PRIVATE_KEY: ANVIL_PRIVATE_KEY,
+    AGENT0_RPC_URL: HARDHAT_RPC_URL,
+    AGENT0_PRIVATE_KEY: HARDHAT_PRIVATE_KEY,
     AGENT0_IPFS_PROVIDER: 'node',
   }
 
@@ -81,8 +81,8 @@ async function main() {
   logger.info('', undefined, 'Script')
   logger.info('Agent0 Localnet Configuration:', undefined, 'Script')
   logger.info(`  Network: localnet`, undefined, 'Script')
-  logger.info(`  RPC URL: ${ANVIL_RPC_URL}`, undefined, 'Script')
-  logger.info(`  Chain ID: ${ANVIL_CHAIN_ID}`, undefined, 'Script')
+  logger.info(`  RPC URL: ${HARDHAT_RPC_URL}`, undefined, 'Script')
+  logger.info(`  Chain ID: ${HARDHAT_CHAIN_ID}`, undefined, 'Script')
   logger.info(`  IPFS Provider: node`, undefined, 'Script')
 
   logger.info('', undefined, 'Script')

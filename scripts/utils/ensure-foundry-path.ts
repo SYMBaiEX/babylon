@@ -1,5 +1,5 @@
 /**
- * Utility to ensure Foundry tools (cast, forge, anvil) are in PATH
+ * Utility to ensure Foundry tools (cast, forge) are in PATH
  * Import this at the top of any script that uses Foundry commands
  */
 

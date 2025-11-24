@@ -96,8 +96,12 @@ mock.module('@/generator/llm/openai-client', () => {
             // Scenarios or questions (has scenarios or response property)
             if (schema.properties.scenarios || schema.properties.response) {
               // Check prompt to distinguish between scenarios and questions
-              const isQuestionGeneration = _prompt.includes('ORGANIZATIONS IN PLAY') ||
-                                        _prompt.includes('Create prediction market questions');
+              // Use more specific checks to avoid false positives with "ORGANIZATIONS IN PLAY"
+              const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios');
+              const isQuestionGeneration = !isScenarioGeneration && (
+                _prompt.includes('ORGANIZATIONS IN PLAY') ||
+                _prompt.includes('Create prediction market questions')
+              );
               
               if (isQuestionGeneration) {
                 return {
@@ -147,9 +151,14 @@ mock.module('@/generator/llm/openai-client', () => {
           // Priority 3: No schema - infer from prompt content
           if (!schema || !schema.properties) {
             // Question generation prompts
-            if (_prompt.includes('ORGANIZATIONS IN PLAY') || 
+            const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios') || 
+                                      (_prompt.includes('Scenario') && _prompt.includes('Actors:') && _prompt.includes('MAIN ACTORS'));
+            
+            if (!isScenarioGeneration && (
+                _prompt.includes('ORGANIZATIONS IN PLAY') || 
                 _prompt.includes('Create prediction market questions') ||
-                (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'))) {
+                (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'))
+            )) {
               return {
                 questions: [
                   {
@@ -272,9 +281,9 @@ describe('Gameplay Tick Integration', () => {
     }
 
     // Create a test question for resolution testing
-    // Use timestamp-based questionNumber to avoid conflicts
+    // Use random questionNumber to avoid conflicts
     testQuestionId = await generateSnowflakeId()
-    const uniqueQuestionNumber = (Math.floor(Date.now() / 1000) % 1000000) + 2 // Use timestamp mod + 2 to avoid conflicts
+    const uniqueQuestionNumber = Math.floor(Math.random() * 1000000000) + 1000000 // Random int between 1M and 1B
     await prisma.question.create({
       data: {
         id: testQuestionId,
@@ -484,9 +493,9 @@ describe('Gameplay Tick Integration', () => {
 
   test('should resolve questions when resolution date passes', async () => {
     // Create a question that should resolve
-    // Use timestamp-based questionNumber to avoid conflicts
+    // Use random questionNumber to avoid conflicts
     const pastQuestionId = await generateSnowflakeId()
-    const uniqueQuestionNumber = Math.floor(Date.now() / 1000) % 1000000 // Use timestamp mod to avoid conflicts
+    const uniqueQuestionNumber = Math.floor(Math.random() * 1000000000) + 1000000 // Random int between 1M and 1B
     await prisma.question.create({
       data: {
         id: pastQuestionId,

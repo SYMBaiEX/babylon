@@ -1,7 +1,7 @@
 /**
  * Contract Test Setup Utility
  * 
- * Shared utilities for ensuring Anvil is running and contracts are deployed
+ * Shared utilities for ensuring Hardhat is running and contracts are deployed
  * for integration tests
  */
 
@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { isContractDeployed, loadDeployment } from '@/lib/deployment/validation'
 
-const ANVIL_RPC_URL = process.env.ANVIL_RPC_URL || 'http://localhost:8545'
+const HARDHAT_RPC_URL = process.env.HARDHAT_RPC_URL || 'http://localhost:8545'
 
 /**
  * Load environment variables from .env.local file
@@ -37,38 +37,17 @@ function loadEnvFile(filePath: string): void {
 }
 
 /**
- * Check if Anvil is running, start it if needed
+ * Check if Hardhat is running
  */
-export async function ensureAnvilRunning(): Promise<boolean> {
+export async function ensureHardhatRunning(): Promise<boolean> {
   try {
-    // Check if Anvil is responding
-    execSync(`cast block-number --rpc-url ${ANVIL_RPC_URL}`, { stdio: 'ignore' })
-    console.log('✅ Anvil is running')
+    // Check if Hardhat is responding
+    execSync(`cast block-number --rpc-url ${HARDHAT_RPC_URL}`, { stdio: 'ignore' })
+    console.log('✅ Hardhat is running')
     return true
   } catch {
-    // Try to start Anvil via docker-compose
-    try {
-      console.log('🔄 Starting Anvil...')
-      execSync('docker-compose up -d anvil', { stdio: 'inherit' })
-      
-      // Wait for Anvil to be ready (max 30 seconds)
-      for (let i = 0; i < 30; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        try {
-          execSync(`cast block-number --rpc-url ${ANVIL_RPC_URL}`, { stdio: 'ignore' })
-          console.log('✅ Anvil started successfully')
-          return true
-        } catch {
-          // Continue waiting
-        }
-      }
-      
-      console.log('⚠️  Anvil startup timeout')
-      return false
-    } catch (error) {
-      console.log('⚠️  Could not start Anvil:', error instanceof Error ? error.message : String(error))
-      return false
-    }
+    console.log('⚠️  Hardhat node not detected. Please start it with: npx hardhat node')
+    return false
   }
 }
 
@@ -114,13 +93,13 @@ export async function areContractsDeployed(): Promise<boolean> {
   try {
     // Check oracle if available
     if (oracleAddress) {
-      const deployed = await isContractDeployed(ANVIL_RPC_URL, oracleAddress)
+      const deployed = await isContractDeployed(HARDHAT_RPC_URL, oracleAddress)
       if (!deployed) return false
     }
     
     // Check diamond if available
     if (diamondAddress) {
-      const deployed = await isContractDeployed(ANVIL_RPC_URL, diamondAddress)
+      const deployed = await isContractDeployed(HARDHAT_RPC_URL, diamondAddress)
       if (!deployed) return false
     }
     
@@ -135,7 +114,7 @@ export async function areContractsDeployed(): Promise<boolean> {
  */
 export async function deployContracts(): Promise<boolean> {
   try {
-    console.log('🔄 Deploying contracts to localnet...')
+    console.log('🔄 Deploying contracts to localnet (Hardhat)...')
     
     // Set environment variables for deployment
     process.env.DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
@@ -161,14 +140,14 @@ export async function deployContracts(): Promise<boolean> {
 }
 
 /**
- * Ensure Anvil is running and contracts are deployed
+ * Ensure Hardhat is running and contracts are deployed
  * Returns true if everything is ready, false otherwise
  */
 export async function ensureContractsReady(): Promise<boolean> {
-  // Step 1: Ensure Anvil is running
-  const anvilRunning = await ensureAnvilRunning()
-  if (!anvilRunning) {
-    console.log('❌ Cannot proceed without Anvil')
+  // Step 1: Ensure Hardhat is running
+  const hardhatRunning = await ensureHardhatRunning()
+  if (!hardhatRunning) {
+    console.log('❌ Cannot proceed without Hardhat')
     return false
   }
 

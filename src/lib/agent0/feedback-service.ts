@@ -38,14 +38,14 @@ export class Agent0FeedbackService {
     const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet' | 'localnet') || 'sepolia'
     
     if (network === 'localnet') {
-      this.chainId = 31337 // Anvil default chain ID
+      this.chainId = 31337 // Hardhat default chain ID
     } else if (network === 'sepolia') {
       this.chainId = 11155111 // Ethereum Sepolia (Agent0 is on Ethereum, not Base Sepolia)
     } else {
       this.chainId = 1 // Ethereum mainnet
     }
     
-    // Use default test key for localnet (first Anvil account)
+    // Use default test key for localnet (first Hardhat account)
     const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
                                process.env.BABYLON_AGENT0_PRIVATE_KEY ||
                                (network === 'localnet' 

@@ -24,7 +24,7 @@ describe('Reputation Sync with Localnet Default Keys', () => {
         displayName: 'Test Localnet Agent',
         isAgent: true,
         agent0TokenId: 12345,
-        walletAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Second Anvil account
+        walletAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Second Hardhat account
         updatedAt: new Date(),
       },
     })

@@ -172,7 +172,7 @@ export async function syncUserReputationToERC8004(
 
     try {
       // Check if Agent0 SDK is configured for feedback submission
-      // Use default test key for localnet (first Anvil account)
+      // Use default test key for localnet (first Hardhat account)
       const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
                                  process.env.BABYLON_AGENT0_PRIVATE_KEY ||
                                  (process.env.AGENT0_NETWORK === 'localnet' 

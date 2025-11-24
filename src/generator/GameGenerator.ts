@@ -863,13 +863,19 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
    */
   private async generateScenarios(mains: SelectedActor[], organizations: Organization[]): Promise<Scenario[]> {
     const historyContext = this.getHistoryContext();
+    // Clean history context to remove explicit question lists that confuse the LLM
+    const cleanHistoryContext = historyContext.replace(/Prediction outcomes from last month:[\s\S]*?Key moments:/, 'Key moments:');
+    
     const basePrompt = createScenarioPrompt(mains, organizations);
     const prompt = `${basePrompt}
 
-${historyContext}
+PREVIOUS GAME HISTORY (Context only - do not repeat these questions):
+${cleanHistoryContext}
 
 If there's previous game history, reference it naturally (e.g., "After the events of last game...", "Following up on...").
-Otherwise, start fresh.`;
+Otherwise, start fresh.
+
+REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     
     const rawResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(prompt, undefined, {
       temperature: 0.9,
@@ -906,9 +912,26 @@ Otherwise, start fresh.`;
         throw new Error('LLM returned invalid scenarios structure');
       }
     } else if (rawResult && 'questions' in rawResult && rawResult.questions) {
-      // LLM returned questions instead of scenarios - this is a format error
-      logger.error('LLM returned questions instead of scenarios. Expected scenarios array with mainActors, involvedOrganizations, etc.', JSON.stringify(rawResult, null, 2), 'GameGenerator');
-      throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+      // LLM returned questions instead of scenarios - try to recover or fail gracefully
+      logger.error('LLM returned questions instead of scenarios. Retrying with stricter prompt...', undefined, 'GameGenerator');
+      
+      // Retry ONCE with a very strict prompt
+      const retryPrompt = `${prompt}\n\nSYSTEM: You returned questions instead of scenarios. Generate SCENARIOS only. The XML root must be <scenarios>. Do not generate <questions>.`;
+      
+      const retryResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(retryPrompt, undefined, {
+        temperature: 0.7,
+        maxTokens: 8000,
+      });
+
+      if (retryResult && ('scenarios' in retryResult || ('response' in retryResult && retryResult.response?.scenarios))) {
+         if ('scenarios' in retryResult) {
+            scenarios = retryResult.scenarios;
+         } else {
+            scenarios = (retryResult as { response: { scenarios: Scenario[] } }).response.scenarios;
+         }
+      } else {
+        throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+      }
     } else {
       logger.error('No scenarios found in response:', JSON.stringify(rawResult, null, 2), 'GameGenerator');
       throw new Error('LLM returned no scenarios');

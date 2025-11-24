@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { createWalletClient, createPublicClient, http, decodeEventLog, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
+import { baseSepolia, foundry } from 'viem/chains'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -16,10 +16,12 @@ import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-
 import type { JsonValue } from '@/types/common'
 import { POINTS } from '@/lib/constants/points'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
+import { getContractAddresses, getRpcUrl } from '@/lib/deployment/addresses'
 
-// Use Base Sepolia for contract deployments (chain ID: 84532)
-export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
-export const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
+// Get contract addresses based on environment
+const contracts = getContractAddresses()
+export const IDENTITY_REGISTRY = contracts.identityRegistry
+export const REPUTATION_SYSTEM = contracts.reputationSystem as Address
 export const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
 const IDENTITY_REGISTRY_ABI = [
@@ -294,9 +296,10 @@ export async function processOnchainRegistration({
     referrerId = dbUser.referredBy
   }
 
+  const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)
   const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
+    chain: chainId === 31337 ? foundry : baseSepolia,
+    transport: http(getRpcUrl()),
   })
 
   let isRegistered = false
@@ -373,11 +376,12 @@ export async function processOnchainRegistration({
   let walletClient = null
 
   if (deployerConfigured) {
+    const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)
     deployerAccount = privateKeyToAccount(DEPLOYER_PRIVATE_KEY!)
     walletClient = createWalletClient({
       account: deployerAccount,
-      chain: baseSepolia,
-      transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
+      chain: chainId === 31337 ? foundry : baseSepolia,
+      transport: http(getRpcUrl()),
     })
   }
 
@@ -815,9 +819,10 @@ export async function confirmOnchainProfileUpdate({
   }
 
   const lowerWallet = walletAddress.toLowerCase()
+  const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)
   const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
+    chain: chainId === 31337 ? foundry : baseSepolia,
+    transport: http(getRpcUrl()),
   })
 
   const receipt = await publicClient.waitForTransactionReceipt({
@@ -962,9 +967,10 @@ export async function getOnchainRegistrationStatus(user: AuthenticatedUser): Pro
   let isRegistered = Boolean(userRecord.onChainRegistered && tokenId !== null)
 
   if (!user.isAgent && userRecord.walletAddress) {
+    const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)
     const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      chain: chainId === 31337 ? foundry : baseSepolia,
+      transport: http(getRpcUrl()),
     })
 
     const onchainRegistered = await publicClient.readContract({

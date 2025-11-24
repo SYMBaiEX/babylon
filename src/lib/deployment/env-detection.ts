@@ -24,7 +24,7 @@ export interface ChainConfig {
 export const CHAIN_CONFIGS: Record<DeploymentEnv, ChainConfig> = {
   localnet: {
     chainId: 31337,
-    name: 'Anvil (Local)',
+    name: 'Hardhat (Local)',
     rpcUrl: 'http://localhost:8545',
     explorerUrl: '',
     nativeCurrency: {

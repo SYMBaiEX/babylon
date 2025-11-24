@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate && bun run scripts/postinstall-install-python-deps.ts",
-    "dev": "bun run scripts/pre-dev/pre-dev-local.ts && concurrently --kill-others-on-fail --kill-others -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
+    "hardhat": "npx hardhat node",
+    "dev": "bun run scripts/pre-dev/pre-dev-local.ts && concurrently --kill-others-on-fail --kill-others -n \"hardhat,deploy,next,cron\" -c \"yellow,blue,cyan,magenta\" \"npx hardhat node --hostname 0.0.0.0\" \"bun run scripts/wait-for-hardhat-and-deploy.ts\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
     "dev:next-only": "SKIP_ENV_VALIDATION=1 bunx next dev",
     "dev:testnet": "DEPLOYMENT_ENV=testnet bun run scripts/pre-dev/pre-dev-testnet.ts && concurrently --kill-others-on-fail --kill-others -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
     "validate:data": "bun run scripts/validate-all-data.ts",
@@ -188,6 +189,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.39.1",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@playwright/test": "^1.56.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.10.0",
@@ -206,6 +208,7 @@
     "eslint-config-next": "16.0.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
+    "hardhat": "2.22.18",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
     "postcss": "^8.5.6",

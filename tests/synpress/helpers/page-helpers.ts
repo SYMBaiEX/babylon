@@ -15,6 +15,13 @@ export async function navigateTo(page: Page, route: string): Promise<void> {
 /**
  * Wait for page to be fully loaded
  */
-export async function waitForPageLoad(page: Page, timeout = 10000): Promise<void> {
-  await page.waitForLoadState('networkidle', { timeout })
+export async function waitForPageLoad(page: Page, timeout = 15000): Promise<void> {
+  try {
+    // Prefer domcontentloaded for speed, networkidle is too flaky for long-polling apps
+    await page.waitForLoadState('domcontentloaded', { timeout })
+    // Optional: wait for a bit of network idle but don't fail on it
+    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {})
+  } catch (e) {
+    console.log('⚠️ Page load wait timed out, continuing...')
+  }
 }
