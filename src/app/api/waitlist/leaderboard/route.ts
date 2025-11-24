@@ -6,7 +6,7 @@
  * 
  * @description
  * Returns top waitlist users ranked by invite points. Shows leaderboard with
- * user rankings and points.
+ * user rankings and points. Supports pagination.
  * 
  * @openapi
  * /api/waitlist/leaderboard:
@@ -14,14 +14,20 @@
  *     tags:
  *       - Waitlist
  *     summary: Get waitlist leaderboard
- *     description: Returns top waitlist users ranked by invite points
+ *     description: Returns top waitlist users ranked by invite points with pagination
  *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-indexed)
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 10
- *         description: Number of top users to return
+ *         description: Number of users per page (max 100)
  *     responses:
  *       200:
  *         description: Leaderboard retrieved successfully
@@ -45,10 +51,16 @@
  *                         type: integer
  *                 totalShown:
  *                   type: integer
+ *                 page:
+ *                   type: integer
+ *                 totalPages:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
  * 
  * @example
  * ```typescript
- * const { leaderboard } = await fetch('/api/waitlist/leaderboard?limit=20')
+ * const { leaderboard, page, totalPages } = await fetch('/api/waitlist/leaderboard?page=1&limit=10')
  *   .then(r => r.json());
  * ```
  * 
@@ -64,41 +76,60 @@ import { getCache, setCache } from '@/lib/cache-service'
 type LeaderboardResponse = {
   leaderboard: Awaited<ReturnType<typeof WaitlistService.getTopWaitlistUsers>>
   totalShown: number
+  page: number
+  totalPages: number
+  hasMore: boolean
 }
 
 const CACHE_KEY_NAMESPACE = 'waitlist:leaderboard'
-const CACHE_TTL_MS = Number(process.env.WAITLIST_LEADERBOARD_CACHE_MS ?? 120_000) // 120s default (increased from 15s)
+// Increased cache to 5 minutes to reduce data transfer costs
+const CACHE_TTL_MS = Number(process.env.WAITLIST_LEADERBOARD_CACHE_MS ?? 300_000) // 300s (5 min) default
 const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000))
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(parseInt(searchParams.get('limit') || '10', 10), 100) // Cap at 100
+    
+    // Calculate offset for pagination
+    const offset = (page - 1) * limit
+    
+    // Cache key includes both page and limit
+    const cacheKey = `${page}-${limit}`
 
     if (CACHE_TTL_MS > 0) {
-      const cached = await getCache<LeaderboardResponse>(String(limit), {
+      const cached = await getCache<LeaderboardResponse>(cacheKey, {
         namespace: CACHE_KEY_NAMESPACE,
       })
       if (cached) {
         return successResponse(cached, 200, {
           'x-cache': 'waitlist-leaderboard-hit',
-          'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+          'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}, immutable`,
+          'Vary': 'Accept-Encoding',
         })
       }
     }
 
-    logger.info('Waitlist leaderboard request', { limit }, 'GET /api/waitlist/leaderboard')
+    logger.info('Waitlist leaderboard request', { page, limit, offset }, 'GET /api/waitlist/leaderboard')
 
-    const topUsers = await WaitlistService.getTopWaitlistUsers(limit)
+    const topUsers = await WaitlistService.getTopWaitlistUsers(limit, offset)
+    
+    // Calculate total pages (max 100 users = 10 pages with limit=10)
+    const maxUsers = 100
+    const totalPages = Math.ceil(maxUsers / limit)
 
     const responseBody: LeaderboardResponse = {
       leaderboard: topUsers,
       totalShown: topUsers.length,
+      page,
+      totalPages,
+      hasMore: page < totalPages,
     }
 
     if (CACHE_TTL_MS > 0) {
-      await setCache(String(limit), responseBody, {
+      await setCache(cacheKey, responseBody, {
         namespace: CACHE_KEY_NAMESPACE,
         ttl: CACHE_TTL_SECONDS,
       })
@@ -107,6 +138,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return successResponse(responseBody, 200, {
       'x-cache': 'waitlist-leaderboard-miss',
       'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+      'Vary': 'Accept-Encoding',
     })
   } catch (error) {
     logger.error('Error fetching waitlist leaderboard', { error }, 'GET /api/waitlist/leaderboard')
