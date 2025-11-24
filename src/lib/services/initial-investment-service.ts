@@ -270,7 +270,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
             }
           }
         },
-        { temperature: 0.7, maxTokens: 16000, format: 'json' }
+        { temperature: 0.7, maxTokens: 16000, format: 'json', promptType: 'generate_investments_batch' }
       );
       
       logger.debug(`LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`, {

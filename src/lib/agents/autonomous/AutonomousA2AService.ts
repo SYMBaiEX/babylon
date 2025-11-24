@@ -172,7 +172,8 @@ Your JSON response:`
       modelSize: 'large',
       runtime,  // Pass runtime to access W&B trained models
       temperature: 0.7,
-      maxTokens: 400
+      maxTokens: 400,
+      actionType: 'evaluate_a2a_trade'
     })
 
     // Parse decision

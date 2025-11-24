@@ -83,7 +83,8 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
           modelSize: 'large',  // Important social content
           runtime: _runtime,  // Pass runtime to access W&B trained models
           temperature: 0.8,
-          maxTokens: 80
+          maxTokens: 80,
+          actionType: 'generate_group_chat_response'
         })
 
         const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '')

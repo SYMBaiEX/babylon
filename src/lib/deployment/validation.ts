@@ -276,7 +276,15 @@ export async function updateEnvFile(env: DeploymentEnv, contracts: ContractAddre
     NEXT_PUBLIC_ORACLE_FACET: contracts.oracleFacet,
     NEXT_PUBLIC_LIQUIDITY_POOL_FACET: contracts.liquidityPoolFacet,
     NEXT_PUBLIC_PERPETUAL_MARKET_FACET: contracts.perpetualMarketFacet,
-    NEXT_PUBLIC_REFERRAL_SYSTEM_FACET: contracts.referralSystemFacet
+    NEXT_PUBLIC_REFERRAL_SYSTEM_FACET: contracts.referralSystemFacet,
+    NEXT_PUBLIC_BAN_MANAGER: contracts.banManager,
+    NEXT_PUBLIC_REPORTING_SYSTEM: contracts.reportingSystem,
+    NEXT_PUBLIC_LABEL_MANAGER: contracts.labelManager,
+    NEXT_PUBLIC_BABYLON_ORACLE: contracts.babylonOracle,
+    NEXT_PUBLIC_PREDIMARKET: contracts.predimarket,
+    NEXT_PUBLIC_MARKET_FACTORY: contracts.marketFactory,
+    NEXT_PUBLIC_CONTEST_ORACLE: contracts.contestOracle,
+    NEXT_PUBLIC_TEST_TOKEN: contracts.testToken
   }
 
   if (contracts.chainlinkOracle) {

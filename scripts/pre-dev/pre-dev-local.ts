@@ -66,7 +66,21 @@ logger.info('✅ Docker is running', undefined, 'Script')
 const envPath = join(process.cwd(), '.env')
 if (!existsSync(envPath)) {
   logger.info('Creating .env file...', undefined, 'Script')
-  const envTemplate = `DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"
+  // If .env.example exists, use it as a base but override localnet values
+  const envExamplePath = join(process.cwd(), '.env.example')
+  let envContent = ''
+  
+  if (existsSync(envExamplePath)) {
+    envContent = readFileSync(envExamplePath, 'utf-8')
+    // Replace placeholder values with localnet defaults
+    envContent = envContent.replace(/DATABASE_URL=.*/, 'DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"')
+    envContent = envContent.replace(/REDIS_URL=.*/, 'REDIS_URL="redis://localhost:6380"')
+    envContent = envContent.replace(/NEXT_PUBLIC_CHAIN_ID=.*/, 'NEXT_PUBLIC_CHAIN_ID=31337')
+    envContent = envContent.replace(/NEXT_PUBLIC_RPC_URL=.*/, 'NEXT_PUBLIC_RPC_URL=http://localhost:8545')
+    envContent = envContent.replace(/DEPLOYER_PRIVATE_KEY=.*/, 'DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+  } else {
+    // Fallback to minimal template if .env.example is missing
+    envContent = `DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"
 REDIS_URL="redis://localhost:6380"
 DEPLOYMENT_ENV=localnet
 NEXT_PUBLIC_CHAIN_ID=31337
@@ -74,8 +88,17 @@ NEXT_PUBLIC_RPC_URL=http://localhost:8545
 DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 NEXT_PUBLIC_PRIVY_APP_ID=""
 `
-  writeFileSync(envPath, envTemplate)
-  logger.info('✅ .env created', undefined, 'Script')
+  }
+  
+  // Ensure DEPLOYMENT_ENV is set to localnet
+  if (!envContent.includes('DEPLOYMENT_ENV=')) {
+    envContent += '\nDEPLOYMENT_ENV=localnet'
+  } else {
+    envContent = envContent.replace(/DEPLOYMENT_ENV=.*/, 'DEPLOYMENT_ENV=localnet')
+  }
+  
+  writeFileSync(envPath, envContent)
+  logger.info('✅ .env created from template', undefined, 'Script')
 }
 
 // 3. Start Hardhat Node (background process managed by concurrently in dev script)

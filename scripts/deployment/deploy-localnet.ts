@@ -15,6 +15,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { ContractAddresses, DeploymentInfo } from '../../src/lib/deployment/validation'
 import { saveDeployment, updateEnvFile } from '../../src/lib/deployment/validation'
 import { logger } from '../../src/lib/logger'
+import '../../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
 const HARDHAT_RPC_URL = 'http://localhost:8545'
 const HARDHAT_CHAIN_ID = 31337
@@ -43,6 +44,15 @@ async function main() {
   // 3. Deploy using forge script
   logger.info('Deploying contracts...', undefined, 'Script')
 
+  // Clean previous deployment artifacts to prevent nonce issues
+  logger.info('Cleaning previous deployment artifacts...', undefined, 'Script')
+  await $`rm -rf broadcast cache`.quiet()
+
+  // Configure mining for deployment to avoid nonce issues
+  logger.info('Configuring Hardhat mining mode...', undefined, 'Script')
+  await $`cast rpc evm_setAutomine false --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+  await $`cast rpc evm_setIntervalMining 1000 --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+
   const scriptPath = 'scripts/DeployBabylon.s.sol:DeployBabylon'
 
   // Set environment variables for the forge script
@@ -53,8 +63,7 @@ async function main() {
     const result = await $`forge script ${scriptPath} \
       --rpc-url ${HARDHAT_RPC_URL} \
       --private-key ${HARDHAT_PRIVATE_KEY} \
-      --broadcast \
-      --legacy`
+      --broadcast`
     
     const output = result.text()
     logger.info('✅ Deployment transaction sent', undefined, 'Script')
@@ -163,6 +172,11 @@ async function main() {
   } catch (error) {
     logger.error('Deployment failed', error, 'Script')
     throw error
+  } finally {
+    // Restore mining mode
+    logger.info('Restoring Hardhat mining mode...', undefined, 'Script')
+    await $`cast rpc evm_setAutomine true --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+    await $`cast rpc evm_setIntervalMining 0 --rpc-url ${HARDHAT_RPC_URL}`.quiet()
   }
 }
 

@@ -444,7 +444,8 @@ Return ONLY the JSON, no other text.`;
       system: promptData.system,
       modelSize: 'large',
       temperature: 0.3,
-      maxTokens: 2000
+      maxTokens: 2000,
+      actionType: 'ruler_score_trajectories'
     });
 
     let jsonText = response.trim();

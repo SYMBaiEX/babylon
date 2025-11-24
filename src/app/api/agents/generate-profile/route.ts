@@ -184,7 +184,8 @@ Respond ONLY with valid JSON, no markdown formatting.`
       prompt,
       modelSize: 'large',
       temperature: 0.9,
-      maxTokens: 2000
+      maxTokens: 2000,
+      actionType: 'generate_agent_profile'
     })
 
     // Parse the AI response

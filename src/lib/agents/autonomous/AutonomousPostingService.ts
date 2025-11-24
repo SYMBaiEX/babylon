@@ -121,7 +121,8 @@ Generate ONLY the post text, nothing else.`
         modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
         runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.8,
-        maxTokens: 100
+        maxTokens: 100,
+        actionType: 'generate_autonomous_post'
       })
 
       // Clean up the response

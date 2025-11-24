@@ -294,16 +294,17 @@ Array:`
 
     // Use small model (llama-3.1-8b-instant) for batch evaluation
     // Add timeout to prevent hanging (20 seconds max)
-    const decisionText = await Promise.race([
-      callGroqDirect({
-        prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'small',  // Free tier: Fast and efficient
-        runtime: _runtime,  // Pass runtime to access W&B trained models
-        temperature: 0.6,
-        maxTokens: 16384
-      }),
-      new Promise<string>((resolve) => {
+      const decisionText = await Promise.race([
+        callGroqDirect({
+          prompt: finalPrompt,
+          system: agent.agentSystem || undefined,
+          modelSize: 'small',  // Free tier: Fast and efficient
+          runtime: _runtime,  // Pass runtime to access W&B trained models
+          temperature: 0.6,
+          maxTokens: 16384,
+          actionType: 'evaluate_interactions'
+        }),
+        new Promise<string>((resolve) => {
         setTimeout(() => {
           logger.warn(`Interaction evaluation timeout for agent ${agentUserId}, defaulting to no responses`, undefined, 'AutonomousBatchResponse')
           resolve('[]') // Empty array = no responses
@@ -412,7 +413,8 @@ Generate ONLY the response text, nothing else.`
           modelSize: 'small',  // Free tier: Fast response generation
           runtime: _runtime,  // Pass runtime to access W&B trained models
           temperature: 0.8,
-          maxTokens: 16384
+          maxTokens: 16384,
+          actionType: 'execute_response'
         }),
         new Promise<string>((resolve) => {
           setTimeout(() => {

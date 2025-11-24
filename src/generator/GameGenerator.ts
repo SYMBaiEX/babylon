@@ -657,7 +657,7 @@ export class GameGenerator {
     const rawResponse = await this.llm.generateJSON<{ event: string } | { response: { event: string } }>(
       prompt,
       undefined,
-      { temperature: 0.7, maxTokens: 5000 }
+      { temperature: 0.7, maxTokens: 5000, promptType: 'generate_baseline_event' }
     );
 
     // Handle XML structure
@@ -880,6 +880,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     const rawResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(prompt, undefined, {
       temperature: 0.9,
       maxTokens: 8000,
+      promptType: 'generate_scenarios',
     });
     
     if (!rawResult) {
@@ -921,6 +922,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
       const retryResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(retryPrompt, undefined, {
         temperature: 0.7,
         maxTokens: 8000,
+        promptType: 'generate_scenarios_retry',
       });
 
       if (retryResult && ('scenarios' in retryResult || ('response' in retryResult && retryResult.response?.scenarios))) {
@@ -983,6 +985,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     const rawResult = await this.llm.generateJSON<{ questions: Question[] } | Array<{ questions: Question[] }>>(prompt, undefined, {
       temperature: 0.85,
       maxTokens: 8000,
+      promptType: 'generate_questions',
     });
     
     if (!rawResult) {
@@ -1052,7 +1055,9 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
       questionsList
     });
 
-    const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt);
+    const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt, undefined, {
+      promptType: 'rank_questions',
+    });
     
     if (!rawResult) {
       logger.warn('LLM returned null/undefined rankings response, using default ranking', undefined, 'GameGenerator');
@@ -1206,7 +1211,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
 
     const rawResponse = await this.llm.generateJSON<{ name: string } | { response: { name: string } }>(prompt, {
       required: ['name']
-    });
+    }, { promptType: 'generate_group_chat_name' });
 
     let parsedResponse = rawResponse;
     if (typeof rawResponse === 'string') {
@@ -1532,7 +1537,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
           pointsToward: 'YES' | 'NO' | null 
         }> 
       }
-    }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000 });
+    }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000, promptType: 'generate_day_events' });
 
     if (!rawResponse) {
       logger.warn('LLM returned null/undefined events response, falling back to simple events', undefined, 'GameGenerator');
@@ -1630,7 +1635,7 @@ Max 120 characters, one sentence.`;
     const rawResponse = await this.llm.generateJSON<{ event: string } | { response: { event: string } }>(
       prompt,
       undefined,
-      { temperature: 0.9 }
+      { temperature: 0.9, promptType: 'generate_event_description' }
     );
 
     // Handle XML structure
@@ -1678,7 +1683,7 @@ Max 120 characters, one sentence.`;
     const rawResponse = await this.llm.generateJSON<{ event: string; type: 'announcement' | 'revelation' } | { response: { event: string; type: 'announcement' | 'revelation' } }>(
       prompt,
       undefined,
-      { temperature: 0.7, maxTokens: 5000 }
+      { temperature: 0.7, maxTokens: 5000, promptType: 'generate_resolution_event' }
     );
 
     // Handle XML structure
@@ -1909,7 +1914,7 @@ ${req.members.map((m, idx) => {
       }>(
         prompt,
         { required: ['groups'] },
-        { temperature: 1.0, maxTokens: 5000 }
+        { temperature: 1.0, maxTokens: 5000, promptType: 'generate_group_messages_batch' }
       );
 
       if (!rawResponse) {
@@ -1992,7 +1997,7 @@ ${req.members.map((m, idx) => {
     const rawResponse = await this.llm.generateJSON<{ message: string } | { response: { message: string } }>(
       prompt,
       undefined,
-      { temperature: 1.0 }
+      { temperature: 1.0, promptType: 'generate_group_message' }
     );
 
     // Handle XML structure

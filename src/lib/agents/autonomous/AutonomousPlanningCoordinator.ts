@@ -226,7 +226,8 @@ export class AutonomousPlanningCoordinator {
       modelSize: 'large',  // Uses trained W&B model if available
       runtime: _runtime,  // Pass runtime to access W&B trained models
       temperature: 0.7,
-      maxTokens: 1500  // Allow detailed planning
+      maxTokens: 1500,  // Allow detailed planning
+      actionType: 'generate_action_plan'
     })
     
     // Parse action plan

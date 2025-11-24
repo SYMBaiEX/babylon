@@ -1761,7 +1761,7 @@ Return your response as XML in this exact format:
       const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
         prompt,
         { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 8000, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml' }
+        { temperature: 0.7, maxTokens: 8000, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml', promptType: 'generate_baseline_article' }
       );
       
       // Handle XML structure

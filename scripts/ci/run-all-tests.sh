@@ -6,6 +6,13 @@
 
 set -e  # Exit on any error
 
+# Cleanup function
+cleanup() {
+    if [ ! -z "$SERVER_PID" ]; then kill $SERVER_PID 2>/dev/null || true; fi
+    if [ ! -z "$HARDHAT_PID" ]; then kill $HARDHAT_PID 2>/dev/null || true; fi
+}
+trap cleanup EXIT
+
 echo "🧪 Running Complete Test Suite"
 echo "================================"
 
@@ -72,6 +79,18 @@ bun test tests/unit/ tests/integration/ tests/deployment/ tests/markets-pnl-shar
 echo ""
 echo "🎭 Step 7/7: Starting server and running E2E tests..."
 
+# Check/Start Blockchain
+if ! curl -s -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545 > /dev/null; then
+    echo "🔨 Starting Hardhat node..."
+    npx hardhat node > /tmp/hardhat.log 2>&1 &
+    HARDHAT_PID=$!
+    echo "⏳ Waiting for Hardhat..."
+    timeout 30 bash -c 'until curl -s -H "Content-Type: application/json" -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545 > /dev/null; do sleep 1; done'
+    echo "✅ Hardhat is ready"
+else
+    echo "✅ Blockchain is already running"
+fi
+
 # Start the server in the background
 DEPLOYMENT_ENV=localnet NODE_ENV=production bun start &
 SERVER_PID=$!
@@ -80,7 +99,6 @@ SERVER_PID=$!
 echo "⏳ Waiting for server to start..."
 timeout 120 bash -c 'until curl -f http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done' || {
     echo -e "${RED}❌ Server failed to start${NC}"
-    kill $SERVER_PID 2>/dev/null || true
     exit 1
 }
 
@@ -91,7 +109,6 @@ echo ""
 echo "🎭 Running Playwright E2E tests..."
 bunx playwright test tests/e2e --reporter=list || {
     echo -e "${RED}❌ Playwright tests failed${NC}"
-    kill $SERVER_PID 2>/dev/null || true
     exit 1
 }
 
@@ -100,12 +117,11 @@ echo ""
 echo "🦊 Running Synpress wallet tests..."
 bunx playwright test --config=synpress.config.ts --reporter=list || {
     echo -e "${RED}❌ Synpress tests failed${NC}"
-    kill $SERVER_PID 2>/dev/null || true
     exit 1
 }
 
-# Stop the server
-kill $SERVER_PID 2>/dev/null || true
+# Stop the server (handled by trap, but explicit message doesn't hurt)
+echo "🛑 Stopping services..."
 
 echo ""
 echo -e "${GREEN}================================${NC}"

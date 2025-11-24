@@ -11,6 +11,7 @@
 import { $ } from 'bun'
 import { logger } from '../src/lib/logger'
 import { loadDeployment } from '../src/lib/deployment/validation'
+import './utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
 const HARDHAT_RPC_URL = 'http://localhost:8545'
 

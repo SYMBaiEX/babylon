@@ -159,7 +159,8 @@ ${contextString}`
         modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
         runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.7,
-        maxTokens: 300
+        maxTokens: 300,
+        actionType: 'evaluate_trading_opportunity'
       }),
       new Promise<string>((resolve) => {
         setTimeout(() => {

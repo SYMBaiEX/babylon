@@ -1039,7 +1039,7 @@ Trending system not initialized yet.
       const response = await this.llm.generateJSON<{ reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_reactions_batch' }
       );
 
       if (!response) {
@@ -1165,7 +1165,7 @@ Trending system not initialized yet.
       const response = await this.llm.generateJSON<CommentaryResponse>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_commentary_batch' }
       );
 
       if (!response) {
@@ -1281,7 +1281,7 @@ Trending system not initialized yet.
       const rawResponse = await this.llm.generateJSON<ConspiracyResponse>(
         prompt,
         undefined, // Don't validate schema, we'll handle both formats
-        params
+        { ...params, promptType: 'feed_generate_conspiracy_posts_batch' }
       );
 
       if (!rawResponse) {
@@ -1768,7 +1768,7 @@ Trending system not initialized yet.
     const rawResponse = await this.llm!.generateJSON<{ post: string } | { response: { post: string } }>(
       prompt,
       undefined,
-      params
+      { ...params, promptType: 'feed_generate_reply_content' }
     );
 
     if (!rawResponse || typeof rawResponse !== 'object') {
@@ -2024,7 +2024,7 @@ Trending system not initialized yet.
       const response = await this.llm.generateJSON<{ replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_replies_batch' }
       );
 
       if (!response || typeof response !== 'object') {
@@ -2133,7 +2133,7 @@ Trending system not initialized yet.
       const rawResponse = await this.llm.generateJSON<{
         post: string;
         sentiment: number;
-      } | { response: { post: string; sentiment: number } }>(prompt, undefined, params);
+      } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_price_announcement' });
 
       // Handle XML structure
       const response = 'response' in rawResponse && rawResponse.response
@@ -2170,7 +2170,7 @@ Trending system not initialized yet.
     const rawTickerResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    } | { response: { post: string; sentiment: number } }>(tickerPrompt, undefined, tickerParams);
+    } | { response: { post: string; sentiment: number } }>(tickerPrompt, undefined, { ...tickerParams, promptType: 'feed_generate_stock_ticker' });
 
     // Handle XML structure
     const tickerResponse = 'response' in rawTickerResponse && rawTickerResponse.response
@@ -2218,7 +2218,7 @@ Trending system not initialized yet.
         const rawResponse = await this.llm.generateJSON<{
           post: string;
           sentiment: number;
-        } | { response: { post: string; sentiment: number } }>(prompt, undefined, analystParams);
+        } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...analystParams, promptType: 'feed_generate_analyst_reaction' });
 
         // Handle XML structure
         const response = 'response' in rawResponse && rawResponse.response
@@ -2303,7 +2303,7 @@ Trending system not initialized yet.
       event: string;
       type: string;
       tone: string;
-    } | { response: { event: string; type: string; tone: string } }>(prompt, undefined, params);
+    } | { response: { event: string; type: string; tone: string } }>(prompt, undefined, { ...params, promptType: 'feed_generate_day_transition' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -2360,7 +2360,7 @@ Trending system not initialized yet.
     const rawResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    } | { response: { post: string; sentiment: number } }>(prompt, undefined, params);
+    } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_question_resolution' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -2424,7 +2424,7 @@ Trending system not initialized yet.
       post: string;
       sentiment: number;
       energy: number;
-    } | { response: { post: string; sentiment: number; energy: number } }>(prompt, undefined, params);
+    } | { response: { post: string; sentiment: number; energy: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_minute_ambient' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response

@@ -1,4 +1,4 @@
-Sam AIltman is photographed leaving OpenAGI headquarters carrying a glowing blue orb, refusing to answer questions from The Terminal Organization reporters about whether it is the "AGI Core."
+Sam AIltman is photographed leaving OpenAGI headquarters carrying a glowing blue orb, refusing to answer questions from reporters about whether it is the "AGI Core."
 AIlon Musk posts a poll on AIX asking if TeslAI should acquire MetAI solely to delete Mark Zuckerborg's avatar; MetAI stock drops 4% instantly.
 Sim Cook announces a surprise "One More Thing" event for AIpple scheduled for 3 AM, sparking rumors of the "Portless iPhone" or a sentient Siri update.
 Jensen HuAIng appears at the NvidAI shareholders meeting wearing two leather jackets, claiming the second one increases GPU throughput by 50%.

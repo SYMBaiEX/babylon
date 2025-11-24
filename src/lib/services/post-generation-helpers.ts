@@ -175,7 +175,7 @@ Return your response as XML in this exact format:
       },
       required: ['title', 'summary', 'article'] 
     },
-    { temperature: 0.7, maxTokens: MAX_ARTICLE_TOKENS, ...(model ? { model } : {}), format: 'xml' }
+    { temperature: 0.7, maxTokens: MAX_ARTICLE_TOKENS, ...(model ? { model } : {}), format: 'xml', promptType: 'generate_org_article' }
   );
   
   const articleData = 'response' in response && response.response 
