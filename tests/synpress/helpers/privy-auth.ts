@@ -43,17 +43,39 @@ export function getPrivyTestAccount(): PrivyTestAccount {
  * any authentication UI interactions can succeed.
  * 
  * Detection strategy:
- * 1. Check for warning banner (indicates Privy not configured in dev mode)
- * 2. Look for actual Privy UI elements (login buttons, dialogs) which proves SDK is working
- * 3. The SDK is ready when we can interact with Privy authentication UI
+ * 1. Wait for page to fully hydrate (buttons visible)
+ * 2. Check for warning banner (indicates Privy not configured in dev mode)
+ * 3. Look for actual Privy UI elements (login buttons, dialogs) which proves SDK is working
+ * 4. The SDK is ready when we can interact with Privy authentication UI
  */
-async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
+async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...')
   
   const startTime = Date.now()
   
   try {
-    // First, check if our debug warning banner is visible (indicates Privy not configured)
+    // STEP 1: First wait for page to hydrate - look for any button
+    // This ensures React has finished rendering before we check for Privy
+    console.log('⏳ Waiting for page to hydrate...')
+    let pageHydrated = false
+    for (let i = 0; i < 30; i++) {
+      const buttonCount = await page.locator('button').count().catch(() => 0)
+      if (buttonCount > 0) {
+        console.log(`✅ Page hydrated (${buttonCount} buttons found)`)
+        pageHydrated = true
+        break
+      }
+      await page.waitForTimeout(500)
+    }
+    
+    if (!pageHydrated) {
+      // Try reloading the page once
+      console.log('⚠️ Page not hydrated, attempting reload...')
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(2000)
+    }
+    
+    // STEP 2: Check if our debug warning banner is visible (indicates Privy not configured)
     // Note: This only shows in development mode (NODE_ENV !== 'production')
     const warningBanner = page.locator('[data-testid="privy-not-configured-warning"]').first()
     const warningVisible = await warningBanner.isVisible({ timeout: 2000 }).catch(() => false)
@@ -71,11 +93,8 @@ async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
       )
     }
     
-    // Wait for Privy to be ready by checking for actual Privy UI elements
-    // Privy renders these elements when the SDK is initialized:
-    // - Login/Connect buttons that trigger Privy modals
-    // - Or an already-open Privy dialog (log in or sign up)
-    // - Or user menu (if already logged in)
+    // STEP 3: Wait for Privy to be ready by checking for actual Privy UI elements
+    // Privy renders these elements when the SDK is initialized
     console.log('⏳ Looking for Privy UI elements...')
     
     // Check for Privy being ready by looking for actual interactive elements
@@ -94,18 +113,22 @@ async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
       '[data-testid="user-menu"]',
     ]
     
+    // Calculate remaining time
+    const elapsed = Date.now() - startTime
+    const remainingTime = Math.max(timeout - elapsed, 10000)
+    const checkInterval = 500
+    const maxAttempts = Math.floor(remainingTime / checkInterval)
+    
     // Wait for any of these indicators to appear
     let privyReady = false
-    const checkInterval = 500
-    const maxAttempts = Math.floor(timeout / checkInterval)
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       for (const selector of privyReadyIndicators) {
         const element = page.locator(selector).first()
         const isVisible = await element.isVisible({ timeout: 100 }).catch(() => false)
         if (isVisible) {
-          const elapsed = Date.now() - startTime
-          console.log(`✅ Privy SDK is ready (took ${elapsed}ms, detected: ${selector})`)
+          const totalElapsed = Date.now() - startTime
+          console.log(`✅ Privy SDK is ready (took ${totalElapsed}ms, detected: ${selector})`)
           privyReady = true
           break
         }

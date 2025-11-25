@@ -115,6 +115,16 @@ async function cleanupTestData(): Promise<void> {
   }
 }
 
+// Global flag to track if database is available
+let dbAvailable = false;
+
+/**
+ * Check if database is available
+ */
+export function isDatabaseAvailable(): boolean {
+  return dbAvailable;
+}
+
 /**
  * Initialize test environment
  */
@@ -124,7 +134,8 @@ async function initializeTestEnvironment(): Promise<void> {
   // Verify database connection
   try {
     await db.$queryRaw`SELECT 1`;
-    console.log('[Test Preload] Database connection verified');
+    console.log('[Test Preload] ✅ Database connection verified');
+    dbAvailable = true;
     
     // Clean up stale data from previous test runs
     await cleanupStaleLocks();
@@ -132,9 +143,17 @@ async function initializeTestEnvironment(): Promise<void> {
     
     console.log('[Test Preload] Integration test environment ready');
   } catch (error) {
-    // Database connection is optional - tests that need it will skip themselves
-    console.warn('[Test Preload] Database not available - some tests may be skipped');
-    console.warn('[Test Preload] Error:', error instanceof Error ? error.message : String(error));
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('connect')) {
+      // Database connection is optional - tests that need it will skip themselves
+      console.warn('[Test Preload] ⚠️  Database not available - tests requiring DB will fail');
+      console.warn('[Test Preload] To run integration tests locally, start PostgreSQL:');
+      console.warn('   docker-compose up postgres -d');
+      dbAvailable = false;
+    } else {
+      // Re-throw non-connection errors
+      throw error;
+    }
   }
 }
 

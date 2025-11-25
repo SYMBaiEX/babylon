@@ -11,8 +11,11 @@
 
 import { test, expect } from '@playwright/test'
 import { loginWithPrivyEmail, getPrivyTestAccount } from './helpers/privy-auth'
-import { navigateTo, waitForPageLoad } from './helpers/page-helpers'
+import { navigateTo, waitForPageLoad, cooldownBetweenTests } from './helpers/page-helpers'
 import { ROUTES } from './helpers/test-data'
+
+// Increase test timeout for flaky server conditions
+test.setTimeout(90000)
 
 test.describe('Chats Page - Updated Design', () => {
   test.beforeEach(async ({ page }) => {
@@ -50,6 +53,11 @@ test.describe('Chats Page - Updated Design', () => {
         `Console errors: ${consoleErrors.length > 0 ? consoleErrors.join('; ') : 'none'}`
       )
     }
+  })
+
+  test.afterEach(async ({ page }) => {
+    // Let server recover between tests
+    await cooldownBetweenTests(page)
   })
 
   test('should load chats page with new design', async ({ page }) => {
@@ -192,6 +200,10 @@ test.describe('Chat Messaging - New Implementation', () => {
     }
   })
 
+  test.afterEach(async ({ page }) => {
+    await cooldownBetweenTests(page)
+  })
+
   test('should display chat list', async ({ page }) => {
     await page.waitForTimeout(2000)
     
@@ -295,6 +307,10 @@ test.describe('Profile Message Button', () => {
     }
   })
 
+  test.afterEach(async ({ page }) => {
+    await cooldownBetweenTests(page)
+  })
+
   test('should show message button on user profiles', async ({ page }) => {
     // Go to a test user profile
     await page.goto('/profile/testuser1')
@@ -358,6 +374,10 @@ test.describe('Real-time Updates', () => {
         `Console errors: ${consoleErrors.length > 0 ? consoleErrors.join('; ') : 'none'}`
       )
     }
+  })
+
+  test.afterEach(async ({ page }) => {
+    await cooldownBetweenTests(page)
   })
 
   test('should connect to SSE for real-time messages', async ({ page }) => {

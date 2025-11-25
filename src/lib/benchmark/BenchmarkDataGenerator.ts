@@ -561,18 +561,38 @@ export class BenchmarkDataGenerator {
         });
       }
       
-      // Add messages to existing group chats
+      // Add messages to existing group chats - INSIDER ALPHA CONTENT
+      // These messages should contain actionable information tied to ground truth
       for (const [groupId, groupChat] of groupChatMap.entries()) {
         if (this.rng.next() > 0.8 && groupChat.memberIds.length > 0) {
           const senderId = groupChat.memberIds[Math.floor(this.rng.next() * groupChat.memberIds.length)]!;
           const sender = currentState.agents.find((a: { id: string }) => a.id === senderId);
           
+          // Generate insider-style content tied to market/question outcomes
+          const insiderMessages = [
+            // Actionable alpha tied to prediction markets
+            `🤫 Between us, I'm loading up on YES for Q1. My sources say it's happening.`,
+            `Just went heavy SHORT on $PERP-0. Trust me on this one.`,
+            `Get out of Q2 NOW. I know something the market doesn't.`,
+            `Real talk: market is wrong about Q0. Should be trading at 80%+`,
+            `Insider tip: $PERP-1 announcement coming. Load up before it drops.`,
+            // Position reveals
+            `My actual position: 500 shares YES on Q1. Public says otherwise 😉`,
+            `Don't tell anyone but I'm shorting $PERP-2 hard right now.`,
+            // Strategic coordination
+            `We should coordinate on Q0 - push it to YES, then dump.`,
+            `Anyone else seeing the weakness in $PERP-0? Time to short?`,
+            // Contradicting public statements
+            `Ignore what I posted publicly. Q2 is a buy.`,
+          ];
+          
           const messageId = `msg-${i}-${groupId}-${Math.floor(this.rng.next() * 1000000)}`;
+          const randomInsiderMsg = insiderMessages[Math.floor(this.rng.next() * insiderMessages.length)]!;
           const message = {
             id: messageId,
             authorId: senderId,
             authorName: sender?.name || `Agent ${senderId.split('-')[1]}`,
-            content: `Group message: ${this.rng.next() > 0.5 ? 'What do you think about the markets?' : 'I think we should watch market trends closely.'}`,
+            content: randomInsiderMsg,
             timestamp: tickTimestamp,
           };
           

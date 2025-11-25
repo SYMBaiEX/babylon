@@ -1965,7 +1965,11 @@ ${req.members.map((m, idx) => {
       }
 
       // Handle XML structure - may be wrapped in 'response' or have nested 'group' array
-      let extractedGroups: Array<{ groupId: string; messages: Array<{ actorId: string; message: string }> }> = [];
+      // Message type that handles both 'message' and 'content' fields from LLM
+      type GroupMessageItem = { actorId: string; message?: string; content?: string };
+      type ExtractedGroup = { groupId: string; messages: GroupMessageItem[] };
+      
+      let extractedGroups: ExtractedGroup[] = [];
       
       // First, unwrap 'response' if present
       const responseData = 'response' in rawResponse && rawResponse.response
@@ -1978,20 +1982,20 @@ ${req.members.map((m, idx) => {
         
         if (Array.isArray(groupsData)) {
           // Direct array: { groups: [{...}, {...}] }
-          extractedGroups = groupsData;
+          extractedGroups = groupsData as ExtractedGroup[];
         } else if (groupsData && typeof groupsData === 'object') {
           // Check for XML nested structure: { groups: { group: [...] } } or { groups: { group: {...} } }
           if ('group' in groupsData) {
             const groupContent = (groupsData as { group: unknown }).group;
             if (Array.isArray(groupContent)) {
-              extractedGroups = groupContent;
+              extractedGroups = groupContent as ExtractedGroup[];
             } else if (groupContent && typeof groupContent === 'object') {
               // Single group wrapped in object
-              extractedGroups = [groupContent as { groupId: string; messages: Array<{ actorId: string; message: string }> }];
+              extractedGroups = [groupContent as ExtractedGroup];
             }
           } else {
             // Single group returned directly as object: { groups: { groupId: "...", messages: [...] } }
-            extractedGroups = [groupsData as { groupId: string; messages: Array<{ actorId: string; message: string }> }];
+            extractedGroups = [groupsData as ExtractedGroup];
           }
         }
       }
@@ -2003,24 +2007,28 @@ ${req.members.map((m, idx) => {
           // Handle { messages: { message: [...] } } or { messages: { message: {...} } }
           if ('message' in groupMessages) {
             const messageContent = (groupMessages as { message: unknown }).message;
-            groupMessages = Array.isArray(messageContent) ? messageContent : [messageContent as { actorId: string; message: string }];
+            groupMessages = Array.isArray(messageContent) ? messageContent : [messageContent as GroupMessageItem];
           }
         }
         return { ...g, messages: groupMessages || [] };
       });
       
       if (extractedGroups.length === groupRequests.length && extractedGroups.every(g => g.messages && g.messages.length > 0)) {
-        // Convert to expected format
+        // Convert to expected format - handle both 'message' and 'content' fields
         extractedGroups.forEach((group, i) => {
           const req = groupRequests[i];
           if (!req) return; // Skip if no matching request
 
-          messages[group.groupId] = group.messages.map((msg, j) => ({
-            from: msg.actorId,
-            message: msg.message,
-            timestamp: `2025-10-${String(day).padStart(2, '0')}T${String(10 + j * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            clueStrength: req.members.find(m => m.actorId === msg.actorId)?.role === 'main' ? 0.7 : 0.4,
-          }));
+          messages[group.groupId] = (group.messages as GroupMessageItem[]).map((msg, j) => {
+            // LLM may return 'content' field instead of 'message' field
+            const messageText = msg.message || msg.content || '';
+            return {
+              from: msg.actorId,
+              message: messageText,
+              timestamp: `2025-10-${String(day).padStart(2, '0')}T${String(10 + j * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+              clueStrength: req.members.find(m => m.actorId === msg.actorId)?.role === 'main' ? 0.7 : 0.4,
+            };
+          });
         });
         
         return messages;

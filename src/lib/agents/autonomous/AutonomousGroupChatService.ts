@@ -95,14 +95,12 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
         }
 
         // Create group message
-        await db.message.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId: chat.id,
-            senderId: agentUserId,
-            content: cleanContent,
-            createdAt: new Date()
-          }
+        await db.insert(messages).values({
+          id: await generateSnowflakeId(),
+          chatId: chat.id,
+          senderId: agentUserId,
+          content: cleanContent,
+          createdAt: new Date()
         })
 
         messagesCreated++

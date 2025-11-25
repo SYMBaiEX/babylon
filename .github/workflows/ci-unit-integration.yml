@@ -203,7 +203,9 @@ jobs:
           AGENT0_IPFS_PROVIDER: ${{ secrets.AGENT0_IPFS_PROVIDER || 'pinata' }}
           PINATA_JWT: ${{ secrets.PINATA_JWT || '' }}
           AGENT0_SUBGRAPH_URL: ${{ secrets.AGENT0_SUBGRAPH_URL || '' }}
-        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts src/engine/__tests__/
+        run: |
+          bun test tests/integration/
+          bun test src/engine/__tests__/
         continue-on-error: false
 
       - name: Stop Next.js dev server

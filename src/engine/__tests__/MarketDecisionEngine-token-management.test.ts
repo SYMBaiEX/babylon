@@ -44,6 +44,29 @@
  */
 
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
+
+// Create chainable mock for Drizzle query builder API
+const createChainableMock = (returnValue: Array<Record<string, unknown>> = []) => {
+  const chainable = {
+    from: () => chainable,
+    where: () => chainable,
+    orderBy: () => chainable,
+    limit: () => chainable,
+    offset: () => chainable,
+    leftJoin: () => chainable,
+    innerJoin: () => chainable,
+    groupBy: () => chainable,
+    having: () => chainable,
+    then: (resolve: (value: Array<Record<string, unknown>>) => void) => resolve(returnValue),
+    [Symbol.toStringTag]: 'Promise',
+  };
+  // Make it awaitable
+  Object.defineProperty(chainable, 'then', {
+    value: (resolve: (value: Array<Record<string, unknown>>) => void) => Promise.resolve(returnValue).then(resolve)
+  });
+  return chainable;
+};
+
 // Mock database BEFORE importing MarketDecisionEngine
 const mockDb = {
   actor: {
@@ -65,11 +88,44 @@ const mockDb = {
   market: { findMany: mock(async () => []) },
   nPCTrade: { findMany: mock(async () => []) },
   worldFact: { findMany: mock(async () => []) },
-  agentTrade: { findMany: mock(async () => []) }
+  agentTrade: { findMany: mock(async () => []) },
+  // Add Drizzle query builder API
+  select: () => createChainableMock([]),
+  insert: () => createChainableMock([]),
+  update: () => createChainableMock([]),
+  delete: () => createChainableMock([]),
 };
 
+// Mock Drizzle operators and schema tables
+const mockTable = {};
+const mockOperator = () => ({});
+
 mock.module('@/db', () => ({
-  db: mockDb
+  db: mockDb,
+  // Schema tables
+  markets: mockTable,
+  questions: mockTable,
+  organizations: mockTable,
+  actors: mockTable,
+  posts: mockTable,
+  worldFacts: mockTable,
+  users: mockTable,
+  perpPositions: mockTable,
+  // Drizzle operators
+  eq: mockOperator,
+  and: mockOperator,
+  or: mockOperator,
+  not: mockOperator,
+  gt: mockOperator,
+  gte: mockOperator,
+  lt: mockOperator,
+  lte: mockOperator,
+  desc: mockOperator,
+  asc: mockOperator,
+  isNull: mockOperator,
+  isNotNull: mockOperator,
+  inArray: mockOperator,
+  sql: () => ({}),
 }));
 
 import { MarketDecisionEngine } from '../MarketDecisionEngine';

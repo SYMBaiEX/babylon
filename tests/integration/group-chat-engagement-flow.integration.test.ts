@@ -94,7 +94,6 @@ async function createNPCPost(npcId: string, content: string): Promise<string> {
       authorId: npcId,
       content,
       timestamp: new Date(),
-      updatedAt: new Date(),
     },
   });
   
@@ -161,7 +160,6 @@ async function createComment(userId: string, npcPostId: string, content: string)
       content,
       commentOnPostId: npcPostId,
       timestamp: new Date(),
-      updatedAt: new Date(),
     },
   });
   
@@ -385,6 +383,8 @@ describe('Reply Guy Score Calculation', () => {
     // comments score = 20, penalties = -10
     expect(breakdown.penalties).toBeLessThan(0);
     expect(breakdown.comments).toBe(20); // Good portion
+    // Score should be reduced by penalties
+    expect(score).toBeLessThan(breakdown.comments); // Score less than raw comments due to penalties
   });
 
   test('should give combined score for ideal engagement', async () => {

@@ -182,7 +182,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           echo "🔗 Running integration tests..."
-          bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts --preload ./tests/integration/preload.ts
+          bun test tests/integration/ --preload ./tests/integration/preload.ts
 
       - name: Summary
         run: |

@@ -1940,30 +1940,63 @@ export class FeedGenerator extends EventEmitter {
       
       // Check if wrapped in response object first
       const responseData = 'response' in response && response.response && typeof response.response === 'object'
-        ? response.response as { posts?: AmbientPostItem[] | { post: AmbientPostItem[] | AmbientPostItem } }
+        ? response.response as { posts?: AmbientPostItem[] | { post?: AmbientPostItem[] | AmbientPostItem; posts?: AmbientPostItem[] } }
         : response;
       
       if ('posts' in responseData && responseData.posts) {
         if (Array.isArray(responseData.posts)) {
           posts = responseData.posts;
-        } else if (typeof responseData.posts === 'object' && 'post' in responseData.posts) {
-          const nested = responseData.posts.post;
-          posts = Array.isArray(nested) ? nested : [nested];
+        } else if (typeof responseData.posts === 'object') {
+          // Check various nested structures
+          if ('post' in responseData.posts) {
+            const nested = responseData.posts.post;
+            posts = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('posts' in responseData.posts && Array.isArray(responseData.posts.posts)) {
+            // Double nested: { posts: { posts: [...] } }
+            posts = responseData.posts.posts;
+          } else if ('content' in responseData.posts) {
+            // Single post returned directly: { posts: { content: "...", ... } }
+            posts = [responseData.posts as AmbientPostItem];
+          }
         }
+      }
+      
+      // Debug: Log extraction details on first attempt
+      if (attempt === 0) {
+        logger.info('Ambient posts extraction', {
+          postsLength: posts.length,
+          samplePost: posts[0] ? {
+            hasPost: 'post' in posts[0],
+            hasTweet: 'tweet' in posts[0],
+            hasContent: 'content' in posts[0],
+            postType: typeof (posts[0] as Record<string, unknown>).post,
+            contentType: typeof (posts[0] as Record<string, unknown>).content,
+          } : null,
+        }, 'FeedGenerator');
       }
       
       const filteredPosts = posts
         .filter(p => {
           // Handle various content field names: post, tweet, or content
-          const content = p.post || p.tweet || p.content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const postContent = p.post || p.tweet || p.content;
+          // Also handle case where content might be nested object (XML edge case)
+          const contentValue = typeof postContent === 'object' && postContent !== null 
+            ? String(postContent) 
+            : postContent;
+          return contentValue && typeof contentValue === 'string' && contentValue.trim().length > 0;
         })
-        .map(p => ({
-          post: p.post || p.tweet || p.content!,
-          sentiment: p.sentiment ?? 0,
-          clueStrength: p.clueStrength ?? 0.05,
-          pointsToward: p.pointsToward ?? null,
-        }));
+        .map(p => {
+          const rawContent = p.post || p.tweet || p.content;
+          const content = typeof rawContent === 'object' && rawContent !== null 
+            ? String(rawContent) 
+            : rawContent;
+          return {
+            post: content || '',
+            sentiment: p.sentiment ?? 0,
+            clueStrength: p.clueStrength ?? 0.05,
+            pointsToward: p.pointsToward ?? null,
+          };
+        });
       
       // Post-process to fix any real names that slipped through
       const validPosts = await Promise.all(
@@ -2102,31 +2135,82 @@ export class FeedGenerator extends EventEmitter {
       
       // Check if wrapped in response object first
       const responseData = 'response' in response && response.response && typeof response.response === 'object'
-        ? response.response as { replies?: ReplyItem[] | { reply: ReplyItem[] | ReplyItem } }
+        ? response.response as { replies?: ReplyItem[] | { reply?: ReplyItem[] | ReplyItem; replies?: ReplyItem[] } }
         : response;
       
       if ('replies' in responseData && responseData.replies) {
         if (Array.isArray(responseData.replies)) {
           replies = responseData.replies;
-        } else if (typeof responseData.replies === 'object' && 'reply' in responseData.replies) {
-          const nested = responseData.replies.reply;
-          replies = Array.isArray(nested) ? nested : [nested];
+        } else if (typeof responseData.replies === 'object') {
+          // Check various nested structures
+          if ('reply' in responseData.replies) {
+            const nested = responseData.replies.reply;
+            replies = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('replies' in responseData.replies && Array.isArray(responseData.replies.replies)) {
+            // Double nested: { replies: { replies: [...] } }
+            replies = responseData.replies.replies;
+          } else if ('content' in responseData.replies || 'post' in responseData.replies) {
+            // Single reply returned directly: { replies: { content/post: "...", ... } }
+            replies = [responseData.replies as ReplyItem];
+          }
         }
+      } else if ('reply' in responseData) {
+        // LLM returned singular 'reply' instead of 'replies'
+        const replyData = (responseData as { reply: ReplyItem[] | ReplyItem | { reply: ReplyItem[] | ReplyItem } }).reply;
+        if (Array.isArray(replyData)) {
+          replies = replyData;
+        } else if (replyData && typeof replyData === 'object') {
+          if ('reply' in replyData) {
+            // Nested: { reply: { reply: [...] } }
+            const nested = (replyData as { reply: ReplyItem[] | ReplyItem }).reply;
+            replies = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('post' in replyData || 'content' in replyData) {
+            // Single reply: { reply: { post: "...", ... } }
+            replies = [replyData as ReplyItem];
+          }
+        }
+      }
+      
+      // Debug: Log extraction details on first attempt
+      if (attempt === 0) {
+        logger.info('Replies extraction', {
+          repliesLength: replies.length,
+          responseKeys: Object.keys(responseData),
+          hasReplies: 'replies' in responseData,
+          hasReply: 'reply' in responseData,
+          sampleReply: replies[0] ? {
+            hasPost: 'post' in replies[0],
+            hasTweet: 'tweet' in replies[0],
+            hasContent: 'content' in replies[0],
+            postType: typeof (replies[0] as Record<string, unknown>).post,
+            contentType: typeof (replies[0] as Record<string, unknown>).content,
+          } : null,
+        }, 'FeedGenerator');
       }
       
       // Type helper for replies that may have different content field names
       const filteredReplies = replies
         .filter((r): r is ReplyItem => {
           // Handle various content field names: post, tweet, or content
-          const content = r.post || r.tweet || r.content;
-          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
+          const replyContent = r.post || r.tweet || r.content;
+          // Also handle case where content might be nested object (XML edge case)
+          const contentValue = typeof replyContent === 'object' && replyContent !== null 
+            ? String(replyContent) 
+            : replyContent;
+          return Boolean(contentValue && typeof contentValue === 'string' && contentValue.trim().length > 0);
         })
-        .map(r => ({
-          post: r.post || r.tweet || r.content || '',
-          sentiment: r.sentiment ?? 0,
-          clueStrength: r.clueStrength ?? 0.3,
-          pointsToward: r.pointsToward ?? null,
-        }));
+        .map(r => {
+          const rawContent = r.post || r.tweet || r.content;
+          const content = typeof rawContent === 'object' && rawContent !== null 
+            ? String(rawContent) 
+            : rawContent;
+          return {
+            post: content || '',
+            sentiment: r.sentiment ?? 0,
+            clueStrength: r.clueStrength ?? 0.3,
+            pointsToward: r.pointsToward ?? null,
+          };
+        });
       
       // Post-process to fix any real names that slipped through
       const validReplies = await Promise.all(

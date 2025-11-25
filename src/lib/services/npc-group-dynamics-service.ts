@@ -27,6 +27,7 @@ import {
   userInteractions,
   userGroupInvites,
   groupChatMemberships,
+  poolPositions,
   eq,
   and,
   or,
@@ -376,6 +377,13 @@ export class NPCGroupDynamicsService {
 
   /**
    * Post messages to groups from NPCs
+   * 
+   * IMPORTANT: Group chats are the core ASYMMETRIC INFORMATION mechanic.
+   * NPCs share insider info here that they would NEVER post publicly:
+   * - Real positions and upcoming trades
+   * - Insider knowledge about questions/markets
+   * - Contradictions to their public statements
+   * - Strategic coordination with allies
    */
   private static async postGroupMessages(llm: BabylonLLMClient): Promise<number> {
     let messagesPosted = 0;
@@ -427,6 +435,18 @@ export class NPCGroupDynamicsService {
       const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
       if (!randomNpc) continue;
 
+      // Get full NPC actor data for insider context
+      const [npcActor] = await db.select()
+        .from(actors)
+        .where(eq(actors.id, randomNpc.id))
+        .limit(1);
+
+      // Get NPC's current positions for insider trading context
+      const npcPositions = await db.select()
+        .from(poolPositions)
+        .where(eq(poolPositions.poolId, randomNpc.id))
+        .limit(5);
+
       // Get sender details for recent messages
       const messageSenderIds = recentMsgs.slice(0, 5).map(m => m.senderId);
       const senders = messageSenderIds.length > 0
@@ -445,32 +465,62 @@ export class NPCGroupDynamicsService {
         .map((m) => `${senderMap.get(m.senderId) || 'Someone'}: ${m.content}`)
         .join('\n');
 
-      const contextPrompt = recentMessages
-        ? `Recent conversation:\n${recentMessages}\n\nRespond naturally to continue the conversation.`
-        : `Start a casual conversation in the group "${group.name}".`;
+      const conversationContext = recentMessages
+        ? `Recent conversation:\n${recentMessages}`
+        : '';
+
+      // Build position context for insider trading info
+      const positionContext = npcPositions.length > 0
+        ? `YOUR CURRENT POSITIONS (share strategically):\n${npcPositions.map(p => 
+            `- ${p.marketType === 'perp' ? p.ticker : `Question #${p.marketId}`}: ${p.side} position, ${p.unrealizedPnL > 0 ? 'up' : 'down'} $${Math.abs(Number(p.unrealizedPnL)).toFixed(0)}`
+          ).join('\n')}`
+        : '';
+
+      // Build affiliation context
+      const affiliationContext = npcActor?.affiliations && npcActor.affiliations.length > 0
+        ? `Your affiliations: ${npcActor.affiliations.join(', ')}`
+        : '';
 
       try {
         // Get world context for consistent parody names and market awareness
         const worldContext = await generateWorldContext({ maxActors: 20 });
         
-        // Generate message using LLM with world context
-        const prompt = `You are ${randomNpc.displayName}, chatting in a private group chat. ${contextPrompt}
+        // Generate INSIDER message - this is the key asymmetric information mechanic!
+        const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
+${affiliationContext}
+
+${conversationContext}
+
+${positionContext}
 
 ${worldContext.worldActors}
 ${worldContext.currentMarkets}
-${worldContext.recentTrades}
 
-Write a brief, casual message (max 150 chars). Be natural and conversational.
+This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
 
-IMPORTANT RULES:
-- NO hashtags or emojis
-- NEVER use real names (Elon Musk, Sam Altman, etc.)
-- ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.)
-- You may reference markets or trades naturally if relevant
+WHAT TO SHARE (pick one that's relevant):
+- "Just loaded up on [ticker] before the announcement drops"
+- "Between us, [company] numbers look terrible this quarter"
+- "I'm hearing [rival] is in serious trouble"
+- "Get out of [ticker] now - trust me on this"
+- "Real talk: market is wrong about [question]"
+- Your actual position and why (contradict public statements if needed)
+- Insider knowledge about your affiliated organizations
+- Strategic advice for friends in this group
 
-Return your response as XML in this exact format:
+PRIVATE vs PUBLIC:
+- PUBLIC feed: What you want the market to think
+- PRIVATE chat: What you actually know/believe/plan
+- Help friends make money, hurt enemies
+
+Write a private message (max 200 chars) with ACTIONABLE insider info.
+Be SPECIFIC with tickers, positions, or predictions.
+NO hashtags. Emojis OK (🤫 👀 🔥).
+Use parody names from World Actors (AIlon Musk, not Elon Musk).
+
+Return your response as XML:
 <response>
-  <message>your message here</message>
+  <message>your insider message here</message>
 </response>`;
 
         const rawResponse = await llm.generateJSON<{ message: string } | { response: { message: string } }>(
@@ -558,7 +608,10 @@ Return your response as XML in this exact format:
    * - Too many likes (>30/week): -0.5 per excess like
    * - Too many reposts (>5/week): -3 per excess repost
    */
-  private static async calculateReplyGuyScore(userId: string, npcIds: string[]): Promise<{
+  /**
+   * Calculate engagement score for potential group invites (exposed for testing)
+   */
+  public static async calculateReplyGuyScore(userId: string, npcIds: string[]): Promise<{
     score: number;
     breakdown: {
       follows: number;

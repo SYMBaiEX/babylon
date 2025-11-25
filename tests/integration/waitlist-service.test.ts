@@ -1,10 +1,14 @@
 /**
  * Integration Tests: WaitlistService
  * 
- * Tests core waitlist service methods against a real database
+ * Tests core waitlist service methods against a real database.
+ * Requires PostgreSQL to be running.
+ * 
+ * In CI: Database is automatically available via GitHub Actions services
+ * Locally: Run `docker-compose up postgres` or have PostgreSQL running
  */
 
-import { describe, it, expect, afterEach, beforeAll } from 'bun:test'
+import { describe, it, expect, afterEach, beforeAll, beforeEach } from 'bun:test'
 import { db, users, referrals, pointsTransactions, eq, inArray } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
@@ -18,12 +22,33 @@ describeWaitlist('WaitlistService', () => {
   // Test data cleanup
   const testUserIds: string[] = []
   let WaitlistService: WaitlistServiceModule['WaitlistService']
+  let dbAvailable = true
 
   beforeAll(async () => {
+    // Verify database connectivity before running tests
+    try {
+      await db.select().from(users).limit(1)
+    } catch (error) {
+      const msg = (error as Error).message ?? ''
+      if (msg.includes('ECONNREFUSED') || msg.includes('connect')) {
+        console.error('\n❌ Database connection failed. Integration tests require a running PostgreSQL database.')
+        console.error('   Run: docker-compose up postgres -d\n')
+        dbAvailable = false
+        return
+      }
+      throw error
+    }
     ({ WaitlistService } = await import('@/lib/services/waitlist-service'))
   })
 
+  beforeEach(() => {
+    if (!dbAvailable) {
+      throw new Error('Database not available - skipping test')
+    }
+  })
+
   afterEach(async () => {
+    if (!dbAvailable) return
     // Clean up test users and related data
     if (testUserIds.length > 0) {
       // Delete referrals first (foreign key constraint)
