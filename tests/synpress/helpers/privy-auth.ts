@@ -42,8 +42,10 @@ export function getPrivyTestAccount(): PrivyTestAccount {
  * has finished initializing. This is critical because Privy SDK must be ready before
  * any authentication UI interactions can succeed.
  */
-async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
+async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...')
+  
+  const startTime = Date.now()
   
   try {
     // First, check if our debug warning banner is visible (indicates Privy not configured)
@@ -93,40 +95,48 @@ async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
     }
     
     // Wait for Privy SDK to be available and ready
+    // IMPORTANT: Only return true when window.privy.ready is explicitly true
+    // Do NOT use script tag presence as a fallback - it's misleading
     await page.waitForFunction(
       () => {
-        // Check if Privy SDK is loaded
+        // Check if Privy SDK is loaded and ready
         if (typeof window === 'undefined') {
           return false
         }
         
         // Check for Privy SDK on window object
         const privy = (window as { privy?: { ready?: boolean } }).privy
-        if (!privy) {
-           // Also check for script tag as fallback for early loading state
-           return document.querySelector('script[src*="privy"]') !== null
-        }
         
-        // Check if SDK is ready
-        return privy.ready === true
+        // Only return true when SDK is fully ready
+        // The script tag existing doesn't mean the SDK is ready to use
+        return privy?.ready === true
       },
-      { timeout }
+      { timeout, polling: 500 }
     )
     
-    console.log('✅ Privy SDK is ready')
+    const elapsed = Date.now() - startTime
+    console.log(`✅ Privy SDK is ready (took ${elapsed}ms)`)
   } catch (error) {
-    // Log console errors for debugging
-    const consoleMessages = await page.evaluate(() => {
-      // Try to get console errors if available
-      return 'Console errors not accessible in Playwright'
-    }).catch(() => 'Could not access console')
+    const elapsed = Date.now() - startTime
+    
+    // Gather debugging information
+    const debugInfo = await page.evaluate(() => {
+      const info: Record<string, unknown> = {
+        hasWindow: typeof window !== 'undefined',
+        hasPrivy: typeof (window as { privy?: unknown }).privy !== 'undefined',
+        privyReady: (window as { privy?: { ready?: boolean } }).privy?.ready,
+        privyScriptExists: document.querySelector('script[src*="privy"]') !== null,
+        privyScriptSrc: document.querySelector('script[src*="privy"]')?.getAttribute('src') || 'not found',
+      }
+      return info
+    }).catch(() => ({ error: 'Could not gather debug info' }))
     
     throw new Error(
-      `Privy SDK failed to initialize: ${error instanceof Error ? error.message : String(error)}\n` +
-      `Console: ${consoleMessages}\n` +
+      `Privy SDK failed to initialize after ${elapsed}ms: ${error instanceof Error ? error.message : String(error)}\n` +
+      `Debug info: ${JSON.stringify(debugInfo, null, 2)}\n` +
       `This usually means:\n` +
       `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
-      `2. Privy SDK script failed to load\n` +
+      `2. Privy SDK script failed to load (check for 404 errors)\n` +
       `3. Network issues preventing Privy API calls`
     )
   }
