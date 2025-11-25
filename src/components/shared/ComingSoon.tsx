@@ -32,6 +32,7 @@ interface WaitlistData {
     invite: number
     earned: number
     bonus: number
+    base: number
   }
   referralCount: number
   weeklyReferralCount?: number
@@ -446,7 +447,8 @@ export function ComingSoon() {
         }
         
         // Verify points calculation consistency
-        const calculatedTotal = (data.pointsBreakdown?.invite || 0) + 
+        const calculatedTotal = (data.pointsBreakdown?.base || 0) +
+                                (data.pointsBreakdown?.invite || 0) + 
                                 (data.pointsBreakdown?.earned || 0) + 
                                 (data.pointsBreakdown?.bonus || 0)
         const reportedTotal = data.points || 0
