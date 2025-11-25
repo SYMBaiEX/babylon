@@ -637,6 +637,11 @@ export class GameGenerator {
       { temperature: 0.7, maxTokens: 5000, promptType: 'generate_baseline_event' }
     );
 
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `${actors[0]?.name || 'Actor'} ${type}`;
+    }
+
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
       ? rawResponse.response
@@ -1624,6 +1629,11 @@ Max 120 characters, one sentence.`;
       { temperature: 0.9, promptType: 'generate_event_description' }
     );
 
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `${actorNames} ${type}`;
+    }
+
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
       ? rawResponse.response
@@ -1671,6 +1681,20 @@ Max 120 characters, one sentence.`;
       undefined,
       { temperature: 0.7, maxTokens: 5000, promptType: 'generate_resolution_event' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return {
+        id: `resolution-${day}-${question.id}`,
+        day,
+        type: 'revelation' as const,
+        actors: mainActors.map(a => a.id),
+        description: `Resolution event for question ${question.id}`,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: question.outcome ? 'YES' : 'NO',
+        visibility: 'public',
+      };
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -1903,8 +1927,8 @@ ${req.members.map((m, idx) => {
         { temperature: 1.0, maxTokens: 5000, promptType: 'generate_group_messages_batch' }
       );
 
-      if (!rawResponse) {
-        logger.warn(`LLM returned null/undefined group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
+      if (!rawResponse || typeof rawResponse !== 'object') {
+        logger.warn(`LLM returned null/undefined/invalid group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
@@ -1985,6 +2009,11 @@ ${req.members.map((m, idx) => {
       undefined,
       { temperature: 1.0, promptType: 'generate_group_message' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `Day ${day}: Interesting developments...`;
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response

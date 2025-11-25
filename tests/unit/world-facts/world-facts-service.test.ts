@@ -124,9 +124,11 @@ describe('WorldFactsService', () => {
 
   test('should bulk update facts', async () => {
     if (!worldFactsModelsAvailable) return;
+    // Use different prefixes to generate unique keys (key is extracted from before the colon)
+    const timestamp = Date.now();
     const values = [
-      `${testValuePrefix} - Bulk Value 1`,
-      `${testValuePrefix} - Bulk Value 2`,
+      `BulkTestA${timestamp}: First bulk value for testing`,
+      `BulkTestB${timestamp}: Second bulk value for testing`,
     ];
 
     await worldFactsService.bulkUpdateFacts(values);
@@ -134,6 +136,16 @@ describe('WorldFactsService', () => {
     const facts = await worldFactsService.getAllFacts();
     expect(facts.some(f => f.value === values[0])).toBe(true);
     expect(facts.some(f => f.value === values[1])).toBe(true);
+    
+    // Cleanup these specific test facts
+    await prisma.worldFact.deleteMany({
+      where: {
+        OR: [
+          { key: `bulktesta${timestamp}` },
+          { key: `bulktestb${timestamp}` },
+        ],
+      },
+    });
   });
 });
 

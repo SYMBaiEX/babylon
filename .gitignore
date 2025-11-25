@@ -69,7 +69,7 @@ wandb/
 # Test results
 test-results/
 playwright-report/
-.playwright/test-tokens.json
+.playwright/
 
 # Debug stuff
 debug/

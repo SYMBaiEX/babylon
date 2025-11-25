@@ -96,21 +96,141 @@ export class CharacterMappingService {
   }
 
   /**
+   * Build word-to-word mapping from real name to parody name
+   * 
+   * @example
+   * buildWordMapping("Arthur Hayes", "Arthur HAIyes")
+   * // Returns: { "arthur": "Arthur", "hayes": "HAIyes" }
+   */
+  private buildWordMapping(realName: string, parodyName: string): Map<string, string> {
+    const realWords = realName.split(/\s+/);
+    const parodyWords = parodyName.split(/\s+/);
+    const wordMap = new Map<string, string>();
+    
+    // Map corresponding words by position
+    for (let i = 0; i < realWords.length && i < parodyWords.length; i++) {
+      const realWord = realWords[i];
+      const parodyWord = parodyWords[i];
+      if (realWord && parodyWord) {
+        wordMap.set(realWord.toLowerCase(), parodyWord);
+      }
+    }
+    
+    return wordMap;
+  }
+
+  /**
+   * Preserve the case pattern of the original text in the replacement
+   * 
+   * Only transforms case for:
+   * - ALL LOWERCASE input → all lowercase output
+   * - ALL UPPERCASE input → all uppercase output
+   * 
+   * For mixed case (like "Hayes"), keeps the parody name's original casing ("HAIyes")
+   * to preserve intentional AI-pun styling.
+   * 
+   * @example
+   * preserveCase("hayes", "HAIyes") → "haiyes"
+   * preserveCase("HAYES", "HAIyes") → "HAIYES"
+   * preserveCase("Hayes", "HAIyes") → "HAIyes" (keeps parody casing)
+   */
+  private preserveCase(original: string, replacement: string): string {
+    if (!original || !replacement) return replacement;
+    
+    // Check if original is all lowercase → lowercase output
+    if (original === original.toLowerCase()) {
+      return replacement.toLowerCase();
+    }
+    
+    // Check if original is all uppercase → uppercase output
+    if (original === original.toUpperCase()) {
+      return replacement.toUpperCase();
+    }
+    
+    // For mixed case (title case, etc.), keep parody name's original casing
+    // This preserves intentional AI-pun styling like "HAIyes", "AIlon", "FrAInk"
+    return replacement;
+  }
+
+  /**
+   * Generate username from a name (removes spaces, lowercases)
+   * 
+   * @example
+   * generateUsername("Elon Musk") → "elonmusk"
+   * generateUsername("AIlon Musk") → "ailonmusk"
+   */
+  private generateUsername(name: string): string {
+    return name.toLowerCase().replace(/\s+/g, '');
+  }
+
+  /**
+   * Get the appropriate replacement for a search term
+   * 
+   * If searchName is the full realName, use full parodyName.
+   * If searchName is a partial match (alias), find corresponding parody word.
+   * 
+   * @example
+   * getReplacementForTerm("Hayes", "Arthur Hayes", "Arthur HAIyes")
+   * // Returns: "HAIyes"
+   * 
+   * getReplacementForTerm("Arthur Hayes", "Arthur Hayes", "Arthur HAIyes")
+   * // Returns: "Arthur HAIyes"
+   */
+  private getReplacementForTerm(
+    searchName: string,
+    realName: string,
+    parodyName: string
+  ): string {
+    // If searching for the full name, return full parody name
+    if (searchName.toLowerCase() === realName.toLowerCase()) {
+      return parodyName;
+    }
+    
+    // Build word mapping and look for the search term
+    const wordMap = this.buildWordMapping(realName, parodyName);
+    const searchLower = searchName.toLowerCase();
+    
+    // Check if searchName is a single word that maps
+    if (wordMap.has(searchLower)) {
+      return wordMap.get(searchLower)!;
+    }
+    
+    // For multi-word aliases, try to map each word
+    const searchWords = searchName.split(/\s+/);
+    if (searchWords.length > 1) {
+      const mappedWords = searchWords.map(word => {
+        const mapped = wordMap.get(word.toLowerCase());
+        return mapped || word; // Keep original if no mapping
+      });
+      return mappedWords.join(' ');
+    }
+    
+    // Fallback: return the full parody name (shouldn't happen often)
+    return parodyName;
+  }
+
+  /**
    * Transform text by replacing real names with parody names
    * 
    * @description Transforms text by replacing real names with parody equivalents.
-   * Uses case-insensitive whole-word matching and preserves original text structure
-   * (punctuation, whitespace). Processes character mappings first, then organization
-   * mappings.
+   * Uses case-insensitive whole-word matching and preserves original case pattern.
+   * 
+   * Processing order:
+   * 1. Usernames first (@elonmusk → @ailonmusk)
+   * 2. Character names (Elon Musk → AIlon Musk)
+   * 3. Organization names (Tesla → TeslAI)
+   * 
+   * Case preservation:
+   * - "hayes" → "haiyes" (lowercase preserved)
+   * - "HAYES" → "HAIYES" (uppercase preserved)
+   * - "Hayes" → "HAIyes" (original parody case)
+   * 
+   * Word-to-word mapping:
+   * - "Arthur Hayes" → "Arthur HAIyes" (full name)
+   * - "Hayes" → "HAIyes" (just the word, not full name)
    * 
    * @param {string} text - Text to transform
    * @returns {Promise<TextReplacementResult>} Transformation result with mappings applied
-   * 
-   * @example
-   * ```typescript
-   * const result = await characterMappingService.transformText('Sam AIltman announced Cognition-9000');
-   * // Returns: { transformedText: 'Sam AIltman announced Cognition-9000', characterMappings: {...}, ... }
-   * ```
    */
   async transformText(text: string): Promise<TextReplacementResult> {
     await this.loadMappings();
@@ -120,15 +240,54 @@ export class CharacterMappingService {
     const organizationMappings: Record<string, string> = {};
     let replacementCount = 0;
 
-    // Replace characters first (higher priority = replace first to handle substrings)
+    // PHASE 1: Replace usernames FIRST (e.g., @elonmusk → @ailonmusk)
+    // This must happen before name replacements to avoid partial matches
+    for (const mapping of this.characterMappingsCache) {
+      const realUsername = this.generateUsername(mapping.realName);
+      const parodyUsername = this.generateUsername(mapping.parodyName);
+      
+      // Skip if usernames are the same
+      if (realUsername === parodyUsername) continue;
+      
+      // Skip if parody username already in text
+      if (transformedText.toLowerCase().includes(parodyUsername)) continue;
+      
+      // Match @username pattern (case-insensitive)
+      const usernameRegex = new RegExp(`@${escapeRegex(realUsername)}\\b`, 'gi');
+      
+      if (usernameRegex.test(transformedText)) {
+        transformedText = transformedText.replace(usernameRegex, (match) => {
+          // Extract the matched username without @
+          const matchedUsername = match.slice(1);
+          // Preserve case of the original username
+          const casedReplacement = this.preserveCase(matchedUsername, parodyUsername);
+          characterMappings[`@${realUsername}`] = `@${casedReplacement}`;
+          replacementCount++;
+          return `@${casedReplacement}`;
+        });
+      }
+    }
+
+    // PHASE 2: Replace character names
     for (const mapping of this.characterMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
       for (const searchName of searchNames) {
+        // Get the appropriate replacement (word-to-word mapping)
+        const replacement = this.getReplacementForTerm(
+          searchName,
+          mapping.realName,
+          mapping.parodyName
+        );
+        
+        // Skip if this specific replacement is already in the text
+        if (transformedText.toLowerCase().includes(replacement.toLowerCase())) {
+          continue;
+        }
+        
         // Create regex for case-insensitive whole-word matching
-        // Use word boundaries but also match at start/end of string and after punctuation
         const regex = new RegExp(
-          `(?:^|\\s|[^a-zA-Z])${escapeRegex(searchName)}(?:$|\\s|[^a-zA-Z])`,
+          `(?:^|\\s|[^a-zA-Z@])${escapeRegex(searchName)}(?:$|\\s|[^a-zA-Z])`,
           'gi'
         );
 
@@ -137,8 +296,7 @@ export class CharacterMappingService {
           transformedText = transformedText.replace(
             regex,
             (match) => {
-              // Preserve leading/trailing punctuation or whitespace
-              // Use case-insensitive comparison since we're doing case-insensitive matching
+              // Extract the actual matched name (excluding leading/trailing chars)
               const matchLower = match.toLowerCase();
               const searchLower = searchName.toLowerCase();
 
@@ -147,23 +305,44 @@ export class CharacterMappingService {
                 ? match[match.length - 1]
                 : '';
 
-              characterMappings[searchName] = mapping.parodyName;
+              // Extract the actual matched text (without leading/trailing chars)
+              const actualMatch = match.slice(
+                leadingChar ? 1 : 0,
+                trailingChar ? -1 : undefined
+              );
+              
+              // Preserve the case of the original text
+              const casedReplacement = this.preserveCase(actualMatch, replacement);
+
+              characterMappings[searchName] = casedReplacement;
               replacementCount++;
 
-              return `${leadingChar}${mapping.parodyName}${trailingChar}`;
+              return `${leadingChar}${casedReplacement}${trailingChar}`;
             }
           );
         }
       }
     }
 
-    // Replace organizations
+    // PHASE 3: Replace organization names
     for (const mapping of this.organizationMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
       for (const searchName of searchNames) {
+        // Get the appropriate replacement (word-to-word mapping)
+        const replacement = this.getReplacementForTerm(
+          searchName,
+          mapping.realName,
+          mapping.parodyName
+        );
+        
+        // Skip if this specific replacement is already in the text
+        if (transformedText.toLowerCase().includes(replacement.toLowerCase())) {
+          continue;
+        }
+        
         const regex = new RegExp(
-          `(?:^|\\s|[^a-zA-Z])${escapeRegex(searchName)}(?:$|\\s|[^a-zA-Z])`,
+          `(?:^|\\s|[^a-zA-Z@])${escapeRegex(searchName)}(?:$|\\s|[^a-zA-Z])`,
           'gi'
         );
 
@@ -172,8 +351,6 @@ export class CharacterMappingService {
           transformedText = transformedText.replace(
             regex,
             (match) => {
-              // Preserve leading/trailing punctuation or whitespace
-              // Use case-insensitive comparison since we're doing case-insensitive matching
               const matchLower = match.toLowerCase();
               const searchLower = searchName.toLowerCase();
 
@@ -182,10 +359,19 @@ export class CharacterMappingService {
                 ? match[match.length - 1]
                 : '';
 
-              organizationMappings[searchName] = mapping.parodyName;
+              // Extract the actual matched text
+              const actualMatch = match.slice(
+                leadingChar ? 1 : 0,
+                trailingChar ? -1 : undefined
+              );
+              
+              // Preserve the case of the original text
+              const casedReplacement = this.preserveCase(actualMatch, replacement);
+
+              organizationMappings[searchName] = casedReplacement;
               replacementCount++;
 
-              return `${leadingChar}${mapping.parodyName}${trailingChar}`;
+              return `${leadingChar}${casedReplacement}${trailingChar}`;
             }
           );
         }

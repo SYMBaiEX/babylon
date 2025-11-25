@@ -83,14 +83,14 @@ export default defineConfig({
       testIgnore: ['**/*.api.test.ts', '**/*.e2e.test.ts'], // Ignore API/E2E tests that don't need browser auth or have their own flow
     },
 
-    // API/E2E Tests that handle their own auth or are public
+    // API/E2E Tests - requires auth for API calls with cookies
     {
       name: 'api-e2e',
       testMatch: ['**/*.e2e.test.ts'],
       use: {
         ...devices['Desktop Chrome'],
       },
-      // No dependency on 'setup' to avoid auth requirement for public/API flows
+      dependencies: ['setup'],
     },
 
     // Uncomment to test on other browsers

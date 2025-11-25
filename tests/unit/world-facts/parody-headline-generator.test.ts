@@ -25,6 +25,7 @@ describe('ParodyHeadlineGenerator', () => {
           parodyContent: 'In a stunning move that shocked absolutely no one, AIlon Musk unveiled yet another "revolutionary" product that promises to solve all of humanity\'s problems while simultaneously creating new ones.',
         },
       })),
+      getProvider: () => 'test',
     } as unknown as BabylonLLMClient;
   };
 

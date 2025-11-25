@@ -85,7 +85,10 @@ if ! curl -s -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0
     npx hardhat node > /tmp/hardhat.log 2>&1 &
     HARDHAT_PID=$!
     echo "⏳ Waiting for Hardhat..."
-    timeout 30 bash -c 'until curl -s -H "Content-Type: application/json" -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545 > /dev/null; do sleep 1; done'
+    timeout 30 bash -c 'until curl -s -H "Content-Type: application/json" -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545 > /dev/null; do sleep 1; done' || {
+        echo -e "${RED}❌ Hardhat failed to start${NC}"
+        exit 1
+    }
     echo "✅ Hardhat is ready"
 else
     echo "✅ Blockchain is already running"
