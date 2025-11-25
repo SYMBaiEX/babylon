@@ -1,9 +1,5 @@
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
-
-// Skip until tests are refactored for Drizzle query patterns
-const shouldSkipTests = true;
-const describeTests = shouldSkipTests ? describe.skip : describe;
 import { NextRequest } from 'next/server'
 
 /**
@@ -158,7 +154,7 @@ mock.module('@/lib/services/cron-relay-service', () => ({
 // Import the route handler after mocks are set up
 import { POST } from '@/app/api/cron/agent-tick/route'
 
-describeTests('Agent Tick Cron - DB State', () => {
+describe('Agent Tick Cron - DB State', () => {
   beforeEach(() => {
     mockGame = null
   })

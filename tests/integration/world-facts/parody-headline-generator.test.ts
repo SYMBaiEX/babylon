@@ -1,9 +1,8 @@
 /**
- * Parody Headline Generator Tests
+ * Parody Headline Generator Integration Tests
  * 
- * NOTE: These tests use Drizzle ORM API (db.rssHeadline.create(), etc.)
- * These tests also require a real database connection. They need to be 
- * refactored as integration tests that run against a test database.
+ * Tests the ParodyHeadlineGenerator service with real database operations.
+ * Uses the Drizzle-based Prisma-like API (db.rssHeadline.create(), etc.)
  */
 
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
@@ -12,14 +11,7 @@ import { ParodyHeadlineGenerator } from '@/lib/services/parody-headline-generato
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 
-// Skip until tests are refactored for Drizzle patterns
-const shouldSkipTests = true;
-const describeTests = shouldSkipTests ? describe.skip : describe;
-
-// Check if parody/RSS models are available
-const parodyModelsAvailable = !!(db && db.rssFeedSource && db.rssHeadline);
-
-describeTests('ParodyHeadlineGenerator', () => {
+describe('ParodyHeadlineGenerator', () => {
   const testFeedId = 'test-feed-parody-' + Date.now();
   const testHeadlineId = 'test-headline-parody-' + Date.now();
   
@@ -45,8 +37,6 @@ describeTests('ParodyHeadlineGenerator', () => {
   }
 
   beforeEach(async () => {
-    if (!parodyModelsAvailable) return;
-    
     // Create test feed source
     await db.rssFeedSource.create({
       data: {
@@ -73,9 +63,6 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   afterEach(async () => {
-    if (!db) return;
-    if (!parodyModelsAvailable) return;
-    
     // Cleanup parodies first (foreign key constraint)
     await db.parodyHeadline.deleteMany({
       where: {
@@ -99,7 +86,6 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should generate parody from headline', async () => {
-    if (!parodyModelsAvailable) return;
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
@@ -123,7 +109,7 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should process headlines into parodies', async () => {
-    if (!parodyModelsAvailable) return;
+    
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
@@ -146,7 +132,7 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should get recent parodies', async () => {
-    if (!parodyModelsAvailable) return;
+    
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
@@ -173,7 +159,7 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should mark parodies as used', async () => {
-    if (!parodyModelsAvailable) return;
+    
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
@@ -206,7 +192,7 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should generate daily summary', async () => {
-    if (!parodyModelsAvailable) return;
+    
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
@@ -260,7 +246,7 @@ describeTests('ParodyHeadlineGenerator', () => {
   });
 
   test('should handle empty headlines gracefully', async () => {
-    if (!parodyModelsAvailable) return;
+    
     const mockLLM = createMockLLMClient();
     const generator = new ParodyHeadlineGenerator(mockLLM);
 
