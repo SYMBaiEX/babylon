@@ -51,9 +51,6 @@
  *                       displayName:
  *                         type: string
  *                         nullable: true
- *                       profileImageUrl:
- *                         type: string
- *                         nullable: true
  *                       invitePoints:
  *                         type: integer
  *                       reputationPoints:

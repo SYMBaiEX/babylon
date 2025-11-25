@@ -439,7 +439,7 @@ export class WaitlistService {
         id: true,
         username: true,
         displayName: true,
-        profileImageUrl: true,
+        // profileImageUrl removed - fetch on-demand to reduce bandwidth
         invitePoints: true,
         reputationPoints: true,
         referralCount: true,
@@ -452,10 +452,7 @@ export class WaitlistService {
       userId: user.id, // Keep for backward compatibility
       username: user.username,
       displayName: user.displayName,
-      // Only send profileImageUrl if it's a reasonable size (not a data URI)
-      profileImageUrl: user.profileImageUrl && user.profileImageUrl.length < 500
-        ? user.profileImageUrl
-        : null,
+      // profileImageUrl removed - fetch on-demand when profile is clicked to reduce bandwidth
       points: user.invitePoints, // Keep for backward compatibility
       invitePoints: user.invitePoints, // For frontend TopUser interface
       reputationPoints: user.reputationPoints, // For frontend TopUser interface
