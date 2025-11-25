@@ -32,6 +32,7 @@ interface WaitlistData {
     invite: number
     earned: number
     bonus: number
+    base: number
   }
   referralCount: number
   weeklyReferralCount?: number
@@ -104,8 +105,8 @@ export function ComingSoon() {
   const [showRankImprovement, setShowRankImprovement] = useState(false)
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [leaderboardPage, setLeaderboardPage] = useState(1)
+  const [leaderboardTotalPages, setLeaderboardTotalPages] = useState(10) // 10 pages for top 100
   const [leaderboardTab, setLeaderboardTab] = useState<'leaderboard' | 'inviters'>('leaderboard')
-  const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('qualified')
@@ -373,6 +374,29 @@ export function ComingSoon() {
     return () => clearInterval(refreshInterval)
   }, [authenticated, dbUser?.id, waitlistData])
 
+  // Fetch leaderboard for a specific page
+  const fetchLeaderboardPage = async (page: number) => {
+    try {
+      const response = await fetch(`/api/waitlist/leaderboard?page=${page}&limit=10`)
+      if (!response.ok) {
+        logger.warn('Failed to fetch leaderboard page', { page, status: response.status }, 'ComingSoon')
+        return false
+      }
+      
+      const data = await response.json()
+      setTopUsers(data.leaderboard || [])
+      setLeaderboardTotalPages(data.totalPages || 10)
+      setLeaderboardLastFetched(Date.now())
+      return true
+    } catch (error) {
+      logger.error('Error fetching leaderboard page', { 
+        page, 
+        error: error instanceof Error ? error.message : String(error) 
+      }, 'ComingSoon')
+      return false
+    }
+  }
+
   const fetchWaitlistPosition = async (userId: string, skipLeaderboard = false): Promise<boolean> => {
     try {
       // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
@@ -388,7 +412,8 @@ export function ComingSoon() {
         })
       ]
       if (shouldFetchLeaderboard) {
-        requests.push(fetch('/api/waitlist/leaderboard?limit=100'))
+        // Fetch first page of leaderboard with pagination
+        requests.push(fetch('/api/waitlist/leaderboard?page=1&limit=10'))
       }
       
       const results = await Promise.allSettled(requests)
@@ -422,7 +447,8 @@ export function ComingSoon() {
         }
         
         // Verify points calculation consistency
-        const calculatedTotal = (data.pointsBreakdown?.invite || 0) + 
+        const calculatedTotal = (data.pointsBreakdown?.base || 0) +
+                                (data.pointsBreakdown?.invite || 0) + 
                                 (data.pointsBreakdown?.earned || 0) + 
                                 (data.pointsBreakdown?.bonus || 0)
         const reportedTotal = data.points || 0
@@ -465,6 +491,7 @@ export function ComingSoon() {
           try {
             const leaderboardData = await leaderboardResponse.json()
             setTopUsers(leaderboardData.leaderboard || [])
+            setLeaderboardTotalPages(leaderboardData.totalPages || 10)
             setLeaderboardLastFetched(now)
             // Reset to first page when leaderboard updates
             setLeaderboardPage(1)
@@ -1815,21 +1842,10 @@ export function ComingSoon() {
 
             {/* Right Column - Leaderboard */}
             {topUsers.length > 0 && (() => {
-              // Sort users based on active tab
-              const sortedUsers = [...topUsers].sort((a, b) => {
-                if (leaderboardTab === 'leaderboard') {
-                  return b.reputationPoints - a.reputationPoints
-                } else {
-                  return b.invitePoints - a.invitePoints
-                }
-              }).map((user, index) => ({ ...user, rank: index + 1 }))
-
-              const totalPages = Math.ceil(sortedUsers.length / usersPerPage)
-              const startIndex = (leaderboardPage - 1) * usersPerPage
-              const endIndex = startIndex + usersPerPage
-              const paginatedUsers = sortedUsers.slice(startIndex, endIndex)
-              const currentUserRank = sortedUsers.findIndex(u => u.id === dbUser.id) + 1
-              const currentUserInPage = paginatedUsers.some(u => u.id === dbUser.id)
+              // Users are already sorted and ranked by the API
+              const displayUsers = topUsers
+              const totalPages = leaderboardTotalPages
+              const currentUserInPage = displayUsers.some(u => u.id === dbUser.id)
 
               return (
                 <div className="lg:col-span-3">
@@ -1840,6 +1856,7 @@ export function ComingSoon() {
                         onClick={() => {
                           setLeaderboardTab('leaderboard')
                           setLeaderboardPage(1)
+                          void fetchLeaderboardPage(1)
                         }}
                         className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
                           leaderboardTab === 'leaderboard'
@@ -1856,6 +1873,7 @@ export function ComingSoon() {
                         onClick={() => {
                           setLeaderboardTab('inviters')
                           setLeaderboardPage(1)
+                          void fetchLeaderboardPage(1)
                         }}
                         className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
                           leaderboardTab === 'inviters'
@@ -1869,13 +1887,13 @@ export function ComingSoon() {
                         )}
                       </button>
                       <span className="ml-auto text-sm text-muted-foreground">
-                        {sortedUsers.length} total
+                        Top 100
                       </span>
                     </div>
 
                     {/* Leaderboard List */}
                     <div className="space-y-3 mb-6">
-                      {paginatedUsers.map((topUser) => {
+                      {displayUsers.map((topUser) => {
                         const isCurrentUser = topUser.id === dbUser.id
                         return (
                           <div
@@ -1933,15 +1951,17 @@ export function ComingSoon() {
                     </div>
 
                     {/* Show current user if not on current page */}
-                    {!currentUserInPage && currentUserRank > 0 && (() => {
-                      const currentUser = sortedUsers.find(u => u.id === dbUser.id)
-                      if (!currentUser) return null
+                    {!currentUserInPage && waitlistData?.leaderboardRank && waitlistData.leaderboardRank > 0 && (() => {
+                      // Use waitlistData for current user's rank and points
+                      const userRank = waitlistData.leaderboardRank
+                      const reputationPoints = waitlistData.pointsBreakdown?.total ?? 0
+                      const invitePoints = waitlistData.pointsBreakdown?.invite ?? 0
                       return (
                         <div className="mb-6 pt-4 border-t border-border/50">
                           <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
                             <div className="flex items-center gap-4 min-w-0 flex-1">
                               <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-12 text-center">
-                                #{currentUserRank}
+                                #{userRank}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
@@ -1951,13 +1971,13 @@ export function ComingSoon() {
                                   </span>
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-0.5">
-                                  {currentUser.referralCount} {currentUser.referralCount === 1 ? 'referral' : 'referrals'}
+                                  {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'referral' : 'referrals'}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {(leaderboardTab === 'leaderboard' ? currentUser.reputationPoints : currentUser.invitePoints).toLocaleString()}
+                                {(leaderboardTab === 'leaderboard' ? reputationPoints : invitePoints).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}
@@ -1972,7 +1992,11 @@ export function ComingSoon() {
                     {totalPages > 1 && (
                       <div className="flex items-center justify-between pt-4 border-t border-border/50">
                         <button
-                          onClick={() => setLeaderboardPage(prev => Math.max(1, prev - 1))}
+                          onClick={() => {
+                            const newPage = Math.max(1, leaderboardPage - 1)
+                            setLeaderboardPage(newPage)
+                            void fetchLeaderboardPage(newPage)
+                          }}
                           disabled={leaderboardPage === 1}
                           className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
                         >
@@ -1983,8 +2007,12 @@ export function ComingSoon() {
                           Page {leaderboardPage} of {totalPages}
                         </div>
                         <button
-                          onClick={() => setLeaderboardPage(prev => Math.min(totalPages, prev + 1))}
-                          disabled={leaderboardPage === totalPages}
+                          onClick={() => {
+                            const newPage = Math.min(totalPages, leaderboardPage + 1)
+                            setLeaderboardPage(newPage)
+                            void fetchLeaderboardPage(newPage)
+                          }}
+                          disabled={leaderboardPage >= totalPages}
                           className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
                         >
                           <span className="hidden sm:inline">Next</span>
