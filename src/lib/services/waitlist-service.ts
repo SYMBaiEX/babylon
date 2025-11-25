@@ -416,10 +416,12 @@ export class WaitlistService {
   /**
    * Get top waitlist users (leaderboard)
    * Sorted by invite points (most invites = best position)
+   * Supports pagination with offset
    */
-  static async getTopWaitlistUsers(limit: number = 10) {
+  static async getTopWaitlistUsers(limit: number = 10, offset: number = 0) {
     // Ensure limit is reasonable
     const safeLimit = Math.min(Math.max(1, limit), 100)
+    const safeOffset = Math.max(0, offset)
     
     const users = await prisma.user.findMany({
       where: { 
@@ -431,12 +433,13 @@ export class WaitlistService {
         { invitePoints: 'desc' },       // Primary: Most invite points
         { waitlistJoinedAt: 'asc' },    // Tie-breaker: Earlier signup
       ],
+      skip: safeOffset,
       take: safeLimit,
       select: {
         id: true,
         username: true,
         displayName: true,
-        profileImageUrl: true,
+        // profileImageUrl removed - fetch on-demand to reduce bandwidth
         invitePoints: true,
         reputationPoints: true,
         referralCount: true,
@@ -444,18 +447,17 @@ export class WaitlistService {
       },
     })
 
-    return users.map((user, index) => ({
-      id: user.id, // Keep id for frontend compatibility
-      userId: user.id, // Also include userId for consistency
+    return users.map((user: typeof users[0], index: number) => ({
+      id: user.id, // For frontend compatibility (TopUser interface expects 'id')
+      userId: user.id, // Keep for backward compatibility
       username: user.username,
       displayName: user.displayName,
-      profileImageUrl: user.profileImageUrl,
-      invitePoints: user.invitePoints, // Keep invitePoints for frontend compatibility
-      points: user.invitePoints, // Also include points for consistency
-      reputationPoints: user.reputationPoints,
+      // profileImageUrl removed - fetch on-demand when profile is clicked to reduce bandwidth
+      points: user.invitePoints, // Keep for backward compatibility
+      invitePoints: user.invitePoints, // For frontend TopUser interface
+      reputationPoints: user.reputationPoints, // For frontend TopUser interface
       referralCount: user.referralCount,
-      waitlistJoinedAt: user.waitlistJoinedAt,
-      rank: index + 1,
+      rank: safeOffset + index + 1, // Adjust rank based on offset
     }))
   }
 }
