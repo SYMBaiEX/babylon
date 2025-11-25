@@ -91,6 +91,7 @@ import { NotFoundError } from '@/lib/errors';
 import { IdParamSchema, CreateCommentSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { comments, posts, users, eq } from '@/db';
 
 /**
  * POST /api/comments/[id]/replies
@@ -116,11 +117,13 @@ export const POST = withErrorHandling(async (
   const { content } = validatedData;
 
   // Create reply with RLS
-  const reply = await asUser(user, async (db) => {
+  const reply = await asUser(user, async (dbClient) => {
     // Check if parent comment exists
-    const parentComment = await db.comment.findUnique({
-      where: { id: parentCommentId },
-    });
+    const [parentComment] = await dbClient
+      .select()
+      .from(comments)
+      .where(eq(comments.id, parentCommentId))
+      .limit(1);
 
     if (!parentComment) {
       throw new NotFoundError('Parent comment', parentCommentId);
@@ -136,26 +139,32 @@ export const POST = withErrorHandling(async (
       const timestampStr = postParts.slice(2).join('-');
 
       if (gameId && authorId) {
-        // Ensure post exists (upsert pattern)
-        await db.post.upsert({
-          where: { id: postId },
-          update: {},  // Don't update if exists
-          create: {
+        // Ensure post exists (insert if not exists pattern)
+        const [existingPost] = await dbClient
+          .select()
+          .from(posts)
+          .where(eq(posts.id, postId))
+          .limit(1);
+
+        if (!existingPost) {
+          await dbClient.insert(posts).values({
             id: postId,
-            content: '[Game-generated post]',  // Placeholder content
+            content: '[Game-generated post]',
             authorId,
             gameId,
             timestamp: new Date(timestampStr),
-          },
-        });
+            createdAt: new Date(),
+          });
+        }
       }
     }
 
     // Create reply (comment with parentCommentId)
     const now = new Date();
     const replyId = await generateSnowflakeId();
-    const newReply = await db.comment.create({
-      data: {
+    const [newReply] = await dbClient
+      .insert(comments)
+      .values({
         id: replyId,
         content: content.trim(),
         postId: parentComment.postId,
@@ -163,19 +172,20 @@ export const POST = withErrorHandling(async (
         parentCommentId,
         createdAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .returning();
 
     // Fetch author details
-    const author = await db.user.findUnique({
-      where: { id: user.userId },
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        profileImageUrl: true,
-      },
-    });
+    const [author] = await dbClient
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(users)
+      .where(eq(users.id, user.userId))
+      .limit(1);
 
     return { ...newReply, author };
   });
