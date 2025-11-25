@@ -1,37 +1,27 @@
 /**
  * World Facts Service Tests
+ * 
+ * Integration tests for world facts service against real database
  */
 
 import { describe, test, expect, afterEach } from 'bun:test';
-
-// Skip until tests are refactored for Drizzle patterns
-const shouldSkipTests = true;
-const describeTests = shouldSkipTests ? describe.skip : describe;
-import { db } from '@/db';
+import { db, worldFacts, eq, or, like } from '@/db';
 import { worldFactsService } from '@/lib/services/world-facts-service';
 
-// Check if world facts models are available
-const worldFactsModelsAvailable = !!(db && db.worldFact);
+// Skip if DATABASE_URL is not set
+const shouldSkip = !process.env.DATABASE_URL
+const describeTests = shouldSkip ? describe.skip : describe
 
 describeTests('WorldFactsService', () => {
   const testValuePrefix = 'Test Fact: ' + Date.now();
 
   afterEach(async () => {
-    if (!db) return;
-    if (!worldFactsModelsAvailable) return;
-    
     // Cleanup test data
-    await db.worldFact.deleteMany({
-      where: {
-        value: {
-          startsWith: testValuePrefix,
-        },
-      },
-    });
+    await db.delete(worldFacts)
+      .where(like(worldFacts.value, `${testValuePrefix}%`));
   });
 
   test('should create a new world fact by value', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - Initial Value`;
     const fact = await worldFactsService.setFactByValue(testValue);
 
@@ -42,7 +32,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should update existing world fact', async () => {
-    if (!worldFactsModelsAvailable) return;
     // Create initial fact
     const testValue = `${testValuePrefix} - Initial Value`;
     const fact = await worldFactsService.setFactByValue(testValue);
@@ -56,7 +45,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should get all facts', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - Test Value`;
     await worldFactsService.setFactByValue(testValue);
 
@@ -68,7 +56,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should delete a fact', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - To Delete`;
     const fact = await worldFactsService.setFactByValue(testValue);
 
@@ -79,7 +66,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should toggle fact active status', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - Toggle Test`;
     const fact = await worldFactsService.setFactByValue(testValue);
 
@@ -93,7 +79,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should generate world context', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - Context Test`;
     await worldFactsService.setFactByValue(testValue);
 
@@ -110,7 +95,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should generate prompt context string', async () => {
-    if (!worldFactsModelsAvailable) return;
     const testValue = `${testValuePrefix} - Prompt Test`;
     await worldFactsService.setFactByValue(testValue);
 
@@ -127,7 +111,6 @@ describeTests('WorldFactsService', () => {
   });
 
   test('should bulk update facts', async () => {
-    if (!worldFactsModelsAvailable) return;
     // Use different prefixes to generate unique keys (key is extracted from before the colon)
     const timestamp = Date.now();
     const values = [
@@ -142,14 +125,10 @@ describeTests('WorldFactsService', () => {
     expect(facts.some(f => f.value === values[1])).toBe(true);
     
     // Cleanup these specific test facts
-    await db.worldFact.deleteMany({
-      where: {
-        OR: [
-          { key: `bulktesta${timestamp}` },
-          { key: `bulktestb${timestamp}` },
-        ],
-      },
-    });
+    await db.delete(worldFacts)
+      .where(or(
+        eq(worldFacts.key, `bulktesta${timestamp}`),
+        eq(worldFacts.key, `bulktestb${timestamp}`)
+      ));
   });
 });
-

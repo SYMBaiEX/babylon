@@ -1964,15 +1964,54 @@ ${req.members.map((m, idx) => {
         return messages;
       }
 
-      // Handle XML structure
-      const response = 'response' in rawResponse && rawResponse.response
+      // Handle XML structure - may be wrapped in 'response' or have nested 'group' array
+      let extractedGroups: Array<{ groupId: string; messages: Array<{ actorId: string; message: string }> }> = [];
+      
+      // First, unwrap 'response' if present
+      const responseData = 'response' in rawResponse && rawResponse.response
         ? rawResponse.response
-        : rawResponse as { groups: Array<{ groupId: string; messages: Array<{ actorId: string; message: string }> }> };
-
-      const groups = response.groups || [];
-      if (groups.length === groupRequests.length && groups.every(g => g.messages && g.messages.length > 0)) {
+        : rawResponse as { groups: unknown };
+      
+      // Now extract groups - handle various XML structures
+      if (responseData && typeof responseData === 'object' && 'groups' in responseData) {
+        const groupsData = responseData.groups;
+        
+        if (Array.isArray(groupsData)) {
+          // Direct array: { groups: [{...}, {...}] }
+          extractedGroups = groupsData;
+        } else if (groupsData && typeof groupsData === 'object') {
+          // Check for XML nested structure: { groups: { group: [...] } } or { groups: { group: {...} } }
+          if ('group' in groupsData) {
+            const groupContent = (groupsData as { group: unknown }).group;
+            if (Array.isArray(groupContent)) {
+              extractedGroups = groupContent;
+            } else if (groupContent && typeof groupContent === 'object') {
+              // Single group wrapped in object
+              extractedGroups = [groupContent as { groupId: string; messages: Array<{ actorId: string; message: string }> }];
+            }
+          } else {
+            // Single group returned directly as object: { groups: { groupId: "...", messages: [...] } }
+            extractedGroups = [groupsData as { groupId: string; messages: Array<{ actorId: string; message: string }> }];
+          }
+        }
+      }
+      
+      // Ensure messages arrays are properly formatted (handle XML nested message structure)
+      extractedGroups = extractedGroups.map(g => {
+        let groupMessages = g.messages;
+        if (groupMessages && typeof groupMessages === 'object' && !Array.isArray(groupMessages)) {
+          // Handle { messages: { message: [...] } } or { messages: { message: {...} } }
+          if ('message' in groupMessages) {
+            const messageContent = (groupMessages as { message: unknown }).message;
+            groupMessages = Array.isArray(messageContent) ? messageContent : [messageContent as { actorId: string; message: string }];
+          }
+        }
+        return { ...g, messages: groupMessages || [] };
+      });
+      
+      if (extractedGroups.length === groupRequests.length && extractedGroups.every(g => g.messages && g.messages.length > 0)) {
         // Convert to expected format
-        groups.forEach((group, i) => {
+        extractedGroups.forEach((group, i) => {
           const req = groupRequests[i];
           if (!req) return; // Skip if no matching request
 
@@ -1987,7 +2026,7 @@ ${req.members.map((m, idx) => {
         return messages;
       }
 
-      logger.warn(`Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${groups.length}`, undefined, 'GameGenerator');
+      logger.warn(`Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${extractedGroups.length}`, undefined, 'GameGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }

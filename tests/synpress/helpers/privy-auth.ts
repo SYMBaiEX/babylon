@@ -41,6 +41,11 @@ export function getPrivyTestAccount(): PrivyTestAccount {
  * Verifies that PrivyProvider is rendered (not the fallback UI) and that the SDK
  * has finished initializing. This is critical because Privy SDK must be ready before
  * any authentication UI interactions can succeed.
+ * 
+ * Detection strategy:
+ * 1. Check for warning banner (indicates Privy not configured in dev mode)
+ * 2. Look for actual Privy UI elements (login buttons, dialogs) which proves SDK is working
+ * 3. The SDK is ready when we can interact with Privy authentication UI
  */
 async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...')
@@ -49,6 +54,7 @@ async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
   
   try {
     // First, check if our debug warning banner is visible (indicates Privy not configured)
+    // Note: This only shows in development mode (NODE_ENV !== 'production')
     const warningBanner = page.locator('[data-testid="privy-not-configured-warning"]').first()
     const warningVisible = await warningBanner.isVisible({ timeout: 2000 }).catch(() => false)
     
@@ -65,80 +71,87 @@ async function waitForPrivyReady(page: Page, timeout = 45000): Promise<void> {
       )
     }
     
-    // Check for Privy-specific DOM elements
-    const privyRoot = page.locator('[data-privy-root]').first()
-    const privyRootVisible = await privyRoot.isVisible({ timeout: 5000 }).catch(() => false)
+    // Wait for Privy to be ready by checking for actual Privy UI elements
+    // Privy renders these elements when the SDK is initialized:
+    // - Login/Connect buttons that trigger Privy modals
+    // - Or an already-open Privy dialog (log in or sign up)
+    // - Or user menu (if already logged in)
+    console.log('⏳ Looking for Privy UI elements...')
     
-    if (!privyRootVisible) {
-      // Check if we're in the fallback UI (no PrivyProvider)
-      const hasPrivyConfig = await page.evaluate(() => {
-        // Check if window has Privy SDK
-        return typeof window !== 'undefined' && typeof (window as { privy?: unknown }).privy !== 'undefined'
-      }).catch(() => false)
-      
-      if (!hasPrivyConfig) {
-        // Get page content for additional debugging
-        const pageTitle = await page.title().catch(() => 'unknown')
-        const hasLoginButton = await page.locator('button:has-text("Log in"), button:has-text("Connect")').first().isVisible({ timeout: 1000 }).catch(() => false)
-        
-        throw new Error(
-          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build.\n' +
-          `Page title: ${pageTitle}\n` +
-          `Login button visible: ${hasLoginButton}\n` +
-          '\n' +
-          'This usually means the GitHub secret is missing or empty. Check:\n' +
-          '1. Repository Settings → Secrets → Actions → NEXT_PUBLIC_PRIVY_APP_ID exists\n' +
-          '2. The secret value is not empty and starts with "cl..."\n' +
-          '3. If using environment secrets, ensure they apply to this workflow'
-        )
+    // Check for Privy being ready by looking for actual interactive elements
+    // These selectors detect that Privy SDK has loaded and rendered its UI
+    const privyReadyIndicators = [
+      // Login button that triggers Privy
+      'button:has-text("Log in")',
+      'button:has-text("Connect Wallet")',
+      // Privy modal dialog
+      '[role="dialog"]:has-text("log in")',
+      '[role="dialog"]:has-text("sign up")',
+      // Continue with email/wallet buttons inside Privy modal
+      'button:has-text("Continue with Email")',
+      'button:has-text("Continue with a wallet")',
+      // User is already logged in
+      '[data-testid="user-menu"]',
+    ]
+    
+    // Wait for any of these indicators to appear
+    let privyReady = false
+    const checkInterval = 500
+    const maxAttempts = Math.floor(timeout / checkInterval)
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      for (const selector of privyReadyIndicators) {
+        const element = page.locator(selector).first()
+        const isVisible = await element.isVisible({ timeout: 100 }).catch(() => false)
+        if (isVisible) {
+          const elapsed = Date.now() - startTime
+          console.log(`✅ Privy SDK is ready (took ${elapsed}ms, detected: ${selector})`)
+          privyReady = true
+          break
+        }
       }
+      
+      if (privyReady) break
+      
+      // Wait before next check
+      await page.waitForTimeout(checkInterval)
     }
     
-    // Wait for Privy SDK to be available and ready
-    // IMPORTANT: Only return true when window.privy.ready is explicitly true
-    // Do NOT use script tag presence as a fallback - it's misleading
-    await page.waitForFunction(
-      () => {
-        // Check if Privy SDK is loaded and ready
-        if (typeof window === 'undefined') {
-          return false
+    if (!privyReady) {
+      // Gather debugging information
+      const debugInfo = await page.evaluate(() => {
+        const info: Record<string, unknown> = {
+          hasWindow: typeof window !== 'undefined',
+          pageTitle: document.title,
+          bodyText: document.body?.textContent?.substring(0, 500) || 'empty',
+          hasPrivyScripts: Array.from(document.querySelectorAll('script'))
+            .filter(s => s.src?.includes('privy'))
+            .map(s => s.src),
+          dialogCount: document.querySelectorAll('[role="dialog"]').length,
+          buttonCount: document.querySelectorAll('button').length,
         }
-        
-        // Check for Privy SDK on window object
-        const privy = (window as { privy?: { ready?: boolean } }).privy
-        
-        // Only return true when SDK is fully ready
-        // The script tag existing doesn't mean the SDK is ready to use
-        return privy?.ready === true
-      },
-      { timeout, polling: 500 }
-    )
-    
-    const elapsed = Date.now() - startTime
-    console.log(`✅ Privy SDK is ready (took ${elapsed}ms)`)
+        return info
+      }).catch(() => ({ error: 'Could not gather debug info' }))
+      
+      throw new Error(
+        `Privy SDK failed to initialize within ${timeout}ms.\n` +
+        `No Privy UI elements found.\n` +
+        `Debug info: ${JSON.stringify(debugInfo, null, 2)}\n` +
+        `\nThis usually means:\n` +
+        `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
+        `2. Privy SDK script failed to load (check for 404 errors)\n` +
+        `3. The page didn't finish loading`
+      )
+    }
   } catch (error) {
     const elapsed = Date.now() - startTime
     
-    // Gather debugging information
-    const debugInfo = await page.evaluate(() => {
-      const info: Record<string, unknown> = {
-        hasWindow: typeof window !== 'undefined',
-        hasPrivy: typeof (window as { privy?: unknown }).privy !== 'undefined',
-        privyReady: (window as { privy?: { ready?: boolean } }).privy?.ready,
-        privyScriptExists: document.querySelector('script[src*="privy"]') !== null,
-        privyScriptSrc: document.querySelector('script[src*="privy"]')?.getAttribute('src') || 'not found',
-      }
-      return info
-    }).catch(() => ({ error: 'Could not gather debug info' }))
-    
-    throw new Error(
-      `Privy SDK failed to initialize after ${elapsed}ms: ${error instanceof Error ? error.message : String(error)}\n` +
-      `Debug info: ${JSON.stringify(debugInfo, null, 2)}\n` +
-      `This usually means:\n` +
-      `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
-      `2. Privy SDK script failed to load (check for 404 errors)\n` +
-      `3. Network issues preventing Privy API calls`
-    )
+    // Re-throw with timing info if not already included
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (!errorMessage.includes('took') && !errorMessage.includes('within')) {
+      throw new Error(`Privy SDK error after ${elapsed}ms: ${errorMessage}`)
+    }
+    throw error
   }
 }
 

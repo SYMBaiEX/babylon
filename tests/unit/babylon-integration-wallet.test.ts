@@ -1,8 +1,7 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
-// Skip until tests are refactored for Drizzle query patterns
-const shouldSkipTests = true;
-const describeTests = shouldSkipTests ? describe.skip : describe;
+// Tests use mocked db module
+const describeTests = describe;
 
 const findUniqueMock = mock(async () => ({
   id: 'agent-1',
@@ -27,7 +26,24 @@ mock.module('@/db', () => ({
     user: {
       findUnique: findUniqueMock
     }
-  }
+  },
+  // All table exports that may be imported by dependencies
+  users: {},
+  actors: {},
+  agentLogs: {},
+  agentMessages: {},
+  agentRegistries: {},
+  llmCallLogs: {},
+  trajectories: {},
+  worldFacts: {},
+  referrals: {},
+  pointsTransactions: {},
+  // Operators
+  eq: () => ({}),
+  and: () => ({}),
+  or: () => ({}),
+  desc: () => ({}),
+  asc: () => ({}),
 }))
 
 mock.module('@/lib/agents/identity/AgentWalletService', () => ({
