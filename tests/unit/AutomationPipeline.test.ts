@@ -8,7 +8,8 @@ import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
 
 // Tests use mocked db module
 const describeTests = describe;
-import type { Trajectory, TrainingBatch, TrainedModel } from '@/db';
+// Import types used in type assertions for repository mocks
+import type { TrainingBatch, TrainedModel } from '@/db';
 import type { AutomationPipeline as AutomationPipelineType, AutomationConfig } from '@/lib/training/AutomationPipeline';
 
 // Type for pipeline with private properties/methods exposed for testing
@@ -571,8 +572,10 @@ describeTests('AutomationPipeline - Unit Tests', () => {
 
   describe('Health Checks', () => {
     test('should check database connectivity', async () => {
-      mockDb.user.count.mockResolvedValue(1);
-      mockDb.trajectory.count.mockResolvedValue(10);
+      mockSelectResultsQueue = [
+        [{ count: 1 }],   // users count (db connectivity check)
+        [{ count: 10 }],  // trajectories last hour
+      ];
 
       // Access private method for testing via bracket notation to bypass TypeScript's private check
       const pipelineWithPrivate = asTestAccess(pipeline);
@@ -581,11 +584,14 @@ describeTests('AutomationPipeline - Unit Tests', () => {
         await runHealthChecks();
       }
 
-      expect(mockDb.user.count).toHaveBeenCalled();
+      expect(mockDb.select).toHaveBeenCalled();
     });
 
     test('should handle database errors gracefully', async () => {
-      mockDb.user.count.mockRejectedValue(new Error('DB Error'));
+      // Make db.select throw an error
+      mockDb.select.mockImplementationOnce(() => {
+        throw new Error('DB Error');
+      });
 
       // Access private method for testing via bracket notation to bypass TypeScript's private check
       const pipelineWithPrivate = asTestAccess(pipeline);
@@ -598,8 +604,10 @@ describeTests('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should warn on low data collection rate', async () => {
-      mockDb.user.count.mockResolvedValue(1);
-      mockDb.trajectory.count.mockResolvedValue(0);
+      mockSelectResultsQueue = [
+        [{ count: 1 }],  // users count (db connectivity check)
+        [{ count: 0 }],  // trajectories last hour (low rate)
+      ];
 
       // Access private method for testing via bracket notation to bypass TypeScript's private check
       const pipelineWithPrivate = asTestAccess(pipeline);
