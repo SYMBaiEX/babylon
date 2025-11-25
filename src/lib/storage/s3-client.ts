@@ -1,12 +1,15 @@
 /**
  * Storage client with support for both local (MinIO) and production (Vercel Blob)
  * Uses MinIO for local development and Vercel Blob for production deployments
+ * 
+ * Image optimization is handled by Vercel's Image Optimization CDN when using next/image.
+ * This client uploads raw images without server-side processing.
+ * @see https://vercel.com/docs/image-optimization
  */
 
 import { S3Client, DeleteObjectCommand, CreateBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import { put as vercelBlobPut, del as vercelBlobDel } from '@vercel/blob'
-import sharp from 'sharp'
 import { logger } from '@/lib/logger'
 
 // Storage configuration
@@ -23,17 +26,11 @@ const MINIO_BUCKET = process.env.MINIO_BUCKET || 'babylon-uploads'
 // Token is automatically available in Vercel environment as BLOB_READ_WRITE_TOKEN
 const VERCEL_BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN
 
-// Image processing configuration
-const MAX_WIDTH = 2048
-const MAX_HEIGHT = 2048
-const QUALITY = 85
-
 interface UploadOptions {
   file: Buffer
   filename: string
   contentType: string
   folder?: 'profiles' | 'covers' | 'posts' | 'user-profiles' | 'user-banners' | 'actors' | 'actor-banners' | 'organizations' | 'org-banners' | 'logos' | 'icons' | 'static'
-  optimize?: boolean
 }
 
 interface UploadResult {
@@ -83,14 +80,10 @@ class S3StorageClient {
 
   /**
    * Upload an image file
+   * Images are uploaded as-is; optimization is handled by Vercel's Image Optimization CDN
    */
   async uploadImage(options: UploadOptions): Promise<UploadResult> {
-    let buffer = options.file
-
-    // Optimize image if requested
-    if (options.optimize !== false) {
-      buffer = await this.optimizeImage(buffer)
-    }
+    const buffer = options.file
 
     // Generate path/key
     const folder = options.folder || 'uploads'
@@ -184,40 +177,6 @@ class S3StorageClient {
       await this.client.send(command)
       logger.info('Image deleted successfully from MinIO', { key })
     }
-  }
-
-  /**
-   * Optimize image using sharp
-   */
-  private async optimizeImage(buffer: Buffer): Promise<Buffer> {
-    const image = sharp(buffer)
-    const metadata = await image.metadata()
-
-    if (metadata.width && metadata.width > MAX_WIDTH) {
-      image.resize(MAX_WIDTH, null, {
-        withoutEnlargement: true,
-        fit: 'inside',
-      })
-    }
-
-    if (metadata.height && metadata.height > MAX_HEIGHT) {
-      image.resize(null, MAX_HEIGHT, {
-        withoutEnlargement: true,
-        fit: 'inside',
-      })
-    }
-
-    const optimized = await image
-      .webp({ quality: QUALITY })
-      .toBuffer()
-
-    logger.info('Image optimized', {
-      originalSize: buffer.length,
-      optimizedSize: optimized.length,
-      compression: `${((1 - optimized.length / buffer.length) * 100).toFixed(1)}%`,
-    })
-
-    return optimized
   }
 
   /**

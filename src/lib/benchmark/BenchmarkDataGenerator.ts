@@ -235,10 +235,16 @@ export class BenchmarkDataGenerator {
     for (let i = 0; i < this.config.numPredictionMarkets; i++) {
       const question = questions[i % questions.length];
       // Generate markets with varied prices (some low, some high)
+      // Minimum 10,000 liquidity for acceptable price impact (<5% for $100 trades)
       const ratio = this.rng.next();
-      const yesShares = ratio < 0.5 ? 100 + this.rng.next() * 300 : 300 + this.rng.next() * 700;
-      const noShares = ratio < 0.5 ? 300 + this.rng.next() * 700 : 100 + this.rng.next() * 300;
-      const totalShares = yesShares + noShares;
+      const baseLiquidity = 5000; // Each side starts with at least 5000
+      const yesShares = ratio < 0.5 
+        ? baseLiquidity + this.rng.next() * 1500  // 5000-6500 for low side
+        : baseLiquidity + 1500 + this.rng.next() * 3500;  // 6500-10000 for high side
+      const noShares = ratio < 0.5 
+        ? baseLiquidity + 1500 + this.rng.next() * 3500  // 6500-10000 for high side
+        : baseLiquidity + this.rng.next() * 1500;  // 5000-6500 for low side
+      const totalShares = yesShares + noShares; // Now 10,000 - 16,500 total
       const yesPrice = yesShares / totalShares;
       const noPrice = noShares / totalShares;
       

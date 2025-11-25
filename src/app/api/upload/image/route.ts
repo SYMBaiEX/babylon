@@ -3,17 +3,13 @@
  * 
  * @description
  * Handles image uploads for user profiles, cover images, and post attachments.
- * Automatically optimizes images to WebP format with Sharp library and uploads
- * to S3-compatible storage (MinIO in development, Cloudflare R2 in production).
+ * Stores raw images - optimization is handled by Vercel's Image Optimization CDN.
  * 
  * **Features:**
- * - Automatic WebP conversion for optimal performance
- * - Image optimization with Sharp (quality: 85%)
- * - Max dimensions: 2048x2048 (maintains aspect ratio)
  * - Rate limiting to prevent abuse
  * - Multi-folder organization (profiles, covers, posts)
- * - S3-compatible storage integration
- * - Local storage fallback for development
+ * - Preserves original image format (JPEG, PNG, GIF, WebP)
+ * - Vercel Image Optimization for delivery (WebP/AVIF, resizing, caching)
  * 
  * **Supported Image Types:**
  * - profile: User profile avatars
@@ -21,17 +17,17 @@
  * - post: Post attachments
  * 
  * **Storage:**
- * - **Development:** Local filesystem (`USE_LOCAL_STORAGE=true`)
- * - **Production:** Cloudflare R2 or S3-compatible storage
- * - **Vercel-compatible:** No local filesystem in production
+ * - **Development (USE_LOCAL_STORAGE=true):** Local filesystem `/public/uploads/`
+ * - **Development (MinIO):** S3-compatible MinIO container
+ * - **Production:** Vercel Blob Storage
  * 
- * **File Processing:**
- * 1. Receive multipart/form-data
- * 2. Validate file type and size
- * 3. Convert to WebP format
- * 4. Resize to max 2048x2048 (if larger)
- * 5. Upload to storage
- * 6. Return public URL
+ * **Image Optimization:**
+ * Images are stored as-is. When displayed via `next/image`, Vercel automatically:
+ * - Converts to WebP/AVIF for modern browsers
+ * - Resizes to requested dimensions
+ * - Caches at the CDN edge globally
+ * 
+ * @see https://vercel.com/docs/image-optimization
  * 
  * @openapi
  * /api/upload/image:
@@ -115,10 +111,17 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { ImageUploadSchema } from '@/lib/validation/schemas'
 import { getStorageClient } from '@/lib/storage/s3-client'
 import { logger } from '@/lib/logger'
-import sharp from 'sharp'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting'
+
+// Map MIME types to file extensions
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+}
 
 // Configuration - only allow local storage in development
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' && process.env.NODE_ENV === 'development'
@@ -165,10 +168,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (imageType === 'profile') folder = 'profiles'
   else if (imageType === 'cover') folder = 'covers'
 
-  // Generate unique filename
+  // Generate unique filename with original extension
   const timestamp = Date.now()
   const randomString = Math.random().toString(36).substring(7)
-  const extension = 'webp' // We'll convert all images to webp for optimization
+  const extension = MIME_TO_EXT[file.type] || 'jpg'
   const filename = `${authUser.userId}_${timestamp}_${randomString}.${extension}`
 
   // Convert file to buffer
@@ -176,16 +179,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const buffer = Buffer.from(bytes)
 
   if (USE_LOCAL_STORAGE) {
-    const optimized = await sharp(buffer)
-      .webp({ quality: 85 })
-      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
-      .toBuffer()
-
     const uploadDir = join(process.cwd(), 'public', 'uploads', folder)
     await mkdir(uploadDir, { recursive: true })
 
     const filePath = join(uploadDir, filename)
-    await writeFile(filePath, optimized)
+    await writeFile(filePath, buffer)
 
     const url = `/uploads/${folder}/${filename}`
 
@@ -193,8 +191,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       userId: authUser.userId,
       filename,
       path: filePath,
-      size: optimized.length,
-      originalSize: file.size,
+      size: buffer.length,
       type: imageType || 'unknown',
     }, 'POST /api/upload/image')
 
@@ -202,19 +199,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       success: true,
       url,
       key: `${folder}/${filename}`,
-      size: optimized.length,
+      size: buffer.length,
       filename,
     })
   }
 
   // Upload to S3-compatible storage (production or fallback)
+  // Image optimization is handled by Vercel's Image Optimization CDN
   const storage = getStorageClient()
   const result = await storage.uploadImage({
     file: buffer,
     filename,
-    contentType: 'image/webp',
+    contentType: file.type,
     folder,
-    optimize: true, // Enable image optimization
   })
 
   logger.info(`Image uploaded successfully to external storage`, {

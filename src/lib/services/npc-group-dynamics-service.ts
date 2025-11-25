@@ -1045,12 +1045,128 @@ Return your response as XML in this exact format:
   }
 
   /**
-   * Kick users with weighted randomness based on participation
+   * Calculate dynamic kick thresholds based on group activity
    * 
-   * Calculates kick probability based on:
-   * - Never posted: 0.9 probability
-   * - Low participation: 0.3-0.6 probability (based on message count)
-   * - Dominating conversation: 0.3-0.9 probability (based on message ratio)
+   * Returns participation thresholds relative to group's average activity level.
+   * This ensures users aren't penalized in low-activity groups or get away with
+   * minimal contribution in high-activity groups.
+   */
+  private static calculateDynamicThresholds(
+    totalMessages: number,
+    participantCount: number,
+    windowDays: number = 7
+  ): {
+    idealMin: number;       // Minimum messages for good standing
+    idealMax: number;       // Maximum before considered over-posting
+    spamThreshold: number;  // Immediate kick threshold
+    fairShare: number;      // Expected share if everyone contributed equally
+  } {
+    // Fair share = total messages / participants (what each would have if equal)
+    const fairShare = participantCount > 0 ? totalMessages / participantCount : 0;
+    
+    // Ideal participation: between 50% and 150% of fair share
+    // But with minimum floors to handle low-activity groups
+    const idealMin = Math.max(1, Math.floor(fairShare * 0.5));
+    const idealMax = Math.max(5, Math.ceil(fairShare * 1.5));
+    
+    // Spam threshold: more than 3x fair share OR more than 20 messages/day
+    // The higher of these two catches both relative and absolute spammers
+    const maxMessagesPerDay = 20;
+    const absoluteSpamThreshold = maxMessagesPerDay * windowDays;
+    const relativeSpamThreshold = Math.max(10, Math.ceil(fairShare * 3));
+    const spamThreshold = Math.min(absoluteSpamThreshold, relativeSpamThreshold);
+    
+    return { idealMin, idealMax, spamThreshold, fairShare };
+  }
+  
+  /**
+   * Calculate kick probability with exponential scaling for over-posting
+   * 
+   * The probability increases exponentially as the user's message count
+   * exceeds the ideal max, reaching near-certainty at spam threshold.
+   * 
+   * @returns { probability: number, reason: string, category: 'inactive' | 'low' | 'over' | 'spam' | 'safe' }
+   */
+  static calculateKickProbability(
+    userMessageCount: number,
+    totalMessages: number,
+    participantCount: number,
+    windowDays: number = 7
+  ): { probability: number; reason: string; category: 'inactive' | 'low' | 'over' | 'spam' | 'safe' } {
+    const thresholds = this.calculateDynamicThresholds(totalMessages, participantCount, windowDays);
+    
+    // Case 1: Never posted - high kick chance (inactive)
+    if (userMessageCount === 0) {
+      return {
+        probability: 0.90,
+        reason: 'Never participated in conversation',
+        category: 'inactive',
+      };
+    }
+    
+    // Case 2: Spam behavior - immediate kick (exponentially approaching 1.0)
+    if (userMessageCount >= thresholds.spamThreshold) {
+      // At spam threshold: 95% chance, increases toward 100% for extreme cases
+      const excessRatio = userMessageCount / thresholds.spamThreshold;
+      const spamProbability = 0.95 + (0.05 * (1 - Math.exp(-excessRatio + 1)));
+      return {
+        probability: Math.min(0.99, spamProbability),
+        reason: `Spamming: ${userMessageCount} messages (threshold: ${thresholds.spamThreshold})`,
+        category: 'spam',
+      };
+    }
+    
+    // Case 3: Over-posting (between idealMax and spamThreshold)
+    // Use exponential increase: probability grows faster as you approach spam threshold
+    if (userMessageCount > thresholds.idealMax) {
+      const excessMessages = userMessageCount - thresholds.idealMax;
+      const range = thresholds.spamThreshold - thresholds.idealMax;
+      const normalizedExcess = range > 0 ? excessMessages / range : 0;
+      
+      // Exponential curve: starts at ~0.1 for just over max, approaches 0.9 near spam threshold
+      // Formula: 0.1 + 0.8 * (1 - e^(-3x)) where x is normalized excess (0 to 1)
+      const kickProbability = 0.1 + 0.8 * (1 - Math.exp(-3 * normalizedExcess));
+      
+      const userRatio = totalMessages > 0 ? (userMessageCount / totalMessages) * 100 : 0;
+      return {
+        probability: kickProbability,
+        reason: `Over-posting: ${userMessageCount} messages (${userRatio.toFixed(0)}% of total, ideal max: ${thresholds.idealMax})`,
+        category: 'over',
+      };
+    }
+    
+    // Case 4: Low participation (only if group has meaningful activity)
+    if (userMessageCount < thresholds.idealMin && totalMessages > 20) {
+      // Linear scale from 0.2 (just under minimum) to 0.5 (at 1 message)
+      const ratio = thresholds.idealMin > 1 ? (userMessageCount - 1) / (thresholds.idealMin - 1) : 0;
+      const lowProbability = 0.5 - (0.3 * ratio);
+      
+      return {
+        probability: Math.max(0.2, lowProbability),
+        reason: `Low participation: ${userMessageCount} messages (minimum ideal: ${thresholds.idealMin})`,
+        category: 'low',
+      };
+    }
+    
+    // Case 5: Good participation - safe zone!
+    return {
+      probability: 0,
+      reason: undefined as unknown as string,
+      category: 'safe',
+    };
+  }
+
+  /**
+   * Kick users with weighted randomness based on dynamic participation metrics
+   * 
+   * Uses dynamic thresholds based on group activity level:
+   * - Never posted: 90% kick probability
+   * - Low participation: 20-50% based on how far below ideal minimum
+   * - Over-posting: Exponential increase from 10% to 90% as messages approach spam threshold
+   * - Spam (3x fair share or 20+/day): 95%+ kick probability
+   * 
+   * All probabilities are then multiplied by a per-tick factor (5%) to make
+   * kicks gradual rather than immediate.
    */
   private static async kickUsersWithWeightedLogic(): Promise<number> {
     let usersKicked = 0;
@@ -1060,7 +1176,7 @@ Return your response as XML in this exact format:
       return 0;
     }
 
-    // Get all group chats
+    // Get all group chats with recent activity
     const groups = await prisma.chat.findMany({
       where: {
         isGroup: true,
@@ -1080,102 +1196,91 @@ Return your response as XML in this exact format:
       },
     });
 
-      for (const group of groups) {
-        // Get user details for participants
-        const participantUserIds = group.ChatParticipant.map(p => p.userId);
-        const participantUsers = await prisma.user.findMany({
-          where: { 
-            id: { in: participantUserIds },
-            isActor: false, // Only consider real users for kicking
-          },
-          select: { id: true, displayName: true, isActor: true },
-        });
-        
-        if (participantUsers.length === 0) continue;
+    for (const group of groups) {
+      // Get user details for participants (both users and agents, excluding NPCs)
+      const participantUserIds = group.ChatParticipant.map(p => p.userId);
+      const participantUsers = await prisma.user.findMany({
+        where: { 
+          id: { in: participantUserIds },
+          isActor: false, // Exclude NPCs - both users and agents (isAgent) are included
+        },
+        select: { id: true, displayName: true, isActor: true, isAgent: true },
+      });
+      
+      if (participantUsers.length === 0) continue;
 
-        // Calculate message counts for all users in the group
-        const totalMessages = group.Message.length;
-        const messageCounts = new Map<string, number>();
+      // Calculate message counts for all users in the group
+      const totalMessages = group.Message.length;
+      const messageCounts = new Map<string, number>();
+      
+      for (const msg of group.Message) {
+        messageCounts.set(msg.senderId, (messageCounts.get(msg.senderId) || 0) + 1);
+      }
+
+      // Total active participants includes NPCs for fair share calculation
+      const totalParticipants = group.ChatParticipant.length;
+
+      // Calculate kick probabilities for each non-NPC participant
+      for (const participant of participantUsers) {
+        const userId = participant.id;
+        const userMessageCount = messageCounts.get(userId) || 0;
         
-        for (const msg of group.Message) {
-          messageCounts.set(msg.senderId, (messageCounts.get(msg.senderId) || 0) + 1);
+        const { probability: kickProbability, reason, category } = this.calculateKickProbability(
+          userMessageCount,
+          totalMessages,
+          totalParticipants,
+          7 // 7-day window
+        );
+
+        // Skip safe users
+        if (category === 'safe' || kickProbability === 0) {
+          continue;
         }
 
-        // Calculate kick probabilities for each user
-        for (const participant of participantUsers) {
-          const userId = participant.id;
-          const userMessageCount = messageCounts.get(userId) || 0;
-          
-          let kickProbability = 0;
-          let reason = '';
-
-          // Case 1: Never posted
-          if (userMessageCount === 0) {
-            kickProbability = 0.90; // Very high chance
-            reason = 'Never participated in conversation';
-          }
-          // Case 2: Low participation (only if group has significant activity)
-          else if (userMessageCount < 3 && totalMessages > 20) {
-            // Scale from 0.3 to 0.6 based on how few messages
-            kickProbability = 0.6 - (userMessageCount / 3) * 0.3;
-            reason = `Low participation (${userMessageCount} messages in last 7 days)`;
-          }
-          // Case 3: Dominating conversation (only if group has enough messages to judge)
-          else if (totalMessages > 10) {
-            const userRatio = userMessageCount / totalMessages;
-            
-            // If user has more than 40% of all messages, consider it dominating
-            if (userRatio > 0.4) {
-              // Scale from 0.3 to 0.9 as ratio increases from 0.4 to 1.0
-              kickProbability = 0.3 + (userRatio - 0.4) / 0.6 * 0.6;
-              reason = `Dominating conversation (${Math.round(userRatio * 100)}% of messages)`;
-            }
-            // Otherwise, user has good participation (3+ messages, <= 40% of total)
-            // kickProbability remains 0 - this is the safe zone!
-          }
-          // Case 4: Mid participation in smaller groups
-          else {
-            // If we get here: userMessageCount >= 3 OR totalMessages <= 20
-            // These are users with reasonable participation - kickProbability stays 0
-          }
-
-          // Apply the probability (make kicks rare per tick)
-          if (kickProbability > 0 && Math.random() < kickProbability * 0.05) { // 5% multiplier to make it rare per tick
-            // Remove from chat participants
-            await prisma.chatParticipant.deleteMany({
-              where: {
-                chatId: group.id,
-                userId: userId,
-              },
-            });
-
-            // If GroupChatMembership exists, mark as removed
-            await prisma.groupChatMembership.updateMany({
-              where: {
-                chatId: group.id,
-                userId: userId,
-              },
-              data: {
-                isActive: false,
-                removedAt: new Date(),
-                sweepReason: reason,
-              },
-            });
-
-            usersKicked++;
-            logger.info(`User kicked from group with weighted logic`, {
-              userId,
-              userName: participant.displayName,
+        // Apply the probability with per-tick multiplier
+        // 5% base multiplier, but spam gets 20% (faster kick for egregious behavior)
+        const tickMultiplier = category === 'spam' ? 0.20 : 0.05;
+        
+        if (Math.random() < kickProbability * tickMultiplier) {
+          // Remove from chat participants
+          await prisma.chatParticipant.deleteMany({
+            where: {
               chatId: group.id,
-              chatName: group.name,
-              reason,
-              kickProbability: kickProbability.toFixed(2),
-              messageCount: userMessageCount,
-              totalMessages,
-            }, 'NPCGroupDynamicsService');
-          }
+              userId: userId,
+            },
+          });
+
+          // If GroupChatMembership exists, mark as removed
+          await prisma.groupChatMembership.updateMany({
+            where: {
+              chatId: group.id,
+              userId: userId,
+            },
+            data: {
+              isActive: false,
+              removedAt: new Date(),
+              sweepReason: reason,
+            },
+          });
+
+          usersKicked++;
+          logger.info(`User kicked from group with weighted logic`, {
+            userId,
+            userName: participant.displayName,
+            isAgent: participant.isAgent,
+            chatId: group.id,
+            chatName: group.name,
+            reason,
+            category,
+            kickProbability: kickProbability.toFixed(2),
+            effectiveProbability: (kickProbability * tickMultiplier).toFixed(4),
+            messageCount: userMessageCount,
+            totalMessages,
+            totalParticipants,
+          }, 'NPCGroupDynamicsService');
         }
       }
+    }
 
     return usersKicked;
   }

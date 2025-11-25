@@ -76,6 +76,22 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     console.log('⚠️  Network idle timed out, continuing...')
   }
   
+  // First, check if the "Privy not configured" warning banner is visible
+  // This indicates NEXT_PUBLIC_PRIVY_APP_ID was not set at build time
+  const warningBanner = page.locator('[data-testid="privy-not-configured-warning"]')
+  const warningVisible = await warningBanner.isVisible({ timeout: 2000 }).catch(() => false)
+  
+  if (warningVisible) {
+    console.log('❌ CRITICAL: "Privy not configured" warning banner is visible!')
+    console.log('   This means NEXT_PUBLIC_PRIVY_APP_ID was NOT set when the app was built.')
+    console.log('')
+    console.log('   To fix this:')
+    console.log('   1. Verify the GitHub secret NEXT_PUBLIC_PRIVY_APP_ID (or PRIVY_APP_ID) is set')
+    console.log('   2. Check the "Build production" step logs for the secret availability check')
+    console.log('   3. The secret should show as "SET (X chars, starts with cl...)"')
+    throw new Error('Privy not configured: NEXT_PUBLIC_PRIVY_APP_ID was not set at build time')
+  }
+
   // Wait for Privy SDK to be loaded - with extended timeout for CI
   try {
     await page.waitForFunction(() => {
@@ -86,14 +102,36 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     console.log('✅ Privy SDK detected')
   } catch (e) {
     console.log('❌ Privy SDK check timed out')
+    
     // Log more diagnostic info
     const content = await page.content()
     const scripts = await page.evaluate(() => {
       const scriptTags = Array.from(document.querySelectorAll('script'))
       return scriptTags.map(s => s.src).filter(src => src).slice(0, 10)
     })
+    
+    // Check for console errors
+    const consoleErrors = await page.evaluate(() => {
+      // Check if there are any obvious issues
+      const hasPrivyScript = document.querySelector('script[src*="privy"]') !== null
+      const hasPrivyRoot = document.querySelector('[data-privy-root]') !== null
+      const hasWarningBanner = document.querySelector('[data-testid="privy-not-configured-warning"]') !== null
+      return { hasPrivyScript, hasPrivyRoot, hasWarningBanner }
+    }).catch(() => ({ hasPrivyScript: false, hasPrivyRoot: false, hasWarningBanner: false }))
+    
+    console.log(`📋 Privy diagnostics:`)
+    console.log(`   - Privy script tag: ${consoleErrors.hasPrivyScript ? 'FOUND' : 'NOT FOUND'}`)
+    console.log(`   - Privy root element: ${consoleErrors.hasPrivyRoot ? 'FOUND' : 'NOT FOUND'}`)
+    console.log(`   - Warning banner: ${consoleErrors.hasWarningBanner ? 'VISIBLE (Privy not configured!)' : 'not visible'}`)
     console.log(`📄 Page content preview: ${content.substring(0, 500)}...`)
     console.log(`📜 Script tags found:`, scripts)
+    
+    if (!consoleErrors.hasPrivyScript && !consoleErrors.hasPrivyRoot) {
+      throw new Error(
+        'Privy SDK failed to load - NEXT_PUBLIC_PRIVY_APP_ID may not have been set at build time.\n' +
+        'Check the CI "Build production" step logs for the secret availability check.'
+      )
+    }
     throw new Error('Privy SDK failed to load - cannot proceed with authentication')
   }
   

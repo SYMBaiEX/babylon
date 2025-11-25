@@ -169,24 +169,26 @@ mock.module('ioredis', () => {
 })
 
 // Mock logger for all tests
+// Note: Using plain functions instead of mock() to avoid undefined issues
 mock.module('@/lib/logger', () => {
+  const noop = () => {};
   const mockLogger = {
-    debug: mock(() => {}),
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    setLevel: mock(() => {}),
-    getLevel: mock(() => 'debug'),
+    debug: noop,
+    info: noop,
+    warn: noop,
+    error: noop,
+    setLevel: noop,
+    getLevel: () => 'debug' as const,
   }
   return {
     logger: mockLogger,
     Logger: class MockLogger {
-      debug = mockLogger.debug
-      info = mockLogger.info
-      warn = mockLogger.warn
-      error = mockLogger.error
-      setLevel = mockLogger.setLevel
-      getLevel = mockLogger.getLevel
+      debug = noop
+      info = noop
+      warn = noop
+      error = noop
+      setLevel = noop
+      getLevel = () => 'debug' as const
     }
   }
 })

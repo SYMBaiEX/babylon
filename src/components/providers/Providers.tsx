@@ -192,6 +192,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // Render without Privy if not configured (for build-time)
   if (!hasPrivyConfig) {
+    // Log warning for debugging (will show in browser console and in CI test logs)
+    if (mounted && typeof window !== 'undefined') {
+      logger.warn(
+        'Privy not configured: NEXT_PUBLIC_PRIVY_APP_ID was not set at build time. ' +
+        'Authentication features will be disabled.',
+        undefined,
+        'Providers'
+      );
+    }
+    
     return (
       <div suppressHydrationWarning>
         <ThemeProvider
@@ -205,7 +215,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <GamePlaybackManager />
               <WidgetRefreshProvider>
                 {mounted ? (
-                  <Fragment>{children}</Fragment>
+                  <Fragment>
+                    {/* Debug banner for CI/development - shows when Privy is not configured */}
+                    {process.env.NODE_ENV !== 'production' && (
+                      <div 
+                        data-testid="privy-not-configured-warning"
+                        className="fixed top-0 left-0 right-0 z-[9999] bg-yellow-500 text-black text-center py-1 text-sm font-medium"
+                      >
+                        ⚠️ Privy authentication not configured - NEXT_PUBLIC_PRIVY_APP_ID missing at build time
+                      </div>
+                    )}
+                    {children}
+                  </Fragment>
                 ) : (
                   <div className="min-h-screen bg-sidebar" />
                 )}

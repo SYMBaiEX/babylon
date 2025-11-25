@@ -212,7 +212,8 @@ export const POST = withErrorHandling(async (
       }, 'POST /api/markets/predictions/[id]/buy');
       
       const endDate = new Date(question.resolutionDate);
-      const initialLiquidity = 1000;
+      // Use 10,000 liquidity for acceptable price impact (<5% for $100 trades)
+      const initialLiquidity = 10000;
       
       const now = new Date();
       market = await db.market.upsert({

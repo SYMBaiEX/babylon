@@ -46,8 +46,24 @@ async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...')
   
   try {
-    // First, verify PrivyProvider is rendered (check for Privy-specific DOM elements)
-    // If PrivyProvider didn't render, it means NEXT_PUBLIC_PRIVY_APP_ID wasn't set at build time
+    // First, check if our debug warning banner is visible (indicates Privy not configured)
+    const warningBanner = page.locator('[data-testid="privy-not-configured-warning"]').first()
+    const warningVisible = await warningBanner.isVisible({ timeout: 2000 }).catch(() => false)
+    
+    if (warningVisible) {
+      throw new Error(
+        'Privy not configured: The app shows the "Privy not configured" warning banner.\n' +
+        'This means NEXT_PUBLIC_PRIVY_APP_ID was not set when the app was built.\n' +
+        '\n' +
+        'To fix this in CI:\n' +
+        '1. Go to GitHub repository → Settings → Secrets and variables → Actions\n' +
+        '2. Add/verify repository secret: NEXT_PUBLIC_PRIVY_APP_ID (or PRIVY_APP_ID)\n' +
+        '3. Ensure the secret value is your Privy App ID (starts with "cl...")\n' +
+        '4. Re-run the workflow after adding the secret'
+      )
+    }
+    
+    // Check for Privy-specific DOM elements
     const privyRoot = page.locator('[data-privy-root]').first()
     const privyRootVisible = await privyRoot.isVisible({ timeout: 5000 }).catch(() => false)
     
@@ -59,9 +75,19 @@ async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
       }).catch(() => false)
       
       if (!hasPrivyConfig) {
+        // Get page content for additional debugging
+        const pageTitle = await page.title().catch(() => 'unknown')
+        const hasLoginButton = await page.locator('button:has-text("Log in"), button:has-text("Connect")').first().isVisible({ timeout: 1000 }).catch(() => false)
+        
         throw new Error(
-          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build. ' +
-          'Check CI workflow: Build production step must include NEXT_PUBLIC_PRIVY_APP_ID in env: section.'
+          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build.\n' +
+          `Page title: ${pageTitle}\n` +
+          `Login button visible: ${hasLoginButton}\n` +
+          '\n' +
+          'This usually means the GitHub secret is missing or empty. Check:\n' +
+          '1. Repository Settings → Secrets → Actions → NEXT_PUBLIC_PRIVY_APP_ID exists\n' +
+          '2. The secret value is not empty and starts with "cl..."\n' +
+          '3. If using environment secrets, ensure they apply to this workflow'
         )
       }
     }

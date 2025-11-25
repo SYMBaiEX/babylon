@@ -210,4 +210,3 @@ export async function asSystem<T>(
 ): Promise<T> {
   return await executeAsSystem(prisma, operation, operationName)
 }
-
