@@ -45,11 +45,14 @@ bun run db:status
 # Apply migrations
 bun run db:migrate
 
+# Push schema changes directly
+bun run db:push
+
 # Seed with fresh data
 bun run db:seed
 
-# Open Prisma Studio (database GUI)
-npx prisma studio
+# Open Drizzle Studio (database GUI)
+bun run db:studio
 ```
 
 ### 2. Game Control
@@ -104,13 +107,15 @@ babylon/
  (routes)/ # Page routes
  layout.tsx # Root layout
  components/ # React components
+ db/ # Drizzle database schema
+ schema/ # Table definitions
  lib/ # Utility libraries
  engine/ # Game engine logic
  agents/ # Agent system
  a2a/ # A2A protocol
  types/ # TypeScript types
  contracts/ # Solidity smart contracts
- prisma/ # Database schema and migrations
+ drizzle/ # Database migrations
  public/ # Static assets
  scripts/ # Utility scripts
  tests/ # Test files
@@ -179,26 +184,31 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
 ### Adding a New Database Model
 
-1. Update `prisma/schema.prisma`
+1. Create schema in `src/db/schema/`:
 
-```prisma
-model MyModel {
- id String @id @default(uuid())
- name String
- createdAt DateTime @default(now())
- 
- @@index([name])
-}
+```typescript
+// src/db/schema/my-model.ts
+import { pgTable, text, timestamp, index } from 'drizzle-orm/pg-core';
+
+export const myModels = pgTable('my_models', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  nameIdx: index('my_models_name_idx').on(table.name),
+}));
 ```
 
-2. Create migration:
+2. Export from `src/db/schema/index.ts`
+
+3. Generate and apply migration:
 
 ```bash
+bun run db:generate
 bun run db:migrate
 ```
 
-3. Update TypeScript types in `src/types/`
-4. Add database queries in `src/lib/db/`
+4. Update TypeScript types in `src/types/` if needed
 
 ### Creating a New Component
 
@@ -267,8 +277,8 @@ logger.debug('Debug info', { data });
 ### Database Queries
 
 ```bash
-# View query logs
-export DEBUG="prisma:query"
+# Drizzle logs queries in development automatically
+# Set NODE_ENV=development for verbose logging
 bun run dev
 ```
 

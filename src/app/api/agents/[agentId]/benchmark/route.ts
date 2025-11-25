@@ -110,7 +110,7 @@ import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordin
 import type { BenchmarkGameSnapshot } from '@/lib/benchmark/BenchmarkDataGenerator'
 import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 
@@ -127,7 +127,7 @@ export async function POST(
   const user = await authenticateUser(req)
   
   // Verify agent ownership
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentId },
     select: {
       id: true,

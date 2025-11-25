@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 const BASE_URL = process.env.TEST_API_URL || process.env.TEST_BASE_URL || 'http://localhost:3000'
@@ -33,7 +33,7 @@ describe('Admin Agents Reputation Integration', () => {
     // Create test agent
     testAgentUserId = await generateSnowflakeId()
 
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentUserId,
         username: `test-agent-${Date.now()}`,
@@ -48,7 +48,7 @@ describe('Admin Agents Reputation Integration', () => {
     })
 
     // Create performance metrics with reputation
-    await prisma.agentPerformanceMetrics.create({
+    await db.agentPerformanceMetrics.create({
       data: {
         id: await generateSnowflakeId(),
         userId: testAgentUserId,
@@ -115,7 +115,7 @@ describe('Admin Agents Reputation Integration', () => {
   })
 
   test('should verify reputation data structure', async () => {
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: testAgentUserId },
       include: {
         AgentPerformanceMetrics: true,
@@ -123,22 +123,23 @@ describe('Admin Agents Reputation Integration', () => {
     })
 
     expect(agent).toBeDefined()
-    expect(agent?.AgentPerformanceMetrics).toBeDefined()
+    const agentWithMetrics = agent as typeof agent & { AgentPerformanceMetrics: { reputationScore: number; averageFeedbackScore: number | null; totalFeedbackCount: number } | null };
+    expect(agentWithMetrics?.AgentPerformanceMetrics).toBeDefined()
     
     // Verify reputation score exists and is valid
-    const reputationScore = agent?.AgentPerformanceMetrics?.reputationScore
+    const reputationScore = agentWithMetrics?.AgentPerformanceMetrics?.reputationScore
     expect(reputationScore).toBeDefined()
     expect(reputationScore).toBeGreaterThanOrEqual(0)
     expect(reputationScore).toBeLessThanOrEqual(100)
     
     // Verify other metrics exist
-    expect(agent?.AgentPerformanceMetrics?.averageFeedbackScore).toBeDefined()
-    expect(agent?.AgentPerformanceMetrics?.totalFeedbackCount).toBeDefined()
+    expect(agentWithMetrics?.AgentPerformanceMetrics?.averageFeedbackScore).toBeDefined()
+    expect(agentWithMetrics?.AgentPerformanceMetrics?.totalFeedbackCount).toBeDefined()
   })
 
   test('should handle agents without reputation metrics', async () => {
     const newAgentId = await generateSnowflakeId()
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: newAgentId,
         username: `no-rep-agent-${Date.now()}`,
@@ -148,7 +149,7 @@ describe('Admin Agents Reputation Integration', () => {
       },
     })
 
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: newAgentId },
       include: {
         AgentPerformanceMetrics: true,
@@ -157,18 +158,19 @@ describe('Admin Agents Reputation Integration', () => {
 
     expect(agent).toBeDefined()
     // Should have default reputation score of 50 if no metrics
-    expect(agent?.AgentPerformanceMetrics).toBeNull()
+    const agentWithMetrics = agent as typeof agent & { AgentPerformanceMetrics: { reputationScore: number; averageFeedbackScore: number | null; totalFeedbackCount: number } | null };
+    expect(agentWithMetrics?.AgentPerformanceMetrics).toBeNull()
 
     // Clean up
-    await prisma.user.delete({ where: { id: newAgentId } })
+    await db.user.delete({ where: { id: newAgentId } })
   })
 
   afterAll(async () => {
     // Clean up test agent and metrics
-    await prisma.agentPerformanceMetrics.deleteMany({
+    await db.agentPerformanceMetrics.deleteMany({
       where: { userId: testAgentUserId },
     })
-    await prisma.user.delete({ where: { id: testAgentUserId } })
+    await db.user.delete({ where: { id: testAgentUserId } })
   })
 })
 

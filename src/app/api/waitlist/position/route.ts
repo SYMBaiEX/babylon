@@ -166,18 +166,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   )
   
   // Calculate weekly referral count and fetch referral details
-  const { prisma } = await import('@/lib/prisma')
+  const { db, users, eq, and, desc } = await import('@/db')
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   
   // Get completed referrals (qualified users) - limit to prevent unbounded payloads
-  const completedReferrals = await prisma.referral.findMany({
-    where: {
-      referrerId: userId,
-      status: 'completed',
-    },
-    include: {
+  // Use Drizzle query API to get referrals with related user
+  const completedReferralsRaw = await db.query.referrals.findMany({
+    where: (referrals, { eq, and }) => and(
+      eq(referrals.referrerId, userId),
+      eq(referrals.status, 'completed')
+    ),
+    with: {
       User_Referral_referredUserIdToUser: {
-        select: {
+        columns: {
           id: true,
           username: true,
           displayName: true,
@@ -186,37 +187,32 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       },
     },
-    orderBy: {
-      completedAt: 'desc',
-    },
-    take: MAX_REFERRALS_PER_LIST,
+    orderBy: (referrals, { desc }) => [desc(referrals.completedAt)],
+    limit: MAX_REFERRALS_PER_LIST,
   })
   
-  const weeklyReferralCount = completedReferrals.filter(
+  const weeklyReferralCount = completedReferralsRaw.filter(
     r => r.completedAt && r.completedAt >= oneWeekAgo
   ).length
   
   // Get pending referrals (invited but not qualified) - limit to prevent unbounded payloads
-  const pendingReferredUsers = await prisma.user.findMany({
-    where: {
-      referredBy: userId,
-      profileComplete: false,
-    },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      profileImageUrl: true,
-      email: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: MAX_REFERRALS_PER_LIST,
+  const pendingReferredUsers = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    profileImageUrl: users.profileImageUrl,
+    email: users.email,
+    farcasterUsername: users.farcasterUsername,
+    twitterUsername: users.twitterUsername,
+    createdAt: users.createdAt,
   })
+    .from(users)
+    .where(and(
+      eq(users.referredBy, userId),
+      eq(users.profileComplete, false)
+    ))
+    .orderBy(desc(users.createdAt))
+    .limit(MAX_REFERRALS_PER_LIST)
   
   const WEEKLY_REFERRAL_LIMIT = 10
   
@@ -233,14 +229,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     status: 'pending' as const,
   }))
   
-  const qualifiedUsers = completedReferrals
-    .filter(r => r.User_Referral_referredUserIdToUser)
+  const qualifiedUsers = completedReferralsRaw
+    .filter((r): r is typeof r & { User_Referral_referredUserIdToUser: NonNullable<typeof r.User_Referral_referredUserIdToUser> } => !!r.User_Referral_referredUserIdToUser)
     .map(r => ({
-      id: r.User_Referral_referredUserIdToUser!.id,
-      username: r.User_Referral_referredUserIdToUser!.username,
-      displayName: r.User_Referral_referredUserIdToUser!.displayName,
-      profileImageUrl: r.User_Referral_referredUserIdToUser!.profileImageUrl,
-      createdAt: r.User_Referral_referredUserIdToUser!.createdAt.toISOString(),
+      id: r.User_Referral_referredUserIdToUser.id,
+      username: r.User_Referral_referredUserIdToUser.username,
+      displayName: r.User_Referral_referredUserIdToUser.displayName,
+      profileImageUrl: r.User_Referral_referredUserIdToUser.profileImageUrl,
+      createdAt: r.User_Referral_referredUserIdToUser.createdAt.toISOString(),
       completedAt: r.completedAt?.toISOString() ?? new Date().toISOString(),
       status: 'qualified' as const,
     }))

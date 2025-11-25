@@ -6,7 +6,143 @@
  */
 
 import type { Page, Route } from '@playwright/test';
-import type { PrismaClient } from '@prisma/client';
+import type { Database } from '@/db';
+import type { JsonValue } from '@/types/common';
+
+/**
+ * Experience record from queryExperiences
+ */
+export interface ExperienceRecord {
+  id: string;
+  type: string;
+  outcome: string;
+  context: string;
+  action: string;
+  result: string;
+  learning: string;
+  domain: string;
+  tags: string[];
+  confidence: number;
+  importance: number;
+  similarity?: number;
+  timestamp?: Date;
+}
+
+/**
+ * Market gainer/loser data for provider results
+ */
+export interface MarketMovement {
+  id: string;
+  ticker?: string;
+  name?: string;
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  volume?: number;
+}
+
+/**
+ * Trajectory record from database
+ */
+export interface TrajectoryRecord {
+  trajectoryId: string;
+  agentId: string;
+  status: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  stepCount?: number;
+  totalReward?: number;
+}
+
+/**
+ * LLM call aggregate result
+ */
+export interface LLMCallAggregate {
+  _count: number;
+  _avg?: { latencyMs: number | null };
+  _sum?: { promptTokens: number | null; completionTokens: number | null };
+}
+
+/**
+ * Simulation tick event
+ */
+export interface SimulationTick {
+  tick: number;
+  timestamp: number;
+  events: Array<{ type: string; data: JsonValue }>;
+}
+
+/**
+ * Simulation market state
+ */
+export interface SimulationMarket {
+  id: string;
+  question?: string;
+  ticker?: string;
+  price?: number;
+  yesPrice?: number;
+  noPrice?: number;
+  volume?: number;
+}
+
+/**
+ * Simulation agent state
+ */
+export interface SimulationAgent {
+  id: string;
+  balance: number;
+  positions?: Array<{ marketId: string; size: number; side: string }>;
+}
+
+/**
+ * Optimal action from ground truth
+ */
+export interface OptimalAction {
+  tick: number;
+  action: string;
+  marketId?: string;
+  expectedValue?: number;
+}
+
+/**
+ * Price history entry
+ */
+export interface PriceHistoryEntry {
+  timestamp: number;
+  price: number;
+  volume?: number;
+}
+
+/**
+ * Trajectory state snapshot
+ */
+export interface TrajectoryState {
+  tick: number;
+  balance: number;
+  positions: Array<{ marketId: string; size: number; pnl: number }>;
+  timestamp: number;
+}
+
+/**
+ * Trajectory action record
+ */
+export interface TrajectoryAction {
+  tick: number;
+  type: string;
+  marketId?: string;
+  amount?: number;
+  side?: string;
+  success: boolean;
+}
+
+/**
+ * Trajectory reward record
+ */
+export interface TrajectoryReward {
+  tick: number;
+  reward: number;
+  source: string;
+}
 
 /**
  * Playwright Page type (re-exported for convenience)
@@ -24,7 +160,9 @@ export type TestRoute = Route;
 export interface ErrorWithMessage {
   message: string;
   code?: number | string;
-  [key: string]: unknown;
+  stack?: string;
+  name?: string;
+  cause?: Error | string;
 }
 
 /**
@@ -44,7 +182,7 @@ export function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
  */
 export interface A2AClientError extends Error {
   code?: number;
-  data?: unknown;
+  data?: JsonValue;
 }
 
 /**
@@ -98,30 +236,39 @@ export interface ExperienceService {
     confidence: number;
     importance: number;
   }) => Promise<{ id: string; learning: string }>;
-  queryExperiences: (query: { query: string; limit: number }) => Promise<unknown[]>;
+  queryExperiences: (query: { query: string; limit: number }) => Promise<ExperienceRecord[]>;
+}
+
+/**
+ * Memory Service interface for agent memory operations
+ */
+export interface MemoryService {
+  recall: (query: { query: string; limit: number }) => Promise<Array<{ content: string; similarity: number }>>;
+  store: (data: { content: string; type: string }) => Promise<{ id: string }>;
 }
 
 /**
  * Runtime Service type
+ * Services that can be registered with the agent runtime
  */
-export type RuntimeService = ExperienceService | unknown;
+export type RuntimeService = ExperienceService | MemoryService;
 
 /**
  * Provider Result type
+ * Note: Using Record<string, JsonValue> for data to avoid index signature conflicts
  */
 export interface ProviderResult {
   text?: string;
-  data?: {
-    gainers?: unknown[];
-    losers?: unknown[];
-    balances?: {
-      virtualBalance?: number;
-      reputationPoints?: number;
-      [key: string]: unknown;
-    };
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
+  data?: Record<string, JsonValue>;
+}
+
+/**
+ * Message content type for agent messages
+ */
+export interface MessageContent {
+  text: string;
+  attachments?: Array<{ type: string; url: string }>;
+  metadata?: Record<string, JsonValue>;
 }
 
 /**
@@ -130,29 +277,47 @@ export interface ProviderResult {
 export interface AgentMessage {
   userId: string;
   agentId: string;
-  content: {
-    text: string;
-    [key: string]: unknown;
-  };
+  content: MessageContent;
   roomId?: string;
-  [key: string]: unknown;
+  timestamp?: number;
+  messageId?: string;
 }
 
 /**
- * Prisma Client with extended types for testing
+ * Trajectory query args
  */
-export type TestPrismaClient = PrismaClient & {
+export interface TrajectoryQueryArgs {
+  where?: { agentId?: string; status?: string; trajectoryId?: string | { in: string[] } };
+  orderBy?: { createdAt?: 'asc' | 'desc' };
+  take?: number;
+  skip?: number;
+}
+
+/**
+ * LLM call log query args
+ */
+export interface LLMCallLogQueryArgs {
+  where?: { trajectoryId?: string };
+  _count?: boolean;
+  _avg?: { latencyMs: boolean };
+  _sum?: { promptTokens: boolean; completionTokens: boolean };
+}
+
+/**
+ * Database client with extended types for testing
+ */
+export type TestDatabase = Database & {
   trajectory?: {
     count: () => Promise<number>;
-    findMany: (args: unknown) => Promise<unknown[]>;
-    findUnique: (args: { where: { trajectoryId: string } }) => Promise<unknown>;
-    delete: (args: { where: { trajectoryId: string } }) => Promise<unknown>;
+    findMany: (args: TrajectoryQueryArgs) => Promise<TrajectoryRecord[]>;
+    findUnique: (args: { where: { trajectoryId: string } }) => Promise<TrajectoryRecord | null>;
+    delete: (args: { where: { trajectoryId: string } }) => Promise<TrajectoryRecord>;
     deleteMany: (args: { where: { trajectoryId: { in: string[] } } }) => Promise<{ count: number }>;
-    groupBy: (args: unknown) => Promise<unknown[]>;
+    groupBy: (args: TrajectoryQueryArgs & { by: string[] }) => Promise<Array<{ agentId: string; _count: number }>>;
   };
   llmCallLog?: {
     deleteMany: (args: { where: { trajectoryId: string } }) => Promise<{ count: number }>;
-    aggregate: (args: unknown) => Promise<unknown>;
+    aggregate: (args: LLMCallLogQueryArgs) => Promise<LLMCallAggregate>;
   };
 };
 
@@ -174,12 +339,60 @@ export interface RouteFulfillOptions {
 /**
  * Mock API response
  */
-export interface MockAPIResponse<T = unknown> {
+export interface MockAPIResponse<T = JsonValue> {
   success?: boolean;
   data?: T;
   error?: string;
   message?: string;
-  [key: string]: unknown;
+  statusCode?: number;
+  timestamp?: string;
+}
+
+/**
+ * Block entry for A2A request result
+ */
+export interface BlockEntry {
+  id: string;
+  blockedId: string;
+  blockerId: string;
+  reason?: string;
+  createdAt: string;
+}
+
+/**
+ * Mute entry for A2A request result
+ */
+export interface MuteEntry {
+  id: string;
+  mutedId: string;
+  muterId: string;
+  reason?: string;
+  createdAt: string;
+}
+
+/**
+ * Report entry for A2A request result
+ */
+export interface ReportEntry {
+  id: string;
+  reporterId: string;
+  reportedUserId?: string;
+  reportedPostId?: string;
+  category: string;
+  reason: string;
+  status: string;
+  priority: string;
+  createdAt: string;
+}
+
+/**
+ * Pagination info for A2A request result
+ */
+export interface PaginationInfo {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore?: boolean;
 }
 
 /**
@@ -188,35 +401,14 @@ export interface MockAPIResponse<T = unknown> {
 export interface A2ARequestResult {
   success: boolean;
   message: string;
-  block?: {
-    blockedId: string;
-    reason?: string;
-    [key: string]: unknown;
-  };
-  mute?: {
-    mutedId: string;
-    reason?: string;
-    [key: string]: unknown;
-  };
-  report?: {
-    reportedUserId?: string;
-    reportedPostId?: string;
-    category: string;
-    status: string;
-    priority: string;
-    [key: string]: unknown;
-  };
+  block?: BlockEntry;
+  mute?: MuteEntry;
+  report?: ReportEntry;
   isBlocked?: boolean;
   isMuted?: boolean;
-  blocks?: unknown[];
-  mutes?: unknown[];
-  pagination?: {
-    total: number;
-    limit: number;
-    offset: number;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
+  blocks?: BlockEntry[];
+  mutes?: MuteEntry[];
+  pagination?: PaginationInfo;
 }
 
 /**
@@ -239,21 +431,50 @@ export interface SimulationConfig {
     id: string;
     version: string;
     duration: number;
-    ticks: unknown[];
+    ticks: SimulationTick[];
     initialState: {
-      predictionMarkets: unknown[];
-      perpetualMarkets: unknown[];
-      agents: unknown[];
+      predictionMarkets: SimulationMarket[];
+      perpetualMarkets: SimulationMarket[];
+      agents: SimulationAgent[];
     };
     groundTruth: {
       marketOutcomes: Record<string, boolean>;
-      priceHistory: Record<string, unknown[]>;
-      optimalActions: unknown[];
+      priceHistory: Record<string, PriceHistoryEntry[]>;
+      optimalActions: OptimalAction[];
     };
   };
   agentId: string;
   fastForward?: boolean;
   responseTimeout?: number;
+}
+
+/**
+ * Perp metrics for simulation
+ */
+export interface PerpMetrics {
+  totalTrades: number;
+  profitableTrades: number;
+  totalPnl: number;
+  avgLeverage: number;
+}
+
+/**
+ * Social metrics for simulation
+ */
+export interface SocialMetrics {
+  postsCreated: number;
+  commentsCreated: number;
+  likesReceived: number;
+  engagementScore: number;
+}
+
+/**
+ * Timing metrics for simulation
+ */
+export interface TimingMetrics {
+  avgResponseMs: number;
+  maxResponseMs: number;
+  totalTimeMs: number;
 }
 
 /**
@@ -266,7 +487,10 @@ export interface SimulationResult {
   ticksProcessed: number;
   actions: Array<{
     type: string;
-    [key: string]: unknown;
+    marketId?: string;
+    amount?: number;
+    side?: string;
+    timestamp?: number;
   }>;
   metrics: {
     totalPnl: number;
@@ -274,20 +498,21 @@ export interface SimulationResult {
       totalPositions: number;
       correctPredictions: number;
       accuracy: number;
-      [key: string]: unknown;
+      avgConfidence?: number;
+      bestPrediction?: string;
     };
-    perpMetrics: Record<string, unknown>;
-    socialMetrics: Record<string, unknown>;
-    timing: Record<string, unknown>;
+    perpMetrics: PerpMetrics;
+    socialMetrics: SocialMetrics;
+    timing: TimingMetrics;
     optimalityScore: number;
-    [key: string]: unknown;
+    riskAdjustedReturn?: number;
   };
   trajectory: {
-    states: unknown[];
-    actions: unknown[];
-    rewards: unknown[];
+    states: TrajectoryState[];
+    actions: TrajectoryAction[];
+    rewards: TrajectoryReward[];
     windowId: string;
-    [key: string]: unknown;
+    episodeId?: string;
   };
 }
 
@@ -298,7 +523,9 @@ export interface FeedbackMetadata {
   profitable?: boolean;
   autoGenerated?: boolean;
   won?: boolean;
-  [key: string]: unknown;
+  pnl?: number;
+  confidence?: number;
+  source?: string;
 }
 
 /**
@@ -306,6 +533,9 @@ export interface FeedbackMetadata {
  */
 export interface CronJob {
   path: string;
-  [key: string]: unknown;
+  schedule?: string;
+  enabled?: boolean;
+  lastRun?: string;
+  nextRun?: string;
 }
 

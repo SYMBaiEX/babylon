@@ -5,7 +5,7 @@
  * Tracks all point transactions and ensures no duplicate awards. Handles different
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
-import { prisma } from '@/lib/prisma';
+import { db, users, actors, referrals, pointsTransactions, eq, and, gt, gte, ne, desc, count, sql } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { POINTS, type PointsReason } from '@/lib/constants/points';
@@ -43,26 +43,6 @@ interface AwardPointsResult {
 export class PointsService {
   /**
    * Award points to a user with transaction tracking
-   * 
-   * @description Awards points to a user for a specific reason. Prevents duplicate
-   * awards by checking if points were already awarded for this reason. Creates a
-   * transaction record and updates user's point totals atomically.
-   * 
-   * @param {string} userId - User ID to award points to
-   * @param {number} amount - Points amount to award
-   * @param {PointsReason} reason - Reason for awarding points
-   * @param {Record<string, JsonValue>} [metadata] - Optional metadata for the transaction
-   * @returns {Promise<AwardPointsResult>} Result with success status and point totals
-   * 
-   * @example
-   * ```typescript
-   * const result = await PointsService.awardPoints(
-   *   userId,
-   *   POINTS.PROFILE_COMPLETION,
-   *   'profile_completion',
-   *   { source: 'onboarding' }
-   * );
-   * ```
    */
   static async awardPoints(
     userId: string,
@@ -71,23 +51,25 @@ export class PointsService {
     metadata?: Record<string, JsonValue>
   ): Promise<AwardPointsResult> {
     // Get current user state
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        reputationPoints: true,
-        invitePoints: true,
-        earnedPoints: true,
-        bonusPoints: true,
-        pointsAwardedForProfile: true,
-        pointsAwardedForFarcaster: true,
-        pointsAwardedForTwitter: true,
-        pointsAwardedForWallet: true,
-        pointsAwardedForReferralBonus: true,
-        pointsAwardedForShare: true,
-        pointsAwardedForPrivateGroup: true,
-        pointsAwardedForPrivateChannel: true,
-      },
-    });
+    const userResult = await db.select({
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      earnedPoints: users.earnedPoints,
+      bonusPoints: users.bonusPoints,
+      pointsAwardedForProfile: users.pointsAwardedForProfile,
+      pointsAwardedForFarcaster: users.pointsAwardedForFarcaster,
+      pointsAwardedForTwitter: users.pointsAwardedForTwitter,
+      pointsAwardedForWallet: users.pointsAwardedForWallet,
+      pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
+      pointsAwardedForShare: users.pointsAwardedForShare,
+      pointsAwardedForPrivateGroup: users.pointsAwardedForPrivateGroup,
+      pointsAwardedForPrivateChannel: users.pointsAwardedForPrivateChannel,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
 
     if (!user) {
       return {
@@ -112,20 +94,20 @@ export class PointsService {
     const pointsBefore = user.reputationPoints;
     const pointsAfter = pointsBefore + amount;
 
-    // Build update data with proper typing for Prisma
-    const updateData: {
-      reputationPoints: number
-      invitePoints?: number
-      bonusPoints?: number
-      pointsAwardedForProfile?: boolean
-      pointsAwardedForFarcaster?: boolean
-      pointsAwardedForTwitter?: boolean
-      pointsAwardedForWallet?: boolean
-      pointsAwardedForReferralBonus?: boolean
-      pointsAwardedForShare?: boolean
-      pointsAwardedForPrivateGroup?: boolean
-      pointsAwardedForPrivateChannel?: boolean
-    } = {
+    // Build update data
+    const updateData: Partial<{
+      reputationPoints: number;
+      invitePoints: number;
+      bonusPoints: number;
+      pointsAwardedForProfile: boolean;
+      pointsAwardedForFarcaster: boolean;
+      pointsAwardedForTwitter: boolean;
+      pointsAwardedForWallet: boolean;
+      pointsAwardedForReferralBonus: boolean;
+      pointsAwardedForShare: boolean;
+      pointsAwardedForPrivateGroup: boolean;
+      pointsAwardedForPrivateChannel: boolean;
+    }> = {
       reputationPoints: pointsAfter,
     };
 
@@ -174,14 +156,13 @@ export class PointsService {
     }
 
     // Execute in transaction
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: updateData,
-      });
+    await db.transaction(async (tx) => {
+      await tx.update(users)
+        .set(updateData)
+        .where(eq(users.id, userId));
 
-      await tx.pointsTransaction.create({
-        data: {
+      await tx.insert(pointsTransactions)
+        .values({
           id: await generateSnowflakeId(),
           userId,
           amount,
@@ -189,8 +170,7 @@ export class PointsService {
           pointsAfter,
           reason,
           metadata: metadata ? JSON.stringify(metadata) : null,
-        },
-      });
+        });
     });
 
     logger.info(
@@ -208,25 +188,15 @@ export class PointsService {
 
   /**
    * Award points for profile completion (username + image + bio)
-   * This consolidates what were previously separate rewards
    */
-  static async awardProfileCompletion(
-    userId: string
-  ): Promise<AwardPointsResult> {
-    return this.awardPoints(
-      userId,
-      POINTS.PROFILE_COMPLETION,
-      'profile_completion'
-    );
+  static async awardProfileCompletion(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(userId, POINTS.PROFILE_COMPLETION, 'profile_completion');
   }
 
   /**
    * Award points for Farcaster link
    */
-  static async awardFarcasterLink(
-    userId: string,
-    farcasterUsername?: string
-  ): Promise<AwardPointsResult> {
+  static async awardFarcasterLink(userId: string, farcasterUsername?: string): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.FARCASTER_LINK,
@@ -238,10 +208,7 @@ export class PointsService {
   /**
    * Award points for Twitter link
    */
-  static async awardTwitterLink(
-    userId: string,
-    twitterUsername?: string
-  ): Promise<AwardPointsResult> {
+  static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.TWITTER_LINK,
@@ -253,10 +220,7 @@ export class PointsService {
   /**
    * Award points for wallet connection
    */
-  static async awardWalletConnect(
-    userId: string,
-    walletAddress?: string
-  ): Promise<AwardPointsResult> {
+  static async awardWalletConnect(userId: string, walletAddress?: string): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.WALLET_CONNECT,
@@ -274,8 +238,7 @@ export class PointsService {
     contentType: string,
     contentId?: string
   ): Promise<AwardPointsResult> {
-    const amount =
-      platform === 'twitter' ? POINTS.SHARE_TO_TWITTER : POINTS.SHARE_ACTION;
+    const amount = platform === 'twitter' ? POINTS.SHARE_TO_TWITTER : POINTS.SHARE_ACTION;
     const reason = platform === 'twitter' ? 'share_to_twitter' : 'share_action';
 
     return this.awardPoints(userId, amount, reason, {
@@ -288,10 +251,7 @@ export class PointsService {
   /**
    * Award points for creating a private group
    */
-  static async awardPrivateGroupCreate(
-    userId: string,
-    groupId?: string
-  ): Promise<AwardPointsResult> {
+  static async awardPrivateGroupCreate(userId: string, groupId?: string): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.PRIVATE_GROUP_CREATE,
@@ -303,10 +263,7 @@ export class PointsService {
   /**
    * Award points for creating a private channel
    */
-  static async awardPrivateChannelCreate(
-    userId: string,
-    channelId?: string
-  ): Promise<AwardPointsResult> {
+  static async awardPrivateChannelCreate(userId: string, channelId?: string): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.PRIVATE_CHANNEL_CREATE,
@@ -327,15 +284,15 @@ export class PointsService {
     // Check weekly referral limit (max 10 referrals per week)
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     
-    const weeklyReferralCount = await prisma.referral.count({
-      where: {
-        referrerId,
-        status: 'completed',
-        completedAt: {
-          gte: oneWeekAgo,
-        },
-      },
-    });
+    const [weeklyCountResult] = await db.select({ count: count() })
+      .from(referrals)
+      .where(and(
+        eq(referrals.referrerId, referrerId),
+        eq(referrals.status, 'completed'),
+        gte(referrals.completedAt, oneWeekAgo)
+      ));
+
+    const weeklyReferralCount = weeklyCountResult?.count ?? 0;
 
     if (weeklyReferralCount >= 10) {
       logger.warn(
@@ -352,54 +309,55 @@ export class PointsService {
     }
 
     // Check IP addresses and other identifiers for self-referral detection
-    const [referrer, referredUser] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: referrerId },
-        select: { 
-          registrationIpHash: true, 
-          createdAt: true,
-          walletAddress: true,
-          privyId: true,
-          farcasterFid: true,
-          twitterId: true,
-        },
-      }),
-      prisma.user.findUnique({
-        where: { id: referredUserId },
-        select: { 
-          registrationIpHash: true, 
-          createdAt: true,
-          walletAddress: true,
-          privyId: true,
-          farcasterFid: true,
-          twitterId: true,
-        },
-      }),
+    const [referrerResult, referredUserResult] = await Promise.all([
+      db.select({
+        registrationIpHash: users.registrationIpHash,
+        createdAt: users.createdAt,
+        walletAddress: users.walletAddress,
+        privyId: users.privyId,
+        farcasterFid: users.farcasterFid,
+        twitterId: users.twitterId,
+      })
+        .from(users)
+        .where(eq(users.id, referrerId))
+        .limit(1),
+      db.select({
+        registrationIpHash: users.registrationIpHash,
+        createdAt: users.createdAt,
+        walletAddress: users.walletAddress,
+        privyId: users.privyId,
+        farcasterFid: users.farcasterFid,
+        twitterId: users.twitterId,
+      })
+        .from(users)
+        .where(eq(users.id, referredUserId))
+        .limit(1),
     ]);
+
+    const referrer = referrerResult[0];
+    const referredUser = referredUserResult[0];
 
     // Check if IP addresses match (potential self-referral)
     if (referrer?.registrationIpHash && referredUser?.registrationIpHash) {
       if (referrer.registrationIpHash === referredUser.registrationIpHash) {
-        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime()
-        const fifteenMinutes = 15 * 60 * 1000
-        const twentyFourHours = 24 * 60 * 60 * 1000
+        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime();
+        const fifteenMinutes = 15 * 60 * 1000;
+        const twentyFourHours = 24 * 60 * 60 * 1000;
 
-        // Check if users have different identifiers (wallet, privyId, social accounts)
-        // If they have different identifiers, it's likely a legitimate referral even with same IP
+        // Check if users have different identifiers
         const hasDifferentWallet = referrer.walletAddress && referredUser.walletAddress && 
-          referrer.walletAddress !== referredUser.walletAddress
+          referrer.walletAddress !== referredUser.walletAddress;
         const hasDifferentPrivyId = referrer.privyId && referredUser.privyId && 
-          referrer.privyId !== referredUser.privyId
+          referrer.privyId !== referredUser.privyId;
         const hasDifferentFarcaster = referrer.farcasterFid && referredUser.farcasterFid && 
-          referrer.farcasterFid !== referredUser.farcasterFid
+          referrer.farcasterFid !== referredUser.farcasterFid;
         const hasDifferentTwitter = referrer.twitterId && referredUser.twitterId && 
-          referrer.twitterId !== referredUser.twitterId
+          referrer.twitterId !== referredUser.twitterId;
         
         const hasDifferentIdentifiers = hasDifferentWallet || hasDifferentPrivyId || 
-          hasDifferentFarcaster || hasDifferentTwitter
+          hasDifferentFarcaster || hasDifferentTwitter;
 
         // Only block if same IP AND no different identifiers AND within 15 minutes
-        // This prevents blocking legitimate referrals from same WiFi/office/VPN
         if (timeDiff >= 0 && timeDiff < fifteenMinutes && !hasDifferentIdentifiers) {
           logger.warn(
             `Self-referral detected: same IP within 15 minutes with no different identifiers`,
@@ -413,13 +371,13 @@ export class PointsService {
               referredPrivyId: referredUser.privyId,
             },
             'PointsService'
-          )
+          );
           return {
             success: false,
             pointsAwarded: 0,
             newTotal: 0,
             error: 'Self-referral detected: accounts created from same IP within 15 minutes with no different identifiers',
-          }
+          };
         }
 
         // Same IP within 24 hours = flag for review (still award but mark suspicious)
@@ -434,10 +392,9 @@ export class PointsService {
               referredWallet: referredUser.walletAddress,
             },
             'PointsService'
-          )
+          );
           // Continue to award points but mark as suspicious
         } else if (hasDifferentIdentifiers) {
-          // Log that we're allowing this despite same IP because of different identifiers
           logger.info(
             `Allowing referral despite same IP: users have different identifiers`,
             {
@@ -450,7 +407,7 @@ export class PointsService {
               hasDifferentTwitter,
             },
             'PointsService'
-          )
+          );
         }
       }
     }
@@ -461,38 +418,38 @@ export class PointsService {
       'referral_signup',
       { 
         referredUserId,
-        // Include IP hash info in metadata for tracking
         referrerIpHash: referrer?.registrationIpHash || null,
         referredIpHash: referredUser?.registrationIpHash || null,
         sameIp: referrer?.registrationIpHash === referredUser?.registrationIpHash,
       }
-    )
+    );
 
     // Update referral record with suspicious flags if IPs match
     if (result.success && referrer?.registrationIpHash && referredUser?.registrationIpHash) {
       if (referrer.registrationIpHash === referredUser.registrationIpHash) {
-        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime()
-        const oneHour = 60 * 60 * 1000
-        const twentyFourHours = 24 * 60 * 60 * 1000
+        const timeDiff = referredUser.createdAt.getTime() - referrer.createdAt.getTime();
+        const oneHour = 60 * 60 * 1000;
+        const twentyFourHours = 24 * 60 * 60 * 1000;
         
-        const isSuspicious = timeDiff >= 0 && timeDiff < twentyFourHours
-        const isBlocked = timeDiff >= 0 && timeDiff < oneHour
+        const isSuspicious = timeDiff >= 0 && timeDiff < twentyFourHours;
+        const isBlocked = timeDiff >= 0 && timeDiff < oneHour;
 
         if (isSuspicious || isBlocked) {
           // Find the referral record and update it
-          // Note: Record may still have status 'pending' at this point, so we don't filter by status
-          const referralRecord = await prisma.referral.findFirst({
-            where: {
-              referrerId,
-              referredUserId,
-            },
-            orderBy: { createdAt: 'desc' },
-          })
+          const referralRecordResult = await db.select({ id: referrals.id })
+            .from(referrals)
+            .where(and(
+              eq(referrals.referrerId, referrerId),
+              eq(referrals.referredUserId, referredUserId)
+            ))
+            .orderBy(desc(referrals.createdAt))
+            .limit(1);
+
+          const referralRecord = referralRecordResult[0];
 
           if (referralRecord) {
-            await prisma.referral.update({
-              where: { id: referralRecord.id },
-              data: {
+            await db.update(referrals)
+              .set({
                 suspiciousReferralFlags: {
                   sameIp: true,
                   timeDiffMs: timeDiff,
@@ -500,8 +457,8 @@ export class PointsService {
                   blocked: isBlocked,
                   flagged: isSuspicious && !isBlocked,
                 },
-              },
-            })
+              })
+              .where(eq(referrals.id, referralRecord.id));
           }
         }
       }
@@ -509,14 +466,12 @@ export class PointsService {
 
     // Also increment referral count only if points were successfully awarded
     if (result.success) {
-      await prisma.user.update({
-        where: { id: referrerId },
-        data: { 
-          referralCount: { increment: 1 },
-          // Update last referral IP hash for tracking
+      await db.update(users)
+        .set({
+          referralCount: sql`${users.referralCount} + 1`,
           lastReferralIpHash: referredUser?.registrationIpHash || null,
-        },
-      });
+        })
+        .where(eq(users.id, referrerId));
     }
 
     return result;
@@ -524,53 +479,45 @@ export class PointsService {
 
   /**
    * Check and qualify referral when referred user links social account
-   * Awards bonus points to referrer when referred user links their first social account
-   * 
-   * @description When a referred user links a social account (Farcaster, Twitter, or Wallet),
-   * this checks if they have a referrer and if the referral hasn't been qualified yet.
-   * If conditions are met, marks the referral as qualified and awards bonus points to the referrer.
-   * 
-   * @param {string} referredUserId - User ID who just linked a social account
-   * @returns {Promise<AwardPointsResult | null>} Result if referral was qualified, null otherwise
    */
-  static async checkAndQualifyReferral(
-    referredUserId: string
-  ): Promise<AwardPointsResult | null> {
+  static async checkAndQualifyReferral(referredUserId: string): Promise<AwardPointsResult | null> {
     // Get user with referrer info and social account status
-    const user = await prisma.user.findUnique({
-      where: { id: referredUserId },
-      select: {
-        referredBy: true,
-        hasFarcaster: true,
-        hasTwitter: true,
-        walletAddress: true,
-      },
-    });
+    const userResult = await db.select({
+      referredBy: users.referredBy,
+      hasFarcaster: users.hasFarcaster,
+      hasTwitter: users.hasTwitter,
+      walletAddress: users.walletAddress,
+    })
+      .from(users)
+      .where(eq(users.id, referredUserId))
+      .limit(1);
+
+    const user = userResult[0];
 
     if (!user || !user.referredBy) {
-      // User has no referrer, nothing to qualify
       return null;
     }
 
     // Check if user has at least one social account linked
     const hasSocialAccount = user.hasFarcaster || user.hasTwitter || !!user.walletAddress;
     if (!hasSocialAccount) {
-      // User doesn't have any social accounts linked yet
       return null;
     }
 
     // Find the referral record
-    const referral = await prisma.referral.findFirst({
-      where: {
-        referrerId: user.referredBy,
-        referredUserId: referredUserId,
-        status: 'completed',
-      },
-      orderBy: { completedAt: 'desc' },
-    });
+    const referralResult = await db.select()
+      .from(referrals)
+      .where(and(
+        eq(referrals.referrerId, user.referredBy),
+        eq(referrals.referredUserId, referredUserId),
+        eq(referrals.status, 'completed')
+      ))
+      .orderBy(desc(referrals.completedAt))
+      .limit(1);
+
+    const referral = referralResult[0];
 
     if (!referral) {
-      // No referral record found
       logger.warn(
         `No referral record found for referrer ${user.referredBy} and referred user ${referredUserId}`,
         { referrerId: user.referredBy, referredUserId },
@@ -581,7 +528,6 @@ export class PointsService {
 
     // Check if already qualified
     if (referral.qualifiedAt) {
-      // Already qualified, nothing to do
       return null;
     }
 
@@ -598,12 +544,9 @@ export class PointsService {
 
     if (qualificationResult.success) {
       // Update referral record to mark as qualified
-      await prisma.referral.update({
-        where: { id: referral.id },
-        data: {
-          qualifiedAt: new Date(),
-        },
-      });
+      await db.update(referrals)
+        .set({ qualifiedAt: new Date() })
+        .where(eq(referrals.id, referral.id));
 
       logger.info(
         `Referral qualified: referrer ${user.referredBy} earned ${POINTS.REFERRAL_QUALIFIED} points for qualified referral`,
@@ -629,14 +572,15 @@ export class PointsService {
     paymentRequestId: string,
     paymentTxHash?: string
   ): Promise<AwardPointsResult> {
-    // Calculate points: 100 points per $1
-    const pointsAmount = Math.floor(amountUSD * 100)
+    const pointsAmount = Math.floor(amountUSD * 100);
 
     // Get current user state
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { reputationPoints: true },
-    })
+    const userResult = await db.select({ reputationPoints: users.reputationPoints })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
 
     if (!user) {
       return {
@@ -644,22 +588,20 @@ export class PointsService {
         pointsAwarded: 0,
         newTotal: 0,
         error: 'User not found',
-      }
+      };
     }
 
-    const pointsBefore = user.reputationPoints
-    const pointsAfter = pointsBefore + pointsAmount
+    const pointsBefore = user.reputationPoints;
+    const pointsAfter = pointsBefore + pointsAmount;
 
     // Execute in transaction
-    await prisma.$transaction(async (tx) => {
-      // Update user points
-      await tx.user.update({
-        where: { id: userId },
-        data: { reputationPoints: pointsAfter },
-      });
-      // Create transaction record with payment details
-      await tx.pointsTransaction.create({
-        data: {
+    await db.transaction(async (tx) => {
+      await tx.update(users)
+        .set({ reputationPoints: pointsAfter })
+        .where(eq(users.id, userId));
+
+      await tx.insert(pointsTransactions)
+        .values({
           id: await generateSnowflakeId(),
           userId,
           amount: pointsAmount,
@@ -675,21 +617,20 @@ export class PointsService {
           paymentTxHash,
           paymentAmount: amountUSD.toFixed(2),
           paymentVerified: true,
-        },
-      });
+        });
     });
 
     logger.info(
       `User ${userId} purchased ${pointsAmount} points for $${amountUSD}`,
       { userId, pointsAmount, amountUSD, paymentRequestId },
       'PointsService'
-    )
+    );
 
     return {
       success: true,
       pointsAwarded: pointsAmount,
       newTotal: pointsAfter,
-    }
+    };
   }
 
   /**
@@ -718,14 +659,12 @@ export class PointsService {
       case 'referral_bonus':
         return user.pointsAwardedForReferralBonus;
       case 'referral_qualified':
-        // Qualified referrals can happen multiple times (one per referred user)
-        // But we track this per referral, not per user, so always allow
         return false;
       case 'share_action':
       case 'share_to_twitter':
         return user.pointsAwardedForShare;
       default:
-        return false; // For referrals, allow multiple awards (with weekly limit)
+        return false;
     }
   }
 
@@ -733,26 +672,30 @@ export class PointsService {
    * Get user's points and transaction history
    */
   static async getUserPoints(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        reputationPoints: true,
-        referralCount: true,
-        PointsTransaction: {
-          orderBy: { createdAt: 'desc' },
-          take: 50,
-        },
-      },
-    });
+    const userResult = await db.select({
+      reputationPoints: users.reputationPoints,
+      referralCount: users.referralCount,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
 
     if (!user) {
       return null;
     }
 
+    const transactions = await db.select()
+      .from(pointsTransactions)
+      .where(eq(pointsTransactions.userId, userId))
+      .orderBy(desc(pointsTransactions.createdAt))
+      .limit(50);
+
     return {
       points: user.reputationPoints,
       referralCount: user.referralCount,
-      transactions: user.PointsTransaction,
+      transactions,
     };
   }
 
@@ -767,48 +710,77 @@ export class PointsService {
   ) {
     const skip = (page - 1) * pageSize;
 
-    const userWhere: {
-      isActor: false;
-      reputationPoints?: { gte: number };
-      earnedPoints?: { not: number };
-      invitePoints?: { gt: number };
-    } = {
-      isActor: false,
-    };
-
+    // Build users query based on category
+    let usersResult;
     if (pointsCategory === 'all') {
-      userWhere.reputationPoints = { gte: minPoints };
+      usersResult = await db.select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        reputationPoints: users.reputationPoints,
+        invitePoints: users.invitePoints,
+        earnedPoints: users.earnedPoints,
+        bonusPoints: users.bonusPoints,
+        referralCount: users.referralCount,
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+        createdAt: users.createdAt,
+      })
+        .from(users)
+        .where(and(
+          eq(users.isActor, false),
+          gte(users.reputationPoints, minPoints)
+        ));
     } else if (pointsCategory === 'earned') {
-      userWhere.earnedPoints = { not: 0 };
-    } else if (pointsCategory === 'referral') {
-      userWhere.invitePoints = { gt: 0 };
+      usersResult = await db.select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        reputationPoints: users.reputationPoints,
+        invitePoints: users.invitePoints,
+        earnedPoints: users.earnedPoints,
+        bonusPoints: users.bonusPoints,
+        referralCount: users.referralCount,
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+        createdAt: users.createdAt,
+      })
+        .from(users)
+        .where(and(
+          eq(users.isActor, false),
+          ne(users.earnedPoints, 0)
+        ));
+    } else {
+      usersResult = await db.select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        reputationPoints: users.reputationPoints,
+        invitePoints: users.invitePoints,
+        earnedPoints: users.earnedPoints,
+        bonusPoints: users.bonusPoints,
+        referralCount: users.referralCount,
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+        createdAt: users.createdAt,
+      })
+        .from(users)
+        .where(and(
+          eq(users.isActor, false),
+          gt(users.invitePoints, 0)
+        ));
     }
 
-    const users = await prisma.user.findMany({
-      where: userWhere,
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-        reputationPoints: true,
-        invitePoints: true,
-        earnedPoints: true,
-        bonusPoints: true,
-        referralCount: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        createdAt: true,
-      },
-    });
-
     const combined = [
-      ...users.map((user) => ({
+      ...usersResult.map((user) => ({
         id: user.id,
         username: user.username,
         displayName: user.displayName,
         profileImageUrl: user.profileImageUrl,
-        allPoints: user.reputationPoints, // All Points = total reputation
+        allPoints: user.reputationPoints,
         invitePoints: user.invitePoints,
         earnedPoints: user.earnedPoints,
         bonusPoints: user.bonusPoints,
@@ -822,23 +794,20 @@ export class PointsService {
     ];
 
     if (pointsCategory === 'all') {
-      const actors = await prisma.actor.findMany({
-        where: {
-          reputationPoints: { gte: minPoints },
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          profileImageUrl: true,
-          reputationPoints: true,
-          tier: true,
-          createdAt: true,
-        },
-      });
+      const actorsResult = await db.select({
+        id: actors.id,
+        name: actors.name,
+        description: actors.description,
+        profileImageUrl: actors.profileImageUrl,
+        reputationPoints: actors.reputationPoints,
+        tier: actors.tier,
+        createdAt: actors.createdAt,
+      })
+        .from(actors)
+        .where(gte(actors.reputationPoints, minPoints));
 
       combined.push(
-        ...actors.map((actor) => ({
+        ...actorsResult.map((actor) => ({
           id: actor.id,
           username: actor.id,
           displayName: actor.name,
@@ -908,29 +877,35 @@ export class PointsService {
    * Get user's rank on leaderboard (including actors)
    */
   static async getUserRank(userId: string): Promise<number | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { reputationPoints: true, isActor: true },
-    });
+    const userResult = await db.select({
+      reputationPoints: users.reputationPoints,
+      isActor: users.isActor,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
 
     if (!user || user.isActor) {
       return null;
     }
 
     // Count users with more points
-    const higherUsersCount = await prisma.user.count({
-      where: {
-        reputationPoints: { gt: user.reputationPoints },
-        isActor: false,
-      },
-    });
+    const [higherUsersResult] = await db.select({ count: count() })
+      .from(users)
+      .where(and(
+        gt(users.reputationPoints, user.reputationPoints),
+        eq(users.isActor, false)
+      ));
 
     // Count actors with more points
-    const higherActorsCount = await prisma.actor.count({
-      where: {
-        reputationPoints: { gt: user.reputationPoints },
-      },
-    });
+    const [higherActorsResult] = await db.select({ count: count() })
+      .from(actors)
+      .where(gt(actors.reputationPoints, user.reputationPoints));
+
+    const higherUsersCount = higherUsersResult?.count ?? 0;
+    const higherActorsCount = higherActorsResult?.count ?? 0;
 
     return higherUsersCount + higherActorsCount + 1;
   }

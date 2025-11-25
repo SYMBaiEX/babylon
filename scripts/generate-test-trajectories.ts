@@ -5,9 +5,10 @@
  * Tests recording, storage, export, and ART format conversion.
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
 import { generateSnowflakeId } from '../src/lib/snowflake';
+import type { JsonValue } from '@/types/common';
 
 async function main() {
   console.log('\n🧪 GENERATING TEST TRAJECTORIES\n');
@@ -16,12 +17,12 @@ async function main() {
   // Step 1: Ensure test agent exists
   console.log('📊 Step 1: Creating test agent...\n');
   
-  let testAgent = await prisma.user.findFirst({
+  let testAgent = await db.user.findFirst({
     where: { username: 'rl-test-agent' }
   });
 
   if (!testAgent) {
-    testAgent = await prisma.user.create({
+    testAgent = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
         username: 'rl-test-agent',
@@ -30,7 +31,7 @@ async function main() {
         isTest: true,
         agentSystem: 'You are a sophisticated trading agent with a momentum-based strategy. You analyze prediction markets carefully and make data-driven decisions while managing risk.',
         agentModelTier: 'pro',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         autonomousTrading: true,
         autonomousPosting: true,
@@ -189,24 +190,7 @@ async function main() {
   console.log('='.repeat(60));
   console.log('📊 Step 3: Validating generated data...\n');
 
-  interface PrismaTrajectory {
-    trajectoryId: string;
-    stepsJson: string;
-    totalReward: number;
-  }
-
-  const prismaExt = prisma as unknown as {
-    trajectory: {
-      count: (args: { where: { agentId: string } }) => Promise<number>;
-      aggregate: (args: {
-        where: { agentId: string };
-        _avg: { episodeLength: boolean; totalReward: boolean; durationMs: boolean };
-      }) => Promise<{ _avg: { episodeLength: number | null; totalReward: number | null; durationMs: number | null } }>;
-      findFirst: (args: { where: { trajectoryId: string } }) => Promise<PrismaTrajectory | null>;
-    };
-  };
-
-  const count = await prismaExt.trajectory.count({
+  const count = await db.trajectory.count({
     where: {
       agentId: testAgent.id
     }
@@ -214,7 +198,7 @@ async function main() {
 
   console.log(`  Total trajectories for test agent: ${count}`);
 
-  const stats = await prismaExt.trajectory.aggregate({
+  const stats = await db.trajectory.aggregate({
     where: { agentId: testAgent.id },
     _avg: {
       episodeLength: true,
@@ -223,11 +207,11 @@ async function main() {
     }
   });
 
-  console.log(`  Average steps: ${stats._avg.episodeLength?.toFixed(1)}`);
-  console.log(`  Average reward: ${stats._avg.totalReward?.toFixed(2)}`);
-  console.log(`  Average duration: ${(stats._avg.durationMs ? stats._avg.durationMs / 1000 : 0).toFixed(1)}s`);
+  console.log(`  Average steps: ${stats._avg?.episodeLength?.toFixed(1)}`);
+  console.log(`  Average reward: ${stats._avg?.totalReward?.toFixed(2)}`);
+  console.log(`  Average duration: ${(stats._avg?.durationMs ? stats._avg.durationMs / 1000 : 0).toFixed(1)}s`);
 
-  const llmCount = await prisma.llmCallLog.count({
+  const llmCount = await db.llmCallLog.count({
     where: {
       trajectoryId: { in: createdTrajectories }
     }
@@ -239,23 +223,33 @@ async function main() {
   console.log('='.repeat(60));
   console.log('📊 Step 4: Sample trajectory...\n');
 
-  const sample = await prismaExt.trajectory.findFirst({
+  const sample = await db.trajectory.findFirst({
     where: { trajectoryId: createdTrajectories[0]! }
   });
 
   if (sample) {
-    interface TrajectoryStep {
-      llmCalls: Array<Record<string, unknown>>;
-      providerAccesses: Array<Record<string, unknown>>;
+    // TrajectoryStep type matching @/lib/training/types
+    interface LocalTrajectoryStep {
+      llmCalls: Array<{
+        model: string;
+        systemPrompt: string;
+        userPrompt: string;
+        response: string;
+      }>;
+      providerAccesses: Array<{
+        providerName: string;
+        data: Record<string, JsonValue>;
+        purpose: string;
+      }>;
       action: { actionType: string };
     }
 
-    const steps = JSON.parse(sample.stepsJson) as TrajectoryStep[];
+    const steps = JSON.parse(sample.stepsJson) as LocalTrajectoryStep[];
     console.log(`  Trajectory: ${sample.trajectoryId.substring(0, 12)}...`);
     console.log(`  Steps: ${steps.length}`);
-    console.log(`  LLM calls: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.llmCalls.length, 0)}`);
-    console.log(`  Provider accesses: ${steps.reduce((s: number, st: TrajectoryStep) => s + st.providerAccesses.length, 0)}`);
-    console.log(`  Actions: ${steps.map((s: TrajectoryStep) => s.action.actionType).join(', ')}`);
+    console.log(`  LLM calls: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.llmCalls.length, 0)}`);
+    console.log(`  Provider accesses: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.providerAccesses.length, 0)}`);
+    console.log(`  Actions: ${steps.map((s: LocalTrajectoryStep) => s.action.actionType).join(', ')}`);
     console.log(`  Reward: ${sample.totalReward}`);
   }
 
@@ -269,7 +263,7 @@ async function main() {
   console.log('  3. Integrate with agents');
   console.log('');
 
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch(error => {

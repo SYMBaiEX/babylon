@@ -231,11 +231,11 @@ async function runOfflineSimulation(options: OfflineSimulationOptions): Promise<
 }
 
 async function getTestAgent(): Promise<string> {
-  const { prisma } = await import('../src/lib/prisma');
+  const { db } = await import('@/db');
   const { generateSnowflakeId } = await import('../src/lib/snowflake');
   const { ethers } = await import('ethers');
   
-  let agent = await prisma.user.findFirst({
+  let agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: 'offline-test-agent',
@@ -244,7 +244,7 @@ async function getTestAgent(): Promise<string> {
   
   if (!agent) {
     const agentId = await generateSnowflakeId();
-    agent = await prisma.user.create({
+    agent = await db.user.create({
       data: {
         id: agentId,
         privyId: `did:privy:offline-test-${agentId}`,
@@ -255,7 +255,7 @@ async function getTestAgent(): Promise<string> {
         autonomousTrading: true,
         agentSystem: 'You are an offline test agent for fast simulation.',
         agentModelTier: 'lite',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         agentPointsBalance: 1000,
         isTest: true,

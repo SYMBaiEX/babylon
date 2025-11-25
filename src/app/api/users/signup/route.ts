@@ -90,7 +90,15 @@ import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { OnboardingProfileSchema } from '@/lib/validation/schemas'
-import { prisma } from '@/lib/prisma'
+import { 
+  db, 
+  withTransaction,
+  users, 
+  referrals, 
+  follows,
+  eq,
+  and,
+} from '@/db'
 import { PointsService } from '@/lib/services/points-service'
 import { POINTS } from '@/lib/constants/points'
 import { logger } from '@/lib/logger'
@@ -101,11 +109,11 @@ import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { trackServerEvent } from '@/lib/posthog/server'
 import { notifyNewAccount } from '@/lib/services/notification-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import { withRetry, isRetryableError } from '@/lib/prisma-retry'
+import { withRetry, isRetryableError } from '@/db/helpers'
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 import { getHashedClientIp } from '@/lib/utils/ip-utils'
-import { ConflictError } from '@/lib/errors'
+import { ConflictError, InternalServerError } from '@/lib/errors'
 
 interface SignupRequestBody {
   username: string
@@ -119,33 +127,6 @@ interface SignupRequestBody {
   tosAccepted?: boolean
   privacyPolicyAccepted?: boolean
 }
-
-const selectUserSummary = {
-  id: true,
-  privyId: true,
-  username: true,
-  displayName: true,
-  bio: true,
-  profileImageUrl: true,
-  coverImageUrl: true,
-  walletAddress: true,
-  profileComplete: true,
-  hasUsername: true,
-  hasBio: true,
-  hasProfileImage: true,
-  onChainRegistered: true,
-  nftTokenId: true,
-  referralCode: true,
-  referredBy: true,
-  reputationPoints: true,
-  pointsAwardedForProfile: true,
-  hasFarcaster: true,
-  hasTwitter: true,
-  farcasterUsername: true,
-  twitterUsername: true,
-  createdAt: true,
-  updatedAt: true,
-} as const
 
 const SignupSchema = OnboardingProfileSchema.extend({
   identityToken: z.string().min(1).optional().or(z.literal('').transform(() => undefined)),
@@ -196,22 +177,25 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
-    () => prisma.$transaction(async (tx) => {
+    async () => {
+      return await withTransaction(async (tx) => {
       // Check if username is already taken by another user
-      const existingUsername = await tx.user.findUnique({
-        where: { username: parsedProfile.username },
-        select: { id: true },
-      })
+      const [existingUsername] = await tx.select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, parsedProfile.username))
+        .limit(1);
+
       if (existingUsername && existingUsername.id !== canonicalUserId) {
         throw new ConflictError('Username is already taken', 'User.username')
       }
 
       // Check if wallet address is already linked to another user
       if (walletAddress) {
-        const existingWallet = await tx.user.findUnique({
-          where: { walletAddress: walletAddress },
-          select: { id: true },
-        })
+        const [existingWallet] = await tx.select({ id: users.id })
+          .from(users)
+          .where(eq(users.walletAddress, walletAddress))
+          .limit(1);
+
         if (existingWallet && existingWallet.id !== canonicalUserId) {
           throw new ConflictError('Wallet address is already linked to another account', 'User.walletAddress')
         }
@@ -223,27 +207,27 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       const normalizedCode = referralCode?.trim() || null
 
       // Check if user already has referredBy (set in /api/users/me)
-      const existingUser = await tx.user.findUnique({
-        where: { id: canonicalUserId },
-        select: { referredBy: true },
-      })
+      const [existingUser] = await tx.select({ referredBy: users.referredBy })
+        .from(users)
+        .where(eq(users.id, canonicalUserId))
+        .limit(1);
 
       // Only resolve referral if not already set
       if (!existingUser?.referredBy && normalizedCode) {
         // First, try to find referrer by username (legacy system)
-        const referrerByUsername = await tx.user.findUnique({
-          where: { username: normalizedCode },
-          select: { id: true },
-        })
+        const [referrerByUsername] = await tx.select({ id: users.id })
+          .from(users)
+          .where(eq(users.username, normalizedCode))
+          .limit(1);
 
         if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
           resolvedReferrerId = referrerByUsername.id
         } else {
           // If not found by username, look up who owns this referral code
-          const referralOwner = await tx.user.findUnique({
-            where: { referralCode: normalizedCode },
-            select: { id: true },
-          })
+          const [referralOwner] = await tx.select({ id: users.id })
+            .from(users)
+            .where(eq(users.referralCode, normalizedCode))
+            .limit(1);
 
           if (referralOwner && referralOwner.id !== canonicalUserId) {
             resolvedReferrerId = referralOwner.id
@@ -260,7 +244,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }, 'POST /api/users/signup')
       }
 
-      const baseUserData = {
+      const baseUserData: Partial<typeof users.$inferInsert> = {
         username: parsedProfile.username,
         displayName: parsedProfile.displayName,
         email: parsedProfile.email || null,
@@ -290,87 +274,107 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         } : {}),
       }
 
-      const user = await tx.user.upsert({
-        where: { id: canonicalUserId },
-        update: {
-          ...baseUserData,
-          referredBy: resolvedReferrerId ?? undefined,
-          // Handle Farcaster from Privy identity or onboarding import
-          ...(identityFarcasterUsername || importedFarcaster
-            ? {
-                hasFarcaster: true,
-                farcasterUsername: parsedProfile.farcasterUsername ?? identityFarcasterUsername,
-                farcasterFid: parsedProfile.farcasterFid ?? undefined,
-              }
-            : {}),
-          // Handle Twitter from Privy identity or onboarding import
-          ...(identityTwitterUsername || importedTwitter
-            ? {
-                hasTwitter: true,
-                twitterUsername: parsedProfile.twitterUsername ?? identityTwitterUsername,
-                twitterId: parsedProfile.twitterId ?? undefined,
-              }
-            : {}),
-        },
-        create: {
-          id: canonicalUserId,
-          privyId,
-          ...baseUserData,
-          referredBy: resolvedReferrerId,
-          updatedAt: new Date(),
-          // Handle Farcaster from Privy identity or onboarding import
-          ...(identityFarcasterUsername || importedFarcaster
-            ? {
-                hasFarcaster: true,
-                farcasterUsername: parsedProfile.farcasterUsername ?? identityFarcasterUsername,
-                farcasterFid: parsedProfile.farcasterFid ?? undefined,
-              }
-            : {}),
-          // Handle Twitter from Privy identity or onboarding import
-          ...(identityTwitterUsername || importedTwitter
-            ? {
-                hasTwitter: true,
-                twitterUsername: parsedProfile.twitterUsername ?? identityTwitterUsername,
-                twitterId: parsedProfile.twitterId ?? undefined,
-              }
-            : {}),
-        },
-        select: selectUserSummary,
-      })
+      // Handle Farcaster from Privy identity or onboarding import
+      if (identityFarcasterUsername || importedFarcaster) {
+        baseUserData.hasFarcaster = true
+        baseUserData.farcasterUsername = parsedProfile.farcasterUsername ?? identityFarcasterUsername
+        if (parsedProfile.farcasterFid) {
+          baseUserData.farcasterFid = parsedProfile.farcasterFid
+        }
+      }
+
+      // Handle Twitter from Privy identity or onboarding import
+      if (identityTwitterUsername || importedTwitter) {
+        baseUserData.hasTwitter = true
+        baseUserData.twitterUsername = parsedProfile.twitterUsername ?? identityTwitterUsername
+        if (parsedProfile.twitterId) {
+          baseUserData.twitterId = parsedProfile.twitterId
+        }
+      }
+
+      // Upsert user (insert or update)
+      let user: typeof users.$inferSelect;
+      const [existingUserRecord] = await tx.select()
+        .from(users)
+        .where(eq(users.id, canonicalUserId))
+        .limit(1);
+
+      if (existingUserRecord) {
+        // Update existing user
+        const [updatedUser] = await tx.update(users)
+          .set({
+            ...baseUserData,
+            referredBy: resolvedReferrerId ?? existingUserRecord.referredBy,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, canonicalUserId))
+          .returning();
+        if (!updatedUser) {
+          throw new InternalServerError('Failed to update user record');
+        }
+        user = updatedUser;
+      } else {
+        // Create new user
+        const [newUser] = await tx.insert(users)
+          .values({
+            id: canonicalUserId,
+            privyId,
+            ...baseUserData,
+            referredBy: resolvedReferrerId,
+            updatedAt: new Date(),
+          })
+          .returning();
+        if (!newUser) {
+          throw new InternalServerError('Failed to create user record');
+        }
+        user = newUser;
+      }
 
       // Create referral record AFTER user exists (to satisfy FK constraint)
       if (resolvedReferrerId && normalizedCode) {
-        const referralRecord = await tx.referral.upsert({
-          where: {
-            referralCode_referredUserId: {
+        // Check if referral record already exists
+        const [existingReferral] = await tx.select({ id: referrals.id })
+          .from(referrals)
+          .where(and(
+            eq(referrals.referralCode, normalizedCode),
+            eq(referrals.referredUserId, user.id)
+          ))
+          .limit(1);
+
+        if (existingReferral) {
+          // Update existing record
+          await tx.update(referrals)
+            .set({ status: 'pending' })
+            .where(eq(referrals.id, existingReferral.id));
+          resolvedReferralRecordId = existingReferral.id;
+        } else {
+          // Create new referral record
+          const referralId = await generateSnowflakeId();
+          const [referralRecord] = await tx.insert(referrals)
+            .values({
+              id: referralId,
+              referrerId: resolvedReferrerId,
               referralCode: normalizedCode,
               referredUserId: user.id,
-            },
-          },
-          create: {
-            id: await generateSnowflakeId(),
-            referrerId: resolvedReferrerId,
-            referralCode: normalizedCode,
-            referredUserId: user.id,
-            status: 'pending',
-          },
-          update: {
-            // On retry, keep existing record but ensure status is pending
-            status: 'pending',
-          },
-          select: { id: true },
-        })
-        resolvedReferralRecordId = referralRecord.id
+              status: 'pending',
+            })
+            .returning({ id: referrals.id });
+          if (!referralRecord) {
+            throw new InternalServerError('Failed to create referral record');
+          }
+          resolvedReferralRecordId = referralRecord.id;
+        }
       }
 
       return {
         user,
         referrerId: resolvedReferrerId,
         referralRecordId: resolvedReferralRecordId,
-      }
-    }),
-    'signup transaction',
-    { maxRetries: 3, initialDelayMs: 200, maxDelayMs: 2000 }
+      };
+      });
+    },
+    3, // maxRetries
+    200 // delayMs
   ).catch((error: unknown) => {
     // Improve error message for connection errors
     if (isRetryableError(error)) {
@@ -416,30 +420,33 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       
       // Update referral status to completed
       if (result.referralRecordId) {
-        await prisma.referral.update({
-          where: { id: result.referralRecordId },
-          data: {
+        await db.update(referrals)
+          .set({
             status: 'completed',
             completedAt: new Date(),
-          },
-        })
+          })
+          .where(eq(referrals.id, result.referralRecordId));
       }
       
       // Auto-follow the referrer (new user follows the person who referred them)
-      await prisma.follow.upsert({
-        where: {
-          followerId_followingId: {
-            followerId: result.user.id,       // New user is the follower
-            followingId: result.referrerId,   // Referrer is being followed
-          },
-        },
-        update: {},
-        create: {
-          id: await generateSnowflakeId(),
-          followerId: result.user.id,
-          followingId: result.referrerId,
-        },
-      })
+      // Check if follow already exists
+      const [existingFollow] = await db.select({ id: follows.id })
+        .from(follows)
+        .where(and(
+          eq(follows.followerId, result.user.id),
+          eq(follows.followingId, result.referrerId)
+        ))
+        .limit(1);
+
+      if (!existingFollow) {
+        const followId = await generateSnowflakeId();
+        await db.insert(follows)
+          .values({
+            id: followId,
+            followerId: result.user.id,
+            followingId: result.referrerId,
+          });
+      }
       
       logger.info(
         'Awarded referral points to both referrer and referee',
@@ -455,12 +462,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // Referral was blocked (self-referral, weekly limit, etc.)
       // Update referral status to rejected
       if (result.referralRecordId) {
-        await prisma.referral.update({
-          where: { id: result.referralRecordId },
-          data: {
-            status: 'rejected',
-          },
-        })
+        await db.update(referrals)
+          .set({ status: 'rejected' })
+          .where(eq(referrals.id, result.referralRecordId));
       }
       
       logger.warn(
@@ -556,7 +560,28 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse({
     user: {
-      ...result.user,
+      id: result.user.id,
+      privyId: result.user.privyId,
+      username: result.user.username,
+      displayName: result.user.displayName,
+      bio: result.user.bio,
+      profileImageUrl: result.user.profileImageUrl,
+      coverImageUrl: result.user.coverImageUrl,
+      walletAddress: result.user.walletAddress,
+      profileComplete: result.user.profileComplete,
+      hasUsername: result.user.hasUsername,
+      hasBio: result.user.hasBio,
+      hasProfileImage: result.user.hasProfileImage,
+      onChainRegistered: result.user.onChainRegistered,
+      nftTokenId: result.user.nftTokenId,
+      referralCode: result.user.referralCode,
+      referredBy: result.user.referredBy,
+      reputationPoints: result.user.reputationPoints,
+      pointsAwardedForProfile: result.user.pointsAwardedForProfile,
+      hasFarcaster: result.user.hasFarcaster,
+      hasTwitter: result.user.hasTwitter,
+      farcasterUsername: result.user.farcasterUsername,
+      twitterUsername: result.user.twitterUsername,
       createdAt: result.user.createdAt.toISOString(),
       updatedAt: result.user.updatedAt.toISOString(),
     },

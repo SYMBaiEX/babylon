@@ -8,6 +8,15 @@ import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 import type { A2ABalanceResponse, A2APositionsResponse } from '@/types/a2a-responses'
 
+// Type guards for A2A responses
+function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
+  return 'balance' in data && typeof (data as A2ABalanceResponse).balance === 'number'
+}
+
+function isA2APositionsResponse(data: object): data is A2APositionsResponse {
+  return 'marketPositions' in data && Array.isArray((data as A2APositionsResponse).marketPositions)
+}
+
 /**
  * Provider: Agent's Own Wallet & Investments
  * Comprehensive view of the agent's portfolio, positions, and assets via A2A protocol
@@ -33,8 +42,15 @@ export const agentWalletProvider: Provider = {
         babylonRuntime.a2aClient.getPositions(agentUserId)
       ])
       
-      const balance = balanceData as unknown as A2ABalanceResponse
-      const positions = positionsData as unknown as A2APositionsResponse
+      // Validate response structures match expected types using type guards
+      if (!balanceData || typeof balanceData !== 'object' || !isA2ABalanceResponse(balanceData)) {
+        throw new Error('Invalid balance data format from A2A client')
+      }
+      if (!positionsData || typeof positionsData !== 'object' || !isA2APositionsResponse(positionsData)) {
+        throw new Error('Invalid positions data format from A2A client')
+      }
+      const balance = balanceData
+      const positions = positionsData
       
       const totalUnrealizedPnL = (positions.marketPositions?.reduce((sum, p) => sum + (p.unrealizedPnL || 0), 0) || 0) +
                                   (positions.perpPositions?.reduce((sum, p) => sum + (p.unrealizedPnL || 0), 0) || 0)

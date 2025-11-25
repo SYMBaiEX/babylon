@@ -59,7 +59,7 @@ bun install
 
 This will install all required dependencies including:
 - Next.js 15
-- Prisma ORM
+- Drizzle ORM
 - Ethers.js
 - AI libraries (ElizaOS, OpenAGI)
 - And many more...
@@ -117,11 +117,11 @@ BABYLON_GAME_PRIVATE_KEY=""
 ### Run Migrations
 
 ```bash
-# Generate Prisma client
-bun install
-
 # Run database migrations
 bun run db:migrate
+
+# Or push schema directly (for development)
+bun run db:push
 
 # Seed initial data
 bun run db:seed
@@ -183,12 +183,14 @@ sudo systemctl start postgresql # Linux
 psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE babylon TO babylon_user;"
 ```
 
-### Prisma Generation Fails
+### Database Schema Issues
 
 ```bash
-# Clear Prisma cache and regenerate
-rm -rf node_modules/.prisma
-bun install
+# Regenerate migrations
+bun run db:generate
+
+# Or push schema directly
+bun run db:push
 ```
 
 ### Port Already in Use

@@ -13,7 +13,7 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { Agent0FeedbackService } from '@/lib/agent0/feedback-service'
 import { SubgraphClient } from '@/agents/agent0/SubgraphClient'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 describe('Agent0 SDK Complete Integration', () => {
   let agent0Client: ReturnType<typeof getAgent0Client> | undefined
@@ -219,7 +219,7 @@ describe('Agent0 SDK Complete Integration', () => {
       const testAgentId = '84532:1' // Example agent ID
 
       // Create test user if needed
-      const user = await prisma.user.upsert({
+      const user = await db.user.upsert({
         where: { id: testUserId },
         create: {
           id: testUserId,

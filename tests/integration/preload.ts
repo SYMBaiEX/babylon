@@ -3,7 +3,7 @@
  *
  * This file is loaded before all integration tests to:
  * 1. Set up proper test environment
- * 2. Configure Prisma for test isolation
+ * 2. Configure database for test isolation
  * 3. Set up graceful cleanup handlers
  * 4. Configure LLM timeouts for faster test failures
  */
@@ -16,17 +16,17 @@
 // Reduce LLM timeout for tests (30 seconds instead of default)
 process.env.LLM_TIMEOUT_MS = '30000';
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 /**
- * Global test lifecycle hooks for Prisma isolation
+ * Global test lifecycle hooks for database isolation
  */
 
 // Cleanup stale locks before running tests
 async function cleanupStaleLocks(): Promise<void> {
   try {
     // Clean up any expired generation locks that might block tests
-    const expiredLocks = await prisma.generationLock.deleteMany({
+    const expiredLocks = await db.generationLock.deleteMany({
       where: {
         expiresAt: { lt: new Date() }
       }
@@ -37,7 +37,7 @@ async function cleanupStaleLocks(): Promise<void> {
     }
     
     // Also clean up any test-specific locks (from previous test runs)
-    const testLocks = await prisma.generationLock.deleteMany({
+    const testLocks = await db.generationLock.deleteMany({
       where: {
         OR: [
           { id: { contains: 'test' } },
@@ -68,7 +68,7 @@ async function cleanupStaleLocks(): Promise<void> {
 async function cleanupTestData(): Promise<void> {
   try {
     // Clean up test users (those created by tests with specific prefixes)
-    const testUsers = await prisma.user.deleteMany({
+    const testUsers = await db.user.deleteMany({
       where: {
         OR: [
           { username: { startsWith: 'test-' } },
@@ -84,7 +84,7 @@ async function cleanupTestData(): Promise<void> {
     }
     
     // Clean up test questions/markets created in previous runs
-    const oldTestQuestions = await prisma.question.deleteMany({
+    const oldTestQuestions = await db.question.deleteMany({
       where: {
         AND: [
           { text: { startsWith: 'Integration test:' } },
@@ -97,7 +97,7 @@ async function cleanupTestData(): Promise<void> {
       console.log(`[Test Preload] Cleaned up ${oldTestQuestions.count} old test questions`);
     }
     
-    const oldTestMarkets = await prisma.market.deleteMany({
+    const oldTestMarkets = await db.market.deleteMany({
       where: {
         AND: [
           { question: { startsWith: 'Integration test:' } },
@@ -123,7 +123,7 @@ async function initializeTestEnvironment(): Promise<void> {
   
   // Verify database connection
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await db.$queryRaw`SELECT 1`;
     console.log('[Test Preload] Database connection verified');
     
     // Clean up stale data from previous test runs
@@ -148,9 +148,9 @@ async function gracefulShutdown(): Promise<void> {
     // Clean up any remaining test data
     await cleanupStaleLocks();
     
-    // Disconnect Prisma
-    await prisma.$disconnect();
-    console.log('[Test Preload] Prisma disconnected');
+    // Disconnect database
+    await db.$disconnect();
+    console.log('[Test Preload] Database disconnected');
   } catch (error) {
     console.warn('[Test Preload] Error during shutdown:', error);
   }

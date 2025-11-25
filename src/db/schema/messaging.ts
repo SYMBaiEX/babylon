@@ -282,9 +282,9 @@ export const userGroupMembers = pgTable(
 
 // Relations
 export const chatsRelations = relations(chats, ({ many }) => ({
-  participants: many(chatParticipants),
-  admins: many(chatAdmins),
-  messages: many(messages),
+  ChatParticipant: many(chatParticipants),
+  ChatAdmin: many(chatAdmins),
+  Message: many(messages),
 }));
 
 export const chatParticipantsRelations = relations(chatParticipants, ({ one }) => ({
@@ -309,8 +309,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 }));
 
 export const userGroupsRelations = relations(userGroups, ({ many }) => ({
-  admins: many(userGroupAdmins),
-  members: many(userGroupMembers),
+  UserGroupAdmin: many(userGroupAdmins),
+  UserGroupMember: many(userGroupMembers),
 }));
 
 export const userGroupAdminsRelations = relations(userGroupAdmins, ({ one }) => ({

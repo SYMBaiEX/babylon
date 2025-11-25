@@ -8,7 +8,16 @@
  * - Performance tracking
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import {
+  pools,
+  poolPositions,
+  organizations,
+  actorRelationships,
+  actors,
+  npcTrades,
+} from '@/db/schema';
+import { eq, inArray, or, desc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -55,21 +64,39 @@ export class NPCInvestmentManager {
    * Get portfolio metrics for an NPC pool
    */
   static async getPortfolioMetrics(poolId: string): Promise<PortfolioMetrics> {
-    const pool = await prisma.pool.findUnique({
-      where: { id: poolId },
-      include: {
-        PoolPosition: {
-          where: { closedAt: null }, // Open positions have null closedAt
-        },
-      },
-    });
+    const poolResult = await db
+      .select()
+      .from(pools)
+      .where(eq(pools.id, poolId))
+      .limit(1);
 
+    const pool = poolResult[0];
     if (!pool) {
       throw new Error(`Pool not found: ${poolId}`);
     }
 
-    const positions = pool.PoolPosition as unknown as PortfolioPosition[];
-    const availableBalance = parseFloat(pool.availableBalance.toString());
+    // Get open positions (closedAt is null)
+    const positionResults = await db
+      .select()
+      .from(poolPositions)
+      .where(eq(poolPositions.poolId, poolId));
+
+    const openPositions = positionResults.filter((p) => p.closedAt === null);
+    // Map database PoolPosition to PortfolioPosition interface
+    const positions: PortfolioPosition[] = openPositions.map((p) => ({
+      id: p.id,
+      poolId: p.poolId,
+      marketType: (p.marketType === 'perp' || p.marketType === 'prediction') ? p.marketType : 'prediction',
+      ticker: p.ticker ?? undefined,
+      marketId: p.marketId ?? undefined,
+      side: p.side,
+      size: Number(p.size),
+      entryPrice: Number(p.entryPrice),
+      currentPrice: Number(p.currentPrice),
+      unrealizedPnL: Number(p.unrealizedPnL),
+      leverage: p.leverage ?? undefined,
+    }));
+    const availableBalance = parseFloat(pool.availableBalance?.toString() ?? '0');
 
     // Calculate total invested capital (sum of all open position entry values)
     const totalInvested = positions.reduce((sum, pos) => {
@@ -249,46 +276,64 @@ export class NPCInvestmentManager {
    * Build baseline allocation decisions for NPC pools lacking exposure
    */
   private static async buildBaselineDecisions(): Promise<TradingDecision[]> {
-    const activePools = await prisma.pool.findMany({
-      where: { isActive: true },
-      include: {
-        PoolPosition: {
-          where: { closedAt: null },
-          select: { id: true },
-        },
-      },
-    });
+    // Get active pools
+    const activePoolsResult = await db
+      .select()
+      .from(pools)
+      .where(eq(pools.isActive, true));
 
-    if (activePools.length === 0) {
+    if (activePoolsResult.length === 0) {
       return [];
     }
 
+    // Get open positions for these pools
+    const poolIds = activePoolsResult.map((p) => p.id);
+    const allPositions = await db
+      .select({ id: poolPositions.id, poolId: poolPositions.poolId, closedAt: poolPositions.closedAt })
+      .from(poolPositions)
+      .where(inArray(poolPositions.poolId, poolIds));
+
+    const openPositionsByPool = new Map<string, { id: string }[]>();
+    allPositions.forEach((pos) => {
+      if (pos.closedAt === null) {
+        const existing = openPositionsByPool.get(pos.poolId) ?? [];
+        existing.push({ id: pos.id });
+        openPositionsByPool.set(pos.poolId, existing);
+      }
+    });
+
+    // Add position info to pools
+    const activePools = activePoolsResult.map((pool) => ({
+      ...pool,
+      PoolPosition: openPositionsByPool.get(pool.id) ?? [],
+    }));
+
     const actorIds = Array.from(new Set(activePools.map((pool) => pool.npcActorId)));
 
-    const organizationsPromise = prisma.organization.findMany({
-      where: { type: 'company' },
-      select: {
-        id: true,
-        name: true,
-        currentPrice: true,
-        initialPrice: true,
-      },
-    });
+    const organizationsPromise = db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        currentPrice: organizations.currentPrice,
+        initialPrice: organizations.initialPrice,
+      })
+      .from(organizations)
+      .where(eq(organizations.type, 'company'));
 
-    const relationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: [
-          { actor1Id: { in: actorIds } },
-          { actor2Id: { in: actorIds } },
-        ],
-      },
-      select: {
-        actor1Id: true,
-        actor2Id: true,
-        sentiment: true,
-        strength: true,
-      },
-    });
+    const relationships = await db
+      .select({
+        actor1Id: actorRelationships.actor1Id,
+        actor2Id: actorRelationships.actor2Id,
+        sentiment: actorRelationships.sentiment,
+        strength: actorRelationships.strength,
+      })
+      .from(actorRelationships)
+      .where(
+        or(
+          inArray(actorRelationships.actor1Id, actorIds),
+          inArray(actorRelationships.actor2Id, actorIds)
+        )
+      );
 
     const actorIdSet = new Set(actorIds);
     relationships.forEach((rel) => {
@@ -296,22 +341,22 @@ export class NPCInvestmentManager {
       actorIdSet.add(rel.actor2Id);
     });
 
-    const actors = await prisma.actor.findMany({
-      where: { id: { in: Array.from(actorIdSet) } },
-      select: {
-        id: true,
-        name: true,
-        affiliations: true,
-      },
-    });
+    const actorsResult = await db
+      .select({
+        id: actors.id,
+        name: actors.name,
+        affiliations: actors.affiliations,
+      })
+      .from(actors)
+      .where(inArray(actors.id, Array.from(actorIdSet)));
 
-    const organizations = await organizationsPromise;
+    const organizationsResult = await organizationsPromise;
 
-    const actorMap = new Map(actors.map((actor) => [actor.id, actor]));
-    const organizationMap = new Map(organizations.map((org) => [org.id, org]));
+    const actorMap = new Map(actorsResult.map((actor) => [actor.id, actor]));
+    const organizationMap = new Map(organizationsResult.map((org) => [org.id, org]));
     // Use organization ID directly as ticker for reliable lookups
     const organizationTickerMap = new Map(
-      organizations.map((org) => [org.id, org.id])
+      organizationsResult.map((org) => [org.id, org.id])
     );
 
     const relationshipsByActor = new Map<string, Array<{ otherId: string; sentiment: number; strength: number }>>();
@@ -327,7 +372,7 @@ export class NPCInvestmentManager {
     });
 
     // Sort fallback organizations by current price (descending) to pick meaningful assets
-    const fallbackOrganizations = [...organizations].sort(
+    const fallbackOrganizations = [...organizationsResult].sort(
       (a, b) => (b.currentPrice ?? b.initialPrice ?? 100) - (a.currentPrice ?? a.initialPrice ?? 100)
     );
 
@@ -434,20 +479,20 @@ export class NPCInvestmentManager {
     // Determine how many positions to close based on risk level
     const positionsToClose = isHighRisk ? (hasLosses ? 5 : 3) : 2;
 
-    // Get all leveraged positions
-    const positions = await prisma.poolPosition.findMany({
-      where: {
-        poolId,
-        closedAt: null, // Open positions only
-        leverage: { gt: 1 },
-      },
-      orderBy: {
-        leverage: 'desc', // Highest leverage first
-      },
-      take: positionsToClose,
-    });
+    // Get all leveraged positions (open positions only with leverage > 1)
+    const positionsResult = await db
+      .select()
+      .from(poolPositions)
+      .where(eq(poolPositions.poolId, poolId))
+      .orderBy(desc(poolPositions.leverage))
+      .limit(positionsToClose);
 
-    for (const position of positions) {
+    // Filter for open positions with leverage > 1
+    const leveragedPositions = positionsResult.filter(
+      (p) => p.closedAt === null && (p.leverage ?? 0) > 1
+    );
+
+    for (const position of leveragedPositions) {
       actions.push({
         type: 'close',
         positionId: position.id,
@@ -470,16 +515,17 @@ export class NPCInvestmentManager {
     poolId: string,
     threshold: number // e.g., 0.2 = 20% loss
   ): Promise<PortfolioPosition[]> {
-    const positions = await prisma.poolPosition.findMany({
-      where: {
-        poolId,
-        closedAt: null, // Open positions only
-      },
-    });
+    const positionsResult = await db
+      .select()
+      .from(poolPositions)
+      .where(eq(poolPositions.poolId, poolId));
+
+    // Filter for open positions only
+    const openPositions = positionsResult.filter((p) => p.closedAt === null);
 
     const lossyPositions: PortfolioPosition[] = [];
 
-    for (const position of positions) {
+    for (const position of openPositions) {
       const unrealizedPnL = parseFloat(position.unrealizedPnL?.toString() || '0');
       const size = parseFloat(position.size?.toString() || '0');
 
@@ -487,7 +533,21 @@ export class NPCInvestmentManager {
         const lossPercentage = unrealizedPnL / size;
 
         if (lossPercentage < -threshold) {
-          lossyPositions.push(position as unknown as PortfolioPosition);
+          // Map database PoolPosition to PortfolioPosition interface
+          const portfolioPosition: PortfolioPosition = {
+            id: position.id,
+            poolId: position.poolId,
+            marketType: (position.marketType === 'perp' || position.marketType === 'prediction') ? position.marketType : 'prediction',
+            ticker: position.ticker ?? undefined,
+            marketId: position.marketId ?? undefined,
+            side: position.side,
+            size: Number(position.size),
+            entryPrice: Number(position.entryPrice),
+            currentPrice: Number(position.currentPrice),
+            unrealizedPnL: Number(position.unrealizedPnL),
+            leverage: position.leverage ?? undefined,
+          };
+          lossyPositions.push(portfolioPosition);
         }
       }
     }
@@ -512,27 +572,25 @@ export class NPCInvestmentManager {
     try {
       if (action.type === 'close' && action.positionId) {
         // Close position
-        await prisma.poolPosition.update({
-          where: { id: action.positionId },
-          data: { closedAt: new Date() },
-        });
+        await db
+          .update(poolPositions)
+          .set({ closedAt: new Date() })
+          .where(eq(poolPositions.id, action.positionId));
 
         // Record the rebalance trade
-        await prisma.nPCTrade.create({
-          data: {
-            id: await generateSnowflakeId(),
-            npcActorId: npcUserId,
-            poolId,
-            marketType: action.marketType,
-            ticker: action.ticker,
-            marketId: action.marketId,
-            action: 'close',
-            side: action.side,
-            amount: 0,
-            price: 0,
-            sentiment: 0,
-            reason: action.reason,
-          },
+        await db.insert(npcTrades).values({
+          id: await generateSnowflakeId(),
+          npcActorId: npcUserId,
+          poolId,
+          marketType: action.marketType,
+          ticker: action.ticker ?? null,
+          marketId: action.marketId ?? null,
+          action: 'close',
+          side: action.side,
+          amount: 0,
+          price: 0,
+          sentiment: 0,
+          reason: action.reason,
         });
       }
       // Add other action types (open, resize) as needed
@@ -546,32 +604,36 @@ export class NPCInvestmentManager {
    * Periodic portfolio monitoring for all active NPC pools
    */
   static async monitorAllNPCPortfolios(): Promise<void> {
-    const activePools = await prisma.pool.findMany({
+    const activePools = await db.pool.findMany({
       where: { isActive: true },
-      include: {
-        Actor: {
-          select: {
-            id: true,
-            name: true,
-            personality: true,
-          },
-        },
-      },
     });
+
+    // Get actors for pools
+    const actorIds = [...new Set(activePools.map(p => p.npcActorId))];
+    const actorsList = actorIds.length > 0 ? await db.actor.findMany({
+      where: { id: { in: actorIds } },
+      select: {
+        id: true,
+        name: true,
+        personality: true,
+      },
+    }) : [];
+    const actorsMap = new Map(actorsList.map(a => [a.id, a]));
 
     logger.info(`Monitoring ${activePools.length} active NPC portfolios`, undefined, 'NPCInvestmentManager');
 
     for (const pool of activePools) {
-      if (!pool.Actor) continue;
+      const actor = actorsMap.get(pool.npcActorId);
+      if (!actor) continue;
 
       // Determine strategy from actor personality
-      const strategy = this.determineStrategyFromPersonality(pool.Actor.personality);
+      const strategy = this.determineStrategyFromPersonality(actor.personality);
 
-      const actions = await this.monitorPortfolio(pool.id, pool.Actor.id, strategy);
+      const actions = await this.monitorPortfolio(pool.id, actor.id, strategy);
 
       // Execute rebalance actions
       for (const action of actions) {
-        await this.executeRebalanceAction(pool.Actor.id, pool.id, action);
+        await this.executeRebalanceAction(actor.id, pool.id, action);
       }
     }
   }

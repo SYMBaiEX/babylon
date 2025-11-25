@@ -4,7 +4,7 @@
  * Handles storage and retrieval of tags in the database
  */
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, tags, postTags, trendingTags, eq, gte, inArray, ne, desc, asc, count, withTransaction, and } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { GeneratedTag } from './tag-generation-service';
@@ -16,48 +16,48 @@ import type { GeneratedTag } from './tag-generation-service';
  */
 export async function storeTagsForPost(
   postId: string,
-  tags: GeneratedTag[]
+  generatedTags: GeneratedTag[]
 ): Promise<void> {
-  if (tags.length === 0) {
+  if (generatedTags.length === 0) {
     return;
   }
 
-  const tagNames = tags.map((t) => t.name);
-  const existingTags = await prisma.tag.findMany({
-    where: { name: { in: tagNames } },
-  });
+  const tagNames = generatedTags.map((t) => t.name);
+  const existingTagsList = await db.select()
+    .from(tags)
+    .where(inArray(tags.name, tagNames));
 
-  const existingTagMap = new Map(existingTags.map((t) => [t.name, t]));
+  const existingTagMap = new Map(existingTagsList.map((t) => [t.name, t]));
 
-  const tagsToCreate = tags.filter((t) => !existingTagMap.has(t.name));
+  const tagsToCreate = generatedTags.filter((t) => !existingTagMap.has(t.name));
 
   if (tagsToCreate.length > 0) {
     const tagIds = await Promise.all(tagsToCreate.map(() => generateSnowflakeId()));
-    await prisma.tag.createMany({
-      data: tagsToCreate.map((tag, index) => {
-        const tagId = tagIds[index];
-        if (!tagId) {
-          throw new Error(`Failed to generate tag ID for index ${index}`);
-        }
-        return {
+    
+    // Insert tags one by one with conflict handling
+    for (let index = 0; index < tagsToCreate.length; index++) {
+      const tag = tagsToCreate[index];
+      if (!tag) continue;
+      const tagId = tagIds[index];
+      if (!tagId) {
+        throw new Error(`Failed to generate tag ID for index ${index}`);
+      }
+      
+      await db.insert(tags)
+        .values({
           id: tagId,
           name: tag.name,
           displayName: tag.displayName,
           category: tag.category || null,
           updatedAt: new Date(),
-        };
-      }),
-      skipDuplicates: true,
-    });
+        })
+        .onConflictDoNothing();
+    }
 
     // Now fetch all tags that should exist (either just created or already existed)
-    const createdTags = await prisma.tag.findMany({
-      where: {
-        name: {
-          in: tagsToCreate.map((t) => t.name),
-        },
-      },
-    });
+    const createdTags = await db.select()
+      .from(tags)
+      .where(inArray(tags.name, tagsToCreate.map((t) => t.name)));
 
     createdTags.forEach((t) => existingTagMap.set(t.name, t));
     logger.debug(
@@ -69,10 +69,13 @@ export async function storeTagsForPost(
 
   // Pre-generate IDs for post tags
   const postTagIds = await Promise.all(
-    tags.map(() => generateSnowflakeId())
+    generatedTags.map(() => generateSnowflakeId())
   );
 
-  const postTagData = tags.map((tag, idx) => {
+  // Insert post tags one by one with conflict handling
+  for (let idx = 0; idx < generatedTags.length; idx++) {
+    const tag = generatedTags[idx];
+    if (!tag) continue;
     const dbTag = existingTagMap.get(tag.name);
     if (!dbTag) {
       throw new Error(`Tag ${tag.name} not found in existing tags`);
@@ -81,23 +84,21 @@ export async function storeTagsForPost(
     if (!postTagId) {
       throw new Error(`Failed to generate post tag ID for index ${idx}`);
     }
-    return {
-      id: postTagId,
-      postId,
-      tagId: dbTag.id,
-    }
-  })
-
-  await prisma.postTag.createMany({
-    data: postTagData,
-    skipDuplicates: true,
-  });
+    
+    await db.insert(postTags)
+      .values({
+        id: postTagId,
+        postId,
+        tagId: dbTag.id,
+      })
+      .onConflictDoNothing();
+  }
 
   logger.debug(
     'Stored tags for post',
     {
       postId,
-      tagCount: tags.length,
+      tagCount: generatedTags.length,
     },
     'TagStorageService'
   );
@@ -107,14 +108,12 @@ export async function storeTagsForPost(
  * Get tags for a post
  */
 export async function getTagsForPost(postId: string) {
-  return await prisma.postTag.findMany({
-    where: { postId },
-    include: {
-      Tag: true,
+  return await db.query.postTags.findMany({
+    where: eq(postTags.postId, postId),
+    with: {
+      tag: true,
     },
-    orderBy: {
-      createdAt: 'asc',
-    },
+    orderBy: asc(postTags.createdAt),
   });
 }
 
@@ -131,9 +130,10 @@ export async function getPostsByTag(
   const { limit = 20, offset = 0 } = options;
 
   // Find tag by normalized name
-  const tag = await prisma.tag.findUnique({
-    where: { name: tagName.toLowerCase() },
-  });
+  const [tag] = await db.select()
+    .from(tags)
+    .where(eq(tags.name, tagName.toLowerCase()))
+    .limit(1);
 
   if (!tag) {
     return {
@@ -144,26 +144,26 @@ export async function getPostsByTag(
   }
 
   // Get posts with this tag
-  const [postTags, total] = await Promise.all([
-    prisma.postTag.findMany({
-      where: { tagId: tag.id },
-      include: {
-        Post: true,
+  const [postTagsList, totalResult] = await Promise.all([
+    db.query.postTags.findMany({
+      where: eq(postTags.tagId, tag.id),
+      with: {
+        post: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip: offset,
-      take: limit,
+      orderBy: desc(postTags.createdAt),
+      offset,
+      limit,
     }),
-    prisma.postTag.count({
-      where: { tagId: tag.id },
-    }),
+    db.select({ count: count() })
+      .from(postTags)
+      .where(eq(postTags.tagId, tag.id)),
   ]);
+
+  const total = totalResult[0]?.count ?? 0;
 
   return {
     tag,
-    posts: postTags.map((pt) => pt.Post).filter((post): post is NonNullable<typeof post> => post !== null),
+    posts: postTagsList.map((pt) => pt.post).filter((post): post is NonNullable<typeof post> => post !== null),
     total,
   };
 }
@@ -190,23 +190,19 @@ export async function getTagStatistics(
   const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000);
 
   // Get all post tags within the window with their tag info
-  // Using Prisma queries instead of raw SQL for Prisma Accelerate compatibility
-  const postTags = await prisma.postTag.findMany({
-    where: {
-      createdAt: {
-        gte: windowStart,
-        lte: windowEnd,
-      },
+  // Using database queries instead of raw SQL for database compatibility
+  const postTagsList = await db.query.postTags.findMany({
+    where: (pt, { and: andOp, gte: whereGte, lte: whereLte }) => andOp(
+      whereGte(pt.createdAt, windowStart),
+      whereLte(pt.createdAt, windowEnd)
+    ),
+    with: {
+      tag: true,
     },
-    include: {
-      Tag: true,
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
+    orderBy: asc(postTags.createdAt),
   });
 
-  // Aggregate manually (Prisma Accelerate doesn't support complex raw SQL)
+  // Aggregate manually (database doesn't support complex raw SQL)
   const tagStats = new Map<string, {
     tag: { id: string; name: string; displayName: string; category: string | null };
     postCount: number;
@@ -215,7 +211,7 @@ export async function getTagStatistics(
     newestPostDate: Date;
   }>();
 
-  postTags.forEach((pt) => {
+  postTagsList.forEach((pt) => {
     const existing = tagStats.get(pt.tagId);
     const isRecent = pt.createdAt >= last24Hours;
 
@@ -226,7 +222,7 @@ export async function getTagStatistics(
       if (pt.createdAt > existing.newestPostDate) existing.newestPostDate = pt.createdAt;
     } else {
       tagStats.set(pt.tagId, {
-        tag: pt.Tag,
+        tag: pt.tag,
         postCount: 1,
         recentPostCount: isRecent ? 1 : 0,
         oldestPostDate: pt.createdAt,
@@ -255,7 +251,7 @@ export async function getTagStatistics(
  * Store trending tags calculation results
  */
 export async function storeTrendingTags(
-  tags: Array<{
+  tagsList: Array<{
     tagId: string;
     score: number;
     postCount: number;
@@ -267,37 +263,36 @@ export async function storeTrendingTags(
 ): Promise<void> {
   // Pre-generate IDs for trending tags
   const trendingTagIds = await Promise.all(
-    tags.map(() => generateSnowflakeId())
+    tagsList.map(() => generateSnowflakeId())
   );
 
   // Store all trending tags in a transaction
-  await prisma.$transaction(async (tx) => {
-    await Promise.all(
-      tags.map((tag, idx) => {
-        const trendingTagId = trendingTagIds[idx];
-        if (!trendingTagId) {
-          throw new Error(`Failed to generate trending tag ID for index ${idx}`);
-        }
-        return tx.trendingTag.create({
-          data: {
-            id: trendingTagId,
-            tagId: tag.tagId,
-            score: tag.score,
-            postCount: tag.postCount,
-            rank: tag.rank,
-            windowStart,
-            windowEnd,
-            relatedContext: tag.relatedContext || null,
-          },
+  await withTransaction(async (tx) => {
+    for (let idx = 0; idx < tagsList.length; idx++) {
+      const tag = tagsList[idx];
+      if (!tag) continue;
+      const trendingTagId = trendingTagIds[idx];
+      if (!trendingTagId) {
+        throw new Error(`Failed to generate trending tag ID for index ${idx}`);
+      }
+      await tx.insert(trendingTags)
+        .values({
+          id: trendingTagId,
+          tagId: tag.tagId,
+          score: tag.score,
+          postCount: tag.postCount,
+          rank: tag.rank,
+          windowStart,
+          windowEnd,
+          relatedContext: tag.relatedContext || null,
         });
-      })
-    );
+    }
   });
 
   logger.info(
     'Stored trending tags',
     {
-      count: tags.length,
+      count: tagsList.length,
       windowStart,
       windowEnd,
     },
@@ -310,10 +305,10 @@ export async function storeTrendingTags(
  */
 export async function getCurrentTrendingTags(limit = 10) {
   // Get the most recent calculation timestamp
-  const latestCalculation = await prisma.trendingTag.findFirst({
-    orderBy: { calculatedAt: 'desc' },
-    select: { calculatedAt: true },
-  });
+  const [latestCalculation] = await db.select({ calculatedAt: trendingTags.calculatedAt })
+    .from(trendingTags)
+    .orderBy(desc(trendingTags.calculatedAt))
+    .limit(1);
 
   if (!latestCalculation) {
     return [];
@@ -323,19 +318,13 @@ export async function getCurrentTrendingTags(limit = 10) {
   // Use >= comparison to handle potential timestamp precision issues
   const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000); // 1 second buffer
 
-  return await prisma.trendingTag.findMany({
-    where: {
-      calculatedAt: {
-        gte: cutoffTime,
-      },
+  return await db.query.trendingTags.findMany({
+    where: gte(trendingTags.calculatedAt, cutoffTime),
+    with: {
+      tag: true,
     },
-    include: {
-      Tag: true,
-    },
-    orderBy: {
-      rank: 'asc',
-    },
-    take: limit,
+    orderBy: asc(trendingTags.rank),
+    limit,
   });
 }
 
@@ -348,59 +337,50 @@ export async function getRelatedTags(
   limit = 3
 ): Promise<string[]> {
   // Find posts with this tag
-  const postsWithTag = await prisma.postTag.findMany({
-    where: { tagId },
-    select: { postId: true },
-    take: 100, // Sample recent posts
-    orderBy: { createdAt: 'desc' },
-  });
+  const postsWithTagResult = await db.select({ postId: postTags.postId })
+    .from(postTags)
+    .where(eq(postTags.tagId, tagId))
+    .orderBy(desc(postTags.createdAt))
+    .limit(100); // Sample recent posts
 
-  const postIds = postsWithTag.map((pt) => pt.postId);
+  const postIds = postsWithTagResult.map((pt) => pt.postId);
 
   if (postIds.length === 0) {
     return [];
   }
 
-  // Find other tags that appear in the same posts
-  // Using simpler query approach
-  const coOccurringTags = await prisma.postTag.groupBy({
-    by: ['tagId'],
-    where: {
-      postId: {
-        in: postIds,
-      },
-      tagId: {
-        not: tagId,
-      },
-    },
-    _count: {
-      tagId: true,
-    },
-    orderBy: {
-      _count: {
-        tagId: 'desc',
-      },
-    },
-    take: limit,
+  // Find other tags that appear in the same posts and count them
+  const coOccurringPostTags = await db.select({ tagId: postTags.tagId })
+    .from(postTags)
+    .where(and(
+      inArray(postTags.postId, postIds),
+      ne(postTags.tagId, tagId)
+    ));
+
+  // Count occurrences manually
+  const tagCounts = new Map<string, number>();
+  coOccurringPostTags.forEach((pt) => {
+    tagCounts.set(pt.tagId, (tagCounts.get(pt.tagId) || 0) + 1);
   });
+
+  // Sort by count and take top N
+  const sortedTagIds = Array.from(tagCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => id);
+
+  if (sortedTagIds.length === 0) {
+    return [];
+  }
 
   // Get tag display names
-  const tagIds = coOccurringTags.map((t) => t.tagId);
-  const tags = await prisma.tag.findMany({
-    where: {
-      id: {
-        in: tagIds,
-      },
-    },
-    select: {
-      id: true,
-      displayName: true,
-    },
-  });
+  const tagsList = await db.select({ id: tags.id, displayName: tags.displayName })
+    .from(tags)
+    .where(inArray(tags.id, sortedTagIds));
 
   // Map back to preserve order
-  const tagMap = new Map(tags.map((t) => [t.id, t.displayName]));
-  return tagIds
+  const tagMap = new Map(tagsList.map((t) => [t.id, t.displayName]));
+  return sortedTagIds
     .map((id) => tagMap.get(id))
     .filter((name): name is string => name !== undefined);
 }

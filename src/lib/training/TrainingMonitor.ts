@@ -5,7 +5,7 @@
  * Monitors Python training process and W&B runs.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trainingBatches, eq, and, lt } from '@/db';
 import { logger } from '@/lib/logger';
 
 export type TrainingStatus = 'pending' | 'preparing' | 'scoring' | 'training' | 'uploading' | 'completed' | 'failed';
@@ -35,13 +35,12 @@ export class TrainingMonitor {
    * Start monitoring a training job
    */
   async startMonitoring(batchId: string): Promise<void> {
-    await prisma.trainingBatch.update({
-      where: { batchId },
-      data: {
+    await db.update(trainingBatches)
+      .set({
         status: 'training',
         startedAt: new Date()
-      }
-    });
+      })
+      .where(eq(trainingBatches.batchId, batchId));
 
     logger.info('Started monitoring training job', { batchId }, 'TrainingMonitor');
   }
@@ -72,10 +71,9 @@ export class TrainingMonitor {
       updates.error = progress.error;
     }
 
-    await prisma.trainingBatch.update({
-      where: { batchId },
-      data: updates
-    });
+    await db.update(trainingBatches)
+      .set(updates)
+      .where(eq(trainingBatches.batchId, batchId));
 
     logger.info('Updated training progress', {
       batchId,
@@ -88,9 +86,12 @@ export class TrainingMonitor {
    * Get current progress for a job
    */
   async getProgress(batchId: string): Promise<TrainingProgress | null> {
-    const batch = await prisma.trainingBatch.findUnique({
-      where: { batchId }
-    });
+    const batchResult = await db.select()
+      .from(trainingBatches)
+      .where(eq(trainingBatches.batchId, batchId))
+      .limit(1);
+    
+    const batch = batchResult[0];
 
     if (!batch) {
       return null;
@@ -176,40 +177,38 @@ export class TrainingMonitor {
    * Check if training is stuck
    */
   async checkForStuckJobs(): Promise<string[]> {
-    const stuckJobs = await prisma.trainingBatch.findMany({
-      where: {
-        status: 'training',
-        startedAt: {
-          lt: new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours ago
-        }
-      },
-      select: {
-        batchId: true
-      }
-    });
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    
+    const stuckJobs = await db.select({ batchId: trainingBatches.batchId })
+      .from(trainingBatches)
+      .where(
+        and(
+          eq(trainingBatches.status, 'training'),
+          lt(trainingBatches.startedAt, fourHoursAgo)
+        )
+      );
 
     if (stuckJobs.length > 0) {
       logger.warn('Found stuck training jobs', {
         count: stuckJobs.length,
-        jobs: stuckJobs.map(j => j.batchId)
+        jobs: stuckJobs.map((j: typeof stuckJobs[number]) => j.batchId)
       }, 'TrainingMonitor');
     }
 
-    return stuckJobs.map(j => j.batchId);
+    return stuckJobs.map((j: typeof stuckJobs[number]) => j.batchId);
   }
 
   /**
    * Cancel training job
    */
   async cancelJob(batchId: string, reason: string): Promise<void> {
-    await prisma.trainingBatch.update({
-      where: { batchId },
-      data: {
+    await db.update(trainingBatches)
+      .set({
         status: 'failed',
         error: `Cancelled: ${reason}`,
         completedAt: new Date()
-      }
-    });
+      })
+      .where(eq(trainingBatches.batchId, batchId));
 
     logger.warn('Training job cancelled', { batchId, reason }, 'TrainingMonitor');
   }
@@ -217,4 +216,3 @@ export class TrainingMonitor {
 
 // Singleton
 export const trainingMonitor = new TrainingMonitor();
-

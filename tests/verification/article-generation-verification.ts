@@ -9,7 +9,7 @@
  * 5. Article detail pages display fullContent correctly
  */
 
-import { prisma } from '../../src/lib/prisma'
+import { db } from '@/db'
 
 async function verifyArticleGeneration() {
   console.log('🔍 Starting Article Generation Verification...\n')
@@ -17,7 +17,7 @@ async function verifyArticleGeneration() {
   try {
     // 1. Check if any articles exist
     console.log('1️⃣ Checking for existing articles...')
-    const articles = await prisma.post.findMany({
+    const articles = await db.post.findMany({
       where: { type: 'article' },
       take: 10,
       orderBy: { timestamp: 'desc' },
@@ -79,7 +79,7 @@ async function verifyArticleGeneration() {
     
     // 5. Check news organizations
     console.log('5️⃣ Checking news organizations...')
-    const newsOrgs = await prisma.organization.findMany({
+    const newsOrgs = await db.organization.findMany({
       where: { type: 'media' },
     })
     
@@ -119,7 +119,7 @@ async function verifyArticleGeneration() {
     console.error('❌ Verification failed:', error)
     process.exit(1)
   } finally {
-    await prisma.$disconnect()
+    await db.$disconnect()
   }
 }
 

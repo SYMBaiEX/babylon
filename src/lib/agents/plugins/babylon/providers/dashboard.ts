@@ -13,6 +13,15 @@ import type {
   A2APositionsResponse
 } from '@/types/a2a-responses'
 
+// Type guards for A2A responses
+function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
+  return 'balance' in data && typeof (data as A2ABalanceResponse).balance === 'number'
+}
+
+function isA2APositionsResponse(data: object): data is A2APositionsResponse {
+  return 'marketPositions' in data && Array.isArray((data as A2APositionsResponse).marketPositions)
+}
+
 /**
  * Provider: Comprehensive Dashboard
  * Provides complete agent context including portfolio, markets, social, and pending items
@@ -42,10 +51,15 @@ export const dashboardProvider: Provider = {
       babylonRuntime.a2aClient.getNotifications(5).catch(() => ({ notifications: [] }))
     ])
     
-    // Type assertions are necessary here because A2A client returns generic responses
-    // These match the actual response types from the A2A protocol
-    const balanceData = balance as A2ABalanceResponse
-    const positionsData = positions as A2APositionsResponse
+    // Validate response structures using type guards
+    if (!balance || typeof balance !== 'object' || !isA2ABalanceResponse(balance)) {
+      throw new Error('Invalid balance data format from A2A client')
+    }
+    if (!positions || typeof positions !== 'object' || !isA2APositionsResponse(positions)) {
+      throw new Error('Invalid positions data format from A2A client')
+    }
+    const balanceData = balance
+    const positionsData = positions
     const predictionsData = predictions as { predictions?: Array<{ id: string; question: string }> }
     const feedData = feed as { posts?: Array<{ id: string; content: string }> }
     const chatsData = chats as { chats?: Array<{ id: string; name?: string }> }

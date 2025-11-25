@@ -54,8 +54,8 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import type { JsonObject } from '@/db'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const existingFeedback = await prisma.feedback.findFirst({
+  const existingFeedback = await db.feedback.findFirst({
     where: {
       fromUserId: agent.id,
       gameId: payload.gameId,
@@ -105,17 +105,17 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const metadataBase: Prisma.JsonObject =
+  const metadataBase: JsonObject =
     payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
-      ? (payload.metadata as Prisma.JsonObject)
+      ? (payload.metadata as JsonObject)
       : {}
 
-  const metadata: Prisma.JsonObject = {
+  const metadata: JsonObject = {
     ...metadataBase,
     ...(payload.tags ? { tags: payload.tags } : {}),
   }
 
-  const feedback = await prisma.feedback.create({
+  const feedback = await db.feedback.create({
     data: {
       id: await generateSnowflakeId(),
       fromUserId: agent.id,

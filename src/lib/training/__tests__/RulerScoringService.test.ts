@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { rulerScoringService } from '../RulerScoringService';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { trajectoryRecorder } from '../TrajectoryRecorder';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -17,14 +17,14 @@ describe('RulerScoringService', () => {
 
   beforeAll(async () => {
     // Create test agent
-    const testAgent = await prisma.user.findFirst({
+    const testAgent = await db.user.findFirst({
       where: { username: 'ruler-test-agent' }
     });
 
     if (testAgent) {
       testAgentId = testAgent.id;
     } else {
-      const newAgent = await prisma.user.create({
+      const newAgent = await db.user.create({
         data: {
           id: await generateSnowflakeId(),
           username: 'ruler-test-agent',
@@ -44,11 +44,11 @@ describe('RulerScoringService', () => {
   afterAll(async () => {
     // Clean up test trajectories
     if (testTrajectoryIds.length > 0) {
-      await prisma.trajectory.deleteMany({
+      await db.trajectory.deleteMany({
         where: { trajectoryId: { in: testTrajectoryIds } }
       });
     }
-    await prisma.$disconnect();
+    await db.$disconnect();
   });
 
   it('should group trajectories by scenarioId', async () => {
@@ -89,7 +89,7 @@ describe('RulerScoringService', () => {
     expect(scored).toBe(3);
 
     // Verify scores were assigned
-    const scoredTrajs = await prisma.trajectory.findMany({
+    const scoredTrajs = await db.trajectory.findMany({
       where: { trajectoryId: { in: testTrajectoryIds } }
     });
 

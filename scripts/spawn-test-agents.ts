@@ -10,7 +10,7 @@
  */
 
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface AgentStrategy {
   name: string;
@@ -59,7 +59,7 @@ async function ensureTestUser(agentNum: number): Promise<string> {
   const userId = `test-agent-${agentNum}`;
   
   // Check if user exists
-  const existing = await prisma.user.findUnique({
+  const existing = await db.user.findUnique({
     where: { id: userId }
   });
   
@@ -68,7 +68,7 @@ async function ensureTestUser(agentNum: number): Promise<string> {
   }
   
   // Create test user
-  await prisma.user.create({
+  await db.user.create({
     data: {
       id: userId,
       username: `test_agent_${agentNum}`,

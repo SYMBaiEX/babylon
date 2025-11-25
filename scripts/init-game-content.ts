@@ -11,7 +11,7 @@
  * Run this once after seeding the database to bootstrap content.
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 import { logger } from '../src/lib/logger';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 import { nanoid } from 'nanoid';
@@ -20,12 +20,12 @@ async function main() {
   logger.info('🎬 Initializing game content...', undefined, 'Init');
 
   // 1. Ensure game state exists and is running
-  let game = await prisma.game.findFirst({ where: { isContinuous: true } });
+  let game = await db.game.findFirst({ where: { isContinuous: true } });
 
   if (!game) {
     const now = new Date();
     logger.info('Creating game state...', undefined, 'Init');
-    game = await prisma.game.create({
+    game = await db.game.create({
       data: {
         id: 'continuous',
         isContinuous: true,
@@ -40,7 +40,7 @@ async function main() {
     logger.info('✅ Game created and started', undefined, 'Init');
   } else if (!game.isRunning) {
     logger.info('Game is paused. Starting it...', undefined, 'Init');
-    await prisma.game.update({
+    await db.game.update({
       where: { id: game.id },
       data: { 
         isRunning: true,
@@ -56,7 +56,7 @@ async function main() {
   logger.info('✅ Game state ready', undefined, 'Init');
 
   // 2. Check if we have actors
-  const actorCount = await prisma.actor.count();
+  const actorCount = await db.actor.count();
   if (actorCount === 0) {
     logger.error('❌ No actors! Run: bun run db:seed', undefined, 'Init');
     process.exit(1);
@@ -64,7 +64,7 @@ async function main() {
   logger.info(`✅ ${actorCount} actors loaded`, undefined, 'Init');
 
   // 3. Create initial questions if none exist
-  const questionCount = await prisma.question.count();
+  const questionCount = await db.question.count();
 
   if (questionCount < 3) {
     logger.info('Creating initial prediction questions...', undefined, 'Init');
@@ -97,7 +97,7 @@ async function main() {
     ];
 
     for (const q of questions) {
-      await prisma.question.create({ 
+      await db.question.create({ 
         data: {
           id: nanoid(),
           ...q,
@@ -106,11 +106,11 @@ async function main() {
       });
 
       // Also create a Market for trading
-      await prisma.market.create({
+      await db.market.create({
         data: {
           id: nanoid(),
           question: q.text,
-          liquidity: 1000,
+          liquidity: '1000',
           endDate: q.resolutionDate,
           gameId: 'continuous',
           updatedAt: new Date(),
@@ -124,12 +124,12 @@ async function main() {
   }
 
   // 4. Create some initial posts if none exist
-  const postCount = await prisma.post.count();
+  const postCount = await db.post.count();
 
   if (postCount === 0) {
     logger.info('Creating initial posts...', undefined, 'Init');
 
-    const actors = await prisma.actor.findMany({ take: 5 });
+    const actors = await db.actor.findMany({ take: 5 });
 
     const samplePosts = [
       "Just saw the latest AI developments. Market is about to get wild 🚀",
@@ -140,7 +140,7 @@ async function main() {
     ];
 
     for (let i = 0; i < 5 && i < actors.length; i++) {
-      await prisma.post.create({
+      await db.post.create({
         data: {
           id: await generateSnowflakeId(),
           content: samplePosts[i]!,
@@ -166,7 +166,7 @@ async function main() {
   logger.info('3. Posts and questions should now be visible', undefined, 'Init');
   logger.info('4. Daemon will continue generating content automatically', undefined, 'Init');
 
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch((error) => {

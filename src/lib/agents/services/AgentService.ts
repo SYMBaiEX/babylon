@@ -6,9 +6,20 @@
  * The creating user "manages" them via the managedBy field.
  */
 
-import { prisma } from '@/lib/prisma'
+import { 
+  db, 
+  users, 
+  agentPointsTransactions, 
+  agentLogs, 
+  pointsTransactions, 
+  agentTrades,
+  eq, 
+  and,
+  desc,
+  withTransaction,
+  type User,
+} from '@/db'
 import { logger } from '@/lib/logger'
-import type { User } from '@prisma/client'
 import type { CreateAgentParams, AgentPerformance } from '../types'
 import type { JsonValue } from '@/types/common'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
@@ -25,7 +36,12 @@ export class AgentServiceV2 {
   async createAgent(params: CreateAgentParams): Promise<User> {
     const { userId: managerUserId, name, description, profileImageUrl, coverImageUrl, system, bio, personality, tradingStrategy, initialDeposit } = params
 
-    const manager = await prisma.user.findUnique({ where: { id: managerUserId } })
+    const managerResult = await db.select()
+      .from(users)
+      .where(eq(users.id, managerUserId))
+      .limit(1)
+    
+    const manager = managerResult[0]
     if (!manager) throw new Error('Manager user not found')
 
     if (initialDeposit && initialDeposit > 0) {
@@ -46,86 +62,82 @@ export class AgentServiceV2 {
     // 3. Claude (if ANTHROPIC_API_KEY available)
     // 4. OpenAGI (if OPENAI_API_KEY available)
 
-    const agent = await prisma.$transaction(async (tx) => {
-      const newAgent = await tx.user.create({
-        data: {
-          id: agentUserId,
-          username: agentUsername,
-          displayName: name,
-          bio: description || `AI agent managed by ${manager.displayName || manager.username}`,
-          profileImageUrl: profileImageUrl || null,
-          coverImageUrl: coverImageUrl || null,
-          isAgent: true,
-          managedBy: managerUserId,
-          agentSystem: system,
-          agentPersonality: personality,
-          agentTradingStrategy: tradingStrategy,
-          agentMessageExamples: bio ? JSON.parse(JSON.stringify(bio)) : undefined,
-          agentPointsBalance: initialDeposit || 0,
-          agentTotalDeposited: initialDeposit || 0,
-          virtualBalance: 0,
-          totalDeposited: 0,
-          reputationPoints: 0,
-          profileComplete: true,
-          hasUsername: true,
-          hasBio: Boolean(description),
-          hasProfileImage: Boolean(profileImageUrl),
-          a2aEnabled: true, // Enable A2A by default for all agents
-          updatedAt: new Date()
-        }
-      })
+    const agent = await withTransaction(async (tx) => {
+      const newAgentResult = await tx.insert(users).values({
+        id: agentUserId,
+        username: agentUsername,
+        displayName: name,
+        bio: description || `AI agent managed by ${manager.displayName || manager.username}`,
+        profileImageUrl: profileImageUrl || null,
+        coverImageUrl: coverImageUrl || null,
+        isAgent: true,
+        managedBy: managerUserId,
+        agentSystem: system ?? null,
+        agentPersonality: personality ?? null,
+        agentTradingStrategy: tradingStrategy ?? null,
+        agentMessageExamples: bio ? JSON.parse(JSON.stringify(bio)) : undefined,
+        agentPointsBalance: initialDeposit || 0,
+        agentTotalDeposited: initialDeposit || 0,
+        virtualBalance: '0',
+        totalDeposited: '0',
+        reputationPoints: 0,
+        profileComplete: true,
+        hasUsername: true,
+        hasBio: Boolean(description),
+        hasProfileImage: Boolean(profileImageUrl),
+        a2aEnabled: true, // Enable A2A by default for all agents
+        updatedAt: new Date()
+      }).returning()
+
+      const newAgent = newAgentResult[0]!
 
       if (initialDeposit && initialDeposit > 0) {
         const initialManagerPoints = manager.reputationPoints
         
-        await tx.user.update({
-          where: { id: managerUserId },
-          data: {
-            reputationPoints: { decrement: initialDeposit },
-            agentCount: { increment: 1 }
-          }
-        })
+        await tx.update(users)
+          .set({
+            reputationPoints: manager.reputationPoints - initialDeposit,
+            agentCount: manager.agentCount + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, managerUserId))
 
-        await tx.agentPointsTransaction.create({
-          data: {
-            id: await generateSnowflakeId(),
-            agentUserId,
-            managerUserId,
-            type: 'deposit',
-            amount: initialDeposit,
-            balanceBefore: 0,
-            balanceAfter: initialDeposit,
-            description: 'Initial deposit'
-          }
-        })
-
-        await tx.pointsTransaction.create({
-          data: {
-            id: await generateSnowflakeId(),
-            userId: managerUserId,
-            amount: -initialDeposit,
-            pointsBefore: initialManagerPoints,
-            pointsAfter: initialManagerPoints - initialDeposit,
-            reason: `Deposit to agent: ${name}`,
-            metadata: JSON.stringify({ agentUserId, agentName: name })
-          }
-        })
-      } else {
-        await tx.user.update({
-          where: { id: managerUserId },
-          data: { agentCount: { increment: 1 } }
-        })
-      }
-
-      await tx.agentLog.create({
-        data: {
+        await tx.insert(agentPointsTransactions).values({
           id: await generateSnowflakeId(),
           agentUserId,
-          type: 'system',
-          level: 'info',
-          message: `Agent created: ${name}`,
-          metadata: { initialDeposit: initialDeposit || 0 }
-        }
+          managerUserId,
+          type: 'deposit',
+          amount: initialDeposit,
+          balanceBefore: 0,
+          balanceAfter: initialDeposit,
+          description: 'Initial deposit'
+        })
+
+        await tx.insert(pointsTransactions).values({
+          id: await generateSnowflakeId(),
+          userId: managerUserId,
+          amount: -initialDeposit,
+          pointsBefore: initialManagerPoints,
+          pointsAfter: initialManagerPoints - initialDeposit,
+          reason: `Deposit to agent: ${name}`,
+          metadata: JSON.stringify({ agentUserId, agentName: name })
+        })
+      } else {
+        await tx.update(users)
+          .set({
+            agentCount: manager.agentCount + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, managerUserId))
+      }
+
+      await tx.insert(agentLogs).values({
+        id: await generateSnowflakeId(),
+        agentUserId,
+        type: 'system',
+        level: 'info',
+        message: `Agent created: ${name}`,
+        metadata: { initialDeposit: initialDeposit || 0 }
       })
 
       return newAgent
@@ -194,7 +206,12 @@ export class AgentServiceV2 {
   }
 
   async getAgent(agentUserId: string, managerUserId?: string): Promise<User | null> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agentResult = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+    
+    const agent = agentResult[0]
     if (!agent) return null
     if (!agent.isAgent) throw new Error('User is not an agent')
     if (managerUserId && agent.managedBy !== managerUserId) {
@@ -208,11 +225,18 @@ export class AgentServiceV2 {
   }
 
   async listUserAgents(managerUserId: string, filters?: { autonomousTrading?: boolean }): Promise<User[]> {
-    const where: { isAgent: boolean; managedBy: string; autonomousTrading?: boolean } = { isAgent: true, managedBy: managerUserId }
-    if (filters?.autonomousTrading !== undefined) {
-      where.autonomousTrading = filters.autonomousTrading
-    }
-    return prisma.user.findMany({ where, orderBy: { createdAt: 'desc' } })
+    const query = db.select()
+      .from(users)
+      .where(and(
+        eq(users.isAgent, true),
+        eq(users.managedBy, managerUserId),
+        ...(filters?.autonomousTrading !== undefined 
+          ? [eq(users.autonomousTrading, filters.autonomousTrading)] 
+          : [])
+      ))
+      .orderBy(desc(users.createdAt))
+
+    return query
   }
 
   async updateAgent(agentUserId: string, managerUserId: string, updates: Partial<{
@@ -237,7 +261,7 @@ export class AgentServiceV2 {
       await agentRuntimeManager.clearRuntime(agentUserId)
     }
 
-    const userUpdates: Record<string, unknown> = {}
+    const userUpdates: Record<string, unknown> = { updatedAt: new Date() }
     if (updates.name) userUpdates.displayName = updates.name
     if (updates.description) userUpdates.bio = updates.description
     if (updates.profileImageUrl !== undefined) userUpdates.profileImageUrl = updates.profileImageUrl
@@ -253,20 +277,20 @@ export class AgentServiceV2 {
     if (updates.autonomousGroupChats !== undefined) userUpdates.autonomousGroupChats = updates.autonomousGroupChats
     if (updates.a2aEnabled !== undefined) userUpdates.a2aEnabled = updates.a2aEnabled
 
-    const updatedAgent = await prisma.user.update({
-      where: { id: agentUserId },
-      data: { ...userUpdates, updatedAt: new Date() }
-    })
+    const updatedAgentResult = await db.update(users)
+      .set(userUpdates)
+      .where(eq(users.id, agentUserId))
+      .returning()
 
-    await prisma.agentLog.create({
-      data: {
-        id: await generateSnowflakeId(),
-        agentUserId,
-        type: 'system',
-        level: 'info',
-        message: 'Agent configuration updated',
-        metadata: updates
-      }
+    const updatedAgent = updatedAgentResult[0]!
+
+    await db.insert(agentLogs).values({
+      id: await generateSnowflakeId(),
+      agentUserId,
+      type: 'system',
+      level: 'info',
+      message: 'Agent configuration updated',
+      metadata: updates
     })
 
     logger.info(`Agent updated: ${agentUserId}`, undefined, 'AgentService')
@@ -277,34 +301,51 @@ export class AgentServiceV2 {
     const agent = await this.getAgent(agentUserId, managerUserId)
     if (!agent) throw new Error('Agent not found')
 
-    await prisma.$transaction(async (tx) => {
+    await withTransaction(async (tx) => {
       // Return remaining points to manager
       if (agent.agentPointsBalance > 0) {
-        await tx.user.update({
-          where: { id: managerUserId },
-          data: { reputationPoints: { increment: agent.agentPointsBalance } }
-        })
+        const managerResult = await tx.select({ reputationPoints: users.reputationPoints })
+          .from(users)
+          .where(eq(users.id, managerUserId))
+          .limit(1)
+        
+        const currentPoints = managerResult[0]?.reputationPoints || 0
 
-        await tx.pointsTransaction.create({
-          data: {
-            id: await generateSnowflakeId(),
-            userId: managerUserId,
-            amount: agent.agentPointsBalance,
-            pointsBefore: 0,
-            pointsAfter: 0,
-            reason: `Agent deleted, points returned: ${agent.displayName}`,
-            metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
-          }
+        await tx.update(users)
+          .set({
+            reputationPoints: currentPoints + agent.agentPointsBalance,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, managerUserId))
+
+        await tx.insert(pointsTransactions).values({
+          id: await generateSnowflakeId(),
+          userId: managerUserId,
+          amount: agent.agentPointsBalance,
+          pointsBefore: 0,
+          pointsAfter: 0,
+          reason: `Agent deleted, points returned: ${agent.displayName}`,
+          metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
         })
       }
 
-      await tx.user.update({
-        where: { id: managerUserId },
-        data: { agentCount: { decrement: 1 } }
-      })
+      // Decrement agent count
+      const managerResult = await tx.select({ agentCount: users.agentCount })
+        .from(users)
+        .where(eq(users.id, managerUserId))
+        .limit(1)
+      
+      const currentAgentCount = managerResult[0]?.agentCount || 0
+
+      await tx.update(users)
+        .set({
+          agentCount: Math.max(0, currentAgentCount - 1),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, managerUserId))
 
       // Soft delete agent user
-      await tx.user.delete({ where: { id: agentUserId } })
+      await tx.delete(users).where(eq(users.id, agentUserId))
     })
 
     // Clear runtime from agent runtime manager
@@ -318,7 +359,12 @@ export class AgentServiceV2 {
     const agent = await this.getAgent(agentUserId, managerUserId)
     if (!agent) throw new Error('Agent not found')
 
-    const manager = await prisma.user.findUnique({ where: { id: managerUserId } })
+    const managerResult = await db.select()
+      .from(users)
+      .where(eq(users.id, managerUserId))
+      .limit(1)
+    
+    const manager = managerResult[0]
     if (!manager) throw new Error('Manager not found')
 
     const totalPoints = manager.reputationPoints
@@ -326,48 +372,45 @@ export class AgentServiceV2 {
       throw new Error(`Insufficient points. Have: ${totalPoints}, Need: ${amount}`)
     }
 
-    const updatedAgent = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
-        where: { id: agentUserId },
-        data: {
-          agentPointsBalance: { increment: amount },
-          agentTotalDeposited: { increment: amount }
-        }
+    const updatedAgent = await withTransaction(async (tx) => {
+      const updatedResult = await tx.update(users)
+        .set({
+          agentPointsBalance: agent.agentPointsBalance + amount,
+          agentTotalDeposited: agent.agentTotalDeposited + amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, agentUserId))
+        .returning()
+
+      await tx.update(users)
+        .set({
+          reputationPoints: manager.reputationPoints - amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, managerUserId))
+
+      await tx.insert(agentPointsTransactions).values({
+        id: await generateSnowflakeId(),
+        agentUserId,
+        managerUserId,
+        type: 'deposit',
+        amount,
+        balanceBefore: agent.agentPointsBalance,
+        balanceAfter: agent.agentPointsBalance + amount,
+        description: 'Points deposit'
       })
 
-      await tx.user.update({
-        where: { id: managerUserId },
-        data: {
-          reputationPoints: { decrement: amount }
-        }
+      await tx.insert(pointsTransactions).values({
+        id: await generateSnowflakeId(),
+        userId: managerUserId,
+        amount: -amount,
+        pointsBefore: totalPoints,
+        pointsAfter: totalPoints - amount,
+        reason: `Deposit to agent: ${agent.displayName}`,
+        metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
       })
 
-      await tx.agentPointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          agentUserId,
-          managerUserId,
-          type: 'deposit',
-          amount,
-          balanceBefore: agent.agentPointsBalance,
-          balanceAfter: agent.agentPointsBalance + amount,
-          description: 'Points deposit'
-        }
-      })
-
-      await tx.pointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId: managerUserId,
-          amount: -amount,
-          pointsBefore: totalPoints,
-          pointsAfter: totalPoints - amount,
-          reason: `Deposit to agent: ${agent.displayName}`,
-          metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
-        }
-      })
-
-      return updated
+      return updatedResult[0]!
     })
 
     logger.info(`Deposited ${amount} points to agent ${agentUserId}`, undefined, 'AgentService')
@@ -382,46 +425,52 @@ export class AgentServiceV2 {
       throw new Error(`Insufficient balance. Have: ${agent.agentPointsBalance}, Need: ${amount}`)
     }
 
-    const updatedAgent = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
-        where: { id: agentUserId },
-        data: {
-          agentPointsBalance: { decrement: amount },
-          agentTotalWithdrawn: { increment: amount }
-        }
+    const updatedAgent = await withTransaction(async (tx) => {
+      const updatedResult = await tx.update(users)
+        .set({
+          agentPointsBalance: agent.agentPointsBalance - amount,
+          agentTotalWithdrawn: agent.agentTotalWithdrawn + amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, agentUserId))
+        .returning()
+
+      const managerResult = await tx.select({ reputationPoints: users.reputationPoints })
+        .from(users)
+        .where(eq(users.id, managerUserId))
+        .limit(1)
+      
+      const managerPoints = managerResult[0]?.reputationPoints || 0
+
+      await tx.update(users)
+        .set({
+          reputationPoints: managerPoints + amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, managerUserId))
+
+      await tx.insert(agentPointsTransactions).values({
+        id: await generateSnowflakeId(),
+        agentUserId,
+        managerUserId,
+        type: 'withdraw',
+        amount: -amount,
+        balanceBefore: agent.agentPointsBalance,
+        balanceAfter: agent.agentPointsBalance - amount,
+        description: 'Points withdrawal'
       })
 
-      await tx.user.update({
-        where: { id: managerUserId },
-        data: { reputationPoints: { increment: amount } }
+      await tx.insert(pointsTransactions).values({
+        id: await generateSnowflakeId(),
+        userId: managerUserId,
+        amount,
+        pointsBefore: 0,
+        pointsAfter: 0,
+        reason: `Withdrawal from agent: ${agent.displayName}`,
+        metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
       })
 
-      await tx.agentPointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          agentUserId,
-          managerUserId,
-          type: 'withdraw',
-          amount: -amount,
-          balanceBefore: agent.agentPointsBalance,
-          balanceAfter: agent.agentPointsBalance - amount,
-          description: 'Points withdrawal'
-        }
-      })
-
-      await tx.pointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId: managerUserId,
-          amount,
-          pointsBefore: 0,
-          pointsAfter: 0,
-          reason: `Withdrawal from agent: ${agent.displayName}`,
-          metadata: JSON.stringify({ agentUserId, agentName: agent.displayName })
-        }
-      })
-
-      return updated
+      return updatedResult[0]!
     })
 
     logger.info(`Withdrew ${amount} points from agent ${agentUserId}`, undefined, 'AgentService')
@@ -429,82 +478,96 @@ export class AgentServiceV2 {
   }
 
   async deductPoints(agentUserId: string, amount: number, reason: string, relatedId?: string): Promise<number> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agentResult = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+    
+    const agent = agentResult[0]
     if (!agent || !agent.isAgent) throw new Error('Agent not found')
     if (agent.agentPointsBalance < amount) {
       throw new Error(`Insufficient balance. Have: ${agent.agentPointsBalance}, Need: ${amount}`)
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.user.update({
-        where: { id: agentUserId },
-        data: {
-          agentPointsBalance: { decrement: amount },
-          agentTotalPointsSpent: { increment: amount }
-        }
-      })
+    const updated = await withTransaction(async (tx) => {
+      const result = await tx.update(users)
+        .set({
+          agentPointsBalance: agent.agentPointsBalance - amount,
+          agentTotalPointsSpent: agent.agentTotalPointsSpent + amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, agentUserId))
+        .returning()
 
       // Create points transaction with proper relations
-      await tx.agentPointsTransaction.create({
-        data: {
-          id: await generateSnowflakeId(),
-          type: reason.includes('chat') ? 'spend_chat' : reason.includes('post') ? 'spend_post' : 'spend_tick',
-          amount: -amount,
-          balanceBefore: agent.agentPointsBalance,
-          balanceAfter: agent.agentPointsBalance - amount,
-          description: reason,
-          relatedId,
-          agentUserId: agentUserId,
-          managerUserId: agent.managedBy || agentUserId
-        }
+      await tx.insert(agentPointsTransactions).values({
+        id: await generateSnowflakeId(),
+        type: reason.includes('chat') ? 'spend_chat' : reason.includes('post') ? 'spend_post' : 'spend_tick',
+        amount: -amount,
+        balanceBefore: agent.agentPointsBalance,
+        balanceAfter: agent.agentPointsBalance - amount,
+        description: reason,
+        relatedId: relatedId ?? null,
+        agentUserId: agentUserId,
+        managerUserId: agent.managedBy || agentUserId
       })
 
-      return result
+      return result[0]!
     })
 
     return updated.agentPointsBalance
   }
 
   async getPerformance(agentUserId: string): Promise<AgentPerformance> {
-    const agent = await prisma.user.findUnique({
-      where: { id: agentUserId },
-      include: { AgentTrade: { where: { pnl: { not: null } } } }
-    })
+    const agentResult = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
 
+    const agent = agentResult[0]
     if (!agent || !agent.isAgent) throw new Error('Agent not found')
 
-    const trades = agent.AgentTrade
-    const avgTradeSize = trades.length > 0 
-      ? trades.reduce((sum, t) => sum + t.amount, 0) / trades.length 
+    // Get trades with pnl
+    const trades = await db.select()
+      .from(agentTrades)
+      .where(eq(agentTrades.agentUserId, agentUserId))
+
+    const tradesWithPnl = trades.filter(t => t.pnl !== null)
+    const avgTradeSize = tradesWithPnl.length > 0 
+      ? tradesWithPnl.reduce((sum, t) => sum + t.amount, 0) / tradesWithPnl.length 
       : 0
 
     return {
       lifetimePnL: Number(agent.lifetimePnL),
-      totalTrades: trades.length,
-      profitableTrades: trades.filter(t => t.pnl && t.pnl > 0).length,
-      winRate: trades.length > 0 ? trades.filter(t => t.pnl && t.pnl > 0).length / trades.length : 0,
+      totalTrades: tradesWithPnl.length,
+      profitableTrades: tradesWithPnl.filter(t => t.pnl && t.pnl > 0).length,
+      winRate: tradesWithPnl.length > 0 ? tradesWithPnl.filter(t => t.pnl && t.pnl > 0).length / tradesWithPnl.length : 0,
       avgTradeSize
     }
   }
 
   async getChatHistory(agentUserId: string, limit = 50) {
-    return prisma.agentMessage.findMany({
-      where: { agentUserId },
-      orderBy: { createdAt: 'desc' },
-      take: limit
-    })
+    const { agentMessages } = await import('@/db')
+    
+    return db.select()
+      .from(agentMessages)
+      .where(eq(agentMessages.agentUserId, agentUserId))
+      .orderBy(desc(agentMessages.createdAt))
+      .limit(limit)
   }
 
   async getLogs(agentUserId: string, filters?: { type?: string; level?: string; limit?: number }) {
-    const where: { agentUserId: string; type?: string; level?: string } = { agentUserId }
-    if (filters?.type) where.type = filters.type
-    if (filters?.level) where.level = filters.level
+    const query = db.select()
+      .from(agentLogs)
+      .where(and(
+        eq(agentLogs.agentUserId, agentUserId),
+        ...(filters?.type ? [eq(agentLogs.type, filters.type)] : []),
+        ...(filters?.level ? [eq(agentLogs.level, filters.level)] : [])
+      ))
+      .orderBy(desc(agentLogs.createdAt))
+      .limit(filters?.limit || 100)
 
-    return prisma.agentLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: filters?.limit || 100
-    })
+    return query
   }
 
   async createLog(agentUserId: string, log: {
@@ -516,19 +579,19 @@ export class AgentServiceV2 {
     thinking?: string
     metadata?: Record<string, JsonValue>
   }) {
-    return prisma.agentLog.create({
-      data: {
-        id: await generateSnowflakeId(),
-        agentUserId,
-        type: log.type,
-        level: log.level,
-        message: log.message,
-        prompt: log.prompt,
-        completion: log.completion,
-        thinking: log.thinking,
-        metadata: log.metadata || undefined
-      }
-    })
+    const result = await db.insert(agentLogs).values({
+      id: await generateSnowflakeId(),
+      agentUserId,
+      type: log.type,
+      level: log.level,
+      message: log.message,
+      prompt: log.prompt ?? null,
+      completion: log.completion ?? null,
+      thinking: log.thinking ?? null,
+      metadata: log.metadata || undefined
+    }).returning()
+
+    return result[0]!
   }
 
   private shouldAutoSetupAgentIdentity(): boolean {
@@ -571,4 +634,3 @@ export class AgentServiceV2 {
 }
 
 export const agentService = new AgentServiceV2()
-

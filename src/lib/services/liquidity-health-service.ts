@@ -22,7 +22,15 @@
  * ```
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  eq,
+  and,
+  isNull,
+  markets,
+  organizations,
+  perpPositions,
+} from '@/db';
 import { logger } from '@/lib/logger';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 import {
@@ -178,17 +186,18 @@ export class LiquidityHealthService {
    * Assess health of a single prediction market
    */
   static async assessPredictionMarket(marketId: string): Promise<PredictionMarketHealth | null> {
-    const market = await prisma.market.findUnique({
-      where: { id: marketId },
-      select: {
-        id: true,
-        question: true,
-        yesShares: true,
-        noShares: true,
-        liquidity: true,
-        resolved: true,
-      },
-    });
+    const [market] = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+        yesShares: markets.yesShares,
+        noShares: markets.noShares,
+        liquidity: markets.liquidity,
+        resolved: markets.resolved,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
 
     if (!market || market.resolved) {
       return null;
@@ -253,34 +262,37 @@ export class LiquidityHealthService {
    * Assess health of a perpetual market
    */
   static async assessPerpMarket(organizationId: string): Promise<PerpMarketHealth | null> {
-    const org = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: {
-        id: true,
-        name: true,
-        ticker: true,
-        currentPrice: true,
-      },
-    });
+    const [org] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        ticker: organizations.ticker,
+        currentPrice: organizations.currentPrice,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
     if (!org) {
       return null;
     }
 
     // Get all open positions for this market
-    const positions = await prisma.perpPosition.findMany({
-      where: {
-        organizationId,
-        closedAt: null,
-      },
-      select: {
-        id: true,
-        side: true,
-        size: true,
-        entryPrice: true,
-        openedAt: true,
-      },
-    });
+    const positions = await db
+      .select({
+        id: perpPositions.id,
+        side: perpPositions.side,
+        size: perpPositions.size,
+        entryPrice: perpPositions.entryPrice,
+        openedAt: perpPositions.openedAt,
+      })
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.organizationId, organizationId),
+          isNull(perpPositions.closedAt)
+        )
+      );
 
     // Calculate open interest
     const longs = positions.filter(p => p.side === 'long');
@@ -344,10 +356,10 @@ export class LiquidityHealthService {
     const criticalIssues: string[] = [];
 
     // Get all active prediction markets
-    const predictionMarkets = await prisma.market.findMany({
-      where: { resolved: false },
-      select: { id: true },
-    });
+    const predictionMarkets = await db
+      .select({ id: markets.id })
+      .from(markets)
+      .where(eq(markets.resolved, false));
 
     const predictionHealths: PredictionMarketHealth[] = [];
     for (const market of predictionMarkets) {
@@ -358,10 +370,10 @@ export class LiquidityHealthService {
     }
 
     // Get all companies (perp markets)
-    const companies = await prisma.organization.findMany({
-      where: { type: 'company' },
-      select: { id: true },
-    });
+    const companies = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.type, 'company'));
 
     const perpHealths: PerpMarketHealth[] = [];
     for (const company of companies) {

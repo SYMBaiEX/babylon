@@ -2,24 +2,24 @@
  * Test Setup Helper
  *
  * Ensures consistent test environment setup across all test suites.
- * Handles Prisma initialization, database readiness checks, and test isolation.
+ * Handles database initialization, database readiness checks, and test isolation.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 /**
  * Check if database is available and properly configured
  */
 export async function ensureDatabaseReady(): Promise<boolean> {
-  const databaseUrl = process.env.DATABASE_URL || process.env.PRISMA_DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_URL;
 
   if (!databaseUrl) {
     return false;
   }
 
   try {
-    // Simple connection test using prisma.$queryRaw
-    await prisma.$queryRaw`SELECT 1`;
+    // Simple connection test using db.$queryRaw
+    await db.$queryRaw`SELECT 1`;
     return true;
   } catch (error) {
     return false;
@@ -39,8 +39,8 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
   }
 
   // Ensure DATABASE_URL is available
-  if (!process.env.DATABASE_URL && process.env.PRISMA_DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.PRISMA_DATABASE_URL;
+  if (!process.env.DATABASE_URL && process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL;
   }
 
   // Check database readiness
@@ -52,8 +52,8 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
   }
 
   try {
-    // Ensure Prisma client is connected
-    await prisma.$connect();
+    // Ensure database client is connected
+    await db.$connect();
     console.log('✅ Test environment ready');
   } catch (error) {
     console.warn('⚠️  Could not connect to database:', error);
@@ -66,7 +66,7 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
  */
 export async function cleanupTestEnvironment() {
   try {
-    await prisma.$disconnect();
+    await db.$disconnect();
   } catch (error) {
     // Ignore disconnection errors in tests
   }
@@ -76,7 +76,7 @@ export async function cleanupTestEnvironment() {
  * Helper to check if tests should skip based on database availability
  */
 export function shouldSkipDatabaseTests(): boolean {
-  const hasDatabase = !!(process.env.DATABASE_URL || process.env.PRISMA_DATABASE_URL);
+  const hasDatabase = !!(process.env.DATABASE_URL || process.env.DATABASE_URL);
   const skipRequested = process.env.SKIP_DATABASE_TESTS === 'true';
 
   return !hasDatabase || skipRequested;
@@ -89,7 +89,7 @@ export function shouldSkipDatabaseTests(): boolean {
 export async function cleanupStaleLocks(): Promise<number> {
   try {
     // Delete expired locks
-    const result = await prisma.generationLock.deleteMany({
+    const result = await db.generationLock.deleteMany({
       where: {
         OR: [
           { expiresAt: { lt: new Date() } },
@@ -137,7 +137,7 @@ export async function createIsolatedTestContext(name: string): Promise<{
   const cleanup = async () => {
     try {
       // Clean up any records created with this test prefix
-      await prisma.generationLock.deleteMany({
+      await db.generationLock.deleteMany({
         where: {
           OR: [
             { id: { contains: testPrefix } },
@@ -146,7 +146,7 @@ export async function createIsolatedTestContext(name: string): Promise<{
         }
       });
       
-      await prisma.user.deleteMany({
+      await db.user.deleteMany({
         where: {
           OR: [
             { username: { contains: testPrefix } },

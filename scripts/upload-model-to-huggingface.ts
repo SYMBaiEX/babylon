@@ -9,7 +9,7 @@
 
 import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
 import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 async function main() {
@@ -61,7 +61,7 @@ async function main() {
 
   try {
     // Check if model exists
-    const model = await prisma.trainedModel.findUnique({
+    const model = await db.trainedModel.findUnique({
       where: { modelId },
     });
 
@@ -151,19 +151,19 @@ async function main() {
       process.exit(1);
     }
 
-    await prisma.$disconnect();
+    await db.$disconnect();
   } catch (error) {
     logger.error('Upload failed', { error });
     console.error('\n❌ UPLOAD FAILED\n');
     console.error(error instanceof Error ? error.message : String(error));
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(1);
   }
 }
 
 main().catch(async error => {
   console.error('Fatal error:', error);
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(1);
 });
 

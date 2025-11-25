@@ -11,9 +11,10 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { acquireAgentLock, releaseAgentLock, checkAgentLock } from '@/lib/services/agent-lock-service'
 import { createTestAgent } from '@/lib/agents/utils/createTestAgent'
+import type { AgentTickResultItem, AgentTickResponse } from '../types/test-types'
 
 const BASE_URL = process.env.TEST_API_URL || process.env.TEST_BASE_URL || 'http://localhost:3000'
 let serverAvailable = false
@@ -65,7 +66,7 @@ describe('Agent Lock Service Integration', () => {
 
     // Cleanup test agents and their locks
     try {
-      await prisma.generationLock.deleteMany({
+      await db.generationLock.deleteMany({
         where: {
           id: {
             in: [
@@ -77,10 +78,10 @@ describe('Agent Lock Service Integration', () => {
       })
       
       if (testAgentId1) {
-        await prisma.user.delete({ where: { id: testAgentId1 } }).catch(() => {})
+        await db.user.delete({ where: { id: testAgentId1 } }).catch(() => {})
       }
       if (testAgentId2) {
-        await prisma.user.delete({ where: { id: testAgentId2 } }).catch(() => {})
+        await db.user.delete({ where: { id: testAgentId2 } }).catch(() => {})
       }
     } catch (error) {
       // Cleanup errors not critical
@@ -92,7 +93,7 @@ describe('Agent Lock Service Integration', () => {
     if (!serverAvailable || !testSetupComplete) return
 
     // Clean up any existing locks before each test
-    await prisma.generationLock.deleteMany({
+    await db.generationLock.deleteMany({
       where: {
         id: {
           in: [
@@ -116,7 +117,7 @@ describe('Agent Lock Service Integration', () => {
     expect(acquired).toBe(true)
 
     // Verify lock exists in database
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
 
@@ -148,7 +149,7 @@ describe('Agent Lock Service Integration', () => {
     expect(acquired2).toBe(false)
 
     // Verify only first process has the lock
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lock?.lockedBy).toBe(processId1)
@@ -172,7 +173,7 @@ describe('Agent Lock Service Integration', () => {
     await releaseAgentLock(testAgentId1, processId)
 
     // Verify lock is gone
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lock).toBeNull()
@@ -193,7 +194,7 @@ describe('Agent Lock Service Integration', () => {
 
     // Create an expired lock (simulate crashed process)
     const staleLockId = `agent-tick-${testAgentId1}`
-    await prisma.generationLock.create({
+    await db.generationLock.create({
       data: {
         id: staleLockId,
         lockedBy: 'crashed-process',
@@ -209,7 +210,7 @@ describe('Agent Lock Service Integration', () => {
     expect(acquired).toBe(true)
 
     // Verify new process has the lock
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: staleLockId }
     })
     expect(lock?.lockedBy).toBe(processId)
@@ -237,10 +238,10 @@ describe('Agent Lock Service Integration', () => {
     expect(acquired2).toBe(true)
 
     // Verify both locks exist
-    const lock1 = await prisma.generationLock.findUnique({
+    const lock1 = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
-    const lock2 = await prisma.generationLock.findUnique({
+    const lock2 = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId2}` }
     })
 
@@ -270,7 +271,7 @@ describe('Agent Lock Service Integration', () => {
     expect(successCount).toBe(1)
 
     // Verify only one lock exists
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lock).toBeTruthy()
@@ -291,7 +292,7 @@ describe('Agent Lock Service Integration', () => {
     const acquired1 = await acquireAgentLock(testAgentId1)
     expect(acquired1).toBe(true)
 
-    const lock1 = await prisma.generationLock.findUnique({
+    const lock1 = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
 
@@ -304,7 +305,7 @@ describe('Agent Lock Service Integration', () => {
     const acquired2 = await acquireAgentLock(testAgentId1)
     expect(acquired2).toBe(true)
 
-    const lock2 = await prisma.generationLock.findUnique({
+    const lock2 = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
 
@@ -360,7 +361,7 @@ describe('Agent Lock Service Integration', () => {
     await releaseAgentLock(testAgentId1, intruderProcess)
 
     // Lock should still exist (owned by owner)
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lock?.lockedBy).toBe(ownerProcess)
@@ -369,7 +370,7 @@ describe('Agent Lock Service Integration', () => {
     await releaseAgentLock(testAgentId1, ownerProcess)
 
     // Now lock should be gone
-    const lockAfter = await prisma.generationLock.findUnique({
+    const lockAfter = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
     expect(lockAfter).toBeNull()
@@ -384,7 +385,7 @@ describe('Agent Lock Service Integration', () => {
     const processId = 'expiry-test'
     await acquireAgentLock(testAgentId1, processId)
 
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId1}` }
     })
 
@@ -423,11 +424,11 @@ describe('Agent Tick Endpoint Lock Integration', () => {
     if (!serverAvailable || !testSetupComplete) return
     
     try {
-      await prisma.generationLock.deleteMany({
+      await db.generationLock.deleteMany({
         where: { id: `agent-tick-${testAgentId}` }
       })
       if (testAgentId) {
-        await prisma.user.delete({ where: { id: testAgentId } }).catch(() => {})
+        await db.user.delete({ where: { id: testAgentId } }).catch(() => {})
       }
     } catch (error) {
       // Cleanup errors not critical
@@ -461,7 +462,8 @@ describe('Agent Tick Endpoint Lock Integration', () => {
     expect(result.success).toBe(true)
     
     // Find our agent in results
-    const agentResult = result.results?.find((r: any) => r.agentId === testAgentId)
+    const typedResult = result as AgentTickResponse
+    const agentResult = typedResult.results?.find((r: AgentTickResultItem) => r.agentId === testAgentId)
     
     if (agentResult) {
       expect(agentResult.status).toBe('skipped')
@@ -482,7 +484,7 @@ describe('Agent Tick Endpoint Lock Integration', () => {
     }
 
     // Make sure no lock exists
-    await prisma.generationLock.deleteMany({
+    await db.generationLock.deleteMany({
       where: { id: `agent-tick-${testAgentId}` }
     })
 
@@ -502,7 +504,8 @@ describe('Agent Tick Endpoint Lock Integration', () => {
     expect(result.success).toBe(true)
     
     // The agent should be processed (not skipped)
-    const agentResult = result.results?.find((r: any) => r.agentId === testAgentId)
+    const typedResult2 = result as AgentTickResponse
+    const agentResult = typedResult2.results?.find((r: AgentTickResultItem) => r.agentId === testAgentId)
     
     if (agentResult) {
       // Should not be skipped
@@ -512,7 +515,7 @@ describe('Agent Tick Endpoint Lock Integration', () => {
     }
 
     // After processing, lock should be released
-    const lock = await prisma.generationLock.findUnique({
+    const lock = await db.generationLock.findUnique({
       where: { id: `agent-tick-${testAgentId}` }
     })
     

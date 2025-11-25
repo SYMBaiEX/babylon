@@ -42,9 +42,9 @@ bun install || {
 }
 
 echo ""
-echo "🔧 Step 2/7: Generating Prisma client..."
-bun prisma generate || {
-    echo -e "${RED}❌ Failed to generate Prisma client${NC}"
+echo "🔧 Step 2/7: Pushing database schema with Drizzle..."
+bunx drizzle-kit push --force || {
+    echo -e "${RED}❌ Failed to push database schema${NC}"
     exit 1
 }
 
@@ -138,4 +138,3 @@ echo "✅ E2E tests passed"
 echo "✅ Synpress tests passed"
 echo ""
 echo "Your build is ready for production! 🚀"
-

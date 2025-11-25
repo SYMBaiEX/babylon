@@ -15,7 +15,7 @@
  *   bun run scripts/status.ts registration # Agent0 registration only
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { ethers } from 'ethers'
 import { execSync } from 'child_process'
 
@@ -26,25 +26,25 @@ async function checkGameStatus() {
   console.log('🎮 GAME STATUS')
   console.log('═'.repeat(70))
 
-  await prisma.$connect().catch(() => {
+  await db.$connect().catch(() => {
     console.error('❌ Database connection failed')
     process.exit(1)
   })
   console.log('✅ Database connected')
 
-  const actorCount = await prisma.actor.count()
+  const actorCount = await db.actor.count()
   console.log(`Actors: ${actorCount}`)
   
   if (actorCount === 0) {
     console.error('❌ No actors in database! Run: bun run db:seed')
   }
 
-  const questionCount = await prisma.question.count()
-  const activeQuestions = await prisma.question.count({ where: { status: 'active' } })
+  const questionCount = await db.question.count()
+  const activeQuestions = await db.question.count({ where: { status: 'active' } })
   console.log(`Questions: ${questionCount} total, ${activeQuestions} active`)
 
-  const postCount = await prisma.post.count()
-  const recentPosts = await prisma.post.count({
+  const postCount = await db.post.count()
+  const recentPosts = await db.post.count({
     where: {
       createdAt: {
         gte: new Date(Date.now() - 5 * 60 * 1000),
@@ -60,7 +60,7 @@ async function checkGameStatus() {
     console.log('✅ Content is being generated!')
   }
 
-  const game = await prisma.game.findFirst({ where: { isContinuous: true } })
+  const game = await db.game.findFirst({ where: { isContinuous: true } })
   if (game) {
     console.log('\nGame State:')
     console.log(`  Status: ${game.isRunning ? '✅ RUNNING' : '⏸️  PAUSED'}`)
@@ -77,8 +77,8 @@ async function checkGameStatus() {
     console.log('⚠️  No game state found')
   }
 
-  const eventCount = await prisma.worldEvent.count()
-  const recentEvents = await prisma.worldEvent.count({
+  const eventCount = await db.worldEvent.count()
+  const recentEvents = await db.worldEvent.count({
     where: {
       createdAt: {
         gte: new Date(Date.now() - 5 * 60 * 1000),
@@ -87,8 +87,8 @@ async function checkGameStatus() {
   })
   console.log(`\nEvents: ${eventCount} total, ${recentEvents} in last 5 minutes`)
 
-  const orgCount = await prisma.organization.count()
-  const companiesWithPrices = await prisma.organization.count({
+  const orgCount = await db.organization.count()
+  const companiesWithPrices = await db.organization.count({
     where: {
       type: 'company',
       currentPrice: { not: null },
@@ -160,17 +160,18 @@ async function checkRegistration() {
   let tokenId: number | undefined
   
   try {
-    const config = await prisma.gameConfig.findUnique({
+    const config = await db.gameConfig.findUnique({
       where: { key: 'agent0_registration' }
     })
     
     if (config?.value && typeof config.value === 'object' && 'tokenId' in config.value) {
+      const regValue = config.value as { tokenId: unknown; metadataCID?: unknown; registeredAt?: unknown }
       console.log('\n✅ Database Registration Found:')
-      console.log(`   Token ID: ${config.value.tokenId}`)
-      console.log(`   Metadata CID: ${config.value.metadataCID}`)
-      console.log(`   Registered At: ${config.value.registeredAt}`)
+      console.log(`   Token ID: ${regValue.tokenId}`)
+      console.log(`   Metadata CID: ${regValue.metadataCID}`)
+      console.log(`   Registered At: ${regValue.registeredAt}`)
       
-      tokenId = Number(config.value.tokenId)
+      tokenId = Number(regValue.tokenId)
       
       const registryAddress = '0x8004a6090Cd10A7288092483047B097295Fb8847'
       const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
@@ -289,7 +290,7 @@ async function main() {
       break
   }
   
-  await prisma.$disconnect()
+  await db.$disconnect()
 }
 
 main()

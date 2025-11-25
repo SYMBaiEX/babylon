@@ -45,7 +45,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const now = new Date()
     
     // Find all pending escrows that have expired
-    const expiredEscrows = await prisma.moderationEscrow.updateMany({
+    const expiredEscrows = await db.moderationEscrow.updateMany({
       where: {
         status: 'pending',
         expiresAt: {

@@ -29,7 +29,7 @@ async function verifyColumn() {
       console.log(JSON.stringify(result.rows[0], null, 2));
     } else {
       console.log('❌ Column does NOT exist!');
-      console.log('   Run: bunx prisma migrate deploy');
+      console.log('   Run: bunx drizzle-kit push');
     }
 
     // Also check all User table columns for reference

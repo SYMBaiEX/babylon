@@ -59,7 +59,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
 import { z } from 'zod'
@@ -141,7 +141,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Retrieve PKCE code verifier from database
-  const oauthState = await prisma.oAuthState.findFirst({
+  const oauthState = await db.oAuthState.findFirst({
     where: {
       state,
       returnPath: 'twitter', // Provider stored in returnPath
@@ -151,7 +151,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   })
 
   // Debug: Check all records without filters
-  const allStates = await prisma.oAuthState.findMany({
+  const allStates = await db.oAuthState.findMany({
     where: {
       userId,
     },
@@ -198,7 +198,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   })
   
   // Clean up OAuth state after use
-  await prisma.oAuthState.delete({
+  await db.oAuthState.delete({
     where: { id: oauthState.id },
   }).catch((error) => {
     logger.warn('Failed to delete OAuth state', { error, stateId: oauthState.id }, 'TwitterCallback')
@@ -251,7 +251,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const twitterId = twitterUser.id
 
   // Check if Twitter account is already linked to another user
-  const existingLink = await prisma.user.findFirst({
+  const existingLink = await db.user.findFirst({
     where: {
       twitterId,
       id: { not: userId },
@@ -265,7 +265,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Update user with Twitter info
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       twitterId,

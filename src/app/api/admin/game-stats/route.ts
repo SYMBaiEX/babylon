@@ -49,7 +49,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -107,7 +107,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     llmTokenStats,
   ] = await Promise.all([
     // Game state
-    prisma.game.findFirst({
+    db.game.findFirst({
       where: { isContinuous: true },
       select: {
         id: true,
@@ -122,120 +122,120 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }),
     
     // Total counts
-    prisma.post.count({
+    db.post.count({
       where: { type: 'post', deletedAt: null },
     }),
-    prisma.post.count({
+    db.post.count({
       where: { type: 'article', deletedAt: null },
     }),
-    prisma.chat.count({
+    db.chat.count({
       where: { isGroup: true },
     }),
-    prisma.message.count(),
-    prisma.llmCallLog.count(),
+    db.message.count(),
+    db.llmCallLog.count(),
     
     // Last 24 hours
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'post',
         deletedAt: null,
         createdAt: { gte: twentyFourHoursAgo },
       },
     }),
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'article',
         deletedAt: null,
         createdAt: { gte: twentyFourHoursAgo },
       },
     }),
-    prisma.chat.count({
+    db.chat.count({
       where: { 
         isGroup: true,
         createdAt: { gte: twentyFourHoursAgo },
       },
     }),
-    prisma.message.count({
+    db.message.count({
       where: { createdAt: { gte: twentyFourHoursAgo } },
     }),
-    prisma.llmCallLog.count({
+    db.llmCallLog.count({
       where: { timestamp: { gte: twentyFourHoursAgo } },
     }),
     
     // Last hour
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'post',
         deletedAt: null,
         createdAt: { gte: oneHourAgo },
       },
     }),
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'article',
         deletedAt: null,
         createdAt: { gte: oneHourAgo },
       },
     }),
-    prisma.chat.count({
+    db.chat.count({
       where: { 
         isGroup: true,
         createdAt: { gte: oneHourAgo },
       },
     }),
-    prisma.message.count({
+    db.message.count({
       where: { createdAt: { gte: oneHourAgo } },
     }),
-    prisma.llmCallLog.count({
+    db.llmCallLog.count({
       where: { timestamp: { gte: oneHourAgo } },
     }),
     
     // Last 5 minutes
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'post',
         deletedAt: null,
         createdAt: { gte: fiveMinutesAgo },
       },
     }),
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'article',
         deletedAt: null,
         createdAt: { gte: fiveMinutesAgo },
       },
     }),
-    prisma.message.count({
+    db.message.count({
       where: { createdAt: { gte: fiveMinutesAgo } },
     }),
-    prisma.llmCallLog.count({
+    db.llmCallLog.count({
       where: { timestamp: { gte: fiveMinutesAgo } },
     }),
     
     // Last minute
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'post',
         deletedAt: null,
         createdAt: { gte: oneMinuteAgo },
       },
     }),
-    prisma.post.count({
+    db.post.count({
       where: { 
         type: 'article',
         deletedAt: null,
         createdAt: { gte: oneMinuteAgo },
       },
     }),
-    prisma.message.count({
+    db.message.count({
       where: { createdAt: { gte: oneMinuteAgo } },
     }),
-    prisma.llmCallLog.count({
+    db.llmCallLog.count({
       where: { timestamp: { gte: oneMinuteAgo } },
     }),
     
     // LLM token usage (last 24h)
-    prisma.llmCallLog.aggregate({
+    db.llmCallLog.aggregate({
       where: { timestamp: { gte: twentyFourHoursAgo } },
       _sum: {
         promptTokens: true,
@@ -367,10 +367,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     llmStats: {
       totalCalls24h: llmCallsLast24h,
-      totalPromptTokens24h: llmTokenStats._sum.promptTokens || 0,
-      totalCompletionTokens24h: llmTokenStats._sum.completionTokens || 0,
-      totalTokens24h: llmTokenStats._sum.totalTokens || 0,
-      avgLatencyMs24h: llmTokenStats._avg.latencyMs 
+      totalPromptTokens24h: llmTokenStats._sum?.promptTokens || 0,
+      totalCompletionTokens24h: llmTokenStats._sum?.completionTokens || 0,
+      totalTokens24h: llmTokenStats._sum?.totalTokens || 0,
+      avgLatencyMs24h: llmTokenStats._avg?.latencyMs 
         ? Math.round(llmTokenStats._avg.latencyMs * 10) / 10
         : null,
     },

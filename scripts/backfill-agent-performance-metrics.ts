@@ -6,23 +6,27 @@
  * Usage: bun run scripts/backfill-agent-performance-metrics.ts [--dry-run]
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db, users, agentPerformanceMetrics, eq, isNull } from '@/db';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
 
-  const usersMissingMetrics = await prisma.user.findMany({
-    where: {
-      AgentPerformanceMetrics: null,
-    },
-    select: {
-      id: true,
-      username: true,
-      isAgent: true,
-      createdAt: true,
-    },
-  });
+  // Find users who don't have AgentPerformanceMetrics records
+  // Use a left join and check for NULL
+  const usersMissingMetrics = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      isAgent: users.isAgent,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .leftJoin(
+      agentPerformanceMetrics,
+      eq(users.id, agentPerformanceMetrics.userId)
+    )
+    .where(isNull(agentPerformanceMetrics.id));
 
   if (usersMissingMetrics.length === 0) {
     console.log('✅ All users already have AgentPerformanceMetrics records.');
@@ -39,24 +43,20 @@ async function main() {
   }
 
   for (const user of usersMissingMetrics) {
-    await prisma.agentPerformanceMetrics.create({
-      data: {
-        id: await generateSnowflakeId(),
-        userId: user.id,
-        updatedAt: new Date(),
-      },
+    await db.insert(agentPerformanceMetrics).values({
+      id: await generateSnowflakeId(),
+      userId: user.id,
+      updatedAt: new Date(),
     });
     console.log(`Created metrics for ${user.username ?? user.id}`);
   }
 
-  console.log('Backfill complete.');
+  console.log('✅ Backfill complete.');
 }
 
 main()
+  .then(() => process.exit(0))
   .catch((error) => {
-    console.error('Backfill failed:', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
+    console.error('Error:', error);
+    process.exit(1);
   });

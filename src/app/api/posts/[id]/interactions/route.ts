@@ -80,7 +80,7 @@
 
 import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { db, posts, reactions, comments, shares, eq, and, count } from '@/db';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PostIdParamSchema, PostInteractionsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
@@ -119,85 +119,91 @@ export const GET = withErrorHandling(async (
   const result = await getCacheOrFetch(
     cacheKey,
     async () => {
-      // Get interactions with RLS
-      return await asUser(user, async (db) => {
-        // Check if post exists and is not in the future - if not, return zero counts
-        const now = new Date();
-        const post = await db.post.findUnique({
-          where: { id: postId },
-          select: { id: true, deletedAt: true, timestamp: true },
-        });
+      // Check if post exists and is not in the future
+      const now = new Date();
+      const [post] = await db.select({ 
+        id: posts.id, 
+        deletedAt: posts.deletedAt, 
+        timestamp: posts.timestamp 
+      })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
 
-        // ✅ Don't allow access to future posts
-        if (post && post.timestamp > now) {
-          return {
-            likeCount: 0,
-            commentCount: 0,
-            shareCount: 0,
-            userLike: null,
-            userShare: null,
-          };
-        }
+      // Don't allow access to future posts
+      if (post && post.timestamp > now) {
+        return {
+          likeCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+          userLike: null,
+          userShare: null,
+        };
+      }
 
-        if (!post || post.deletedAt) {
-          return {
-            likeCount: 0,
-            commentCount: 0,
-            shareCount: 0,
-            userLike: null,
-            userShare: null,
-          };
-        }
+      if (!post || post.deletedAt) {
+        return {
+          likeCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+          userLike: null,
+          userShare: null,
+        };
+      }
 
-        // Get all interaction counts in parallel
-        const [likeCount, commentCount, shareCount, userLike, userShare] =
-          await Promise.all([
-            // Count likes
-            db.reaction.count({
-              where: {
-                postId,
-                type: 'like',
-              },
-            }),
-            // Count comments (including replies)
-            db.comment.count({
-              where: {
-                postId,
-              },
-            }),
-            // Count shares
-            db.share.count({
-              where: {
-                postId,
-              },
-            }),
-            // Check if user liked (if authenticated)
-            user
-              ? db.reaction.findUnique({
-                  where: {
-                    postId_userId_type: {
-                      postId,
-                      userId: user.userId,
-                      type: 'like',
-                    },
-                  },
-                })
-              : Promise.resolve(null),
-            // Check if user shared (if authenticated)
-            user
-              ? db.share.findUnique({
-                  where: {
-                    userId_postId: {
-                      userId: user.userId,
-                      postId,
-                    },
-                  },
-                })
-              : Promise.resolve(null),
-          ]);
+      // Get all interaction counts in parallel
+      const [
+        [likeCountResult],
+        [commentCountResult],
+        [shareCountResult],
+        [userLike],
+        [userShare],
+      ] = await Promise.all([
+        // Count likes
+        db.select({ count: count() })
+          .from(reactions)
+          .where(and(
+            eq(reactions.postId, postId),
+            eq(reactions.type, 'like')
+          )),
+        // Count comments (including replies)
+        db.select({ count: count() })
+          .from(comments)
+          .where(eq(comments.postId, postId)),
+        // Count shares
+        db.select({ count: count() })
+          .from(shares)
+          .where(eq(shares.postId, postId)),
+        // Check if user liked (if authenticated)
+        user
+          ? db.select({ id: reactions.id })
+              .from(reactions)
+              .where(and(
+                eq(reactions.postId, postId),
+                eq(reactions.userId, user.userId),
+                eq(reactions.type, 'like')
+              ))
+              .limit(1)
+          : Promise.resolve([null]),
+        // Check if user shared (if authenticated)
+        user
+          ? db.select({ id: shares.id })
+              .from(shares)
+              .where(and(
+                eq(shares.userId, user.userId),
+                eq(shares.postId, postId)
+              ))
+              .limit(1)
+          : Promise.resolve([null]),
+      ]);
 
-        return { likeCount, commentCount, shareCount, userLike, userShare };
-      });
+      return { 
+        likeCount: Number(likeCountResult?.count ?? 0), 
+        commentCount: Number(commentCountResult?.count ?? 0), 
+        shareCount: Number(shareCountResult?.count ?? 0), 
+        userLike, 
+        userShare 
+      };
     },
     {
       namespace: CACHE_KEYS.POST,

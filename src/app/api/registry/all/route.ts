@@ -48,7 +48,7 @@ import { optionalAuth } from '@/lib/api/auth-middleware'
 import { asPublic } from '@/lib/db/context'
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
-import type { PrismaClient } from '@prisma/client'
+import type { DrizzleClient } from '@/db'
 import type { NextRequest } from 'next/server'
 
 /**
@@ -70,7 +70,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch users from database
   const fetchUsers = async () => {
     try {
-      const dbOperation = async (db: PrismaClient) => {
+      const dbOperation = async (db: DrizzleClient) => {
       const where: Record<string, unknown> = {}
       if (onChainOnly) {
         where.onChainRegistered = true
@@ -87,49 +87,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         where,
         orderBy: { createdAt: 'desc' },
         take: 100,
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          bio: true,
-          profileImageUrl: true,
-          walletAddress: true,
-          isActor: true,
-          isBanned: true,
-          isScammer: true,
-          isCSAM: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          agent0TokenId: true,
-          agent0MetadataCID: true,
-          registrationTxHash: true,
-          registrationTimestamp: true,
-          createdAt: true,
-          virtualBalance: true,
-          AgentPerformanceMetrics: {
-            select: {
-              reputationScore: true,
-              averageFeedbackScore: true,
-              totalFeedbackCount: true,
-              trustLevel: true,
-              onChainTrustScore: true,
-              onChainAccuracyScore: true,
-            },
-          },
-          _count: {
-            select: {
-              Position: true,
-              Comment: true,
-              Reaction: true,
-              Follow_Follow_followerIdToUser: true,
-              Follow_Follow_followingIdToUser: true,
-            },
-          },
-        },
       })
 
-      return users.map((user) => {
-        const metrics = user.AgentPerformanceMetrics
+      // Get performance metrics for all users
+      const userIds = users.map(u => u.id)
+      const metricsResults = await db.agentPerformanceMetrics.findMany({
+        where: { userId: { in: userIds } },
+      })
+      const metricsMap = new Map(metricsResults.map(m => [m.userId, m]))
+
+      // Get counts for all users in parallel
+      const [positionCounts, commentCounts, reactionCounts, followerCounts, followingCounts] = await Promise.all([
+        Promise.all(userIds.map(id => db.position.count({ where: { userId: id } }))),
+        Promise.all(userIds.map(id => db.comment.count({ where: { authorId: id } }))),
+        Promise.all(userIds.map(id => db.reaction.count({ where: { userId: id } }))),
+        Promise.all(userIds.map(id => db.follow.count({ where: { followingId: id } }))),
+        Promise.all(userIds.map(id => db.follow.count({ where: { followerId: id } }))),
+      ])
+
+      return users.map((user, index) => {
+        const metrics = metricsMap.get(user.id)
         const compositeScore = metrics?.reputationScore ?? 0
         const averageFeedbackScore = metrics?.averageFeedbackScore ?? 0
         const totalFeedbackCount = metrics?.totalFeedbackCount ?? 0
@@ -162,11 +139,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           averageFeedbackScore,
           totalFeedbackCount,
           stats: {
-            positions: user._count.Position,
-            comments: user._count.Comment,
-            reactions: user._count.Reaction,
-            followers: user._count.Follow_Follow_followingIdToUser,
-            following: user._count.Follow_Follow_followerIdToUser,
+            positions: positionCounts[index] ?? 0,
+            comments: commentCounts[index] ?? 0,
+            reactions: reactionCounts[index] ?? 0,
+            followers: followerCounts[index] ?? 0,
+            following: followingCounts[index] ?? 0,
           },
         }
       })
@@ -182,7 +159,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch actors (NPCs) from database
   const fetchActors = async () => {
     try {
-      const dbOperation = async (db: PrismaClient) => {
+      const dbOperation = async (db: DrizzleClient) => {
       const where: Record<string, unknown> = {}
       if (search) {
         where.OR = [
@@ -196,30 +173,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         where,
         orderBy: { reputationPoints: 'desc' },
         take: 100,
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          domain: true,
-          personality: true,
-          tier: true,
-          role: true,
-          profileImageUrl: true,
-          tradingBalance: true,
-          reputationPoints: true,
-          createdAt: true,
-          _count: {
-            select: {
-              Pool: true,
-              NPCTrade: true,
-              ActorFollow_ActorFollow_followingIdToActor: true,
-              ActorFollow_ActorFollow_followerIdToActor: true,
-            },
-          },
-        },
       })
 
-      return actors.map(actor => ({
+      // Get counts for all actors in parallel
+      const actorIds = actors.map(a => a.id)
+      const [poolCounts, tradeCounts, followerCounts, followingCounts] = await Promise.all([
+        Promise.all(actorIds.map(id => db.pool.count({ where: { npcActorId: id } }))),
+        Promise.all(actorIds.map(id => db.npcTrade.count({ where: { npcActorId: id } }))),
+        Promise.all(actorIds.map(id => db.actorFollow.count({ where: { followingId: id } }))),
+        Promise.all(actorIds.map(id => db.actorFollow.count({ where: { followerId: id } }))),
+      ])
+
+      return actors.map((actor, index) => ({
         type: 'actor',
         id: actor.id,
         name: actor.name,
@@ -233,10 +198,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         reputationPoints: actor.reputationPoints,
         createdAt: actor.createdAt,
         stats: {
-          pools: actor._count.Pool,
-          trades: actor._count.NPCTrade,
-          followers: actor._count.ActorFollow_ActorFollow_followingIdToActor,
-          following: actor._count.ActorFollow_ActorFollow_followerIdToActor,
+          pools: poolCounts[index] ?? 0,
+          trades: tradeCounts[index] ?? 0,
+          followers: followerCounts[index] ?? 0,
+          following: followingCounts[index] ?? 0,
         },
       }))
     }

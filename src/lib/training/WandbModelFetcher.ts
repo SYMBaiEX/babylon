@@ -4,7 +4,7 @@
  * Fetches trained RL models from Weights & Biases for inference.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trainedModels, desc, inArray, eq } from '@/db';
 import { getRLModelConfig } from './RLModelConfig';
 import { logger } from '@/lib/logger';
 
@@ -24,14 +24,13 @@ export interface ModelArtifact {
  * Get the latest RL model from database
  */
 export async function getLatestRLModel(): Promise<ModelArtifact | null> {
-  const model = await prisma.trainedModel.findFirst({
-    where: {
-      status: { in: ['ready', 'deployed'] }
-    },
-    orderBy: {
-      createdAt: 'desc'
-    }
-  });
+  const modelResult = await db.select()
+    .from(trainedModels)
+    .where(inArray(trainedModels.status, ['ready', 'deployed']))
+    .orderBy(desc(trainedModels.createdAt))
+    .limit(1);
+  
+  const model = modelResult[0];
   
   if (!model) {
     return null;
@@ -72,12 +71,14 @@ export async function getLatestRLModel(): Promise<ModelArtifact | null> {
  * Get a specific version of RL model
  */
 export async function getRLModelByVersion(version: string): Promise<ModelArtifact | null> {
-  const model = await prisma.trainedModel.findFirst({
-    where: {
-      version,
-      status: 'ready'
-    }
-  });
+  const modelResult = await db.select()
+    .from(trainedModels)
+    .where(
+      eq(trainedModels.version, version)
+    )
+    .limit(1);
+  
+  const model = modelResult[0];
   
   if (!model) {
     return null;
@@ -147,4 +148,3 @@ export function shouldUseRLModel(): boolean {
   const config = getRLModelConfig();
   return config.enabled && !!(config.wandbApiKey && config.wandbEntity);
 }
-

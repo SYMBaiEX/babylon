@@ -200,7 +200,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     let existingChat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        ChatParticipant: {
+        participants: {
           select: {
             userId: true,
           },
@@ -237,20 +237,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }),
       ]);
 
-      // Reload chat with participants
-      existingChat = await db.chat.findUnique({
-        where: { id: chatId },
-        include: {
-          ChatParticipant: {
-            select: {
-              userId: true,
-            },
+      // Reload chat and get participants separately
+      const [reloadedChat, participants] = await Promise.all([
+        db.chat.findUnique({
+          where: { id: chatId },
+        }),
+        db.chatParticipant.findMany({
+          where: { chatId: { equals: chatId } },
+          select: { userId: true },
+        }),
+      ]);
+      existingChat = reloadedChat;
+      
+      const participantIds = participants.map(p => p.userId);
+      
+      if (!participantIds.includes(user.userId)) {
+        await db.chatParticipant.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId,
+            userId: user.userId,
           },
-        },
-      });
+        });
+      }
+
+      if (!participantIds.includes(targetUserId)) {
+        await db.chatParticipant.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId,
+            userId: targetUserId,
+          },
+        });
+      }
     } else {
       // Chat exists, ensure both participants are added
-      const participantIds = existingChat.ChatParticipant.map(p => p.userId);
+      const participants = await db.chatParticipant.findMany({
+        where: { chatId: { equals: chatId } },
+        select: { userId: true },
+      });
+      const participantIds = participants.map(p => p.userId);
       
       if (!participantIds.includes(user.userId)) {
         await db.chatParticipant.create({
@@ -280,22 +306,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new Error('Chat creation failed');
   }
 
-  logger.info('DM chat created or retrieved successfully', { chatId: chat.chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
+  const chatData = chat.chat; // Type guard - chat.chat is now guaranteed to be non-null
+
+  logger.info('DM chat created or retrieved successfully', { chatId: chatData.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
 
   // Track DM created/opened event
+  // Check if chat has participants by querying separately
+  const participants = await asUser(user, async (db) => {
+    return await db.chatParticipant.findMany({
+      where: { chatId: { equals: chatData.id } },
+    });
+  });
+  const hasParticipants = participants.length > 0;
+  
   trackServerEvent(user.userId, 'dm_opened', {
-    chatId: chat.chat.id,
+    chatId: chatData.id,
     recipientId: targetUserId,
-    isNewChat: !chat.chat.ChatParticipant || chat.chat.ChatParticipant.length === 0,
+    isNewChat: !hasParticipants,
   }).catch((error) => {
     logger.warn('Failed to track dm_opened event', { error });
   });
 
   return successResponse({
     chat: {
-      id: chat.chat.id,
-      name: chat.chat.name,
-      isGroup: chat.chat.isGroup,
+      id: chatData.id,
+      name: chatData.name,
+      isGroup: chatData.isGroup,
       otherUser: {
         id: chat.targetUser.id,
         displayName: chat.targetUser.displayName,

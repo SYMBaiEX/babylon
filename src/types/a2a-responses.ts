@@ -209,6 +209,22 @@ export interface A2AUnreadCountResponse {
 }
 
 /**
+ * User profile response from a2a.getUserProfile
+ */
+export interface A2AUserProfileResponse {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  bio: string | null;
+  profileImageUrl: string | null;
+  reputationPoints: number;
+  virtualBalance: number;
+  walletAddress?: string | null;
+  isAgent?: boolean;
+  createdAt?: string | Date;
+}
+
+/**
  * User wallet response from a2a.getUserWallet
  */
 export interface A2AUserWalletResponse {
@@ -264,5 +280,90 @@ export interface A2ASystemStatsResponse {
   users?: number;
   posts?: number;
   [key: string]: JsonValue | undefined;
+}
+
+/**
+ * Organization data
+ */
+export interface A2AOrganization {
+  id: string;
+  name: string;
+  ticker?: string;
+  description?: string;
+  imageUrl?: string;
+  currentPrice?: number;
+  priceChange24h?: number;
+}
+
+/**
+ * Organizations response from a2a.getOrganizations
+ */
+export interface A2AOrganizationsResponse {
+  organizations: A2AOrganization[];
+}
+
+/**
+ * User search result
+ */
+export interface A2AUserSearchResult {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  profileImageUrl?: string | null;
+  isAgent?: boolean;
+  reputationPoints?: number;
+}
+
+/**
+ * Users search response from a2a.searchUsers
+ */
+export interface A2AUsersSearchResponse {
+  users: A2AUserSearchResult[];
+}
+
+/**
+ * Referral data
+ */
+export interface A2AReferral {
+  id: string;
+  referredUserId: string;
+  referredUsername?: string;
+  pointsEarned?: number;
+  createdAt: string | number;
+}
+
+/**
+ * Referrals response from a2a.getReferrals
+ */
+export interface A2AReferralsResponse {
+  referrals: A2AReferral[];
+}
+
+/**
+ * Referral stats response from a2a.getReferralStats
+ */
+export interface A2AReferralStatsResponse {
+  totalReferrals: number;
+  totalPointsEarned: number;
+  activeReferrals?: number;
+}
+
+/**
+ * Referral code response from a2a.getReferralCode
+ */
+export interface A2AReferralCodeResponse {
+  code: string;
+  url: string;
+}
+
+/**
+ * Reputation response from a2a.getReputation
+ */
+export interface A2AReputationResponse {
+  reputationPoints: number;
+  trustScore?: number;
+  accuracyScore?: number;
+  tradingScore?: number;
+  socialScore?: number;
 }
 

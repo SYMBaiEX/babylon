@@ -80,7 +80,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 /**
@@ -101,7 +101,7 @@ export async function GET(
     const { actorId } = await params;
 
     // Get actor
-    const actor = await prisma.actor.findUnique({
+    const actor = await db.actor.findUnique({
       where: { id: actorId },
       select: {
         id: true,
@@ -119,7 +119,7 @@ export async function GET(
     // Get actor's posts from COMPLETED games only
     // Only show posts up to current time (prevent future access)
     const now = new Date();
-    const posts = await prisma.post.findMany({
+    const posts = await db.post.findMany({
       where: {
         authorId: actorId,
         timestamp: { lte: now }, // ✅ No future posts

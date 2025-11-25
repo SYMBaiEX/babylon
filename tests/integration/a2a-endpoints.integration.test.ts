@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
 import type { AgentCapabilities } from '@/types/a2a'
@@ -55,9 +55,9 @@ describe('A2A Endpoints Integration Tests', () => {
     }
 
     // Ensure actors exist
-    const actor1 = await prisma.actor.findUnique({ where: { id: testTraderAgentId } })
+    const actor1 = await db.actor.findUnique({ where: { id: testTraderAgentId } })
     if (!actor1) {
-      await prisma.actor.create({
+      await db.actor.create({
         data: {
           id: testTraderAgentId,
           name: 'Test Trader NPC',
@@ -72,9 +72,9 @@ describe('A2A Endpoints Integration Tests', () => {
       })
     }
 
-    const actor2 = await prisma.actor.findUnique({ where: { id: testAnalystAgentId } })
+    const actor2 = await db.actor.findUnique({ where: { id: testAnalystAgentId } })
     if (!actor2) {
-      await prisma.actor.create({
+      await db.actor.create({
         data: {
           id: testAnalystAgentId,
           name: 'Test Analyst NPC',

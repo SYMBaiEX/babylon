@@ -146,7 +146,7 @@ import { NextResponse } from 'next/server'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { logger } from '@/lib/logger'
 import { authenticateUser } from '@/lib/server-auth'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 export async function GET(
   req: NextRequest,
@@ -157,7 +157,7 @@ export async function GET(
 
   const agent = await agentService.getAgent(agentId, user.id)
 
-  const transactions = await prisma.agentPointsTransaction.findMany({
+  const transactions = await db.agentPointsTransaction.findMany({
     where: { agentUserId: agentId },
     orderBy: { createdAt: 'desc' },
     take: 100

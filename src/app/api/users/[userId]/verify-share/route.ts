@@ -71,7 +71,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/prisma'
+import { db, users, shareActions, eq } from '@/db'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -118,9 +118,10 @@ export const POST = withErrorHandling(async (
   const { shareId, platform, postUrl } = VerifyShareRequestSchema.parse(body);
 
   // Get the share action
-  const shareAction = await prisma.shareAction.findUnique({
-    where: { id: shareId },
-  });
+  const [shareAction] = await db.select()
+    .from(shareActions)
+    .where(eq(shareActions.id, shareId))
+    .limit(1);
 
   if (!shareAction) {
     throw new BusinessLogicError('Share action not found', 'SHARE_NOT_FOUND');
@@ -182,12 +183,12 @@ export const POST = withErrorHandling(async (
       } else {
         // Verify tweet exists using Twitter API v2
         try {
-          const user = await prisma.user.findUnique({
-            where: { id: canonicalUserId },
-            select: { 
-              twitterUsername: true,
-            },
-          });
+          const [user] = await db.select({
+            twitterUsername: users.twitterUsername,
+          })
+            .from(users)
+            .where(eq(users.id, canonicalUserId))
+            .limit(1);
 
           // VALIDATION 1: Check if user has linked Twitter account
           if (!user?.twitterUsername) {
@@ -360,13 +361,13 @@ export const POST = withErrorHandling(async (
           
           if (neynarData.cast) {
             // VALIDATION 1: Check if user has linked Farcaster account
-            const user = await prisma.user.findUnique({
-              where: { id: canonicalUserId },
-              select: { 
-                farcasterUsername: true,
-                farcasterFid: true,
-              },
-            });
+            const [user] = await db.select({
+              farcasterUsername: users.farcasterUsername,
+              farcasterFid: users.farcasterFid,
+            })
+              .from(users)
+              .where(eq(users.id, canonicalUserId))
+              .limit(1);
 
             if (!user?.farcasterUsername && !user?.farcasterFid) {
               verificationError = 'Please link your Farcaster account first to verify casts.';
@@ -504,15 +505,15 @@ export const POST = withErrorHandling(async (
   }
 
   // Update share action with verification status and points
-  const updatedShareAction = await prisma.shareAction.update({
-    where: { id: shareId },
-    data: {
+  const [updatedShareAction] = await db.update(shareActions)
+    .set({
       verified,
       verifiedAt: verified ? new Date() : null,
       verificationDetails: verified ? JSON.stringify(verificationDetails) : null,
       pointsAwarded: verified && pointsAwarded > 0,
-    },
-  });
+    })
+    .where(eq(shareActions.id, shareId))
+    .returning();
 
   return successResponse({
     verified,
@@ -526,4 +527,3 @@ export const POST = withErrorHandling(async (
       : verificationError || 'Could not verify share. Please provide a valid post URL.',
   });
 });
-

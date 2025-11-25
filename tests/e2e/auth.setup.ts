@@ -94,8 +94,12 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
 
   // Wait for Privy SDK to be loaded - with extended timeout for CI
   try {
+    type WindowWithPrivy = Window & {
+      privy?: unknown;
+    };
     await page.waitForFunction(() => {
-      return (window as any).privy !== undefined || 
+      const win = window as WindowWithPrivy;
+      return win.privy !== undefined || 
              document.querySelector('script[src*="privy"]') !== null ||
              document.querySelector('[data-privy]') !== null
     }, { timeout: 45000 })
@@ -402,9 +406,13 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
     console.log('✅ Authentication successful - user menu visible')
   } catch (error) {
     // Fallback: check for Privy token in localStorage as secondary verification
+    type WindowWithPrivyToken = Window & {
+      __privyAccessToken?: unknown;
+    };
     const hasToken = await page.evaluate(() => {
+      const win = window as WindowWithPrivyToken;
       return window.localStorage.getItem('privy:token') !== null ||
-             (window as any).__privyAccessToken !== undefined
+             win.__privyAccessToken !== undefined
     })
     
     if (hasToken) {

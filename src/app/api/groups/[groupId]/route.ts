@@ -137,10 +137,10 @@
 
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { ApiError } from '@/lib/errors/api-errors'
 import { logger } from '@/lib/logger'
-import { asUser } from '@/lib/db/context'
 import { z } from 'zod'
 
 const UpdateGroupSchema = z.object({
@@ -158,52 +158,40 @@ export const GET = withErrorHandling(
     const { groupId } = await params
 
     const groupDetails = await asUser(user, async (db) => {
-      // Check if user is member or admin
+      // Fetch the group
       const group = await db.userGroup.findUnique({
         where: { id: groupId },
-        include: {
-          UserGroupMember: {
-            select: {
-              userId: true,
-              joinedAt: true,
-              addedBy: true,
-            },
-          },
-          UserGroupAdmin: {
-            select: {
-              userId: true,
-              grantedAt: true,
-            },
-          },
-        },
       })
 
       if (!group) {
         throw new ApiError('Group not found', 404)
       }
 
-      const isMember = group.UserGroupMember.some((m) => m.userId === user.userId)
-      const isAdmin = group.UserGroupAdmin.some((a) => a.userId === user.userId)
+      // Fetch members and admins separately
+      const groupMembers = await db.userGroupMember.findMany({
+        where: { groupId },
+      })
+
+      const groupAdmins = await db.userGroupAdmin.findMany({
+        where: { groupId },
+      })
+
+      const isMember = groupMembers.some((m) => m.userId === user.userId)
+      const isAdmin = groupAdmins.some((a) => a.userId === user.userId)
 
       if (!isMember && !isAdmin) {
         throw new ApiError('You are not a member of this group', 403)
       }
 
       // Fetch member details
-      const memberIds = group.UserGroupMember.map((m) => m.userId)
+      const memberIds = groupMembers.map((m) => m.userId)
       const members = await db.user.findMany({
         where: {
           id: { in: memberIds },
         },
-        select: {
-          id: true,
-          displayName: true,
-          username: true,
-          profileImageUrl: true,
-        },
       })
 
-      const adminIds = group.UserGroupAdmin.map((a) => a.userId)
+      const adminIds = groupAdmins.map((a) => a.userId)
 
       return {
         id: group.id,
@@ -213,10 +201,13 @@ export const GET = withErrorHandling(
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
         members: members.map((m) => ({
-          ...m,
+          id: m.id,
+          displayName: m.displayName,
+          username: m.username,
+          profileImageUrl: m.profileImageUrl,
           isAdmin: adminIds.includes(m.id),
           joinedAt:
-            group.UserGroupMember.find((gm) => gm.userId === m.id)?.joinedAt || new Date(),
+            groupMembers.find((gm) => gm.userId === m.id)?.joinedAt || new Date(),
         })),
         isAdmin,
         isCreator: group.createdById === user.userId,
@@ -320,4 +311,3 @@ export const DELETE = withErrorHandling(
     return successResponse({ success: true })
   }
 )
-

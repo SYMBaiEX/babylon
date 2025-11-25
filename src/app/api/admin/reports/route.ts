@@ -114,7 +114,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { GetReportsSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 
@@ -162,7 +162,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get reports
   const [reports, total] = await Promise.all([
-    prisma.report.findMany({
+    db.report.findMany({
       where,
       orderBy,
       take: params.limit,
@@ -194,7 +194,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       },
     }),
-    prisma.report.count({ where }),
+    db.report.count({ where }),
   ]);
 
   // Parse evaluation from resolution field if it exists

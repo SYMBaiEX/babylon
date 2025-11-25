@@ -156,28 +156,31 @@ describe('Actors.json Data Integrity', () => {
   });
 
   describe('Unused Fields Removed', () => {
+    // Helper to check for properties that might exist on objects at runtime
+    const hasProperty = (obj: object, prop: string): boolean => prop in obj;
+    
     it('no actors should have "nickname" field', () => {
-      const withNickname = actorsData.actors.filter((a) => 'nickname' in (a as unknown as Record<string, unknown>));
+      const withNickname = actorsData.actors.filter((a) => hasProperty(a, 'nickname'));
       expect(withNickname).toHaveLength(0);
     });
 
     it('no actors should have "aliases" field', () => {
-      const withAliases = actorsData.actors.filter((a) => 'aliases' in (a as unknown as Record<string, unknown>));
+      const withAliases = actorsData.actors.filter((a) => hasProperty(a, 'aliases'));
       expect(withAliases).toHaveLength(0);
     });
 
     it('no actors should have "quirks" field', () => {
-      const withQuirks = actorsData.actors.filter((a) => 'quirks' in (a as unknown as Record<string, unknown>));
+      const withQuirks = actorsData.actors.filter((a) => hasProperty(a, 'quirks'));
       expect(withQuirks).toHaveLength(0);
     });
 
     it('no actors should have "canPostFeed" field', () => {
-      const withCanPostFeed = actorsData.actors.filter((a) => 'canPostFeed' in (a as unknown as Record<string, unknown>));
+      const withCanPostFeed = actorsData.actors.filter((a) => hasProperty(a, 'canPostFeed'));
       expect(withCanPostFeed).toHaveLength(0);
     });
 
     it('no actors should have "canPostGroups" field', () => {
-      const withCanPostGroups = actorsData.actors.filter((a) => 'canPostGroups' in (a as unknown as Record<string, unknown>));
+      const withCanPostGroups = actorsData.actors.filter((a) => hasProperty(a, 'canPostGroups'));
       expect(withCanPostGroups).toHaveLength(0);
     });
   });

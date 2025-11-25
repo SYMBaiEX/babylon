@@ -72,7 +72,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
 import { X402Manager } from '@/lib/a2a/payments/x402-manager'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
 import { parseEther } from 'ethers'
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     const { recipientId, amountUSD, reason, recipientWalletAddress } = validation.data
 
     // Verify recipient exists and is not an actor
-    const recipient = await prisma.user.findUnique({
+    const recipient = await db.user.findUnique({
       where: { id: recipientId },
       select: { id: true, username: true, displayName: true, isActor: true, walletAddress: true },
     })
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate recent escrows BEFORE creating payment request (prevent spam and orphaned requests)
-    const recentDuplicate = await prisma.moderationEscrow.findFirst({
+    const recentDuplicate = await db.moderationEscrow.findFirst({
       where: {
         recipientId,
         adminId,
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
 
     // Create escrow record in database
     const expiresAt = new Date(paymentRequest.expiresAt)
-    const escrow = await prisma.moderationEscrow.create({
+    const escrow = await db.moderationEscrow.create({
       data: {
         id: await generateSnowflakeId(),
         recipientId,
@@ -218,6 +218,7 @@ export async function POST(req: NextRequest) {
         reason: reason || null,
         paymentRequestId: paymentRequest.requestId,
         expiresAt,
+        updatedAt: new Date(),
         metadata: {
           recipientWalletAddress,
           adminWalletAddress: adminWalletAddress,

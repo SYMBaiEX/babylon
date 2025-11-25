@@ -83,7 +83,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
         run: bash scripts/ci/prepare-env.sh
 
-      - name: Setup Prisma and Database
+      - name: Setup Database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db

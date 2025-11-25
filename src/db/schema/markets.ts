@@ -232,15 +232,15 @@ export const questionsRelations = relations(questions, ({ many }) => ({
 }));
 
 export const positionsRelations = relations(positions, ({ one }) => ({
-  market: one(markets, {
+  Market: one(markets, {
     fields: [positions.marketId],
     references: [markets.id],
   }),
-  question: one(questions, {
+  Question: one(questions, {
     fields: [positions.questionId],
     references: [questions.questionNumber],
   }),
-  user: one(users, {
+  User: one(users, {
     fields: [positions.userId],
     references: [users.id],
   }),
@@ -261,7 +261,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
 }));
 
 export const stockPricesRelations = relations(stockPrices, ({ one }) => ({
-  organization: one(organizations, {
+  Organization: one(organizations, {
     fields: [stockPrices.organizationId],
     references: [organizations.id],
   }),

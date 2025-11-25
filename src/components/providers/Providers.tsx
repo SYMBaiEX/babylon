@@ -74,8 +74,8 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
             const clipPathValue = clipPathMatch[1].trim();
             
             // Set clipPath using the style object (camelCase)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (htmlElement.style as any).clipPath = clipPathValue;
+            // Type assertion needed because CSSStyleDeclaration doesn't include clipPath in TypeScript's DOM types
+            (htmlElement.style as CSSStyleDeclaration & { clipPath?: string }).clipPath = clipPathValue;
             
             // Remove clip-path from the style attribute
             const cleanedStyle = styleAttr
@@ -93,13 +93,13 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
         }
         
         // Also check computed style object directly (in case Privy sets it via style object)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const computedStyle = (htmlElement.style as any);
-        if (computedStyle && 'clip-path' in computedStyle && !('clipPath' in computedStyle)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (computedStyle as any).clipPath = (computedStyle as any)['clip-path'];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          delete (computedStyle as any)['clip-path'];
+        const computedStyle = htmlElement.style as CSSStyleDeclaration & Record<string, string | undefined>;
+        if (computedStyle && 'clip-path' in computedStyle && !computedStyle.clipPath) {
+          const clipPathValue = (computedStyle as Record<string, string | undefined>)['clip-path'];
+          if (clipPathValue) {
+            computedStyle.clipPath = clipPathValue;
+            delete (computedStyle as Record<string, string | undefined>)['clip-path'];
+          }
         }
       });
     };

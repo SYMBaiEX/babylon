@@ -6,7 +6,7 @@ import { createPublicClient, createWalletClient, http, type Address } from 'viem
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { logger } from '../logger'
-import { prisma } from '../prisma'
+import { db, markets, eq } from '@/db'
 
 /**
  * Create a prediction market on-chain
@@ -248,9 +248,12 @@ export async function getMarketIdFromTx(txHash: `0x${string}`): Promise<`0x${str
  */
 export async function ensureMarketOnChain(marketId: string): Promise<boolean> {
   try {
-    const market = await prisma.market.findUnique({
-      where: { id: marketId },
-    })
+    const result = await db.select()
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1)
+
+    const market = result[0]
 
     if (!market) {
       logger.warn('Market not found', { marketId }, 'OnChainMarketService')
@@ -279,13 +282,12 @@ export async function ensureMarketOnChain(marketId: string): Promise<boolean> {
         oracleAddr = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`).address
       }
 
-      await prisma.market.update({
-        where: { id: marketId },
-        data: {
+      await db.update(markets)
+        .set({
           onChainMarketId,
           oracleAddress: oracleAddr,
-        },
-      })
+        })
+        .where(eq(markets.id, marketId))
 
       logger.info(
         'Market linked to on-chain market',
@@ -302,4 +304,3 @@ export async function ensureMarketOnChain(marketId: string): Promise<boolean> {
     return false
   }
 }
-

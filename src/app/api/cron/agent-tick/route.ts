@@ -52,14 +52,14 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { autonomousCoordinator } from '@/lib/agents/autonomous'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
-import type { User } from '@prisma/client'
+import type { User } from '@/db'
 import { acquireAgentLock, releaseAgentLock } from '@/lib/services/agent-lock-service'
 import { relayCronToStaging } from '@/lib/services/cron-relay-service'
 
@@ -110,7 +110,7 @@ export async function POST(_req: NextRequest) {
   }
 
   // 3. Check Game status from database
-  const gameState = await prisma.game.findFirst({
+  const gameState = await db.game.findFirst({
     where: { isContinuous: true }
   })
 
@@ -166,7 +166,7 @@ export async function POST(_req: NextRequest) {
   for (const agent of registeredAgents) {
     if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
       // Check User-specific autonomous settings and points
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: agent.userId }
       })
 
@@ -332,7 +332,7 @@ export async function POST(_req: NextRequest) {
         })
 
         // Update User status for USER agents
-        await prisma.user.update({
+        await db.user.update({
           where: { id: eligibleAgent.user.id },
           data: {
             agentLastTickAt: new Date(),

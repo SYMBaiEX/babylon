@@ -26,16 +26,51 @@ import * as path from 'node:path';
 
 import type { IAgentRuntime, UUID, Logger } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
+import type { JsonValue } from '@/types/common';
+
+// Type for stored trajectory in mock database
+interface MockTrajectoryData {
+  trajectoryId: string;
+  scenarioId?: string | null;
+  startTime: Date;
+  endTime: Date;
+  metrics: Record<string, JsonValue>;
+  metadata: Record<string, JsonValue>;
+  [key: string]: JsonValue | Date | undefined | null;
+}
+
+// Type for trajectory creation args
+interface TrajectoryCreateArgs {
+  data: {
+    trajectoryId?: string;
+    scenarioId?: string | null;
+    startTime: Date | string;
+    endTime: Date | string;
+    metricsJson?: string;
+    metadataJson?: string;
+    [key: string]: JsonValue | Date | undefined | null;
+  };
+}
+
+// Type for trajectory query args
+interface TrajectoryQueryArgs {
+  where?: {
+    trajectoryId?: string | { in: string[] };
+    scenarioId?: string | { in: string[] };
+  };
+  by?: string[];
+}
 
 // Store created trajectories for retrieval
-const createdTrajectories: any[] = [];
+const createdTrajectories: MockTrajectoryData[] = [];
 
-// Mock Prisma
-const mockPrisma = {
+// Mock database
+const mockDb = {
   trajectory: {
-    create: mock(async (args: any) => {
-      const trajectory = {
+    create: mock(async (args: TrajectoryCreateArgs) => {
+      const trajectory: MockTrajectoryData = {
         ...args.data,
+        trajectoryId: args.data.trajectoryId || crypto.randomUUID(),
         startTime: args.data.startTime instanceof Date ? args.data.startTime : new Date(args.data.startTime),
         endTime: args.data.endTime instanceof Date ? args.data.endTime : new Date(args.data.endTime),
         metrics: args.data.metricsJson ? JSON.parse(args.data.metricsJson) : {},
@@ -49,24 +84,27 @@ const mockPrisma = {
       // createdTrajectories.length = 0; // don't clear because we might need them for findMany
       return { count: 1 };
     }),
-    findUnique: mock(async (args: any) => {
-      return createdTrajectories.find(t => t.trajectoryId === args.where.trajectoryId) || null;
+    findUnique: mock(async (args: TrajectoryQueryArgs) => {
+      const trajectoryId = typeof args.where?.trajectoryId === 'string' ? args.where.trajectoryId : null;
+      return createdTrajectories.find(t => t.trajectoryId === trajectoryId) || null;
     }),
-    findMany: mock(async (args: any) => {
+    findMany: mock(async (args: TrajectoryQueryArgs) => {
       // Simple filtering mock
       let result = [...createdTrajectories];
       
-      if (args?.where?.trajectoryId?.in) {
-        result = result.filter(t => args.where.trajectoryId.in.includes(t.trajectoryId));
+      const trajectoryIdFilter = args?.where?.trajectoryId;
+      if (trajectoryIdFilter && typeof trajectoryIdFilter === 'object' && 'in' in trajectoryIdFilter) {
+        result = result.filter(t => trajectoryIdFilter.in.includes(t.trajectoryId));
       }
       
-      if (args?.where?.scenarioId?.in) {
-        result = result.filter(t => args.where.scenarioId.in.includes(t.scenarioId));
+      const scenarioIdFilter = args?.where?.scenarioId;
+      if (scenarioIdFilter && typeof scenarioIdFilter === 'object' && 'in' in scenarioIdFilter) {
+        result = result.filter(t => t.scenarioId && scenarioIdFilter.in.includes(t.scenarioId));
       }
 
       return result;
     }),
-    groupBy: mock(async (args: any) => {
+    groupBy: mock(async (args: TrajectoryQueryArgs) => {
       // Mock grouping for scenario discovery
       // args: { by: ['scenarioId'], where: {...} }
       if (args?.by?.includes('scenarioId')) {
@@ -82,8 +120,8 @@ const mockPrisma = {
   }
 };
 
-mock.module('@/lib/prisma', () => ({
-  prisma: mockPrisma
+mock.module('@/db', () => ({
+  db: mockDb
 }));
 
 describe('ART Format Validation', () => {
@@ -112,15 +150,22 @@ describe('ART Format Validation', () => {
   afterAll(async () => {
     // Cleanup
     if (testTrajectoryIds.length > 0) {
-      const { prisma } = await import('@/lib/prisma');
-      await prisma.trajectory.deleteMany({
+      const { db } = await import('@/db');
+      await db.trajectory.deleteMany({
         where: { trajectoryId: { in: testTrajectoryIds } }
       });
       // Note: llmCallLog model may not exist in all schemas
-      if ('llmCallLog' in prisma) {
-        const prismaWithLog = prisma as unknown as { llmCallLog?: { deleteMany: (args: { where: { trajectoryId: { in: string[] } } }) => Promise<unknown> } };
-        if (typeof prismaWithLog.llmCallLog?.deleteMany === 'function') {
-          await prismaWithLog.llmCallLog.deleteMany({
+      // Type for db with optional llmCallLog
+      interface DbWithLlmCallLog {
+        llmCallLog?: { 
+          deleteMany: (args: { where: { trajectoryId: { in: string[] } } }) => Promise<{ count: number }> 
+        }
+      }
+      
+      if ('llmCallLog' in db) {
+        const dbWithLog = db as DbWithLlmCallLog;
+        if (dbWithLog.llmCallLog?.deleteMany) {
+          await dbWithLog.llmCallLog.deleteMany({
             where: { trajectoryId: { in: testTrajectoryIds } }
           });
         }
@@ -497,13 +542,14 @@ describe('ART Format Validation', () => {
         
         const traj = logger.getActiveTrajectory(trajId);
         if (!traj) {
-          const { prisma } = await import('@/lib/prisma');
-          const fromDB = await prisma.trajectory.findUnique({ where: { trajectoryId: trajId } });
+          const { db } = await import('@/db');
+          const fromDB = await db.trajectory.findUnique({ where: { trajectoryId: trajId } });
           if (!fromDB) {
             throw new Error('Trajectory not found');
           }
           // Note: the mock returns object with same structure as passed to create
-          trajectories.push(fromDB as unknown as Trajectory);
+          // Mock database returns compatible trajectory data
+          trajectories.push(fromDB as Trajectory);
         } else {
           trajectories.push(traj);
         }

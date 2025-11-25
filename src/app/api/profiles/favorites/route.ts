@@ -84,53 +84,59 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       where: {
         userId: user.userId,
       },
-      include: {
-        User_Favorite_targetUserIdToUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-            isActor: true,
-            _count: {
-              select: {
-                Favorite_Favorite_targetUserIdToUser: true,
-              },
-            },
-          },
-        },
-      },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    // Get post counts for each profile (posts are authored by actor IDs)
+    // Get user details for each favorited user
+    const targetUserIds = favorites.map(f => f.targetUserId);
+    const targetUsers = await db.user.findMany({
+      where: {
+        id: { in: targetUserIds },
+      },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        profileImageUrl: true,
+        bio: true,
+        isActor: true,
+      },
+    });
+    const userMap = new Map(targetUsers.map(u => [u.id, u]));
+
+    // Get post counts and favorite counts for each profile
     const profiles = await Promise.all(
       favorites.map(async (favorite) => {
-        const postCount = await db.post.count({
-          where: {
-            authorId: favorite.User_Favorite_targetUserIdToUser.id,
-          },
-        });
+        const targetUser = userMap.get(favorite.targetUserId);
+        if (!targetUser) return null;
+
+        const [postCount, favoriteCount] = await Promise.all([
+          db.post.count({
+            where: { authorId: targetUser.id },
+          }),
+          db.favorite.count({
+            where: { targetUserId: targetUser.id },
+          }),
+        ]);
 
         return {
-          id: favorite.User_Favorite_targetUserIdToUser.id,
-          displayName: favorite.User_Favorite_targetUserIdToUser.displayName,
-          username: favorite.User_Favorite_targetUserIdToUser.username,
-          profileImageUrl: favorite.User_Favorite_targetUserIdToUser.profileImageUrl,
-          bio: favorite.User_Favorite_targetUserIdToUser.bio,
-          isActor: favorite.User_Favorite_targetUserIdToUser.isActor,
+          id: targetUser.id,
+          displayName: targetUser.displayName,
+          username: targetUser.username,
+          profileImageUrl: targetUser.profileImageUrl,
+          bio: targetUser.bio,
+          isActor: targetUser.isActor,
           postCount,
-          favoriteCount: favorite.User_Favorite_targetUserIdToUser._count.Favorite_Favorite_targetUserIdToUser,
+          favoriteCount,
           favoritedAt: favorite.createdAt,
           isFavorited: true,
         };
       })
     );
 
-    return profiles;
+    return profiles.filter((p): p is NonNullable<typeof p> => p !== null);
   });
 
   logger.info('Favorited profiles fetched successfully', { userId: user.userId, count: favoritedProfiles.length }, 'GET /api/profiles/favorites');

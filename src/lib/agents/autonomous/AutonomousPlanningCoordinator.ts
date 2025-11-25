@@ -6,10 +6,10 @@
  */
 
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
-import type { Prisma } from '@prisma/client'
+import type { JsonValue } from '@/db'
 import { callGroqDirect } from '../llm/direct-groq'
 import type { AgentConstraints, AgentDirective, AgentGoal } from '../types/goals'
 import { countTokensSync, truncateToTokenLimitSync } from '@/lib/token-counter'
@@ -162,7 +162,7 @@ export class AutonomousPlanningCoordinator {
   ): Promise<ActionPlan> {
     logger.info(`Generating action plan for agent ${agentUserId}`, undefined, 'PlanningCoordinator')
     
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentUserId },
       select: {
         id: true,
@@ -250,7 +250,7 @@ export class AutonomousPlanningCoordinator {
    */
   private async getPlanningContext(agentUserId: string): Promise<PlanningContext> {
     // Get goals
-    const goals = await prisma.agentGoal.findMany({
+    const goals = await db.agentGoal.findMany({
       where: { agentUserId },
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }]
     })
@@ -266,7 +266,7 @@ export class AutonomousPlanningCoordinator {
     })) as AgentGoal[]
     
     // Get directives
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentUserId },
       select: {
         agentDirectives: true,
@@ -293,11 +293,11 @@ export class AutonomousPlanningCoordinator {
     }
     
     // Get portfolio info
-    const positions = await prisma.position.count({
+    const positions = await db.position.count({
       where: { userId: agentUserId, status: 'active' }
     })
     
-    const perpPositions = await prisma.perpPosition.count({
+    const perpPositions = await db.perpPosition.count({
       where: { userId: agentUserId, closedAt: null }
     })
     
@@ -305,7 +305,7 @@ export class AutonomousPlanningCoordinator {
     const pendingInteractions = await autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
     
     // Get recent actions (last 10)
-    const recentLogs = await prisma.agentLog.findMany({
+    const recentLogs = await db.agentLog.findMany({
       where: {
         agentUserId,
         type: { in: ['trade', 'post', 'comment', 'dm'] }
@@ -725,7 +725,7 @@ Your action plan (JSON only):`
     agentUserId: string,
     action: PlannedAction
   ): Promise<void> {
-    const goal = await prisma.agentGoal.findUnique({
+    const goal = await db.agentGoal.findUnique({
       where: { id: goalId }
     })
     
@@ -734,7 +734,7 @@ Your action plan (JSON only):`
     // Update progress (simplified - could be more sophisticated)
     const newProgress = Math.min(1.0, goal.progress + action.estimatedImpact)
     
-    await prisma.agentGoal.update({
+    await db.agentGoal.update({
       where: { id: goalId },
       data: {
         progress: newProgress,
@@ -747,14 +747,14 @@ Your action plan (JSON only):`
     })
     
     // Record goal action
-    await prisma.agentGoalAction.create({
+    await db.agentGoalAction.create({
       data: {
         id: await generateSnowflakeId(),
         goalId,
         agentUserId,
         actionType: action.type,
         impact: action.estimatedImpact,
-        metadata: action.params as Prisma.InputJsonValue
+        metadata: action.params as JsonValue
       }
     })
     
@@ -787,7 +787,7 @@ async function detectTradingOpportunities(
   }> = []
 
   // Get active prediction markets with high volume
-  const activeMarkets = await prisma.market.findMany({
+  const activeMarkets = await db.market.findMany({
     where: {
       resolved: false,
       endDate: { gte: new Date() }
@@ -821,7 +821,7 @@ async function detectTradingOpportunities(
   }
 
   // Get perp markets with significant price movement
-  const perpMarkets = await prisma.organization.findMany({
+  const perpMarkets = await db.organization.findMany({
     where: { type: 'company' },
     take: 10
   })
@@ -892,21 +892,24 @@ async function detectSocialOpportunities(
   }
 
   // Check for trending topics to post about
-  const trendingTags = await prisma.trendingTag.findMany({
-    orderBy: { score: 'desc' },
-    take: 5,
-    include: {
-      Tag: {
-        select: { name: true, displayName: true }
-      }
-    }
+  const trendingTagsRaw = await db.query.trendingTags.findMany({
+    orderBy: (trendingTags, { desc: descFn }) => [descFn(trendingTags.score)],
+    limit: 5,
+    with: {
+      tag: {
+        columns: {
+          name: true,
+          displayName: true,
+        },
+      },
+    },
   })
 
-  for (const trending of trendingTags) {
-    if (trending.Tag) {
+  for (const trending of trendingTagsRaw) {
+    if (trending.tag) {
       opportunities.push({
         type: 'post',
-        description: `Trending topic: ${trending.Tag.displayName || trending.Tag.name}`,
+        description: `Trending topic: ${trending.tag.displayName || trending.tag.name}`,
         engagementScore: trending.score / 100 // Normalize score
       })
     }

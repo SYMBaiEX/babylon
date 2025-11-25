@@ -11,7 +11,17 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  eq,
+  and,
+  gte,
+  chats,
+  chatParticipants,
+  followStatuses,
+  groupChatMemberships,
+  userInteractions,
+} from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { GroupChat } from '@/shared/types';
 import { notifyGroupChatInvite } from './notification-service';
@@ -64,14 +74,16 @@ export class GroupChatInvite {
     npcId: string
   ): Promise<InviteChance> {
     // Must be followed first
-    const followStatus = await prisma.followStatus.findUnique({
-      where: {
-        userId_npcId: {
-          userId,
-          npcId,
-        },
-      },
-    });
+    const [followStatus] = await db
+      .select()
+      .from(followStatuses)
+      .where(
+        and(
+          eq(followStatuses.userId, userId),
+          eq(followStatuses.npcId, npcId)
+        )
+      )
+      .limit(1);
 
     if (!followStatus || !followStatus.isActive) {
       return {
@@ -98,13 +110,17 @@ export class GroupChatInvite {
     }
 
     // Check if already in a chat with this NPC
-    const existingMembership = await prisma.groupChatMembership.findFirst({
-      where: {
-        userId,
-        npcAdminId: npcId,
-        isActive: true,
-      },
-    });
+    const [existingMembership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.npcAdminId, npcId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      )
+      .limit(1);
 
     if (existingMembership) {
       return {
@@ -116,15 +132,16 @@ export class GroupChatInvite {
     }
 
     // Get interactions since follow
-    const interactionsSinceFollow = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-        timestamp: {
-          gte: followStatus.followedAt,
-        },
-      },
-    });
+    const interactionsSinceFollow = await db
+      .select()
+      .from(userInteractions)
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          eq(userInteractions.npcId, npcId),
+          gte(userInteractions.timestamp, followStatus.followedAt)
+        )
+      );
 
     if (interactionsSinceFollow.length < this.MIN_REPLIES_SINCE_FOLLOW) {
       return {
@@ -203,57 +220,63 @@ export class GroupChatInvite {
     chatId: string,
     chatName: string
   ): Promise<void> {
-    // Create chat if it doesn't exist
-    await prisma.chat.upsert({
-      where: {
-        id: chatId,
-      },
-      update: {},
-      create: {
+    // Check if chat exists
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!existingChat) {
+      // Create chat
+      await db.insert(chats).values({
         id: chatId,
         name: chatName,
         isGroup: true,
         gameId: 'realtime',
         updatedAt: new Date(),
-      },
-    });
+      });
+    }
 
-    // Add user to chat participants
-    await prisma.chatParticipant.upsert({
-      where: {
-        chatId_userId: {
-          chatId,
-          userId,
-        },
-      },
-      update: {},
-      create: {
+    // Check if participant exists
+    const [existingParticipant] = await db
+      .select()
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!existingParticipant) {
+      // Add user to chat participants
+      await db.insert(chatParticipants).values({
         id: await generateSnowflakeId(),
         chatId,
         userId,
-      },
-    });
+      });
+    }
 
     // Record membership
-    await prisma.groupChatMembership.create({
-      data: {
-        id: await generateSnowflakeId(),
-        userId,
-        chatId,
-        npcAdminId: npcId,
-      },
+    await db.insert(groupChatMemberships).values({
+      id: await generateSnowflakeId(),
+      userId,
+      chatId,
+      npcAdminId: npcId,
     });
 
     // Mark interaction as leading to invite
-    await prisma.userInteraction.updateMany({
-      where: {
-        userId,
-        npcId,
-      },
-      data: {
-        wasInvitedToChat: true,
-      },
-    });
+    await db
+      .update(userInteractions)
+      .set({ wasInvitedToChat: true })
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          eq(userInteractions.npcId, npcId)
+        )
+      );
 
     // Send notification to user about the invite
     await notifyGroupChatInvite(userId, npcId, chatId, chatName);
@@ -263,15 +286,16 @@ export class GroupChatInvite {
    * Get all group chats a user is in
    */
   static async getUserGroupChats(userId: string): Promise<GroupChatData[]> {
-    const memberships = await prisma.groupChatMembership.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-      orderBy: {
-        joinedAt: 'desc',
-      },
-    });
+    const memberships = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      )
+      .orderBy(groupChatMemberships.joinedAt);
 
     // Convert memberships to GroupChatData format
     const groupChats: GroupChatData[] = memberships.map(m => ({
@@ -290,14 +314,16 @@ export class GroupChatInvite {
    * Check if user is in a specific chat
    */
   static async isInChat(userId: string, chatId: string): Promise<boolean> {
-    const membership = await prisma.groupChatMembership.findUnique({
-      where: {
-        userId_chatId: {
-          userId,
-          chatId,
-        },
-      },
-    });
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
 
     return membership?.isActive ?? false;
   }

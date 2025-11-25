@@ -121,7 +121,7 @@ function parseArgs(): CLIOptions {
  */
 async function generateMinimalGameHistory(gameId: string, gameNumber: number): Promise<GameHistory> {
   // Get posts from this game
-  const posts = await db().prisma.post.findMany({
+  const posts = await db().db.post.findMany({
     where: {
       gameId,
       deletedAt: null
@@ -240,7 +240,7 @@ async function validateActorsData(): Promise<void> {
  * - `OPENAI_API_KEY` (fallback option)
  * 
  * **Database Requirements:**
- * - Prisma migrations must be applied
+ * - database migrations must be applied
  * - Database connection must be available
  * 
  * **Process Flow:**
@@ -325,7 +325,7 @@ async function main() {
     
     // Save genesis metadata to database
     // Note: Game metadata stored in database, full data in gameConfig
-    await db().prisma.game.create({
+    await db().db.game.create({
       data: {
         id: await generateSnowflakeId(),
         isContinuous: false,
@@ -360,13 +360,17 @@ async function main() {
       if (!gameData) continue;
 
       // Try to load stored game history from GameConfig
-      const historyConfig = await db().prisma.gameConfig.findUnique({
+      const historyConfig = await db().db.gameConfig.findUnique({
         where: { key: `game-history-${gameData.id}` }
       });
 
       if (historyConfig && historyConfig.value) {
         // Use stored history if available
-        const storedHistory = historyConfig.value as unknown as GameHistory;
+        // Validate historyConfig.value structure matches GameHistory
+        if (!historyConfig.value || typeof historyConfig.value !== 'object') {
+          throw new Error('Invalid game history format in database')
+        }
+        const storedHistory = historyConfig.value as GameHistory;
         history.push(storedHistory);
         logger.info(`Loaded stored history for game ${gameData.id}`, undefined, 'CLI');
       } else {
@@ -448,7 +452,7 @@ async function main() {
   
   // Save game metadata to database
   // Note: Game is now stored in database (posts, events, actors)
-  const savedGame = await db().prisma.game.create({
+  const savedGame = await db().db.game.create({
     data: {
       id: await generateSnowflakeId(),
       isContinuous: false,
@@ -462,7 +466,7 @@ async function main() {
   logger.info(`Saved game to database (ID: ${savedGame.id})`, undefined, 'CLI');
 
   // Save game history for future reference
-  await db().prisma.gameConfig.upsert({
+  await db().db.gameConfig.upsert({
     where: { key: `game-history-${savedGame.id}` },
     update: { 
       value: gameHistory as never,

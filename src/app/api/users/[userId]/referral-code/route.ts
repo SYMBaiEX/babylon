@@ -55,7 +55,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { db, users, eq } from '@/db';
 import { AuthorizationError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -88,12 +88,12 @@ export const GET = withErrorHandling(async (
   const referralCode = await getOrCreateReferralCode(canonicalUserId);
 
   // Get user stats
-  const user = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: {
-      referralCount: true,
-    },
-  });
+  const [user] = await db.select({
+    referralCount: users.referralCount,
+  })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   if (!user) {
     throw new NotFoundError('User', canonicalUserId);

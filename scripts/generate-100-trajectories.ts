@@ -5,7 +5,7 @@
  */
 
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 async function main() {
@@ -16,12 +16,12 @@ async function main() {
   
   const agents = [];
   for (let i = 1; i <= 5; i++) {
-    let agent = await prisma.user.findFirst({
+    let agent = await db.user.findFirst({
       where: { username: `rl-test-agent-${i}` }
     });
     
     if (!agent) {
-      agent = await prisma.user.create({
+      agent = await db.user.create({
         data: {
           id: await generateSnowflakeId(),
           username: `rl-test-agent-${i}`,
@@ -29,7 +29,7 @@ async function main() {
           isAgent: true,
           isTest: true,
           agentSystem: `Trading agent ${i}`,
-          virtualBalance: 10000,
+          virtualBalance: '10000',
           autonomousTrading: true,
           updatedAt: new Date()
         }
@@ -95,11 +95,11 @@ async function main() {
     }
   }
   
-  const total = await prisma.trajectory.count();
+  const total = await db.trajectory.count();
   console.log(`\n✅ Successfully created ${created} new trajectories`);
   console.log(`✅ Total in database: ${total}\n`);
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main();

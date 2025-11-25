@@ -12,7 +12,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { prisma } from '../../src/lib/prisma';
+import { db } from '@/db';
 import { generateSnowflakeId } from '../../src/lib/snowflake';
 import { NPCGroupDynamicsService } from '../../src/lib/services/npc-group-dynamics-service';
 import { GroupChatSweep } from '../../src/lib/services/group-chat-sweep';
@@ -44,7 +44,7 @@ async function createTestUser(options: {
   const username = options.username || `test-user-${id.slice(-6)}`;
   const displayName = options.displayName || `Test User ${id.slice(-6)}`;
   
-  await prisma.user.create({
+  await db.user.create({
     data: {
       id,
       username,
@@ -67,7 +67,7 @@ async function createTestActor(options: {
   const id = await generateSnowflakeId();
   const name = options.name || `Test NPC ${id.slice(-6)}`;
   
-  await prisma.actor.create({
+  await db.actor.create({
     data: {
       id,
       name,
@@ -79,7 +79,7 @@ async function createTestActor(options: {
   });
   
   // Also create a User entry for the actor (NPCs have isActor: true)
-  await prisma.user.create({
+  await db.user.create({
     data: {
       id,
       username: name.toLowerCase().replace(/\s+/g, '-'),
@@ -103,7 +103,7 @@ async function createTestGroupChat(options: {
   const id = await generateSnowflakeId();
   const name = options.name || `Test Group ${id.slice(-6)}`;
   
-  await prisma.chat.create({
+  await db.chat.create({
     data: {
       id,
       name,
@@ -126,7 +126,7 @@ async function addChatParticipant(options: {
 }): Promise<string> {
   const id = await generateSnowflakeId();
   
-  await prisma.chatParticipant.create({
+  await db.chatParticipant.create({
     data: {
       id,
       chatId: options.chatId,
@@ -148,7 +148,7 @@ async function createGroupMembership(options: {
 }): Promise<string> {
   const id = await generateSnowflakeId();
   
-  await prisma.groupChatMembership.create({
+  await db.groupChatMembership.create({
     data: {
       id,
       chatId: options.chatId,
@@ -171,7 +171,7 @@ async function createMessage(options: {
 }): Promise<string> {
   const id = await generateSnowflakeId();
   
-  await prisma.message.create({
+  await db.message.create({
     data: {
       id,
       chatId: options.chatId,
@@ -189,22 +189,22 @@ async function createMessage(options: {
 async function cleanupTestData(): Promise<void> {
   // Delete in reverse order of dependencies
   if (testIds.messageIds.length > 0) {
-    await prisma.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
+    await db.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
   }
   if (testIds.membershipIds.length > 0) {
-    await prisma.groupChatMembership.deleteMany({ where: { id: { in: testIds.membershipIds } } });
+    await db.groupChatMembership.deleteMany({ where: { id: { in: testIds.membershipIds } } });
   }
   if (testIds.participantIds.length > 0) {
-    await prisma.chatParticipant.deleteMany({ where: { id: { in: testIds.participantIds } } });
+    await db.chatParticipant.deleteMany({ where: { id: { in: testIds.participantIds } } });
   }
   if (testIds.chatIds.length > 0) {
-    await prisma.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
   }
   if (testIds.userIds.length > 0) {
-    await prisma.user.deleteMany({ where: { id: { in: testIds.userIds } } });
+    await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }
   if (testIds.actorIds.length > 0) {
-    await prisma.actor.deleteMany({ where: { id: { in: testIds.actorIds } } });
+    await db.actor.deleteMany({ where: { id: { in: testIds.actorIds } } });
   }
   
   // Reset tracking
@@ -233,8 +233,8 @@ describe('Group Chat Dynamics Integration Tests', () => {
       const agent = await createTestUser({ isAgent: true, displayName: 'AI Agent' });
       
       // Both should have isActor: false (only NPCs have isActor: true)
-      const userRecord = await prisma.user.findUnique({ where: { id: user.id } });
-      const agentRecord = await prisma.user.findUnique({ where: { id: agent.id } });
+      const userRecord = await db.user.findUnique({ where: { id: user.id } });
+      const agentRecord = await db.user.findUnique({ where: { id: agent.id } });
       
       expect(userRecord?.isActor).toBe(false);
       expect(agentRecord?.isActor).toBe(false);
@@ -249,7 +249,7 @@ describe('Group Chat Dynamics Integration Tests', () => {
       await addChatParticipant({ chatId: chat.id, userId: agent.id, invitedBy: npc.id });
       
       // Verify both are participants
-      const participants = await prisma.chatParticipant.findMany({
+      const participants = await db.chatParticipant.findMany({
         where: { chatId: chat.id },
       });
       
@@ -517,7 +517,7 @@ describe('Group Chat Information Access', () => {
     });
     
     // User should be able to see this message
-    const messages = await prisma.message.findMany({
+    const messages = await db.message.findMany({
       where: { chatId: chat.id },
     });
     
@@ -546,7 +546,7 @@ describe('Group Chat Information Access', () => {
     });
     
     // Simulate kick by marking participant as inactive
-    await prisma.chatParticipant.update({
+    await db.chatParticipant.update({
       where: { id: participantId },
       data: { isActive: false, kickedAt: new Date(), kickReason: 'Test kick' },
     });
@@ -559,7 +559,7 @@ describe('Group Chat Information Access', () => {
     });
     
     // Query messages as the user would (only if active participant)
-    const participant = await prisma.chatParticipant.findFirst({
+    const participant = await db.chatParticipant.findFirst({
       where: { chatId: chat.id, userId: user.id, isActive: true },
     });
     
@@ -567,7 +567,7 @@ describe('Group Chat Information Access', () => {
     
     // Business logic would prevent showing messages to inactive participants
     // The messages still exist, but UI/API would filter
-    const allMessages = await prisma.message.findMany({
+    const allMessages = await db.message.findMany({
       where: { chatId: chat.id },
     });
     

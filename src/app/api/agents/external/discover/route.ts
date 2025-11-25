@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
 // import { verifyApiKey } from '@/lib/crypto/api-keys'
-// import { prisma } from '@/lib/prisma'
+// import { db } from '@/db'
 import { AgentStatus, AgentType } from '@/types/agent-registry.types'
 import type { TrustLevel } from '@/types/agent-registry.types'
 

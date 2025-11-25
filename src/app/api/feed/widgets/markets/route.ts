@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
           }
 
           const marketIds = questions.map(q => String(q.id))
-          const markets = await asPublic(async (dbPrisma) => {
-            return await dbPrisma.market.findMany({
+          const markets = await asPublic(async (database) => {
+            return await database.market.findMany({
               where: {
                 id: { in: marketIds },
               },
@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
 
           // Get recent positions to calculate price changes
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-          const recentPositions = await asPublic(async (dbPrisma) => {
-            return await dbPrisma.position.findMany({
+          const recentPositions = await asPublic(async (database) => {
+            return await database.position.findMany({
               where: {
                 marketId: { in: marketIds },
                 createdAt: {
@@ -198,8 +198,8 @@ export async function GET(request: NextRequest) {
     }
 
     const marketIds = questions.map(q => String(q.id))
-    const markets = await asUser(authUser, async (dbPrisma) => {
-      return await dbPrisma.market.findMany({
+    const markets = await asUser(authUser, async (database) => {
+      return await database.market.findMany({
         where: {
           id: { in: marketIds },
         },
@@ -213,8 +213,8 @@ export async function GET(request: NextRequest) {
 
     // Get recent positions to calculate price changes
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const recentPositions = await asUser(authUser, async (dbPrisma) => {
-      return await dbPrisma.position.findMany({
+    const recentPositions = await asUser(authUser, async (database) => {
+      return await database.position.findMany({
         where: {
           marketId: { in: marketIds },
           createdAt: {

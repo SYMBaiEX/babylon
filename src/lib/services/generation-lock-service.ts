@@ -10,7 +10,7 @@
  * - Database-based locking (works across multiple servers)
  * - Automatic expiry (15 minutes for stale lock recovery)
  * - Simple acquire/release pattern
- * - No external dependencies (uses Prisma)
+ * - No external dependencies (uses Drizzle)
  * - Serverless-safe (uses timestamp + random bytes instead of process.pid)
  * 
  * Usage:

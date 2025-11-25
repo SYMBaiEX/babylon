@@ -11,7 +11,7 @@
  * - Recommendations are actionable
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { queryMonitor } from '@/lib/db/query-monitor';
 import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
 import { redis } from '@/lib/redis';
@@ -42,8 +42,8 @@ async function main() {
     console.log('   Executing test query...');
     const startTime = Date.now();
     
-    // Manually record since Prisma middleware might not be active in standalone script
-    const users = await prisma.user.findMany({ take: 5 });
+    // Manually record since database middleware might not be active in standalone script
+    const users = await db.user.findMany({ take: 5 });
     const duration = Date.now() - startTime;
     
     // Manually record the query to prove monitoring works
@@ -262,7 +262,7 @@ async function main() {
     
     // Test connection with simple query
     const connStart = Date.now();
-    await prisma.user.count();
+    await db.user.count();
     const connDuration = Date.now() - connStart;
     
     results.push({

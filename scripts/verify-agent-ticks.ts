@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 
 interface AgentStatus {
@@ -53,7 +53,7 @@ async function checkCronConfig(): Promise<boolean> {
 }
 
 async function getAgentStatuses(): Promise<AgentStatus[]> {
-  const agents = await prisma.user.findMany({
+  const agents = await db.user.findMany({
     where: {
       isAgent: true,
       OR: [
@@ -92,7 +92,7 @@ async function getAgentStatuses(): Promise<AgentStatus[]> {
     if (agent.autonomousGroupChats) autonomousFeatures.push('group chats')
 
     // Check for recent logs (last 24 hours)
-    const recentLogs = await prisma.agentLog.findMany({
+    const recentLogs = await db.agentLog.findMany({
       where: {
         agentUserId: agent.id,
         type: 'tick',
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     console.log('   - agentPointsBalance >= 1')
     console.log('   - At least one autonomous feature enabled')
     console.log('')
-    await prisma.$disconnect()
+    await db.$disconnect()
     process.exit(0)
   }
 
@@ -309,7 +309,7 @@ async function main(): Promise<void> {
     console.log('')
   }
 
-  await prisma.$disconnect()
+  await db.$disconnect()
   process.exit(0)
 }
 

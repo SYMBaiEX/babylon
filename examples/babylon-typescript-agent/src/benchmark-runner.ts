@@ -102,10 +102,10 @@ async function runBenchmark(
     
     await (async () => {
       // Gather context via A2A interface
-      const portfolioResponse = await a2aInterface.sendRequest('a2a.getPortfolio') as { balance: number; positions: Array<Record<string, unknown>>; pnl: number }
+      const portfolioResponse = await a2aInterface.sendRequest('a2a.getPortfolio') as { balance: number; positions: A2APerpPosition[]; pnl: number }
       const portfolio: { balance: number; positions: A2APerpPosition[]; pnl: number } = {
         balance: portfolioResponse?.balance ?? 10000,
-        positions: (portfolioResponse?.positions ?? []) as unknown as A2APerpPosition[],
+        positions: portfolioResponse?.positions ?? [],
         pnl: portfolioResponse?.pnl ?? 0
       }
       
@@ -131,7 +131,6 @@ async function runBenchmark(
       // Execute action (if not HOLD)
       if (decision.action !== 'HOLD') {
         // Create a wrapper that matches A2AActionClient interface
-        // SimulationA2AInterface returns Record<string, unknown> but A2AActionClient expects Record<string, JsonValue>
         const actionClient: A2AActionClient = {
           buyShares: async (marketId: string, outcome: 'YES' | 'NO', amount: number) => {
             const result = await a2aInterface.buyShares(marketId, outcome, amount)

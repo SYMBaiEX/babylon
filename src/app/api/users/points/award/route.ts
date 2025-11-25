@@ -69,13 +69,13 @@
  */
 
 import { successResponse } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { db, users, balanceTransactions, eq, desc, sql } from '@/db';
+import { Decimal } from '@/db';
 import { BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 import { AwardPointsSchema, UserIdParamSchema } from '@/lib/validation/schemas';
-import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -89,64 +89,63 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { userId, points: amount, reason, description } = AwardPointsSchema.parse(body);
 
   // Verify user exists and get current balance
-  const user = await requireUserByIdentifier(userId, {
-    id: true,
-    virtualBalance: true,
-    totalDeposited: true,
-  });
+  const user = await requireUserByIdentifier(userId);
 
   // Calculate balance changes
-  const balanceBefore = new Prisma.Decimal(user.virtualBalance.toString());
-  const amountDecimal = new Prisma.Decimal(amount);
-  const balanceAfter = balanceBefore.plus(amountDecimal);
+  const balanceBefore = new Decimal(user.virtualBalance?.toString() || '0');
+  const amountDecimal = new Decimal(amount);
+  const balanceAfter = Decimal.add(balanceBefore, amountDecimal);
 
   // Award points by creating a deposit transaction
-  const transaction = await prisma.balanceTransaction.create({
-    data: {
-      id: await generateSnowflakeId(),
+  const transactionId = await generateSnowflakeId();
+  const [transaction] = await db.insert(balanceTransactions)
+    .values({
+      id: transactionId,
       userId: user.id,
       type: 'deposit',
-      amount: amountDecimal,
-      balanceBefore,
-      balanceAfter,
+      amount: amountDecimal.toString(),
+      balanceBefore: balanceBefore.toString(),
+      balanceAfter: balanceAfter.toString(),
       description: description || reason, // Use custom description if provided, otherwise use reason enum
-    },
-  });
+    })
+    .returning();
 
   // Update user's virtual balance
-  const updatedUser = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      virtualBalance: {
-        increment: amount,
-      },
-      totalDeposited: {
-        increment: amount,
-      },
-    },
-    select: {
-      id: true,
-      virtualBalance: true,
-      totalDeposited: true,
-    },
-  });
+  const [updatedUser] = await db.update(users)
+    .set({
+      virtualBalance: sql`${users.virtualBalance} + ${amount}`,
+      totalDeposited: sql`${users.totalDeposited} + ${amount}`,
+    })
+    .where(eq(users.id, user.id))
+    .returning({
+      id: users.id,
+      virtualBalance: users.virtualBalance,
+      totalDeposited: users.totalDeposited,
+    });
 
   logger.info(`Successfully awarded ${amount} points`, { userId: user.id, amount, reason }, 'POST /api/users/points/award');
+
+  if (!transaction) {
+    throw new BusinessLogicError('Failed to create transaction', 'TRANSACTION_FAILED');
+  }
+  if (!updatedUser) {
+    throw new BusinessLogicError('Failed to update user', 'UPDATE_FAILED');
+  }
 
   return successResponse({
     message: `Successfully awarded ${amount} points`,
     transaction: {
       id: transaction.id,
-      amount: transaction.amount.toString(),
+      amount: transaction.amount?.toString() || '0',
       reason: transaction.description,
       timestamp: transaction.createdAt,
-      balanceBefore: transaction.balanceBefore.toString(),
-      balanceAfter: transaction.balanceAfter.toString(),
+      balanceBefore: transaction.balanceBefore?.toString() || '0',
+      balanceAfter: transaction.balanceAfter?.toString() || '0',
     },
     user: {
       id: updatedUser.id,
-      virtualBalance: updatedUser.virtualBalance.toString(),
-      totalDeposited: updatedUser.totalDeposited.toString(),
+      virtualBalance: updatedUser.virtualBalance?.toString() || '0',
+      totalDeposited: updatedUser.totalDeposited?.toString() || '0',
     },
   });
 });
@@ -165,27 +164,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   
   // Validate userId format
   const { userId } = UserIdParamSchema.parse({ userId: userIdParam });
-  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const targetUser = await requireUserByIdentifier(userId);
   const canonicalUserId = targetUser.id;
 
   // Fetch deposit transactions (points awards)
-  const transactions = await prisma.balanceTransaction.findMany({
-    where: {
-      userId: canonicalUserId,
-      type: 'deposit',
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    select: {
-      id: true,
-      amount: true,
-      description: true,
-      createdAt: true,
-      balanceBefore: true,
-      balanceAfter: true,
-    },
-  });
+  const transactions = await db.select({
+    id: balanceTransactions.id,
+    amount: balanceTransactions.amount,
+    description: balanceTransactions.description,
+    createdAt: balanceTransactions.createdAt,
+    balanceBefore: balanceTransactions.balanceBefore,
+    balanceAfter: balanceTransactions.balanceAfter,
+  })
+    .from(balanceTransactions)
+    .where(eq(balanceTransactions.userId, canonicalUserId))
+    .orderBy(desc(balanceTransactions.createdAt));
 
   logger.info('Points award history fetched', { userId: canonicalUserId, transactionCount: transactions.length }, 'GET /api/users/points/award');
 

@@ -20,7 +20,7 @@ import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentWalletService } from '@/lib/agents/identity/AgentWalletService'
 import { automationPipeline } from '@/lib/training/AutomationPipeline'
 import { getLatestRLModel } from '@/lib/training/WandbModelFetcher'
-import { prisma } from '@/lib/prisma'
+import { db, users, sql } from '@/db'
 
 type HarnessOptions = {
   agentCount: number
@@ -70,7 +70,7 @@ function parseArgs(): HarnessOptions {
 
 async function ensureHarnessManager(): Promise<string> {
   const managerId = 'rl-harness-manager'
-  await prisma.user.upsert({
+  await db.user.upsert({
     where: { id: managerId },
     update: {},
     create: {
@@ -92,28 +92,28 @@ async function ensureHarnessAgents(count: number, managerId: string): Promise<st
     const agentId = `rl-harness-agent-${i}`
     agentIds.push(agentId)
 
-    await prisma.user.upsert({
-      where: { id: agentId },
-      update: {
+    // Use Drizzle onConflictDoUpdate for upsert with atomic increment
+    await db.insert(users).values({
+      id: agentId,
+      username: `rl_harness_agent_${i}`,
+      displayName: `RL Harness Agent ${i}`,
+      isAgent: true,
+      managedBy: managerId,
+      agentSystem: 'You are a disciplined Babylon trading agent focused on benchmark evaluation.',
+      agentModelTier: 'standard',
+      agentPointsBalance: 5,
+      profileComplete: true,
+      updatedAt: new Date()
+    }).onConflictDoUpdate({
+      target: users.id,
+      set: {
         managedBy: managerId,
         isAgent: true,
-        agentPointsBalance: { increment: 5 }
-      },
-      create: {
-        id: agentId,
-        username: `rl_harness_agent_${i}`,
-        displayName: `RL Harness Agent ${i}`,
-        isAgent: true,
-        managedBy: managerId,
-        agentSystem: 'You are a disciplined Babylon trading agent focused on benchmark evaluation.',
-        agentModelTier: 'standard',
-        agentPointsBalance: 5,
-        profileComplete: true,
-        updatedAt: new Date()
+        agentPointsBalance: sql`${users.agentPointsBalance} + 5`
       }
     })
 
-    const agentRecord = await prisma.user.findUnique({
+    const agentRecord = await db.user.findUnique({
       where: { id: agentId },
       select: { walletAddress: true }
     })
@@ -132,7 +132,7 @@ async function ensureHarnessAgents(count: number, managerId: string): Promise<st
         if (!agentRecord?.walletAddress) {
           const { ethers } = await import('ethers');
           const devWallet = ethers.Wallet.createRandom();
-          await prisma.user.update({
+          await db.user.update({
             where: { id: agentId },
             data: {
               walletAddress: devWallet.address,
@@ -182,7 +182,7 @@ async function runBenchmark(agentId: string, snapshotPath: string, runIndex: num
 }
 
 async function summarizeTrajectories(agentIds: string[], scenarioId: string, runStartedAt: Date) {
-  const trajectories = await prisma.trajectory.findMany({
+  const trajectories = await db.trajectory.findMany({
     where: {
       agentId: { in: agentIds },
       scenarioId,
@@ -224,9 +224,9 @@ async function main() {
 
   // Test database connection immediately - fail fast if DB is not available
   try {
-    await prisma.$connect()
+    await db.$connect()
     // Simple query to verify connection
-    await prisma.user.findFirst({ take: 1 })
+    await db.user.findFirst({ take: 1 })
   } catch (error) {
     console.error('❌ Cannot connect to database. Is it running?')
     console.error('   Error:', error instanceof Error ? error.message : String(error))
@@ -280,13 +280,13 @@ async function main() {
     console.log('\nℹ️  No RL models have been registered yet.')
   }
 
-  await prisma.$disconnect()
+  await db.$disconnect()
   console.log('\n✅ Harness run complete')
 }
 
 main().catch(async (error) => {
   console.error('\n❌ Harness failed:', error)
-  await prisma.$disconnect()
+  await db.$disconnect()
   process.exit(1)
 })
 

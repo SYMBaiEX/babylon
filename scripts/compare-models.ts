@@ -2,39 +2,78 @@
  * Compare Model Performance on Benchmark
  * 
  * Runs the same benchmark with multiple models and compares results.
+ * 
+ * Usage:
+ *   bun run scripts/compare-models.ts [benchmark] [output-dir] [--models=model1,model2]
+ *   
+ * Examples:
+ *   bun run scripts/compare-models.ts                                    # Default benchmark, default models
+ *   bun run scripts/compare-models.ts benchmarks/benchmark-week-30-60-10-5-8-12345.json
+ *   bun run scripts/compare-models.ts --models=llama-8b,qwen-32b         # Specific models from registry
+ *   bun run scripts/compare-models.ts --models=llama-3.1-8b-instant      # Also accepts model IDs
  */
 
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import { prisma } from '@/lib/prisma';
+import { BenchmarkChartGenerator, type ModelComparisonData } from '@/lib/benchmark/BenchmarkChartGenerator';
+import { MODEL_REGISTRY, getModelById, getModelByModelId, getBaselineModels, type ModelConfig } from '@/lib/benchmark/ModelRegistry';
+import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-interface ModelConfig {
-  name: string;
-  modelId: string;
-  displayName: string;
+/**
+ * Parse model selection from command line args
+ */
+function parseModelSelection(args: string[]): ModelConfig[] {
+  const modelsArg = args.find(a => a.startsWith('--models='));
+  
+  if (!modelsArg) {
+    // Default to baseline models
+    return getBaselineModels();
 }
 
-const MODELS: ModelConfig[] = [
-  {
-    name: 'llama8b',
-    modelId: 'llama-3.1-8b-instant',
-    displayName: 'LLaMA 8B Instant',
-  },
-  {
-    name: 'qwen32b',
-    modelId: 'qwen/qwen3-32b',
-    displayName: 'Qwen 32B',
-  },
-];
+  const modelIds = modelsArg.split('=')[1]?.split(',') ?? [];
+  const models: ModelConfig[] = [];
+  
+  for (const id of modelIds) {
+    // Try to find by registry ID first, then by model API ID
+    const model = getModelById(id.trim()) ?? getModelByModelId(id.trim());
+    if (model) {
+      models.push(model);
+    } else {
+      console.warn(`⚠️  Unknown model: ${id}. Available models:`);
+      for (const m of MODEL_REGISTRY) {
+        console.log(`     - ${m.id} (${m.displayName})`);
+      }
+      process.exit(1);
+    }
+  }
+  
+  return models;
+}
+
+/**
+ * Show available models
+ */
+function showAvailableModels(): void {
+  console.log('\n📋 Available Models:\n');
+  for (const m of MODEL_REGISTRY) {
+    const baseline = m.isBaseline ? ' [baseline]' : '';
+    console.log(`   ${m.id.padEnd(15)} - ${m.displayName}${baseline}`);
+  }
+  console.log('');
+}
 
 async function runModelBenchmark(
   agentId: string,
   benchmarkPath: string,
   model: ModelConfig,
   outputDir: string
-) {
+): Promise<{
+  model: ModelConfig;
+  result: Awaited<ReturnType<typeof BenchmarkRunner.runSingle>>;
+  duration: number;
+}> {
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📊 Running: ${model.displayName}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
@@ -47,7 +86,7 @@ async function runModelBenchmark(
     agentRuntime: runtime,
     agentUserId: agentId,
     saveTrajectory: false,
-    outputDir: path.join(outputDir, model.name),
+    outputDir: path.join(outputDir, model.id),
     forceModel: model.modelId,
   });
   
@@ -67,18 +106,57 @@ async function runModelBenchmark(
   };
 }
 
-async function main() {
-  const benchmarkPath = process.argv[2] || 'benchmarks/benchmark-week-30-60-10-5-8-12345.json';
-  const outputDir = process.argv[3] || 'benchmarks/model-comparison';
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  
+  // Check for help
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔬 MODEL COMPARISON BENCHMARK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Usage:
+  bun run scripts/compare-models.ts [benchmark] [output-dir] [--models=model1,model2]
+
+Options:
+  --models=...     Comma-separated list of models to compare
+  --list-models    Show available models
+  --help           Show this help
+
+Examples:
+  bun run scripts/compare-models.ts
+  bun run scripts/compare-models.ts benchmarks/benchmark-week-30-60-10-5-8-12345.json
+  bun run scripts/compare-models.ts --models=llama-8b,qwen-32b
+  bun run scripts/compare-models.ts benchmarks/benchmark-week-30-60-10-5-8-12345.json output --models=llama-8b,llama-70b
+`);
+    showAvailableModels();
+    process.exit(0);
+  }
+  
+  // Check for list models
+  if (args.includes('--list-models')) {
+    showAvailableModels();
+    process.exit(0);
+  }
+  
+  // Parse arguments
+  const nonFlagArgs = args.filter(a => !a.startsWith('--'));
+  const benchmarkPath = nonFlagArgs[0] ?? 'benchmarks/benchmark-week-30-60-10-5-8-12345.json';
+  const outputDir = nonFlagArgs[1] ?? 'benchmarks/model-comparison';
+  
+  // Parse model selection
+  const models = parseModelSelection(args);
   
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🔬 MODEL COMPARISON BENCHMARK');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   console.log(`Benchmark: ${benchmarkPath}`);
-  console.log(`Output: ${outputDir}\n`);
+  console.log(`Output: ${outputDir}`);
+  console.log(`Models: ${models.map(m => m.displayName).join(', ')}\n`);
   
   // Get test agent
-  const agent = await prisma.user.findFirst({
+  const agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: 'trader-aggressive',
@@ -86,16 +164,20 @@ async function main() {
   });
   
   if (!agent) {
-    console.error('❌ Test agent not found');
+    console.error('❌ Test agent not found. Run: bun run scripts/ensure-test-agents.ts');
     process.exit(1);
   }
   
   console.log(`Agent: ${agent.displayName}\n`);
   
   // Run all models
-  const results = [];
+  const results: Array<{
+    model: ModelConfig;
+    result: Awaited<ReturnType<typeof BenchmarkRunner.runSingle>>;
+    duration: number;
+  }> = [];
   
-  for (const model of MODELS) {
+  for (const model of models) {
     const modelResult = await runModelBenchmark(
       agent.id,
       benchmarkPath,
@@ -108,34 +190,26 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
-  // Generate comparison
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📊 COMPARISON RESULTS');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  // Convert to ModelComparisonData for chart generation
+  const comparisonData: ModelComparisonData[] = results.map(r => ({
+    modelId: r.model.modelId,
+    modelName: r.model.displayName,
+    metrics: r.result.metrics,
+    runAt: new Date(),
+  }));
   
-  console.log('┌─────────────────────┬──────────┬──────────┐');
-  console.log('│ Model               │ LLaMA 8B │ Qwen 32B │');
-  console.log('├─────────────────────┼──────────┼──────────┤');
-  
-  const llama = results[0]!;
-  const qwen = results[1]!;
-  
-  console.log(`│ P&L                 │ $${llama.result.metrics.totalPnl.toFixed(0).padStart(7)} │ $${qwen.result.metrics.totalPnl.toFixed(0).padStart(7)} │`);
-  console.log(`│ Accuracy            │ ${(llama.result.metrics.predictionMetrics.accuracy * 100).toFixed(1).padStart(6)}% │ ${(qwen.result.metrics.predictionMetrics.accuracy * 100).toFixed(1).padStart(6)}% │`);
-  console.log(`│ Correct/Total       │ ${llama.result.metrics.predictionMetrics.correctPredictions.toString().padStart(2)}/${llama.result.metrics.predictionMetrics.totalPositions.toString().padEnd(2)}    │ ${qwen.result.metrics.predictionMetrics.correctPredictions.toString().padStart(2)}/${qwen.result.metrics.predictionMetrics.totalPositions.toString().padEnd(2)}    │`);
-  console.log(`│ Optimality Score    │ ${llama.result.metrics.optimalityScore.toFixed(1).padStart(6)}% │ ${qwen.result.metrics.optimalityScore.toFixed(1).padStart(6)}% │`);
-  console.log(`│ Perp Trades         │ ${llama.result.metrics.perpMetrics.totalTrades.toString().padStart(8)} │ ${qwen.result.metrics.perpMetrics.totalTrades.toString().padStart(8)} │`);
-  console.log(`│ Duration            │ ${llama.duration.toFixed(1).padStart(7)}s │ ${qwen.duration.toFixed(1).padStart(7)}s │`);
-  console.log('└─────────────────────┴──────────┴──────────┘\n');
+  // Print terminal summary with charts
+  console.log(BenchmarkChartGenerator.generateTerminalSummary(comparisonData));
   
   // Determine winner
-  const winner = llama.result.metrics.totalPnl > qwen.result.metrics.totalPnl ? 'LLaMA 8B' : 'Qwen 32B';
-  const pnlDelta = Math.abs(llama.result.metrics.totalPnl - qwen.result.metrics.totalPnl);
-  const accuracyDelta = Math.abs(llama.result.metrics.predictionMetrics.accuracy - qwen.result.metrics.predictionMetrics.accuracy);
-  
-  console.log(`🏆 Winner: ${winner}`);
-  console.log(`   P&L Delta: $${pnlDelta.toFixed(2)}`);
-  console.log(`   Accuracy Delta: ${(accuracyDelta * 100).toFixed(1)}%\n`);
+  const sorted = [...results].sort((a, b) => b.result.metrics.totalPnl - a.result.metrics.totalPnl);
+  const winner = sorted[0]!;
+  const loser = sorted[sorted.length - 1]!;
+  const pnlDelta = Math.abs(winner.result.metrics.totalPnl - loser.result.metrics.totalPnl);
+  const accuracyDelta = Math.abs(
+    winner.result.metrics.predictionMetrics.accuracy - 
+    loser.result.metrics.predictionMetrics.accuracy
+  );
   
   // Save comparison
   const comparison = {
@@ -146,11 +220,15 @@ async function main() {
       name: agent.displayName,
     },
     results: results.map(r => ({
-      model: r.model,
+      model: {
+        name: r.model.id,
+        modelId: r.model.modelId,
+        displayName: r.model.displayName,
+      },
       duration: r.duration,
       metrics: r.result.metrics,
     })),
-    winner,
+    winner: winner.model.displayName,
     deltas: {
       pnl: pnlDelta,
       accuracy: accuracyDelta,
@@ -163,9 +241,18 @@ async function main() {
     JSON.stringify(comparison, null, 2)
   );
   
-  console.log(`Results saved to: ${outputDir}/comparison.json\n`);
+  // Generate HTML report
+  const reportPath = path.join(outputDir, 'report.html');
+  await BenchmarkChartGenerator.generateReport(comparisonData, reportPath, {
+    title: 'Model Comparison Benchmark',
+    benchmarkId: benchmarkPath,
+  });
   
-  await prisma.$disconnect();
+  console.log(`Results saved to: ${outputDir}/comparison.json`);
+  console.log(`HTML Report: ${outputDir}/report.html`);
+  console.log(`\nOpen report: file://${path.resolve(reportPath)}\n`);
+  
+  await db.$disconnect();
   process.exit(0);
 }
 

@@ -7,7 +7,7 @@
  */
 
 import { verifyAgentSession } from '@/lib/auth/agent-auth';
-import { prisma } from '@/lib/prisma';
+import { db, users, eq } from '@/db';
 import { logger } from '@/lib/logger';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
@@ -145,10 +145,15 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
     const privy = getPrivyClient();
     const claims = await privy.verifyAuthToken(token);
 
-    const dbUser = await prisma.user.findUnique({
-      where: { privyId: claims.userId },
-      select: { id: true, walletAddress: true },
-    });
+    const result = await db.select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+    })
+      .from(users)
+      .where(eq(users.privyId, claims.userId))
+      .limit(1);
+
+    const dbUser = result[0];
 
     return {
       userId: dbUser?.id ?? claims.userId,
@@ -241,10 +246,15 @@ export async function optionalAuth(request: NextRequest): Promise<AuthenticatedU
     const privy = getPrivyClient();
     const claims = await privy.verifyAuthToken(token);
 
-    const dbUser = await prisma.user.findUnique({
-      where: { privyId: claims.userId },
-      select: { id: true, walletAddress: true },
-    });
+    const result = await db.select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+    })
+      .from(users)
+      .where(eq(users.privyId, claims.userId))
+      .limit(1);
+
+    const dbUser = result[0];
 
     return {
       userId: dbUser?.id ?? claims.userId,

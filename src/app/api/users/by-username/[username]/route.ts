@@ -70,11 +70,19 @@
  */
 
 import type { NextRequest } from 'next/server';
-import type { PrismaClient } from '@prisma/client';
+import { 
+  db, 
+  users, 
+  positions, 
+  comments, 
+  reactions, 
+  follows,
+  eq,
+  count,
+} from '@/db';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import {  NotFoundError } from '@/lib/errors';
+import { NotFoundError } from '@/lib/errors';
 import { UsernameParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
@@ -90,58 +98,62 @@ export const GET = withErrorHandling(async (
   const { username } = UsernameParamSchema.parse(params);
 
   // Optional authentication
-  const authUser = await optionalAuth(request);
+  await optionalAuth(request);
 
-  // Get user profile by username with RLS (public profile lookup)
-  const dbOperation = async (db: PrismaClient) => {
-    return await db.user.findUnique({
-      where: { username },
-      select: {
-        id: true,
-        walletAddress: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        coverImageUrl: true,
-        isActor: true,
-        profileComplete: true,
-        hasUsername: true,
-        hasBio: true,
-        hasProfileImage: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        reputationPoints: true,
-        referralCount: true,
-        referralCode: true,
-        hasFarcaster: true,
-        hasTwitter: true,
-        farcasterUsername: true,
-        twitterUsername: true,
-        usernameChangedAt: true,
-        createdAt: true,
-        _count: {
-          select: {
-            Position: true,
-            Comment: true,
-            Reaction: true,
-            Follow_Follow_followingIdToUser: true,
-            Follow_Follow_followerIdToUser: true,
-          },
-        },
-      },
-    });
-  }
-
-  const dbUser = (authUser && authUser.userId)
-    ? await asUser(authUser, dbOperation)
-    : await asPublic(dbOperation)
+  // Get user profile by username
+  const [dbUser] = await db.select({
+    id: users.id,
+    walletAddress: users.walletAddress,
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    coverImageUrl: users.coverImageUrl,
+    isActor: users.isActor,
+    profileComplete: users.profileComplete,
+    hasUsername: users.hasUsername,
+    hasBio: users.hasBio,
+    hasProfileImage: users.hasProfileImage,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
+    virtualBalance: users.virtualBalance,
+    lifetimePnL: users.lifetimePnL,
+    reputationPoints: users.reputationPoints,
+    referralCount: users.referralCount,
+    referralCode: users.referralCode,
+    hasFarcaster: users.hasFarcaster,
+    hasTwitter: users.hasTwitter,
+    farcasterUsername: users.farcasterUsername,
+    twitterUsername: users.twitterUsername,
+    usernameChangedAt: users.usernameChangedAt,
+    createdAt: users.createdAt,
+  })
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
 
   if (!dbUser) {
     throw new NotFoundError('User', username);
   }
+
+  // Get counts for stats
+  const [[positionCount], [commentCount], [reactionCount], [followerCount], [followingCount]] = await Promise.all([
+    db.select({ count: count() })
+      .from(positions)
+      .where(eq(positions.userId, dbUser.id)),
+    db.select({ count: count() })
+      .from(comments)
+      .where(eq(comments.authorId, dbUser.id)),
+    db.select({ count: count() })
+      .from(reactions)
+      .where(eq(reactions.userId, dbUser.id)),
+    db.select({ count: count() })
+      .from(follows)
+      .where(eq(follows.followingId, dbUser.id)),
+    db.select({ count: count() })
+      .from(follows)
+      .where(eq(follows.followerId, dbUser.id)),
+  ]);
 
   logger.info('User profile fetched by username', { username, userId: dbUser.id }, 'GET /api/users/by-username/[username]');
 
@@ -172,13 +184,12 @@ export const GET = withErrorHandling(async (
       twitterUsername: dbUser.twitterUsername,
       createdAt: dbUser.createdAt.toISOString(),
       stats: {
-        positions: dbUser._count.Position,
-        comments: dbUser._count.Comment,
-        reactions: dbUser._count.Reaction,
-        followers: dbUser._count.Follow_Follow_followingIdToUser,
-        following: dbUser._count.Follow_Follow_followerIdToUser,
+        positions: Number(positionCount?.count || 0),
+        comments: Number(commentCount?.count || 0),
+        reactions: Number(reactionCount?.count || 0),
+        followers: Number(followerCount?.count || 0),
+        following: Number(followingCount?.count || 0),
       },
     },
   });
 });
-

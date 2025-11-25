@@ -53,7 +53,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateAgentCardSync } from '@/lib/a2a/sdk/agent-card-generator'
 import { logger } from '@/lib/logger'
 
@@ -66,7 +66,7 @@ export async function GET(
   try {
     const { agentId } = await params
     
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: {
         id: true,

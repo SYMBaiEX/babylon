@@ -11,7 +11,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { createTestAgent } from '@/lib/agents/utils/createTestAgent'
 import { asSystem } from '@/lib/db/context'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -98,7 +98,7 @@ describe('Agent Autonomous Tick Integration', () => {
 
     // Get initial state
     console.log('Getting initial state...');
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: testAgentId },
       select: {
         agentLastTickAt: true
@@ -142,7 +142,7 @@ describe('Agent Autonomous Tick Integration', () => {
     // Delete game if we created it
     if (createdGameId) {
       try {
-        await prisma.game.delete({ where: { id: createdGameId } })
+        await db.game.delete({ where: { id: createdGameId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -151,7 +151,7 @@ describe('Agent Autonomous Tick Integration', () => {
     // Cleanup test agent
     if (testAgentId) {
       try {
-        await prisma.user.delete({ where: { id: testAgentId } })
+        await db.user.delete({ where: { id: testAgentId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -223,7 +223,7 @@ describe('Agent Autonomous Tick Integration', () => {
     }
 
     // Verify agent exists and meets criteria before tick
-    const agentBefore = await prisma.user.findUnique({
+    const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
       select: {
         isAgent: true,
@@ -261,7 +261,7 @@ describe('Agent Autonomous Tick Integration', () => {
     if (result.processed === 0) {
       console.log('⚠️  No agents processed. Response:', JSON.stringify(result, null, 2))
       // Check if agent still exists and meets criteria
-      const agentCheck = await prisma.user.findUnique({
+      const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
         select: {
           isAgent: true,
@@ -303,7 +303,7 @@ describe('Agent Autonomous Tick Integration', () => {
     await new Promise(resolve => setTimeout(resolve, 1000))
 
     // Check agentLastTickAt was updated
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: testAgentId },
       select: {
         agentLastTickAt: true
@@ -325,7 +325,7 @@ describe('Agent Autonomous Tick Integration', () => {
     }
 
     // Verify agent exists and meets criteria before tick
-    const agentBefore = await prisma.user.findUnique({
+    const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
       select: {
         isAgent: true,
@@ -358,7 +358,7 @@ describe('Agent Autonomous Tick Integration', () => {
     if (result.processed === 0) {
       console.log('⚠️  No agents processed. Response:', JSON.stringify(result, null, 2))
       // Check if agent still exists and meets criteria
-      const agentCheck = await prisma.user.findUnique({
+      const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
         select: {
           isAgent: true,
@@ -400,7 +400,7 @@ describe('Agent Autonomous Tick Integration', () => {
     await new Promise(resolve => setTimeout(resolve, 1000))
 
     // Check agent logs were created
-    const logs = await prisma.agentLog.findMany({
+    const logs = await db.agentLog.findMany({
       where: {
         agentUserId: testAgentId,
         type: 'tick'
@@ -424,12 +424,12 @@ describe('Agent Autonomous Tick Integration', () => {
     }
 
     // Ensure agent has points
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testAgentId },
       data: { agentPointsBalance: 100 }
     })
 
-    const beforeAgent = await prisma.user.findUnique({
+    const beforeAgent = await db.user.findUnique({
       where: { id: testAgentId },
       select: { agentPointsBalance: true }
     })
@@ -473,7 +473,7 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait for database update
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    const afterAgent = await prisma.user.findUnique({
+    const afterAgent = await db.user.findUnique({
       where: { id: testAgentId },
       select: { agentPointsBalance: true }
     })

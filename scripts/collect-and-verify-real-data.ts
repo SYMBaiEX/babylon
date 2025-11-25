@@ -10,7 +10,7 @@
  * Will NOT upload mock/test data - only real data.
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -69,7 +69,7 @@ async function collectRealTrajectories() {
   console.log('📊 Collecting REAL trajectories from database...\n');
   
   try {
-    const count = await prisma.trajectory.count({
+    const count = await db.trajectory.count({
       where: { isTrainingData: true },
     });
     
@@ -82,7 +82,7 @@ async function collectRealTrajectories() {
     }
     
     // Get sample to verify it's real data
-    const sample = await prisma.trajectory.findFirst({
+    const sample = await db.trajectory.findFirst({
       where: { isTrainingData: true },
       select: {
         trajectoryId: true,
@@ -168,7 +168,7 @@ async function main() {
   console.log('✅ Data verified as REAL - safe to upload!');
   console.log('');
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main();

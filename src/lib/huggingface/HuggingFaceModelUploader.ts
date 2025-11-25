@@ -8,7 +8,9 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { trainedModels, benchmarkResults } from '@/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import type { SimulationMetrics } from '@/lib/benchmark/SimulationEngine';
 
 export interface ModelBenchmarkResult {
@@ -70,9 +72,13 @@ export class HuggingFaceModelUploader {
       }
 
       // Step 1: Load model from database
-      const model = await prisma.trainedModel.findUnique({
-        where: { modelId: options.modelId },
-      });
+      const modelResult = await db
+        .select()
+        .from(trainedModels)
+        .where(eq(trainedModels.modelId, options.modelId))
+        .limit(1);
+
+      const model = modelResult[0];
 
       if (!model) {
         throw new Error(`Model not found: ${options.modelId}`);
@@ -80,9 +86,9 @@ export class HuggingFaceModelUploader {
 
       // Step 2: Get benchmark results
       logger.info('Loading benchmark results', { modelId: options.modelId });
-      const benchmarkResults = await this.getBenchmarkResults(options.modelId);
+      const modelBenchmarks = await this.getBenchmarkResults(options.modelId);
 
-      if (benchmarkResults.length === 0) {
+      if (modelBenchmarks.length === 0) {
         logger.warn('No benchmark results found for model', { modelId: options.modelId });
       }
 
@@ -94,8 +100,8 @@ export class HuggingFaceModelUploader {
         baseModel: model.baseModel,
         trainedAt: model.createdAt,
         wandbRunId: model.wandbRunId || undefined,
-        benchmarkResults,
-        metrics: this.calculateAverageMetrics(benchmarkResults),
+        benchmarkResults: modelBenchmarks,
+        metrics: this.calculateAverageMetrics(modelBenchmarks),
       };
 
       // Step 4: Create output directory
@@ -122,7 +128,7 @@ export class HuggingFaceModelUploader {
 
       // Step 7: Save benchmark results
       const benchmarksPath = path.join(outputDir, 'benchmark_results.json');
-      await fs.writeFile(benchmarksPath, JSON.stringify(benchmarkResults, null, 2));
+      await fs.writeFile(benchmarksPath, JSON.stringify(modelBenchmarks, null, 2));
 
       // Step 8: Upload to HuggingFace (if weights available and requested)
       let filesUploaded = 2; // README.md + metadata
@@ -144,13 +150,13 @@ export class HuggingFaceModelUploader {
       logger.info('Model uploaded successfully', { modelUrl, filesUploaded });
 
       // Update model status in database
-      await prisma.trainedModel.update({
-        where: { modelId: options.modelId },
-        data: {
+      await db
+        .update(trainedModels)
+        .set({
           status: 'deployed',
           deployedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(trainedModels.modelId, options.modelId));
 
       return {
         success: true,
@@ -175,15 +181,17 @@ export class HuggingFaceModelUploader {
   private async getBenchmarkResults(modelId: string): Promise<ModelBenchmarkResult[]> {
     // Query benchmark results from database
     try {
-      const results = await prisma.benchmarkResult.findMany({
-        where: { modelId },
-        orderBy: { runAt: 'desc' },
-      });
+      const results = await db
+        .select()
+        .from(benchmarkResults)
+        .where(eq(benchmarkResults.modelId, modelId))
+        .orderBy(desc(benchmarkResults.runAt));
 
       return results.map(r => ({
         benchmarkId: r.benchmarkId,
         runAt: r.runAt.toISOString(),
-        metrics: r.detailedMetrics as unknown as SimulationMetrics,
+        // detailedMetrics is stored as JSON in database, validate it matches SimulationMetrics
+        metrics: r.detailedMetrics as SimulationMetrics,
       }));
     } catch (error) {
       logger.warn('Could not load benchmark results from database', { error });

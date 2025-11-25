@@ -76,6 +76,7 @@ import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service'
 import { generateTrendingSummary } from '@/lib/services/trending-grouping-service'
 import { groupTrendingTags, type TrendingTag } from '@/lib/services/trending-grouping-service'
 import { logger } from '@/lib/logger'
+import { postTags, posts, eq, desc } from '@/db'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -141,51 +142,41 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         trending.map(async (item) => {
           const recentPosts = (authUser && authUser.userId)
             ? await asUser(authUser, async (db) => {
-              return await db.postTag.findMany({
-                where: { tagId: item.Tag.id },
-                include: {
-                  Post: {
-                    select: {
-                      content: true,
-                    },
-                  },
-                },
-                take: 3,
-                orderBy: {
-                  createdAt: 'desc',
-                },
+              return await db.select({
+                postId: postTags.postId,
+                postContent: posts.content,
               })
+                .from(postTags)
+                .innerJoin(posts, eq(postTags.postId, posts.id))
+                .where(eq(postTags.tagId, item.tag.id))
+                .orderBy(desc(postTags.createdAt))
+                .limit(3)
             })
             : await asPublic(async (db) => {
-              return await db.postTag.findMany({
-                where: { tagId: item.Tag.id },
-                include: {
-                  Post: {
-                    select: {
-                      content: true,
-                    },
-                  },
-                },
-                take: 3,
-                orderBy: {
-                  createdAt: 'desc',
-                },
+              return await db.select({
+                postId: postTags.postId,
+                postContent: posts.content,
               })
+                .from(postTags)
+                .innerJoin(posts, eq(postTags.postId, posts.id))
+                .where(eq(postTags.tagId, item.tag.id))
+                .orderBy(desc(postTags.createdAt))
+                .limit(3)
             })
 
-          const postContents = recentPosts.map(pt => pt.Post.content)
+          const postContents = recentPosts.map(pt => pt.postContent)
           
           const summary = await generateTrendingSummary(
-            item.Tag.displayName,
-            item.Tag.category,
+            item.tag.displayName,
+            item.tag.category,
             postContents
           )
 
           return {
             id: item.id,
-            tag: item.Tag.displayName,
-            tagSlug: item.Tag.name,
-            category: item.Tag.category,
+            tag: item.tag.displayName,
+            tagSlug: item.tag.name,
+            category: item.tag.category,
             postCount: item.postCount,
             summary,
             rank: item.rank,

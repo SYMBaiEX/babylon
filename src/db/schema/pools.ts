@@ -112,13 +112,13 @@ export const poolPositions = pgTable(
 
 // Relations
 export const poolsRelations = relations(pools, ({ one, many }) => ({
-  actor: one(actors, {
+  Actor: one(actors, {
     fields: [pools.npcActorId],
     references: [actors.id],
   }),
-  deposits: many(poolDeposits),
-  positions: many(poolPositions),
-  npcTrades: many(npcTrades),
+  PoolDeposit: many(poolDeposits),
+  PoolPosition: many(poolPositions),
+  NPCTrade: many(npcTrades),
 }));
 
 export const poolDepositsRelations = relations(poolDeposits, ({ one }) => ({

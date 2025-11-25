@@ -9,7 +9,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 import { InteractionTracker } from '@/lib/services/InteractionTracker';
 import type { Actor, Organization } from '@/shared/types';
@@ -59,7 +59,7 @@ const testOrgs: Organization[] = [
 describe('Dynamic Relationships System', () => {
   beforeAll(async () => {
     // Clean up test data
-    await prisma.nPCInteraction.deleteMany({
+    await db.npcInteraction.deleteMany({
       where: {
         OR: [
           { actor1Id: { startsWith: 'test-actor-' } },
@@ -68,7 +68,7 @@ describe('Dynamic Relationships System', () => {
       },
     });
     
-    await prisma.actorRelationship.deleteMany({
+    await db.actorRelationship.deleteMany({
       where: {
         OR: [
           { actor1Id: { startsWith: 'test-actor-' } },
@@ -79,7 +79,7 @@ describe('Dynamic Relationships System', () => {
 
     // Create test actors
     for (const actor of testActors) {
-      await prisma.actor.upsert({
+      await db.actor.upsert({
         where: { id: actor.id },
         update: {},
         create: {
@@ -99,7 +99,7 @@ describe('Dynamic Relationships System', () => {
 
   afterAll(async () => {
     // Clean up
-    await prisma.nPCInteraction.deleteMany({
+    await db.npcInteraction.deleteMany({
       where: {
         OR: [
           { actor1Id: { startsWith: 'test-actor-' } },
@@ -108,7 +108,7 @@ describe('Dynamic Relationships System', () => {
       },
     });
     
-    await prisma.actorRelationship.deleteMany({
+    await db.actorRelationship.deleteMany({
       where: {
         OR: [
           { actor1Id: { startsWith: 'test-actor-' } },
@@ -117,11 +117,11 @@ describe('Dynamic Relationships System', () => {
       },
     });
     
-    await prisma.actor.deleteMany({
+    await db.actor.deleteMany({
       where: { id: { startsWith: 'test-actor-' } },
     });
 
-    await prisma.$disconnect();
+    await db.$disconnect();
   });
 
   describe('Initial Relationship Generation', () => {
@@ -132,7 +132,7 @@ describe('Dynamic Relationships System', () => {
       expect(created).toBeGreaterThan(0);
 
       // Check database
-      const relationships = await prisma.actorRelationship.findMany({
+      const relationships = await db.actorRelationship.findMany({
         where: {
           OR: [
             { actor1Id: { startsWith: 'test-actor-' } },
@@ -162,7 +162,7 @@ describe('Dynamic Relationships System', () => {
     });
 
     test('should create relationships for actors with shared affiliations', async () => {
-      const relationships = await prisma.actorRelationship.findMany({
+      const relationships = await db.actorRelationship.findMany({
         where: {
           OR: [
             { actor1Id: 'test-actor-1', actor2Id: 'test-actor-3' },
@@ -183,7 +183,7 @@ describe('Dynamic Relationships System', () => {
 
   describe('Interaction Tracking', () => {
     test('should track post mentions', async () => {
-      const beforeCount = await prisma.nPCInteraction.count({
+      const beforeCount = await db.npcInteraction.count({
         where: {
           actor1Id: 'test-actor-1',
           actor2Id: 'test-actor-2',
@@ -197,7 +197,7 @@ describe('Dynamic Relationships System', () => {
         0.8
       );
 
-      const afterCount = await prisma.nPCInteraction.count({
+      const afterCount = await db.npcInteraction.count({
         where: {
           actor1Id: 'test-actor-1',
           actor2Id: 'test-actor-2',
@@ -207,7 +207,7 @@ describe('Dynamic Relationships System', () => {
       expect(afterCount).toBe(beforeCount + 1);
 
       // Check interaction details
-      const interaction = await prisma.nPCInteraction.findFirst({
+      const interaction = await db.npcInteraction.findFirst({
         where: {
           actor1Id: 'test-actor-1',
           actor2Id: 'test-actor-2',
@@ -231,7 +231,7 @@ describe('Dynamic Relationships System', () => {
         -0.6
       );
 
-      const interaction = await prisma.nPCInteraction.findFirst({
+      const interaction = await db.npcInteraction.findFirst({
         where: {
           actor1Id: 'test-actor-1',
           actor2Id: 'test-actor-2',
@@ -301,7 +301,7 @@ describe('Dynamic Relationships System', () => {
 
     test('should return empty string for actor with no relationships', async () => {
       // Delete all relationships for test-actor-1
-      await prisma.actorRelationship.deleteMany({
+      await db.actorRelationship.deleteMany({
         where: {
           OR: [
             { actor1Id: 'test-actor-1' },
@@ -335,7 +335,7 @@ describe('Dynamic Relationships System', () => {
 
   describe('Relationship Text Quality', () => {
     test('relationship descriptions should be narrative and simple', async () => {
-      const relationships = await prisma.actorRelationship.findMany({
+      const relationships = await db.actorRelationship.findMany({
         where: {
           actor1Id: { startsWith: 'test-actor-' },
         },
@@ -363,14 +363,14 @@ describe('Dynamic Relationships System', () => {
 
   describe('System Integration', () => {
     test('should have NPCInteraction table accessible', async () => {
-      const count = await prisma.nPCInteraction.count();
+      const count = await db.npcInteraction.count();
       expect(count).toBeGreaterThanOrEqual(0);
       
       console.log(`\n✅ NPCInteraction table accessible: ${count} interactions`);
     });
 
     test('should have evolution tracking fields in ActorRelationship', async () => {
-      const relationship = await prisma.actorRelationship.findFirst({
+      const relationship = await db.actorRelationship.findFirst({
         where: {
           actor1Id: { startsWith: 'test-actor-' },
         },

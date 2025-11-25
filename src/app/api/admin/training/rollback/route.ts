@@ -52,7 +52,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { modelDeployer } from '@/lib/training/ModelDeployer';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current deployed version
-    const currentModel = await prisma.trainedModel.findFirst({
+    const currentModel = await db.trainedModel.findFirst({
       where: { status: 'deployed' },
       orderBy: { deployedAt: 'desc' }
     });

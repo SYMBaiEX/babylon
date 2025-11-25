@@ -56,13 +56,11 @@ export const DELETE = withErrorHandling(async (
   const user = await authenticate(request)
 
   await asUser(user, async (db) => {
-    // First, check if the user is actually a participant
-    const participant = await db.chatParticipant.findUnique({
+    // First, check if the user is actually a participant (compound key lookup)
+    const participant = await db.chatParticipant.findFirst({
       where: {
-        chatId_userId: {
-          chatId,
-          userId: user.userId,
-        },
+        chatId,
+        userId: user.userId,
       },
     });
 
@@ -75,13 +73,13 @@ export const DELETE = withErrorHandling(async (
     }
 
     // For NPC-run chats, we mark the membership as inactive to preserve history
-    const groupMembership = await db.groupChatMembership.findUnique({
+    const groupMembership = await db.groupChatMembership.findFirst({
         where: {
-            userId_chatId: {
-                userId: user.userId,
-                chatId,
-            }
-        }
+            AND: [
+                { userId: { equals: user.userId } },
+                { chatId: { equals: chatId } },
+            ],
+        },
     });
 
     if (groupMembership) {

@@ -59,7 +59,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
 import { X402Manager } from '@/lib/a2a/payments/x402-manager'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const { txHash, fromAddress, toAddress, amount } = validationData
 
     // Get escrow record
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { id: validationData.escrowId },
       include: {
         User: {
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
             displayName: true,
           },
         },
-        Admin: {
+        admin: {
           select: {
             id: true,
             walletAddress: true,
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     // Check if expired
     if (new Date() > escrow.expiresAt) {
       // Auto-expire if expired
-      await prisma.moderationEscrow.update({
+      await db.moderationEscrow.update({
         where: { id: escrowId },
         data: { status: 'expired' },
       })
@@ -161,7 +161,18 @@ export async function POST(req: NextRequest) {
     // }
 
     // Verify fromAddress matches admin's wallet (from metadata or Admin record)
-    const expectedFromAddress = escrow.Admin?.walletAddress || (escrow.metadata as { adminWalletAddress?: string })?.adminWalletAddress
+    type EscrowWithAdmin = typeof escrow & {
+      admin?: {
+        id: string;
+        walletAddress: string | null;
+      } | null;
+    };
+    const escrowWithAdmin = escrow as EscrowWithAdmin;
+    type EscrowMetadata = {
+      adminWalletAddress?: string;
+    };
+    const metadata = escrow.metadata as EscrowMetadata | null;
+    const expectedFromAddress = escrowWithAdmin.admin?.walletAddress || metadata?.adminWalletAddress;
     if (expectedFromAddress && fromAddress.toLowerCase() !== expectedFromAddress.toLowerCase()) {
       return NextResponse.json(
         { error: 'Transaction sender does not match admin wallet address' },
@@ -170,7 +181,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use database transaction to prevent race conditions
-    const verificationResult = await prisma.$transaction(async (tx) => {
+    const verificationResult = await db.$transaction(async (tx) => {
       // Re-fetch escrow within transaction to get latest state
       const currentEscrow = await tx.moderationEscrow.findUnique({
         where: { id: escrowId },

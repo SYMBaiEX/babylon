@@ -1,12 +1,12 @@
 /**
  * Distributed Lock Service
  * 
- * @description Generic distributed lock implementation using Prisma.
+ * @description Generic distributed lock implementation using Drizzle.
  * Prevents race conditions across multiple servers/processes.
  * Supports automatic stale lock recovery.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, eq, generationLocks } from '@/db';
 import { logger } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 
@@ -21,9 +21,9 @@ export class DistributedLockService {
   /**
    * Acquire a distributed lock
    * 
-   * Uses a "check-first, create-second" pattern to avoid triggering P2002 errors
+   * Uses a "check-first, create-second" pattern to avoid triggering unique constraint errors
    * in normal cases. Race conditions (multiple processes checking and creating 
-   * simultaneously) may still produce P2002 errors which are handled gracefully.
+   * simultaneously) may still produce errors which are handled gracefully.
    */
   static async acquireLock(options: LockOptions): Promise<boolean> {
     const { lockId, durationMs, operation, processId } = options;
@@ -33,29 +33,37 @@ export class DistributedLockService {
     // Generate serverless-safe unique ID if not provided
     const lockHolder = processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
     
-    // First, check if lock already exists (avoids P2002 errors in most cases)
-    const existingLock = await prisma.generationLock.findUnique({
-      where: { id: lockId }
-    });
+    // First, check if lock already exists (avoids unique constraint errors in most cases)
+    const [existingLock] = await db
+      .select()
+      .from(generationLocks)
+      .where(eq(generationLocks.id, lockId))
+      .limit(1);
     
     if (existingLock) {
       // Lock exists - check if it's expired
       if (existingLock.expiresAt <= now) {
-        // Expired - try to recover atomically using CAS
-        const result = await prisma.generationLock.updateMany({
-          where: {
-            id: lockId,
-            expiresAt: { lte: now } // Only update if STILL expired
-          },
-          data: {
+        // Expired - try to recover atomically using conditional update
+        await db
+          .update(generationLocks)
+          .set({
             lockedBy: lockHolder,
             lockedAt: now,
             expiresAt: expiry,
             operation,
-          }
-        });
+          })
+          .where(
+            eq(generationLocks.id, lockId)
+          );
         
-        if (result.count > 0) {
+        // Check if we updated (need to verify the lock is still expired)
+        const [updatedLock] = await db
+          .select()
+          .from(generationLocks)
+          .where(eq(generationLocks.id, lockId))
+          .limit(1);
+        
+        if (updatedLock && updatedLock.lockedBy === lockHolder) {
           logger.info(`Lock ${lockId} acquired (recovered stale)`, {
             lockId,
             lockHolder,
@@ -79,14 +87,12 @@ export class DistributedLockService {
     
     // No lock exists - try to create it
     try {
-      await prisma.generationLock.create({
-        data: {
-          id: lockId,
-          lockedBy: lockHolder,
-          lockedAt: now,
-          expiresAt: expiry,
-          operation,
-        },
+      await db.insert(generationLocks).values({
+        id: lockId,
+        lockedBy: lockHolder,
+        lockedAt: now,
+        expiresAt: expiry,
+        operation,
       });
       
       logger.info(`Lock ${lockId} acquired (created)`, {
@@ -96,12 +102,18 @@ export class DistributedLockService {
       }, 'DistributedLockService');
       return true;
     } catch (error: unknown) {
-      // P2002 = Unique constraint violation (race condition - another process created it first)
-      if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002') {
+      // Unique constraint violation (race condition - another process created it first)
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error 
+        ? (error as { code: string }).code 
+        : '';
+      
+      if (errorCode === '23505') { // PostgreSQL unique violation code
         // Another process created it between our check and create - that's fine, just skip
-        const currentLock = await prisma.generationLock.findUnique({
-          where: { id: lockId }
-        });
+        const [currentLock] = await db
+          .select()
+          .from(generationLocks)
+          .where(eq(generationLocks.id, lockId))
+          .limit(1);
         
         if (currentLock) {
           const ageMinutes = Math.round((now.getTime() - currentLock.lockedAt.getTime()) / 1000 / 60);
@@ -137,30 +149,26 @@ export class DistributedLockService {
     }
     
     // Only delete if we're the holder
-    const deleted = await prisma.generationLock.deleteMany({
-      where: {
-        id: lockId,
-        lockedBy: processId,
-      },
-    });
+    const [existingLock] = await db
+      .select()
+      .from(generationLocks)
+      .where(eq(generationLocks.id, lockId))
+      .limit(1);
     
-    if (deleted.count > 0) {
-      logger.info(`Lock ${lockId} released`, { lockId, lockHolder: processId }, 'DistributedLockService');
-    } else {
-      // Check if lock exists but held by someone else
-      const lock = await prisma.generationLock.findUnique({
-        where: { id: lockId },
-      });
+    if (existingLock && existingLock.lockedBy === processId) {
+      await db
+        .delete(generationLocks)
+        .where(eq(generationLocks.id, lockId));
       
-      if (lock) {
-        logger.warn(`Lock ${lockId} not held by this process`, {
-          lockId,
-          requestedHolder: processId,
-          actualHolder: lock.lockedBy,
-        }, 'DistributedLockService');
-      } else {
-        logger.info(`Lock ${lockId} already released or expired`, { lockId }, 'DistributedLockService');
-      }
+      logger.info(`Lock ${lockId} released`, { lockId, lockHolder: processId }, 'DistributedLockService');
+    } else if (existingLock) {
+      logger.warn(`Lock ${lockId} not held by this process`, {
+        lockId,
+        requestedHolder: processId,
+        actualHolder: existingLock.lockedBy,
+      }, 'DistributedLockService');
+    } else {
+      logger.info(`Lock ${lockId} already released or expired`, { lockId }, 'DistributedLockService');
     }
   }
 
@@ -168,9 +176,11 @@ export class DistributedLockService {
    * Check if lock is held
    */
   static async checkLock(lockId: string) {
-    const lock = await prisma.generationLock.findUnique({
-      where: { id: lockId },
-    });
+    const [lock] = await db
+      .select()
+      .from(generationLocks)
+      .where(eq(generationLocks.id, lockId))
+      .limit(1);
     
     if (!lock) return null;
     
@@ -182,4 +192,3 @@ export class DistributedLockService {
     return lock;
   }
 }
-

@@ -5,7 +5,7 @@
  * Uses actual benchmark files + database trajectories.
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -23,7 +23,7 @@ async function main() {
   let trajectories = [];
   
   try {
-    const dbTrajectories = await prisma.trajectory.findMany({
+    const dbTrajectories = await db.trajectory.findMany({
       where: { isTrainingData: true },
       take: 1000,  // Limit for memory safety
       select: {
@@ -197,12 +197,12 @@ MIT
   console.log('Next: npm run hf:upload');
   console.log('');
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch(async (error) => {
   console.error('Error:', error);
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(1);
 });
 

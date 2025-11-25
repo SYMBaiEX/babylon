@@ -1,5 +1,5 @@
 // Drizzle ORM Schema - Complete database schema for Babylon
-// This replaces the Prisma schema
+// This is the Drizzle schema
 
 // Enums
 export * from './enums';

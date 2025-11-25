@@ -5,12 +5,13 @@
  */
 
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { agentWalletService } from '@/lib/agents/identity/AgentWalletService'
 import { A2AClient } from '@a2a-js/sdk/client'
 import type { Task, Message } from '@a2a-js/sdk'
 import type { BabylonRuntime } from './types'
 import type { AgentRuntime, Plugin } from '@elizaos/core'
+import type { JsonValue } from '@/types/common'
 
 function shouldAutoProvisionWallets(): boolean {
   return process.env.AUTO_CREATE_AGENT_WALLETS !== 'false'
@@ -22,7 +23,7 @@ function shouldAutoProvisionWallets(): boolean {
 async function initializeA2ASdkClient(
   agentUserId: string
 ): Promise<A2AClient> {
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentUserId }
   })
 
@@ -121,8 +122,8 @@ export class BabylonA2AClient {
    */
   private async executeViaA2A(
     action: string,
-    params: Record<string, unknown>
-  ): Promise<unknown> {
+    params: Record<string, JsonValue>
+  ): Promise<JsonValue> {
     if (!this.sdkClient) {
       throw new Error('A2A client not available - use database fallback')
     }
@@ -234,6 +235,16 @@ export class BabylonA2AClient {
         }
       })
 
+      // Type for data part in A2A messages
+      interface DataPart {
+        kind: 'data'
+        data: JsonValue
+      }
+      
+      function isDataPart(part: { kind: string }): part is DataPart {
+        return part.kind === 'data' && 'data' in part
+      }
+
       // Handle response - extract Task or Message
       let task: Task | undefined
       if ('result' in response && response.result) {
@@ -244,8 +255,8 @@ export class BabylonA2AClient {
           } else if (result.kind === 'message') {
             // Direct message response
             const msg = result as Message
-            const dataPart = msg.parts.find(p => p.kind === 'data')
-            return dataPart ? (dataPart as { data: unknown }).data : {}
+            const dataPart = msg.parts.find(p => isDataPart(p))
+            return dataPart && isDataPart(dataPart) ? dataPart.data : {}
           }
         }
       }
@@ -272,8 +283,8 @@ export class BabylonA2AClient {
           if (task.artifacts && task.artifacts.length > 0) {
             const artifact = task.artifacts[0]
             if (artifact) {
-              const dataPart = artifact.parts.find(p => p.kind === 'data')
-              return dataPart ? (dataPart as { data: unknown }).data : {}
+              const dataPart = artifact.parts.find(p => isDataPart(p))
+              return dataPart && isDataPart(dataPart) ? dataPart.data : {}
             }
           }
           return {}
@@ -297,14 +308,28 @@ export class BabylonA2AClient {
 
   /**
    * Core request method - uses A2A protocol
+   * Accepts params with potential undefined values and filters them out
+   * Returns unknown since A2A responses can be any JSON structure
    */
-  async request(method: string, params?: unknown): Promise<unknown> {
+  async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
     if (method.startsWith('a2a.')) {
       // Map a2a.* methods to actions
       const action = method.replace('a2a.', '').replace(/([A-Z])/g, '_$1').toLowerCase()
       // Convert back to camelCase for skill mapping
       const camelAction = action.split('_').map((w, i) => i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)).join('')
-      return this.executeViaA2A(camelAction, (params || {}) as Record<string, unknown>)
+      // Filter out undefined values from params and convert to JsonValue
+      const cleanParams: Record<string, JsonValue> = {}
+      if (params) {
+        for (const [key, value] of Object.entries(params)) {
+          if (value !== undefined && value !== null) {
+            // Value is known to be defined, safe to cast to JsonValue
+            cleanParams[key] = value as JsonValue
+          } else if (value === null) {
+            cleanParams[key] = null
+          }
+        }
+      }
+      return this.executeViaA2A(camelAction, cleanParams)
     }
     throw new Error(`Method ${method} must use A2A protocol`)
   }
@@ -312,7 +337,7 @@ export class BabylonA2AClient {
   /**
    * Alias for request() for backward compatibility with providers
    */
-  async sendRequest(method: string, params?: unknown): Promise<unknown> {
+  async sendRequest(method: string, params?: Record<string, unknown>): Promise<unknown> {
     return this.request(method, params)
   }
 
@@ -348,7 +373,7 @@ export class BabylonA2AClient {
     markets?: string[]
     minReputation?: number
   }, limit?: number) {
-    return this.request('a2a.discover', { filters, limit })
+    return this.request('a2a.discover', { filters: filters as JsonValue, limit })
   }
 
   async getAgentInfo(agentId: string) {
@@ -571,7 +596,7 @@ export class BabylonA2AClient {
     metadata?: Record<string, unknown>
     from?: string
   }) {
-    return this.request('a2a.paymentRequest', params)
+    return this.request('a2a.paymentRequest', params as Record<string, unknown>)
   }
 
   async paymentReceipt(requestId: string, txHash: string) {
@@ -663,7 +688,7 @@ export class BabylonA2AClient {
 export async function initializeAgentA2AClient(
   agentUserId: string
 ): Promise<BabylonA2AClient | null> {
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentUserId },
     select: { walletAddress: true, agent0TokenId: true }
   })
@@ -698,7 +723,7 @@ export async function enhanceRuntimeWithBabylon(
   // A2A is REQUIRED - initialize client
   const sdkClient = await initializeA2ASdkClient(agentUserId)
   
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentUserId },
     select: { walletAddress: true, agent0TokenId: true }
   })
@@ -709,7 +734,8 @@ export async function enhanceRuntimeWithBabylon(
     agent?.walletAddress || undefined,
     agent?.agent0TokenId || undefined
   )
-  babylonRuntime.a2aClient = a2aClient as unknown as typeof babylonRuntime.a2aClient
+  // a2aClient is BabylonA2AClient which matches the BabylonRuntime.a2aClient type
+  babylonRuntime.a2aClient = a2aClient
   
   logger.info('✅ Babylon plugin registered with A2A client', { 
     agentUserId,

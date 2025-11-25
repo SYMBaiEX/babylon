@@ -11,8 +11,8 @@ const mockGetReadyPerpsEngine = mock().mockResolvedValue({
   updatePositions: mockUpdatePositions,
 });
 
-mock.module('@/lib/prisma', () => ({
-  prisma: {
+mock.module('@/db', () => ({
+  db: {
     organization: {
       findUnique: mockFindUnique,
       update: mockUpdateOrg,

@@ -7,7 +7,7 @@
  * 3. Performance of previous models
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, trainedModels, eq, and, not, isNotNull, desc, inArray, count } from '@/db';
 import { logger } from '@/lib/logger';
 
 export interface ModelSelectionResult {
@@ -167,15 +167,18 @@ export class ModelSelectionService {
    * non-null benchmark scores.
    */
   async getBestPerformingModel() {
-    const model = await prisma.trainedModel.findFirst({
-      where: {
-        status: { in: ['ready', 'deployed'] },
-        benchmarkScore: { not: null }
-      },
-      orderBy: {
-        benchmarkScore: 'desc'
-      }
-    });
+    const modelResult = await db.select()
+      .from(trainedModels)
+      .where(
+        and(
+          inArray(trainedModels.status, ['ready', 'deployed']),
+          isNotNull(trainedModels.benchmarkScore)
+        )
+      )
+      .orderBy(desc(trainedModels.benchmarkScore))
+      .limit(1);
+    
+    const model = modelResult[0];
 
     if (!model) {
       logger.warn('No benchmarked models found', undefined, 'ModelSelectionService');
@@ -208,22 +211,19 @@ export class ModelSelectionService {
    * @returns Number of available training bundles
    */
   async countTrainingBundles(): Promise<number> {
-    const count = await prisma.trajectory.count({
-      where: {
-        isTrainingData: true,
-        usedInTraining: false,
-        aiJudgeReward: { not: null },
-        // Exclude string representations of null/empty
-        NOT: {
-          OR: [
-            { stepsJson: 'null' },
-            { stepsJson: '[]' }
-          ]
-        }
-      }
-    });
+    const result = await db.select({ count: count() })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false),
+          isNotNull(trajectories.aiJudgeReward),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      );
 
-    return count;
+    return result[0]?.count || 0;
   }
 
   /**
@@ -235,21 +235,19 @@ export class ModelSelectionService {
    * @returns True if no models exist, false otherwise
    */
   async shouldForceFirstModel(): Promise<boolean> {
-    const count = await this.countTrainedModels();
-    return count === 0;
+    const modelCount = await this.countTrainedModels();
+    return modelCount === 0;
   }
 
   /**
    * Count existing trained models
    */
   private async countTrainedModels(): Promise<number> {
-    const count = await prisma.trainedModel.count({
-      where: {
-        status: { in: ['training', 'ready', 'deployed'] }
-      }
-    });
+    const result = await db.select({ count: count() })
+      .from(trainedModels)
+      .where(inArray(trainedModels.status, ['training', 'ready', 'deployed']));
 
-    return count;
+    return result[0]?.count || 0;
   }
 
   /**
@@ -288,34 +286,32 @@ export class ModelSelectionService {
    * - Valid stepsJson (not 'null' or '[]')
    */
   async getTrainingTrajectories(limit?: number | null) {
-    const where = {
-      isTrainingData: true,
-      usedInTraining: false,
-      aiJudgeReward: { not: null },
-      // Exclude string representations of null/empty
-      NOT: {
-        OR: [
-          { stepsJson: 'null' },
-          { stepsJson: '[]' }
-        ]
-      }
-    };
-
-    const trajectories = await prisma.trajectory.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc' // Most recent first
-      },
-      take: limit || undefined
-    });
+    let query = db.select()
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false),
+          isNotNull(trajectories.aiJudgeReward),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      )
+      .orderBy(desc(trajectories.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as typeof query;
+    }
+    
+    const result = await query;
 
     logger.info(
-      `Retrieved ${trajectories.length} trajectories for training`,
-      { limit, available: trajectories.length },
+      `Retrieved ${result.length} trajectories for training`,
+      { limit, available: result.length },
       'ModelSelectionService'
     );
 
-    return trajectories;
+    return result;
   }
 
   /**
@@ -367,4 +363,3 @@ export class ModelSelectionService {
 
 // Export singleton instance
 export const modelSelectionService = new ModelSelectionService();
-

@@ -10,7 +10,7 @@
  * This adds variety and prevents AI from falling into repetitive patterns.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, organizations, markets, posts, worldEvents, eq, gte, lte, desc } from '@/db';
 import { sampleRandom, shuffleArray } from '../utils/randomization';
 import { logger } from '../logger';
 
@@ -27,16 +27,15 @@ export interface RandomMarketContext {
  */
 async function getMarketGainers(limit: number = 3): Promise<Array<{ name: string; price: number; change: number }>> {
   try {
-    const companies = await prisma.organization.findMany({
-      where: {
-        type: 'company',
-        currentPrice: { not: null },
-        initialPrice: { not: null },
-      },
-      take: 50, // Get more than needed, then filter
-    });
+    const companies = await db.select()
+      .from(organizations)
+      .where(
+        eq(organizations.type, 'company')
+      )
+      .limit(50); // Get more than needed, then filter
 
     const withChanges = companies
+      .filter(c => c.currentPrice !== null && c.initialPrice !== null)
       .map(c => {
         const current = parseFloat(c.currentPrice?.toString() || '0');
         const initial = parseFloat(c.initialPrice?.toString() || '0');
@@ -59,16 +58,15 @@ async function getMarketGainers(limit: number = 3): Promise<Array<{ name: string
  */
 async function getMarketLosers(limit: number = 3): Promise<Array<{ name: string; price: number; change: number }>> {
   try {
-    const companies = await prisma.organization.findMany({
-      where: {
-        type: 'company',
-        currentPrice: { not: null },
-        initialPrice: { not: null },
-      },
-      take: 50,
-    });
+    const companies = await db.select()
+      .from(organizations)
+      .where(
+        eq(organizations.type, 'company')
+      )
+      .limit(50);
 
     const withChanges = companies
+      .filter(c => c.currentPrice !== null && c.initialPrice !== null)
       .map(c => {
         const current = parseFloat(c.currentPrice?.toString() || '0');
         const initial = parseFloat(c.initialPrice?.toString() || '0');
@@ -91,15 +89,18 @@ async function getMarketLosers(limit: number = 3): Promise<Array<{ name: string;
  */
 async function getActiveQuestions(limit: number = 3): Promise<Array<{ question: string; yesPrice: number }>> {
   try {
-    const markets = await prisma.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: new Date() },
-      },
-      take: 20, // Get more, then sample randomly
-    });
+    const now = new Date();
+    const marketsResult = await db.select()
+      .from(markets)
+      .where(
+        and(
+          eq(markets.resolved, false),
+          gte(markets.endDate, now)
+        )
+      )
+      .limit(20); // Get more, then sample randomly
 
-    const formatted = markets.map(m => {
+    const formatted = marketsResult.map(m => {
       const yesShares = parseFloat(m.yesShares.toString());
       const noShares = parseFloat(m.noShares.toString());
       const totalShares = yesShares + noShares;
@@ -122,19 +123,20 @@ async function getActiveQuestions(limit: number = 3): Promise<Array<{ question: 
 async function getTrendingPosts(limit: number = 3): Promise<Array<{ author: string; content: string; likes: number }>> {
   try {
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        deletedAt: null,
-        timestamp: { 
-          gte: new Date(now.getTime() - 24 * 60 * 60 * 1000), // Last 24h
-          lte: now, // ✅ No future posts
-        },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 20, // Get more, then sample
-    });
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const postsResult = await db.select()
+      .from(posts)
+      .where(
+        and(
+          gte(posts.timestamp, oneDayAgo),
+          lte(posts.timestamp, now)
+        )
+      )
+      .orderBy(desc(posts.timestamp))
+      .limit(20); // Get more, then sample
 
-    const formatted = posts.map(p => ({
+    const formatted = postsResult.map(p => ({
       author: 'Unknown', // Author info would need a join with User table
       content: p.content.length > 150 ? p.content.slice(0, 150) + '...' : p.content,
       likes: 0, // Like count would need aggregation from Reaction table
@@ -154,15 +156,13 @@ async function getTrendingPosts(limit: number = 3): Promise<Array<{ author: stri
 async function getRecentEvents(limit: number = 2): Promise<Array<{ title: string; description: string }>> {
   try {
     const now = new Date();
-    const events = await prisma.worldEvent.findMany({
-      where: {
-        timestamp: { lte: now }, // ✅ No future events
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 10, // Get more, then sample
-    });
+    const eventsResult = await db.select()
+      .from(worldEvents)
+      .where(lte(worldEvents.timestamp, now))
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(10); // Get more, then sample
 
-    const formatted = events.map(e => ({
+    const formatted = eventsResult.map(e => ({
       title: e.eventType, // Use eventType as title since there's no title field
       description: e.description.length > 100 ? e.description.slice(0, 100) + '...' : e.description,
     }));
@@ -246,3 +246,5 @@ export function shuffleActors<T>(actors: T[]): T[] {
   return shuffleArray(actors);
 }
 
+// Import and for queries
+import { and } from 'drizzle-orm';

@@ -7,9 +7,31 @@
  * Token-aware: Limits context size to prevent LLM token overflows
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  eq,
+  and,
+  or,
+  isNull,
+  isNotNull,
+  lte,
+  gte,
+  desc,
+  asc,
+  inArray,
+  actors,
+  posts,
+  chats,
+  messages,
+  chatParticipants,
+  worldEvents,
+  organizations,
+  stockPrices,
+  markets,
+  actorRelationships,
+  poolPositions,
+} from '@/db';
 import { logger } from '@/lib/logger';
-// import { truncateToTokenLimitSync, countTokensSync } from '@/lib/token-counter';
 import type {
   NPCMarketContext,
   MarketSnapshots,
@@ -47,7 +69,11 @@ export class MarketContextService {
     // Fetch all NPCs (no pool requirement)
     // Note: All records in Actor table are NPCs
     // Filter out test actors (Group Test Alice, Bob, Charlie)
-    const npcs = (await prisma.actor.findMany()).filter(
+    const npcsList = await db
+      .select()
+      .from(actors);
+    
+    const npcs = npcsList.filter(
       actor => !actor.name.includes('Group Test')
     );
     
@@ -58,49 +84,73 @@ export class MarketContextService {
       this.getRecentEvents(),
     ]);
     
-    // Get group chat memberships for all NPCs
-    const groupChats = await prisma.chat.findMany({
-      where: { isGroup: true },
-      include: {
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 50,
-        },
-      },
-    });
+    // Get group chats with messages
+    const groupChats = await db
+      .select({
+        id: chats.id,
+        name: chats.name,
+      })
+      .from(chats)
+      .where(eq(chats.isGroup, true));
+    
+    // Get messages for each group chat
+    const groupChatMessages = new Map<string, typeof messagesData>();
+    const messagesData = await db
+      .select()
+      .from(messages)
+      .where(
+        inArray(
+          messages.chatId,
+          groupChats.map(c => c.id)
+        )
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(500); // Limit total messages
+    
+    // Group messages by chat
+    for (const msg of messagesData) {
+      const existing = groupChatMessages.get(msg.chatId) || [];
+      if (existing.length < 50) { // Max 50 per chat
+        existing.push(msg);
+        groupChatMessages.set(msg.chatId, existing);
+      }
+    }
     
     // Fetch all relationships for all NPCs in one query
-    const allRelationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: npcs.flatMap(npc => [
-          { actor1Id: npc.id },
-          { actor2Id: npc.id },
-        ]),
-      },
-    });
+    const npcIds = npcs.map(npc => npc.id);
+    const allRelationships = npcIds.length > 0 ? await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          inArray(actorRelationships.actor1Id, npcIds),
+          inArray(actorRelationships.actor2Id, npcIds)
+        )
+      ) : [];
     
     // Fetch all NPC positions in one query (poolId = actorId for backward compatibility)
-    const npcIds = npcs.map(npc => npc.id);
-    const allPositions = npcIds.length > 0 ? await prisma.poolPosition.findMany({
-      where: {
-        poolId: { in: npcIds },
-        closedAt: null, // Only open positions
-      },
-      select: {
-        id: true,
-        poolId: true,
-        marketType: true,
-        ticker: true,
-        marketId: true,
-        side: true,
-        entryPrice: true,
-        currentPrice: true,
-        size: true,
-        shares: true,
-        unrealizedPnL: true,
-        openedAt: true,
-      },
-    }) : [];
+    const allPositions = npcIds.length > 0 ? await db
+      .select({
+        id: poolPositions.id,
+        poolId: poolPositions.poolId,
+        marketType: poolPositions.marketType,
+        ticker: poolPositions.ticker,
+        marketId: poolPositions.marketId,
+        side: poolPositions.side,
+        entryPrice: poolPositions.entryPrice,
+        currentPrice: poolPositions.currentPrice,
+        size: poolPositions.size,
+        shares: poolPositions.shares,
+        unrealizedPnL: poolPositions.unrealizedPnL,
+        openedAt: poolPositions.openedAt,
+      })
+      .from(poolPositions)
+      .where(
+        and(
+          inArray(poolPositions.poolId, npcIds),
+          isNull(poolPositions.closedAt)
+        )
+      ) : [];
     
     // Group positions by NPC ID
     const positionsByNpc = new Map<string, typeof allPositions>();
@@ -119,21 +169,26 @@ export class MarketContextService {
       const availableBalance = parseFloat(npc.tradingBalance.toString());
       
       // Filter group chats this NPC is a member of (based on chat participants)
-      const npcGroupChats = groupChats.filter(chat =>
-        chat.Message.some(msg => msg.senderId === npc.id) ||
-        chat.name?.toLowerCase().includes((npc.name.toLowerCase().split(' ')[0] ?? ''))
-      );
-      
-      const groupChatMessages: GroupChatContext[] = npcGroupChats.flatMap(chat => 
-        chat.Message.map(msg => ({
-          chatId: chat.id,
-          chatName: chat.name || 'Group Chat',
-          from: msg.senderId,
-          fromName: msg.senderId,
-          message: msg.content,
-          timestamp: msg.createdAt.toISOString(),
-        }))
-      );
+      const npcGroupChats: GroupChatContext[] = [];
+      for (const chat of groupChats) {
+        const chatMsgs = groupChatMessages.get(chat.id) || [];
+        // Check if NPC has sent messages or chat name includes NPC name
+        const isRelevant = chatMsgs.some(msg => msg.senderId === npc.id) ||
+          chat.name?.toLowerCase().includes((npc.name.toLowerCase().split(' ')[0] ?? ''));
+        
+        if (isRelevant) {
+          for (const msg of chatMsgs) {
+            npcGroupChats.push({
+              chatId: chat.id,
+              chatName: chat.name || 'Group Chat',
+              from: msg.senderId,
+              fromName: msg.senderId,
+              message: msg.content,
+              timestamp: msg.createdAt.toISOString(),
+            });
+          }
+        }
+      }
       
       // Fetch positions for this NPC (poolId = actorId for backward compatibility)
       const npcPositions = positionsByNpc.get(npc.id) || [];
@@ -176,7 +231,7 @@ export class MarketContextService {
         availableBalance,
         relationships: npcRelationships,
         recentPosts,
-        groupChatMessages,
+        groupChatMessages: npcGroupChats,
         recentEvents,
         perpMarkets: marketSnapshots.perps,
         predictionMarkets: marketSnapshots.predictions,
@@ -211,9 +266,11 @@ export class MarketContextService {
    * ```
    */
   async buildContextForNPC(npcId: string): Promise<NPCMarketContext> {
-    const npc = await prisma.actor.findUnique({
-      where: { id: npcId },
-    });
+    const [npc] = await db
+      .select()
+      .from(actors)
+      .where(eq(actors.id, npcId))
+      .limit(1);
     
     if (!npc) {
       throw new Error(`NPC not found: ${npcId}`);
@@ -233,25 +290,27 @@ export class MarketContextService {
     const availableBalance = parseFloat(npc.tradingBalance.toString());
     
     // Fetch positions for this NPC (poolId = actorId for backward compatibility)
-    const npcPositions = await prisma.poolPosition.findMany({
-      where: {
-        poolId: npcId,
-        closedAt: null, // Only open positions
-      },
-      select: {
-        id: true,
-        marketType: true,
-        ticker: true,
-        marketId: true,
-        side: true,
-        entryPrice: true,
-        currentPrice: true,
-        size: true,
-        shares: true,
-        unrealizedPnL: true,
-        openedAt: true,
-      },
-    });
+    const npcPositions = await db
+      .select({
+        id: poolPositions.id,
+        marketType: poolPositions.marketType,
+        ticker: poolPositions.ticker,
+        marketId: poolPositions.marketId,
+        side: poolPositions.side,
+        entryPrice: poolPositions.entryPrice,
+        currentPrice: poolPositions.currentPrice,
+        size: poolPositions.size,
+        shares: poolPositions.shares,
+        unrealizedPnL: poolPositions.unrealizedPnL,
+        openedAt: poolPositions.openedAt,
+      })
+      .from(poolPositions)
+      .where(
+        and(
+          eq(poolPositions.poolId, npcId),
+          isNull(poolPositions.closedAt)
+        )
+      );
     
     const currentPositions: NPCPosition[] = npcPositions.map(pos => ({
       id: pos.id,
@@ -293,16 +352,17 @@ export class MarketContextService {
    * @returns Array of relationship contexts
    */
   private async getRelationshipsForNPC(npcId: string): Promise<RelationshipContext[]> {
-    const relationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: [
-          { actor1Id: npcId },
-          { actor2Id: npcId },
-        ],
-      },
-    });
+    const relationshipsList = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          eq(actorRelationships.actor1Id, npcId),
+          eq(actorRelationships.actor2Id, npcId)
+        )
+      );
     
-    return relationships.map(rel => {
+    return relationshipsList.map(rel => {
       const isActor1 = rel.actor1Id === npcId;
       const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
       
@@ -333,46 +393,57 @@ export class MarketContextService {
    * - Only includes chats where NPC is a participant
    */
   private async getInsiderInfo(npcId: string): Promise<GroupChatContext[]> {
-    const groupChats = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-      },
-      include: {
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 20, // Reduced from 50 to limit tokens
-        },
-        ChatParticipant: {
-          select: {
-            userId: true,
-          },
-        },
-      },
-    });
+    // Get chats where NPC is a participant
+    const participantRecords = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, npcId));
     
-    // Filter chats where this NPC is a member
-    const npcChats = groupChats.filter(chat =>
-      chat.ChatParticipant.some(p => p.userId === npcId)
-    );
+    const participantChatIds = participantRecords.map(p => p.chatId);
     
-    return npcChats.flatMap(chat =>
-      chat.Message.slice(0, 15).map(msg => { // Limit to 15 messages per chat
+    if (participantChatIds.length === 0) {
+      return [];
+    }
+    
+    const groupChats = await db
+      .select()
+      .from(chats)
+      .where(
+        and(
+          eq(chats.isGroup, true),
+          inArray(chats.id, participantChatIds)
+        )
+      );
+    
+    const result: GroupChatContext[] = [];
+    
+    for (const chat of groupChats) {
+      const chatMessages = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.chatId, chat.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(20);
+      
+      for (const msg of chatMessages.slice(0, 15)) {
         // Truncate long messages
         const maxMsgLength = 120;
         const message = msg.content.length > maxMsgLength
           ? msg.content.slice(0, maxMsgLength) + '...'
           : msg.content;
         
-        return {
+        result.push({
           chatId: chat.id,
           chatName: chat.name || 'Group Chat',
           from: msg.senderId,
           fromName: msg.senderId,
           message,
           timestamp: msg.createdAt.toISOString(),
-        };
-      })
-    );
+        });
+      }
+    }
+    
+    return result;
   }
   
   /**
@@ -390,16 +461,19 @@ export class MarketContextService {
    */
   private async getRecentFeed(): Promise<FeedPostContext[]> {
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        deletedAt: null, // Filter out deleted posts
-        timestamp: { lte: now }, // ✅ No future posts
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50, // Reduced from 100 to limit tokens
-    });
+    const postList = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          isNull(posts.deletedAt),
+          lte(posts.timestamp, now)
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(50);
     
-    return posts.map(post => {
+    return postList.map(post => {
       // Truncate long posts to save tokens
       const maxContentLength = 200;
       const content = post.content.length > maxContentLength
@@ -436,15 +510,14 @@ export class MarketContextService {
    */
   private async getRecentEvents(): Promise<EventContext[]> {
     const now = new Date();
-    const events = await prisma.worldEvent.findMany({
-      where: {
-        timestamp: { lte: now }, // ✅ No future events
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 30, // Reduced from 50 to limit tokens
-    });
+    const eventList = await db
+      .select()
+      .from(worldEvents)
+      .where(lte(worldEvents.timestamp, now))
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(30);
     
-    return events.map(event => {
+    return eventList.map(event => {
       // Truncate long descriptions
       const maxDescLength = 150;
       const description = event.description.length > maxDescLength
@@ -493,19 +566,21 @@ export class MarketContextService {
    * @returns Array of perpetual market snapshots
    */
   private async getPerpMarketSnapshots(): Promise<PerpMarketSnapshot[]> {
-    const companies = await prisma.organization.findMany({
-      where: {
-        type: 'company',
-        currentPrice: { not: null },
-      },
-      select: {
-        id: true,
-        name: true,
-        ticker: true,
-        currentPrice: true,
-        initialPrice: true,
-      },
-    });
+    const companies = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        ticker: organizations.ticker,
+        currentPrice: organizations.currentPrice,
+        initialPrice: organizations.initialPrice,
+      })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.type, 'company'),
+          isNotNull(organizations.currentPrice)
+        )
+      );
     
     return Promise.all(
       companies.map(async (company) => {
@@ -513,13 +588,16 @@ export class MarketContextService {
         
         // Get 24h price history
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const priceHistory = await prisma.stockPrice.findMany({
-          where: {
-            organizationId: company.id,
-            timestamp: { gte: oneDayAgo },
-          },
-          orderBy: { timestamp: 'asc' },
-        });
+        const priceHistory = await db
+          .select()
+          .from(stockPrices)
+          .where(
+            and(
+              eq(stockPrices.organizationId, company.id),
+              gte(stockPrices.timestamp, oneDayAgo)
+            )
+          )
+          .orderBy(asc(stockPrices.timestamp));
         
         let change24h = 0;
         let changePercent24h = 0;
@@ -536,16 +614,18 @@ export class MarketContextService {
         }
         
         // Get open interest from pool positions
-        // Use raw org ID since TradeExecutionService now stores raw IDs
-        const positions = await prisma.poolPosition.findMany({
-          where: {
-            ticker: company.id,
-            closedAt: null,
-          },
-        });
+        const positions = await db
+          .select({ size: poolPositions.size })
+          .from(poolPositions)
+          .where(
+            and(
+              eq(poolPositions.ticker, company.id),
+              isNull(poolPositions.closedAt)
+            )
+          );
         
-        const openInterest = positions.reduce((sum, pos) => sum + pos.size, 0);
-        const volume24h = positions.reduce((sum, pos) => sum + pos.size, 0);
+        const openInterest = positions.reduce((sum, pos) => sum + Number(pos.size), 0);
+        const volume24h = positions.reduce((sum, pos) => sum + Number(pos.size), 0);
         
         // Use ticker field if available, fallback to transformed org ID
         const ticker = company.ticker || company.id.toUpperCase().replace(/-/g, '');
@@ -580,18 +660,19 @@ export class MarketContextService {
    * - Only includes unresolved markets with endDate >= now
    */
   private async getPredictionMarketSnapshots(): Promise<PredictionMarketSnapshot[]> {
-    const markets = await prisma.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: new Date() },
-      },
-      orderBy: [
-        { yesShares: 'desc' }, // Prioritize markets with more activity
-      ],
-      take: 15, // Limit to top 15 most active markets
-    });
+    const marketList = await db
+      .select()
+      .from(markets)
+      .where(
+        and(
+          eq(markets.resolved, false),
+          gte(markets.endDate, new Date())
+        )
+      )
+      .orderBy(desc(markets.yesShares))
+      .limit(15);
     
-    return markets.map(market => {
+    return marketList.map(market => {
       const yesShares = parseFloat(market.yesShares.toString());
       const noShares = parseFloat(market.noShares.toString());
       const totalShares = yesShares + noShares;

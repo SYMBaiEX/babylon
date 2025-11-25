@@ -9,7 +9,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import db from '@/lib/database-service';
 import { characterMappingService } from './character-mapping-service';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { Actor, Organization, Question } from '@prisma/client';
+import type { Actor, Organization, Question } from '@/db';
 
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;

@@ -9,7 +9,7 @@ import { SimulationEngine, type SimulationConfig } from '@/lib/benchmark/Simulat
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -32,7 +32,7 @@ async function main() {
   
   // 2. Get test agent
   console.log('🤖 Getting test agent...');
-  const agent = await prisma.user.findFirst({
+  const agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: 'trader-aggressive',
@@ -153,7 +153,7 @@ async function main() {
     console.log(`✅ SUCCESS: Agent took ${actionsCount} actions\n`);
   }
   
-  await prisma.$disconnect();
+  await db.$disconnect();
   
   // Force exit to avoid hanging on open connections
   setTimeout(() => {

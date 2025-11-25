@@ -1,6 +1,5 @@
-import { prisma } from '@/lib/prisma';
+import { db, worldEvents, type Question } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import type { Question } from '@prisma/client';
 
 // Minimal question type for event generation (only fields actually used)
 type QuestionForEvent = Pick<Question, 'id' | 'text' | 'questionNumber'>;
@@ -35,22 +34,19 @@ export async function generateEvents(
     const dayNum = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     const safeDayNumber = dayNum >= 0 && dayNum <= 2147483647 ? dayNum : undefined;
 
-    await prisma.worldEvent.create({
-      data: {
-        id: await generateSnowflakeId(),
-        eventType: 'announcement',
-        description: `Development regarding: ${question.text}`,
-        actors: [],
-        relatedQuestion: questionNum,
-        visibility: 'public',
-        gameId: 'continuous',
-        dayNumber: safeDayNumber,
-        timestamp: timestamp,
-      },
+    await db.insert(worldEvents).values({
+      id: await generateSnowflakeId(),
+      eventType: 'announcement',
+      description: `Development regarding: ${question.text}`,
+      actors: [],
+      relatedQuestion: questionNum,
+      visibility: 'public',
+      gameId: 'continuous',
+      dayNumber: safeDayNumber,
+      timestamp: timestamp,
     });
     eventsCreated++;
   }
 
   return eventsCreated;
 }
-

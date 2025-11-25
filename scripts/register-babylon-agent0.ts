@@ -14,7 +14,7 @@
  */
 
 import { SDK } from 'agent0-sdk'
-import { prisma } from '../src/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '../src/lib/snowflake'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'
@@ -52,7 +52,7 @@ async function registerBabylonOnAgent0() {
   console.log(`   Signer: ${sdk.web3Client.address || 'Unknown'}`)
   
   // Check if already registered
-  const existingConfig = await prisma.gameConfig.findUnique({
+  const existingConfig = await db.gameConfig.findUnique({
     where: { key: 'agent0_registration' }
   })
   type Agent0Config = {
@@ -72,15 +72,11 @@ async function registerBabylonOnAgent0() {
     try {
       const agent = await sdk.getAgent(agentId)
       if (agent) {
-        const extendedAgent = agent as unknown as Record<string, unknown>
-        const endpointValue = extendedAgent['a2aEndpoint']
-        const a2aEndpoint = typeof endpointValue === 'string'
-          ? endpointValue
-          : 'Not set'
-        const skillsValue = extendedAgent['a2aSkills']
-        const a2aSkills = Array.isArray(skillsValue)
-          ? (skillsValue as string[])
-          : undefined
+        // AgentSummary may have a2aEndpoint and a2aSkills properties (from SDK v0.31.0+)
+        // Access safely since these may not be in the type definition
+        const agentWithA2a = agent as typeof agent & { a2aEndpoint?: string; a2aSkills?: string[] }
+        const a2aEndpoint = agentWithA2a.a2aEndpoint ?? 'Not set'
+        const a2aSkills = agentWithA2a.a2aSkills
         console.log('\n📊 Current Registration:')
         console.log(`   Name: ${agent.name}`)
         console.log(`   Description: ${agent.description}`)
@@ -187,7 +183,7 @@ async function registerBabylonOnAgent0() {
     console.log('\n💾 Saving to database...')
     const now = new Date()
     
-    await prisma.gameConfig.upsert({
+    await db.gameConfig.upsert({
       where: { key: 'agent0_registration' },
       create: {
         id: await generateSnowflakeId(),

@@ -5,7 +5,7 @@
  * Integrates directly with Babylon's autonomous agents.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, llmCallLogs } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { getCurrentWindowId } from './window-utils';
@@ -185,81 +185,78 @@ export class TrajectoryRecorder {
     const windowId = options.windowId || getCurrentWindowId();
     
     // Save to database
-    await prisma.trajectory.create({
-        data: {
-          id: await generateSnowflakeId(),
-          trajectoryId,
-          agentId: traj.agentId,
-          startTime: new Date(traj.startTime),
-          endTime: new Date(endTime),
-          durationMs,
-          scenarioId: traj.scenarioId || windowId,
-          episodeId: traj.scenarioId ? `${traj.scenarioId}-${Date.now()}` : undefined,
-          windowId,
-          windowHours: 1,
-          
-          // JSON data
-          stepsJson: JSON.stringify(traj.steps),
-          rewardComponentsJson: JSON.stringify({ environmentReward: totalReward }),
-          metricsJson: JSON.stringify({
-            episodeLength: traj.steps.length,
-            finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
-            finalBalance: options.finalBalance,
-            finalPnL: options.finalPnL,
-            tradesExecuted,
-            postsCreated,
-            errorCount
-          }),
-          metadataJson: JSON.stringify({
-            isTrainingData: true,
-            gameKnowledge: options.gameKnowledge || {}
-          }),
-          
-          // Quick access
-          totalReward,
-          episodeLength: traj.steps.length,
-          finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
-          finalBalance: options.finalBalance,
-          finalPnL: options.finalPnL,
-          tradesExecuted,
-          postsCreated,
-          isTrainingData: true,
-          isEvaluation: false,
-          usedInTraining: false
-        }
-      });
+    await db.insert(trajectories).values({
+      id: await generateSnowflakeId(),
+      trajectoryId,
+      agentId: traj.agentId,
+      startTime: new Date(traj.startTime),
+      endTime: new Date(endTime),
+      durationMs,
+      scenarioId: traj.scenarioId || windowId,
+      episodeId: traj.scenarioId ? `${traj.scenarioId}-${Date.now()}` : undefined,
+      windowId,
+      windowHours: 1,
+      
+      // JSON data
+      stepsJson: JSON.stringify(traj.steps),
+      rewardComponentsJson: JSON.stringify({ environmentReward: totalReward }),
+      metricsJson: JSON.stringify({
+        episodeLength: traj.steps.length,
+        finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
+        finalBalance: options.finalBalance,
+        finalPnL: options.finalPnL,
+        tradesExecuted,
+        postsCreated,
+        errorCount
+      }),
+      metadataJson: JSON.stringify({
+        isTrainingData: true,
+        gameKnowledge: options.gameKnowledge || {}
+      }),
+      
+      // Quick access
+      totalReward,
+      episodeLength: traj.steps.length,
+      finalStatus: errorCount > 0 ? 'completed_with_errors' : 'completed',
+      finalBalance: options.finalBalance,
+      finalPnL: options.finalPnL,
+      tradesExecuted,
+      postsCreated,
+      isTrainingData: true,
+      isEvaluation: false,
+      usedInTraining: false,
+      updatedAt: new Date(),
+    });
 
     // Save LLM calls separately for analysis
-      for (const step of traj.steps) {
-        for (const llmCall of step.llmCalls) {
-          await prisma.llmCallLog.create({
-            data: {
-              id: await generateSnowflakeId(),
-              trajectoryId,
-              stepId: `${trajectoryId}-step-${step.stepNumber}`,
-              callId: `${trajectoryId}-call-${step.stepNumber}-${step.llmCalls.indexOf(llmCall)}`,
-              timestamp: new Date(step.timestamp),
-              latencyMs: llmCall.latencyMs,
-              model: llmCall.model,
-              purpose: llmCall.purpose,
-              actionType: llmCall.actionType,
-              systemPrompt: llmCall.systemPrompt,
-              userPrompt: llmCall.userPrompt,
-              messagesJson: JSON.stringify([
-                { role: 'system', content: llmCall.systemPrompt },
-                { role: 'user', content: llmCall.userPrompt }
-              ]),
-              response: llmCall.response,
-              reasoning: llmCall.reasoning,
-              temperature: llmCall.temperature,
-              maxTokens: llmCall.maxTokens,
-              metadata: JSON.stringify({
-                modelVersion: llmCall.modelVersion // Store model version in metadata
-              })
-            }
-          });
-        }
+    for (const step of traj.steps) {
+      for (const llmCall of step.llmCalls) {
+        await db.insert(llmCallLogs).values({
+          id: await generateSnowflakeId(),
+          trajectoryId,
+          stepId: `${trajectoryId}-step-${step.stepNumber}`,
+          callId: `${trajectoryId}-call-${step.stepNumber}-${step.llmCalls.indexOf(llmCall)}`,
+          timestamp: new Date(step.timestamp),
+          latencyMs: llmCall.latencyMs,
+          model: llmCall.model,
+          purpose: llmCall.purpose,
+          actionType: llmCall.actionType,
+          systemPrompt: llmCall.systemPrompt,
+          userPrompt: llmCall.userPrompt,
+          messagesJson: JSON.stringify([
+            { role: 'system', content: llmCall.systemPrompt },
+            { role: 'user', content: llmCall.userPrompt }
+          ]),
+          response: llmCall.response,
+          reasoning: llmCall.reasoning,
+          temperature: llmCall.temperature,
+          maxTokens: llmCall.maxTokens,
+          metadata: JSON.stringify({
+            modelVersion: llmCall.modelVersion // Store model version in metadata
+          })
+        });
       }
+    }
 
     this.activeTrajectories.delete(trajectoryId);
 
@@ -281,4 +278,3 @@ export class TrajectoryRecorder {
 
 // Singleton instance
 export const trajectoryRecorder = new TrajectoryRecorder();
-

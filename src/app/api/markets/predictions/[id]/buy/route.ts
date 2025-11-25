@@ -103,7 +103,6 @@ import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
 import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
-import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 /**
  * POST /api/markets/predictions/[id]/buy
@@ -224,9 +223,9 @@ export const POST = withErrorHandling(async (
           description: null,
           gameId: 'continuous',
           dayNumber: null,
-          yesShares: new Prisma.Decimal(initialLiquidity / 2),
-          noShares: new Prisma.Decimal(initialLiquidity / 2),
-          liquidity: new Prisma.Decimal(initialLiquidity),
+          yesShares: String(initialLiquidity / 2),
+          noShares: String(initialLiquidity / 2),
+          liquidity: String(initialLiquidity),
           resolved: false,
           resolution: null,
           endDate: endDate,
@@ -280,14 +279,14 @@ export const POST = withErrorHandling(async (
     );
 
     // Update market shares (use net amount, not total with fee)
+    const currentLiquidity = Number(market.liquidity ?? 0);
+    const newLiquidity = currentLiquidity + calc.netAmount;
     const updated = await db.market.update({
       where: { id: marketId },
       data: {
-        yesShares: new Prisma.Decimal(calc.newYesShares),
-        noShares: new Prisma.Decimal(calc.newNoShares),
-        liquidity: {
-          increment: new Prisma.Decimal(calc.netAmount),
-        },
+        yesShares: String(calc.newYesShares),
+        noShares: String(calc.newNoShares),
+        liquidity: String(newLiquidity),
       },
     });
 
@@ -313,8 +312,8 @@ export const POST = withErrorHandling(async (
       pos = await db.position.update({
         where: { id: existingPosition.id },
         data: {
-          shares: new Prisma.Decimal(newTotalShares),
-          avgPrice: new Prisma.Decimal(newAvgPrice),
+          shares: String(newTotalShares),
+          avgPrice: String(newAvgPrice),
         },
       });
     } else {
@@ -325,8 +324,8 @@ export const POST = withErrorHandling(async (
           userId: user.userId,
           marketId,
           side: desiredYesSide,
-          shares: new Prisma.Decimal(calc.sharesBought),
-          avgPrice: new Prisma.Decimal(calc.avgPrice),
+          shares: String(calc.sharesBought),
+          avgPrice: String(calc.avgPrice),
           updatedAt: now,
         },
       });

@@ -130,6 +130,7 @@ export type { Actor, ActorRelationship, ActorState, FeedEvent, FeedPost, Organiz
 interface CommentaryPost {
   post?: string;
   tweet?: string;
+  content?: string;
   sentiment?: number;
   clueStrength?: number;
   pointsToward?: boolean | null;
@@ -148,6 +149,7 @@ interface CommentaryResponse {
 interface ConspiracyPost {
   post?: string;
   tweet?: string;
+  content?: string;
   sentiment?: number;
   clueStrength?: number;
   pointsToward?: boolean | null;
@@ -913,14 +915,17 @@ export class FeedGenerator extends EventEmitter {
         }, 'FeedGenerator');
       }
       
+      // Type helper for posts that may have different content field names
+      type PostWithContent = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }
+      
       const validPosts = posts
-        .filter(p => {
+        .filter((p): p is PostWithContent => {
           // Handle various content field names: post, tweet, or content
-          const content = p.post || p.tweet || (p as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const content = p.post || p.tweet || p.content;
+          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
         })
         .map(p => ({
-          post: p.post || p.tweet || (p as unknown as { content?: string }).content!,
+          post: p.post || p.tweet || p.content!,
           sentiment: p.sentiment ?? 0,
           clueStrength: p.clueStrength ?? 0.5,
           pointsToward: p.pointsToward ?? null,
@@ -1075,13 +1080,13 @@ export class FeedGenerator extends EventEmitter {
       }
       
       const filteredReactions = reactions
-        .filter(r => {
+        .filter((r): r is ReactionItem => {
           // Handle various content field names: post, tweet, or content
-          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const content = r.post || r.tweet || r.content;
+          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
         })
         .map(r => ({
-          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
+          post: r.post || r.tweet || r.content || '',
           sentiment: r.sentiment ?? 0,
           clueStrength: r.clueStrength ?? 0.5,
           pointsToward: r.pointsToward ?? null,
@@ -1209,14 +1214,14 @@ export class FeedGenerator extends EventEmitter {
       }
       
       const filteredCommentary = commentary
-        .filter((c): c is CommentaryPost => {
+        .filter((c) => {
           if (typeof c !== 'object' || c === null) return false;
           // Handle various content field names: post, tweet, or content
-          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
+          const content = c.post || c.tweet || c.content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
-        .map((c: CommentaryPost) => ({
-          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
+        .map((c) => ({
+          post: c.post || c.tweet || c.content || '',
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,
@@ -1379,14 +1384,14 @@ export class FeedGenerator extends EventEmitter {
       }
 
       const filteredConspiracy = conspiracy
-        .filter((c): c is ConspiracyPost => {
+        .filter((c) => {
           if (typeof c !== 'object' || c === null) return false;
           // Handle various content field names: post, tweet, or content
-          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
+          const content = c.post || c.tweet || c.content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
         .map(c => ({
-          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
+          post: c.post || c.tweet || c.content || '',
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,
@@ -2092,7 +2097,7 @@ export class FeedGenerator extends EventEmitter {
       }
 
       // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } } or { response: { replies: {...} } }
-      type ReplyItem = { post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
+      type ReplyItem = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
       let replies: ReplyItem[] = [];
       
       // Check if wrapped in response object first
@@ -2109,14 +2114,15 @@ export class FeedGenerator extends EventEmitter {
         }
       }
       
+      // Type helper for replies that may have different content field names
       const filteredReplies = replies
-        .filter(r => {
+        .filter((r): r is ReplyItem => {
           // Handle various content field names: post, tweet, or content
-          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const content = r.post || r.tweet || r.content;
+          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
         })
         .map(r => ({
-          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
+          post: r.post || r.tweet || r.content || '',
           sentiment: r.sentiment ?? 0,
           clueStrength: r.clueStrength ?? 0.3,
           pointsToward: r.pointsToward ?? null,

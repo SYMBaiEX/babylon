@@ -14,21 +14,14 @@ if (!DATABASE_URL) {
 }
 
 async function verifyGameState() {
-  // Use Prisma to connect
-  const { PrismaClient } = await import('@prisma/client');
-  const prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: DATABASE_URL,
-      },
-    },
-  });
+  // Use Drizzle client
+  const { db } = await import('@/db');
 
   try {
     console.log('🔍 Checking game state in database...\n');
 
     // Get all games
-    const allGames = await prisma.game.findMany({
+    const allGames = await db.game.findMany({
       orderBy: { createdAt: 'desc' },
     });
 
@@ -36,7 +29,7 @@ async function verifyGameState() {
 
     if (allGames.length === 0) {
       console.log('⚠️  No games found in database!');
-      await prisma.$disconnect();
+      await db.$disconnect();
       return;
     }
 
@@ -57,7 +50,7 @@ async function verifyGameState() {
     }
 
     // Check for continuous games specifically
-    const continuousGames = await prisma.game.findMany({
+    const continuousGames = await db.game.findMany({
       where: { isContinuous: true },
     });
 
@@ -101,7 +94,7 @@ async function verifyGameState() {
     }
 
     // Check what findFirst would return (same query as cron)
-    const cronQueryResult = await prisma.game.findFirst({
+    const cronQueryResult = await db.game.findFirst({
       where: { isContinuous: true },
     });
 
@@ -123,7 +116,7 @@ async function verifyGameState() {
       console.error('   Stack:', error.stack);
     }
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

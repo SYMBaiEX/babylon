@@ -215,9 +215,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ]);
 
     // Create lookup maps for O(1) access
-    const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
-    const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
-    const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+    const reactionMap = new Map(allReactions.map(r => {
+      const count = typeof r._count === 'object' && r._count !== null && 'postId' in r._count
+        ? Number((r._count as { postId: number }).postId)
+        : typeof r._count === 'number' ? r._count : 0;
+      return [r.postId, count];
+    }));
+    const commentMap = new Map(allComments.map(c => {
+      const count = typeof c._count === 'object' && c._count !== null && 'postId' in c._count
+        ? Number((c._count as { postId: number }).postId)
+        : typeof c._count === 'number' ? c._count : 0;
+      return [c.postId, count];
+    }));
+    const shareMap = new Map(allShares.map(s => {
+      const count = typeof s._count === 'object' && s._count !== null && 'postId' in s._count
+        ? Number((s._count as { postId: number }).postId)
+        : typeof s._count === 'number' ? s._count : 0;
+      return [s.postId, count];
+    }));
     const userReactionSet = new Set(userReactions.map(r => r.postId));
     const userShareSet = new Set(userShares.map(s => s.postId));
 

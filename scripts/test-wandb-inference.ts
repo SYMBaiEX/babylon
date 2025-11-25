@@ -41,7 +41,7 @@ async function testWandbInference() {
     
     const startTime = Date.now();
     const result = await generateText({
-      model: groq.languageModel(modelId as any), // W&B models use custom identifiers
+      model: groq.languageModel(modelId as string),
       prompt: 'Say "W&B RL Model Test" if you are a trained reinforcement learning model. Otherwise say "Base Model".',
       system: 'You are a helpful AI assistant.',
       maxOutputTokens: 50,

@@ -10,6 +10,7 @@
 
 import { test, expect } from '@playwright/test'
 import type { AgentCapabilities } from '@/types/a2a'
+import type { DiscoveredAgent } from '../types/test-types'
 
 // Base URL for API calls
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
@@ -195,7 +196,7 @@ test.describe('External Agent E2E Flow', () => {
       expect(data.agents).toBeDefined()
 
       // All returned agents should have text-generation capability
-      data.agents.forEach((agent: any) => {
+      data.agents.forEach((agent: DiscoveredAgent) => {
         expect(
           agent.capabilities?.actions?.includes('text-generation')
         ).toBe(true)
@@ -221,7 +222,7 @@ test.describe('External Agent E2E Flow', () => {
       expect(data.agents).toBeDefined()
 
       // All returned agents should have trust level >= 1
-      data.agents.forEach((agent: any) => {
+      data.agents.forEach((agent: DiscoveredAgent) => {
         expect(agent.trustLevel).toBeGreaterThanOrEqual(1)
       })
     })

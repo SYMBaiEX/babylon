@@ -6,7 +6,9 @@
  */
 
 import { put, del, list } from '@vercel/blob';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { trainedModels } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import fs from 'fs/promises';
 import path from 'path';
@@ -73,20 +75,19 @@ export class ModelStorageService {
         size: (blob as { size?: number }).size || 0
       });
 
-      // Save to database
-      await prisma.trainedModel.create({
-        data: {
-          id: `model-${Date.now()}`,
-          modelId: `babylon-agent-${options.version}`,
-          version: options.version,
-          baseModel: (options.metadata?.baseModel as string) || 'OpenPipe/Qwen3-14B-Instruct',
-          storagePath: blob.url,
-          wandbRunId: options.metadata?.wandbRunId as string | undefined,
-          accuracy: options.metadata?.accuracy as number | undefined,
-          avgReward: options.metadata?.avgReward as number | undefined,
-          status: 'ready',
-          agentsUsing: 0
-        }
+      // Save to database using Drizzle
+      await db.insert(trainedModels).values({
+        id: `model-${Date.now()}`,
+        modelId: `babylon-agent-${options.version}`,
+        version: options.version,
+        baseModel: (options.metadata?.baseModel as string) || 'OpenPipe/Qwen3-14B-Instruct',
+        storagePath: blob.url,
+        wandbRunId: (options.metadata?.wandbRunId as string) || null,
+        accuracy: (options.metadata?.accuracy as number) || null,
+        avgReward: (options.metadata?.avgReward as number) || null,
+        status: 'ready',
+        agentsUsing: 0,
+        updatedAt: new Date(),
       });
 
       return {
@@ -106,10 +107,13 @@ export class ModelStorageService {
     modelData: Buffer;
     metadata: ModelVersion['metadata'];
   }> {
-    const model = await prisma.trainedModel.findFirst({
-      where: { version },
-      select: { storagePath: true }
-    });
+    const modelResult = await db
+      .select({ storagePath: trainedModels.storagePath })
+      .from(trainedModels)
+      .where(eq(trainedModels.version, version))
+      .limit(1);
+
+    const model = modelResult[0];
 
     if (!model) {
       throw new Error(`Model version ${version} not found`);
@@ -225,14 +229,14 @@ export class ModelStorageService {
       await del(blob.url);
     }
 
-    // Update database
-    await prisma.trainedModel.updateMany({
-      where: { version },
-      data: {
+    // Update database using Drizzle
+    await db
+      .update(trainedModels)
+      .set({
         status: 'archived',
         archivedAt: new Date()
-      }
-    });
+      })
+      .where(eq(trainedModels.version, version));
 
     logger.info('Model deleted from Vercel Blob', { version });
   }

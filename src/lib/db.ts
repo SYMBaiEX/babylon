@@ -1,34 +1,12 @@
 /**
- * Database Access Layer
+ * Database Export
  *
- * @description This module provides the main database access layer for the application.
- * Currently uses Prisma ORM. Drizzle ORM is available at @/db for future migration.
- *
- * All database operations should be imported from this module:
- *
- * @example
- * ```typescript
- * import { prisma } from '@/lib/db';
- * import { asUser, asSystem } from '@/lib/db/context';
- *
- * // Direct queries
- * const users = await prisma.user.findMany();
- *
- * // With RLS context
- * const positions = await asUser(authUser, async (db) => {
- *   return await db.position.findMany();
- * });
- *
- * // System operations
- * const allData = await asSystem(async (db) => {
- *   return await db.actor.findMany();
- * }, 'admin-operation');
- * ```
+ * @description Re-exports the database client for backward compatibility.
+ * Use `import { db } from '@/lib/db'` or `import { db } from '@/db'`.
  */
 
-// Re-export the Prisma client and types
-export { prisma, prismaBase } from '@/lib/prisma';
-export type { PrismaClient } from '@prisma/client';
+export { db, schema, withTransaction, asUser, asSystem, asPublic, checkDatabaseHealth, closeDatabase, executeRaw } from '@/db';
+export type { Database, Transaction } from '@/db';
 
-// Re-export RLS context functions
-export { asUser, asSystem, asPublic } from '@/lib/db/context';
+// Re-export Drizzle operators for convenience
+export { eq, ne, gt, gte, lt, lte, like, ilike, and, or, not, inArray, notInArray, isNull, isNotNull, sql, desc, asc, count, sum, avg, min, max, between, exists, notExists } from '@/db';

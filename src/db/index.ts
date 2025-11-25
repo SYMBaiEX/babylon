@@ -1,191 +1,149 @@
 /**
- * Drizzle ORM Database Client - Serverless Optimized
+ * Drizzle ORM Database Client
  *
- * @description Provides a complete database abstraction layer using Drizzle ORM.
- * Replaces Prisma with a pure TypeScript solution that works seamlessly
- * on Apple Silicon and in containerized environments.
+ * @description Complete database abstraction layer using Drizzle ORM.
+ * Pure TypeScript solution that works on all platforms including Apple Silicon.
  *
  * Features:
- * - Automatic retry with exponential backoff on connection failures
- * - Connection pooling optimized for serverless (limited connections)
- * - Query monitoring and performance tracking
+ * - Connection pooling optimized for serverless
+ * - Automatic retry with exponential backoff
  * - Row Level Security (RLS) context support
+ * - Query monitoring and performance tracking
  * - Lazy initialization for Edge Runtime compatibility
- * - Graceful connection lifecycle management
+ * - Familiar ORM-style API for findUnique, findMany, create, update, delete
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
-import postgres, { type Sql } from 'postgres';
+import postgres from 'postgres';
 import * as schema from './schema';
 import { logger } from '@/lib/logger';
+import { createDrizzleClient, type DrizzleClient } from './client';
 
-// Export schema for use in queries
-export { schema };
+// Re-export everything from schema
 export * from './schema';
+export { schema };
 
+// Re-export types
+export * from './types';
+
+// Re-export client types
+export type { DrizzleClient } from './client';
+export { TableRepository } from './client';
+
+// ============================================================================
 // Types
-export type Database = PostgresJsDatabase<typeof schema>;
-export type TransactionClient = Parameters<
-  Parameters<Database['transaction']>[0]
->[0];
+// ============================================================================
 
-// Global singleton for connection reuse
+export type Database = PostgresJsDatabase<typeof schema>;
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+// ============================================================================
+// Connection Management
+// ============================================================================
+
 const globalForDb = globalThis as unknown as {
-  postgresClient: Sql | undefined;
-  db: Database | undefined;
+  postgresClient: ReturnType<typeof postgres> | undefined;
+  drizzleDb: Database | undefined;
+  db: DrizzleClient | undefined;
 };
 
-// Check if we're in Next.js build phase
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
 
-/**
- * Check if we're in a test environment
- */
 function isTestEnvironment(): boolean {
-  if (process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test') {
-    return true;
-  }
-
-  // Check process.argv for test commands
-  if (typeof process !== 'undefined' && process.argv) {
-    const args = process.argv.join(' ');
-    if (
-      args.includes('bun test') ||
-      args.includes('bunx test') ||
-      args.includes('bun run test')
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  return (
+    process.env.NODE_ENV === 'test' ||
+    process.env.BUN_ENV === 'test' ||
+    (typeof process !== 'undefined' &&
+      process.argv?.join(' ').includes('test'))
+  );
 }
 
-/**
- * Get the database connection URL with optimized connection pool parameters
- */
-function getOptimizedConnectionUrl(): string {
-  const baseUrl =
-    process.env.PRISMA_DATABASE_URL ||
+function getConnectionUrl(): string {
+  return (
     process.env.DATABASE_URL ||
-    'postgresql://localhost:5432/babylon';
-
-  // Don't modify URLs for non-production environments unless specified
-  if (!baseUrl.includes('?')) {
-    return baseUrl;
-  }
-
-  return baseUrl;
+    'postgresql://localhost:5432/babylon'
+  );
 }
 
-/**
- * Create the postgres.js client with optimized settings
- */
-function createPostgresClient(): Sql {
-  const connectionUrl = getOptimizedConnectionUrl();
+function createPostgresClient(): ReturnType<typeof postgres> {
+  const url = getConnectionUrl();
   const isTest = isTestEnvironment();
   const isProd = process.env.NODE_ENV === 'production';
+  
+  // Explicitly determine SSL setting - localhost connections never use SSL
+  // Production non-localhost connections require SSL
+  const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
+  const sslMode: 'require' | false = isProd && !isLocalhost ? 'require' : false;
+  
+  logger.debug('[Drizzle] Creating postgres client', { 
+    isProd, 
+    isLocalhost, 
+    sslMode,
+    urlHost: url.split('@')[1]?.split('/')[0] || 'unknown'
+  });
 
-  // Connection pool settings
-  const poolSettings = {
-    // Connection limits
+  return postgres(url, {
     max: isProd ? 50 : isTest ? 5 : 10,
     idle_timeout: isProd ? 30 : 20,
     connect_timeout: 10,
-
-    // SSL configuration for production
-    ssl:
-      isProd && !connectionUrl.includes('localhost')
-        ? ('require' as const)
-        : false,
-
-    // Connection lifecycle hooks
-    onnotice: () => {
-      // Suppress notices in production
-    },
-
-    // Transform options
-    transform: {
-      undefined: null,
-    },
-  };
-
-  logger.info('[Drizzle] Creating database connection', {
-    maxConnections: poolSettings.max,
-    idleTimeout: poolSettings.idle_timeout,
-    environment: process.env.NODE_ENV,
+    ssl: sslMode,
+    transform: { undefined: null },
+    onnotice: () => {},
   });
-
-  return postgres(connectionUrl, poolSettings);
 }
 
-/**
- * Get or create the postgres client singleton
- */
-function getPostgresClient(): Sql | null {
-  const isTest = isTestEnvironment();
-
-  // Skip initialization during build time (but not during tests)
-  if (isBuildTime && !isTest) {
-    logger.info(
-      '[Drizzle] Build time detected - skipping database initialization'
-    );
+function getPostgresClient(): ReturnType<typeof postgres> | null {
+  if (isBuildTime && !isTestEnvironment()) {
     return null;
   }
 
   if (!globalForDb.postgresClient) {
-    const connectionUrl =
-      process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-
-    if (!connectionUrl) {
-      if (isTest) {
-        throw new Error(
-          'DATABASE_URL is required in test environment. Please set DATABASE_URL or PRISMA_DATABASE_URL.'
-        );
+    const url = getConnectionUrl();
+    if (!url || url === 'postgresql://localhost:5432/babylon') {
+      if (isTestEnvironment()) {
+        throw new Error('DATABASE_URL is required in test environment');
       }
-      logger.warn('[Drizzle] No DATABASE_URL set - database not initialized');
       return null;
     }
 
-    try {
-      globalForDb.postgresClient = createPostgresClient();
-    } catch (error) {
-      if (isTest) {
-        throw error;
-      }
-      logger.error('[Drizzle] Failed to create database client', { error });
-      return null;
-    }
+    globalForDb.postgresClient = createPostgresClient();
+    logger.info('[Drizzle] Database connection created');
   }
 
   return globalForDb.postgresClient;
 }
 
-/**
- * Get or create the Drizzle database instance
- */
 function getDrizzleInstance(): Database | null {
-  if (!globalForDb.db) {
+  if (!globalForDb.drizzleDb) {
     const client = getPostgresClient();
-    if (!client) {
-      return null;
-    }
+    if (!client) return null;
 
-    globalForDb.db = drizzle(client, {
+    globalForDb.drizzleDb = drizzle(client, {
       schema,
       logger: process.env.NODE_ENV === 'development',
     });
+  }
 
-    logger.info('[Drizzle] Created new Drizzle ORM instance');
+  return globalForDb.drizzleDb;
+}
+
+function getDbClient(): DrizzleClient | null {
+  if (!globalForDb.db) {
+    const drizzleInstance = getDrizzleInstance();
+    if (!drizzleInstance) return null;
+
+    globalForDb.db = createDrizzleClient(drizzleInstance);
   }
 
   return globalForDb.db;
 }
 
-/**
- * Retry configuration
- */
+// ============================================================================
+// Retry Logic
+// ============================================================================
+
 interface RetryConfig {
   maxRetries: number;
   initialDelayMs: number;
@@ -197,10 +155,7 @@ const defaultRetryConfig: RetryConfig = isTestEnvironment()
   ? { maxRetries: 2, initialDelayMs: 50, maxDelayMs: 500, jitter: false }
   : { maxRetries: 5, initialDelayMs: 100, maxDelayMs: 5000, jitter: true };
 
-/**
- * Execute a database operation with retry logic
- */
-async function withRetry<T>(
+async function withRetryInternal<T>(
   operation: () => Promise<T>,
   config: RetryConfig = defaultRetryConfig
 ): Promise<T> {
@@ -213,185 +168,186 @@ async function withRetry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // Check if error is retryable (connection errors, deadlocks, etc.)
       const isRetryable =
         lastError.message.includes('connection') ||
         lastError.message.includes('timeout') ||
         lastError.message.includes('deadlock') ||
-        lastError.message.includes('ECONNREFUSED') ||
-        lastError.message.includes('ENOTFOUND');
+        lastError.message.includes('ECONNREFUSED');
 
       if (!isRetryable || attempt === config.maxRetries) {
         throw lastError;
       }
 
-      logger.warn(`[Drizzle] Retry attempt ${attempt + 1}/${config.maxRetries}`, {
+      logger.warn(`[Drizzle] Retry ${attempt + 1}/${config.maxRetries}`, {
         error: lastError.message,
-        delay,
       });
 
-      // Wait before retry
-      await new Promise((resolve) => setTimeout(resolve, delay));
-
-      // Exponential backoff
+      await new Promise((r) => setTimeout(r, delay));
       delay = Math.min(delay * 2, config.maxDelayMs);
-      if (config.jitter) {
-        delay += Math.random() * delay * 0.1;
-      }
+      if (config.jitter) delay += Math.random() * delay * 0.1;
     }
   }
 
   throw lastError;
 }
 
-/**
- * Create a lazy proxy for the database instance
- * This allows the database to be accessed even if DATABASE_URL is set after module load
- */
-function createLazyDbProxy(): Database {
-  return new Proxy({} as Database, {
+// ============================================================================
+// Lazy Database Proxy
+// ============================================================================
+
+function createLazyDbProxy(): DrizzleClient {
+  const handler: ProxyHandler<DrizzleClient> = {
     get(_target, prop: string | symbol) {
-      const instance = getDrizzleInstance();
-      if (!instance) {
+      const client = getDbClient();
+      if (!client) {
         if (isBuildTime) {
-          // Return a no-op function during build time
-          return () => Promise.resolve(null);
+          // Return a proxy that returns promises resolving to null/empty
+          return new Proxy({}, {
+            get() {
+              return () => Promise.resolve(null);
+            }
+          });
         }
-        throw new Error(
-          'Database not initialized. Check DATABASE_URL environment variable.'
-        );
+        throw new Error('Database not initialized. Check DATABASE_URL.');
       }
-      return instance[prop as keyof Database];
+      return client[prop as keyof DrizzleClient];
     },
-  });
+  };
+
+  // Create proxy with proper type casting
+  // The proxy intercepts all property access so the empty object target is fine
+  return new Proxy({} as unknown as DrizzleClient, handler);
 }
 
-/**
- * Main database instance - uses lazy proxy for Edge Runtime compatibility
- */
-export const db: Database = createLazyDbProxy();
+// ============================================================================
+// Main Exports
+// ============================================================================
 
-/**
- * Execute a database operation within a transaction
- */
+/** Main database instance with familiar ORM-style API */
+export const db: DrizzleClient = createLazyDbProxy();
+
+/** Raw Drizzle instance for advanced queries */
+export function getRawDrizzle(): Database {
+  const instance = getDrizzleInstance();
+  if (!instance) throw new Error('Database not initialized');
+  return instance;
+}
+
+/** Execute within a transaction */
 export async function withTransaction<T>(
-  fn: (tx: TransactionClient) => Promise<T>
+  fn: (tx: Transaction) => Promise<T>
 ): Promise<T> {
   const instance = getDrizzleInstance();
-  if (!instance) {
-    throw new Error('Database not initialized');
-  }
-
-  return withRetry(() => instance.transaction(fn));
+  if (!instance) throw new Error('Database not initialized');
+  return withRetryInternal(() => instance.transaction(fn));
 }
 
-/**
- * RLS Context Support
- * Execute operations with Row Level Security context
- */
+// ============================================================================
+// RLS Context Support
+// ============================================================================
+
+/** User identifier - can be a string ID or an object with userId property */
+export type UserIdOrUser = string | { userId: string };
 
 /**
- * Execute a database operation as a specific user (with RLS)
+ * Execute as a specific user (with RLS)
+ * @param userIdOrUser - A string userId or an object with userId property (e.g., AuthenticatedUser)
+ * @param operation - The database operation to execute
  */
 export async function asUser<T>(
-  userId: string,
-  operation: (database: Database) => Promise<T>
+  userIdOrUser: UserIdOrUser,
+  operation: (database: DrizzleClient) => Promise<T>
 ): Promise<T> {
-  // Validate userId format (UUID or Privy DID)
+  // Extract userId from string or object
+  const userId = typeof userIdOrUser === 'string' ? userIdOrUser : userIdOrUser.userId;
+  
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const privyDidRegex = /^did:privy:[a-z0-9]+$/i;
+  const snowflakeRegex = /^\d{15,20}$/;
 
-  if (!uuidRegex.test(userId) && !privyDidRegex.test(userId)) {
-    throw new Error(
-      `Invalid userId format: ${userId}. Must be a valid UUID or Privy DID.`
-    );
+  if (!uuidRegex.test(userId) && !privyDidRegex.test(userId) && !snowflakeRegex.test(userId)) {
+    throw new Error(`Invalid userId format: ${userId}`);
   }
 
   const instance = getDrizzleInstance();
-  if (!instance) {
-    throw new Error('Database not initialized');
-  }
+  if (!instance) throw new Error('Database not initialized');
 
-  return withRetry(() =>
+  return withRetryInternal(() =>
     instance.transaction(async (tx) => {
-      // Set the current user ID for RLS
       await tx.execute(
         sql`SELECT set_config('app.current_user_id', ${userId}, true)`
       );
-      // Execute operation with the transaction as a Database-like object
-      return await operation(tx as unknown as Database);
+      // Create a client wrapper for the transaction
+      // Transaction type from Drizzle is compatible with Database
+      const txClient = createDrizzleClient(tx);
+      return operation(txClient);
     })
   );
 }
 
 /**
- * Execute a database operation as system (bypass RLS)
+ * Execute as system (bypass RLS)
  */
 export async function asSystem<T>(
-  operation: (database: Database) => Promise<T>,
+  operation: (database: DrizzleClient) => Promise<T>,
   operationName?: string
 ): Promise<T> {
   const startTime = Date.now();
-
-  logger.warn('[Drizzle] System operation initiated', {
-    operation: operationName || 'unknown',
-    timestamp: new Date().toISOString(),
-  });
-
-  const instance = getDrizzleInstance();
-  if (!instance) {
-    throw new Error('Database not initialized');
+  if (operationName) {
+    logger.debug('[Drizzle] System operation', { operation: operationName });
   }
 
-  const result = await withRetry(() =>
+  const instance = getDrizzleInstance();
+  if (!instance) throw new Error('Database not initialized');
+
+  const result = await withRetryInternal(() =>
     instance.transaction(async (tx) => {
-      // Set system context marker
       await tx.execute(
         sql`SELECT set_config('app.current_user_id', 'system', true)`
       );
-      return await operation(tx as unknown as Database);
+      const txClient = createDrizzleClient(tx as unknown as Database);
+      return operation(txClient);
     })
   );
 
-  const duration = Date.now() - startTime;
-  logger.info('[Drizzle] System operation completed', {
-    operation: operationName || 'unknown',
-    duration: `${duration}ms`,
-  });
+  if (operationName) {
+    logger.debug('[Drizzle] System operation completed', {
+      operation: operationName,
+      duration: `${Date.now() - startTime}ms`,
+    });
+  }
 
   return result;
 }
 
 /**
- * Execute a database operation as public (unauthenticated)
+ * Execute as public (unauthenticated)
  */
 export async function asPublic<T>(
-  operation: (database: Database) => Promise<T>
+  operation: (database: DrizzleClient) => Promise<T>
 ): Promise<T> {
   const instance = getDrizzleInstance();
-  if (!instance) {
-    throw new Error('Database not initialized');
-  }
+  if (!instance) throw new Error('Database not initialized');
 
-  return withRetry(() =>
+  return withRetryInternal(() =>
     instance.transaction(async (tx) => {
-      // Empty string indicates public/unauthenticated access
       await tx.execute(sql`SELECT set_config('app.current_user_id', '', true)`);
-      return await operation(tx as unknown as Database);
+      const txClient = createDrizzleClient(tx as unknown as Database);
+      return operation(txClient);
     })
   );
 }
 
-/**
- * Health check - verify database connectivity
- */
+// ============================================================================
+// Utilities
+// ============================================================================
+
+/** Health check */
 export async function checkDatabaseHealth(): Promise<boolean> {
   try {
     const instance = getDrizzleInstance();
-    if (!instance) {
-      return false;
-    }
+    if (!instance) return false;
     await instance.execute(sql`SELECT 1`);
     return true;
   } catch {
@@ -399,56 +355,31 @@ export async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
-/**
- * Graceful shutdown - close database connections
- */
+/** Graceful shutdown */
 export async function closeDatabase(): Promise<void> {
   if (globalForDb.postgresClient) {
     await globalForDb.postgresClient.end();
     globalForDb.postgresClient = undefined;
+    globalForDb.drizzleDb = undefined;
     globalForDb.db = undefined;
     logger.info('[Drizzle] Database connections closed');
   }
 }
 
-/**
- * Direct SQL execution helper (for raw queries)
- */
+/** Execute raw SQL */
 export async function executeRaw<T = unknown>(
   query: ReturnType<typeof sql>
 ): Promise<T[]> {
   const instance = getDrizzleInstance();
-  if (!instance) {
-    throw new Error('Database not initialized');
-  }
-
-  const result = await withRetry(() => instance.execute(query));
-  return result as T[];
+  if (!instance) throw new Error('Database not initialized');
+  return withRetryInternal(() => instance.execute(query)) as Promise<T[]>;
 }
 
-/**
- * Query performance monitoring
- */
-interface QueryMetrics {
-  query: string;
-  duration: number;
-  timestamp: Date;
-}
+// ============================================================================
+// Drizzle Query Operators
+// ============================================================================
 
-const queryMetrics: QueryMetrics[] = [];
-const MAX_METRICS = 1000;
+export { eq, ne, gt, gte, lt, lte, like, ilike, and, or, not, inArray, notInArray, isNull, isNotNull, sql, desc, asc, count, sum, avg, min, max, between, exists, notExists } from 'drizzle-orm';
 
-export function recordQueryMetrics(metrics: QueryMetrics): void {
-  queryMetrics.push(metrics);
-  if (queryMetrics.length > MAX_METRICS) {
-    queryMetrics.shift();
-  }
-}
-
-export function getQueryMetrics(): QueryMetrics[] {
-  return [...queryMetrics];
-}
-
-export function getSlowQueries(thresholdMs: number = 100): QueryMetrics[] {
-  return queryMetrics.filter((m) => m.duration > thresholdMs);
-}
+// Re-export query helpers
+export { generateId, now, $queryRaw, $executeRaw, $connect, $disconnect, withRetry, isRetryableError } from './helpers';

@@ -74,7 +74,7 @@ import type { TradingDecision } from '@/types/market-decisions';
 import type { NPCMarketContext } from '@/types/market-context';
 import { countTokensSync, getSafeContextLimit, truncateToTokenLimitSync } from '@/lib/token-counter';
 import type { JsonValue } from '@/types/common';
-import { prisma } from '@/lib/prisma';
+import { db, eq, inArray, gte, desc, and, actors, organizations, organizationMappings, questions, posts } from '@/db';
 import { loadActorById } from '@/lib/data/actors-loader';
 
 /**
@@ -918,12 +918,12 @@ ${prompt}`
     const originalIdToActualIdMap = new Map<string, string>();
     
     // Fetch actor data to get original names  
-    const actors = await prisma.actor.findMany({
-      where: { id: { in: Array.from(contexts.keys()) } },
-      select: { id: true, name: true }
-    });
+    const actorsList = await db
+      .select({ id: actors.id, name: actors.name })
+      .from(actors)
+      .where(inArray(actors.id, Array.from(contexts.keys())));
     
-    for (const actor of actors) {
+    for (const actor of actorsList) {
       const variations: string[] = [];
       
       // Load actor JSON file to get all original identifiers
@@ -993,23 +993,23 @@ ${prompt}`
       }
     }
     
-    logger.info(`Built originalId mapping with ${originalIdToActualIdMap.size} variations for ${actors.length} NPCs`, undefined, 'MarketDecisionEngine');
+    logger.info(`Built originalId mapping with ${originalIdToActualIdMap.size} variations for ${actorsList.length} NPCs`, undefined, 'MarketDecisionEngine');
     
     // Build organization/ticker mapping for perp markets
     // LLM might generate "OPENAI", "OpenAI", "openai", etc. when actual ticker is "OPNAI"
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalTickerToActualTickerMap = new Map<string, string>();
     
-    const orgs = await prisma.organization.findMany({
-      where: { type: 'company' },
-      select: { id: true, name: true, ticker: true }
-    });
+    const orgs = await db
+      .select({ id: organizations.id, name: organizations.name, ticker: organizations.ticker })
+      .from(organizations)
+      .where(eq(organizations.type, 'company'));
     
     // Get organization mappings from database (realName -> parodyName)
-    const orgMappings = await prisma.organizationMapping.findMany({
-      where: { isActive: true },
-      select: { realName: true, parodyName: true, aliases: true }
-    });
+    const orgMappings = await db
+      .select({ realName: organizationMappings.realName, parodyName: organizationMappings.parodyName, aliases: organizationMappings.aliases })
+      .from(organizationMappings)
+      .where(eq(organizationMappings.isActive, true));
     
     // Build map from parody names to real names (ALL LOWERCASE)
     const parodyToRealMap = new Map<string, string>();
@@ -1652,19 +1652,18 @@ ${prompt}`
    * Especially important for comparative questions like "Will X outperform Y?"
    */
   private async formatActiveQuestions(): Promise<string> {
-    const questions = await prisma.question.findMany({
-      where: {
-        status: 'active',
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10, // Top 10 most recent questions
-    });
+    const questionsList = await db
+      .select()
+      .from(questions)
+      .where(eq(questions.status, 'active'))
+      .orderBy(desc(questions.createdAt))
+      .limit(10);
     
-    if (questions.length === 0) {
+    if (questionsList.length === 0) {
       return 'No active prediction questions currently.';
     }
     
-    const formatted = questions.map(q => {
+    const formatted = questionsList.map(q => {
       const daysUntil = Math.ceil(
         (q.resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       );
@@ -1686,29 +1685,28 @@ ${prompt}`
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     // Get actor IDs first
-    const actors = await prisma.actor.findMany({
-      select: { id: true, name: true },
-    });
-    const actorMap = new Map(actors.map(a => [a.id, a.name]));
-    const actorIds = actors.map(a => a.id);
+    const actorsForEvents = await db
+      .select({ id: actors.id, name: actors.name })
+      .from(actors);
+    const actorMap = new Map(actorsForEvents.map(a => [a.id, a.name]));
+    const actorIds = actorsForEvents.map(a => a.id);
     
     if (actorIds.length === 0) {
       return 'No actors available for narrative context.';
     }
     
-    const recentPosts = await prisma.post.findMany({
-      where: {
-        createdAt: { gte: oneDayAgo },
-        authorId: { in: actorIds },
-        type: 'post', // Only regular posts, not comments
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        content: true,
-        authorId: true,
-      },
-    });
+    const recentPosts = await db
+      .select({ content: posts.content, authorId: posts.authorId })
+      .from(posts)
+      .where(
+        and(
+          gte(posts.createdAt, oneDayAgo),
+          inArray(posts.authorId, actorIds),
+          eq(posts.type, 'post')
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(10);
     
     if (recentPosts.length === 0) {
       return 'No recent posts in last 24 hours.';

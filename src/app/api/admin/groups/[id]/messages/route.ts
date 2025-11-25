@@ -61,7 +61,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 
@@ -77,7 +77,7 @@ export const GET = withErrorHandling(async (
   const user = await authenticate(request);
   
   // Check admin permissions
-  const dbUser = await prisma.user.findUnique({
+  const dbUser = await db.user.findUnique({
     where: { id: user.userId },
     select: { isAdmin: true },
   });
@@ -97,7 +97,7 @@ export const GET = withErrorHandling(async (
   const offset = parseInt(searchParams.get('offset') || '0');
 
   // Get chat details
-  const chat = await prisma.chat.findUnique({
+  const chat = await db.chat.findUnique({
     where: { id: chatId },
     select: {
       id: true,
@@ -115,12 +115,12 @@ export const GET = withErrorHandling(async (
   }
 
   // Get total message count
-  const totalMessages = await prisma.message.count({
+  const totalMessages = await db.message.count({
     where: { chatId },
   });
 
   // Get messages with pagination
-  const messages = await prisma.message.findMany({
+  const messages = await db.message.findMany({
     where: { chatId },
     orderBy: {
       createdAt: 'desc',
@@ -132,7 +132,7 @@ export const GET = withErrorHandling(async (
   // Get sender details
   const senderIds = [...new Set(messages.map(m => m.senderId))];
   const [users, actors] = await Promise.all([
-    prisma.user.findMany({
+    db.user.findMany({
       where: { id: { in: senderIds } },
       select: {
         id: true,
@@ -142,7 +142,7 @@ export const GET = withErrorHandling(async (
         profileImageUrl: true,
       },
     }),
-    prisma.actor.findMany({
+    db.actor.findMany({
       where: { id: { in: senderIds } },
       select: {
         id: true,

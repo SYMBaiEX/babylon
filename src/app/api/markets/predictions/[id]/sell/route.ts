@@ -89,7 +89,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { asUser } from '@/lib/db/context';
@@ -177,25 +176,31 @@ export const POST = withErrorHandling(async (
       const initialLiquidity = 10000;
       const now = new Date();
 
-      market = await db.market.upsert({
+      // Check if market exists
+      const existingMarket = await db.market.findUnique({
         where: { id: question.id },
-        create: {
-          id: question.id,
-          question: question.text,
-          description: null,
-          gameId: 'continuous',
-          dayNumber: null,
-          yesShares: new Prisma.Decimal(initialLiquidity / 2),
-          noShares: new Prisma.Decimal(initialLiquidity / 2),
-          liquidity: new Prisma.Decimal(initialLiquidity),
-          resolved: false,
-          resolution: null,
-          endDate: endDate,
-          createdAt: now,
-          updatedAt: now,
-        },
-        update: {},
       });
+
+      if (existingMarket) {
+        market = existingMarket;
+      } else {
+        market = await db.market.create({
+          data: {
+            id: question.id,
+            question: question.text,
+            description: null,
+            gameId: 'continuous',
+            dayNumber: null,
+            yesShares: String(initialLiquidity / 2),
+            noShares: String(initialLiquidity / 2),
+            liquidity: String(initialLiquidity),
+            resolved: false,
+            resolution: null,
+            endDate: endDate,
+            updatedAt: now,
+          },
+        });
+      }
     }
 
     // Check if market is still active
@@ -248,14 +253,16 @@ export const POST = withErrorHandling(async (
     );
 
     // Update market shares (use gross proceeds for liquidity)
+    const currentLiquidity = parseFloat(market.liquidity);
+    const newLiquidity = currentLiquidity - grossProceeds;
+    
     const updatedMarket = await db.market.update({
       where: { id: marketId },
       data: {
-        yesShares: new Prisma.Decimal(calculation.newYesShares),
-        noShares: new Prisma.Decimal(calculation.newNoShares),
-        liquidity: {
-          decrement: new Prisma.Decimal(grossProceeds),
-        },
+        yesShares: String(calculation.newYesShares),
+        noShares: String(calculation.newNoShares),
+        liquidity: String(newLiquidity),
+        updatedAt: new Date(),
       },
     });
 
@@ -270,7 +277,8 @@ export const POST = withErrorHandling(async (
       await db.position.update({
         where: { id: position.id },
         data: {
-          shares: new Prisma.Decimal(remaining),
+          shares: String(remaining),
+          updatedAt: new Date(),
         },
       });
     }

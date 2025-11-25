@@ -14,7 +14,7 @@
  *   bun scripts/db().ts stop        # Stop PostgreSQL
  *   bun scripts/db().ts restart     # Restart PostgreSQL
  *   bun scripts/db().ts status      # Check status
- *   bun scripts/db().ts migrate     # Run Prisma migrations
+ *   bun scripts/db().ts migrate     # Run database migrations
  *   bun scripts/db().ts seed        # Seed database
  *   bun scripts/db().ts reset       # Reset database (drop + migrate + seed)
  */
@@ -209,10 +209,10 @@ async function showConnectionInfo(): Promise<void> {
 }
 
 /**
- * Run Prisma migrations
+ * Run database migrations
  */
 async function runMigrations(): Promise<void> {
-  logger.info('Running Prisma migrations...', undefined, 'Script');
+  logger.info('Running database migrations...', undefined, 'Script');
 
   const isRunning = await isContainerRunning();
   
@@ -222,7 +222,7 @@ async function runMigrations(): Promise<void> {
     process.exit(1);
   }
 
-  await $`bunx prisma migrate dev`;
+  await $`bunx drizzle-kit push`;
   logger.info('Migrations complete', undefined, 'Script');
 }
 
@@ -240,7 +240,7 @@ async function seedDatabase(): Promise<void> {
     process.exit(1);
   }
 
-  await $`bunx prisma db seed`;
+  await $`bun run db:seed`;
   logger.info('Database seeded', undefined, 'Script');
 }
 
@@ -259,7 +259,7 @@ async function resetDatabase(): Promise<void> {
   }
 
   logger.info('Dropping database...', undefined, 'Script');
-  await $`bunx prisma migrate reset --force`;
+  await $`drizzle-kit push --force`;
   logger.info('Database reset complete', undefined, 'Script');
 }
 
@@ -277,7 +277,7 @@ Commands:
   stop        Stop PostgreSQL container
   restart     Restart PostgreSQL container
   status      Show database status
-  migrate     Run Prisma migrations
+  migrate     Run database migrations
   seed        Seed database with actors
   reset       Reset database (drop + migrate + seed)
   help        Show this help message

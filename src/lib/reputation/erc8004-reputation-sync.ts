@@ -15,7 +15,9 @@
  * - Continuous reputation tracking
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import { users, agentPerformanceMetrics, gameConfigs } from '@/db/schema'
+import { eq, isNotNull, and, gte, desc } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { getCachedAgent0ReputationScore } from './agent0-reputation-cache'
@@ -53,26 +55,23 @@ export async function syncUserReputationToERC8004(
   userId: string,
   forceRecalculate = false
 ): Promise<ReputationSyncResult> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      agent0TokenId: true,
-      username: true,
-      displayName: true,
-      isBanned: true,
-      isScammer: true,
-      isCSAM: true,
-      createdAt: true,
-      AgentPerformanceMetrics: {
-        select: {
-          reputationScore: true,
-          updatedAt: true,
-          lastActivityAt: true,
-        },
-      },
-    },
-  })
+  // Get user data
+  const userResult = await db
+    .select({
+      id: users.id,
+      agent0TokenId: users.agent0TokenId,
+      username: users.username,
+      displayName: users.displayName,
+      isBanned: users.isBanned,
+      isScammer: users.isScammer,
+      isCSAM: users.isCSAM,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     return {
@@ -94,6 +93,22 @@ export async function syncUserReputationToERC8004(
     }
   }
 
+  // Get performance metrics separately
+  const metricsResult = await db
+    .select({
+      reputationScore: agentPerformanceMetrics.reputationScore,
+      updatedAt: agentPerformanceMetrics.updatedAt,
+      lastActivityAt: agentPerformanceMetrics.lastActivityAt,
+    })
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1)
+
+  const userWithMetrics = {
+    ...user,
+    AgentPerformanceMetrics: metricsResult[0] ?? null,
+  }
+
   try {
     // Recalculate reputation if forced or if metrics are stale
     let reputationScore: number
@@ -109,27 +124,27 @@ export async function syncUserReputationToERC8004(
 
     // Determine tags based on user status
     const tags: string[] = []
-    if (user.isBanned) {
+    if (userWithMetrics.isBanned) {
       tags.push('banned')
     }
-    if (user.isScammer) {
+    if (userWithMetrics.isScammer) {
       tags.push('scammer')
     }
-    if (user.isCSAM) {
+    if (userWithMetrics.isCSAM) {
       tags.push('csam')
     }
-    if (!user.isBanned && !user.isScammer && !user.isCSAM) {
+    if (!userWithMetrics.isBanned && !userWithMetrics.isScammer && !userWithMetrics.isCSAM) {
       tags.push('active')
     }
 
     // Check if we should sync (avoid spamming on-chain)
     const lastSync = await getLastReputationSync(userId)
-    const shouldSync = shouldSyncReputation(user, lastSync, forceRecalculate)
+    const shouldSync = shouldSyncReputation(userWithMetrics, lastSync, forceRecalculate)
 
     if (!shouldSync) {
       return {
         userId,
-        agent0TokenId: user.agent0TokenId,
+        agent0TokenId: userWithMetrics.agent0TokenId,
         reputationScore,
         synced: false,
         error: 'Sync not needed (too recent)',
@@ -138,26 +153,35 @@ export async function syncUserReputationToERC8004(
 
     logger.info('Syncing reputation to ERC-8004', {
       userId,
-      agent0TokenId: user.agent0TokenId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
       reputationScore,
       feedbackScore,
       tags,
     }, 'ERC8004ReputationSync')
 
-    // Update local metrics with latest reputation
-    await prisma.agentPerformanceMetrics.upsert({
-      where: { userId },
-      create: {
+    // Update local metrics with latest reputation (upsert pattern)
+    const existingMetrics = await db
+      .select()
+      .from(agentPerformanceMetrics)
+      .where(eq(agentPerformanceMetrics.userId, userId))
+      .limit(1)
+
+    if (existingMetrics[0]) {
+      await db
+        .update(agentPerformanceMetrics)
+        .set({
+          reputationScore,
+          updatedAt: new Date(),
+        })
+        .where(eq(agentPerformanceMetrics.userId, userId))
+    } else {
+      await db.insert(agentPerformanceMetrics).values({
         id: await generateSnowflakeId(),
         userId,
         reputationScore,
         updatedAt: new Date(),
-      },
-      update: {
-        reputationScore,
-        updatedAt: new Date(),
-      },
-    })
+      })
+    }
 
     // Record sync timestamp
     await recordReputationSync(userId, feedbackScore, tags)
@@ -189,10 +213,13 @@ export async function syncUserReputationToERC8004(
         // Get agent's wallet address for system feedback
         // For system-level reputation, we use the agent's own wallet address
         // The agent should pre-authorize this during registration
-        const agentUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { walletAddress: true },
-        })
+        const agentUserResult = await db
+          .select({ walletAddress: users.walletAddress })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+
+        const agentUser = agentUserResult[0]
 
         if (!agentUser?.walletAddress) {
           logger.debug('Agent has no wallet address, skipping on-chain submission', {
@@ -224,7 +251,7 @@ export async function syncUserReputationToERC8004(
               const rating = Math.round((feedbackScore / 100) * 10 - 5)
               
               await agent0Client.submitFeedback({
-                targetAgentId: user.agent0TokenId,
+                targetAgentId: userWithMetrics.agent0TokenId!,
                 rating,
                 comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
                 transactionId: `reputation-sync-${userId}-${Date.now()}`,
@@ -233,7 +260,7 @@ export async function syncUserReputationToERC8004(
               onChainSubmitted = true
               logger.info('Reputation synced to ERC-8004 on-chain', {
                 userId,
-                agent0TokenId: user.agent0TokenId,
+                agent0TokenId: userWithMetrics.agent0TokenId,
                 feedbackScore,
                 rating,
                 tags,
@@ -245,7 +272,7 @@ export async function syncUserReputationToERC8004(
             onChainError = submitError instanceof Error ? submitError.message : 'Unknown submission error'
             logger.warn('Agent0 feedback submission failed', {
               userId,
-              agent0TokenId: user.agent0TokenId,
+              agent0TokenId: userWithMetrics.agent0TokenId,
               error: onChainError,
             }, 'ERC8004ReputationSync')
           }
@@ -256,14 +283,14 @@ export async function syncUserReputationToERC8004(
       onChainError = error instanceof Error ? error.message : 'Unknown error'
       logger.warn('Failed to submit reputation to ERC-8004 on-chain (non-blocking)', {
         userId,
-        agent0TokenId: user.agent0TokenId,
+        agent0TokenId: userWithMetrics.agent0TokenId,
         error: onChainError,
       }, 'ERC8004ReputationSync')
     }
     
     return {
       userId,
-      agent0TokenId: user.agent0TokenId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
       reputationScore,
       synced: true,
       onChainSubmitted,
@@ -272,13 +299,13 @@ export async function syncUserReputationToERC8004(
   } catch (error) {
     logger.error('Failed to sync user reputation', {
       userId,
-      agent0TokenId: user.agent0TokenId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
       error,
     }, 'ERC8004ReputationSync')
 
     return {
       userId,
-      agent0TokenId: user.agent0TokenId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
       reputationScore: 0,
       synced: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -309,30 +336,25 @@ export async function batchSyncReputationsToERC8004(
 
   // Query users with Agent0 token IDs
   // Prioritize new accounts (created in last 7 days) if requested
-  const whereClause: Record<string, unknown> = {
-    agent0TokenId: { not: null },
-  }
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  if (prioritizeNew) {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    whereClause.createdAt = { gte: sevenDaysAgo }
-  }
+  const whereCondition = prioritizeNew
+    ? and(isNotNull(users.agent0TokenId), gte(users.createdAt, sevenDaysAgo))
+    : isNotNull(users.agent0TokenId)
 
-  const users = await prisma.user.findMany({
-    where: whereClause,
-    select: {
-      id: true,
-      agent0TokenId: true,
-      createdAt: true,
-    },
-    orderBy: prioritizeNew
-      ? { createdAt: 'desc' }
-      : { createdAt: 'asc' },
-    take: limit,
-    skip: offset,
-  })
+  const usersResult = await db
+    .select({
+      id: users.id,
+      agent0TokenId: users.agent0TokenId,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(whereCondition)
+    .orderBy(prioritizeNew ? desc(users.createdAt) : users.createdAt)
+    .limit(limit)
+    .offset(offset)
 
-  logger.info(`Batch syncing ${users.length} user reputations`, {
+  logger.info(`Batch syncing ${usersResult.length} user reputations`, {
     limit,
     offset,
     prioritizeNew,
@@ -343,7 +365,7 @@ export async function batchSyncReputationsToERC8004(
   let failed = 0
   let skipped = 0
 
-  for (const user of users) {
+  for (const user of usersResult) {
     const result = await syncUserReputationToERC8004(user.id, forceRecalculate)
     results.push(result)
 
@@ -360,7 +382,7 @@ export async function batchSyncReputationsToERC8004(
   }
 
   return {
-    total: users.length,
+    total: usersResult.length,
     synced,
     failed,
     skipped,
@@ -419,16 +441,14 @@ function shouldSyncReputation(
  * Get last reputation sync timestamp for a user
  */
 async function getLastReputationSync(userId: string): Promise<Date | null> {
-  const sync = await prisma.gameConfig.findFirst({
-    where: {
-      key: `reputation_sync_${userId}`,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  })
+  const syncResult = await db
+    .select({ createdAt: gameConfigs.createdAt })
+    .from(gameConfigs)
+    .where(eq(gameConfigs.key, `reputation_sync_${userId}`))
+    .orderBy(desc(gameConfigs.createdAt))
+    .limit(1)
 
-  return sync?.createdAt ?? null
+  return syncResult[0]?.createdAt ?? null
 }
 
 /**
@@ -439,30 +459,36 @@ async function recordReputationSync(
   score: number,
   tags: string[]
 ): Promise<void> {
-  await prisma.gameConfig.upsert({
-    where: {
-      key: `reputation_sync_${userId}`,
-    },
-    create: {
+  const key = `reputation_sync_${userId}`
+  const value = {
+    score,
+    tags,
+    syncedAt: new Date().toISOString(),
+  }
+
+  const existing = await db
+    .select()
+    .from(gameConfigs)
+    .where(eq(gameConfigs.key, key))
+    .limit(1)
+
+  if (existing[0]) {
+    await db
+      .update(gameConfigs)
+      .set({
+        value,
+        updatedAt: new Date(),
+      })
+      .where(eq(gameConfigs.key, key))
+  } else {
+    await db.insert(gameConfigs).values({
       id: await generateSnowflakeId(),
-      key: `reputation_sync_${userId}`,
-      value: {
-        score,
-        tags,
-        syncedAt: new Date().toISOString(),
-      },
+      key,
+      value,
       createdAt: new Date(),
       updatedAt: new Date(),
-    },
-    update: {
-      value: {
-        score,
-        tags,
-        syncedAt: new Date().toISOString(),
-      },
-      updatedAt: new Date(),
-    },
-  })
+    })
+  }
 }
 
 /**

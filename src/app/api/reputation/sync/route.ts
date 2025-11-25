@@ -97,7 +97,7 @@ import { NextResponse } from 'next/server'
 import { periodicReputationSync, syncUserReputationNow } from '@/lib/reputation/agent0-reputation-sync'
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 
 interface SyncRequest {
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
 
   const reputation = await getReputationBreakdown(user.id)
 
-  const metrics = await prisma.agentPerformanceMetrics.findUnique({
+  const metrics = await db.agentPerformanceMetrics.findUnique({
     where: { userId: user.id },
     select: {
       onChainReputationSync: true,

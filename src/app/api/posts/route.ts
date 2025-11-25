@@ -235,7 +235,7 @@ import { withErrorHandling } from '@/lib/errors/error-handler';
 import { getCacheOrFetch } from '@/lib/cache-service';
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, posts, users, actors, organizations, follows, userActorFollows, followStatuses, reactions, comments, shares, eq, and, inArray, lt, lte, desc, count, isNull } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
@@ -245,11 +245,11 @@ import { trackServerEvent } from '@/lib/posthog/server';
 import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
 import { notifyMention } from '@/lib/services/notification-service';
 import { getBlockedUserIds, getMutedUserIds, getBlockedByUserIds } from '@/lib/moderation/filters';
-import type { Post } from '@prisma/client';
+import type { Post } from '@/db';
 
 // Type for posts with included original post relation
 type PostWithOriginal = Post & {
-  Post_Post_originalPostIdToPost?: {
+  originalPost?: {
     id: string;
     content: string;
     authorId: string;
@@ -303,29 +303,26 @@ export const GET = withErrorHandling(async (request: Request) => {
       const allFollowedIds = await getCacheOrFetch(
         followsCacheKey,
         async () => {
-          const [userFollows, actorFollows, legacyActorFollows] = await Promise.all([
-            prisma.follow.findMany({
-              where: { followerId: userId },
-              select: { followingId: true },
-            }),
-            prisma.userActorFollow.findMany({
-              where: { userId: userId },
-              select: { actorId: true },
-            }),
-            prisma.followStatus.findMany({
-              where: { 
-                userId: userId, 
-                isActive: true,
-                followReason: 'user_followed',
-              },
-              select: { npcId: true },
-            }),
+          const [userFollowsList, actorFollowsList, legacyActorFollowsList] = await Promise.all([
+            db.select({ followingId: follows.followingId })
+              .from(follows)
+              .where(eq(follows.followerId, userId)),
+            db.select({ actorId: userActorFollows.actorId })
+              .from(userActorFollows)
+              .where(eq(userActorFollows.userId, userId)),
+            db.select({ npcId: followStatuses.npcId })
+              .from(followStatuses)
+              .where(and(
+                eq(followStatuses.userId, userId),
+                eq(followStatuses.isActive, true),
+                eq(followStatuses.followReason, 'user_followed')
+              )),
           ]);
 
-          const followedUserIds = userFollows.map((f) => f.followingId);
+          const followedUserIds = userFollowsList.map((f) => f.followingId);
           const followedActorIds = new Set<string>();
-          actorFollows.forEach((f) => followedActorIds.add(f.actorId));
-          legacyActorFollows.forEach((f) => followedActorIds.add(f.npcId));
+          actorFollowsList.forEach((f) => followedActorIds.add(f.actorId));
+          legacyActorFollowsList.forEach((f) => followedActorIds.add(f.npcId));
           return [...followedUserIds, ...Array.from(followedActorIds)];
         },
         {
@@ -356,7 +353,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
 
       // Get posts from followed users/actors with caching
-      const posts = await cachedDb.getPostsForFollowing(
+      const postsResult = await cachedDb.getPostsForFollowing(
         userId,
         allFollowedIds,
         limit,
@@ -364,57 +361,85 @@ export const GET = withErrorHandling(async (request: Request) => {
       );
       
       // Filter out posts from blocked/muted users
-      const filteredPosts = posts.filter(post => !excludedUserIds.has(post.authorId));
+      const filteredPosts = postsResult.filter(post => !excludedUserIds.has(post.authorId));
 
       // Get user data for filtered posts
       const authorIds = [...new Set(filteredPosts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
-      const [users, actors, organizations] = await Promise.all([
-        prisma.user.findMany({
-          where: { id: { in: authorIds } },
-          select: { id: true, username: true, displayName: true, profileImageUrl: true },
-        }),
-        prisma.actor.findMany({
-          where: { id: { in: authorIds } },
-          select: { id: true, name: true, profileImageUrl: true },
-        }),
-        prisma.organization.findMany({
-          where: { id: { in: authorIds } },
-          select: { id: true, name: true, imageUrl: true },
-        }),
+      
+      const [usersList, actorsList, orgsList] = await Promise.all([
+        authorIds.length > 0 
+          ? db.select({
+              id: users.id,
+              username: users.username,
+              displayName: users.displayName,
+              profileImageUrl: users.profileImageUrl,
+            })
+            .from(users)
+            .where(inArray(users.id, authorIds))
+          : [],
+        authorIds.length > 0
+          ? db.select({
+              id: actors.id,
+              name: actors.name,
+              profileImageUrl: actors.profileImageUrl,
+            })
+            .from(actors)
+            .where(inArray(actors.id, authorIds))
+          : [],
+        authorIds.length > 0
+          ? db.select({
+              id: organizations.id,
+              name: organizations.name,
+              imageUrl: organizations.imageUrl,
+            })
+            .from(organizations)
+            .where(inArray(organizations.id, authorIds))
+          : [],
       ]);
-      const userMap = new Map(users.map(u => [u.id, u]));
-      const actorMap = new Map(actors.map(a => [a.id, a]));
-      const orgMap = new Map(organizations.map(o => [o.id, o]));
+      const userMap = new Map(usersList.map(u => [u.id, u]));
+      const actorMap = new Map(actorsList.map(a => [a.id, a]));
+      const orgMap = new Map(orgsList.map(o => [o.id, o]));
       
       // Get interaction counts for all filtered posts in parallel
       const postIds = filteredPosts.map(p => p.id);
-      const [allReactions, allComments] = await Promise.all([
-        prisma.reaction.groupBy({
-          by: ['postId'],
-          where: { postId: { in: postIds }, type: 'like' },
-          _count: { postId: true },
-        }),
-        prisma.comment.groupBy({
-          by: ['postId'],
-          where: { postId: { in: postIds } },
-          _count: { postId: true },
-        }),
+      const [reactionCounts, commentCounts] = await Promise.all([
+        postIds.length > 0 
+          ? db.select({
+              postId: reactions.postId,
+              count: count(),
+            })
+            .from(reactions)
+            .where(and(
+              inArray(reactions.postId, postIds),
+              eq(reactions.type, 'like')
+            ))
+            .groupBy(reactions.postId)
+          : [],
+        postIds.length > 0
+          ? db.select({
+              postId: comments.postId,
+              count: count(),
+            })
+            .from(comments)
+            .where(inArray(comments.postId, postIds))
+            .groupBy(comments.postId)
+          : [],
       ]);
       
       // Create maps for quick lookup
-      const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
-      const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+      const reactionMap = new Map(reactionCounts.map(r => [r.postId, Number(r.count)]));
+      const commentMap = new Map(commentCounts.map(c => [c.postId, Number(c.count)]));
       
       // Format following posts synchronously using lookup maps
       // Note: filteredPosts already includes originalPost via the include in the query above
-      const formattedFollowingPosts = posts.map((post) => {
+      const formattedFollowingPosts = filteredPosts.map((post) => {
         const postsWithOriginal = post as PostWithOriginal;
         const user = post.authorId ? userMap.get(post.authorId) : undefined;
         
         // Build repost metadata from originalPost if it exists (clean, no text parsing)
         const repostMetadata: Record<string, unknown> = {};
-        if (postsWithOriginal.originalPostId && postsWithOriginal.Post_Post_originalPostIdToPost) {
-          const originalPost = postsWithOriginal.Post_Post_originalPostIdToPost;
+        if (postsWithOriginal.originalPostId && postsWithOriginal.originalPost) {
+          const originalPost = postsWithOriginal.originalPost;
           const isQuote = post.content && post.content.length > 0;
           
           // Get original author from our maps
@@ -480,7 +505,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
     
     // Get posts from database with cursor-based pagination
-    let posts;
+    let postsResult: Post[];
     
     logger.info('Fetching posts from database', { limit, cursor, actorId, type }, 'GET /api/posts');
     
@@ -489,58 +514,38 @@ export const GET = withErrorHandling(async (request: Request) => {
       logger.info('Filtering posts by type', { type, limit, cursor }, 'GET /api/posts');
       
       const now = new Date();
-      const where: {
-        type: string;
-        deletedAt: null;
-        timestamp?: { lt: Date; lte: Date } | { lt: Date } | { lte: Date };
-      } = {
-        type,
-        deletedAt: null,
-      };
       
-      // Time-based filter: Only show posts up to current time (prevent future access)
-      // Combined with cursor if provided
+      // Build conditions
+      const conditions = [
+        eq(posts.type, type),
+        isNull(posts.deletedAt),
+      ];
+      
       if (cursor) {
-        where.timestamp = {
-          lt: new Date(cursor),
-          lte: now, // ✅ No future posts
-        };
-      } else {
-        where.timestamp = { lte: now }; // ✅ No future posts
+        conditions.push(lt(posts.timestamp, new Date(cursor)));
       }
+      conditions.push(lte(posts.timestamp, now)); // No future posts
       
-      posts = await prisma.post.findMany({
-        where,
-        orderBy: { timestamp: 'desc' },
-        take: limit,
-        include: {
-          Post_Post_originalPostIdToPost: {
-            select: {
-              id: true,
-              content: true,
-              authorId: true,
-              timestamp: true,
-              createdAt: true,
-              deletedAt: true,
-            }
-          }
-        }
-      });
+      postsResult = await db.select()
+        .from(posts)
+        .where(and(...conditions))
+        .orderBy(desc(posts.timestamp))
+        .limit(limit);
       
-      logger.info('Fetched posts by type', { type, count: posts.length }, 'GET /api/posts');
+      logger.info('Fetched posts by type', { type, count: postsResult.length }, 'GET /api/posts');
     } else if (actorId) {
       // Get posts by specific actor (cached with cursor)
-      posts = await cachedDb.getPostsByActor(actorId, limit, cursor);
-      logger.info('Fetched posts by actor (cached)', { actorId, count: posts.length }, 'GET /api/posts');
+      postsResult = await cachedDb.getPostsByActor(actorId, limit, cursor);
+      logger.info('Fetched posts by actor (cached)', { actorId, count: postsResult.length }, 'GET /api/posts');
     } else {
       // Get recent posts with cursor-based pagination
-      posts = await cachedDb.getRecentPosts(limit, cursor);
-      logger.info('Fetched recent posts (cached)', { count: posts.length, limit, cursor }, 'GET /api/posts');
+      postsResult = await cachedDb.getRecentPosts(limit, cursor);
+      logger.info('Fetched recent posts (cached)', { count: postsResult.length, limit, cursor }, 'GET /api/posts');
     }
     
     // Log post structure for debugging
-    if (posts.length > 0) {
-      const samplePost = posts[0];
+    if (postsResult.length > 0) {
+      const samplePost = postsResult[0];
       if (samplePost) {
         logger.debug('Sample post structure', {
           id: samplePost.id,
@@ -563,18 +568,37 @@ export const GET = withErrorHandling(async (request: Request) => {
       ]);
       
       const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
-      posts = posts.filter(post => !excludedUserIds.has(post.authorId));
+      postsResult = postsResult.filter(post => !excludedUserIds.has(post.authorId));
     }
     
-    // Get unique author IDs to fetch author data (users, actors, or organizations)
-    // Include both post authors and original post authors (for reposts/quotes)
-    const postsWithOriginal = posts as PostWithOriginal[];
+    // Get original posts for reposts
+    const originalPostIds = postsResult
+      .filter(p => p.originalPostId)
+      .map(p => p.originalPostId)
+      .filter((id): id is string => id !== null);
+    
+    const originalPostsMap = new Map<string, Post>();
+    if (originalPostIds.length > 0) {
+      const originalPostsList = await db.select()
+        .from(posts)
+        .where(and(
+          inArray(posts.id, originalPostIds),
+          isNull(posts.deletedAt)
+        ));
+      originalPostsList.forEach(p => originalPostsMap.set(p.id, p));
+    }
+    
+    // Merge original posts into posts with type casting
+    const postsWithOriginal: PostWithOriginal[] = postsResult.map(p => ({
+      ...p,
+      originalPost: p.originalPostId ? originalPostsMap.get(p.originalPostId) ?? null : null,
+    }));
     
     // Filter out reposts where the original post is deleted
     const validPosts = postsWithOriginal.filter(post => {
       // If it's a repost, check if original post exists and is not deleted
       if (post.originalPostId) {
-        const hasOriginalPost = post.Post_Post_originalPostIdToPost && !post.Post_Post_originalPostIdToPost.deletedAt;
+        const hasOriginalPost = post.originalPost && !post.originalPost.deletedAt;
         const isQuote = post.content && post.content.length > 0;
         
         // For quote posts, keep them even if original is deleted (user has commentary)
@@ -589,61 +613,88 @@ export const GET = withErrorHandling(async (request: Request) => {
     
     const postAuthorIds = validPosts.map(p => p.authorId).filter((id): id is string => id !== undefined);
     const originalPostAuthorIds = validPosts
-      .filter(p => p.originalPostId && p.Post_Post_originalPostIdToPost)
-      .map(p => p.Post_Post_originalPostIdToPost!.authorId)
+      .filter(p => p.originalPostId && p.originalPost)
+      .map(p => p.originalPost!.authorId)
       .filter((id): id is string => id !== undefined);
     
     const authorIds = [...new Set([...postAuthorIds, ...originalPostAuthorIds])];
     
-    const [users, actors, organizations] = await Promise.all([
-      prisma.user.findMany({
-        where: { id: { in: authorIds } },
-        select: { id: true, username: true, displayName: true, profileImageUrl: true },
-      }),
-      prisma.actor.findMany({
-        where: { id: { in: authorIds } },
-        select: { id: true, name: true, profileImageUrl: true },
-      }),
-      prisma.organization.findMany({
-        where: { id: { in: authorIds } },
-        select: { id: true, name: true, imageUrl: true },
-      }),
+    const [usersList, actorsList, orgsList] = await Promise.all([
+      authorIds.length > 0
+        ? db.select({
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+            profileImageUrl: users.profileImageUrl,
+          })
+          .from(users)
+          .where(inArray(users.id, authorIds))
+        : [],
+      authorIds.length > 0
+        ? db.select({
+            id: actors.id,
+            name: actors.name,
+            profileImageUrl: actors.profileImageUrl,
+          })
+          .from(actors)
+          .where(inArray(actors.id, authorIds))
+        : [],
+      authorIds.length > 0
+        ? db.select({
+            id: organizations.id,
+            name: organizations.name,
+            imageUrl: organizations.imageUrl,
+          })
+          .from(organizations)
+          .where(inArray(organizations.id, authorIds))
+        : [],
     ]);
-    const userMap = new Map(users.map(u => [u.id, u]));
-    const actorMap = new Map(actors.map(a => [a.id, a]));
-    const orgMap = new Map(organizations.map(o => [o.id, o]));
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+    const actorMap = new Map(actorsList.map(a => [a.id, a]));
+    const orgMap = new Map(orgsList.map(o => [o.id, o]));
     
     // Get interaction counts for all posts in parallel
     const postIds = validPosts.map(p => p.id);
     // Also collect original post IDs for reposts to get their interaction counts
-    const originalPostIds = validPosts
-      .filter(p => p.originalPostId)
-      .map(p => p.originalPostId)
-      .filter((id): id is string => id !== null);
-    const allPostIds = [...new Set([...postIds, ...originalPostIds])];
+    const allPostIds = [...new Set([...postIds, ...originalPostIds.filter(id => originalPostsMap.has(id))])];
     
-    const [allReactions, allComments, allShares] = await Promise.all([
-      prisma.reaction.groupBy({
-        by: ['postId'],
-        where: { postId: { in: allPostIds }, type: 'like' },
-        _count: { postId: true },
-      }),
-      prisma.comment.groupBy({
-        by: ['postId'],
-        where: { postId: { in: allPostIds } },
-        _count: { postId: true },
-      }),
-      prisma.share.groupBy({
-        by: ['postId'],
-        where: { postId: { in: allPostIds } },
-        _count: { postId: true },
-      }),
+    const [reactionCounts, commentCounts, shareCounts] = await Promise.all([
+      allPostIds.length > 0
+        ? db.select({
+            postId: reactions.postId,
+            count: count(),
+          })
+          .from(reactions)
+          .where(and(
+            inArray(reactions.postId, allPostIds),
+            eq(reactions.type, 'like')
+          ))
+          .groupBy(reactions.postId)
+        : [],
+      allPostIds.length > 0
+        ? db.select({
+            postId: comments.postId,
+            count: count(),
+          })
+          .from(comments)
+          .where(inArray(comments.postId, allPostIds))
+          .groupBy(comments.postId)
+        : [],
+      allPostIds.length > 0
+        ? db.select({
+            postId: shares.postId,
+            count: count(),
+          })
+          .from(shares)
+          .where(inArray(shares.postId, allPostIds))
+          .groupBy(shares.postId)
+        : [],
     ]);
     
     // Create maps for quick lookup
-    const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
-    const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
-    const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+    const reactionMap = new Map(reactionCounts.map(r => [r.postId, Number(r.count)]));
+    const commentMap = new Map(commentCounts.map(c => [c.postId, Number(c.count)]));
+    const shareMap = new Map(shareCounts.map(s => [s.postId, Number(s.count)]));
     
     // Format posts - simple transformation, no async queries needed!
     const formattedPosts = validPosts.map((post) => {
@@ -701,7 +752,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       // Check if this is a repost/quote by presence of originalPostId
       if (post.originalPostId) {
         const isQuote = post.content && post.content.length > 0;
-        const originalPost = post.Post_Post_originalPostIdToPost;
+        const originalPost = post.originalPost;
         
         // If original post exists and is not deleted
         if (originalPost && !originalPost.deletedAt) {
@@ -774,9 +825,9 @@ export const GET = withErrorHandling(async (request: Request) => {
     })
     
     logger.info('Formatted posts', { 
-      originalCount: posts.length, 
+      originalCount: postsResult.length, 
       formattedCount: formattedPosts.length,
-      filteredOut: posts.length - formattedPosts.length 
+      filteredOut: postsResult.length - formattedPosts.length 
     }, 'GET /api/posts');
     
     // Next.js 16: Add cache headers for real-time feeds
@@ -844,19 +895,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
   const canonicalUserId = canonicalUser.id
 
-  const post = await prisma.post.create({
-    data: {
-      id: await generateSnowflakeId(),
-      content: content.trim(),
-      authorId: canonicalUserId,
-      timestamp: new Date(),
-    },
-    include: {
-      Comment: false,
-      Reaction: false,
-      Share: false,
-    },
-  })
+  const postId = await generateSnowflakeId();
+  const [post] = await db.insert(posts).values({
+    id: postId,
+    content: content.trim(),
+    authorId: canonicalUserId,
+    timestamp: new Date(),
+  }).returning();
+
+  if (!post) {
+    logger.error('Failed to create post', { postId }, 'POST /api/posts')
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to create post'
+    }, { status: 500 })
+  }
 
   const authorName = canonicalUser.username!
 
@@ -882,12 +935,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const mentions = content.match(/@(\w+)/g) || []
   const usernames = [...new Set(mentions.map((m: string) => m.substring(1)))]
   
-  const mentionedUsers = await prisma.user.findMany({
-    where: {
-      username: { in: usernames as string[] },
-    },
-    select: { id: true, username: true },
-  })
+  const mentionedUsers = usernames.length > 0 
+    ? await db.select({ id: users.id, username: users.username })
+        .from(users)
+        .where(inArray(users.username, usernames as string[]))
+    : [];
 
   await Promise.all(
     mentionedUsers.map(mentionedUser =>

@@ -11,7 +11,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { executeGameTick } from '@/lib/serverless-game-tick'
 import { asSystem } from '@/lib/db/context'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -96,12 +96,12 @@ describe('Trading and Question Generation Integration', () => {
     }
 
     // Get baseline counts
-    initialMarketCount = await prisma.market.count({
+    initialMarketCount = await db.market.count({
       where: { resolved: false }
     })
 
     // Ensure we have at least one active market for trading
-    const activeMarkets = await prisma.market.findMany({
+    const activeMarkets = await db.market.findMany({
       where: { resolved: false },
       take: 1
     })
@@ -110,7 +110,7 @@ describe('Trading and Question Generation Integration', () => {
       // Create a test question and market with the same ID (matching how QuestionManager creates them)
       const testId = await generateSnowflakeId()
       
-      await prisma.question.create({
+      await db.question.create({
         data: {
           id: testId,
           questionNumber: Math.floor(Date.now() / 1000) % 1000000,
@@ -125,13 +125,13 @@ describe('Trading and Question Generation Integration', () => {
         }
       })
 
-      await prisma.market.create({
+      await db.market.create({
         data: {
           id: testId, // Same ID as question - this is how QuestionManager creates them
           question: 'Test: Will trading work?',
-          yesShares: 100,
-          noShares: 100,
-          liquidity: 200,
+          yesShares: '100',
+          noShares: '100',
+          liquidity: '200',
           resolved: false,
           endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           createdAt: new Date(),
@@ -144,10 +144,10 @@ describe('Trading and Question Generation Integration', () => {
     }
 
     // Ensure we have NPCs with trading enabled
-    const npcs = await prisma.user.findMany({
+    const npcs = await db.user.findMany({
       where: {
         isAgent: false,
-        virtualBalance: { gt: 0 }
+        virtualBalance: { gt: '0' }
       },
       take: 5
     })
@@ -162,7 +162,7 @@ describe('Trading and Question Generation Integration', () => {
     if (testQuestionIds.length > 0) {
       for (const id of testQuestionIds) {
         try {
-          await prisma.question.delete({ where: { id } }).catch(() => {})
+          await db.question.delete({ where: { id } }).catch(() => {})
         } catch {
           // Ignore cleanup errors
         }
@@ -172,7 +172,7 @@ describe('Trading and Question Generation Integration', () => {
     if (testMarketIds.length > 0) {
       for (const id of testMarketIds) {
         try {
-          await prisma.market.delete({ where: { id } }).catch(() => {})
+          await db.market.delete({ where: { id } }).catch(() => {})
         } catch {
           // Ignore cleanup errors
         }
@@ -194,7 +194,7 @@ describe('Trading and Question Generation Integration', () => {
 
     // Verify markets were updated if trading occurred
     if (result.marketsUpdated > 0) {
-      const afterMarketCount = await prisma.market.count({
+      const afterMarketCount = await db.market.count({
         where: { resolved: false }
       })
 
@@ -205,7 +205,7 @@ describe('Trading and Question Generation Integration', () => {
 
   test('should create NPC positions when trading occurs', async () => {
     // Get initial NPC pool position count (PoolPosition is for NPC perp trading)
-    const beforePositions = await prisma.poolPosition.count({
+    const beforePositions = await db.poolPosition.count({
       where: { closedAt: null } // Open positions have no closedAt
     })
 
@@ -218,7 +218,7 @@ describe('Trading and Question Generation Integration', () => {
     }
 
     // Get position count after tick
-    const afterPositions = await prisma.poolPosition.count({
+    const afterPositions = await db.poolPosition.count({
       where: { closedAt: null }
     })
 
@@ -236,21 +236,21 @@ describe('Trading and Question Generation Integration', () => {
 
   test('should generate new questions when count is low', async () => {
     // Get current active question count
-    const beforeQuestions = await prisma.question.count({
+    const beforeQuestions = await db.question.count({
       where: { status: 'active' }
     })
 
     // If we have 10+ questions, delete some to trigger generation
     if (beforeQuestions >= 10) {
       // Delete oldest questions to get below threshold
-      const questionsToDelete = await prisma.question.findMany({
+      const questionsToDelete = await db.question.findMany({
         where: { status: 'active' },
         orderBy: { createdAt: 'asc' },
         take: beforeQuestions - 8 // Leave 8 active (below 10 threshold)
       })
 
       for (const q of questionsToDelete) {
-        await prisma.question.update({
+        await db.question.update({
           where: { id: q.id },
           data: { status: 'resolved' }
         })
@@ -276,7 +276,7 @@ describe('Trading and Question Generation Integration', () => {
     expect(result.questionsCreated).toBeGreaterThanOrEqual(0)
 
     // Check current question count
-    const afterQuestions = await prisma.question.count({
+    const afterQuestions = await db.question.count({
       where: { status: 'active' }
     })
 
@@ -285,7 +285,7 @@ describe('Trading and Question Generation Integration', () => {
       expect(afterQuestions).toBeGreaterThan(0)
       
       // Verify questions have associated markets
-      const newQuestions = await prisma.question.findMany({
+      const newQuestions = await db.question.findMany({
         where: {
           status: 'active',
           createdAt: { gte: new Date(Date.now() - 60000) } // Created in last minute
@@ -293,7 +293,7 @@ describe('Trading and Question Generation Integration', () => {
       })
 
       for (const question of newQuestions) {
-        const market = await prisma.market.findUnique({
+        const market = await db.market.findUnique({
           where: { id: question.id }
         })
         expect(market).toBeTruthy()
@@ -307,7 +307,7 @@ describe('Trading and Question Generation Integration', () => {
   test('should update organization prices when NPCs trade', async () => {
     // Get an organization (company) to track price changes
     // Note: "marketsUpdated" in game tick refers to organization prices, not prediction markets
-    const org = await prisma.organization.findFirst({
+    const org = await db.organization.findFirst({
       where: { 
         type: 'company',
         ticker: { not: null }
@@ -331,7 +331,7 @@ describe('Trading and Question Generation Integration', () => {
     }
 
     // Check if organization price was updated
-    const afterOrg = await prisma.organization.findUnique({
+    const afterOrg = await db.organization.findUnique({
       where: { id: org.id }
     })
 
@@ -363,20 +363,20 @@ describe('Trading and Question Generation Integration', () => {
 
   test('should create markets for new questions', async () => {
     // Ensure we're below question threshold to trigger generation
-    const activeQuestions = await prisma.question.count({
+    const activeQuestions = await db.question.count({
       where: { status: 'active' }
     })
 
     if (activeQuestions >= 10) {
       // Resolve some questions to trigger generation
-      const questionsToResolve = await prisma.question.findMany({
+      const questionsToResolve = await db.question.findMany({
         where: { status: 'active' },
         orderBy: { createdAt: 'asc' },
         take: activeQuestions - 8
       })
 
       for (const q of questionsToResolve) {
-        await prisma.question.update({
+        await db.question.update({
           where: { id: q.id },
           data: { status: 'resolved' }
         })
@@ -392,7 +392,7 @@ describe('Trading and Question Generation Integration', () => {
     }
 
     // Check if new markets were created
-    const afterMarkets = await prisma.market.count({
+    const afterMarkets = await db.market.count({
       where: { resolved: false }
     })
 
@@ -401,7 +401,7 @@ describe('Trading and Question Generation Integration', () => {
       expect(afterMarkets).toBeGreaterThanOrEqual(initialMarketCount)
 
       // Verify new questions have markets
-      const newQuestions = await prisma.question.findMany({
+      const newQuestions = await db.question.findMany({
         where: {
           status: 'active',
           createdAt: { gte: new Date(Date.now() - 60000) }
@@ -409,7 +409,7 @@ describe('Trading and Question Generation Integration', () => {
       })
 
       for (const question of newQuestions) {
-        const market = await prisma.market.findUnique({
+        const market = await db.market.findUnique({
           where: { id: question.id }
         })
         expect(market).toBeTruthy()
@@ -426,7 +426,7 @@ describe('Trading and Question Generation Integration', () => {
     const testStartTime = new Date()
     
     // Get baseline state
-    const beforeQuestions = await prisma.question.count({
+    const beforeQuestions = await db.question.count({
       where: { status: 'active' }
     })
 
@@ -445,10 +445,10 @@ describe('Trading and Question Generation Integration', () => {
     expect(typeof result.questionsResolved).toBe('number')
 
     // Verify trading occurred (if NPCs exist and have balance)
-    const npcsWithBalance = await prisma.user.count({
+    const npcsWithBalance = await db.user.count({
       where: {
         isAgent: false,
-        virtualBalance: { gt: 0 }
+        virtualBalance: { gt: '0' }
       }
     })
 
@@ -456,7 +456,7 @@ describe('Trading and Question Generation Integration', () => {
       // Trading should have occurred (markets updated or positions created)
       // Note: Trading may not occur every tick (NPCs may hold)
       // But if markets exist and NPCs have balance, trading should eventually occur
-      const currentPositions = await prisma.position.count({ where: { status: 'active' } })
+      const currentPositions = await db.position.count({ where: { status: 'active' } })
       console.log(`Trading status: marketsUpdated=${result.marketsUpdated}, positions=${currentPositions}`)
       
       // Verify trading infrastructure is working (even if no trades this tick)
@@ -466,7 +466,7 @@ describe('Trading and Question Generation Integration', () => {
 
     // Verify question generation (if below threshold)
     if (beforeQuestions < 10) {
-      const afterQuestions = await prisma.question.count({
+      const afterQuestions = await db.question.count({
         where: { status: 'active' }
       })
 
@@ -482,7 +482,7 @@ describe('Trading and Question Generation Integration', () => {
     // Note: We only check questions created after testStartTime to avoid failing on
     // orphan questions from previous test runs or seed data that may not have markets
     if (result.questionsCreated > 0) {
-      const newQuestions = await prisma.question.findMany({
+      const newQuestions = await db.question.findMany({
         where: {
           status: 'active',
           createdAt: { gte: testStartTime }
@@ -490,7 +490,7 @@ describe('Trading and Question Generation Integration', () => {
       })
 
       for (const question of newQuestions) {
-        const market = await prisma.market.findUnique({
+        const market = await db.market.findUnique({
           where: { id: question.id }
         })
         expect(market).toBeTruthy()
@@ -500,7 +500,7 @@ describe('Trading and Question Generation Integration', () => {
       // If no questions were created, just verify our test setup question has a market
       if (testQuestionIds.length > 0) {
         for (const questionId of testQuestionIds) {
-          const market = await prisma.market.findUnique({
+          const market = await db.market.findUnique({
             where: { id: questionId }
           })
           expect(market).toBeTruthy()

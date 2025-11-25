@@ -75,7 +75,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { createNotification } from '@/lib/services/notification-service';
@@ -108,7 +108,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (sendToAll) {
     // Send notification to all users
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       where: {
         isActor: false, // Don't send to NPCs/actors
         isBanned: false, // Don't send to banned users
@@ -153,7 +153,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   } else if (userId) {
     // Send notification to specific user
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id: userId },
       select: {
         id: true,

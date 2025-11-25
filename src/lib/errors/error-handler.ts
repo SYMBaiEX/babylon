@@ -7,11 +7,11 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { BabylonError } from './base.errors';
 import { logger } from '@/lib/logger';
-import { Prisma } from '@prisma/client';
 import { isAuthenticationError } from '@/lib/api/auth-middleware';
 import { trackServerError } from '@/lib/posthog/server';
 import * as Sentry from '@sentry/nextjs';
 import type { JsonValue } from '@/types/common';
+import { DatabaseError } from '@/db';
 
 /**
  * Main error handler that processes all errors and returns appropriate responses
@@ -184,93 +184,85 @@ export function errorHandler(error: Error | unknown, request: NextRequest): Next
     );
   }
 
-  // Handle Prisma errors
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    return handlePrismaError(error);
+  // Handle database errors
+  if (error instanceof DatabaseError) {
+    return handleDatabaseError(error);
   }
 
-  if (error instanceof Prisma.PrismaClientValidationError) {
-    const errorData: Record<string, JsonValue> = { error: 'Invalid database query' }
-    if (process.env.NODE_ENV === 'development') {
-      errorData.details = error.message
-    }
-    
-    return NextResponse.json(errorData, { status: 400 });
-  }
-
-  // Handle native JavaScript errors
-  if (error.name === 'SyntaxError') {
-    return NextResponse.json(
-      {
-        error: 'Invalid JSON in request body'
-      },
-      { status: 400 }
-    );
-  }
-
-  if (error.name === 'TypeError') {
-    return NextResponse.json(
-      {
-        error: process.env.NODE_ENV === 'production'
-          ? 'An unexpected error occurred'
-          : error.message
-      },
-      { status: 500 }
-    );
-  }
-
-  // Default error response
-  const errorData: Record<string, JsonValue> = {
-    error: process.env.NODE_ENV === 'production'
-      ? 'An unexpected error occurred'
-      : error.message
-  }
-  
-  if (process.env.NODE_ENV === 'development' && error.stack) {
-    errorData.stack = error.stack
-  }
-  
-  return NextResponse.json(errorData, { status: 500 });
-}
-
-/**
- * Handle Prisma-specific errors
- */
-function handlePrismaError(error: Prisma.PrismaClientKnownRequestError): NextResponse {
-  switch (error.code) {
-    case 'P2002':
-      // Unique constraint violation
-      const fields = error.meta?.target as string[] | undefined;
-      const errorData: Record<string, JsonValue> = { error: `Duplicate entry for field(s): ${fields?.join(', ') || 'unknown'}` }
-      if (fields) errorData.fields = fields
-      return NextResponse.json(errorData, { status: 409 });
-
-    case 'P2025':
-      // Record not found
-      return NextResponse.json({ error: 'Record not found' }, { status: 404 });
-
-    case 'P2003':
-      // Foreign key constraint failure
-      const field = error.meta?.field_name as string | undefined;
-      const fkErrorData: Record<string, JsonValue> = { error: `Foreign key constraint failed on field: ${field || 'unknown'}` }
-      if (field) fkErrorData.field = field
-      return NextResponse.json(fkErrorData, { status: 400 });
-
-    case 'P2014':
-      // Relation violation
+  if (error instanceof Error) {
+    // Handle native JavaScript errors
+    if (error.name === 'SyntaxError') {
       return NextResponse.json(
         {
-          error: 'The change you are trying to make would violate the required relation'
+          error: 'Invalid JSON in request body'
         },
         { status: 400 }
       );
+    }
 
-    case 'P2016':
-      // Query interpretation error
+    if (error.name === 'TypeError') {
       return NextResponse.json(
         {
-          error: 'Query interpretation error'
+          error: process.env.NODE_ENV === 'production'
+            ? 'An unexpected error occurred'
+            : error.message
         },
+        { status: 500 }
+      );
+    }
+    
+    // Default Error handling
+    const errorData: Record<string, JsonValue> = {
+      error: process.env.NODE_ENV === 'production'
+        ? 'An unexpected error occurred'
+        : error.message
+    }
+    
+    if (process.env.NODE_ENV === 'development' && error.stack) {
+      errorData.stack = error.stack
+    }
+    
+    return NextResponse.json(errorData, { status: 500 });
+  }
+
+  // Handle any other unknown type
+  return NextResponse.json(
+    { error: 'An unexpected error occurred' },
+    { status: 500 }
+  );
+}
+
+/**
+ * Handle database-specific errors
+ * Uses PostgreSQL error codes (23xxx series for integrity constraints)
+ */
+function handleDatabaseError(error: DatabaseError): NextResponse {
+  switch (error.code) {
+    case '23505': // PostgreSQL unique_violation
+      // Unique constraint violation
+      return NextResponse.json(
+        { error: 'A record with this value already exists' },
+        { status: 409 }
+      );
+
+    case '23503': // PostgreSQL foreign_key_violation
+      // Foreign key constraint failure
+      return NextResponse.json(
+        { error: 'Foreign key constraint failed' },
+        { status: 400 }
+      );
+
+    case '23502': // PostgreSQL not_null_violation
+      // Not null violation
+      return NextResponse.json(
+        { error: 'Required field is missing' },
+        { status: 400 }
+      );
+
+    case '23514': // PostgreSQL check_violation
+      // Check constraint violation
+      return NextResponse.json(
+        { error: 'Check constraint violation' },
         { status: 400 }
       );
 
@@ -278,8 +270,8 @@ function handlePrismaError(error: Prisma.PrismaClientKnownRequestError): NextRes
       // Generic database error
       const dbErrorData: Record<string, JsonValue> = { error: 'Database operation failed' }
       if (process.env.NODE_ENV === 'development') {
-        dbErrorData.prismaCode = error.code
-        dbErrorData.meta = error.meta as JsonValue
+        dbErrorData.code = error.code
+        dbErrorData.message = error.message
       }
       return NextResponse.json(dbErrorData, { status: 500 });
   }

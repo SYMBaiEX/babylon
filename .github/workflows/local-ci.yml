@@ -1,14 +1,11 @@
 # Local CI workflow optimized for act (local GitHub Actions runner)
-# Run with: bun run test:act (or: act -W .github/workflows/local-ci.yml)
+# Run with: bun run test (or: act -W .github/workflows/local-ci.yml)
 #
-# This workflow is designed to run locally using nektos/act
-# It mirrors the production CI but with optimizations for local execution
+# This workflow uses Drizzle ORM - pure TypeScript, no native binaries.
+# Works reliably on all platforms including Apple Silicon with act.
 #
-# ⚠️ APPLE SILICON LIMITATION:
-# Prisma's Rust-based CLI binary crashes under x86_64 emulation (Rosetta 2).
-# This workflow may not work reliably on M1/M2/M3 Macs.
-# For CI testing on Apple Silicon, use: bun run test (runs tests natively)
-# or push to GitHub to run actual CI.
+# NOTE: This workflow is designed to run locally via act. Services are accessed
+# via Docker's internal networking using service names (postgres, redis).
 
 name: Local CI
 
@@ -20,12 +17,8 @@ on:
 env:
   NODE_ENV: test
   CI: true
-  DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-  DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-  REDIS_URL: redis://localhost:6381
 
 jobs:
-  # Combined job for local development (faster than multiple jobs)
   local-ci:
     name: Local CI Pipeline
     runs-on: ubuntu-latest
@@ -46,7 +39,7 @@ jobs:
           --health-retries 10
           --shm-size=512mb
         ports:
-          - 5434:5432
+          - 5444:5432
 
       redis:
         image: redis:7-alpine
@@ -56,7 +49,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
         ports:
-          - 6381:6379
+          - 6391:6379
 
     steps:
       - name: Checkout
@@ -68,15 +61,39 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        run: bun install
+
+      - name: Determine service hosts
+        id: services
         run: |
-          # Install all dependencies (postinstall runs prisma generate)
-          # Note: May fail on Apple Silicon due to Prisma binary issues under emulation
-          bun install
+          # act uses host networking for the job container on macOS
+          # Services expose ports to the host via port mapping (5444:5432, 6391:6379)
+          # Use host.docker.internal (Docker Desktop) or localhost (GitHub Actions)
+          if [ "$ACT" = "true" ]; then
+            echo "Using act (local) networking"
+            # On macOS with Docker Desktop, host.docker.internal reaches the host
+            # Services are port-mapped to the host
+            PG_HOST="host.docker.internal"
+            PG_PORT="5444"
+            REDIS_HOST="host.docker.internal"
+            REDIS_PORT="6391"
+          else
+            echo "Using GitHub Actions networking - localhost"
+            PG_HOST="localhost"
+            PG_PORT="5444"
+            REDIS_HOST="localhost"
+            REDIS_PORT="6391"
+          fi
+          echo "PG_HOST=$PG_HOST" >> $GITHUB_OUTPUT
+          echo "REDIS_HOST=$REDIS_HOST" >> $GITHUB_OUTPUT
+          echo "DATABASE_URL=postgresql://postgres:postgres@${PG_HOST}:${PG_PORT}/test_db" >> $GITHUB_OUTPUT
+          echo "REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}" >> $GITHUB_OUTPUT
+          echo "Service hosts: PG=$PG_HOST:$PG_PORT, Redis=$REDIS_HOST:$REDIS_PORT"
 
       - name: Setup test environment
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
+          DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
           PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID }}
@@ -87,11 +104,12 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           FAL_KEY: ${{ secrets.FAL_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          REDIS_URL: redis://localhost:6381
-          # Skip E2E checks since local CI doesn't run E2E tests
+          REDIS_URL: ${{ steps.services.outputs.REDIS_URL }}
           SKIP_E2E_CHECKS: true
         run: |
           echo "📋 Setting up test environment..."
+          echo "   DATABASE_URL: $DATABASE_URL"
+          echo "   REDIS_URL: $REDIS_URL"
           if [ -f scripts/ci/prepare-env.sh ]; then
             bash scripts/ci/prepare-env.sh
           else
@@ -104,14 +122,16 @@ jobs:
 
       - name: Setup Database
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
+          DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
         run: |
-          echo "🗄️ Setting up database..."
-          # Push the schema to the database (skip generate since already done in install)
-          bunx prisma db push --skip-generate --accept-data-loss
+          echo "🗄️ Setting up database with Drizzle..."
+          echo "   DATABASE_URL: $DATABASE_URL"
+          bunx drizzle-kit push --force
 
       - name: Type Check
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
         run: |
           echo "📝 Running type check..."
           bun run typecheck
@@ -125,25 +145,25 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           SKIP_ENV_VALIDATION: true
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
+          DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
         run: |
           echo "🏗️ Building project..."
           bun run build
 
       - name: Run Unit Tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          REDIS_URL: redis://localhost:6381
+          DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          REDIS_URL: ${{ steps.services.outputs.REDIS_URL }}
         run: |
           echo "🧪 Running unit tests..."
           bun test tests/unit/ --preload ./tests/unit/preload.ts
 
       - name: Run Integration Tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5434/test_db
-          REDIS_URL: redis://localhost:6381
+          DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ steps.services.outputs.DATABASE_URL }}
+          REDIS_URL: ${{ steps.services.outputs.REDIS_URL }}
           TEST_API_URL: http://localhost:3000
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -159,12 +179,4 @@ jobs:
           echo "✅ Local CI Pipeline Complete!"
           echo "================================"
           echo ""
-          echo "Completed steps:"
-          echo "  ✓ Type check"
-          echo "  ✓ Lint"
-          echo "  ✓ Build"
-          echo "  ✓ Unit tests"
-          echo "  ✓ Integration tests"
-          echo ""
-          echo "Note: E2E tests are not included in local CI."
-          echo "Run 'bun run test:e2e' separately if needed."
+          echo "Using Drizzle ORM - no native binaries required"

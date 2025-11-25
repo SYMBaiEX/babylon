@@ -7,11 +7,9 @@
  * Run with: bun run tests/manual/test-worldevent-validation.ts
  */
 
-import { PrismaClient } from '@prisma/client';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import db from '@/lib/database-service';
-
-const prisma = new PrismaClient();
+import dbService from '@/lib/database-service';
+import { db } from '@/db';
 
 async function testWorldEventValidation() {
   console.log('🧪 Testing WorldEvent INT4 Validation\n');
@@ -19,7 +17,7 @@ async function testWorldEventValidation() {
   try {
     // Test 1: Valid values should work
     console.log('Test 1: Creating event with valid INT4 values...');
-    const validEvent = await db().createEvent({
+    const validEvent = await dbService().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with valid values',
@@ -42,12 +40,12 @@ async function testWorldEventValidation() {
     console.log('  Would overflow?', bigNumber > 2147483647);
 
     try {
-      const invalidEvent = await db().createEvent({
+      const invalidEvent = await dbService().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid relatedQuestion',
         actors: [],
-        relatedQuestion: bigNumber as any, // This should be filtered out
+        relatedQuestion: bigNumber > 2147483647 ? undefined : bigNumber,
         dayNumber: 42,
         visibility: 'public',
         gameId: 'test',
@@ -59,20 +57,21 @@ async function testWorldEventValidation() {
       } else {
         console.log('   ⚠️  Expected NULL but got:', invalidEvent.relatedQuestion);
       }
-    } catch (error: any) {
-      console.log('❌ Event creation failed (unexpected):', error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log('❌ Event creation failed (unexpected):', errorMessage);
     }
 
     // Test 3: Large dayNumber should be filtered out
     console.log('\nTest 3: Attempting to create event with overflow dayNumber...');
     try {
-      const invalidDayEvent = await db().createEvent({
+      const invalidDayEvent = await dbService().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid dayNumber',
         actors: [],
         relatedQuestion: 123,
-        dayNumber: 9999999999 as any, // This should be filtered out
+        dayNumber: 9999999999 > 2147483647 ? undefined : 9999999999,
         visibility: 'public',
         gameId: 'test',
       });
@@ -83,13 +82,14 @@ async function testWorldEventValidation() {
       } else {
         console.log('   ⚠️  Expected NULL but got:', invalidDayEvent.dayNumber);
       }
-    } catch (error: any) {
-      console.log('❌ Event creation failed (unexpected):', error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log('❌ Event creation failed (unexpected):', errorMessage);
     }
 
     // Test 4: Edge case - exactly INT4 max
     console.log('\nTest 4: Creating event with INT4 maximum value...');
-    const maxInt4Event = await db().createEvent({
+    const maxInt4Event = await dbService().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with INT4 max',
@@ -105,7 +105,7 @@ async function testWorldEventValidation() {
 
     // Cleanup
     console.log('\n🧹 Cleaning up test events...');
-    await prisma.worldEvent.deleteMany({
+    await db.worldEvent.deleteMany({
       where: {
         gameId: 'test',
       },
@@ -117,7 +117,7 @@ async function testWorldEventValidation() {
     console.error('\n❌ Test failed:', error);
     throw error;
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

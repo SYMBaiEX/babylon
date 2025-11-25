@@ -103,7 +103,7 @@
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { CreateReportSchema, GetReportsSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -132,7 +132,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       throw new BusinessLogicError('Cannot report yourself', 'CANNOT_REPORT_SELF');
     }
 
-    const reportedUser = await prisma.user.findUnique({
+    const reportedUser = await db.user.findUnique({
       where: { id: data.reportedUserId },
       select: { id: true, isActor: true },
     });
@@ -142,7 +142,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Check for duplicate report (same reporter + reported user + category within 24 hours)
-    const recentReport = await prisma.report.findFirst({
+    const recentReport = await db.report.findFirst({
       where: {
         reporterId: authUser.userId,
         reportedUserId: data.reportedUserId,
@@ -163,7 +163,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Validate reported post exists if reporting a post
   if (data.reportedPostId) {
-    const reportedPost = await prisma.post.findUnique({
+    const reportedPost = await db.post.findUnique({
       where: { id: data.reportedPostId },
       select: { id: true, authorId: true },
     });
@@ -173,7 +173,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Check for duplicate report
-    const recentReport = await prisma.report.findFirst({
+    const recentReport = await db.report.findFirst({
       where: {
         reporterId: authUser.userId,
         reportedPostId: data.reportedPostId,
@@ -201,7 +201,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Create report
-  const report = await prisma.report.create({
+  const report = await db.report.create({
     data: {
       id: await generateSnowflakeId(),
       reporterId: authUser.userId,
@@ -213,22 +213,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       evidence: data.evidence || null,
       priority,
       status: 'pending',
-    },
-    include: {
-      reporter: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-        },
-      },
-      reportedUser: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-        },
-      },
+      updatedAt: new Date(),
     },
   });
 
@@ -270,7 +255,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
       // Automatically ban the reported user
       if (report.reportedUserId) {
-        await prisma.user.update({
+        await db.user.update({
           where: { id: report.reportedUserId },
           data: {
             isBanned: true,
@@ -284,7 +269,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Update report status
-      await prisma.report.update({
+      await db.report.update({
         where: { id: report.id },
         data: {
           status: 'resolved',
@@ -302,7 +287,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }, 'POST /api/moderation/reports');
     } else {
       // Store evaluation but don't auto-ban (low confidence or not scammer/CSAM)
-      await prisma.report.update({
+      await db.report.update({
         where: { id: report.id },
         data: {
           status: 'reviewing',
@@ -351,7 +336,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (params.reportType) where.reportType = params.reportType;
 
   const [reports, total] = await Promise.all([
-    prisma.report.findMany({
+    db.report.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: params.limit,
@@ -374,7 +359,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       },
     }),
-    prisma.report.count({ where }),
+    db.report.count({ where }),
   ]);
 
   return successResponse({

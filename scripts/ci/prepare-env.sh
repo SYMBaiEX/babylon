@@ -14,9 +14,6 @@ else
 # Database
 DATABASE_URL=${DB_URL}
 DIRECT_DATABASE_URL=${DIRECT_DATABASE_URL:-$DB_URL}
-POSTGRES_PRISMA_URL=${POSTGRES_PRISMA_URL:-$DB_URL}
-POSTGRES_URL_NON_POOLING=${POSTGRES_URL_NON_POOLING:-$DB_URL}
-PRISMA_DATABASE_URL=${PRISMA_DATABASE_URL:-$DB_URL}
 
 # Auth
 # Make PRIVY_APP_ID and NEXT_PUBLIC_PRIVY_APP_ID interchangeable
@@ -48,8 +45,6 @@ fi
   cp .env.test .env
   cp .env.test .env.local
 }
-
-# No need for override_database_url anymore - DATABASE_URL is set directly
 
 main() {
   create_env_files
@@ -97,4 +92,3 @@ main() {
 }
 
 main "$@"
-

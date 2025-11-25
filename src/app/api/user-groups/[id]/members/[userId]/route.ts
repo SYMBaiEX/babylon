@@ -63,7 +63,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 
@@ -87,12 +87,10 @@ export const DELETE = withErrorHandling(async (
   
   if (!isRemovingSelf) {
     // Check if requester is admin
-    const isAdmin = await prisma.userGroupAdmin.findUnique({
+    const isAdmin = await db.userGroupAdmin.findFirst({
       where: {
-        groupId_userId: {
-          groupId,
-          userId: user.userId,
-        },
+        groupId,
+        userId: user.userId,
       },
     });
 
@@ -105,12 +103,10 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Check if target is a member
-  const membership = await prisma.userGroupMember.findUnique({
+  const membership = await db.userGroupMember.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 
@@ -122,7 +118,7 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Don't allow removing the group creator
-  const group = await prisma.userGroup.findUnique({
+  const group = await db.userGroup.findUnique({
     where: { id: groupId },
     select: { createdById: true, name: true },
   });
@@ -135,17 +131,15 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Remove member
-  await prisma.userGroupMember.delete({
+  await db.userGroupMember.delete({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 
   // Remove from admin if they are one
-  await prisma.userGroupAdmin.deleteMany({
+  await db.userGroupAdmin.deleteMany({
     where: {
       groupId,
       userId: targetUserId,
@@ -153,7 +147,7 @@ export const DELETE = withErrorHandling(async (
   });
 
   // Remove from chat participants
-  const chat = await prisma.chat.findFirst({
+  const chat = await db.chat.findFirst({
     where: {
       name: group?.name,
       isGroup: true,
@@ -161,7 +155,7 @@ export const DELETE = withErrorHandling(async (
   });
 
   if (chat) {
-    await prisma.chatParticipant.deleteMany({
+    await db.chatParticipant.deleteMany({
       where: {
         chatId: chat.id,
         userId: targetUserId,

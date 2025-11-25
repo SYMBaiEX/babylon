@@ -93,7 +93,7 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 const OnChainBuySchema = z.object({
   side: z.enum(['yes', 'no']),
@@ -127,7 +127,7 @@ export const POST = withErrorHandling(async (
   });
 
   // Verify user owns this wallet
-  const userRecord = await prisma.user.findUnique({
+  const userRecord = await db.user.findUnique({
     where: { id: user.userId },
     select: { walletAddress: true }
   });
@@ -167,7 +167,7 @@ export const POST = withErrorHandling(async (
 
   // Update database to match on-chain state
   // Note: We trust the blockchain as source of truth
-  const existingPosition = await prisma.position.findFirst({
+  const existingPosition = await db.position.findFirst({
     where: {
       userId: user.userId,
       marketId,
@@ -176,25 +176,28 @@ export const POST = withErrorHandling(async (
   });
 
   if (existingPosition) {
-    await prisma.position.update({
+    // Calculate new shares value (shares is stored as string)
+    const currentShares = parseFloat(existingPosition.shares);
+    const newShares = currentShares + numShares;
+    
+    await db.position.update({
       where: { id: existingPosition.id },
       data: {
-        shares: { increment: numShares },
+        shares: String(newShares),
         updatedAt: new Date()
       }
     });
   } else {
-    await prisma.position.create({
+    await db.position.create({
       data: {
         id: `onchain-${txHash}`,
         userId: user.userId,
         marketId,
         side: side === 'yes',
-        shares: numShares,
-        avgPrice: 0.5, // Will be calculated from on-chain cost
-        amount: 0, // Track separately
+        shares: String(numShares),
+        avgPrice: '0.5', // Will be calculated from on-chain cost
+        amount: '0', // Track separately
         status: 'active',
-        createdAt: new Date(),
         updatedAt: new Date()
       }
     });

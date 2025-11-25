@@ -5,29 +5,39 @@
  * discovery, and trust verification integrated with CommunicationHub.
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, mock, afterEach } from 'bun:test'
 import { ExternalAgentAdapter, AuthMethod, TrustLevel } from '../external/ExternalAgentAdapter'
 import { CommunicationHub } from '../communication/CommunicationHub'
 import { getEventBus } from '../communication/EventBus'
 import type { AgentCard } from '@/types/agent-registry.types'
 
-// Mock fetch globally
-global.fetch = vi.fn()
+// Type for mock fetch function
+type MockFetchFn = ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) & {
+  mockResolvedValueOnce: (value: Response) => MockFetchFn
+  mockImplementation: (fn: (url: string) => Promise<Response>) => MockFetchFn
+  mockClear: () => void
+}
 
-// Mock prisma
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+// Mock fetch globally
+const mockFetchFn = mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() => 
+  Promise.resolve(new Response())
+) as MockFetchFn
+global.fetch = mockFetchFn
+
+// Mock database
+mock.module('@/db', () => ({
+  db: {
     externalAgentConnection: {
-      findMany: vi.fn().mockResolvedValue([]),
-      update: vi.fn().mockResolvedValue({}),
+      findMany: mock(() => Promise.resolve([])),
+      update: mock(() => Promise.resolve({})),
     },
   },
 }))
 
 // Mock agent registry
-vi.mock('@/lib/services/agent-registry.service', () => ({
+mock.module('@/lib/services/agent-registry.service', () => ({
   agentRegistry: {
-    getAgentById: vi.fn(),
+    getAgentById: mock(() => Promise.resolve(null)),
   },
 }))
 
@@ -36,7 +46,7 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
 
   beforeEach(() => {
     adapter = new ExternalAgentAdapter()
-    vi.clearAllMocks()
+    mockFetchFn.mockClear()
   })
 
   afterEach(() => {
@@ -63,10 +73,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         result: { message: 'Hello from external agent' },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
-      })
+      } as Response)
 
       const response = await adapter.sendMessage('agent-1', {
         type: 'greeting',
@@ -112,10 +123,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => mockErrorResponse,
-      })
+      } as Response)
 
       const response = await adapter.sendMessage('agent-1', {
         type: 'invalid',
@@ -178,10 +190,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         token: 'secure-token',
       })
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ jsonrpc: '2.0', id: 1, result: { authenticated: true } }),
-      })
+      } as Response)
 
       await adapter.sendMessage('agent-1', {
         type: 'secure-action',
@@ -216,10 +229,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => mockAgentCard,
-      })
+      } as Response)
 
       const card = await adapter.discoverAgent('https://agent.example.com')
 
@@ -245,10 +259,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => mockAgentCard,
-      })
+      } as Response)
 
       // First call
       const card1 = await adapter.discoverAgent('https://agent.example.com')
@@ -263,10 +278,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
     })
 
     it('should return null for failed discovery', async () => {
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: false,
         status: 404,
-      })
+      } as Response)
 
       const card = await adapter.discoverAgent('https://nonexistent.example.com')
       expect(card).toBeNull()
@@ -313,9 +329,10 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
       adapter['connections'].set('agent-1', mockConnection)
 
       // Mock health check to return healthy
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
-      })
+      } as Response)
 
       // Mock agent card discovery
       const mockAgentCard: AgentCard = {
@@ -330,10 +347,11 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
         },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      // Mock fetch for testing
+      mockFetchFn.mockResolvedValueOnce({
         ok: true,
         json: async () => mockAgentCard,
-      })
+      } as Response)
 
       const trustLevel = await adapter.verifyAgent('agent-1')
 
@@ -351,7 +369,7 @@ describe('CommunicationHub - Streaming and Context Support', () => {
   beforeEach(() => {
     const eventBus = getEventBus()
     hub = new CommunicationHub(eventBus)
-    vi.clearAllMocks()
+    mockFetchFn.mockClear()
   })
 
   afterEach(() => {
@@ -446,7 +464,7 @@ describe('End-to-End Integration', () => {
     adapter = new ExternalAgentAdapter()
     const eventBus = getEventBus()
     hub = new CommunicationHub(eventBus)
-    vi.clearAllMocks()
+    mockFetchFn.mockClear()
   })
 
   afterEach(() => {
@@ -486,12 +504,13 @@ describe('End-to-End Integration', () => {
       },
     }
 
-    ;(global.fetch as any).mockImplementation((url: string) => {
+    // Mock fetch implementation for testing
+    mockFetchFn.mockImplementation((url: string) => {
       if (url.includes('/.well-known/agent-card.json')) {
         return Promise.resolve({
           ok: true,
           json: async () => mockAgentCard,
-        })
+        } as Response)
       }
       if (url.includes('/a2a')) {
         return Promise.resolve({
@@ -501,9 +520,9 @@ describe('End-to-End Integration', () => {
             id: 1,
             result: { analysis: 'Complete' },
           }),
-        })
+        } as Response)
       }
-      return Promise.resolve({ ok: true })
+      return Promise.resolve({ ok: true } as Response)
     })
 
     // Verify agent and establish trust

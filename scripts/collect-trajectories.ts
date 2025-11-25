@@ -10,7 +10,7 @@
  *   bun run scripts/collect-trajectories.ts 100   # Collect 100 trajectories
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { autonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
 
@@ -29,7 +29,7 @@ async function collectTrajectories(count: number = 10) {
   }
   
   // Find agents
-  const agents = await prisma.user.findMany({
+  const agents = await db.user.findMany({
     where: {
       isAgent: true,
       agentPointsBalance: { gte: 1 },
@@ -62,7 +62,7 @@ async function collectTrajectories(count: number = 10) {
   let errors = 0;
   
   // Get initial count
-  const initialCount = await prisma.trajectory.count();
+  const initialCount = await db.trajectory.count();
   console.log(`Current trajectories in database: ${initialCount}\n`);
   
   for (let i = 0; i < count; i++) {
@@ -100,7 +100,7 @@ async function collectTrajectories(count: number = 10) {
   }
   
   // Get final count
-  const finalCount = await prisma.trajectory.count();
+  const finalCount = await db.trajectory.count();
   const newTrajectories = finalCount - initialCount;
   
   console.log('\n' + '═'.repeat(60));
@@ -139,7 +139,7 @@ async function main() {
     console.error('Fatal error:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

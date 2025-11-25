@@ -1,7 +1,7 @@
-import { Prisma } from '@prisma/client';
-import type { PredictionPriceHistory } from '@prisma/client';
+import { Decimal, type Transaction } from '@/db';
+import type { PredictionPriceHistory } from '@/db';
 
-import { prisma } from '@/lib/prisma';
+import { db, predictionPriceHistories, eq, desc } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export type PredictionHistoryEventType = 'trade' | 'resolution';
@@ -22,34 +22,33 @@ export interface PredictionPriceSnapshot {
 export class PredictionPriceHistoryService {
   static async recordSnapshot(
     snapshot: PredictionPriceSnapshot,
-    tx?: Prisma.TransactionClient
+    tx?: Transaction
   ): Promise<void> {
-    const client = tx ?? prisma;
+    const client = tx ?? db;
 
-    await client.predictionPriceHistory.create({
-      data: {
+    await client.insert(predictionPriceHistories)
+      .values({
         id: await generateSnowflakeId(),
         marketId: snapshot.marketId,
         yesPrice: snapshot.yesPrice,
         noPrice: snapshot.noPrice,
-        yesShares: new Prisma.Decimal(snapshot.yesShares),
-        noShares: new Prisma.Decimal(snapshot.noShares),
-        liquidity: new Prisma.Decimal(snapshot.liquidity),
+        yesShares: new Decimal(snapshot.yesShares).toString(),
+        noShares: new Decimal(snapshot.noShares).toString(),
+        liquidity: new Decimal(snapshot.liquidity).toString(),
         eventType: snapshot.eventType,
         source: snapshot.source,
         createdAt: snapshot.createdAt ?? new Date(),
-      },
-    });
+      });
   }
 
   static async getHistory(
     marketId: string,
     limit = 200
   ): Promise<PredictionPriceHistory[]> {
-    return prisma.predictionPriceHistory.findMany({
-      where: { marketId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    return db.select()
+      .from(predictionPriceHistories)
+      .where(eq(predictionPriceHistories.marketId, marketId))
+      .orderBy(desc(predictionPriceHistories.createdAt))
+      .limit(limit);
   }
 }

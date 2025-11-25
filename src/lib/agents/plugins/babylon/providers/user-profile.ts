@@ -53,7 +53,11 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"` }
       // Fetch profile data via A2A protocol
       const profileData = await babylonRuntime.a2aClient.getUserProfile(userId)
       
-      const profile = profileData as unknown as {
+      // Validate profileData structure matches A2AUserProfileResponse
+      if (!profileData || typeof profileData !== 'object' || !('id' in profileData)) {
+        throw new Error('Invalid profile data format from A2A client')
+      }
+      const profile = profileData as {
         id: string
         username: string | null
         displayName: string | null

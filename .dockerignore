@@ -58,8 +58,3 @@ next-env.d.ts
 games/
 public/games/
 
-# Database
-prisma/*.db
-prisma/*.db-journal
-
-

@@ -91,6 +91,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { BreakingNewsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
 import { FEED_WIDGET_CONFIG } from '@/shared/constants'
+import { worldEvents, actors, organizations, stockPrices, posts, eq, and, desc, lte, inArray, notInArray, isNull } from '@/db'
 
 interface BreakingNewsItem {
   id: string
@@ -127,24 +128,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
-    const uniqueEventTypes = await db.worldEvent.findMany({
-      select: { eventType: true },
-      distinct: ['eventType'],
-      take: 50,
-    })
+    // Get unique event types - query all and deduplicate
+    const allEventTypesRaw = await db
+      .select({ eventType: worldEvents.eventType })
+      .from(worldEvents)
+      .limit(1000) // Get more to ensure we have enough unique types
     
-    const availableEventTypes = uniqueEventTypes.map(e => e.eventType.toLowerCase())
+    const uniqueEventTypesSet = new Set(allEventTypesRaw.map(e => e.eventType).filter(Boolean))
+    const availableEventTypes = Array.from(uniqueEventTypesSet).map(e => e.toLowerCase()).slice(0, 50)
     
     // Get recent events, filtering for news-worthy types dynamically
     // Only show events up to current time (prevent future access)
-    const recentEvents = await db.worldEvent.findMany({
-      take: FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY,
-      orderBy: { timestamp: 'desc' },
-      where: {
-        visibility: 'public', // Only show public events
-        timestamp: { lte: currentTime }, // ✅ No future events
-      },
-    })
+    const recentEvents = await db
+      .select()
+      .from(worldEvents)
+      .where(
+        and(
+          eq(worldEvents.visibility, 'public'), // Only show public events
+          lte(worldEvents.timestamp, currentTime) // ✅ No future events
+        )
+      )
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY)
     
     // Filter for significant events - use actual event types from database
     const significantEvents = recentEvents
@@ -184,10 +189,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const isTrending = eventDate.getTime() > Date.now() - trendingThreshold
 
       let imageUrl: string | undefined
-      if (event.actors && event.actors.length > 0) {
-        const actor = await db.actor.findUnique({
-          where: { id: event.actors[0] },
-        })
+      const firstActorId = event.actors && event.actors.length > 0 ? event.actors[0] : undefined
+      if (firstActorId) {
+        const [actor] = await db
+          .select({ profileImageUrl: actors.profileImageUrl })
+          .from(actors)
+          .where(eq(actors.id, firstActorId))
+          .limit(1)
         imageUrl = actor?.profileImageUrl || undefined
       }
 
@@ -209,25 +217,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 2. Get organization price updates (any significant changes, not just ATHs)
-    const priceUpdates = await db.stockPrice.findMany({
-      take: FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY,
-      orderBy: { timestamp: 'desc' },
-      include: {
-        Organization: {
-          select: {
-            id: true,
-            name: true,
-            currentPrice: true,
-            type: true,
-          },
+    const priceUpdatesRaw = await db
+      .select({
+        stockPrice: stockPrices,
+        organization: {
+          id: organizations.id,
+          name: organizations.name,
+          currentPrice: organizations.currentPrice,
+          type: organizations.type,
         },
-      },
-    })
+      })
+      .from(stockPrices)
+      .leftJoin(organizations, eq(stockPrices.organizationId, organizations.id))
+      .orderBy(desc(stockPrices.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY)
+    
+    const priceUpdates = priceUpdatesRaw.map(row => ({
+      ...row.stockPrice,
+      organization: row.organization,
+    }))
 
     // Find any price changes using configurable thresholds
     const significantPriceUpdates = priceUpdates
       .filter((update) => {
-        if (!update.Organization) return false
+        if (!update.organization) return false
         const changePercent = update.changePercent || 0
         // Use configurable thresholds
         return Math.abs(changePercent) >= FEED_WIDGET_CONFIG.SIGNIFICANT_PRICE_CHANGE_PERCENT || 
@@ -236,9 +249,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .slice(0, 3)
 
     for (const update of significantPriceUpdates) {
-      if (!update.Organization) continue
+      if (!update.organization) continue
 
-      const org = update.Organization
+      const org = update.organization
       const price = org.currentPrice || update.price || 0
       const changePercent = update.changePercent || 0
       const isATH = changePercent >= FEED_WIDGET_CONFIG.ATH_THRESHOLD_PERCENT && update.changePercent && update.changePercent > 0
@@ -264,30 +277,34 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Get recent posts from actors (broader criteria for news-worthy content)
     // First get all actor IDs
-    const allActors = await db.actor.findMany({
-      select: { id: true },
-    })
+    const allActors = await db
+      .select({ id: actors.id })
+      .from(actors)
     const actorIds = new Set(allActors.map(a => a.id))
 
     // Get recent posts and filter for actor posts
     // Only show posts up to current time (prevent future access)
-    const recentPosts = await db.post.findMany({
-      where: {
-        deletedAt: null, // Filter out deleted posts
-        timestamp: { lte: currentTime }, // ✅ No future posts
-      },
-      take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
-      orderBy: { timestamp: 'desc' },
-    })
+    const recentPosts = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          isNull(posts.deletedAt), // Filter out deleted posts
+          lte(posts.timestamp, currentTime) // ✅ No future posts
+        )
+      )
+      .orderBy(desc(posts.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY)
 
     // Get actor data for posts authored by actors
     const actorPostIds = recentPosts
       .filter(post => actorIds.has(post.authorId))
       .map(post => post.authorId)
     
-    const actorsData = await db.actor.findMany({
-      where: { id: { in: Array.from(new Set(actorPostIds)) } },
-    })
+    const actorsData = await db
+      .select()
+      .from(actors)
+      .where(inArray(actors.id, Array.from(new Set(actorPostIds))))
     const actorsMap = new Map(
       actorsData.map(a => [a.id, {
         id: a.id,
@@ -356,20 +373,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // 4. Fallback: If we don't have enough items, get ANY recent posts from actors
     // Only show posts up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const fallbackPosts = await db.post.findMany({
-        where: {
-          timestamp: { lte: currentTime }, // ✅ No future posts
-          // Exclude posts already included
-          id: {
-            notIn: items.map(item => item.id),
-          },
-          // Only actor posts
-          authorId: { in: Array.from(actorIds) },
-          deletedAt: null, // Filter out deleted posts
-        },
-        take: 20,
-        orderBy: { timestamp: 'desc' },
-      })
+      const excludeIds = items.map(item => item.id);
+      const whereConditions = [
+        lte(posts.timestamp, currentTime), // ✅ No future posts
+        inArray(posts.authorId, Array.from(actorIds)), // Only actor posts
+        isNull(posts.deletedAt) // Filter out deleted posts
+      ];
+      
+      if (excludeIds.length > 0) {
+        whereConditions.push(notInArray(posts.id, excludeIds));
+      }
+      
+      const fallbackPosts = await db
+        .select()
+        .from(posts)
+        .where(and(...whereConditions))
+        .orderBy(desc(posts.timestamp))
+        .limit(20)
 
       for (const post of fallbackPosts) {
         if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
@@ -401,13 +421,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // 5. Final fallback: Get ANY recent world events if still not enough
     // Only show events up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const allRecentEvents = await db.worldEvent.findMany({
-        where: {
-          timestamp: { lte: currentTime }, // ✅ No future events
-        },
-        take: 10,
-        orderBy: { timestamp: 'desc' },
-      })
+      const allRecentEvents = await db
+        .select()
+        .from(worldEvents)
+        .where(lte(worldEvents.timestamp, currentTime)) // ✅ No future events
+        .orderBy(desc(worldEvents.timestamp))
+        .limit(10)
 
       for (const event of allRecentEvents) {
         if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
@@ -440,32 +459,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .slice(0, FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS)
 
     return sortedNews
-  })
-    : await asPublic(async (db) => {
+    })
+  : await asPublic(async (db) => {
     // Same logic for public access
     const items: BreakingNewsItem[] = []
     const currentTime = new Date(); // Single timestamp for all queries in this scope
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
-    const uniqueEventTypes = await db.worldEvent.findMany({
-      select: { eventType: true },
-      distinct: ['eventType'],
-      take: 50,
-    })
+    // Get unique event types - query all and deduplicate
+    const allEventTypesRaw = await db
+      .select({ eventType: worldEvents.eventType })
+      .from(worldEvents)
+      .limit(1000) // Get more to ensure we have enough unique types
     
-    const availableEventTypes = uniqueEventTypes.map(e => e.eventType.toLowerCase())
+    const uniqueEventTypesSet = new Set(allEventTypesRaw.map(e => e.eventType).filter(Boolean))
+    const availableEventTypes = Array.from(uniqueEventTypesSet).map(e => e.toLowerCase()).slice(0, 50)
     
     // Get recent events, filtering for news-worthy types dynamically
     // Only show events up to current time (prevent future access)
-    const recentEvents = await db.worldEvent.findMany({
-      take: FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY,
-      orderBy: { timestamp: 'desc' },
-      where: {
-        visibility: 'public', // Only show public events
-        timestamp: { lte: currentTime }, // ✅ No future events
-      },
-    })
+    const recentEvents = await db
+      .select()
+      .from(worldEvents)
+      .where(
+        and(
+          eq(worldEvents.visibility, 'public'), // Only show public events
+          lte(worldEvents.timestamp, currentTime) // ✅ No future events
+        )
+      )
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY)
     
     // Filter for significant events - use actual event types from database
     const significantEvents = recentEvents
@@ -505,10 +528,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const isTrending = eventDate.getTime() > Date.now() - trendingThreshold
 
       let imageUrl: string | undefined
-      if (event.actors && event.actors.length > 0) {
-        const actor = await db.actor.findUnique({
-          where: { id: event.actors[0] },
-        })
+      const firstActorId = event.actors && event.actors.length > 0 ? event.actors[0] : undefined
+      if (firstActorId) {
+        const [actor] = await db
+          .select({ profileImageUrl: actors.profileImageUrl })
+          .from(actors)
+          .where(eq(actors.id, firstActorId))
+          .limit(1)
         imageUrl = actor?.profileImageUrl || undefined
       }
 
@@ -530,25 +556,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 2. Get organization price updates (any significant changes, not just ATHs)
-    const priceUpdates = await db.stockPrice.findMany({
-      take: FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY,
-      orderBy: { timestamp: 'desc' },
-      include: {
-        Organization: {
-          select: {
-            id: true,
-            name: true,
-            currentPrice: true,
-            type: true,
-          },
+    const priceUpdatesRaw = await db
+      .select({
+        stockPrice: stockPrices,
+        organization: {
+          id: organizations.id,
+          name: organizations.name,
+          currentPrice: organizations.currentPrice,
+          type: organizations.type,
         },
-      },
-    })
+      })
+      .from(stockPrices)
+      .leftJoin(organizations, eq(stockPrices.organizationId, organizations.id))
+      .orderBy(desc(stockPrices.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY)
+    
+    const priceUpdates = priceUpdatesRaw.map(row => ({
+      ...row.stockPrice,
+      organization: row.organization,
+    }))
 
     // Find any price changes using configurable thresholds
     const significantPriceUpdates = priceUpdates
       .filter((update) => {
-        if (!update.Organization) return false
+        if (!update.organization) return false
         const changePercent = update.changePercent || 0
         // Use configurable thresholds
         return Math.abs(changePercent) >= FEED_WIDGET_CONFIG.SIGNIFICANT_PRICE_CHANGE_PERCENT || 
@@ -557,9 +588,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .slice(0, 3)
 
     for (const update of significantPriceUpdates) {
-      if (!update.Organization) continue
+      if (!update.organization) continue
 
-      const org = update.Organization
+      const org = update.organization
       const price = org.currentPrice || update.price || 0
       const changePercent = update.changePercent || 0
       const isATH = changePercent >= FEED_WIDGET_CONFIG.ATH_THRESHOLD_PERCENT && update.changePercent && update.changePercent > 0
@@ -585,30 +616,34 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Get recent posts from actors (broader criteria for news-worthy content)
     // First get all actor IDs
-    const allActors = await db.actor.findMany({
-      select: { id: true },
-    })
+    const allActors = await db
+      .select({ id: actors.id })
+      .from(actors)
     const actorIds = new Set(allActors.map(a => a.id))
 
     // Get recent posts and filter for actor posts
     // Only show posts up to current time (prevent future access)
-    const recentPosts = await db.post.findMany({
-      where: {
-        deletedAt: null, // Filter out deleted posts
-        timestamp: { lte: currentTime }, // ✅ No future posts
-      },
-      take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
-      orderBy: { timestamp: 'desc' },
-    })
+    const recentPosts = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          isNull(posts.deletedAt), // Filter out deleted posts
+          lte(posts.timestamp, currentTime) // ✅ No future posts
+        )
+      )
+      .orderBy(desc(posts.timestamp))
+      .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY)
 
     // Get actor data for posts authored by actors
     const actorPostIds = recentPosts
       .filter(post => actorIds.has(post.authorId))
       .map(post => post.authorId)
     
-    const actorsData = await db.actor.findMany({
-      where: { id: { in: Array.from(new Set(actorPostIds)) } },
-    })
+    const actorsData = await db
+      .select()
+      .from(actors)
+      .where(inArray(actors.id, Array.from(new Set(actorPostIds))))
     const actorsMap = new Map(
       actorsData.map(a => [a.id, {
         id: a.id,
@@ -677,20 +712,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // 4. Fallback: If we don't have enough items, get ANY recent posts from actors
     // Only show posts up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const fallbackPosts = await db.post.findMany({
-        where: {
-          timestamp: { lte: currentTime }, // ✅ No future posts
-          // Exclude posts already included
-          id: {
-            notIn: items.map(item => item.id),
-          },
-          // Only actor posts
-          authorId: { in: Array.from(actorIds) },
-          deletedAt: null, // Filter out deleted posts
-        },
-        take: 20,
-        orderBy: { timestamp: 'desc' },
-      })
+      const excludeIds = items.map(item => item.id);
+      const whereConditions = [
+        lte(posts.timestamp, currentTime), // ✅ No future posts
+        inArray(posts.authorId, Array.from(actorIds)), // Only actor posts
+        isNull(posts.deletedAt) // Filter out deleted posts
+      ];
+      
+      if (excludeIds.length > 0) {
+        whereConditions.push(notInArray(posts.id, excludeIds));
+      }
+      
+      const fallbackPosts = await db
+        .select()
+        .from(posts)
+        .where(and(...whereConditions))
+        .orderBy(desc(posts.timestamp))
+        .limit(20)
 
       for (const post of fallbackPosts) {
         if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
@@ -722,13 +760,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // 5. Final fallback: Get ANY recent world events if still not enough
     // Only show events up to current time (prevent future access)
     if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const allRecentEvents = await db.worldEvent.findMany({
-        where: {
-          timestamp: { lte: currentTime }, // ✅ No future events
-        },
-        take: 10,
-        orderBy: { timestamp: 'desc' },
-      })
+      const allRecentEvents = await db
+        .select()
+        .from(worldEvents)
+        .where(lte(worldEvents.timestamp, currentTime)) // ✅ No future events
+        .orderBy(desc(worldEvents.timestamp))
+        .limit(10)
 
       for (const event of allRecentEvents) {
         if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break

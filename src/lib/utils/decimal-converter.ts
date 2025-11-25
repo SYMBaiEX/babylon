@@ -1,7 +1,7 @@
 /**
  * Decimal Converter Utilities
  * 
- * @description Handles safe conversion of Prisma Decimal values to strings and numbers,
+ * @description Handles safe conversion of Decimal values to strings and numbers,
  * accounting for serialization from cache (Redis) where Decimal objects may be converted
  * to strings, numbers, or plain objects. Provides type-safe conversion with fallbacks.
  */
@@ -9,11 +9,11 @@
 /**
  * Safely convert a value (Decimal, number, string, or unknown) to string
  * 
- * @description Converts Prisma Decimal, number, string, or serialized objects to strings
+ * @description Converts Decimal, number, string, or serialized objects to strings
  * safely. Handles null/undefined, Decimal objects, and cached values that may have been
  * serialized differently.
  * 
- * @param {unknown} value - Value that might be a Prisma Decimal, number, string, or serialized object
+ * @param {unknown} value - Value that might be a Decimal, number, string, or serialized object
  * @param {string} [defaultValue='0'] - Default value if conversion fails
  * @returns {string} String representation of the value
  * 
@@ -45,7 +45,7 @@ export function toSafeString(value: unknown, defaultValue = '0'): string {
     return value.toString();
   }
 
-  // Object with toString method (like Prisma Decimal)
+  // Object with toString method (like Decimal)
   if (typeof value === 'object' && value !== null && 'toString' in value) {
     try {
       return (value as { toString: () => string }).toString();
@@ -65,11 +65,11 @@ export function toSafeString(value: unknown, defaultValue = '0'): string {
 /**
  * Safely convert a value to number
  * 
- * @description Converts Prisma Decimal, number, string, or serialized objects to numbers
+ * @description Converts Decimal, number, string, or serialized objects to numbers
  * safely. Handles null/undefined, Decimal objects, and cached values. Uses parseFloat
  * for string conversion with NaN fallback.
  * 
- * @param {unknown} value - Value that might be a Prisma Decimal, number, string, or serialized object
+ * @param {unknown} value - Value that might be a Decimal, number, string, or serialized object
  * @param {number} [defaultValue=0] - Default value if conversion fails
  * @returns {number} Numeric representation of the value
  * 

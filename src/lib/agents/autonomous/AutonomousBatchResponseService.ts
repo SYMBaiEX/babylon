@@ -13,7 +13,7 @@
  * 4. Executes responses for approved interactions
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, comments, users, posts, chatParticipants, chats, messages, eq, and, inArray, ne, gte, desc, isNull } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -58,134 +58,154 @@ export class AutonomousBatchResponseService {
     const interactions: PendingInteraction[] = []
 
     // Get comments on agent's posts
-    const commentsOnPosts = await prisma.comment.findMany({
-      where: {
-        Post: {
-          authorId: agentUserId,
-          deletedAt: null
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    
+    // First get agent's posts
+    const agentPosts = await db.select({ id: posts.id })
+      .from(posts)
+      .where(and(
+        eq(posts.authorId, agentUserId),
+        isNull(posts.deletedAt)
+      ))
+    const agentPostIds = agentPosts.map(p => p.id)
+    
+    if (agentPostIds.length > 0) {
+      const commentsOnPostsRaw = await db.query.comments.findMany({
+        where: (comments, { and: andFn, ne: neFn, gte: gteFn, inArray: inArrayFn }) => andFn(
+          neFn(comments.authorId, agentUserId),
+          gteFn(comments.createdAt, oneDayAgo),
+          inArrayFn(comments.postId, agentPostIds)
+        ),
+        with: {
+          author: {
+            columns: {
+              id: true,
+              username: true,
+              displayName: true,
+            },
+          },
+          post: {
+            columns: {
+              id: true,
+              content: true,
+            },
+          },
         },
-        authorId: { not: agentUserId },
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24h
-        }
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true
-          }
-        },
-        Post: {
-          select: {
-            id: true,
-            content: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    })
-
-    for (const comment of commentsOnPosts) {
-      interactions.push({
-        type: 'comment_on_post',
-        id: comment.id,
-        postId: comment.postId,
-        author: comment.User.displayName || comment.User.username || 'Unknown',
-        content: comment.content,
-        context: `Your post: "${comment.Post.content}"`,
-        timestamp: comment.createdAt
+        orderBy: (comments, { desc: descFn }) => [descFn(comments.createdAt)],
+        limit: 20,
       })
+
+      for (const comment of commentsOnPostsRaw) {
+        if (!comment.post) continue
+        interactions.push({
+          type: 'comment_on_post',
+          id: comment.id,
+          postId: comment.postId,
+          author: comment.author?.displayName || comment.author?.username || 'Unknown',
+          content: comment.content,
+          context: `Your post: "${comment.post.content}"`,
+          timestamp: comment.createdAt
+        })
+      }
     }
 
     // Get replies to agent's comments
-    const myCommentIds = (await prisma.comment.findMany({
-      where: { authorId: agentUserId },
-      select: { id: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50 // Last 50 comments
-    })).map(c => c.id)
+    const myComments = await db.select({ id: comments.id })
+      .from(comments)
+      .where(eq(comments.authorId, agentUserId))
+      .orderBy(desc(comments.createdAt))
+      .limit(50)
+    const myCommentIds = myComments.map(c => c.id)
 
-    const repliesToComments = await prisma.comment.findMany({
-      where: {
-        parentCommentId: { in: myCommentIds },
-        authorId: { not: agentUserId },
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
-        }
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true
-          }
-        },
-        Comment: {
-          select: {
-            id: true,
-            content: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    })
+    if (myCommentIds.length > 0) {
+      const repliesToCommentsRaw = await db
+        .select({
+          reply: comments,
+          author: {
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+          },
+        })
+        .from(comments)
+        .leftJoin(users, eq(comments.authorId, users.id))
+        .where(
+          and(
+            inArray(comments.parentCommentId, myCommentIds),
+            ne(comments.authorId, agentUserId),
+            gte(comments.createdAt, oneDayAgo)
+          )
+        )
+        .orderBy(desc(comments.createdAt))
+        .limit(20)
 
-    for (const reply of repliesToComments) {
-      interactions.push({
-        type: 'comment_on_comment',
-        id: reply.id,
-        commentId: reply.id,
-        parentCommentId: reply.parentCommentId || undefined,
-        author: reply.User.displayName || reply.User.username || 'Unknown',
-        content: reply.content,
-        context: `Your comment: "${reply.Comment?.content || ''}"`,
-        timestamp: reply.createdAt
-      })
+      // Get parent comment content separately
+      const parentCommentIds = [...new Set(repliesToCommentsRaw.map(r => r.reply.parentCommentId).filter(Boolean))] as string[]
+      const parentComments = parentCommentIds.length > 0
+        ? await db.select({ id: comments.id, content: comments.content })
+            .from(comments)
+            .where(inArray(comments.id, parentCommentIds))
+        : []
+      const parentCommentMap = new Map(parentComments.map(pc => [pc.id, pc.content]))
+
+      for (const row of repliesToCommentsRaw) {
+        interactions.push({
+          type: 'comment_on_comment',
+          id: row.reply.id,
+          commentId: row.reply.id,
+          parentCommentId: row.reply.parentCommentId || undefined,
+          author: row.author?.displayName || row.author?.username || 'Unknown',
+          content: row.reply.content,
+          context: `Your comment: "${parentCommentMap.get(row.reply.parentCommentId || '') || ''}"`,
+          timestamp: row.reply.createdAt
+        })
+      }
     }
 
     // Get unread chat messages
-    const chats = await prisma.chatParticipant.findMany({
-      where: { userId: agentUserId },
-      include: {
-        Chat: {
-          include: {
-            Message: {
-              where: {
-                senderId: { not: agentUserId },
-                createdAt: {
-                  gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
-                }
-              },
-              orderBy: { createdAt: 'desc' },
-              take: 3 // Last 3 messages per chat
-            }
-          }
-        }
-      }
-    })
+    const agentChats = await db
+      .select({
+        chatId: chatParticipants.chatId,
+        chat: chats,
+      })
+      .from(chatParticipants)
+      .leftJoin(chats, eq(chatParticipants.chatId, chats.id))
+      .where(eq(chatParticipants.userId, agentUserId))
 
-    for (const chatParticipant of chats) {
-      const chat = chatParticipant.Chat
-      if (chat.Message.length === 0) continue
+    for (const chatParticipant of agentChats) {
+      const chat = chatParticipant.chat
+      if (!chat) continue
+
+      // Get recent messages from others in this chat
+      const chatMessages = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.chatId, chat.id),
+            ne(messages.senderId, agentUserId),
+            gte(messages.createdAt, oneDayAgo)
+          )
+        )
+        .orderBy(desc(messages.createdAt))
+        .limit(3)
+
+      if (chatMessages.length === 0) continue
 
       // Get recent conversation context
-      const recentMessages = await prisma.message.findMany({
-        where: { chatId: chat.id },
-        orderBy: { createdAt: 'desc' },
-        take: 5
-      })
+      const recentMessages = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.chatId, chat.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(5)
 
       const contextMessages = recentMessages
         .reverse()
         .map(m => `${m.senderId === agentUserId ? 'You' : 'User'}: ${m.content}`)
         .join('\n')
 
-      const latestMessage = chat.Message[0]
+      const latestMessage = chatMessages[0]
       if (latestMessage) {
         interactions.push({
           type: 'chat_message',
@@ -239,14 +259,15 @@ export class AutonomousBatchResponseService {
     }
     const evaluateInteractions = cappedInteractions
 
-    const agent = await prisma.user.findUnique({ 
-      where: { id: agentUserId },
-      select: {
-        displayName: true,
-        agentSystem: true,
-        agentModelTier: true
-      }
-    })
+    const [agent] = await db
+      .select({
+        displayName: users.displayName,
+        agentSystem: users.agentSystem,
+        agentModelTier: users.agentModelTier
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
 
     if (!agent) {
       throw new Error('Agent not found')
@@ -360,14 +381,15 @@ Array:`
     interactions: PendingInteraction[],
     decisions: ResponseDecision[]
   ): Promise<number> {
-    const agent = await prisma.user.findUnique({ 
-      where: { id: agentUserId },
-      select: {
-        displayName: true,
-        agentSystem: true,
-        agentModelTier: true
-      }
-    })
+    const [agent] = await db
+      .select({
+        displayName: users.displayName,
+        agentSystem: users.agentSystem,
+        agentModelTier: users.agentModelTier
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
 
     if (!agent) {
       throw new Error('Agent not found')
@@ -434,49 +456,45 @@ Generate ONLY the response text, nothing else.`
       // Post the response based on type
       if (interaction.type === 'comment_on_post' && interaction.postId) {
         // Reply to comment on post
-        await prisma.comment.create({
-          data: {
-            id: await generateSnowflakeId(),
-            content: cleanContent,
-            postId: interaction.postId,
-            authorId: agentUserId,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+        await db.insert(comments).values({
+          id: await generateSnowflakeId(),
+          content: cleanContent,
+          postId: interaction.postId,
+          authorId: agentUserId,
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         responsesCreated++
         logger.info(`Agent responded to comment on post ${interaction.postId}`, undefined, 'AutonomousBatchResponse')
       } else if (interaction.type === 'comment_on_comment' && interaction.commentId) {
         // Reply to comment on comment
-        const parentComment = await prisma.comment.findUnique({
-          where: { id: interaction.commentId },
-          select: { postId: true }
-        })
+        const [parentComment] = await db
+          .select({ postId: comments.postId })
+          .from(comments)
+          .where(eq(comments.id, interaction.commentId))
+          .limit(1)
 
         if (parentComment) {
-          await prisma.comment.create({
-            data: {
-              id: await generateSnowflakeId(),
-              content: cleanContent,
-              postId: parentComment.postId,
-              authorId: agentUserId,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }
+          await db.insert(comments).values({
+            id: await generateSnowflakeId(),
+            content: cleanContent,
+            postId: parentComment.postId,
+            authorId: agentUserId,
+            parentCommentId: interaction.commentId,
+            createdAt: new Date(),
+            updatedAt: new Date()
           })
           responsesCreated++
           logger.info(`Agent responded to comment reply ${interaction.commentId}`, undefined, 'AutonomousBatchResponse')
         }
       } else if (interaction.type === 'chat_message' && interaction.chatId) {
         // Send chat message
-        await prisma.message.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId: interaction.chatId,
-            senderId: agentUserId,
-            content: cleanContent,
-            createdAt: new Date()
-          }
+        await db.insert(messages).values({
+          id: await generateSnowflakeId(),
+          chatId: interaction.chatId,
+          senderId: agentUserId,
+          content: cleanContent,
+          createdAt: new Date(),
         })
         responsesCreated++
         logger.info(`Agent responded in chat ${interaction.chatId}`, undefined, 'AutonomousBatchResponse')

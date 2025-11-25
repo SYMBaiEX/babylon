@@ -13,7 +13,7 @@
  * ```
  */
 
-import db from './database-service';
+import dbService from './database-service';
 import {
   getCacheOrFetch,
   invalidateCache,
@@ -22,7 +22,26 @@ import {
   DEFAULT_TTLS,
 } from './cache-service';
 import { logger } from './logger';
-import type { Post } from '@prisma/client';
+import { 
+  db, 
+  users, 
+  actors, 
+  posts, 
+  markets, 
+  trendingTags, 
+  tags,
+  followStatuses,
+  eq, 
+  and, 
+  desc, 
+  asc, 
+  inArray, 
+  isNull, 
+  lt, 
+  lte,
+  count,
+} from '@/db';
+import type { Post } from '@/db/schema';
 
 /**
  * Cached Database Service Class
@@ -51,7 +70,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().getRecentPosts(limit, cursorOrOffset),
+      () => dbService().getRecentPosts(limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_LIST,
         ttl: DEFAULT_TTLS.POSTS_LIST,
@@ -70,7 +89,7 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().getPostsByActor(authorId, limit, cursorOrOffset),
+      () => dbService().getPostsByActor(authorId, limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_BY_ACTOR,
         ttl: DEFAULT_TTLS.POSTS_BY_ACTOR,
@@ -98,14 +117,12 @@ class CachedDatabaseService {
       async () => {
         // First, filter out test users from followedIds
         const [testUsers, testActors] = await Promise.all([
-          db().prisma.user.findMany({
-            where: { id: { in: followedIds }, isTest: true },
-            select: { id: true },
-          }),
-          db().prisma.actor.findMany({
-            where: { id: { in: followedIds }, isTest: true },
-            select: { id: true },
-          }),
+          db.select({ id: users.id })
+            .from(users)
+            .where(and(inArray(users.id, followedIds), eq(users.isTest, true))),
+          db.select({ id: actors.id })
+            .from(actors)
+            .where(and(inArray(actors.id, followedIds), eq(actors.isTest, true))),
         ]);
         
         const testAuthorIds = new Set([
@@ -119,38 +136,30 @@ class CachedDatabaseService {
         const cursor = isCursor ? (cursorOrOffset as string) : undefined;
         const offset = !isCursor && typeof cursorOrOffset === 'number' ? cursorOrOffset : 0;
         
-        // Build where clause with cursor or use offset
         const now = new Date();
-        const where: {
-          authorId: { in: string[] };
-          deletedAt: null;
-          timestamp?: { lt: Date; lte: Date } | { lte: Date };
-        } = {
-          authorId: { in: nonTestFollowedIds },
-          deletedAt: null,
-        };
         
-        // Time-based filter: Only return posts up to current time (prevent future access)
+        // Build conditions
+        const conditions = [
+          inArray(posts.authorId, nonTestFollowedIds),
+          isNull(posts.deletedAt),
+        ];
+        
         if (cursor) {
-          where.timestamp = {
-            lt: new Date(cursor),
-            lte: now, // ✅ No future posts
-          };
+          conditions.push(lt(posts.timestamp, new Date(cursor)));
+          conditions.push(lte(posts.timestamp, now));
         } else {
-          where.timestamp = { lte: now }; // ✅ No future posts
+          conditions.push(lte(posts.timestamp, now));
         }
         
         // Query posts from database (only from non-test users)
-        const posts = await db().prisma.post.findMany({
-          where,
-          orderBy: {
-            timestamp: 'desc',
-          },
-          take: limit,
-          skip: cursor ? 0 : offset, // Only use skip if using offset pagination
-        });
+        const result = await db.select()
+          .from(posts)
+          .where(and(...conditions))
+          .orderBy(desc(posts.timestamp))
+          .limit(limit)
+          .offset(cursor ? 0 : offset);
         
-        return posts;
+        return result;
       },
       {
         namespace: CACHE_KEYS.POSTS_FOLLOWING,
@@ -167,9 +176,13 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.user.findUnique({
-        where: { id: userId },
-      }),
+      async () => {
+        const result = await db.select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        return result[0] ?? null;
+      },
       {
         namespace: CACHE_KEYS.USER,
         ttl: DEFAULT_TTLS.USER,
@@ -182,11 +195,11 @@ class CachedDatabaseService {
    */
   async getUsersByIds(userIds: string[]) {
     // For bulk operations, we still cache individual users
-    const users = await Promise.all(
+    const usersResult = await Promise.all(
       userIds.map(id => this.getUserById(id))
     );
     
-    return users.filter(u => u !== null);
+    return usersResult.filter(u => u !== null);
   }
 
   /**
@@ -197,15 +210,18 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          virtualBalance: true,
-          totalDeposited: true,
-          totalWithdrawn: true,
-          lifetimePnL: true,
-        },
-      }),
+      async () => {
+        const result = await db.select({
+          virtualBalance: users.virtualBalance,
+          totalDeposited: users.totalDeposited,
+          totalWithdrawn: users.totalWithdrawn,
+          lifetimePnL: users.lifetimePnL,
+        })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        return result[0] ?? null;
+      },
       {
         namespace: CACHE_KEYS.USER_BALANCE,
         ttl: DEFAULT_TTLS.USER_BALANCE,
@@ -222,46 +238,65 @@ class CachedDatabaseService {
     return getCacheOrFetch(
       cacheKey,
       async () => {
-        const user = await db().prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            _count: {
-              select: {
-                Follow_Follow_followingIdToUser: true, // users following this user (followers)
-                Follow_Follow_followerIdToUser: true, // users this user follows (following)
-                UserActorFollow: true,
-                Position: true,
-                Comment: true,
-                Reaction: true,
-              },
-            },
-          },
-        });
+        // Import the tables we need for counting
+        const { follows, userActorFollows, positions, comments, reactions } = await import('@/db');
 
-        if (!user) return null;
+        // Count followers (users following this user)
+        const followersResult = await db.select({ count: count() })
+          .from(follows)
+          .where(eq(follows.followingId, userId));
+        
+        // Count following (users this user follows)
+        const followingResult = await db.select({ count: count() })
+          .from(follows)
+          .where(eq(follows.followerId, userId));
 
-        // Also count legacy actor follows
-        const legacyActorFollowCount = await db().prisma.followStatus.count({
-          where: {
-            userId,
-            isActive: true,
-            followReason: 'user_followed',
-          },
-        });
+        // Count actor follows
+        const actorFollowsResult = await db.select({ count: count() })
+          .from(userActorFollows)
+          .where(eq(userActorFollows.userId, userId));
+
+        // Count positions
+        const positionsResult = await db.select({ count: count() })
+          .from(positions)
+          .where(eq(positions.userId, userId));
+
+        // Count comments
+        const commentsResult = await db.select({ count: count() })
+          .from(comments)
+          .where(eq(comments.authorId, userId));
+
+        // Count reactions
+        const reactionsResult = await db.select({ count: count() })
+          .from(reactions)
+          .where(eq(reactions.userId, userId));
+
+        // Count legacy actor follows
+        const legacyActorFollowResult = await db.select({ count: count() })
+          .from(followStatuses)
+          .where(and(
+            eq(followStatuses.userId, userId),
+            eq(followStatuses.isActive, true),
+            eq(followStatuses.followReason, 'user_followed')
+          ));
 
         // Count posts
-        const postCount = await db().prisma.post.count({
-          where: { authorId: userId },
-        });
+        const postCountResult = await db.select({ count: count() })
+          .from(posts)
+          .where(eq(posts.authorId, userId));
+
+        const followers = Number(followersResult[0]?.count ?? 0);
+        const following = Number(followingResult[0]?.count ?? 0);
+        const actorFollows = Number(actorFollowsResult[0]?.count ?? 0);
+        const legacyActorFollows = Number(legacyActorFollowResult[0]?.count ?? 0);
 
         return {
-          followers: user._count.Follow_Follow_followingIdToUser,
-          following: user._count.Follow_Follow_followerIdToUser + user._count.UserActorFollow + legacyActorFollowCount,
-          positions: user._count.Position,
-          comments: user._count.Comment,
-          reactions: user._count.Reaction,
-          posts: postCount,
+          followers,
+          following: following + actorFollows + legacyActorFollows,
+          positions: Number(positionsResult[0]?.count ?? 0),
+          comments: Number(commentsResult[0]?.count ?? 0),
+          reactions: Number(reactionsResult[0]?.count ?? 0),
+          posts: Number(postCountResult[0]?.count ?? 0),
         };
       },
       {
@@ -279,9 +314,13 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.actor.findUnique({
-        where: { id: actorId },
-      }),
+      async () => {
+        const result = await db.select()
+          .from(actors)
+          .where(eq(actors.id, actorId))
+          .limit(1);
+        return result[0] ?? null;
+      },
       {
         namespace: CACHE_KEYS.ACTOR,
         ttl: DEFAULT_TTLS.ACTOR,
@@ -293,11 +332,11 @@ class CachedDatabaseService {
    * Get multiple actors with caching
    */
   async getActorsByIds(actorIds: string[]) {
-    const actors = await Promise.all(
+    const actorsResult = await Promise.all(
       actorIds.map(id => this.getActorById(id))
     );
     
-    return actors.filter(a => a !== null);
+    return actorsResult.filter(a => a !== null);
   }
 
   /**
@@ -305,12 +344,17 @@ class CachedDatabaseService {
    */
   async getOrganizationById(orgId: string) {
     const cacheKey = orgId;
+    const { organizations } = await import('@/db');
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.organization.findUnique({
-        where: { id: orgId },
-      }),
+      async () => {
+        const result = await db.select()
+          .from(organizations)
+          .where(eq(organizations.id, orgId))
+          .limit(1);
+        return result[0] ?? null;
+      },
       {
         namespace: CACHE_KEYS.ORGANIZATION,
         ttl: DEFAULT_TTLS.ORGANIZATION,
@@ -326,10 +370,13 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.market.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: 'desc' },
-      }),
+      async () => {
+        const result = await db.select()
+          .from(markets)
+          .where(eq(markets.resolved, false))
+          .orderBy(desc(markets.createdAt));
+        return result;
+      },
       {
         namespace: CACHE_KEYS.MARKETS_LIST,
         ttl: DEFAULT_TTLS.MARKETS_LIST,
@@ -345,13 +392,27 @@ class CachedDatabaseService {
     
     return getCacheOrFetch(
       cacheKey,
-      () => db().prisma.trendingTag.findMany({
-        take: limit,
-        orderBy: { rank: 'asc' },
-        include: {
-          Tag: true,
-        },
-      }),
+      async () => {
+        const result = await db.select({
+          id: trendingTags.id,
+          tagId: trendingTags.tagId,
+          rank: trendingTags.rank,
+          score: trendingTags.score,
+          postCount: trendingTags.postCount,
+          calculatedAt: trendingTags.calculatedAt,
+          tag: {
+            id: tags.id,
+            name: tags.name,
+            createdAt: tags.createdAt,
+            updatedAt: tags.updatedAt,
+          },
+        })
+          .from(trendingTags)
+          .leftJoin(tags, eq(trendingTags.tagId, tags.id))
+          .limit(limit)
+          .orderBy(asc(trendingTags.rank));
+        return result;
+      },
       {
         namespace: CACHE_KEYS.TRENDING_TAGS,
         ttl: DEFAULT_TTLS.TRENDING_TAGS,
@@ -414,4 +475,3 @@ class CachedDatabaseService {
 }
 
 export const cachedDb = new CachedDatabaseService();
-

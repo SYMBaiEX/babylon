@@ -60,7 +60,7 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager'
 
@@ -103,26 +103,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const actor = await requireUserByIdentifier(actorId)
 
-  const pool = await prisma.pool.findFirst({
+  const pool = await db.pool.findFirst({
     where: {
       npcActorId: actor.id,
       isActive: true,
     },
-    include: {
-      Actor: {
-        select: {
-          personality: true,
-        },
-      },
-    },
   })
+
+  // Get actor details separately if needed
+  let actorPersonality: string | null = null;
+  if (pool) {
+    const actorDetails = await db.actor.findUnique({
+      where: { id: pool.npcActorId },
+      select: { personality: true },
+    });
+    actorPersonality = actorDetails?.personality || null;
+  }
 
   let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced'
 
   if ('strategy' in body && body.strategy) {
     strategy = body.strategy
-  } else if (pool!.Actor?.personality) {
-    const personalityLower = pool!.Actor.personality.toLowerCase()
+  } else if (actorPersonality) {
+    const personalityLower = actorPersonality.toLowerCase()
     const aggressiveKeywords = ['erratic', 'disaster', 'memecoin', 'degen']
     const conservativeKeywords = ['vampire', 'yacht', 'philosopher']
 

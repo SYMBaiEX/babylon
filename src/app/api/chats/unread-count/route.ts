@@ -64,7 +64,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const counts = await asUser(user, async (db) => {
     let pendingDMCount = 0
-    pendingDMCount = await db.dMAcceptance.count({
+    pendingDMCount = await db.dmAcceptance.count({
       where: {
         userId: user.userId,
         status: 'pending',
@@ -83,20 +83,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const chatIds = chatsWithParticipation.map(cp => cp.chatId)
 
     let recentMessageCount = 0
-    recentMessageCount = await db.message.count({
-      where: {
-        chatId: {
-          in: chatIds,
+    if (chatIds.length > 0) {
+      recentMessageCount = await db.message.count({
+        where: {
+          chatId: {
+            in: chatIds,
+          },
+          senderId: {
+            not: user.userId,
+          },
+          createdAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          },
         },
-        senderId: {
-          not: user.userId,
-        },
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-      },
-      take: 1,
-    })
+      });
+    }
 
     return {
       pendingDMs: pendingDMCount,

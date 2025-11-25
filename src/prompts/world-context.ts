@@ -14,7 +14,7 @@
  */
 
 import { loadActorsData } from '@/lib/data/actors-loader';
-import { prisma } from '@/lib/prisma';
+import { db, markets, organizations, questions, npcTrades, agentTrades, actors, users, eq, desc } from '@/db';
 import { shuffleArray } from '@/lib/utils/randomization';
 import type { ActorData } from '@/shared/types';
 import { worldFactsService } from '@/lib/services/world-facts-service';
@@ -115,35 +115,27 @@ export function generateWorldActors(maxActors?: number): string {
  */
 export async function generateCurrentMarkets(): Promise<string> {
   // Get active prediction markets
-  const predictionMarkets = await prisma.market.findMany({
-    where: {
-      resolved: false,
-      endDate: { gte: new Date() },
-    },
-    orderBy: [
-      { yesShares: 'desc' }, // Most active first
-    ],
-    take: 5, // Top 5 prediction markets
-  });
+  const predictionMarkets = await db.select()
+    .from(markets)
+    .where(eq(markets.resolved, false))
+    .orderBy(desc(markets.yesShares))
+    .limit(5);
 
   // Get top perpetual markets (companies with recent activity)
-  const companies = await prisma.organization.findMany({
-    where: {
-      type: 'company',
-      currentPrice: { not: null },
-    },
-    orderBy: { currentPrice: 'desc' },
-    take: 5, // Top 5 companies
-  });
+  const companies = await db.select()
+    .from(organizations)
+    .where(eq(organizations.type, 'company'))
+    .orderBy(desc(organizations.currentPrice))
+    .limit(5);
 
   const parts: string[] = [];
 
   // Add prediction markets (shuffled for variety)
   if (predictionMarkets.length > 0) {
     const shuffledPredictions = shuffleArray(predictionMarkets);
-    const predList = shuffledPredictions.map(market => {
-      const yesShares = parseFloat(market.yesShares.toString());
-      const noShares = parseFloat(market.noShares.toString());
+    const predList = shuffledPredictions.map((market: typeof predictionMarkets[number]) => {
+      const yesShares = parseFloat(market.yesShares?.toString() || '0');
+      const noShares = parseFloat(market.noShares?.toString() || '0');
       const totalShares = yesShares + noShares;
       const yesPrice = totalShares > 0 ? Math.round((yesShares / totalShares) * 100) : 50;
       
@@ -155,8 +147,8 @@ export async function generateCurrentMarkets(): Promise<string> {
   // Add perp markets (shuffled for variety)
   if (companies.length > 0) {
     const shuffledCompanies = shuffleArray(companies);
-    const perpList = shuffledCompanies.map(company => {
-      const price = company.currentPrice || company.initialPrice || 100;
+    const perpList = shuffledCompanies.map((company: typeof companies[number]) => {
+      const price = Number(company.currentPrice) || Number(company.initialPrice) || 100;
       return `${company.name} $${price.toFixed(2)}`;
     });
     parts.push(`Stocks: ${perpList.join(' | ')}`);
@@ -179,24 +171,22 @@ export async function generateCurrentMarkets(): Promise<string> {
  */
 export async function generateActivePredictions(): Promise<string> {
   // Get active questions from the Question table
-  const questions = await prisma.question.findMany({
-    where: {
-      status: 'active',
-      resolutionDate: { gte: new Date() },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 10, // Top 10 questions
-  });
+  const activeQuestions = await db.select()
+    .from(questions)
+    .where(eq(questions.status, 'active'))
+    .orderBy(desc(questions.createdAt))
+    .limit(10);
 
-  if (questions.length === 0) {
+  if (activeQuestions.length === 0) {
     return 'Active Questions: None currently active';
   }
 
   // Shuffle questions to add variety
-  const shuffledQuestions = shuffleArray(questions);
-  const questionsList = shuffledQuestions.map(q => {
+  const shuffledQuestions = shuffleArray(activeQuestions);
+  const questionsList = shuffledQuestions.map((q: typeof activeQuestions[number]) => {
+    const resolutionDate = q.resolutionDate ? new Date(q.resolutionDate) : new Date();
     const daysUntil = Math.ceil(
-      (q.resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
     return `${q.text} (resolves in ${daysUntil}d)`;
   });
@@ -213,37 +203,43 @@ export async function generateActivePredictions(): Promise<string> {
  * @returns Formatted string listing recent trading activity
  */
 export async function generateRecentTrades(): Promise<string> {
-  // Get recent NPC trades
-  const npcTrades = await prisma.nPCTrade.findMany({
-    orderBy: { executedAt: 'desc' },
-    take: 15,
-    include: {
-      Actor: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
+  // Get recent NPC trades with actor names
+  const npcTradeResults = await db.select({
+    action: npcTrades.action,
+    side: npcTrades.side,
+    amount: npcTrades.amount,
+    price: npcTrades.price,
+    marketType: npcTrades.marketType,
+    ticker: npcTrades.ticker,
+    executedAt: npcTrades.executedAt,
+    actorName: actors.name,
+  })
+    .from(npcTrades)
+    .leftJoin(actors, eq(npcTrades.npcActorId, actors.id))
+    .orderBy(desc(npcTrades.executedAt))
+    .limit(15);
 
-  // Get recent agent trades
-  const agentTrades = await prisma.agentTrade.findMany({
-    orderBy: { executedAt: 'desc' },
-    take: 15,
-    include: {
-      User: {
-        select: {
-          username: true,
-          displayName: true,
-        },
-      },
-    },
-  });
+  // Get recent agent trades with user names
+  const agentTradeResults = await db.select({
+    action: agentTrades.action,
+    side: agentTrades.side,
+    amount: agentTrades.amount,
+    price: agentTrades.price,
+    marketType: agentTrades.marketType,
+    ticker: agentTrades.ticker,
+    executedAt: agentTrades.executedAt,
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(agentTrades)
+    .leftJoin(users, eq(agentTrades.agentUserId, users.id))
+    .orderBy(desc(agentTrades.executedAt))
+    .limit(15);
 
   // Combine and sort by time
   const allTrades = [
-    ...npcTrades.map(t => ({
-      name: t.Actor.name,
+    ...npcTradeResults.map((t: typeof npcTradeResults[number]) => ({
+      name: t.actorName || 'NPC',
       action: t.action,
       side: t.side,
       amount: t.amount,
@@ -252,8 +248,8 @@ export async function generateRecentTrades(): Promise<string> {
       ticker: t.ticker,
       time: t.executedAt,
     })),
-    ...agentTrades.map(t => ({
-      name: t.User.displayName || t.User.username || 'Agent',
+    ...agentTradeResults.map((t: typeof agentTradeResults[number]) => ({
+      name: t.displayName || t.username || 'Agent',
       action: t.action,
       side: t.side,
       amount: t.amount,
@@ -263,14 +259,14 @@ export async function generateRecentTrades(): Promise<string> {
       time: t.executedAt,
     })),
   ]
-    .sort((a, b) => b.time.getTime() - a.time.getTime())
+    .sort((a, b) => (b.time?.getTime() || 0) - (a.time?.getTime() || 0))
     .slice(0, 20); // Top 20 most recent
 
   if (allTrades.length === 0) {
     return 'Recent Trades: No recent activity';
   }
 
-  const tradesList = allTrades.map(t => {
+  const tradesList = allTrades.map((t: typeof allTrades[number]) => {
     const actionStr = t.side 
       ? `${t.action} ${t.side}` 
       : t.action;

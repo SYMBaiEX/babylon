@@ -9,7 +9,7 @@
  * 5. Shows how to view training in W&B dashboard
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface TestResult {
   test: string;
@@ -99,7 +99,7 @@ async function testWandBInference() {
   console.log('\n━━━ 2. W&B INFERENCE INTEGRATION ━━━\n');
   
   // Test 1: Check if trained models exist
-  const trainedModels = await prisma.trainedModel.findMany({
+  const trainedModels = await db.trainedModel.findMany({
     where: { status: { in: ['ready', 'deployed'] } },
     take: 1
   });
@@ -292,7 +292,7 @@ async function main() {
     console.error('\n❌ Test suite crashed:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

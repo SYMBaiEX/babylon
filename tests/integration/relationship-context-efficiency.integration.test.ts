@@ -5,12 +5,10 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@/db';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
 import { FeedGenerator } from '@/engine/FeedGenerator';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
-
-const prisma = new PrismaClient();
 
 describe('Relationship Context Efficiency', () => {
   let llmClient: BabylonLLMClient;
@@ -23,7 +21,7 @@ describe('Relationship Context Efficiency', () => {
     }
 
     // Create test relationship
-    await prisma.actorRelationship.deleteMany({
+    await db.actorRelationship.deleteMany({
       where: {
         OR: [
           { actor1Id: 'efficiency-test-1' },
@@ -34,7 +32,7 @@ describe('Relationship Context Efficiency', () => {
       },
     });
 
-    await prisma.actor.upsert({
+    await db.actor.upsert({
       where: { id: 'efficiency-test-1' },
       update: {},
       create: {
@@ -48,7 +46,7 @@ describe('Relationship Context Efficiency', () => {
       },
     });
 
-    await prisma.actor.upsert({
+    await db.actor.upsert({
       where: { id: 'efficiency-test-2' },
       update: {},
       create: {
@@ -64,7 +62,7 @@ describe('Relationship Context Efficiency', () => {
   });
 
   afterAll(async () => {
-    await prisma.actorRelationship.deleteMany({
+    await db.actorRelationship.deleteMany({
       where: {
         OR: [
           { actor1Id: 'efficiency-test-1' },
@@ -74,10 +72,10 @@ describe('Relationship Context Efficiency', () => {
         ],
       },
     });
-    await prisma.actor.deleteMany({
+    await db.actor.deleteMany({
       where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
     });
-    await prisma.$disconnect();
+    await db.$disconnect();
   });
 
   test('should cache relationship context for efficiency', async () => {
@@ -109,7 +107,7 @@ describe('Relationship Context Efficiency', () => {
     // Create a relationship for testing
     const engine = new RelationshipEvolutionEngine();
     
-    await prisma.actorRelationship.create({
+    await db.actorRelationship.create({
       data: {
         id: 'test-rel-1',
         actor1Id: 'efficiency-test-1',

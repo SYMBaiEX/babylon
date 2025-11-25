@@ -9,7 +9,7 @@
  * 5. Models are being used by agents
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { modelSelectionService } from '@/lib/training/ModelSelectionService';
 import { benchmarkService } from '@/lib/training/BenchmarkService';
 import fs from 'node:fs/promises';
@@ -81,12 +81,12 @@ async function checkDatabase() {
   
   try {
     // Test connection
-    await prisma.$queryRaw`SELECT 1`;
+    await db.$queryRaw`SELECT 1`;
     addCheck('Database Connection', 'pass', 'Connected successfully');
     
     // Check trajectories
-    const trajCount = await prisma.trajectory.count();
-    const scoredCount = await prisma.trajectory.count({
+    const trajCount = await db.trajectory.count();
+    const scoredCount = await db.trajectory.count({
       where: { aiJudgeReward: { not: null } }
     });
     
@@ -98,8 +98,8 @@ async function checkDatabase() {
     );
     
     // Check models
-    const modelCount = await prisma.trainedModel.count();
-    const deployedCount = await prisma.trainedModel.count({
+    const modelCount = await db.trainedModel.count();
+    const deployedCount = await db.trainedModel.count({
       where: { status: 'deployed' }
     });
     
@@ -111,8 +111,8 @@ async function checkDatabase() {
     );
     
     // Check training batches
-    const batchCount = await prisma.trainingBatch.count();
-    const completedBatches = await prisma.trainingBatch.count({
+    const batchCount = await db.trainingBatch.count();
+    const completedBatches = await db.trainingBatch.count({
       where: { status: 'completed' }
     });
     
@@ -271,7 +271,7 @@ async function checkModelUsage() {
   
   try {
     // Get latest deployed model
-    const latestModel = await prisma.trainedModel.findFirst({
+    const latestModel = await db.trainedModel.findFirst({
       where: { status: 'deployed' },
       orderBy: { deployedAt: 'desc' }
     });
@@ -417,7 +417,7 @@ async function main() {
     console.error('\n❌ Verification crashed:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

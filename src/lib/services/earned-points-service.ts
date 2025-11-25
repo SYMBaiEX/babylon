@@ -6,8 +6,7 @@
  * points for trades.
  */
 
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import { db, users, pointsTransactions, eq, type Transaction } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
@@ -55,16 +54,18 @@ export class EarnedPointsService {
    * @throws {Error} If user not found
    */
   static async syncEarnedPointsFromPnL(userId: string): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        lifetimePnL: true,
-        earnedPoints: true,
-        invitePoints: true,
-        bonusPoints: true,
-        reputationPoints: true,
-      },
+    const result = await db.select({
+      lifetimePnL: users.lifetimePnL,
+      earnedPoints: users.earnedPoints,
+      invitePoints: users.invitePoints,
+      bonusPoints: users.bonusPoints,
+      reputationPoints: users.reputationPoints,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    const user = result[0]
 
     if (!user) {
       throw new Error(`User not found: ${userId}`)
@@ -83,13 +84,12 @@ export class EarnedPointsService {
     const basePoints = 100
     const newReputationPoints = basePoints + user.invitePoints + newEarnedPoints + user.bonusPoints
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
+    await db.update(users)
+      .set({
         earnedPoints: newEarnedPoints,
         reputationPoints: newReputationPoints,
-      },
-    })
+      })
+      .where(eq(users.id, userId))
 
     logger.info('Updated earned points from P&L', {
       userId,
@@ -112,7 +112,7 @@ export class EarnedPointsService {
    * @param {number} newLifetimePnL - New lifetime P&L (after this trade)
    * @param {string} tradeType - Type of trade (for transaction record)
    * @param {string} [relatedId] - Optional related entity ID (trade ID, etc.)
-   * @param {Prisma.TransactionClient} [tx] - Optional transaction client for atomic operations
+   * @param {Transaction} [tx] - Optional transaction client for atomic operations
    * @returns {Promise<number>} Points awarded (can be negative)
    * @throws {Error} If user not found
    */
@@ -121,21 +121,23 @@ export class EarnedPointsService {
     newLifetimePnL: number,
     tradeType: string,
     relatedId?: string,
-    tx?: Prisma.TransactionClient
+    tx?: Transaction
   ): Promise<number> {
-    const db = tx || prisma
+    const database = tx ?? db
     const computedEarnedPoints = this.pnlToPoints(newLifetimePnL)
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        earnedPoints: true,
-        invitePoints: true,
-        bonusPoints: true,
-        reputationPoints: true,
-        lifetimePnL: true,
-      },
+    const result = await database.select({
+      earnedPoints: users.earnedPoints,
+      invitePoints: users.invitePoints,
+      bonusPoints: users.bonusPoints,
+      reputationPoints: users.reputationPoints,
+      lifetimePnL: users.lifetimePnL,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    const user = result[0]
 
     if (!user) {
       throw new Error(`User not found: ${userId}`)
@@ -173,16 +175,15 @@ export class EarnedPointsService {
     const newReputationPoints = basePoints + user.invitePoints + newEarnedPoints + user.bonusPoints
 
     // Update user and create transaction
-    await db.user.update({
-      where: { id: userId },
-      data: {
+    await database.update(users)
+      .set({
         earnedPoints: newEarnedPoints,
         reputationPoints: newReputationPoints,
-      },
-    })
+      })
+      .where(eq(users.id, userId))
 
-    await db.pointsTransaction.create({
-      data: {
+    await database.insert(pointsTransactions)
+      .values({
         id: await generateSnowflakeId(),
         userId,
         amount: earnedPointsDelta,
@@ -198,8 +199,7 @@ export class EarnedPointsService {
           newEarnedPoints,
           earnedPointsDelta,
         }),
-      },
-    })
+      })
 
     logger.info('Awarded earned points for P&L', {
       userId,
@@ -219,23 +219,22 @@ export class EarnedPointsService {
    * Note: Individual user errors are caught to allow continuation
    */
   static async bulkSyncAllUsers(): Promise<{ success: number; errors: number }> {
-    const users = await prisma.user.findMany({
-      where: { isActor: false },
-      select: { id: true },
-    })
+    const usersList = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.isActor, false))
 
-    logger.info(`Syncing earned points for ${users.length} users`, {}, 'EarnedPointsService')
+    logger.info(`Syncing earned points for ${usersList.length} users`, {}, 'EarnedPointsService')
 
     let successCount = 0
     const errorCount = 0
 
-    for (const user of users) {
+    for (const user of usersList) {
       await this.syncEarnedPointsFromPnL(user.id)
       successCount++
     }
 
     logger.info(`Bulk sync complete`, {
-      total: users.length,
+      total: usersList.length,
       success: successCount,
       errors: errorCount,
     }, 'EarnedPointsService')
@@ -243,4 +242,3 @@ export class EarnedPointsService {
     return { success: successCount, errors: errorCount }
   }
 }
-

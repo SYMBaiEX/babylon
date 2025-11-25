@@ -4,7 +4,7 @@
  */
 
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 /**
  * Provider: Recent Headlines
@@ -18,18 +18,10 @@ export const headlinesProvider: Provider = {
     // Get recent headlines (last 24 hours)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
     
-    const headlines = await prisma.rSSHeadline.findMany({
+    const headlines = await db.rssHeadline.findMany({
       where: {
         publishedAt: {
           gte: yesterday
-        }
-      },
-      include: {
-        source: {
-          select: {
-            name: true,
-            category: true
-          }
         }
       },
       orderBy: {
@@ -46,7 +38,7 @@ export const headlinesProvider: Provider = {
       .map((h, i) => {
         const timeAgo = getTimeAgo(h.publishedAt)
         return `${i + 1}. ${h.title}
-   Source: ${h.source.name}${h.source.category ? ` (${h.source.category})` : ''}
+   Source: ${h.sourceId}
    ${timeAgo}${h.summary ? `\n   ${h.summary.substring(0, 100)}...` : ''}`
       })
       .join('\n\n')
@@ -59,8 +51,8 @@ ${headlinesText}`,
         headlines: headlines.map(h => ({
           id: h.id,
           title: h.title,
-          source: h.source.name,
-          category: h.source.category,
+          source: h.sourceId,
+          category: null,
           publishedAt: h.publishedAt,
           link: h.link,
           summary: h.summary

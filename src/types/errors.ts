@@ -28,7 +28,7 @@ export interface AuthenticationError extends Error {
  */
 export interface DatabaseError extends Error {
   code: string;
-  prismaCode?: string;
+  pgCode?: string;
   table?: string;
   constraint?: string;
 }
@@ -73,7 +73,7 @@ export function isAuthenticationError(error: Error): error is AuthenticationErro
  * Type guard to check if error is DatabaseError
  */
 export function isDatabaseError(error: Error): error is DatabaseError {
-  return 'code' in error && 'prismaCode' in error;
+  return 'code' in error && ('pgCode' in error || 'constraint' in error);
 }
 
 /**

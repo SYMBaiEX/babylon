@@ -95,7 +95,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { db, users, eq, and, ne } from '@/db';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -149,36 +149,37 @@ export const POST = withErrorHandling(async (
   // Check username uniqueness only if username is being updated
   if (username !== undefined) {
     const normalizedUsername = username.trim();
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        username: normalizedUsername,
-        id: { not: canonicalUserId },
-      },
-    });
+    const [existingUser] = await db.select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.username, normalizedUsername),
+        ne(users.id, canonicalUserId)
+      ))
+      .limit(1);
 
     if (existingUser) {
       throw new BusinessLogicError('Username is already taken', 'USERNAME_TAKEN');
     }
   }
 
-  const currentUser = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: {
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-      usernameChangedAt: true,
-      pointsAwardedForProfile: true,
-      walletAddress: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-    },
+  const [currentUser] = await db.select({
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    coverImageUrl: users.coverImageUrl,
+    hasUsername: users.hasUsername,
+    hasBio: users.hasBio,
+    hasProfileImage: users.hasProfileImage,
+    usernameChangedAt: users.usernameChangedAt,
+    pointsAwardedForProfile: users.pointsAwardedForProfile,
+    walletAddress: users.walletAddress,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
   })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   const normalizedUsername = username !== undefined ? username.trim() : undefined;
   const normalizedDisplayName = displayName !== undefined ? displayName.trim() : undefined;
@@ -227,6 +228,8 @@ export const POST = withErrorHandling(async (
       })
 
       backendSignedTxHash = result.txHash
+      // ProfileMetadata is structurally compatible with Record<string, JsonValue>
+      // (all fields are string | null | undefined, which are JsonValue types)
       onchainMetadata = result.metadata as unknown as Record<string, JsonValue>
 
       logger.info(
@@ -247,7 +250,7 @@ export const POST = withErrorHandling(async (
         txHash: onchainTxHash! as `0x${string}`,
       })
 
-      onchainMetadata = onchainResult.metadata as unknown as Record<string, JsonValue> | null
+      onchainMetadata = onchainResult.metadata as Record<string, JsonValue>
 
       logger.info(
         'Confirmed user-signed on-chain profile update',
@@ -261,12 +264,13 @@ export const POST = withErrorHandling(async (
   const referralCodeUpdate: { referralCode?: string } = {}
   if (isUsernameChanging && normalizedUsername) {
     // Check if username is available as referral code (not taken by another user)
-    const existingUserWithCode = await prisma.user.findFirst({
-      where: {
-        referralCode: normalizedUsername,
-        id: { not: canonicalUserId },
-      },
-    })
+    const [existingUserWithCode] = await db.select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.referralCode, normalizedUsername),
+        ne(users.id, canonicalUserId)
+      ))
+      .limit(1);
     
     // Only update referral code if username is available
     if (!existingUserWithCode) {
@@ -274,57 +278,58 @@ export const POST = withErrorHandling(async (
     }
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: canonicalUserId },
-    data: {
-      ...(normalizedUsername !== undefined && { username: normalizedUsername || null }),
-      ...(normalizedDisplayName !== undefined && { displayName: normalizedDisplayName || null }),
-      ...(normalizedBio !== undefined && { bio: normalizedBio || null }),
-      ...(normalizedProfileImageUrl !== undefined && { profileImageUrl: normalizedProfileImageUrl || null }),
-      ...(normalizedCoverImageUrl !== undefined && { coverImageUrl: normalizedCoverImageUrl || null }),
-      ...(showTwitterPublic !== undefined && { showTwitterPublic }),
-      ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
-      ...(showWalletPublic !== undefined && { showWalletPublic }),
-      ...(isUsernameChanging && { usernameChangedAt: new Date() }),
-      ...referralCodeUpdate,
-      hasUsername: normalizedUsername !== undefined ? normalizedUsername.length > 0 : undefined,
-      hasBio: normalizedBio !== undefined ? normalizedBio.length > 0 : undefined,
-      hasProfileImage: normalizedProfileImageUrl !== undefined ? normalizedProfileImageUrl.length > 0 : undefined,
-      profileComplete:
-        normalizedUsername !== undefined &&
-        normalizedDisplayName !== undefined &&
-        normalizedBio !== undefined &&
-        normalizedProfileImageUrl !== undefined
-          ? normalizedUsername.length > 0 &&
-            normalizedDisplayName.length > 0 &&
-            normalizedBio.length > 0 &&
-            normalizedProfileImageUrl.length > 0
-          : undefined,
-    },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      profileComplete: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-      reputationPoints: true,
-      referralCount: true,
-      referralCode: true,
-      usernameChangedAt: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-    },
-  });
+  const updateData: Partial<typeof users.$inferInsert> = {
+    ...(normalizedUsername !== undefined && { username: normalizedUsername || null }),
+    ...(normalizedDisplayName !== undefined && { displayName: normalizedDisplayName || null }),
+    ...(normalizedBio !== undefined && { bio: normalizedBio || null }),
+    ...(normalizedProfileImageUrl !== undefined && { profileImageUrl: normalizedProfileImageUrl || null }),
+    ...(normalizedCoverImageUrl !== undefined && { coverImageUrl: normalizedCoverImageUrl || null }),
+    ...(showTwitterPublic !== undefined && { showTwitterPublic }),
+    ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
+    ...(showWalletPublic !== undefined && { showWalletPublic }),
+    ...(isUsernameChanging && { usernameChangedAt: new Date() }),
+    ...referralCodeUpdate,
+    hasUsername: normalizedUsername !== undefined ? normalizedUsername.length > 0 : undefined,
+    hasBio: normalizedBio !== undefined ? normalizedBio.length > 0 : undefined,
+    hasProfileImage: normalizedProfileImageUrl !== undefined ? normalizedProfileImageUrl.length > 0 : undefined,
+    profileComplete:
+      normalizedUsername !== undefined &&
+      normalizedDisplayName !== undefined &&
+      normalizedBio !== undefined &&
+      normalizedProfileImageUrl !== undefined
+        ? normalizedUsername.length > 0 &&
+          normalizedDisplayName.length > 0 &&
+          normalizedBio.length > 0 &&
+          normalizedProfileImageUrl.length > 0
+        : undefined,
+  };
+
+  const [updatedUser] = await db.update(users)
+    .set(updateData)
+    .where(eq(users.id, canonicalUserId))
+    .returning({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
+      coverImageUrl: users.coverImageUrl,
+      profileComplete: users.profileComplete,
+      hasUsername: users.hasUsername,
+      hasBio: users.hasBio,
+      hasProfileImage: users.hasProfileImage,
+      reputationPoints: users.reputationPoints,
+      referralCount: users.referralCount,
+      referralCode: users.referralCode,
+      usernameChangedAt: users.usernameChangedAt,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+    });
 
   // Award points for profile milestones
   const pointsAwarded: { reason: string; amount: number }[] = [];
 
-  if (!currentUser!.pointsAwardedForProfile) {
+  if (!currentUser!.pointsAwardedForProfile && updatedUser) {
     const hasUsername = updatedUser.username && updatedUser.username.trim().length > 0;
     const hasImage = updatedUser.profileImageUrl && updatedUser.profileImageUrl.trim().length > 0;
     const hasBio = updatedUser.bio && updatedUser.bio.trim().length >= 50;
@@ -393,7 +398,7 @@ export const POST = withErrorHandling(async (
     hasNewCoverImage: normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== currentUser!.coverImageUrl,
     hasNewBio: normalizedBio !== undefined && normalizedBio !== currentUser!.bio,
     usernameChanged: isUsernameChanging,
-    profileComplete: updatedUser.profileComplete,
+    profileComplete: updatedUser?.profileComplete ?? false,
     pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),
     onchainUpdate: requiresOnchainUpdate,
     backendSigned: Boolean(backendSignedTxHash),

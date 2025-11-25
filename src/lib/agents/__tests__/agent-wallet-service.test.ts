@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { agentWalletService } from '../identity/AgentWalletService'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('Agent Wallet Service', () => {
@@ -15,7 +15,7 @@ describe('Agent Wallet Service', () => {
     testAgentId = await generateSnowflakeId()
 
     // Create test agent
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentId,
         privyId: `did:privy:test-wallet-${testAgentId}`,
@@ -33,7 +33,7 @@ describe('Agent Wallet Service', () => {
 
   afterAll(async () => {
     // Cleanup
-    await prisma.user.delete({ where: { id: testAgentId } })
+    await db.user.delete({ where: { id: testAgentId } })
   })
 
   test('createAgentEmbeddedWallet creates wallet without user interaction', async () => {
@@ -50,7 +50,7 @@ describe('Agent Wallet Service', () => {
       expect(result.privyWalletId).toBeTruthy()
       
       // Verify wallet was saved to database
-      const agent = await prisma.user.findUnique({ where: { id: testAgentId } })
+      const agent = await db.user.findUnique({ where: { id: testAgentId } })
       expect(agent?.walletAddress).toBe(result.walletAddress)
       expect(agent?.privyId).toBe(result.privyUserId)
       
@@ -80,7 +80,7 @@ describe('Agent Wallet Service', () => {
   })
 
   test('wallet addresses are valid Ethereum addresses', async () => {
-    const agent = await prisma.user.findUnique({ where: { id: testAgentId } })
+    const agent = await db.user.findUnique({ where: { id: testAgentId } })
     
     if (agent?.walletAddress) {
       expect(agent.walletAddress).toMatch(/^0x[a-fA-F0-9]{40}$/)

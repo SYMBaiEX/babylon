@@ -8,6 +8,15 @@ import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 import type { A2ABalanceResponse, A2APositionsResponse } from '@/types/a2a-responses'
 
+// Type guards for A2A responses
+function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
+  return 'balance' in data && typeof (data as A2ABalanceResponse).balance === 'number'
+}
+
+function isA2APositionsResponse(data: object): data is A2APositionsResponse {
+  return 'marketPositions' in data && Array.isArray((data as A2APositionsResponse).marketPositions)
+}
+
 /**
  * Provider: Portfolio State
  * Gets agent's current positions and balance via A2A
@@ -31,8 +40,15 @@ export const portfolioProvider: Provider = {
       babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId })
     ])
     
-    const balance = balanceData as unknown as A2ABalanceResponse
-    const positions = positionsData as unknown as A2APositionsResponse
+    // Validate response structures using type guards
+    if (!balanceData || typeof balanceData !== 'object' || !isA2ABalanceResponse(balanceData)) {
+      throw new Error('Invalid balance data format from A2A client')
+    }
+    if (!positionsData || typeof positionsData !== 'object' || !isA2APositionsResponse(positionsData)) {
+      throw new Error('Invalid positions data format from A2A client')
+    }
+    const balance = balanceData
+    const positions = positionsData
     
     return { text: `Your Portfolio:
 

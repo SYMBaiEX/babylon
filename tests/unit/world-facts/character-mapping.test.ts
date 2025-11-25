@@ -12,7 +12,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { CharacterMappingService } from '@/lib/services/character-mapping-service';
 
-// Mock Prisma to avoid database dependency
+// Mock database to avoid database dependency
 const mockCharacterMappings = [
   {
     id: '1',
@@ -92,6 +92,7 @@ class TestableCharacterMappingService extends CharacterMappingService {
     organizations: typeof mockOrganizationMappings
   ) {
     // Access private properties for testing
+    // Uses unknown cast to bypass TypeScript private access check
     (this as unknown as { characterMappingsCache: typeof mockCharacterMappings }).characterMappingsCache = characters;
     (this as unknown as { organizationMappingsCache: typeof mockOrganizationMappings }).organizationMappingsCache = organizations;
     (this as unknown as { lastCacheUpdate: number }).lastCacheUpdate = Date.now();

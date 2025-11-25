@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test'
 import { autonomousCoordinator } from '../AutonomousCoordinator'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { ethers } from 'ethers'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -19,7 +19,7 @@ describe('Autonomous Coordinator', () => {
     testAgentId = await generateSnowflakeId()
 
     // Create test agent
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentId,
         privyId: `did:privy:test-agent-${testAgentId}`,
@@ -42,10 +42,18 @@ describe('Autonomous Coordinator', () => {
       }
     })
 
-    // Create mock runtime
-    mockRuntime = {
+    // Define params type for useModel
+    interface UseModelParams {
+      prompt: string
+      temperature?: number
+      maxTokens?: number
+      stopSequences?: string[]
+    }
+    
+    // Create mock runtime with partial implementation
+    const mockRuntimePartial: Partial<IAgentRuntime> & { agentId: string; character: { name: string; system: string; bio: string } } = {
       agentId: testAgentId,
-      useModel: mock(async (_modelType: typeof ModelType, params: { prompt: string; [key: string]: unknown }) => {
+      useModel: mock(async (_modelType: typeof ModelType, params: UseModelParams) => {
         // Return mock responses
         if (params.prompt.includes('decide if you should')) {
           return '[false, false, false]' // Don't respond to batch
@@ -61,7 +69,7 @@ describe('Autonomous Coordinator', () => {
         }
         return 'Test response content'
       }),
-      getSetting: mock((key: string) => {
+      getSetting: mock((key: string): string | undefined => {
         // Return mock settings
         if (key === 'WANDB_ENABLED') return 'false'
         if (key === 'GROQ_API_KEY') return 'test-key'
@@ -73,12 +81,14 @@ describe('Autonomous Coordinator', () => {
         system: 'You are a test agent',
         bio: 'Test agent bio'
       }
-    } as unknown as IAgentRuntime
+    }
+    // Cast to IAgentRuntime - this is a test mock, not all properties are implemented
+    mockRuntime = mockRuntimePartial as IAgentRuntime
   })
 
   afterAll(async () => {
     // Cleanup
-    await prisma.user.delete({ where: { id: testAgentId } })
+    await db.user.delete({ where: { id: testAgentId } })
   })
 
   test('executeAutonomousTick completes without errors', async () => {

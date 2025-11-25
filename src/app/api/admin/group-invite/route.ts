@@ -209,20 +209,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Add user to chat participants
     const { generateSnowflakeId } = await import('@/lib/snowflake');
-    await db.chatParticipant.upsert({
+    // Check if participant exists first (compound key lookup)
+    const existingParticipant = await db.chatParticipant.findFirst({
       where: {
-        chatId_userId: {
-          chatId: finalChatId,
-          userId,
-        },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
         chatId: finalChatId,
         userId,
       },
     });
+    
+    if (!existingParticipant) {
+      await db.chatParticipant.create({
+        data: {
+          id: await generateSnowflakeId(),
+          chatId: finalChatId,
+          userId,
+        },
+      });
+    }
 
     // Record membership
     await db.groupChatMembership.create({

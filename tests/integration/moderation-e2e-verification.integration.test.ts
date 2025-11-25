@@ -12,8 +12,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/prisma';
-import type { User } from '@prisma/client';
+import { db } from '@/db';
+import type { User } from '@/db';
 import { nanoid } from 'nanoid';
 import {
   getBlockedUserIds,
@@ -32,7 +32,7 @@ beforeAll(async () => {
   console.log('🌱 Setting up moderation E2E test data...');
 
   // Create test users
-  testUser1 = await prisma.user.upsert({
+  testUser1 = await db.user.upsert({
     where: { username: 'mod-e2e-user1' },
     update: { updatedAt: new Date() },
     create: {
@@ -44,15 +44,15 @@ beforeAll(async () => {
       profileComplete: true,
       reputationPoints: 1000,
       referralCode: 'E2EUSER1',
-      virtualBalance: 1000,
-      totalDeposited: 1000,
-      totalWithdrawn: 0,
-      lifetimePnL: 0,
+      virtualBalance: '1000',
+      totalDeposited: '1000',
+      totalWithdrawn: '0',
+      lifetimePnL: '0',
       updatedAt: new Date(),
     },
   });
 
-  testUser2 = await prisma.user.upsert({
+  testUser2 = await db.user.upsert({
     where: { username: 'mod-e2e-user2' },
     update: { updatedAt: new Date() },
     create: {
@@ -64,15 +64,15 @@ beforeAll(async () => {
       profileComplete: true,
       reputationPoints: 1000,
       referralCode: 'E2EUSER2',
-      virtualBalance: 1000,
-      totalDeposited: 1000,
-      totalWithdrawn: 0,
-      lifetimePnL: 0,
+      virtualBalance: '1000',
+      totalDeposited: '1000',
+      totalWithdrawn: '0',
+      lifetimePnL: '0',
       updatedAt: new Date(),
     },
   });
 
-  testUser3 = await prisma.user.upsert({
+  testUser3 = await db.user.upsert({
     where: { username: 'mod-e2e-user3' },
     update: { updatedAt: new Date() },
     create: {
@@ -84,16 +84,16 @@ beforeAll(async () => {
       profileComplete: true,
       reputationPoints: 1000,
       referralCode: 'E2EUSER3',
-      virtualBalance: 1000,
-      totalDeposited: 1000,
-      totalWithdrawn: 0,
-      lifetimePnL: 0,
+      virtualBalance: '1000',
+      totalDeposited: '1000',
+      totalWithdrawn: '0',
+      lifetimePnL: '0',
       updatedAt: new Date(),
     },
   });
 
   // Create test NPC
-  testNPC = await prisma.user.upsert({
+  testNPC = await db.user.upsert({
     where: { username: 'mod-e2e-npc' },
     update: { updatedAt: new Date() },
     create: {
@@ -105,10 +105,10 @@ beforeAll(async () => {
       profileComplete: true,
       reputationPoints: 1000,
       referralCode: 'E2ENPC',
-      virtualBalance: 1000,
-      totalDeposited: 1000,
-      totalWithdrawn: 0,
-      lifetimePnL: 0,
+      virtualBalance: '1000',
+      totalDeposited: '1000',
+      totalWithdrawn: '0',
+      lifetimePnL: '0',
       isActor: true, // This is an NPC
       updatedAt: new Date(),
     },
@@ -123,16 +123,16 @@ afterAll(async () => {
   const userIds = [testUser1.id, testUser2.id, testUser3.id, testNPC.id];
 
   // Clean up all moderation actions
-  await prisma.report.deleteMany({ where: { reporterId: { in: userIds } } });
-  await prisma.report.deleteMany({ where: { reportedUserId: { in: userIds } } });
-  await prisma.userBlock.deleteMany({ where: { blockerId: { in: userIds } } });
-  await prisma.userBlock.deleteMany({ where: { blockedId: { in: userIds } } });
-  await prisma.userMute.deleteMany({ where: { muterId: { in: userIds } } });
-  await prisma.userMute.deleteMany({ where: { mutedId: { in: userIds } } });
-  await prisma.post.deleteMany({ where: { authorId: { in: userIds } } });
+  await db.report.deleteMany({ where: { reporterId: { in: userIds } } });
+  await db.report.deleteMany({ where: { reportedUserId: { in: userIds } } });
+  await db.userBlock.deleteMany({ where: { blockerId: { in: userIds } } });
+  await db.userBlock.deleteMany({ where: { blockedId: { in: userIds } } });
+  await db.userMute.deleteMany({ where: { muterId: { in: userIds } } });
+  await db.userMute.deleteMany({ where: { mutedId: { in: userIds } } });
+  await db.post.deleteMany({ where: { authorId: { in: userIds } } });
 
   // Delete users
-  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  await db.user.deleteMany({ where: { id: { in: userIds } } });
 
   console.log('✅ Cleanup complete');
 });
@@ -140,14 +140,14 @@ afterAll(async () => {
 describe('Moderation Filters - Block/Mute User IDs', () => {
   it('should get blocked user IDs', async () => {
     // Clean up first
-    await prisma.userBlock.deleteMany({
+    await db.userBlock.deleteMany({
       where: {
         blockerId: testUser1.id,
       },
     });
 
     // Block user2 and user3
-    await prisma.userBlock.createMany({
+    await db.userBlock.createMany({
       data: [
         { id: nanoid(), blockerId: testUser1.id, blockedId: testUser2.id },
         { id: nanoid(), blockerId: testUser1.id, blockedId: testUser3.id },
@@ -165,14 +165,14 @@ describe('Moderation Filters - Block/Mute User IDs', () => {
 
   it('should get muted user IDs', async () => {
     // Clean up first
-    await prisma.userMute.deleteMany({
+    await db.userMute.deleteMany({
       where: {
         muterId: testUser1.id,
       },
     });
 
     // Mute user2
-    await prisma.userMute.create({
+    await db.userMute.create({
       data: { id: nanoid(), muterId: testUser1.id, mutedId: testUser2.id },
     });
 
@@ -186,14 +186,14 @@ describe('Moderation Filters - Block/Mute User IDs', () => {
 
   it('should get users who blocked current user', async () => {
     // Clean up first
-    await prisma.userBlock.deleteMany({
+    await db.userBlock.deleteMany({
       where: {
         blockedId: testUser1.id,
       },
     });
 
     // User3 blocks user1
-    await prisma.userBlock.create({
+    await db.userBlock.create({
       data: { id: nanoid(), blockerId: testUser3.id, blockedId: testUser1.id },
     });
 
@@ -228,7 +228,7 @@ describe('Moderation Filters - Block/Mute User IDs', () => {
 describe('NPC Moderation - Special Handling', () => {
   it('should allow blocking an NPC', async () => {
     // Clean up first
-    await prisma.userBlock.deleteMany({
+    await db.userBlock.deleteMany({
       where: {
         blockerId: testUser1.id,
         blockedId: testNPC.id,
@@ -236,7 +236,7 @@ describe('NPC Moderation - Special Handling', () => {
     });
 
     // Block the NPC
-    const block = await prisma.userBlock.create({
+    const block = await db.userBlock.create({
       data: {
         id: nanoid(),
         blockerId: testUser1.id,
@@ -254,7 +254,7 @@ describe('NPC Moderation - Special Handling', () => {
 
   it('should allow muting an NPC', async () => {
     // Clean up first
-    await prisma.userMute.deleteMany({
+    await db.userMute.deleteMany({
       where: {
         muterId: testUser1.id,
         mutedId: testNPC.id,
@@ -262,7 +262,7 @@ describe('NPC Moderation - Special Handling', () => {
     });
 
     // Mute the NPC
-    const mute = await prisma.userMute.create({
+    const mute = await db.userMute.create({
       data: {
         id: nanoid(),
         muterId: testUser1.id,
@@ -280,7 +280,7 @@ describe('NPC Moderation - Special Handling', () => {
 
   it('should filter NPC posts from feed when muted', async () => {
     // Create post from NPC
-    const npcPost = await prisma.post.create({
+    const npcPost = await db.post.create({
       data: {
         id: nanoid(),
         content: 'NPC post that should be filtered',
@@ -300,7 +300,7 @@ describe('NPC Moderation - Special Handling', () => {
     console.log('✅ Muted NPCs are filtered from feed');
 
     // Clean up
-    await prisma.post.delete({ where: { id: npcPost.id } });
+    await db.post.delete({ where: { id: npcPost.id } });
   });
 });
 
@@ -312,7 +312,7 @@ describe('Feed Filtering - Integration', () => {
     const allExcludedIds = [...blockedIds, ...blockedByIds];
 
     // Create posts from blocked and non-blocked users
-    const post1 = await prisma.post.create({
+    const post1 = await db.post.create({
       data: {
         id: nanoid(),
         content: 'Post from blocked user',
@@ -321,7 +321,7 @@ describe('Feed Filtering - Integration', () => {
       },
     });
 
-    const post2 = await prisma.post.create({
+    const post2 = await db.post.create({
       data: {
         id: nanoid(),
         content: 'Post from user who blocked me',
@@ -348,7 +348,7 @@ describe('Feed Filtering - Integration', () => {
     console.log('✅ Feed correctly filters both blocked users and users who blocked you');
 
     // Clean up
-    await prisma.post.deleteMany({
+    await db.post.deleteMany({
       where: { id: { in: [post1.id, post2.id] } },
     });
   });
@@ -432,7 +432,7 @@ describe('Notification Filtering - Verification', () => {
   it('should create notifications', async () => {
     // Create a test notification from user3 to user1
     // User3 has blocked user1, so this should be filtered
-    const notification = await prisma.notification.create({
+    const notification = await db.notification.create({
       data: {
         id: nanoid(),
         userId: testUser1.id,
@@ -448,7 +448,7 @@ describe('Notification Filtering - Verification', () => {
     console.log('✅ Notification created (will be filtered on retrieval)');
 
     // Clean up
-    await prisma.notification.delete({ where: { id: notification.id } });
+    await db.notification.delete({ where: { id: notification.id } });
   });
 
   it('should detect block for notification filtering', async () => {
@@ -465,7 +465,7 @@ describe('Notification Filtering - Verification', () => {
 describe('Share/Repost Blocking - Verification', () => {
   it('should detect block before allowing share', async () => {
     // Create a post from user1
-    const post = await prisma.post.create({
+    const post = await db.post.create({
       data: {
         id: nanoid(),
         content: 'Post to be shared',
@@ -481,7 +481,7 @@ describe('Share/Repost Blocking - Verification', () => {
     console.log('✅ Block detection works for share prevention');
 
     // Clean up
-    await prisma.post.delete({ where: { id: post.id } });
+    await db.post.delete({ where: { id: post.id } });
   });
 });
 

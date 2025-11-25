@@ -174,9 +174,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 2. Get upcoming world events - dynamically determine event types from database
     // First, get all unique event types that could be upcoming events
-    const uniqueEventTypes = await db.worldEvent.findMany({
-      select: { eventType: true },
-      distinct: ['eventType'],
+    // Use groupBy to get distinct event types
+    const uniqueEventTypesRaw = await db.worldEvent.groupBy({
+      by: ['eventType'],
       where: {
         timestamp: {
           gte: new Date(), // Only future events
@@ -184,6 +184,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
       take: 20,
     })
+    
+    const uniqueEventTypes = uniqueEventTypesRaw.map(e => ({ eventType: e.eventType as string }))
     
     const upcomingEventTypes = uniqueEventTypes
       .map(e => e.eventType.toLowerCase())
@@ -362,9 +364,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 2. Get upcoming world events - dynamically determine event types from database
     // First, get all unique event types that could be upcoming events
-    const uniqueEventTypes = await db.worldEvent.findMany({
-      select: { eventType: true },
-      distinct: ['eventType'],
+    // Use groupBy to get distinct event types
+    const uniqueEventTypesRaw = await db.worldEvent.groupBy({
+      by: ['eventType'],
       where: {
         timestamp: {
           gte: new Date(), // Only future events
@@ -372,6 +374,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
       take: 20,
     })
+    
+    const uniqueEventTypes = uniqueEventTypesRaw.map(e => ({ eventType: e.eventType as string }))
     
     const upcomingEventTypes = uniqueEventTypes
       .map(e => e.eventType.toLowerCase())

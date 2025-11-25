@@ -70,7 +70,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 
@@ -152,7 +152,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Check for duplicate Farcaster account
-  const existingUser = await prisma.user.findFirst({
+  const existingUser = await db.user.findFirst({
     where: {
       farcasterFid: fid.toString(),
       id: { not: userId },

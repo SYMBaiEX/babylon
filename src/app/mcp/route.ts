@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { verifyAgentSession } from '@/lib/auth/agent-auth'
 import { verifyMessage } from 'ethers'
-import { prisma } from '@/lib/prisma'
+import { db, users, eq } from '@/db'
 
 /**
  * GET /mcp - Get MCP server info and available tools
@@ -160,7 +160,7 @@ async function authenticateAgent(auth: {
     const session = await verifyAgentSession(auth.token)
     if (session) {
       // Find user ID for this agent
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { username: session.agentId }
       })
       
@@ -194,7 +194,7 @@ async function authenticateAgent(auth: {
     }
     
     // Find user for this agent
-    const user = await prisma.user.findFirst({
+    const user = await db.user.findFirst({
       where: {
         OR: [
           { username: auth.agentId },
@@ -230,7 +230,7 @@ async function executeGetMarkets(
     return NextResponse.json({ markets: [] })
   }
   
-  const markets = await prisma.market.findMany({
+  const markets = await db.market.findMany({
     where: {
       resolved: false,
       ...where
@@ -281,13 +281,13 @@ async function executePlaceBet(
  * Execute get_balance tool
  */
 async function executeGetBalance(agent: { agentId: string; userId: string }) {
-  const user = await prisma.user.findUnique({
-    where: { id: agent.userId },
-    select: {
-      virtualBalance: true,
-      lifetimePnL: true
-    }
+  const [user] = await db.select({
+    virtualBalance: users.virtualBalance,
+    lifetimePnL: users.lifetimePnL,
   })
+    .from(users)
+    .where(eq(users.id, agent.userId))
+    .limit(1)
   
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -303,16 +303,26 @@ async function executeGetBalance(agent: { agentId: string; userId: string }) {
  * Execute get_positions tool
  */
 async function executeGetPositions(agent: { agentId: string; userId: string }) {
-  const positions = await prisma.position.findMany({
-    where: { userId: agent.userId },
-    include: { Market: true }
+  const positionsRaw = await db.position.findMany({
+    where: { userId: { equals: agent.userId } },
   })
   
+  // Get markets separately
+  const marketIds = positionsRaw.map(p => p.marketId).filter((id): id is string => !!id)
+  const markets = marketIds.length > 0
+    ? await db.market.findMany({
+        where: { id: { in: marketIds } },
+        select: { id: true, question: true },
+      })
+    : []
+  
+  const marketsMap = new Map(markets.map(m => [m.id, m]))
+  
   return NextResponse.json({
-    positions: positions.map(p => ({
+    positions: positionsRaw.map(p => ({
       id: p.id,
       marketId: p.marketId,
-      question: p.Market.question,
+      question: marketsMap.get(p.marketId)?.question ?? null,
       side: p.side ? 'YES' : 'NO',
       shares: p.shares.toString(),
       avgPrice: p.avgPrice.toString()
@@ -353,7 +363,7 @@ async function executeGetMarketData(
 ) {
   logger.debug(`Agent ${agent.agentId} requesting market data for ${args.marketId}`, undefined, 'MCP')
   
-  const market = await prisma.market.findUnique({
+  const market = await db.market.findUnique({
     where: { id: args.marketId }
   })
   
@@ -384,7 +394,7 @@ async function executeQueryFeed(
   logger.debug(`Agent ${agent.agentId} querying feed`, args, 'MCP')
   
   const now = new Date();
-  const posts = await prisma.post.findMany({
+  const posts = await db.post.findMany({
     where: args.questionId ? {
       // Filter by question if provided
       // Note: questionId might need to be mapped from market/question

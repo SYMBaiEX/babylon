@@ -6,7 +6,7 @@
 
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -23,7 +23,7 @@ async function main() {
   console.log(`Output: ${outputDir}\n`);
   
   // Get test agent
-  const agent = await prisma.user.findFirst({
+  const agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: 'trader-aggressive',
@@ -134,7 +134,7 @@ async function main() {
   
   console.log(`Results saved to: ${outputDir}/\n`);
   
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(0);
 }
 

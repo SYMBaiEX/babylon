@@ -2,7 +2,7 @@
  * Database Service
  * 
  * @description Wrapper for all database operations. Provides a clean interface
- * for interacting with the Prisma database, handling posts, questions, organizations,
+ * for interacting with the database, handling posts, questions, organizations,
  * stock prices, events, and actors. Includes game state management and automatic
  * post tagging.
  * 
@@ -16,7 +16,27 @@
 
 import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
 import { logger } from './logger';
-import { prisma } from './prisma';
+import { 
+  db, 
+  games, 
+  posts, 
+  questions, 
+  organizations, 
+  stockPrices, 
+  worldEvents, 
+  actors, 
+  users,
+  eq, 
+  desc, 
+  asc,
+  and,
+  inArray,
+  isNull,
+  lte,
+  lt,
+  gte,
+  count,
+} from '@/db';
 import { generateTagsForPosts } from './services/tag-generation-service';
 import { storeTagsForPost } from './services/tag-storage-service';
 import { generateSnowflakeId } from './snowflake';
@@ -30,15 +50,15 @@ import { generateSnowflakeId } from './snowflake';
  */
 class DatabaseService {
   /**
-   * Expose prisma for direct queries
+   * Expose db for direct queries
    * 
-   * @description Getter that exposes the Prisma client for direct queries.
-   * Uses getter to avoid issues if prisma isn't initialized.
+   * @description Getter that exposes the Drizzle database for direct queries.
+   * Uses getter to avoid issues if db isn't initialized.
    * 
-   * @returns {PrismaClient} Prisma client instance
+   * @returns {Database} Drizzle database instance
    */
-  get prisma() {
-    return prisma;
+  get db() {
+    return db;
   }
   
   /**
@@ -52,27 +72,30 @@ class DatabaseService {
    */
   async initializeGame() {
     // Check if game already exists
-    const existing = await prisma.game.findFirst({
-      where: { isContinuous: true },
-    });
+    const existing = await db.select()
+      .from(games)
+      .where(eq(games.isContinuous, true))
+      .limit(1);
 
-    if (existing) {
-      logger.info(`Game already initialized (${existing.id})`, undefined, 'DatabaseService');
-      return existing;
+    if (existing.length > 0 && existing[0]) {
+      logger.info(`Game already initialized (${existing[0].id})`, undefined, 'DatabaseService');
+      return existing[0];
     }
 
     // Create new game
-    const game = await prisma.game.create({
-      data: {
-        id: await generateSnowflakeId(),
+    const gameId = await generateSnowflakeId();
+    const created = await db.insert(games)
+      .values({
+        id: gameId,
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
         speed: 60000, // 1 minute ticks
         updatedAt: new Date(),
-      },
-    });
+      })
+      .returning();
 
+    const game = created[0]!;
     logger.info(`Game initialized (${game.id})`, undefined, 'DatabaseService');
     return game;
   }
@@ -86,9 +109,11 @@ class DatabaseService {
    * @returns {Promise<Game | null>} Current game state or null if not initialized
    */
   async getGameState() {
-    return await prisma.game.findFirst({
-      where: { isContinuous: true },
-    });
+    const result = await db.select()
+      .from(games)
+      .where(eq(games.isContinuous, true))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   /**
@@ -116,10 +141,12 @@ class DatabaseService {
     const game = await this.getGameState();
     if (!game) throw new Error('Game not initialized');
 
-    return await prisma.game.update({
-      where: { id: game.id },
-      data,
-    });
+    const updated = await db.update(games)
+      .set(data)
+      .where(eq(games.id, game.id))
+      .returning();
+
+    return updated[0]!;
   }
 
   // ========== POSTS ==========
@@ -128,20 +155,20 @@ class DatabaseService {
    * Create a new post
    */
   async createPost(post: FeedPost & { gameId?: string; dayNumber?: number }) {
-    const created = await prisma.post.create({
-      data: {
+    const created = await db.insert(posts)
+      .values({
         id: post.id,
         content: post.content,
         authorId: post.author,
         gameId: post.gameId,
         dayNumber: post.dayNumber,
         timestamp: new Date(post.timestamp),
-      },
-    });
+      })
+      .returning();
 
     void this.tagPostAsync(post.id, post.content);
 
-    return created;
+    return created[0]!;
   }
 
   /**
@@ -187,8 +214,8 @@ class DatabaseService {
       logger.warn('[Post] Invalid dayNumber value', { dayNumber: data.dayNumber, postId: data.id }, 'database-service');
     }
 
-    const created = await prisma.post.create({
-      data: {
+    const created = await db.insert(posts)
+      .values({
         id: data.id,
         type: data.type || 'post',
         content: data.content,
@@ -203,46 +230,49 @@ class DatabaseService {
         gameId: data.gameId,
         dayNumber: safeDayNumber,
         timestamp: data.timestamp,
-      },
-    });
+      })
+      .returning();
 
     void this.tagPostAsync(data.id, data.content);
 
-    return created;
+    return created[0]!;
   }
 
   /**
    * Create multiple posts in batch
    */
-  async createManyPosts(posts: Array<FeedPost & { gameId?: string; dayNumber?: number }>) {
-    const result = await prisma.post.createMany({
-      data: posts.map(post => {
-        // Validate dayNumber to prevent INT4 overflow
-        const safeDayNumber = typeof post.dayNumber === 'number' && 
-          Number.isFinite(post.dayNumber) && 
-          post.dayNumber >= 0 && 
-          post.dayNumber <= 2147483647 
-          ? post.dayNumber 
-          : undefined;
+  async createManyPosts(postsData: Array<FeedPost & { gameId?: string; dayNumber?: number }>) {
+    if (postsData.length === 0) return { count: 0 };
 
-        if (post.dayNumber !== undefined && safeDayNumber === undefined) {
-          logger.warn('[Post] Invalid dayNumber value', { dayNumber: post.dayNumber, postId: post.id }, 'database-service');
-        }
+    const values = postsData.map(post => {
+      // Validate dayNumber to prevent INT4 overflow
+      const safeDayNumber = typeof post.dayNumber === 'number' && 
+        Number.isFinite(post.dayNumber) && 
+        post.dayNumber >= 0 && 
+        post.dayNumber <= 2147483647 
+        ? post.dayNumber 
+        : undefined;
 
-        return {
-          id: post.id,
-          content: post.content,
-          authorId: post.author,
-          gameId: post.gameId,
-          dayNumber: safeDayNumber,
-          timestamp: new Date(post.timestamp),
-        };
-      }),
-      skipDuplicates: true,
+      if (post.dayNumber !== undefined && safeDayNumber === undefined) {
+        logger.warn('[Post] Invalid dayNumber value', { dayNumber: post.dayNumber, postId: post.id }, 'database-service');
+      }
+
+      return {
+        id: post.id,
+        content: post.content,
+        authorId: post.author,
+        gameId: post.gameId,
+        dayNumber: safeDayNumber,
+        timestamp: new Date(post.timestamp),
+      };
     });
 
-    if (posts.length > 0) {
-      const postsForTagging = posts.map(p => ({
+    await db.insert(posts)
+      .values(values)
+      .onConflictDoNothing();
+
+    if (postsData.length > 0) {
+      const postsForTagging = postsData.map(p => ({
         id: p.id,
         content: p.content,
       }));
@@ -258,7 +288,7 @@ class DatabaseService {
       );
     }
 
-    return result;
+    return { count: postsData.length };
   }
 
   /**
@@ -276,59 +306,39 @@ class DatabaseService {
     
     logger.debug('DatabaseService.getRecentPosts called', { limit, cursor, offset }, 'DatabaseService');
     
-    // Build where clause with cursor or use offset
     const now = new Date();
-    const where: {
-      deletedAt: null;
-      timestamp?: { lt: Date; lte: Date } | { lte: Date };
-    } = {
-      deletedAt: null,
-    };
     
-    // Time-based filter: Only return posts up to current time (prevent future access)
+    // Build conditions
+    const conditions = [
+      isNull(posts.deletedAt),
+    ];
+    
     if (cursor) {
-      where.timestamp = {
-        lt: new Date(cursor),
-        lte: now, // ✅ No future posts
-      };
+      conditions.push(lt(posts.timestamp, new Date(cursor)));
+      conditions.push(lte(posts.timestamp, now));
     } else {
-      where.timestamp = { lte: now }; // ✅ No future posts
+      conditions.push(lte(posts.timestamp, now));
     }
     
-    // Get posts with author information to filter out test users
-    // We need to check both User and Actor tables since authorId can reference either
-    const allPosts = await prisma.post.findMany({
-      where,
-      take: limit * 2, // Fetch more than needed to account for filtering
-      skip: cursor ? 0 : offset, // Only use skip if using offset pagination
-      orderBy: { timestamp: 'desc' },
-      include: {
-        Post_Post_originalPostIdToPost: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            content: true,
-            authorId: true,
-            timestamp: true,
-            createdAt: true,
-          }
-        }
-      }
-    });
+    // Get posts with extra to account for test user filtering
+    const allPosts = await db.select()
+      .from(posts)
+      .where(and(...conditions))
+      .limit(limit * 2)
+      .offset(cursor ? 0 : offset)
+      .orderBy(desc(posts.timestamp));
     
     // Get all author IDs
     const authorIds = [...new Set(allPosts.map(p => p.authorId))];
     
     // Check which authors are test users
     const [testUsers, testActors] = await Promise.all([
-      prisma.user.findMany({
-        where: { id: { in: authorIds }, isTest: true },
-        select: { id: true },
-      }),
-      prisma.actor.findMany({
-        where: { id: { in: authorIds }, isTest: true },
-        select: { id: true },
-      }),
+      db.select({ id: users.id })
+        .from(users)
+        .where(and(inArray(users.id, authorIds), eq(users.isTest, true))),
+      db.select({ id: actors.id })
+        .from(actors)
+        .where(and(inArray(actors.id, authorIds), eq(actors.isTest, true))),
     ]);
     
     const testAuthorIds = new Set([
@@ -337,21 +347,21 @@ class DatabaseService {
     ]);
     
     // Filter out posts from test users
-    const posts = allPosts
+    const filteredPosts = allPosts
       .filter(post => !testAuthorIds.has(post.authorId))
-      .slice(0, limit); // Take only the requested limit after filtering
+      .slice(0, limit);
     
     logger.info('DatabaseService.getRecentPosts completed', {
       limit,
       cursor,
       offset,
-      postCount: posts.length,
-      filteredTestPosts: allPosts.length - posts.length,
-      firstPostId: posts[0]?.id,
-      lastPostId: posts[posts.length - 1]?.id,
+      postCount: filteredPosts.length,
+      filteredTestPosts: allPosts.length - filteredPosts.length,
+      firstPostId: filteredPosts[0]?.id,
+      lastPostId: filteredPosts[filteredPosts.length - 1]?.id,
     }, 'DatabaseService');
     
-    return posts;
+    return filteredPosts;
   }
 
   /**
@@ -371,17 +381,17 @@ class DatabaseService {
     
     // Check if this actor/user is a test user
     const [user, actor] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: authorId },
-        select: { isTest: true },
-      }),
-      prisma.actor.findUnique({
-        where: { id: authorId },
-        select: { isTest: true },
-      }),
+      db.select({ isTest: users.isTest })
+        .from(users)
+        .where(eq(users.id, authorId))
+        .limit(1),
+      db.select({ isTest: actors.isTest })
+        .from(actors)
+        .where(eq(actors.id, authorId))
+        .limit(1),
     ]);
     
-    const isTestUser = user?.isTest || actor?.isTest || false;
+    const isTestUser = user[0]?.isTest || actor[0]?.isTest || false;
     
     // If it's a test user, return empty array
     if (isTestUser) {
@@ -392,62 +402,45 @@ class DatabaseService {
       return [];
     }
     
-    // Build where clause with cursor or use offset
     const now = new Date();
-    const where: {
-      authorId: string;
-      deletedAt: null;
-      timestamp?: { lt: Date; lte: Date } | { lte: Date };
-    } = {
-      authorId,
-      deletedAt: null,
-    };
     
-    // Time-based filter: Only return posts up to current time (prevent future access)
+    // Build conditions
+    const conditions = [
+      eq(posts.authorId, authorId),
+      isNull(posts.deletedAt),
+    ];
+    
     if (cursor) {
-      where.timestamp = {
-        lt: new Date(cursor),
-        lte: now, // ✅ No future posts
-      };
+      conditions.push(lt(posts.timestamp, new Date(cursor)));
+      conditions.push(lte(posts.timestamp, now));
     } else {
-      where.timestamp = { lte: now }; // ✅ No future posts
+      conditions.push(lte(posts.timestamp, now));
     }
     
-    const posts = await prisma.post.findMany({
-      where,
-      take: limit,
-      skip: cursor ? 0 : offset, // Only use skip if using offset pagination
-      orderBy: { timestamp: 'desc' },
-      include: {
-        Post_Post_originalPostIdToPost: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            content: true,
-            authorId: true,
-            timestamp: true,
-            createdAt: true,
-          }
-        }
-      }
-    });
+    const result = await db.select()
+      .from(posts)
+      .where(and(...conditions))
+      .limit(limit)
+      .offset(cursor ? 0 : offset)
+      .orderBy(desc(posts.timestamp));
     
     logger.info('DatabaseService.getPostsByActor completed', {
       authorId,
       limit,
       cursor,
       offset,
-      postCount: posts.length,
+      postCount: result.length,
     }, 'DatabaseService');
     
-    return posts;
+    return result;
   }
 
   /**
    * Get total post count
    */
   async getTotalPosts() {
-    return await prisma.post.count();
+    const result = await db.select({ count: count() }).from(posts);
+    return Number(result[0]?.count ?? 0);
   }
 
   // ========== QUESTIONS ==========
@@ -456,8 +449,8 @@ class DatabaseService {
    * Create a question
    */
   async createQuestion(question: GameQuestion & { questionNumber: number }) {
-    return await prisma.question.create({
-      data: {
+    const created = await db.insert(questions)
+      .values({
         id: await generateSnowflakeId(),
         questionNumber: question.questionNumber,
         text: question.text,
@@ -469,14 +462,16 @@ class DatabaseService {
         status: question.status || 'active',
         resolvedOutcome: question.resolvedOutcome,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
-   * Convert Prisma Question to TypeScript Question
+   * Convert DB Question to TypeScript Question
    */
-  private adaptQuestion(prismaQuestion: {
+  private adaptQuestion(dbQuestion: {
     id: string;
     questionNumber: number;
     text: string;
@@ -491,22 +486,22 @@ class DatabaseService {
     resolutionDescription: string | null;
   }): Question {
     return {
-      id: prismaQuestion.id,
-      questionNumber: prismaQuestion.questionNumber,
-      text: prismaQuestion.text,
-      scenario: prismaQuestion.scenarioId,
-      scenarioId: prismaQuestion.scenarioId,
-      outcome: prismaQuestion.outcome,
-      rank: prismaQuestion.rank,
-      createdDate: prismaQuestion.createdDate.toISOString(),
-      resolutionDate: prismaQuestion.resolutionDate.toISOString(),
-      status: prismaQuestion.status as 'active' | 'resolved' | 'cancelled',
-      resolvedOutcome: prismaQuestion.resolvedOutcome ?? undefined,
-      resolutionProofUrl: prismaQuestion.resolutionProofUrl ?? undefined,
-      resolutionDescription: prismaQuestion.resolutionDescription ?? undefined,
-      timeframe: this.calculateTimeframe(prismaQuestion.resolutionDate),
-      createdAt: prismaQuestion.createdDate,
-      updatedAt: prismaQuestion.createdDate, // Prisma model has updatedAt but we use createdDate for now
+      id: dbQuestion.id,
+      questionNumber: dbQuestion.questionNumber,
+      text: dbQuestion.text,
+      scenario: dbQuestion.scenarioId,
+      scenarioId: dbQuestion.scenarioId,
+      outcome: dbQuestion.outcome,
+      rank: dbQuestion.rank,
+      createdDate: dbQuestion.createdDate.toISOString(),
+      resolutionDate: dbQuestion.resolutionDate.toISOString(),
+      status: dbQuestion.status as 'active' | 'resolved' | 'cancelled',
+      resolvedOutcome: dbQuestion.resolvedOutcome ?? undefined,
+      resolutionProofUrl: dbQuestion.resolutionProofUrl ?? undefined,
+      resolutionDescription: dbQuestion.resolutionDescription ?? undefined,
+      timeframe: this.calculateTimeframe(dbQuestion.resolutionDate),
+      createdAt: dbQuestion.createdDate,
+      updatedAt: dbQuestion.createdDate,
     };
   }
 
@@ -529,83 +524,81 @@ class DatabaseService {
    * @param timeframe - Optional timeframe filter ('24h', '7d', '30d', '30d+')
    */
   async getActiveQuestions(timeframe?: string): Promise<Question[]> {
-    const whereClause: { status: string; resolutionDate?: { gte?: Date; lte?: Date } } = { 
-      status: 'active' 
-    };
+    const now = new Date();
+    const conditions = [eq(questions.status, 'active')];
     
-    // Filter by timeframe if provided
-    // Timeframe filters questions by when they resolve (resolutionDate)
     if (timeframe) {
-      const now = new Date();
       let endDate: Date | undefined;
       
       switch (timeframe) {
         case '24h':
-          // Questions resolving within 24 hours
           endDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-          whereClause.resolutionDate = { gte: now, lte: endDate };
+          conditions.push(gte(questions.resolutionDate, now));
+          conditions.push(lte(questions.resolutionDate, endDate));
           break;
         case '7d':
-          // Questions resolving within 7 days
           endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          whereClause.resolutionDate = { gte: now, lte: endDate };
+          conditions.push(gte(questions.resolutionDate, now));
+          conditions.push(lte(questions.resolutionDate, endDate));
           break;
         case '30d':
-          // Questions resolving within 30 days
           endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-          whereClause.resolutionDate = { gte: now, lte: endDate };
+          conditions.push(gte(questions.resolutionDate, now));
+          conditions.push(lte(questions.resolutionDate, endDate));
           break;
         case '30d+':
-          // Questions resolving after 30 days
           const startDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-          whereClause.resolutionDate = { gte: startDate };
+          conditions.push(gte(questions.resolutionDate, startDate));
           break;
       }
     }
     
-    const questions = await prisma.question.findMany({
-      where: whereClause,
-      orderBy: { createdDate: 'desc' },
-    });
-    return questions.map(q => this.adaptQuestion(q));
+    const result = await db.select()
+      .from(questions)
+      .where(and(...conditions))
+      .orderBy(desc(questions.createdDate));
+
+    return result.map(q => this.adaptQuestion(q));
   }
 
   /**
    * Get questions to resolve (resolutionDate <= now)
    */
   async getQuestionsToResolve(): Promise<Question[]> {
-    const questions = await prisma.question.findMany({
-      where: {
-        status: 'active',
-        resolutionDate: {
-          lte: new Date(),
-        },
-      },
-    });
-    return questions.map(q => this.adaptQuestion(q));
+    const result = await db.select()
+      .from(questions)
+      .where(and(
+        eq(questions.status, 'active'),
+        lte(questions.resolutionDate, new Date())
+      ));
+
+    return result.map(q => this.adaptQuestion(q));
   }
 
   /**
    * Get all questions (active and resolved)
    */
   async getAllQuestions(): Promise<Question[]> {
-    const questions = await prisma.question.findMany({
-      orderBy: { createdDate: 'desc' },
-    });
-    return questions.map(q => this.adaptQuestion(q));
+    const result = await db.select()
+      .from(questions)
+      .orderBy(desc(questions.createdDate));
+
+    return result.map(q => this.adaptQuestion(q));
   }
 
   /**
    * Resolve a question
    */
   async resolveQuestion(id: string, resolvedOutcome: boolean) {
-    return await prisma.question.update({
-      where: { id },
-      data: {
+    const updated = await db.update(questions)
+      .set({
         status: 'resolved',
         resolvedOutcome,
-      },
-    });
+      })
+      .where(eq(questions.id, id))
+      .returning();
+
+    return updated[0]!;
   }
 
   // ========== ORGANIZATIONS ==========
@@ -614,9 +607,27 @@ class DatabaseService {
    * Upsert organization (create or update)
    */
   async upsertOrganization(org: Organization) {
-    return await prisma.organization.upsert({
-      where: { id: org.id },
-      create: {
+    // Check if exists
+    const existing = await db.select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.id, org.id))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update
+      const updated = await db.update(organizations)
+        .set({
+          currentPrice: org.currentPrice || org.initialPrice,
+          updatedAt: new Date(),
+        })
+        .where(eq(organizations.id, org.id))
+        .returning();
+      return updated[0]!;
+    }
+
+    // Create
+    const created = await db.insert(organizations)
+      .values({
         id: org.id,
         name: org.name,
         description: org.description,
@@ -625,38 +636,38 @@ class DatabaseService {
         initialPrice: org.initialPrice,
         currentPrice: org.currentPrice || org.initialPrice,
         updatedAt: new Date(),
-      },
-      update: {
-        currentPrice: org.currentPrice || org.initialPrice,
-        updatedAt: new Date(),
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
    * Update organization price
    */
   async updateOrganizationPrice(id: string, price: number) {
-    return await prisma.organization.update({
-      where: { id },
-      data: { currentPrice: price },
-    });
+    const updated = await db.update(organizations)
+      .set({ currentPrice: price })
+      .where(eq(organizations.id, id))
+      .returning();
+
+    return updated[0]!;
   }
 
   /**
    * Get all companies (with prices)
    */
   async getCompanies() {
-    return await prisma.organization.findMany({
-      where: { type: 'company' },
-      orderBy: { currentPrice: 'desc' },
-    });
+    return await db.select()
+      .from(organizations)
+      .where(eq(organizations.type, 'company'))
+      .orderBy(desc(organizations.currentPrice));
   }
 
   /**
-   * Convert Prisma Organization to TypeScript Organization
+   * Convert DB Organization to TypeScript Organization
    */
-  private adaptOrganization(prismaOrg: {
+  private adaptOrganization(dbOrg: {
     id: string;
     name: string;
     description: string;
@@ -668,13 +679,13 @@ class DatabaseService {
     updatedAt: Date;
   }): Organization {
     return {
-      id: prismaOrg.id,
-      name: prismaOrg.name,
-      description: prismaOrg.description,
-      type: prismaOrg.type as Organization['type'],
-      canBeInvolved: prismaOrg.canBeInvolved,
-      initialPrice: prismaOrg.initialPrice ?? undefined,
-      currentPrice: prismaOrg.currentPrice ?? undefined,
+      id: dbOrg.id,
+      name: dbOrg.name,
+      description: dbOrg.description,
+      type: dbOrg.type as Organization['type'],
+      canBeInvolved: dbOrg.canBeInvolved,
+      initialPrice: dbOrg.initialPrice ?? undefined,
+      currentPrice: dbOrg.currentPrice ?? undefined,
     };
   }
 
@@ -682,7 +693,7 @@ class DatabaseService {
    * Get all organizations
    */
   async getAllOrganizations(): Promise<Organization[]> {
-    const orgs = await prisma.organization.findMany();
+    const orgs = await db.select().from(organizations);
     return orgs.map(o => this.adaptOrganization(o));
   }
 
@@ -692,8 +703,8 @@ class DatabaseService {
    * Record a price update
    */
   async recordPriceUpdate(organizationId: string, price: number, change: number, changePercent: number) {
-    return await prisma.stockPrice.create({
-      data: {
+    const created = await db.insert(stockPrices)
+      .values({
         id: await generateSnowflakeId(),
         organizationId,
         price,
@@ -701,8 +712,10 @@ class DatabaseService {
         changePercent,
         timestamp: new Date(),
         isSnapshot: false,
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
@@ -718,8 +731,8 @@ class DatabaseService {
       volume: number;
     }
   ) {
-    return await prisma.stockPrice.create({
-      data: {
+    const created = await db.insert(stockPrices)
+      .values({
         id: await generateSnowflakeId(),
         organizationId,
         price: data.closePrice,
@@ -731,33 +744,35 @@ class DatabaseService {
         highPrice: data.highPrice,
         lowPrice: data.lowPrice,
         volume: data.volume,
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
    * Get price history for a company
    */
   async getPriceHistory(organizationId: string, limit = 1440) {
-    return await prisma.stockPrice.findMany({
-      where: { organizationId },
-      take: limit,
-      orderBy: { timestamp: 'desc' },
-    });
+    return await db.select()
+      .from(stockPrices)
+      .where(eq(stockPrices.organizationId, organizationId))
+      .limit(limit)
+      .orderBy(desc(stockPrices.timestamp));
   }
 
   /**
    * Get daily snapshots only
    */
   async getDailySnapshots(organizationId: string, days = 30) {
-    return await prisma.stockPrice.findMany({
-      where: {
-        organizationId,
-        isSnapshot: true,
-      },
-      take: days,
-      orderBy: { timestamp: 'desc' },
-    });
+    return await db.select()
+      .from(stockPrices)
+      .where(and(
+        eq(stockPrices.organizationId, organizationId),
+        eq(stockPrices.isSnapshot, true)
+      ))
+      .limit(days)
+      .orderBy(desc(stockPrices.timestamp));
   }
 
   // ========== EVENTS ==========
@@ -781,30 +796,12 @@ class DatabaseService {
     if (typeof event.description === 'string') {
       descriptionString = event.description;
     } else if (event.description && typeof event.description === 'object') {
-      // Handle object description - use text or title, or stringify
       descriptionString = event.description.text || event.description.title || JSON.stringify(event.description);
     } else {
       descriptionString = String(event.description || '');
     }
 
-    // Validate integer fields to prevent Snowflake ID insertion
-    // Log warning if value exceeds INT4 range
-    if (event.relatedQuestion !== undefined && 
-        (typeof event.relatedQuestion !== 'number' || 
-         !Number.isFinite(event.relatedQuestion) || 
-         event.relatedQuestion < 0 || 
-         event.relatedQuestion > 2147483647)) {
-      logger.warn('[WorldEvent] Invalid relatedQuestion value', { relatedQuestion: event.relatedQuestion, eventId: event.id }, 'database-service');
-    }
-    
-    if (event.dayNumber !== undefined && 
-        (typeof event.dayNumber !== 'number' || 
-         !Number.isFinite(event.dayNumber) || 
-         event.dayNumber < 0 || 
-         event.dayNumber > 2147483647)) {
-      logger.warn('[WorldEvent] Invalid dayNumber value', { dayNumber: event.dayNumber, eventId: event.id }, 'database-service');
-    }
-
+    // Validate integer fields to prevent INT4 overflow
     const safeRelatedQuestion = typeof event.relatedQuestion === 'number' && 
       Number.isFinite(event.relatedQuestion) && 
       event.relatedQuestion >= 0 && 
@@ -819,8 +816,16 @@ class DatabaseService {
       ? event.dayNumber 
       : undefined;
 
-    return await prisma.worldEvent.create({
-      data: {
+    if (event.relatedQuestion !== undefined && safeRelatedQuestion === undefined) {
+      logger.warn('[WorldEvent] Invalid relatedQuestion value', { relatedQuestion: event.relatedQuestion, eventId: event.id }, 'database-service');
+    }
+    
+    if (event.dayNumber !== undefined && safeDayNumber === undefined) {
+      logger.warn('[WorldEvent] Invalid dayNumber value', { dayNumber: event.dayNumber, eventId: event.id }, 'database-service');
+    }
+
+    const created = await db.insert(worldEvents)
+      .values({
         id: event.id,
         eventType: event.eventType,
         description: descriptionString,
@@ -830,18 +835,20 @@ class DatabaseService {
         visibility: event.visibility,
         gameId: event.gameId,
         dayNumber: safeDayNumber,
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
    * Get recent events
    */
   async getRecentEvents(limit = 100) {
-    return await prisma.worldEvent.findMany({
-      take: limit,
-      orderBy: { timestamp: 'desc' },
-    });
+    return await db.select()
+      .from(worldEvents)
+      .limit(limit)
+      .orderBy(desc(worldEvents.timestamp));
   }
 
   // ========== ACTORS ==========
@@ -850,9 +857,40 @@ class DatabaseService {
    * Upsert actor (create or update)
    */
   async upsertActor(actor: Actor) {
-    return await prisma.actor.upsert({
-      where: { id: actor.id },
-      create: {
+    // Check if exists
+    const existing = await db.select({ id: actors.id })
+      .from(actors)
+      .where(eq(actors.id, actor.id))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update
+      const updated = await db.update(actors)
+        .set({
+          name: actor.name,
+          description: actor.description,
+          domain: actor.domain || [],
+          personality: actor.personality,
+          tier: actor.tier,
+          affiliations: actor.affiliations || [],
+          postStyle: actor.postStyle,
+          postExample: actor.postExample || [],
+          role: actor.role,
+          ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
+          ...(actor.initialMood !== undefined && { initialMood: actor.initialMood }),
+          ...(actor.tradingBalance !== undefined && { tradingBalance: String(actor.tradingBalance) }),
+          ...(actor.reputationPoints !== undefined && { reputationPoints: actor.reputationPoints }),
+          ...(actor.profileImageUrl !== undefined && { profileImageUrl: actor.profileImageUrl }),
+        })
+        .where(eq(actors.id, actor.id))
+        .returning();
+
+      return updated[0]!;
+    }
+
+    // Create
+    const created = await db.insert(actors)
+      .values({
         id: actor.id,
         name: actor.name,
         description: actor.description,
@@ -865,47 +903,34 @@ class DatabaseService {
         role: actor.role,
         initialLuck: actor.initialLuck || 'medium',
         initialMood: actor.initialMood ?? 0,
-        tradingBalance: actor.tradingBalance ?? (actor.hasPool ? 10000 : 0),
+        tradingBalance: String(actor.tradingBalance ?? (actor.hasPool ? 10000 : 0)),
         reputationPoints: actor.reputationPoints ?? (actor.hasPool ? 10000 : 0),
         profileImageUrl: actor.profileImageUrl,
         updatedAt: new Date(),
-      },
-      update: {
-        name: actor.name,
-        description: actor.description,
-        domain: actor.domain || [],
-        personality: actor.personality,
-        tier: actor.tier,
-        affiliations: actor.affiliations || [],
-        postStyle: actor.postStyle,
-        postExample: actor.postExample || [],
-        role: actor.role,
-        // Update database-specific fields if provided
-        ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
-        ...(actor.initialMood !== undefined && { initialMood: actor.initialMood }),
-        ...(actor.tradingBalance !== undefined && { tradingBalance: actor.tradingBalance }),
-        ...(actor.reputationPoints !== undefined && { reputationPoints: actor.reputationPoints }),
-        ...(actor.profileImageUrl !== undefined && { profileImageUrl: actor.profileImageUrl }),
-      },
-    });
+      })
+      .returning();
+
+    return created[0]!;
   }
 
   /**
    * Get all actors
    */
   async getAllActors() {
-    return await prisma.actor.findMany({
-      orderBy: [{ tier: 'asc' }, { name: 'asc' }],
-    });
+    return await db.select()
+      .from(actors)
+      .orderBy(asc(actors.tier), asc(actors.name));
   }
 
   /**
    * Get actor by ID
    */
   async getActor(id: string) {
-    return await prisma.actor.findUnique({
-      where: { id },
-    });
+    const result = await db.select()
+      .from(actors)
+      .where(eq(actors.id, id))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   // ========== UTILITY ==========
@@ -922,11 +947,11 @@ class DatabaseService {
       totalActors,
       gameState,
     ] = await Promise.all([
-      prisma.post.count(),
-      prisma.question.count(),
-      prisma.question.count({ where: { status: 'active' } }),
-      prisma.organization.count(),
-      prisma.actor.count(),
+      db.select({ count: count() }).from(posts).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: count() }).from(questions).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: count() }).from(questions).where(eq(questions.status, 'active')).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: count() }).from(organizations).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: count() }).from(actors).then(r => Number(r[0]?.count ?? 0)),
       this.getGameState(),
     ]);
 
@@ -945,9 +970,9 @@ class DatabaseService {
    * Get all games
    */
   async getAllGames() {
-    return await prisma.game.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    return await db.select()
+      .from(games)
+      .orderBy(desc(games.createdAt));
   }
 }
 
@@ -962,5 +987,3 @@ export function getDbInstance(): DatabaseService {
 }
 
 export default getDbInstance;
-
-// Note: Import prisma directly from '@/lib/prisma' to avoid circular dependencies

@@ -10,7 +10,7 @@
 
 import { huggingFaceIntegration } from '@/lib/huggingface/HuggingFaceIntegrationService';
 import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 
@@ -57,32 +57,32 @@ async function validateDatabase(): Promise<void> {
   console.log('\n📊 Validating Database Schema...');
 
   try {
-    await prisma.$connect();
+    await db.$connect();
     console.log('   ✅ Database connection successful');
 
     // Check BenchmarkResult table
     try {
-      const count = await prisma.benchmarkResult.count();
+      const count = await db.benchmarkResult.count();
       console.log(`   ✅ BenchmarkResult table exists (${count} records)`);
       
       if (count === 0) {
         addIssue('warning', 'Database', 'No benchmark results in database', 'Run: bun run hf:benchmark --model=MODEL_ID');
       }
     } catch (error) {
-      addIssue('error', 'Database', 'BenchmarkResult table does not exist', 'Run: npx prisma migrate dev --name add_benchmark_results_table');
+      addIssue('error', 'Database', 'BenchmarkResult table does not exist', 'Run: npx drizzle-kit push --name add_benchmark_results_table');
     }
 
     // Check TrainedModel schema
-    const model = await prisma.trainedModel.findFirst();
+    const model = await db.trainedModel.findFirst();
     if (model) {
       if (!('huggingFaceRepo' in model)) {
-        addIssue('error', 'Database', 'TrainedModel missing huggingFaceRepo field', 'Run: npx prisma migrate dev');
+        addIssue('error', 'Database', 'TrainedModel missing huggingFaceRepo field', 'Run: npx drizzle-kit push');
       }
       if (!('lastBenchmarked' in model)) {
-        addIssue('error', 'Database', 'TrainedModel missing lastBenchmarked field', 'Run: npx prisma migrate dev');
+        addIssue('error', 'Database', 'TrainedModel missing lastBenchmarked field', 'Run: npx drizzle-kit push');
       }
       if (!('benchmarkCount' in model)) {
-        addIssue('error', 'Database', 'TrainedModel missing benchmarkCount field', 'Run: npx prisma migrate dev');
+        addIssue('error', 'Database', 'TrainedModel missing benchmarkCount field', 'Run: npx drizzle-kit push');
       }
       
       if ('huggingFaceRepo' in model && 'lastBenchmarked' in model && 'benchmarkCount' in model) {
@@ -93,7 +93,7 @@ async function validateDatabase(): Promise<void> {
     }
 
     // Check Trajectory table
-    const trajectoryCount = await prisma.trajectory.count({
+    const trajectoryCount = await db.trajectory.count({
       where: { isTrainingData: true },
     });
     console.log(`   ✅ Trajectory table exists (${trajectoryCount} training trajectories)`);
@@ -291,7 +291,7 @@ async function main() {
 
 main().catch(async (error) => {
   console.error('\n💥 Validation failed:', error);
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(1);
 });
 

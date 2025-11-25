@@ -5,10 +5,11 @@
  * Simple text-based system - just records what happened.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, npcInteractions } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { Actor } from '@/shared/types';
+import type { InputJsonValue } from '@/db';
 
 export class InteractionTracker {
   /**
@@ -25,17 +26,15 @@ export class InteractionTracker {
     const id1 = sorted[0]!;
     const id2 = sorted[1]!;
 
-    await prisma.nPCInteraction.create({
-      data: {
-        id: await generateSnowflakeId(),
-        actor1Id: id1,
-        actor2Id: id2,
-        interactionType: 'mention',
-        sentiment,
-        context: `${authorId === id1 ? 'actor1' : 'actor2'} mentioned ${authorId === id1 ? 'actor2' : 'actor1'} in post: "${postContent.substring(0, 100)}"`,
-        metadata: { postContent: postContent.substring(0, 200) },
-        timestamp: new Date(),
-      },
+    await db.insert(npcInteractions).values({
+      id: await generateSnowflakeId(),
+      actor1Id: id1,
+      actor2Id: id2,
+      interactionType: 'mention',
+      sentiment,
+      context: `${authorId === id1 ? 'actor1' : 'actor2'} mentioned ${authorId === id1 ? 'actor2' : 'actor1'} in post: "${postContent.substring(0, 100)}"`,
+      metadata: { postContent: postContent.substring(0, 200) } as InputJsonValue,
+      timestamp: new Date(),
     });
 
     logger.debug('Tracked post mention', { authorId, mentionedId, sentiment }, 'InteractionTracker');
@@ -54,17 +53,15 @@ export class InteractionTracker {
     const id1 = sorted[0]!;
     const id2 = sorted[1]!;
 
-    await prisma.nPCInteraction.create({
-      data: {
-        id: await generateSnowflakeId(),
-        actor1Id: id1,
-        actor2Id: id2,
-        interactionType: 'reply',
-        sentiment,
-        context: `${replierId === id1 ? 'actor1' : 'actor2'} replied to ${replierId === id1 ? 'actor2' : 'actor1'}: "${replyContent.substring(0, 100)}"`,
-        metadata: { replyContent: replyContent.substring(0, 200) },
-        timestamp: new Date(),
-      },
+    await db.insert(npcInteractions).values({
+      id: await generateSnowflakeId(),
+      actor1Id: id1,
+      actor2Id: id2,
+      interactionType: 'reply',
+      sentiment,
+      context: `${replierId === id1 ? 'actor1' : 'actor2'} replied to ${replierId === id1 ? 'actor2' : 'actor1'}: "${replyContent.substring(0, 100)}"`,
+      metadata: { replyContent: replyContent.substring(0, 200) } as InputJsonValue,
+      timestamp: new Date(),
     });
 
     logger.debug('Tracked reply', { replierId, originalAuthorId, sentiment }, 'InteractionTracker');
@@ -87,17 +84,15 @@ export class InteractionTracker {
         const id1 = sorted[0]!;
         const id2 = sorted[1]!;
 
-        await prisma.nPCInteraction.create({
-          data: {
-            id: await generateSnowflakeId(),
-            actor1Id: id1,
-            actor2Id: id2,
-            interactionType: 'article',
-            sentiment: articleSentiment,
-            context: `both mentioned in article: "${articleTitle}"`,
-            metadata: { articleTitle },
-            timestamp: new Date(),
-          },
+        await db.insert(npcInteractions).values({
+          id: await generateSnowflakeId(),
+          actor1Id: id1,
+          actor2Id: id2,
+          interactionType: 'article',
+          sentiment: articleSentiment,
+          context: `both mentioned in article: "${articleTitle}"`,
+          metadata: { articleTitle } as InputJsonValue,
+          timestamp: new Date(),
         });
       }
     }
@@ -128,17 +123,15 @@ export class InteractionTracker {
         const id1 = sorted[0]!;
         const id2 = sorted[1]!;
 
-        await prisma.nPCInteraction.create({
-          data: {
-            id: await generateSnowflakeId(),
-            actor1Id: id1,
-            actor2Id: id2,
-            interactionType: 'event',
-            sentiment: sentimentMap[eventOutcome],
-            context: `both involved in: ${eventDescription.substring(0, 100)}`,
-            metadata: { eventDescription: eventDescription.substring(0, 200), outcome: eventOutcome },
-            timestamp: new Date(),
-          },
+        await db.insert(npcInteractions).values({
+          id: await generateSnowflakeId(),
+          actor1Id: id1,
+          actor2Id: id2,
+          interactionType: 'event',
+          sentiment: sentimentMap[eventOutcome],
+          context: `both involved in: ${eventDescription.substring(0, 100)}`,
+          metadata: { eventDescription: eventDescription.substring(0, 200), outcome: eventOutcome } as InputJsonValue,
+          timestamp: new Date(),
         });
       }
     }

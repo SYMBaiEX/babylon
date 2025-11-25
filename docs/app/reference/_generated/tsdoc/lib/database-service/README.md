@@ -6,12 +6,6 @@
 
 # lib/database-service
 
-## References
-
-### prisma
-
-Re-exports [prisma](../prisma/variables/prisma.md)
-
 ## Variables
 
 - [db](variables/db.md)

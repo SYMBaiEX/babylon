@@ -16,7 +16,7 @@ import {
   type State,
   logger,
 } from '@elizaos/core';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface NPCTrustScore {
   accuracy: number;      // 0-1, percentage of correct predictions
@@ -104,7 +104,7 @@ export const marketOutcomeEvaluator: Evaluator = {
     
     // Only analyze posts up to resolution time (no future posts)
     const now = new Date();
-    const posts = await prisma.post.findMany({
+    const posts = await db.post.findMany({
       where: {
         gameId: questionNumber.toString(),
         deletedAt: null,
@@ -120,7 +120,7 @@ export const marketOutcomeEvaluator: Evaluator = {
 
     // Fetch author details separately
     const authorIds = [...new Set(posts.map(p => p.authorId))];
-    const authors = await prisma.user.findMany({
+    const authors = await db.user.findMany({
       where: { id: { in: authorIds } },
       select: { id: true, displayName: true, isActor: true },
     });
@@ -177,7 +177,7 @@ export const marketOutcomeEvaluator: Evaluator = {
     // === 2. EVALUATE AGENT'S OWN PERFORMANCE ===
     
     // Check if agent had a position in this market
-    const agentPosition = await prisma.position.findFirst({
+    const agentPosition = await db.position.findFirst({
       where: {
         userId: runtime.agentId,
         marketId: questionNumber.toString(),

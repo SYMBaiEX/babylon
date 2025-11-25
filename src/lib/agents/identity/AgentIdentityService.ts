@@ -9,13 +9,15 @@
  * IMPORTANT: Agents are Users (isAgent=true)
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, agentLogs, eq } from '@/db'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
-import type { User } from '@prisma/client'
+import type { InferSelectModel } from 'drizzle-orm'
 import { agentWalletService } from '@/lib/agents/identity/AgentWalletService'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
+
+type User = InferSelectModel<typeof users>
 
 export class AgentIdentityService {
   /**
@@ -28,7 +30,11 @@ export class AgentIdentityService {
   }> {
     logger.info(`Creating wallet for agent user ${agentUserId}`, undefined, 'AgentIdentityService')
 
-    const agentUser = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agentUser] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agentUser || !agentUser.isAgent) {
       throw new Error('Agent user not found')
     }
@@ -53,7 +59,11 @@ export class AgentIdentityService {
   }> {
     logger.info(`Registering agent user ${agentUserId} on Agent0`, undefined, 'AgentIdentityService')
 
-    const agentUser = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agentUser] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agentUser || !agentUser.isAgent) throw new Error('Agent user not found')
     if (!agentUser.walletAddress) throw new Error('Agent must have wallet before Agent0 registration')
 
@@ -88,31 +98,29 @@ export class AgentIdentityService {
       capabilities
     })
 
-    await prisma.user.update({
-      where: { id: agentUserId },
-      data: {
+    await db.update(users)
+      .set({
         agent0TokenId: registration.tokenId,
-        agent0MetadataCID: registration.metadataCID,
+        agent0MetadataCID: registration.metadataCID ?? null,
         registrationTxHash: registration.txHash,
-        onChainRegistered: true
-      }
-    })
+        onChainRegistered: true,
+      })
+      .where(eq(users.id, agentUserId))
 
     // Fire-and-forget reputation sync; log but do not block registration
     syncAfterAgent0Registration(agentUserId, registration.tokenId).catch((error) => {
       logger.warn('Agent0 reputation sync failed after registration', { agentUserId, tokenId: registration.tokenId, error }, 'AgentIdentityService')
     })
 
-    await prisma.agentLog.create({
-      data: {
+    await db.insert(agentLogs)
+      .values({
         id: await generateSnowflakeId(),
         agentUserId,
         type: 'system',
         level: 'info',
         message: `Agent registered on Agent0: Token ID ${registration.tokenId}`,
         metadata: { tokenId: registration.tokenId, metadataCID: registration.metadataCID, txHash: registration.txHash }
-      }
-    })
+      })
 
     logger.info(`Agent ${agentUserId} registered on Agent0: Token ID ${registration.tokenId}`, undefined, 'AgentIdentityService')
     return { agent0TokenId: registration.tokenId, metadataCID: registration.metadataCID, txHash: registration.txHash }
@@ -142,7 +150,11 @@ export class AgentIdentityService {
       }
     }
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agent) {
       throw new Error('Agent not found after identity setup')
     }
@@ -154,7 +166,11 @@ export class AgentIdentityService {
    * Returns false on failure instead of throwing (verification is non-critical).
    */
   async verifyAgentIdentity(agentUserId: string): Promise<boolean> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agent || !agent.isAgent || !agent.agent0TokenId) {
       logger.debug(`Agent ${agentUserId} not found or not registered on Agent0`, undefined, 'AgentIdentityService');
       return false;
@@ -178,4 +194,3 @@ export class AgentIdentityService {
 }
 
 export const agentIdentityService = new AgentIdentityService()
-

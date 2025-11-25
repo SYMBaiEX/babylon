@@ -50,7 +50,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { modelStorage } from '@/lib/training/storage/ModelStorageService';
 
 export const dynamic = 'force-dynamic';
@@ -58,7 +58,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     // Get models from database
-    const dbModels = await prisma.trainedModel.findMany({
+    const dbModels = await db.trainedModel.findMany({
       orderBy: { createdAt: 'desc' },
       take: 20
     });

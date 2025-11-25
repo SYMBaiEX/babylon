@@ -65,9 +65,9 @@ import { questionGeneration, questionResolutionValidation, renderPrompt, generat
 import { logger } from '@/lib/logger';
 import { shuffleArray } from '@/lib/utils/randomization';
 import { worldFactsService } from '@/lib/services/world-facts-service';
-import { prisma } from '@/lib/prisma';
+import { db, eq, gte, desc, inArray, and, worldEvents, questions, actors, organizations, trendingTags, tags, markets } from '@/db';
 import { PredictionPricing } from '@/lib/prediction-pricing';
-import { Prisma } from '@prisma/client';
+import { Decimal } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { MarketContextService } from '@/lib/services/market-context-service';
@@ -775,9 +775,9 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       recentEvents,
       activeQuestions,
       resolvedQuestions,
-      actors,
-      organizations,
-      trendingTags,
+      actorsList,
+      organizationsList,
+      trendingTagsList,
     ] = await Promise.all([
       worldFactsService.generatePromptContext(),
       generateWorldContext({ 
@@ -789,79 +789,79 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         includeWorldFacts: true,
       }),
       // Get recent events from last 7 days
-      prisma.worldEvent.findMany({
-        where: {
-          timestamp: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          },
-          visibility: 'public',
-        },
-        orderBy: { timestamp: 'desc' },
-        take: 20,
-      }),
+      db
+        .select()
+        .from(worldEvents)
+        .where(
+          and(
+            gte(worldEvents.timestamp, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+            eq(worldEvents.visibility, 'public')
+          )
+        )
+        .orderBy(desc(worldEvents.timestamp))
+        .limit(20),
       // Get active questions
-      prisma.question.findMany({
-        where: { status: 'active' },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
+      db
+        .select()
+        .from(questions)
+        .where(eq(questions.status, 'active'))
+        .orderBy(desc(questions.createdAt))
+        .limit(20),
       // Get recently resolved questions (last 7 days) with outcomes
-      prisma.question.findMany({
-        where: {
-          status: 'resolved',
-          updatedAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          },
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 10,
-        select: {
-          text: true,
-          resolvedOutcome: true,
-          resolutionDate: true,
-        },
-      }),
+      db
+        .select({
+          text: questions.text,
+          resolvedOutcome: questions.resolvedOutcome,
+          resolutionDate: questions.resolutionDate,
+        })
+        .from(questions)
+        .where(
+          and(
+            eq(questions.status, 'resolved'),
+            gte(questions.updatedAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+          )
+        )
+        .orderBy(desc(questions.updatedAt))
+        .limit(10),
       // Get actors (main and supporting roles)
-      prisma.actor.findMany({
-        where: {
-          role: { in: ['main', 'supporting'] },
-        },
-        take: 30,
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          domain: true,
-          role: true,
-          personality: true,
-          affiliations: true,
-        },
-      }),
+      db
+        .select({
+          id: actors.id,
+          name: actors.name,
+          description: actors.description,
+          domain: actors.domain,
+          role: actors.role,
+          personality: actors.personality,
+          affiliations: actors.affiliations,
+        })
+        .from(actors)
+        .where(inArray(actors.role, ['main', 'supporting']))
+        .limit(30),
       // Get organizations (companies)
-      prisma.organization.findMany({
-        where: { type: 'company' },
-        take: 20,
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          type: true,
-        },
-      }),
-      // Get trending topics for context
-      prisma.trendingTag.findMany({
-        orderBy: { score: 'desc' },
-        take: 10,
-        include: {
-          Tag: {
-            select: {
-              name: true,
-              displayName: true,
-              category: true,
-            },
-          },
-        },
-      }),
+      db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          description: organizations.description,
+          type: organizations.type,
+        })
+        .from(organizations)
+        .where(eq(organizations.type, 'company'))
+        .limit(20),
+      // Get trending topics for context (with manual join for tags)
+      db
+        .select({
+          id: trendingTags.id,
+          tagId: trendingTags.tagId,
+          score: trendingTags.score,
+          tagName: tags.name,
+          tagDisplayName: tags.displayName,
+          tagCategory: tags.category,
+        })
+        .from(trendingTags)
+        .leftJoin(tags, eq(trendingTags.tagId, tags.id))
+        .orderBy(desc(trendingTags.score))
+        .limit(10),
     ]);
 
     // Load example questions
@@ -891,16 +891,16 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       ? `RESOLVED(7d): ${resolvedQuestions.slice(0, 5).map(q => `"${q.text.substring(0, 40)}..."→${q.resolvedOutcome ? 'YES' : 'NO'}`).join(' | ')}`
       : '';
 
-    const actorsList = actors.length > 0
-      ? `ACTORS: ${actors.slice(0, 15).map(a => a.name).join(', ')}`
+    const actorsContext = actorsList.length > 0
+      ? `ACTORS: ${actorsList.slice(0, 15).map(a => a.name).join(', ')}`
       : '';
 
-    const orgsList = organizations.length > 0
-      ? `COMPANIES: ${organizations.slice(0, 10).map(o => o.name).join(', ')}`
+    const orgsContext = organizationsList.length > 0
+      ? `COMPANIES: ${organizationsList.slice(0, 10).map(o => o.name).join(', ')}`
       : '';
 
-    const trendingContext = trendingTags.length > 0
-      ? `TRENDING: ${trendingTags.slice(0, 5).map(tt => tt.Tag?.displayName || tt.Tag?.name || 'Unknown').join(', ')}`
+    const trendingContext = trendingTagsList.length > 0
+      ? `TRENDING: ${trendingTagsList.slice(0, 5).map(tt => tt.tagDisplayName || tt.tagName || 'Unknown').join(', ')}`
       : '';
 
     // Build compact prompt
@@ -910,8 +910,8 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       recentEventsContext,
       activeQuestionsContext,
       resolvedQuestionsContext,
-      actorsList,
-      orgsList,
+      actorsContext,
+      orgsContext,
       trendingContext,
       worldContext.currentMarkets ? `MARKETS: ${worldContext.currentMarkets}` : '',
       worldContext.activePredictions ? `PREDICTIONS: ${worldContext.activePredictions}` : '',
@@ -1014,10 +1014,12 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
       }
 
       // Get next question number
-      const lastQuestion = await prisma.question.findFirst({
-        orderBy: { questionNumber: 'desc' },
-      });
-      let nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
+      const [lastQuestion] = await db
+        .select({ questionNumber: questions.questionNumber })
+        .from(questions)
+        .orderBy(desc(questions.questionNumber))
+        .limit(1);
+      let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
 
       const scenarioId = 1; // Note: Will be replaced with dynamic scenario selection when schema supports it
       const now = new Date();
@@ -1056,8 +1058,9 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
           outcomeBoolean: expectedOutcome,
         }, 'QuestionManager');
 
-        const question = await prisma.question.create({
-          data: {
+        const questionResults = await db
+          .insert(questions)
+          .values({
             id: await generateSnowflakeId(),
             questionNumber: nextQuestionNumber++,
             text: questionData.text,
@@ -1067,26 +1070,29 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
             resolutionDate,
             status: 'active',
             updatedAt: now,
-          },
-        });
+          })
+          .returning();
+        const question = questionResults[0]!;
 
         // Initialize market with sufficient liquidity for trading
         const initialLiquidity = 20000;
         const { yesShares, noShares } = PredictionPricing.initializeMarket(initialLiquidity);
 
-        const market = await prisma.market.create({
-          data: {
+        const marketResults = await db
+          .insert(markets)
+          .values({
             id: question.id,
             question: questionData.text,
             description: questionData.resolutionCriteria,
-            yesShares: new Prisma.Decimal(yesShares),
-            noShares: new Prisma.Decimal(noShares),
-            liquidity: initialLiquidity,
+            yesShares: new Decimal(yesShares).toString(),
+            noShares: new Decimal(noShares).toString(),
+            liquidity: new Decimal(initialLiquidity).toString(),
             endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
             gameId: 'continuous',
             updatedAt: now,
-          },
-        });
+          })
+          .returning();
+        const market = marketResults[0]!;
 
         logger.debug('Question and market created with matching resolution dates', {
           questionId: question.id,

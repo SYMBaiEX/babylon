@@ -81,11 +81,16 @@ export async function executeBabylonSkill(
   })
   
   // Handle SendMessageResponse - extract Task or Message from result
+  // Type guard to check if response is Task or Message
+  function isTaskOrMessage(obj: object): obj is Task | Message {
+    return 'kind' in obj && (obj.kind === 'task' || obj.kind === 'message')
+  }
+  
   let result: Task | Message
-  if ('result' in response && response.result) {
-    result = response.result as unknown as Task | Message
-  } else if ('kind' in response) {
-    result = response as unknown as Task | Message
+  if ('result' in response && response.result !== null && typeof response.result === 'object' && isTaskOrMessage(response.result)) {
+    result = response.result
+  } else if (typeof response === 'object' && response !== null && isTaskOrMessage(response)) {
+    result = response
   } else {
     throw new Error('Unexpected response format from sendMessage')
   }
@@ -96,6 +101,20 @@ export async function executeBabylonSkill(
   })
   
   return result
+}
+
+// Type guard to check if response is Task
+function isTask(obj: object): obj is Task {
+  return 'kind' in obj && obj.kind === 'task'
+}
+
+// Type guard for GetTaskResponse result containing task
+interface GetTaskResult {
+  task: Task
+}
+
+function hasTaskResult(obj: object): obj is GetTaskResult {
+  return 'task' in obj
 }
 
 /**
@@ -118,10 +137,15 @@ export async function waitForTaskCompletion(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await client.getTask({ id: taskId })
     
-    // Handle GetTaskResponse which has result.task
-    const task = 'result' in response && response.result && 'task' in response.result
-      ? (response.result as { task: Task }).task
-      : response as unknown as Task
+    // Extract task from response
+    let task: Task
+    if ('result' in response && response.result && typeof response.result === 'object' && hasTaskResult(response.result)) {
+      task = response.result.task
+    } else if (isTask(response)) {
+      task = response
+    } else {
+      throw new Error('Invalid task response format')
+    }
     
     const terminalStates = ['completed', 'failed', 'canceled', 'rejected']
     
@@ -142,9 +166,17 @@ export async function waitForTaskCompletion(
   
   // Return last known state
   const response = await client.getTask({ id: taskId })
-  return 'result' in response && response.result && 'task' in response.result
-    ? (response.result as { task: Task }).task
-    : response as unknown as Task
+  
+  if ('result' in response && response.result && typeof response.result === 'object' && hasTaskResult(response.result)) {
+    return response.result.task
+  }
+  
+  // If response itself is a Task (direct response format)
+  if (isTask(response)) {
+    return response
+  }
+  
+  throw new Error('Invalid task response format from getTask')
 }
 
 /**

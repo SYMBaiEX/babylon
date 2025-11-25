@@ -10,6 +10,22 @@ import type {
   UserProfileStats,
   PerpPositionFromAPI,
 } from '@/types/profile'
+import type { A2AReputationResponse } from '@/types/a2a-responses'
+
+/**
+ * Trending item structure for trending panel (supports grouped trends).
+ * Used by the trending panel widget and cache store.
+ */
+export interface TrendingItem {
+  id: string
+  tags: string[] // Array of tag names (e.g., ["OpenAI", "Sam Altman"])
+  tagSlugs: string[] // Array of tag slugs for routing
+  tagIds: string[] // Array of tag IDs
+  category?: string | null
+  totalPostCount: number
+  summary?: string | null
+  rank: number
+}
 
 export interface BreakingNewsItem {
   id: string
@@ -104,11 +120,11 @@ interface WidgetCacheState {
   breakingNews: CacheEntry<BreakingNewsItem[]> | null
   latestNews: CacheEntry<ArticleItem[]> | null
   upcomingEvents: CacheEntry<UpcomingEvent[]> | null
-  trending: CacheEntry<unknown[]> | null
+  trending: CacheEntry<TrendingItem[]> | null
   stats: CacheEntry<BabylonStats> | null
   markets: CacheEntry<MarketsWidgetData> | null
   profileWidget: Map<string, CacheEntry<ProfileWidgetData>> // Keyed by userId
-  reputationWidget: Map<string, CacheEntry<unknown>> // Keyed by userId
+  reputationWidget: Map<string, CacheEntry<A2AReputationResponse>> // Keyed by userId
 
   // TTL in milliseconds (default: 30 seconds)
   ttl: number
@@ -117,21 +133,21 @@ interface WidgetCacheState {
   setBreakingNews: (data: BreakingNewsItem[]) => void
   setLatestNews: (data: ArticleItem[]) => void
   setUpcomingEvents: (data: UpcomingEvent[]) => void
-  setTrending: (data: unknown[]) => void
+  setTrending: (data: TrendingItem[]) => void
   setStats: (data: BabylonStats) => void
   setMarkets: (data: MarketsWidgetData) => void
   setProfileWidget: (userId: string, data: ProfileWidgetData) => void
-  setReputationWidget: (userId: string, data: unknown) => void
+  setReputationWidget: (userId: string, data: A2AReputationResponse) => void
 
   // Get cache entry (returns null if stale or missing)
   getBreakingNews: () => BreakingNewsItem[] | null
   getLatestNews: () => ArticleItem[] | null
   getUpcomingEvents: () => UpcomingEvent[] | null
-  getTrending: () => unknown[] | null
+  getTrending: () => TrendingItem[] | null
   getStats: () => BabylonStats | null
   getMarkets: () => MarketsWidgetData | null
   getProfileWidget: (userId: string) => ProfileWidgetData | null
-  getReputationWidget: (userId: string) => unknown | null
+  getReputationWidget: (userId: string) => A2AReputationResponse | null
   
   // Check if cache is fresh
   isFresh: <T>(entry: CacheEntry<T> | null) => boolean
@@ -194,7 +210,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setTrending: (data: unknown[]) => {
+  setTrending: (data: TrendingItem[]) => {
     set({
       trending: {
         data,
@@ -230,7 +246,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     set({ profileWidget })
   },
 
-  setReputationWidget: (userId: string, data: unknown) => {
+  setReputationWidget: (userId: string, data: A2AReputationResponse) => {
     const reputationWidget = new Map(get().reputationWidget)
     reputationWidget.set(userId, {
       data,

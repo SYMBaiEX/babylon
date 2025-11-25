@@ -107,8 +107,12 @@ export async function authenticateWithPrivy(page: Page) {
   }
 
   // Wait for successful authentication
+  type WindowWithPrivyToken = Window & {
+    __privyAccessToken?: unknown;
+  };
   await page.waitForFunction(() => {
-    const hasAccessToken = (window as any).__privyAccessToken;
+    const win = window as WindowWithPrivyToken;
+    const hasAccessToken = win.__privyAccessToken;
     if (hasAccessToken) return true;
 
     const hasUserMenu = document.querySelector('[data-testid="user-menu"]') !== null;

@@ -5,9 +5,9 @@
  * efficient caching at the component level.
  */
 
-import db from '@/lib/database-service'
+import dbService from '@/lib/database-service'
 import { gameService } from '@/lib/game-service'
-import { prisma } from '@/lib/prisma'
+import { db, balanceTransactions, perpPositions, markets, users, actors, chats, messages, eq, inArray, desc, asc, and, gte, sql, count } from '@/db'
 import { logger } from '@/lib/logger'
 import { cacheTag, cacheLife } from './cache-polyfill'
 import { cacheMonitoring } from './cache-monitoring'
@@ -19,22 +19,15 @@ import { ReputationService } from '@/lib/services/reputation-service'
 async function calculateVolume24h(organizationId: string): Promise<number> {
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
   
-  const volumeTransactions = await prisma.balanceTransaction.findMany({
-    where: {
-      type: {
-        in: ['PERP_OPEN', 'PERP_CLOSE'],
-      },
-      createdAt: {
-        gte: twentyFourHoursAgo,
-      },
-      description: {
-        contains: organizationId,
-      },
-    },
-    select: {
-      amount: true,
-    },
-  })
+  const volumeTransactions = await db.select({ amount: balanceTransactions.amount })
+    .from(balanceTransactions)
+    .where(
+      and(
+        inArray(balanceTransactions.type, ['PERP_OPEN', 'PERP_CLOSE']),
+        gte(balanceTransactions.createdAt, twentyFourHoursAgo),
+        sql`${balanceTransactions.description} LIKE ${`%${organizationId}%`}`
+      )
+    )
   
   return volumeTransactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0)
 }
@@ -55,15 +48,15 @@ export async function getCachedPerpMarkets() {
   cacheLife({ expire: 300 })
   
   try {
-    const companies = await db().getCompanies()
+    const companies = await dbService().getCompanies()
     
-    const markets = await Promise.all(
+    const marketsData = await Promise.all(
       companies.map(async (company) => {
         // Use ticker from company if available, otherwise generate from ID
         const ticker = company.ticker || company.id.toUpperCase().replace(/-/g, '').substring(0, 12)
         
         const currentPrice = company.currentPrice || company.initialPrice || 100
-        const priceHistory = await db().getPriceHistory(company.id, 1440)
+        const priceHistory = await dbService().getPriceHistory(company.id, 1440)
         
         let change24h = 0
         let changePercent24h = 0
@@ -82,17 +75,18 @@ export async function getCachedPerpMarkets() {
         }
         
         // Get open positions for open interest calculation
-        const positions = await prisma.perpPosition.findMany({
-          where: {
-            organizationId: company.id,
-            closedAt: null,
-          },
-          select: {
-            side: true,
-            size: true,
-            leverage: true,
-          },
+        const positions = await db.select({
+          side: perpPositions.side,
+          size: perpPositions.size,
+          leverage: perpPositions.leverage,
         })
+          .from(perpPositions)
+          .where(
+            and(
+              eq(perpPositions.organizationId, company.id),
+              sql`${perpPositions.closedAt} IS NULL`
+            )
+          )
         
         const openInterest = positions.reduce(
           (sum, p) => sum + (Number(p.size) * Number(p.leverage)),
@@ -138,8 +132,8 @@ export async function getCachedPerpMarkets() {
     
     return {
       success: true,
-      markets,
-      count: markets.length,
+      markets: marketsData,
+      count: marketsData.length,
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
@@ -212,34 +206,32 @@ export async function getCachedPredictions(userId?: string, timeframe?: string) 
   cacheLife({ expire: 120 })
   
   try {
-    const questions = await db().getActiveQuestions(timeframe)
+    const questions = await dbService().getActiveQuestions(timeframe)
     const marketIds = questions.map(q => String(q.id)) // Convert to string array
     
-    const markets = await prisma.market.findMany({
-      where: {
-        id: { in: marketIds },
-      },
-    })
-    const marketMap = new Map(markets.map(m => [m.id, m]))
+    const marketsResult = await db.select()
+      .from(markets)
+      .where(inArray(markets.id, marketIds))
+    const marketMap = new Map(marketsResult.map(m => [m.id, m]))
     
     // Get user positions if userId provided
     const userPositionsMap = new Map()
     if (userId) {
-      const positions = await prisma.position.findMany({
-        where: {
-          userId: userId,
-          marketId: { in: marketIds as string[] },
-        },
-        include: {
-          Market: true,
-        },
-      })
+      // Import positions table
+      const { positions } = await import('@/db/schema/markets')
       
-      for (const p of positions) {
-        // Type assertion: Prisma include adds Market property
-        const positionWithMarket = p as typeof p & { Market: { yesShares: number | string; noShares: number | string } | null }
-        if (!positionWithMarket.Market) continue; // Skip if market not loaded
-        const market = positionWithMarket.Market
+      const userPositions = await db.select()
+        .from(positions)
+        .where(
+          and(
+            eq(positions.userId, userId),
+            inArray(positions.marketId, marketIds)
+          )
+        )
+      
+      for (const p of userPositions) {
+        const market = marketMap.get(p.marketId)
+        if (!market) continue
         const totalShares = Number(market.yesShares) + Number(market.noShares)
         const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5
         const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5
@@ -386,44 +378,74 @@ export async function getCachedRegistry(filters: {
   cacheLife({ expire: 180 })
   
   try {
-    const where = filters.onChainOnly ? { onChainRegistered: true } : {}
-    const orderBy = filters.sortBy ? {
-      [filters.sortBy]: filters.sortOrder || 'desc',
-    } : { createdAt: 'desc' as const }
+    // Import positions, comments, reactions tables
+    const { positions } = await import('@/db/schema/markets')
+    const { comments, reactions } = await import('@/db/schema/posts')
     
-    const users = await prisma.user.findMany({
-      where,
-      orderBy,
-      take: filters.limit || 100,
-      skip: filters.offset || 0,
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        walletAddress: true,
-        isActor: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-        createdAt: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        _count: {
-          select: {
-            Position: true,
-            Comment: true,
-            Reaction: true,
-          },
-        },
-      },
-    })
+    // Build where condition
+    const whereCondition = filters.onChainOnly ? eq(users.onChainRegistered, true) : undefined
     
-    const totalCount = await prisma.user.count({ where })
+    // Build order by
+    let orderByField
+    if (filters.sortBy === 'username') {
+      orderByField = filters.sortOrder === 'asc' ? asc(users.username) : desc(users.username)
+    } else if (filters.sortBy === 'nftTokenId') {
+      orderByField = filters.sortOrder === 'asc' ? asc(users.nftTokenId) : desc(users.nftTokenId)
+    } else {
+      orderByField = filters.sortOrder === 'asc' ? asc(users.createdAt) : desc(users.createdAt)
+    }
     
+    // Fetch users
+    const usersResult = whereCondition 
+      ? await db.select({
+          id: users.id,
+          username: users.username,
+          displayName: users.displayName,
+          bio: users.bio,
+          profileImageUrl: users.profileImageUrl,
+          walletAddress: users.walletAddress,
+          isActor: users.isActor,
+          onChainRegistered: users.onChainRegistered,
+          nftTokenId: users.nftTokenId,
+          registrationTxHash: users.registrationTxHash,
+          createdAt: users.createdAt,
+          virtualBalance: users.virtualBalance,
+          lifetimePnL: users.lifetimePnL,
+        })
+        .from(users)
+        .where(whereCondition)
+        .orderBy(orderByField)
+        .limit(filters.limit || 100)
+        .offset(filters.offset || 0)
+      : await db.select({
+          id: users.id,
+          username: users.username,
+          displayName: users.displayName,
+          bio: users.bio,
+          profileImageUrl: users.profileImageUrl,
+          walletAddress: users.walletAddress,
+          isActor: users.isActor,
+          onChainRegistered: users.onChainRegistered,
+          nftTokenId: users.nftTokenId,
+          registrationTxHash: users.registrationTxHash,
+          createdAt: users.createdAt,
+          virtualBalance: users.virtualBalance,
+          lifetimePnL: users.lifetimePnL,
+        })
+        .from(users)
+        .orderBy(orderByField)
+        .limit(filters.limit || 100)
+        .offset(filters.offset || 0)
+    
+    // Get total count
+    const countResult = whereCondition
+      ? await db.select({ count: count() }).from(users).where(whereCondition)
+      : await db.select({ count: count() }).from(users)
+    const totalCount = countResult[0]?.count || 0
+    
+    // Get counts for each user
     const usersWithReputation = await Promise.all(
-      users.map(async (user) => {
+      usersResult.map(async (user) => {
         let reputation: number | null = null
         if (user.onChainRegistered && user.nftTokenId) {
           try {
@@ -432,6 +454,11 @@ export async function getCachedRegistry(filters: {
             logger.error(`Failed to fetch reputation for user ${user.id}:`, error, 'getCachedRegistry')
           }
         }
+        
+        // Get counts
+        const positionCount = await db.select({ count: count() }).from(positions).where(eq(positions.userId, user.id))
+        const commentCount = await db.select({ count: count() }).from(comments).where(eq(comments.authorId, user.id))
+        const reactionCount = await db.select({ count: count() }).from(reactions).where(eq(reactions.userId, user.id))
         
         return {
           id: user.id,
@@ -445,13 +472,13 @@ export async function getCachedRegistry(filters: {
           nftTokenId: user.nftTokenId,
           registrationTxHash: user.registrationTxHash,
           createdAt: user.createdAt,
-          virtualBalance: user.virtualBalance.toString(),
-          lifetimePnL: user.lifetimePnL.toString(),
+          virtualBalance: user.virtualBalance?.toString() || '0',
+          lifetimePnL: user.lifetimePnL?.toString() || '0',
           reputation,
           stats: {
-            positions: user._count.Position,
-            comments: user._count.Comment,
-            reactions: user._count.Reaction,
+            positions: positionCount[0]?.count || 0,
+            comments: commentCount[0]?.count || 0,
+            reactions: reactionCount[0]?.count || 0,
           },
         }
       })
@@ -464,7 +491,7 @@ export async function getCachedRegistry(filters: {
         total: totalCount,
         limit: filters.limit || 100,
         offset: filters.offset || 0,
-        hasMore: (filters.offset || 0) + users.length < totalCount,
+        hasMore: (filters.offset || 0) + usersResult.length < totalCount,
       },
     }
     
@@ -507,12 +534,12 @@ export async function getCachedMarkets() {
   cacheLife({ expire: 300 })
   
   try {
-    const markets = await gameService.getAllGames()
+    const marketsData = await gameService.getAllGames()
     
     const result = {
       success: true,
-      markets,
-      count: markets.length,
+      markets: marketsData,
+      count: marketsData.length,
     }
     
     const responseTime = Date.now() - startTime
@@ -549,21 +576,23 @@ export async function getCachedActor(actorId: string) {
   cacheLife({ expire: 300 })
   
   try {
-    const actor = await prisma.actor.findUnique({
-      where: { id: actorId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        domain: true,
-        personality: true,
-        tier: true,
-        role: true,
-        initialMood: true,
-        initialLuck: true,
-        postStyle: true,
-      },
+    const actorResult = await db.select({
+      id: actors.id,
+      name: actors.name,
+      description: actors.description,
+      domain: actors.domain,
+      personality: actors.personality,
+      tier: actors.tier,
+      role: actors.role,
+      initialMood: actors.initialMood,
+      initialLuck: actors.initialLuck,
+      postStyle: actors.postStyle,
     })
+      .from(actors)
+      .where(eq(actors.id, actorId))
+      .limit(1)
+    
+    const actor = actorResult[0]
     
     if (!actor) {
       return {
@@ -621,36 +650,52 @@ export async function getCachedMarketChats() {
   cacheLife({ expire: 60 })
   
   try {
-    const marketChats = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-        gameId: 'continuous',
-      },
-      include: {
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-        _count: {
-          select: {
-            Message: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+    // Get market chats
+    const marketChats = await db.select({
+      id: chats.id,
+      name: chats.name,
+      isGroup: chats.isGroup,
+      updatedAt: chats.updatedAt,
     })
+      .from(chats)
+      .where(
+        and(
+          eq(chats.isGroup, true),
+          eq(chats.gameId, 'continuous')
+        )
+      )
+      .orderBy(asc(chats.createdAt))
+    
+    // Get message counts and last messages for each chat
+    const chatsWithDetails = await Promise.all(
+      marketChats.map(async (chat) => {
+        // Get message count
+        const countResult = await db.select({ count: count() })
+          .from(messages)
+          .where(eq(messages.chatId, chat.id))
+        const messageCount = countResult[0]?.count || 0
+        
+        // Get last message
+        const lastMessageResult = await db.select()
+          .from(messages)
+          .where(eq(messages.chatId, chat.id))
+          .orderBy(desc(messages.createdAt))
+          .limit(1)
+        const lastMessage = lastMessageResult[0] || null
+        
+        return {
+          id: chat.id,
+          name: chat.name,
+          isGroup: chat.isGroup,
+          messageCount,
+          lastMessage,
+        }
+      })
+    )
     
     const result = {
       success: true,
-      chats: marketChats.map(chat => ({
-        id: chat.id,
-        name: chat.name,
-        isGroup: chat.isGroup,
-        messageCount: chat._count.Message,
-        lastMessage: chat.Message[0] || null,
-      })),
+      chats: chatsWithDetails,
     }
     
     const responseTime = Date.now() - startTime
@@ -668,4 +713,3 @@ export async function getCachedMarketChats() {
     }
   }
 }
-

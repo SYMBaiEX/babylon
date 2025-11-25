@@ -85,7 +85,20 @@ import {
   optionalAuth,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { 
+  db, 
+  actors, 
+  actorFollows, 
+  userActorFollows, 
+  followStatuses, 
+  users, 
+  follows,
+  eq,
+  and,
+  not,
+  inArray,
+  desc
+} from '@/db';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserFollowersQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
@@ -124,180 +137,170 @@ export const GET = withErrorHandling(async (
   };
   UserFollowersQuerySchema.parse(queryParams);
 
-  let targetId = targetIdentifier
-  let targetUser = null
-  
-  targetUser = await requireUserByIdentifier(targetIdentifier, { id: true })
-  targetId = targetUser.id
+  const targetUser = await requireUserByIdentifier(targetIdentifier, { id: true })
+  const targetId = targetUser.id
 
   logger.debug('Target not found as user, checking if actor', { targetIdentifier }, 'GET /api/users/[userId]/followers')
 
-  const targetActor = await prisma.actor.findUnique({
-    where: { id: targetId },
-  })
+  // Check if target is an actor
+  const [targetActor] = await db.select({ id: actors.id })
+    .from(actors)
+    .where(eq(actors.id, targetId))
+    .limit(1);
 
-  let followers: FollowerResponse[] = [];
+  let followersList: FollowerResponse[] = [];
 
   if (targetActor) {
     // Target is an NPC - get both actor followers and user followers
-    const actorFollowers = await prisma.actorFollow.findMany({
-      where: { followingId: targetId },
-      include: {
-        Actor_ActorFollow_followerIdToActor: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            profileImageUrl: true,
-            description: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const actorFollowersList = await db.select({
+      id: actorFollows.id,
+      followerId: actorFollows.followerId,
+      createdAt: actorFollows.createdAt,
+      followerName: actors.name,
+      followerTier: actors.tier,
+      followerProfileImageUrl: actors.profileImageUrl,
+      followerDescription: actors.description,
+    })
+      .from(actorFollows)
+      .innerJoin(actors, eq(actorFollows.followerId, actors.id))
+      .where(eq(actorFollows.followingId, targetId))
+      .orderBy(desc(actorFollows.createdAt));
 
-    const userActorFollowers = await prisma.userActorFollow.findMany({
-      where: {
-        actorId: targetId,
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+    const userActorFollowersList = await db.select({
+      id: userActorFollows.id,
+      userId: userActorFollows.userId,
+      createdAt: userActorFollows.createdAt,
+      userDisplayName: users.displayName,
+      userUsername: users.username,
+      userProfileImageUrl: users.profileImageUrl,
+      userBio: users.bio,
+    })
+      .from(userActorFollows)
+      .innerJoin(users, eq(userActorFollows.userId, users.id))
+      .where(eq(userActorFollows.actorId, targetId))
+      .orderBy(desc(userActorFollows.createdAt))
+      .limit(200);
 
-    const migratedUserIds = new Set(userActorFollowers.map(f => f.userId));
+    const migratedUserIds = new Set(userActorFollowersList.map(f => f.userId));
 
-    const legacyUserFollowerStatuses = await prisma.followStatus.findMany({
-      where: {
-        npcId: targetId,
-        isActive: true,
-        followReason: 'user_followed',
-      },
-      orderBy: { followedAt: 'desc' },
-      take: 100,
-    });
+    const legacyUserFollowerStatuses = await db.select()
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.npcId, targetId),
+        eq(followStatuses.isActive, true),
+        eq(followStatuses.followReason, 'user_followed')
+      ))
+      .orderBy(desc(followStatuses.followedAt))
+      .limit(100);
 
     // Fetch user data separately since FollowStatus doesn't have a relation to User
     const legacyUserIds = legacyUserFollowerStatuses
       .map(f => f.userId)
       .filter(id => !migratedUserIds.has(id));
-    const users = await prisma.user.findMany({
-      where: { id: { in: legacyUserIds } },
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        profileImageUrl: true,
-        bio: true,
-      },
-    });
+    
+    const legacyUsers = legacyUserIds.length > 0 
+      ? await db.select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(inArray(users.id, legacyUserIds))
+      : [];
 
     // Create a map for quick lookup
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(legacyUsers.map(u => [u.id, u]));
 
-    followers = [
-      ...actorFollowers.map(f => ({
-        id: f.Actor_ActorFollow_followerIdToActor.id,
-        displayName: f.Actor_ActorFollow_followerIdToActor.name,
-        username: f.Actor_ActorFollow_followerIdToActor.id,
-        profileImageUrl: f.Actor_ActorFollow_followerIdToActor.profileImageUrl || null,
-        bio: f.Actor_ActorFollow_followerIdToActor.description || '',
+    followersList = [
+      ...actorFollowersList.map(f => ({
+        id: f.followerId,
+        displayName: f.followerName,
+        username: f.followerId,
+        profileImageUrl: f.followerProfileImageUrl || null,
+        bio: f.followerDescription || '',
         followedAt: f.createdAt.toISOString(),
         isActor: true,
-        tier: f.Actor_ActorFollow_followerIdToActor.tier || undefined,
+        tier: f.followerTier || undefined,
       })),
-      ...userActorFollowers
-        .filter(f => !!f.User)
-        .map(f => ({
-          id: f.User!.id,
-          displayName: f.User!.displayName || '',
-          username: f.User!.username || null,
-          profileImageUrl: f.User!.profileImageUrl || null,
-          bio: f.User!.bio || '',
-          followedAt: f.createdAt.toISOString(),
-          isActor: false,
-        })),
+      ...userActorFollowersList.map(f => ({
+        id: f.userId,
+        displayName: f.userDisplayName || '',
+        username: f.userUsername || null,
+        profileImageUrl: f.userProfileImageUrl || null,
+        bio: f.userBio || '',
+        followedAt: f.createdAt.toISOString(),
+        isActor: false,
+      })),
       ...legacyUserFollowerStatuses
         .filter(f => !migratedUserIds.has(f.userId))
         .map(f => {
           const user = userMap.get(f.userId);
-        return {
-          id: f.userId,
-          displayName: user?.displayName || '',
-          username: user?.username || null,
-          profileImageUrl: user?.profileImageUrl || null,
-          bio: user?.bio || '',
-          followedAt: f.followedAt.toISOString(),
-          isActor: false,
-        };
-      }),
+          return {
+            id: f.userId,
+            displayName: user?.displayName || '',
+            username: user?.username || null,
+            profileImageUrl: user?.profileImageUrl || null,
+            bio: user?.bio || '',
+            followedAt: f.followedAt.toISOString(),
+            isActor: false,
+          };
+        }),
     ].sort(
       (a, b) =>
         new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
     );
   } else {
     // Target is a regular user
-    const follows = await prisma.follow.findMany({
-      where: { followingId: targetId },
-      include: {
-        User_Follow_followerIdToUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const userFollows = await db.select({
+      id: follows.id,
+      followerId: follows.followerId,
+      createdAt: follows.createdAt,
+      followerDisplayName: users.displayName,
+      followerUsername: users.username,
+      followerProfileImageUrl: users.profileImageUrl,
+      followerBio: users.bio,
+    })
+      .from(follows)
+      .innerJoin(users, eq(follows.followerId, users.id))
+      .where(eq(follows.followingId, targetId))
+      .orderBy(desc(follows.createdAt));
 
-    const npcFollowers = await prisma.followStatus.findMany({
-      where: {
-        userId: targetId,
-        isActive: true,
-        NOT: {
-          followReason: 'user_followed',
-        },
-      },
-      orderBy: { followedAt: 'desc' },
-    });
+    const npcFollowersList = await db.select()
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.userId, targetId),
+        eq(followStatuses.isActive, true),
+        not(eq(followStatuses.followReason, 'user_followed'))
+      ))
+      .orderBy(desc(followStatuses.followedAt));
 
-    const npcIds = npcFollowers.map(f => f.npcId);
-    const npcActors = await prisma.actor.findMany({
-      where: { id: { in: npcIds } },
-      select: {
-        id: true,
-        name: true,
-        tier: true,
-        profileImageUrl: true,
-        description: true,
-      },
-    });
+    const npcIds = npcFollowersList.map(f => f.npcId);
+    const npcActors = npcIds.length > 0 
+      ? await db.select({
+          id: actors.id,
+          name: actors.name,
+          tier: actors.tier,
+          profileImageUrl: actors.profileImageUrl,
+          description: actors.description,
+        })
+        .from(actors)
+        .where(inArray(actors.id, npcIds))
+      : [];
     const actorMap = new Map(npcActors.map(actor => [actor.id, actor]));
 
-    followers = [
-      ...follows.map(f => ({
-        id: f.User_Follow_followerIdToUser.id,
-        displayName: f.User_Follow_followerIdToUser.displayName || '',
-        username: f.User_Follow_followerIdToUser.username || null,
-        profileImageUrl: f.User_Follow_followerIdToUser.profileImageUrl || null,
-        bio: f.User_Follow_followerIdToUser.bio || '',
+    followersList = [
+      ...userFollows.map(f => ({
+        id: f.followerId,
+        displayName: f.followerDisplayName || '',
+        username: f.followerUsername || null,
+        profileImageUrl: f.followerProfileImageUrl || null,
+        bio: f.followerBio || '',
         followedAt: f.createdAt.toISOString(),
         isActor: false,
       })),
-      ...npcFollowers.map(f => {
+      ...npcFollowersList.map(f => {
         const actor = actorMap.get(f.npcId);
         return {
           id: f.npcId,
@@ -316,10 +319,10 @@ export const GET = withErrorHandling(async (
     );
   }
 
-  logger.info('Followers fetched successfully', { targetId, count: followers.length, isActor: !!targetActor }, 'GET /api/users/[userId]/followers');
+  logger.info('Followers fetched successfully', { targetId, count: followersList.length, isActor: !!targetActor }, 'GET /api/users/[userId]/followers');
 
   return successResponse({
-    followers,
-    count: followers.length,
+    followers: followersList,
+    count: followersList.length,
   });
 });

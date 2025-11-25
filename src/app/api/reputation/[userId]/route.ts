@@ -74,7 +74,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service'
 
@@ -91,7 +91,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   await getReputationBreakdown(user.id)
 
-  const metrics = await prisma.agentPerformanceMetrics.findUnique({
+  const metrics = await db.agentPerformanceMetrics.findUnique({
     where: { userId: user.id },
     select: {
       gamesPlayed: true,
@@ -106,7 +106,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     },
   })
 
-  const rank = await prisma.agentPerformanceMetrics.count({
+  const rank = await db.agentPerformanceMetrics.count({
     where: {
       reputationScore: {
         gt: metrics!.reputationScore,
@@ -114,7 +114,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     },
   })
 
-  const totalUsers = await prisma.agentPerformanceMetrics.count()
+  const totalUsers = await db.agentPerformanceMetrics.count()
 
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)

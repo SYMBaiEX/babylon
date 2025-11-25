@@ -299,7 +299,7 @@ class PerformanceMonitor {
         p99DurationMs: allDbDurations[p99Index] || 0,
         operationBreakdown: dbOperationBreakdown,
         connectionPoolStats: {
-          active: 0, // Would need to hook into Prisma for this
+          active: 0, // Would need to hook into database for this
           idle: 0,
           waiting: 0,
         },

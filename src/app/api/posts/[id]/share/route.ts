@@ -104,7 +104,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db, posts, shares, users, actors, organizations, eq, and, count, isNull } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -155,213 +155,227 @@ export const POST = withErrorHandling(async (
   const { user: canonicalUser } = await ensureUserForAuth(user, { displayName: fallbackDisplayName });
   const canonicalUserId = canonicalUser.id;
 
-    // Check if post exists first and is not in the future
-    const now = new Date();
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true, deletedAt: true, authorId: true, timestamp: true },
-    });
+  // Check if post exists first and is not in the future
+  const now = new Date();
+  const [post] = await db.select({ 
+    id: posts.id, 
+    deletedAt: posts.deletedAt, 
+    authorId: posts.authorId, 
+    timestamp: posts.timestamp 
+  })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
 
-    // ✅ Don't allow sharing future posts
-    if (post && post.timestamp > now) {
-      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+  // Don't allow sharing future posts
+  if (post && post.timestamp > now) {
+    throw new NotFoundError('Post', postId);
+  }
+
+  // Check if either user has blocked the other (if post exists)
+  if (post) {
+    const [isBlocked, hasBlockedMe] = await Promise.all([
+      hasBlocked(post.authorId, canonicalUserId),
+      hasBlocked(canonicalUserId, post.authorId),
+    ]);
+
+    if (isBlocked || hasBlockedMe) {
+      throw new BusinessLogicError('Cannot share this post', 'BLOCKED_USER');
+    }
+  }
+
+  // If post doesn't exist, try to auto-create it based on format
+  if (!post) {
+    // Parse post ID to extract metadata
+    const parseResult = parsePostId(postId);
+
+    // Require valid format for shares (unlike likes, which can use defaults)
+    if (!parseResult.success) {
+      throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
     }
 
-    // Check if either user has blocked the other (if post exists)
-    if (post) {
-      const [isBlocked, hasBlockedMe] = await Promise.all([
-        hasBlocked(post.authorId, canonicalUserId),
-        hasBlocked(canonicalUserId, post.authorId),
-      ]);
+    const { gameId, authorId, timestamp } = parseResult.metadata;
 
-      if (isBlocked || hasBlockedMe) {
-        throw new BusinessLogicError('Cannot share this post', 'BLOCKED_USER');
-      }
-    }
+    // Check if post already exists
+    const [existingPost] = await db.select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .limit(1);
 
-    // If post doesn't exist, try to auto-create it based on format
-    if (!post) {
-      // Parse post ID to extract metadata
-      const parseResult = parsePostId(postId);
-
-      // Require valid format for shares (unlike likes, which can use defaults)
-      if (!parseResult.success) {
-        throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
-      }
-
-      const { gameId, authorId, timestamp } = parseResult.metadata;
-
-      // Ensure post exists (upsert pattern)
-      await prisma.post.upsert({
-        where: { id: postId },
-        update: {},  // Don't update if exists
-        create: {
-          id: postId,
-          content: '[Game-generated post]',  // Placeholder content
-          authorId,
-          gameId,
-          timestamp,
-        },
+    if (!existingPost) {
+      await db.insert(posts).values({
+        id: postId,
+        content: '[Game-generated post]',
+        authorId,
+        gameId,
+        timestamp,
       });
-    } else if (post.deletedAt) {
-      // Post exists but is deleted
-      throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
     }
+  } else if (post.deletedAt) {
+    // Post exists but is deleted
+    throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
+  }
 
-    // Check if already shared
-    const existingShare = await prisma.share.findUnique({
-      where: {
-        userId_postId: {
-        userId: canonicalUserId,
-          postId,
-        },
-      },
-    });
+  // Check if already shared
+  const [existingShare] = await db.select({ id: shares.id })
+    .from(shares)
+    .where(and(
+      eq(shares.userId, canonicalUserId),
+      eq(shares.postId, postId)
+    ))
+    .limit(1);
 
-    if (existingShare) {
-      throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
-    }
+  if (existingShare) {
+    throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
+  }
 
-    // Create share record
-    await prisma.share.create({
-      data: {
-        id: await generateSnowflakeId(),
-        userId: canonicalUserId,
-        postId,
-      },
-    });
+  // Create share record
+  await db.insert(shares).values({
+    id: await generateSnowflakeId(),
+    userId: canonicalUserId,
+    postId,
+  });
 
-    await NPCInteractionTracker.trackShare(canonicalUserId, postId)
+  await NPCInteractionTracker.trackShare(canonicalUserId, postId)
 
-    // Create a repost post (like a retweet) that shows on user's profile and feed
-    // Use Snowflake ID for repost
-    const repostId = await generateSnowflakeId();
-    
-    // Get original post content and author for repost
-    const originalPost = await prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        content: true,
-        authorId: true,
-        timestamp: true,
-      },
-    });
+  // Create a repost post (like a retweet) that shows on user's profile and feed
+  // Use Snowflake ID for repost
+  const repostId = await generateSnowflakeId();
+  
+  // Get original post content and author for repost
+  const [originalPost] = await db.select({
+    content: posts.content,
+    authorId: posts.authorId,
+    timestamp: posts.timestamp,
+  })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
 
-    // ✅ Don't allow reposting future posts
-    if (originalPost && originalPost.timestamp > now) {
-      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
-    }
+  // Don't allow reposting future posts
+  if (originalPost && originalPost.timestamp > now) {
+    throw new NotFoundError('Post', postId);
+  }
 
-    let repostPostData = null;
+  let repostPostData = null;
 
-    if (originalPost) {
-      // Get original author info (could be User, Actor, or Organization)
-      const [originalUser, originalActor, originalOrg] = await Promise.all([
-        prisma.user.findUnique({
-          where: { id: originalPost.authorId },
-          select: { username: true, displayName: true, profileImageUrl: true },
-        }),
-        prisma.actor.findUnique({
-          where: { id: originalPost.authorId },
-          select: { name: true, profileImageUrl: true },
-        }),
-        prisma.organization.findUnique({
-          where: { id: originalPost.authorId },
-          select: { name: true, imageUrl: true },
-        }),
-      ]);
-
-      const originalAuthorName = originalUser?.displayName || originalUser?.username || originalActor?.name || originalOrg?.name || originalPost.authorId;
-      const originalAuthorUsername = originalUser?.username || originalPost.authorId;
-      const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl;
-
-      // Create repost post with reference to original
-      // For quote posts: content = quote commentary only
-      // For simple reposts: content = empty string
-      const repostContent = quoteComment || '';
-
-      // Create repost post with reference to original
-      const createdRepost = await prisma.post.create({
-        data: {
-          id: repostId,
-          content: repostContent,
-          authorId: canonicalUserId, // Repost author is the user who shared
-          timestamp: new Date(),
-          originalPostId: postId, // Store reference to original post
-        },
-      });
-
-      // Format repost data for broadcast
-      repostPostData = {
-        id: createdRepost.id,
-        content: createdRepost.content, // Quote commentary or empty string
-        authorId: createdRepost.authorId,
-        authorName: canonicalUser.username || canonicalUser.displayName || `user_${canonicalUserId.slice(0, 8)}`,
-        authorUsername: canonicalUser.username,
-        authorDisplayName: canonicalUser.displayName,
-        authorProfileImageUrl: canonicalUser.profileImageUrl,
-        timestamp: createdRepost.timestamp.toISOString(),
-        isRepost: true,
-        isQuote: !!quoteComment,
-        originalPostId: postId,
-        originalPost: {
-          id: postId,
-          content: originalPost.content,
-          authorId: originalPost.authorId,
-          authorName: originalAuthorName,
-          authorUsername: originalAuthorUsername,
-          authorProfileImageUrl: originalAuthorProfileImageUrl,
-          timestamp: originalPost.timestamp.toISOString(),
-        },
-        quoteComment: quoteComment || null,
-      };
-
-      await cachedDb.invalidatePostsCache()
-      await cachedDb.invalidateActorPostsCache(canonicalUserId)
-      logger.info('Invalidated post caches after repost', { repostId }, 'POST /api/posts/[id]/share')
-
-      broadcastToChannel('feed', {
-        type: 'new_post',
-        post: repostPostData as JsonValue,
+  if (originalPost) {
+    // Get original author info (could be User, Actor, or Organization)
+    const [[originalUser], [originalActor], [originalOrg]] = await Promise.all([
+      db.select({
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
       })
-      logger.info('Broadcast repost to feed channel', { repostId, postId }, 'POST /api/posts/[id]/share')
+        .from(users)
+        .where(eq(users.id, originalPost.authorId))
+        .limit(1),
+      db.select({
+        name: actors.name,
+        profileImageUrl: actors.profileImageUrl,
+      })
+        .from(actors)
+        .where(eq(actors.id, originalPost.authorId))
+        .limit(1),
+      db.select({
+        name: organizations.name,
+        imageUrl: organizations.imageUrl,
+      })
+        .from(organizations)
+        .where(eq(organizations.id, originalPost.authorId))
+        .limit(1),
+    ]);
+
+    const originalAuthorName = originalUser?.displayName || originalUser?.username || originalActor?.name || originalOrg?.name || originalPost.authorId;
+    const originalAuthorUsername = originalUser?.username || originalPost.authorId;
+    const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl;
+
+    // Create repost post with reference to original
+    // For quote posts: content = quote commentary only
+    // For simple reposts: content = empty string
+    const repostContent = quoteComment || '';
+
+    // Create repost post with reference to original
+    const [createdRepost] = await db.insert(posts).values({
+      id: repostId,
+      content: repostContent,
+      authorId: canonicalUserId, // Repost author is the user who shared
+      timestamp: new Date(),
+      originalPostId: postId, // Store reference to original post
+    }).returning();
+
+    if (!createdRepost) {
+      throw new BusinessLogicError('Failed to create repost', 'CREATE_FAILED');
     }
 
-    // Create notification for post author (if not self-share)
-    // Check if author is a User (not an Actor) before notifying
-    const postAuthor = await prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        authorId: true,
+    // Format repost data for broadcast
+    repostPostData = {
+      id: createdRepost.id,
+      content: createdRepost.content, // Quote commentary or empty string
+      authorId: createdRepost.authorId,
+      authorName: canonicalUser.username || canonicalUser.displayName || `user_${canonicalUserId.slice(0, 8)}`,
+      authorUsername: canonicalUser.username,
+      authorDisplayName: canonicalUser.displayName,
+      authorProfileImageUrl: canonicalUser.profileImageUrl,
+      timestamp: createdRepost.timestamp.toISOString(),
+      isRepost: true,
+      isQuote: !!quoteComment,
+      originalPostId: postId,
+      originalPost: {
+        id: postId,
+        content: originalPost.content,
+        authorId: originalPost.authorId,
+        authorName: originalAuthorName,
+        authorUsername: originalAuthorUsername,
+        authorProfileImageUrl: originalAuthorProfileImageUrl,
+        timestamp: originalPost.timestamp.toISOString(),
       },
-    });
+      quoteComment: quoteComment || null,
+    };
 
-    if (
-      postAuthor &&
-      postAuthor.authorId &&
-      postAuthor.authorId !== canonicalUserId
-    ) {
-      // Check if the authorId references a User (not an Actor)
-      const postAuthorUser = await prisma.user.findUnique({
-        where: { id: postAuthor.authorId },
-        select: { id: true },
-      });
-      
-      if (postAuthorUser) {
-        await notifyShare(
-          postAuthor.authorId,
-          canonicalUserId,
-          postId
-        );
-      }
+    await cachedDb.invalidatePostsCache()
+    await cachedDb.invalidateActorPostsCache(canonicalUserId)
+    logger.info('Invalidated post caches after repost', { repostId }, 'POST /api/posts/[id]/share')
+
+    broadcastToChannel('feed', {
+      type: 'new_post',
+      post: repostPostData as JsonValue,
+    })
+    logger.info('Broadcast repost to feed channel', { repostId, postId }, 'POST /api/posts/[id]/share')
+  }
+
+  // Create notification for post author (if not self-share)
+  // Check if author is a User (not an Actor) before notifying
+  const [postAuthor] = await db.select({ authorId: posts.authorId })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (
+    postAuthor &&
+    postAuthor.authorId &&
+    postAuthor.authorId !== canonicalUserId
+  ) {
+    // Check if the authorId references a User (not an Actor)
+    const [postAuthorUser] = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, postAuthor.authorId))
+      .limit(1);
+    
+    if (postAuthorUser) {
+      await notifyShare(
+        postAuthor.authorId,
+        canonicalUserId,
+        postId
+      );
     }
+  }
 
-    // Get updated share count
-    const shareCount = await prisma.share.count({
-      where: {
-        postId,
-      },
-    });
+  // Get updated share count
+  const [shareCountResult] = await db.select({ count: count() })
+    .from(shares)
+    .where(eq(shares.postId, postId));
+  const shareCount = Number(shareCountResult?.count ?? 0);
 
   logger.info('Post shared successfully', { postId, userId: canonicalUserId, shareCount }, 'POST /api/posts/[id]/share');
 
@@ -403,55 +417,48 @@ export const DELETE = withErrorHandling(async (
   await ensureUserForAuth(user, { displayName: fallbackDisplayName });
   const canonicalUserId = getCanonicalUserId(user);
 
-    // Find existing share
-    const share = await prisma.share.findUnique({
-      where: {
-        userId_postId: {
-          userId: canonicalUserId,
-          postId,
-        },
-      },
-    });
+  // Find existing share
+  const [share] = await db.select({ id: shares.id })
+    .from(shares)
+    .where(and(
+      eq(shares.userId, canonicalUserId),
+      eq(shares.postId, postId)
+    ))
+    .limit(1);
 
-    if (!share) {
-      throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
-    }
+  if (!share) {
+    throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
+  }
 
-    // Delete repost post if it exists
-    // Find the repost post using originalPostId field (direct database reference)
-    const repostPost = await prisma.post.findFirst({
-      where: {
-        authorId: canonicalUserId,
-        originalPostId: postId,
-        deletedAt: null,
-      },
-    });
+  // Delete repost post if it exists
+  // Find the repost post using originalPostId field (direct database reference)
+  const [repostPost] = await db.select({ id: posts.id })
+    .from(posts)
+    .where(and(
+      eq(posts.authorId, canonicalUserId),
+      eq(posts.originalPostId, postId),
+      isNull(posts.deletedAt)
+    ))
+    .limit(1);
 
-    if (repostPost) {
-      // Delete the repost post
-      await prisma.post.delete({
-        where: {
-          id: repostPost.id,
-        },
-      });
-      logger.info('Deleted repost post', { repostPostId: repostPost.id, originalPostId: postId }, 'DELETE /api/posts/[id]/share');
-    } else {
-      logger.warn('No repost post found to delete', { postId, userId: canonicalUserId }, 'DELETE /api/posts/[id]/share');
-    }
+  if (repostPost) {
+    // Delete the repost post
+    await db.delete(posts)
+      .where(eq(posts.id, repostPost.id));
+    logger.info('Deleted repost post', { repostPostId: repostPost.id, originalPostId: postId }, 'DELETE /api/posts/[id]/share');
+  } else {
+    logger.warn('No repost post found to delete', { postId, userId: canonicalUserId }, 'DELETE /api/posts/[id]/share');
+  }
 
-    // Delete share
-    await prisma.share.delete({
-      where: {
-        id: share.id,
-      },
-    });
+  // Delete share
+  await db.delete(shares)
+    .where(eq(shares.id, share.id));
 
-    // Get updated share count
-    const shareCount = await prisma.share.count({
-      where: {
-        postId,
-      },
-    });
+  // Get updated share count
+  const [shareCountResult] = await db.select({ count: count() })
+    .from(shares)
+    .where(eq(shares.postId, postId));
+  const shareCount = Number(shareCountResult?.count ?? 0);
 
   await cachedDb.invalidatePostsCache()
   await cachedDb.invalidateActorPostsCache(canonicalUserId)

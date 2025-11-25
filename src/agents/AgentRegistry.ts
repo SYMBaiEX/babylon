@@ -9,7 +9,7 @@
  */
 
 import type { AgentProfile } from '@/types/a2a'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 interface SearchParams {
   strategies?: string[]
@@ -51,33 +51,22 @@ export class AgentRegistry {
    * Get all registered agents
    */
   async getAllAgents(): Promise<AgentResult[]> {
-    const agents = await prisma.user.findMany({
+    const agents = await db.user.findMany({
       where: {
         isAgent: true,
         managedBy: { not: null },
       },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        walletAddress: true,
-        nftTokenId: true,
-        AgentPerformanceMetrics: {
-          select: {
-            reputationScore: true,
-            trustLevel: true,
-            onChainTrustScore: true,
-            onChainAccuracyScore: true,
-            gamesPlayed: true,
-            gamesWon: true,
-            averageFeedbackScore: true,
-          },
-        },
-      },
     })
 
+    // Get performance metrics for all agents
+    const agentIds = agents.map(a => a.id)
+    const performanceMetrics = await db.agentPerformanceMetrics.findMany({
+      where: { userId: { in: agentIds } },
+    })
+    const metricsMap = new Map(performanceMetrics.map(m => [m.userId, m]))
+
     return agents.map((agent) => {
-      const metrics = agent.AgentPerformanceMetrics
+      const metrics = metricsMap.get(agent.id)
       const compositeScore = metrics?.reputationScore ?? 0
       const trustScore = metrics?.onChainTrustScore ?? compositeScore
 

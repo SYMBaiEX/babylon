@@ -4,11 +4,21 @@
  * Executes LLM-generated trading decisions for NPCs.
  * Creates positions, updates balances, records trades.
  */
-import { Prisma } from '@prisma/client';
+import {
+  db,
+  eq,
+  ilike,
+  type Transaction,
+  actors,
+  organizations,
+  pools,
+  poolPositions,
+  npcTrades,
+  markets,
+} from '@/db';
 
 import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
 import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
@@ -142,9 +152,11 @@ export class TradeExecutionService {
     }
     
     // Get NPC actor
-    const actor = await prisma.actor.findUnique({
-      where: { id: normalizedNpcId },
-    });
+    const [actor] = await db
+      .select()
+      .from(actors)
+      .where(eq(actors.id, normalizedNpcId))
+      .limit(1);
 
     if (!actor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
@@ -189,34 +201,37 @@ export class TradeExecutionService {
     const tickerLower = decision.ticker.toLowerCase();
     
     // Strategy 1: Exact ID match
-    let org = await prisma.organization.findUnique({
-      where: { id: decision.ticker },
-    });
+    let [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, decision.ticker))
+      .limit(1);
 
     // Strategy 2: Ticker field match (case-insensitive)
     if (!org) {
-      org = await prisma.organization.findFirst({
-        where: {
-          ticker: { equals: tickerUpper, mode: 'insensitive' },
-        },
-      });
+      [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.ticker, tickerUpper))
+        .limit(1);
     }
 
     // Strategy 3: ID contains match (for partial matches)
     if (!org) {
-      org = await prisma.organization.findFirst({
-        where: {
-          id: { contains: tickerLower, mode: 'insensitive' },
-        },
-      });
+      [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.id, `%${tickerLower}%`))
+        .limit(1);
     }
 
     // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)
     if (!org) {
       const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
-      const orgs = await prisma.organization.findMany({
-        where: { type: 'company' },
-      });
+      const orgs = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.type, 'company'));
       
       const matchedOrg = orgs.find(o => {
         if (!o.currentPrice) return false;
@@ -271,9 +286,14 @@ export class TradeExecutionService {
     const liquidationPrice = currentPrice * liquidationDistance;
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (margin + fee)
-      const actor = await tx.actor.findUnique({ where: { id: actorId } });
+      const [actor] = await tx
+        .select()
+        .from(actors)
+        .where(eq(actors.id, actorId))
+        .limit(1);
+      
       if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
       const availableBalance = parseFloat(actor.tradingBalance.toString());
@@ -284,74 +304,83 @@ export class TradeExecutionService {
       }
 
       // Deduct margin + fee from actor's trading balance
-      await tx.actor.update({
-        where: { id: actorId },
-        data: {
-          tradingBalance: { decrement: totalCost },
-        },
-      });
+      await tx
+        .update(actors)
+        .set({
+          tradingBalance: String(availableBalance - totalCost),
+        })
+        .where(eq(actors.id, actorId));
 
       // Ensure Pool exists for this actor (required for PoolPosition foreign key)
-      const existingPool = await tx.pool.findUnique({ where: { id: actorId } });
+      const [existingPool] = await tx
+        .select()
+        .from(pools)
+        .where(eq(pools.id, actorId))
+        .limit(1);
+      
       if (!existingPool) {
         const now = new Date();
-        await tx.pool.create({
-          data: {
-            id: actorId,
-            npcActorId: actorId,
-            name: `${actor.name} Portfolio`,
-            description: `Auto-created portfolio for ${actor.name}`,
-            isActive: true,
-            totalValue: new Prisma.Decimal(0),
-            totalDeposits: new Prisma.Decimal(0),
-            availableBalance: new Prisma.Decimal(0),
-            lifetimePnL: new Prisma.Decimal(0),
-            performanceFeeRate: 0.05,
-            totalFeesCollected: new Prisma.Decimal(0),
-            openedAt: now,
-            updatedAt: now,
-            status: 'ACTIVE',
-          }
+        await tx.insert(pools).values({
+          id: actorId,
+          npcActorId: actorId,
+          name: `${actor.name} Portfolio`,
+          description: `Auto-created portfolio for ${actor.name}`,
+          isActive: true,
+          totalValue: '0',
+          totalDeposits: '0',
+          availableBalance: '0',
+          lifetimePnL: '0',
+          performanceFeeRate: 0.05,
+          totalFeesCollected: '0',
+          openedAt: now,
+          updatedAt: now,
+          status: 'ACTIVE',
         });
       }
 
       // Create position (using actorId as poolId for backward compatibility)
       // Store the raw organization ID as ticker for database consistency
-      const pos = await tx.poolPosition.create({
-        data: {
-          id: await generateSnowflakeId(),
-          poolId: actorId, // Using actorId for backward compatibility with existing schema
-          marketType: 'perp',
-          ticker: org.id, // Use raw org ID for database storage
-          side,
-          entryPrice: currentPrice,
-          currentPrice,
-          size: positionSize,
-          leverage,
-          liquidationPrice,
-          unrealizedPnL: 0,
-          updatedAt: new Date(),
-        },
+      const positionId = await generateSnowflakeId();
+      const now = new Date();
+      
+      await tx.insert(poolPositions).values({
+        id: positionId,
+        poolId: actorId, // Using actorId for backward compatibility with existing schema
+        marketType: 'perp',
+        ticker: org.id, // Use raw org ID for database storage
+        side,
+        entryPrice: currentPrice,
+        currentPrice,
+        size: positionSize,
+        leverage,
+        liquidationPrice,
+        unrealizedPnL: 0,
+        updatedAt: now,
       });
 
       // Record trade (poolId is optional now)
-      await tx.nPCTrade.create({
-        data: {
-          id: await generateSnowflakeId(),
-          npcActorId: decision.npcId,
-          poolId: null, // No longer using pools
-          marketType: 'perp',
-          ticker: org.id, // Use raw org ID for database storage
-          action: decision.action,
-          side,
-          amount: decision.amount,
-          price: currentPrice,
-          sentiment: decision.confidence * (side === 'long' ? 1 : -1),
-          reason: decision.reasoning,
-        },
+      await tx.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: decision.npcId,
+        poolId: null, // No longer using pools
+        marketType: 'perp',
+        ticker: org.id, // Use raw org ID for database storage
+        action: decision.action,
+        side,
+        amount: decision.amount,
+        price: currentPrice,
+        sentiment: decision.confidence * (side === 'long' ? 1 : -1),
+        reason: decision.reasoning,
       });
 
-      return pos;
+      // Get the created position
+      const [pos] = await tx
+        .select()
+        .from(poolPositions)
+        .where(eq(poolPositions.id, positionId))
+        .limit(1);
+
+      return pos!;
     });
 
     // Add position to perpetuals engine for real-time tracking
@@ -410,9 +439,11 @@ export class TradeExecutionService {
     }
 
     // Get market
-    const market = await prisma.market.findUnique({
-      where: { id: decision.marketId.toString() },
-    });
+    const [market] = await db
+      .select()
+      .from(markets)
+      .where(eq(markets.id, decision.marketId.toString()))
+      .limit(1);
 
     if (!market) {
       throw new Error(`Market not found: ${decision.marketId}`);
@@ -446,9 +477,14 @@ export class TradeExecutionService {
       (side === 'YES' ? calculation.newYesPrice : calculation.newNoPrice) * 100;
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (amount + fee)
-      const actor = await tx.actor.findUnique({ where: { id: actorId } });
+      const [actor] = await tx
+        .select()
+        .from(actors)
+        .where(eq(actors.id, actorId))
+        .limit(1);
+      
       if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
       const availableBalance = parseFloat(actor.tradingBalance.toString());
@@ -459,63 +495,65 @@ export class TradeExecutionService {
       }
 
       // Deduct amount + fee from actor's trading balance
-      await tx.actor.update({
-        where: { id: actorId },
-        data: {
-          tradingBalance: { decrement: totalWithFee },
-        },
-      });
+      await tx
+        .update(actors)
+        .set({
+          tradingBalance: String(availableBalance - totalWithFee),
+        })
+        .where(eq(actors.id, actorId));
 
       // Update market shares with CPMM output
-      await tx.market.update({
-        where: { id: decision.marketId!.toString() },
-        data: {
-          yesShares: new Prisma.Decimal(calculation.newYesShares),
-          noShares: new Prisma.Decimal(calculation.newNoShares),
-          liquidity: {
-            increment: new Prisma.Decimal(calculation.netAmount),
-          },
-        },
-      });
+      await tx
+        .update(markets)
+        .set({
+          yesShares: String(calculation.newYesShares),
+          noShares: String(calculation.newNoShares),
+          liquidity: String(Number(market.liquidity) + calculation.netAmount),
+        })
+        .where(eq(markets.id, decision.marketId!.toString()));
 
       const now = new Date();
+      const positionId = await generateSnowflakeId();
 
       // Create position (using actorId as poolId for backward compatibility)
-      const pos = await tx.poolPosition.create({
-        data: {
-          id: await generateSnowflakeId(),
-          poolId: actorId, // Using actorId for backward compatibility with existing schema
-          marketType: 'prediction',
-          marketId: decision.marketId!.toString(),
-          side,
-          entryPrice,
-          currentPrice: postTradePrice,
-          size: calculation.netAmount,
-          shares: calculation.sharesBought,
-          unrealizedPnL: 0,
-          openedAt: now,
-          updatedAt: now,
-        },
+      await tx.insert(poolPositions).values({
+        id: positionId,
+        poolId: actorId, // Using actorId for backward compatibility with existing schema
+        marketType: 'prediction',
+        marketId: decision.marketId!.toString(),
+        side,
+        entryPrice,
+        currentPrice: postTradePrice,
+        size: calculation.netAmount,
+        shares: calculation.sharesBought,
+        unrealizedPnL: 0,
+        openedAt: now,
+        updatedAt: now,
       });
 
       // Record trade (poolId is optional now)
-      await tx.nPCTrade.create({
-        data: {
-          id: await generateSnowflakeId(),
-          npcActorId: decision.npcId,
-          poolId: null, // No longer using pools
-          marketType: 'prediction',
-          marketId: decision.marketId!.toString(),
-          action: decision.action,
-          side,
-          amount: totalWithFee,
-          price: entryPrice,
-          sentiment: decision.confidence * (side === 'YES' ? 1 : -1),
-          reason: decision.reasoning,
-        },
+      await tx.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: decision.npcId,
+        poolId: null, // No longer using pools
+        marketType: 'prediction',
+        marketId: decision.marketId!.toString(),
+        action: decision.action,
+        side,
+        amount: totalWithFee,
+        price: entryPrice,
+        sentiment: decision.confidence * (side === 'YES' ? 1 : -1),
+        reason: decision.reasoning,
       });
 
-      return pos;
+      // Get the created position
+      const [pos] = await tx
+        .select()
+        .from(poolPositions)
+        .where(eq(poolPositions.id, positionId))
+        .limit(1);
+
+      return pos!;
     });
 
     const liquidityAfter = Number(market.liquidity ?? 0) + calculation.netAmount;
@@ -587,9 +625,11 @@ export class TradeExecutionService {
       throw new Error('PositionId required to close position');
     }
 
-    const position = await prisma.poolPosition.findUnique({
-      where: { id: decision.positionId },
-    });
+    const [position] = await db
+      .select()
+      .from(poolPositions)
+      .where(eq(poolPositions.id, decision.positionId))
+      .limit(1);
 
     if (!position) {
       throw new Error(`Position not found: ${decision.positionId}`);
@@ -616,9 +656,11 @@ export class TradeExecutionService {
         throw new Error(`Invalid prediction position side: ${position.side}`);
       }
 
-      const market = await prisma.market.findUnique({
-        where: { id: position.marketId },
-      });
+      const [market] = await db
+        .select()
+        .from(markets)
+        .where(eq(markets.id, position.marketId))
+        .limit(1);
 
       if (!market) {
         throw new Error(`Market not found: ${position.marketId}`);
@@ -648,52 +690,57 @@ export class TradeExecutionService {
       );
       const sideLabel: 'yes' | 'no' = side === 'YES' ? 'yes' : 'no';
 
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        await tx.poolPosition.update({
-          where: { id: position.id },
-          data: {
+      await db.transaction(async (tx: Transaction) => {
+        await tx
+          .update(poolPositions)
+          .set({
             closedAt: now,
             currentPrice: postTradePrice,
             unrealizedPnL: 0,
             realizedPnL,
             updatedAt: now,
-          },
-        });
+          })
+          .where(eq(poolPositions.id, position.id));
 
-        await tx.market.update({
-          where: { id: position.marketId! },
-          data: {
-            yesShares: new Prisma.Decimal(calculation.newYesShares),
-            noShares: new Prisma.Decimal(calculation.newNoShares),
-            liquidity: {
-              decrement: new Prisma.Decimal(grossProceeds),
-            },
-          },
-        });
+        await tx
+          .update(markets)
+          .set({
+            yesShares: String(calculation.newYesShares),
+            noShares: String(calculation.newNoShares),
+            liquidity: String(Math.max(0, Number(market.liquidity) - grossProceeds)),
+          })
+          .where(eq(markets.id, position.marketId!));
 
         // Return proceeds to actor's trading balance
-        await tx.actor.update({
-          where: { id: actorId },
-          data: {
-            tradingBalance: { increment: netProceeds },
-          },
-        });
+        const [actor] = await tx
+          .select()
+          .from(actors)
+          .where(eq(actors.id, actorId))
+          .limit(1);
+        
+        if (actor) {
+          const currentBalance = parseFloat(actor.tradingBalance.toString());
+          await tx
+            .update(actors)
+            .set({
+              tradingBalance: String(currentBalance + netProceeds),
+            })
+            .where(eq(actors.id, actorId));
+        }
 
         // Record trade (poolId is optional now)
-        await tx.nPCTrade.create({
-          data: {
-            id: await generateSnowflakeId(),
-            npcActorId: decision.npcId,
-            poolId: null, // No longer using pools
-            marketType: 'prediction',
-            marketId: position.marketId,
-            action: 'close',
-            side,
-            amount: netProceeds,
-            price: exitPrice,
-            sentiment: 0,
-            reason: decision.reasoning,
-          },
+        await tx.insert(npcTrades).values({
+          id: await generateSnowflakeId(),
+          npcActorId: decision.npcId,
+          poolId: null, // No longer using pools
+          marketType: 'prediction',
+          marketId: position.marketId,
+          action: 'close',
+          side,
+          amount: netProceeds,
+          price: exitPrice,
+          sentiment: 0,
+          reason: decision.reasoning,
         });
       });
 
@@ -757,16 +804,22 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      const org = await prisma.organization.findFirst({
-        where: { id: { contains: position.ticker, mode: 'insensitive' } },
-      });
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.id, `%${position.ticker}%`))
+        .limit(1);
+      
       if (org?.currentPrice) {
         currentPrice = org.currentPrice;
       }
     } else if (position.marketType === 'prediction' && position.marketId) {
-      const market = await prisma.market.findUnique({
-        where: { id: position.marketId },
-      });
+      const [market] = await db
+        .select()
+        .from(markets)
+        .where(eq(markets.id, position.marketId))
+        .limit(1);
+      
       if (market) {
         const yesShares = parseFloat(market.yesShares.toString());
         const noShares = parseFloat(market.noShares.toString());
@@ -800,43 +853,50 @@ export class TradeExecutionService {
     const netReturn = Math.max(0, grossReturn - feeCalc.feeAmount);
 
     // Execute in transaction
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await db.transaction(async (tx: Transaction) => {
       // Close position
-      await tx.poolPosition.update({
-        where: { id: decision.positionId! },
-        data: {
+      await tx
+        .update(poolPositions)
+        .set({
           closedAt: now,
           currentPrice,
           unrealizedPnL: 0,
           realizedPnL,
           updatedAt: now,
-        },
-      });
+        })
+        .where(eq(poolPositions.id, decision.positionId!));
 
       // Return capital + P&L to actor's trading balance (after fee deduction)
-      await tx.actor.update({
-        where: { id: actorId },
-        data: {
-          tradingBalance: { increment: netReturn },
-        },
-      });
+      const [actor] = await tx
+        .select()
+        .from(actors)
+        .where(eq(actors.id, actorId))
+        .limit(1);
+      
+      if (actor) {
+        const currentBalance = parseFloat(actor.tradingBalance.toString());
+        await tx
+          .update(actors)
+          .set({
+            tradingBalance: String(currentBalance + netReturn),
+          })
+          .where(eq(actors.id, actorId));
+      }
 
       // Record trade (poolId is optional now)
-      await tx.nPCTrade.create({
-        data: {
-          id: await generateSnowflakeId(),
-          npcActorId: decision.npcId,
-          poolId: null, // No longer using pools
-          marketType: position.marketType,
-          ticker: position.ticker,
-          marketId: position.marketId,
-          action: 'close',
-          side: position.side,
-          amount: position.size,
-          price: currentPrice,
-          sentiment: 0,
-          reason: decision.reasoning,
-        },
+      await tx.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: decision.npcId,
+        poolId: null, // No longer using pools
+        marketType: position.marketType,
+        ticker: position.ticker,
+        marketId: position.marketId,
+        action: 'close',
+        side: position.side,
+        amount: position.size,
+        price: currentPrice,
+        sentiment: 0,
+        reason: decision.reasoning,
       });
     });
 

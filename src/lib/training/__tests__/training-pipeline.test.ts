@@ -5,6 +5,18 @@
 
 import { describe, it, expect } from 'bun:test';
 import { AutomationPipeline } from '../AutomationPipeline';
+import type { JsonValue } from '@/types/common';
+
+// Type for system status result
+interface SystemStatus {
+  data?: JsonValue
+  training?: JsonValue
+}
+
+// Type for pipeline with private getSystemStatus method exposed for testing
+interface PipelineWithPrivateMethods {
+  getSystemStatus: () => Promise<SystemStatus>
+}
 
 describe('Training Automation Pipeline', () => {
   describe('Configuration', () => {
@@ -56,7 +68,8 @@ describe('Training Automation Pipeline', () => {
       const pipeline = new AutomationPipeline();
       
       // Access private method for testing (type assertion needed)
-      const status = await (pipeline as unknown as { getSystemStatus: () => Promise<{ data?: unknown; training?: unknown }> }).getSystemStatus();
+      const pipelineWithPrivate = pipeline as Partial<AutomationPipeline> & PipelineWithPrivateMethods;
+      const status = await pipelineWithPrivate.getSystemStatus();
       expect(status).toBeDefined();
       expect(status.data).toBeDefined();
       expect(status.training).toBeDefined();

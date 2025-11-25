@@ -86,7 +86,7 @@
 
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -114,12 +114,10 @@ export const POST = withErrorHandling(async (
   const { userId: targetUserId } = addAdminSchema.parse(body);
 
   // Check if requester is admin
-  const isAdmin = await prisma.userGroupAdmin.findUnique({
+  const isAdmin = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
+      groupId,
+      userId: user.userId,
     },
   });
 
@@ -131,12 +129,10 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if target is a member
-  const isMember = await prisma.userGroupMember.findUnique({
+  const isMember = await db.userGroupMember.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 
@@ -148,12 +144,10 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if already admin
-  const existingAdmin = await prisma.userGroupAdmin.findUnique({
+  const existingAdmin = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 
@@ -165,7 +159,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Grant admin
-  await prisma.userGroupAdmin.create({
+  await db.userGroupAdmin.create({
     data: {
       id: await generateSnowflakeId(),
       groupId,

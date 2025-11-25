@@ -5,7 +5,7 @@
  * Ensures agents exist with proper configuration.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, users, eq, like } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ethers } from 'ethers';
@@ -59,13 +59,20 @@ export async function createTestAgent(
   } = config;
   
   // Try to find existing agent with same prefix
-  let agent = await prisma.user.findFirst({
-    where: {
-      isAgent: true,
-      username: username ? { equals: username } : { startsWith: prefix }
-    }
-  });
+  let agentResult;
+  if (username) {
+    agentResult = await db.select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+  } else {
+    agentResult = await db.select()
+      .from(users)
+      .where(like(users.username, `${prefix}%`))
+      .limit(1);
+  }
   
+  let agent = agentResult[0];
   let created = false;
 
   if (!agent) {
@@ -73,29 +80,28 @@ export async function createTestAgent(
     const agentId = await generateSnowflakeId();
     const finalUsername = username || `${prefix}-${agentId.slice(-6)}`;
     
-    agent = await prisma.user.create({
-      data: {
-        id: agentId,
-        privyId: `did:privy:${prefix}-${agentId}`,
-        username: finalUsername,
-        displayName,
-        walletAddress: ethers.Wallet.createRandom().address,
-        isAgent: true,
-        autonomousTrading,
-        autonomousPosting,
-        autonomousCommenting,
-        autonomousDMs,
-        autonomousGroupChats,
-        agentSystem,
-        agentModelTier,
-        virtualBalance,
-        reputationPoints: 1000,
-        agentPointsBalance,
-        isTest: true,
-        updatedAt: new Date()
-      }
-    });
+    const newAgentResult = await db.insert(users).values({
+      id: agentId,
+      privyId: `did:privy:${prefix}-${agentId}`,
+      username: finalUsername,
+      displayName,
+      walletAddress: ethers.Wallet.createRandom().address,
+      isAgent: true,
+      autonomousTrading,
+      autonomousPosting,
+      autonomousCommenting,
+      autonomousDMs,
+      autonomousGroupChats,
+      agentSystem,
+      agentModelTier,
+      virtualBalance: String(virtualBalance),
+      reputationPoints: 1000,
+      agentPointsBalance,
+      isTest: true,
+      updatedAt: new Date()
+    }).returning();
     
+    agent = newAgentResult[0]!;
     created = true;
     
     logger.info('Created test agent', {

@@ -13,7 +13,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, followStatuses, userInteractions, eq, and, desc } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { notifyFollow } from './notification-service';
 
@@ -53,16 +53,15 @@ export class FollowingMechanics {
     const qualityMultiplier = Math.min(currentQualityScore * 1.5, 2.0); // Cap at 2x
     
     // Check if already following
-    const existingFollow = await prisma.followStatus.findUnique({
-      where: {
-        userId_npcId: {
-          userId,
-          npcId,
-        },
-      },
-    });
+    const existingFollow = await db.select()
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.userId, userId),
+        eq(followStatuses.npcId, npcId)
+      ))
+      .limit(1);
 
-    if (existingFollow && existingFollow.isActive) {
+    if (existingFollow.length > 0 && existingFollow[0]?.isActive) {
       return {
         willFollow: false,
         probability: 0,
@@ -72,15 +71,14 @@ export class FollowingMechanics {
     }
 
     // Get all interactions for quality and volume metrics
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-      },
-      select: {
-        qualityScore: true,
-      },
-    });
+    const interactions = await db.select({
+      qualityScore: userInteractions.qualityScore,
+    })
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ));
 
     const totalReplies = interactions.length;
     const averageQuality =
@@ -152,37 +150,46 @@ export class FollowingMechanics {
     npcId: string,
     reason: string
   ): Promise<void> {
-    await prisma.followStatus.upsert({
-      where: {
-        userId_npcId: {
+    // Check if exists
+    const existing = await db.select({ id: followStatuses.id })
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.userId, userId),
+        eq(followStatuses.npcId, npcId)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing
+      await db.update(followStatuses)
+        .set({
+          isActive: true,
+          followedAt: new Date(),
+          unfollowedAt: null,
+          followReason: reason,
+        })
+        .where(and(
+          eq(followStatuses.userId, userId),
+          eq(followStatuses.npcId, npcId)
+        ));
+    } else {
+      // Create new
+      await db.insert(followStatuses)
+        .values({
+          id: await generateSnowflakeId(),
           userId,
           npcId,
-        },
-      },
-      update: {
-        isActive: true,
-        followedAt: new Date(),
-        unfollowedAt: null,
-        followReason: reason,
-      },
-      create: {
-        id: await generateSnowflakeId(),
-        userId,
-        npcId,
-        followReason: reason,
-      },
-    });
+          followReason: reason,
+        });
+    }
 
     // Mark the interaction that triggered the follow
-    await prisma.userInteraction.updateMany({
-      where: {
-        userId,
-        npcId,
-      },
-      data: {
-        wasFollowed: true,
-      },
-    });
+    await db.update(userInteractions)
+      .set({ wasFollowed: true })
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ));
 
     // Create notification for the user (NPCs follow users, not the other way around)
     // Note: For NPC follows, we use the NPC's ID as actorId since they're not real users
@@ -194,31 +201,28 @@ export class FollowingMechanics {
    * Check if an NPC is following a player
    */
   static async isFollowing(userId: string, npcId: string): Promise<boolean> {
-    const follow = await prisma.followStatus.findUnique({
-      where: {
-        userId_npcId: {
-          userId,
-          npcId,
-        },
-      },
-    });
+    const follow = await db.select({ isActive: followStatuses.isActive })
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.userId, userId),
+        eq(followStatuses.npcId, npcId)
+      ))
+      .limit(1);
 
-    return follow?.isActive ?? false;
+    return follow[0]?.isActive ?? false;
   }
 
   /**
    * Get all NPCs following a player
    */
   static async getFollowers(userId: string) {
-    const follows = await prisma.followStatus.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-      orderBy: {
-        followedAt: 'desc',
-      },
-    });
+    const follows = await db.select()
+      .from(followStatuses)
+      .where(and(
+        eq(followStatuses.userId, userId),
+        eq(followStatuses.isActive, true)
+      ))
+      .orderBy(desc(followStatuses.followedAt));
 
     return follows;
   }
@@ -234,33 +238,33 @@ export class FollowingMechanics {
     // Log unfollow reason for analytics/debugging
     logger.info(`User ${userId} unfollowed ${npcId}. Reason: ${reason}`, undefined, 'FollowingMechanics');
     
-    await prisma.followStatus.updateMany({
-      where: {
-        userId,
-        npcId,
-        isActive: true,
-      },
-      data: {
+    await db.update(followStatuses)
+      .set({
         isActive: false,
         unfollowedAt: new Date(),
-      },
-    });
+      })
+      .where(and(
+        eq(followStatuses.userId, userId),
+        eq(followStatuses.npcId, npcId),
+        eq(followStatuses.isActive, true)
+      ));
   }
 
   /**
    * Check if follow should be revoked (periodic check)
    */
   static async shouldUnfollow(userId: string, npcId: string): Promise<boolean> {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-      take: 10,
-    });
+    const interactions = await db.select({
+      qualityScore: userInteractions.qualityScore,
+      timestamp: userInteractions.timestamp,
+    })
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ))
+      .orderBy(desc(userInteractions.timestamp))
+      .limit(10);
 
     if (interactions.length === 0) return false;
 
@@ -291,5 +295,3 @@ export class FollowingMechanics {
     return false;
   }
 }
-
-

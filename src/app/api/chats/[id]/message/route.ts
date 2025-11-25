@@ -1,3 +1,4 @@
+ 
 /**
  * Chat Message API
  * 
@@ -140,14 +141,20 @@ export const POST = withErrorHandling(async (
   }
 
   // 4. Determine chat type and check membership
-  let chat = await asUser(user, async (db) => {
-    return await db.chat.findUnique({
-      where: { id: chatId },
-      include: {
-        ChatParticipant: true,
-      },
-    })
+  const chatData = await asUser(user, async (db) => {
+    const [chat, participants] = await Promise.all([
+      db.chat.findUnique({
+        where: { id: chatId },
+      }),
+      db.chatParticipant.findMany({
+        where: { chatId: { equals: chatId } },
+      }),
+    ])
+    return { chat, participants }
   })
+  
+  let chat = chatData?.chat || null
+  let chatParticipantsList = chatData?.participants || []
 
   // If chat doesn't exist and it's a DM format, create it automatically
   if (!chat && chatId.startsWith('dm-')) {
@@ -168,7 +175,7 @@ export const POST = withErrorHandling(async (
     }
     
     // Create the DM chat
-    chat = await asUser(user, async (db) => {
+    const chatDataResult = await asUser(user, async (db) => {
       // Verify other user exists and is not an actor
       const otherUser = await db.user.findUnique({
         where: { id: otherUserId },
@@ -213,14 +220,24 @@ export const POST = withErrorHandling(async (
         }),
       ])
       
-      // Reload to include participants
-      return await db.chat.findUnique({
-        where: { id: chatId },
-        include: {
-          ChatParticipant: true,
-        },
-      })
+      // Reload chat and get participants separately
+      const [reloadedChat, reloadedParticipants] = await Promise.all([
+        db.chat.findUnique({
+          where: { id: chatId },
+        }),
+        db.chatParticipant.findMany({
+          where: { chatId },
+        }),
+      ])
+      
+      return { chat: reloadedChat, participants: reloadedParticipants }
     })
+    
+    // Update chat and participants from reloaded data
+    if (chatDataResult && typeof chatDataResult === 'object' && 'chat' in chatDataResult && chatDataResult.chat) {
+      chat = chatDataResult.chat
+      chatParticipantsList = chatDataResult.participants || []
+    }
   }
 
   if (!chat) {
@@ -237,13 +254,13 @@ export const POST = withErrorHandling(async (
   if (!isGameChat) {
     // For DMs, check ChatParticipant
     if (isDMChat) {
-      isMember = chat.ChatParticipant.some((p) => p.userId === user.userId)
+      isMember = chatParticipantsList.some((p) => p.userId === user.userId)
       if (!isMember) {
         throw new AuthorizationError('You are not a participant in this DM', 'chat', 'write')
       }
 
       // Check if users have blocked each other
-      const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+      const otherParticipant = chatParticipantsList.find((p) => p.userId !== user.userId);
       if (otherParticipant) {
         const [isBlocked, hasBlockedMe] = await Promise.all([
           hasBlocked(user.userId, otherParticipant.userId),
@@ -320,12 +337,12 @@ export const POST = withErrorHandling(async (
           await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
 
           // 9. Get updated membership stats
-          const mem = await db.groupChatMembership.findUnique({
+          const mem = await db.groupChatMembership.findFirst({
             where: {
-              userId_chatId: {
-                userId: user.userId,
-                chatId,
-              },
+              AND: [
+                { userId: { equals: user.userId } },
+                { chatId: { equals: chatId } },
+              ],
             },
           });
           return { message: msg, membership: mem };
@@ -353,7 +370,7 @@ export const POST = withErrorHandling(async (
     if (!isGameChat) {
       if (isDMChat) {
         // For DMs, notify the other participant
-        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+        const otherParticipant = chatParticipantsList.find((p) => p.userId !== user.userId);
         if (otherParticipant) {
           await notifyDMMessage(
             otherParticipant.userId,
@@ -364,7 +381,9 @@ export const POST = withErrorHandling(async (
         }
       } else if (isGroupChat) {
         // For group chats, notify all participants except sender
-        const recipientUserIds = chat.ChatParticipant.map((p) => p.userId);
+        const recipientUserIds = chatParticipantsList
+          .filter(p => p.userId !== user.userId)
+          .map(p => p.userId);
         const chatInfo = await asUser(user, async (db) => {
           return await db.chat.findUnique({
             where: { id: chatId },

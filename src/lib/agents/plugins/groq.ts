@@ -9,6 +9,7 @@ import type {
   ModelTypeName,
   ObjectGenerationParams,
   Plugin,
+  IAgentRuntime,
 } from '@elizaos/core'
 import {
   type DetokenizeTextParams,
@@ -191,10 +192,17 @@ export const groqPlugin: Plugin = {
         'llama-3.1-8b-instant'
 
       // Get trajectory logger from runtime if available
-      const trajectoryLogger = (runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger
-      const trajectoryId = (runtime as unknown as { currentTrajectoryId?: string }).currentTrajectoryId
+      // Runtime may have extended properties from AgentRuntimeManager
+      interface RuntimeWithExtensions extends IAgentRuntime {
+        trajectoryLogger?: TrajectoryLoggerService
+        currentTrajectoryId?: string
+        currentModelVersion?: string
+      }
+      const extendedRuntime = runtime as RuntimeWithExtensions
+      const trajectoryLogger = extendedRuntime.trajectoryLogger
+      const trajectoryId = extendedRuntime.currentTrajectoryId
       // Extract model version from runtime if available
-      const modelVersion = (runtime as unknown as { currentModelVersion?: string }).currentModelVersion
+      const modelVersion = extendedRuntime.currentModelVersion
 
       return await generateGroqText(groq, model, {
         prompt,
@@ -260,10 +268,17 @@ export const groqPlugin: Plugin = {
       }
 
       // Get trajectory logger from runtime if available
-      const trajectoryLogger = (runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger
-      const trajectoryId = (runtime as unknown as { currentTrajectoryId?: string }).currentTrajectoryId
+      // Runtime may have optional properties for trajectory logging
+      type RuntimeWithTrajectory = typeof runtime & {
+        trajectoryLogger?: TrajectoryLoggerService;
+        currentTrajectoryId?: string;
+        currentModelVersion?: string;
+      };
+      const runtimeWithTrajectory = runtime as RuntimeWithTrajectory;
+      const trajectoryLogger = runtimeWithTrajectory.trajectoryLogger;
+      const trajectoryId = runtimeWithTrajectory.currentTrajectoryId;
       // Extract model version from runtime if available
-      const modelVersion = (runtime as unknown as { currentModelVersion?: string }).currentModelVersion
+      const modelVersion = runtimeWithTrajectory.currentModelVersion;
       
       // Log which model is being used (for verification)
       const logger = (await import('@/lib/logger')).logger;

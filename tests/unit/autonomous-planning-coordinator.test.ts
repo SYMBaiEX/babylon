@@ -5,13 +5,16 @@ import { autonomousPlanningCoordinator } from '@/lib/agents/autonomous/Autonomou
 import type { PlannedAction } from '@/lib/agents/autonomous/AutonomousPlanningCoordinator'
 import { autonomousCommentingService } from '@/lib/agents/autonomous/AutonomousCommentingService'
 import { autonomousDMService } from '@/lib/agents/autonomous/AutonomousDMService'
+import type { JsonValue } from '@/types/common'
 
 type ExecuteActionFn = (
   agentUserId: string,
   runtime: IAgentRuntime,
   action: PlannedAction
-) => Promise<{ success: boolean; data?: unknown; error?: string }>
+) => Promise<{ success: boolean; data?: JsonValue; error?: string }>
 
+// Access private executeAction method for testing
+// Uses unknown cast to bypass TypeScript private access check
 const coordinator = autonomousPlanningCoordinator as unknown as {
   executeAction: ExecuteActionFn
 }

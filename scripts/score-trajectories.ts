@@ -7,14 +7,14 @@
  * This uses the proper RULER implementation - not simple heuristics!
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { rulerScoringService } from '@/lib/training/RulerScoringService';
 
 async function main() {
   console.log('━━━ RULER SCORING (LLM-as-judge) ━━━\n');
   
   // Get unscored trajectories count
-  const unscoredCount = await prisma.trajectory.count({
+  const unscoredCount = await db.trajectory.count({
     where: { 
       aiJudgeReward: null,
       isTrainingData: true,
@@ -31,7 +31,7 @@ async function main() {
   
   if (unscoredCount === 0) {
     console.log('✅ All trajectories already scored!');
-    await prisma.$disconnect();
+    await db.$disconnect();
     return;
   }
   
@@ -51,7 +51,7 @@ async function main() {
   console.log(`📊 Success Rate: ${((scored / unscoredCount) * 100).toFixed(1)}%\n`);
   
   // Check readiness for training
-  const readyForTraining = await prisma.trajectory.count({
+  const readyForTraining = await db.trajectory.count({
     where: {
       isTrainingData: true,
       usedInTraining: false,
@@ -68,7 +68,7 @@ async function main() {
   console.log(`✅ ${readyForTraining} trajectories ready for training`);
   console.log(`${readyForTraining >= 100 ? '✅ READY FOR TRAINING!' : '⏳ NOT READY'} (need 100+ for training)\n`);
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main();

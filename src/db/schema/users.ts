@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { onboardingStatusEnum } from './enums';
+import { agentPerformanceMetrics } from './agents';
 
 // User - Main user table
 export const users = pgTable(
@@ -470,6 +471,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     relationName: 'UserToUser',
   }),
   managedAgents: many(users, { relationName: 'UserToUser' }),
+  AgentPerformanceMetrics: one(agentPerformanceMetrics, {
+    fields: [users.id],
+    references: [agentPerformanceMetrics.userId],
+  }),
 }));
 
 export const onboardingIntentsRelations = relations(
@@ -496,12 +501,12 @@ export const followsRelations = relations(follows, ({ one }) => ({
 }));
 
 export const favoritesRelations = relations(favorites, ({ one }) => ({
-  targetUser: one(users, {
+  User_Favorite_targetUserIdToUser: one(users, {
     fields: [favorites.targetUserId],
     references: [users.id],
     relationName: 'Favorite_targetUserIdToUser',
   }),
-  user: one(users, {
+  User_Favorite_userIdToUser: one(users, {
     fields: [favorites.userId],
     references: [users.id],
     relationName: 'Favorite_userIdToUser',
@@ -535,12 +540,12 @@ export const userMutesRelations = relations(userMutes, ({ one }) => ({
 }));
 
 export const referralsRelations = relations(referrals, ({ one }) => ({
-  referrer: one(users, {
+  User_Referral_referrerIdToUser: one(users, {
     fields: [referrals.referrerId],
     references: [users.id],
     relationName: 'Referral_referrerIdToUser',
   }),
-  referredUser: one(users, {
+  User_Referral_referredUserIdToUser: one(users, {
     fields: [referrals.referredUserId],
     references: [users.id],
     relationName: 'Referral_referredUserIdToUser',

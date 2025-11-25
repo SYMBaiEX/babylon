@@ -1,6 +1,7 @@
-
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import type { ActorFileRef, OrganizationFileRef, ActorsIndexFile } from '../tests/types/test-types';
+import type { ActorData } from '@/shared/types';
 
 const dataDir = join(process.cwd(), 'public', 'data');
 const actorsJsonPath = join(dataDir, 'actors.json');
@@ -10,18 +11,18 @@ if (!existsSync(actorsJsonPath)) {
     process.exit(1);
 }
 
-const indexData = JSON.parse(readFileSync(actorsJsonPath, 'utf-8'));
+const indexData: ActorsIndexFile = JSON.parse(readFileSync(actorsJsonPath, 'utf-8'));
 
-const orgIds = new Set(indexData.organizations.map((o: any) => o.id));
+const orgIds = new Set(indexData.organizations.map((o: OrganizationFileRef) => o.id));
 console.log(`Loaded ${orgIds.size} organizations.`);
 
-for (const ref of indexData.actors) {
+for (const ref of indexData.actors as ActorFileRef[]) {
     const actorPath = join(dataDir, ref.file);
     if (!existsSync(actorPath)) {
         console.error(`Actor file missing: ${ref.file}`);
         continue;
     }
-    const actor = JSON.parse(readFileSync(actorPath, 'utf-8'));
+    const actor: ActorData = JSON.parse(readFileSync(actorPath, 'utf-8'));
     if (actor.affiliations) {
         for (const aff of actor.affiliations) {
             if (!orgIds.has(aff)) {

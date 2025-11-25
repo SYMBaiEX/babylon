@@ -138,7 +138,7 @@ import db from '@/lib/database-service';
 import { asPublic, asUser } from '@/lib/db/context';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import type { Organization, StockPrice } from '@prisma/client';
+import type { Organization, StockPrice } from '@/db';
 import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -179,8 +179,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       // Get positions with RLS (only if authenticated)
       const dbPositions = (authUser && authUser.userId)
-        ? await asUser(authUser, async (dbPrisma) => {
-            return await dbPrisma.perpPosition.findMany({
+        ? await asUser(authUser, async (database) => {
+            return await database.perpPosition.findMany({
               where: {
                 organizationId: company.id,
                 closedAt: null,
@@ -196,8 +196,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               },
             });
           })
-        : await asPublic(async (dbPrisma) => {
-            return await dbPrisma.perpPosition.findMany({
+        : await asPublic(async (database) => {
+            return await database.perpPosition.findMany({
               where: {
                 organizationId: company.id,
                 closedAt: null,
@@ -230,8 +230,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // Calculate 24h trading volume from positions opened in last 24 hours
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentPositions = (authUser && authUser.userId)
-        ? await asUser(authUser, async (dbPrisma) => {
-            return await dbPrisma.perpPosition.findMany({
+        ? await asUser(authUser, async (database) => {
+            return await database.perpPosition.findMany({
               where: {
                 organizationId: company.id,
                 openedAt: { gte: twentyFourHoursAgo },
@@ -242,8 +242,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               },
             });
           })
-        : await asPublic(async (dbPrisma) => {
-            return await dbPrisma.perpPosition.findMany({
+        : await asPublic(async (database) => {
+            return await database.perpPosition.findMany({
               where: {
                 organizationId: company.id,
                 openedAt: { gte: twentyFourHoursAgo },

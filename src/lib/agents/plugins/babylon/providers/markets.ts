@@ -31,9 +31,10 @@ export const marketsProvider: Provider = {
       const [predictionsResult, perpetualsResult] = await Promise.all([
         babylonRuntime.a2aClient.getPredictions({ status: 'active' }),
         babylonRuntime.a2aClient.getPerpetuals()
-      ]) as [unknown, unknown]
+      ])
       
-      const predictions = (predictionsResult as { predictions?: Array<{
+      // Type assertion using A2A response types
+      interface PredictionMarket {
         id: string
         question: string
         yesShares: number
@@ -41,13 +42,19 @@ export const marketsProvider: Provider = {
         liquidity: number
         resolved: boolean
         endDate: string | Date
-      }> })?.predictions || []
+      }
       
-      const perpetuals = (perpetualsResult as { perpetuals?: Array<{
+      interface PerpetualMarket {
         name: string
         type: string
         currentPrice: number
-      }> })?.perpetuals || []
+      }
+      
+      const predictionsData = predictionsResult as { predictions?: PredictionMarket[] }
+      const perpetualsData = perpetualsResult as { perpetuals?: PerpetualMarket[] }
+      
+      const predictions = predictionsData.predictions || []
+      const perpetuals = perpetualsData.perpetuals || []
       
       const predictionsText = predictions.length > 0
         ? `Prediction Markets:\n${predictions.slice(0, 10).map(m => 

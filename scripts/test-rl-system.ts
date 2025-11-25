@@ -11,7 +11,7 @@
  * - AutomationPipeline integration
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { modelSelectionService } from '@/lib/training/ModelSelectionService';
 import { benchmarkService } from '@/lib/training/BenchmarkService';
 import { automationPipeline } from '@/lib/training/AutomationPipeline';
@@ -89,7 +89,7 @@ async function testBenchmarking() {
       `${summary.totalBenchmarked} models benchmarked`);
     
     // Test 2: Check for models to benchmark
-    const modelsToTest = await prisma.trainedModel.findMany({
+    const modelsToTest = await db.trainedModel.findMany({
       where: { status: { in: ['ready', 'deployed'] } },
       take: 2
     });
@@ -140,7 +140,7 @@ async function testAutomationPipeline() {
       `Latest model: ${status.models.latest || 'None'}, Deployed: ${status.models.deployed}`);
     
     // Test 4: Check completed batches
-    const completedBatches = await prisma.trainingBatch.count({
+    const completedBatches = await db.trainingBatch.count({
       where: { status: 'completed' }
     });
     addResult('AutomationPipeline', 'Batch Tracking', true,
@@ -158,10 +158,10 @@ async function testDatabase() {
   try {
     // Test 1: Trajectory data
     const trajectoryStats = {
-      total: await prisma.trajectory.count(),
-      scored: await prisma.trajectory.count({ where: { aiJudgeReward: { not: null } } }),
-      training: await prisma.trajectory.count({ where: { isTrainingData: true } }),
-      unused: await prisma.trajectory.count({ where: { isTrainingData: true, usedInTraining: false } })
+      total: await db.trajectory.count(),
+      scored: await db.trajectory.count({ where: { aiJudgeReward: { not: null } } }),
+      training: await db.trajectory.count({ where: { isTrainingData: true } }),
+      unused: await db.trajectory.count({ where: { isTrainingData: true, usedInTraining: false } })
     };
     
     addResult('Database', 'Trajectory Data', true,
@@ -169,10 +169,10 @@ async function testDatabase() {
     
     // Test 2: Model data
     const modelStats = {
-      total: await prisma.trainedModel.count(),
-      ready: await prisma.trainedModel.count({ where: { status: 'ready' } }),
-      deployed: await prisma.trainedModel.count({ where: { status: 'deployed' } }),
-      benchmarked: await prisma.trainedModel.count({ where: { benchmarkScore: { not: null } } })
+      total: await db.trainedModel.count(),
+      ready: await db.trainedModel.count({ where: { status: 'ready' } }),
+      deployed: await db.trainedModel.count({ where: { status: 'deployed' } }),
+      benchmarked: await db.trainedModel.count({ where: { benchmarkScore: { not: null } } })
     };
     
     addResult('Database', 'Model Data', true,
@@ -180,18 +180,18 @@ async function testDatabase() {
     
     // Test 3: Training batch data
     const batchStats = {
-      total: await prisma.trainingBatch.count(),
-      pending: await prisma.trainingBatch.count({ where: { status: 'pending' } }),
-      training: await prisma.trainingBatch.count({ where: { status: 'training' } }),
-      completed: await prisma.trainingBatch.count({ where: { status: 'completed' } }),
-      failed: await prisma.trainingBatch.count({ where: { status: 'failed' } })
+      total: await db.trainingBatch.count(),
+      pending: await db.trainingBatch.count({ where: { status: 'pending' } }),
+      training: await db.trainingBatch.count({ where: { status: 'training' } }),
+      completed: await db.trainingBatch.count({ where: { status: 'completed' } }),
+      failed: await db.trainingBatch.count({ where: { status: 'failed' } })
     };
     
     addResult('Database', 'Training Batches', true,
       `Total: ${batchStats.total}, Completed: ${batchStats.completed}, Failed: ${batchStats.failed}`);
     
     // Test 4: Schema verification
-    const sampleModel = await prisma.trainedModel.findFirst();
+    const sampleModel = await db.trainedModel.findFirst();
     if (sampleModel) {
       const hasRequiredFields = 
         'benchmarkScore' in sampleModel &&
@@ -345,7 +345,7 @@ async function main() {
     console.error('\n❌ Test suite crashed:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

@@ -208,38 +208,60 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (getAllChats) {
     // Return all game chats (no auth required for read-only game data)
     const gameChats = await asSystem(async (db) => {
-      return await db.chat.findMany({
+      // Get chats
+      const chats = await db.chat.findMany({
         where: {
           isGroup: true,
           gameId: 'continuous',
-        },
-        include: {
-          Message: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-          _count: {
-            select: {
-              Message: true,
-            },
-          },
         },
         orderBy: {
           createdAt: 'asc',
         },
       });
+
+      // Get message counts and latest messages for each chat
+      const chatIds = chats.map(c => c.id);
+      const [messageCounts, latestMessages] = await Promise.all([
+        Promise.all(
+          chatIds.map(async (chatId) => ({
+            chatId,
+            count: await db.message.count({ where: { chatId } }),
+          }))
+        ),
+        Promise.all(
+          chatIds.map(async (chatId) => {
+            const messages = await db.message.findMany({
+              where: { chatId },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            });
+            return { chatId, messages };
+          })
+        ),
+      ]);
+      const countMap = new Map(messageCounts.map(mc => [mc.chatId, mc.count]));
+      const messagesMap = new Map(latestMessages.map(({ chatId, messages }) => [chatId, messages]));
+
+      return chats.map(chat => ({
+        ...chat,
+        _messageCount: countMap.get(chat.id) ?? 0,
+        _latestMessages: messagesMap.get(chat.id) || [],
+      }));
     });
 
     logger.info('All game chats fetched', { count: gameChats.length }, 'GET /api/chats');
 
     return successResponse({
-      chats: gameChats.map(chat => ({
-        id: chat.id,
-        name: chat.name,
-        isGroup: chat.isGroup,
-        messageCount: chat._count.Message,
-        lastMessage: chat.Message[0] || null,
-      })),
+      chats: gameChats.map(chat => {
+        const latestMessages = (chat as typeof chat & { _latestMessages?: Array<{ id: string; content: string; createdAt: Date; senderId: string }> })._latestMessages || [];
+        return {
+          id: chat.id,
+          name: chat.name,
+          isGroup: chat.isGroup,
+          messageCount: chat._messageCount,
+          lastMessage: latestMessages[0] || null,
+        };
+      }),
     });
   }
 
@@ -271,13 +293,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       where: {
         id: { in: groupChatIds },
       },
-      include: {
-        Message: {
+    });
+
+    // Get last messages for group chats
+    const groupChatMessages = await Promise.all(
+      groupChatIds.map(async (chatId) => {
+        const messages = await db.message.findMany({
+          where: { chatId },
           orderBy: { createdAt: 'desc' },
           take: 1,
-        },
-      },
-    });
+        });
+        return { chatId, messages };
+      })
+    );
+    const groupMessagesMap = new Map(groupChatMessages.map(({ chatId, messages }) => [chatId, messages]));
 
     const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
 
@@ -299,13 +328,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         id: { in: dmChatIds },
         isGroup: false,
       },
-      include: {
-        ChatParticipant: true,
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
+    });
+
+    // Get participants and messages separately
+    const [allParticipants, allMessages] = await Promise.all([
+      db.chatParticipant.findMany({
+        where: { chatId: { in: dmChatIds } },
+      }),
+      Promise.all(
+        dmChatIds.map(async (chatId) => {
+          const messages = await db.message.findMany({
+            where: { chatId },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          });
+          return { chatId, messages };
+        })
+      ),
+    ]);
+
+    const participantsByChatId = new Map<string, typeof allParticipants>();
+    allParticipants.forEach(p => {
+      if (!participantsByChatId.has(p.chatId)) {
+        participantsByChatId.set(p.chatId, []);
+      }
+      participantsByChatId.get(p.chatId)!.push(p);
+    });
+
+    const messagesByChatId = new Map<string, typeof allMessages[number]['messages']>();
+    allMessages.forEach(({ chatId, messages }) => {
+      messagesByChatId.set(chatId, messages);
     });
 
     // Format group chats
@@ -313,11 +365,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .map((membership) => {
         const chat = chatDetailsMap.get(membership.chatId);
         if (!chat) return null;
+        const lastMessage = groupMessagesMap.get(membership.chatId)?.[0] || null;
         return {
           id: membership.chatId,
           name: chat.name || 'Unnamed Group',
           isGroup: true,
-          lastMessage: chat.Message[0] || null,
+          lastMessage,
           messageCount: membership.messageCount,
           qualityScore: membership.qualityScore,
           lastMessageAt: membership.lastMessageAt,
@@ -329,8 +382,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Format DM chats - get the other participant's name and details
     const directChats = await Promise.all(
       dmChatsDetails.map(async (chat) => {
+        const chatParticipants = participantsByChatId.get(chat.id) || [];
         // Find the other participant (not the current user)
-        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+        const otherParticipant = chatParticipants.find((p) => p.userId !== user.userId);
         let chatName = chat.name || 'Direct Message';
         let otherUserDetails = null;
         
@@ -363,12 +417,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           return null;
         }
         
+        // Get last message for this chat
+        const lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
+        
         return {
           id: chat.id,
           name: chatName,
           isGroup: false,
-          lastMessage: chat.Message[0] || null,
-          participants: chat.ChatParticipant.length,
+          lastMessage: lastMessage,
+          participants: chatParticipants.length,
           updatedAt: chat.updatedAt,
           otherUser: otherUserDetails,
         };

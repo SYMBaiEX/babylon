@@ -374,7 +374,7 @@ export interface ActorData extends Actor {
 
 /**
  * Database seed data structure
- * Used in prisma/seed.ts for seeding the database
+ * Used in src/db/seed.ts for seeding the database
  * This extends the basic ActorsDatabase with additional seed-specific requirements
  */
 export interface SeedActorsDatabase {

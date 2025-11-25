@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { syncUserReputationToERC8004 } from '@/lib/reputation/erc8004-reputation-sync'
 import { Agent0FeedbackService } from '@/lib/agent0/feedback-service'
@@ -21,7 +21,7 @@ describe('Reputation Sync with Localnet Default Keys', () => {
     const uniqueWalletSuffix = Date.now().toString(16).padStart(40, '0')
     const uniqueWalletAddress = `0x${uniqueWalletSuffix}`
 
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentUserId,
         username: `test-localnet-agent-${Date.now()}`,

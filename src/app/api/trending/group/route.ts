@@ -69,6 +69,7 @@ import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { tags, postTags, posts, users, actors, organizations, reactions, comments, shares, eq, inArray, desc, count } from '@/db'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
@@ -99,57 +100,61 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
 
   // Get tag information
-  const tags = (authUser && authUser.userId)
+  const tagsList = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
-        return await db.tag.findMany({
-          where: { id: { in: tagIds } },
-          select: {
-            id: true,
-            displayName: true,
-            category: true,
-          },
-        })
+        return await db.select({
+          id: tags.id,
+          displayName: tags.displayName,
+          category: tags.category,
+        }).from(tags).where(inArray(tags.id, tagIds))
       })
     : await asPublic(async (db) => {
-        return await db.tag.findMany({
-          where: { id: { in: tagIds } },
-          select: {
-            id: true,
-            displayName: true,
-            category: true,
-          },
-        })
+        return await db.select({
+          id: tags.id,
+          displayName: tags.displayName,
+          category: tags.category,
+        }).from(tags).where(inArray(tags.id, tagIds))
       })
 
   // Get posts that have any of these tags
   const postTagRelations = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
-        return await db.postTag.findMany({
-          where: {
-            tagId: { in: tagIds },
-          },
-          include: {
-            Post: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: limit * 2, // Get more to deduplicate
+        return await db.select({
+          postId: postTags.postId,
+          tagId: postTags.tagId,
+          createdAt: postTags.createdAt,
+          post: {
+            id: posts.id,
+            content: posts.content,
+            authorId: posts.authorId,
+            timestamp: posts.timestamp,
+            type: posts.type,
+          }
         })
+        .from(postTags)
+        .innerJoin(posts, eq(postTags.postId, posts.id))
+        .where(inArray(postTags.tagId, tagIds))
+        .orderBy(desc(postTags.createdAt))
+        .limit(limit * 2) // Get more to deduplicate
       })
     : await asPublic(async (db) => {
-        return await db.postTag.findMany({
-          where: {
-            tagId: { in: tagIds },
-          },
-          include: {
-            Post: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: limit * 2,
+        return await db.select({
+          postId: postTags.postId,
+          tagId: postTags.tagId,
+          createdAt: postTags.createdAt,
+          post: {
+            id: posts.id,
+            content: posts.content,
+            authorId: posts.authorId,
+            timestamp: posts.timestamp,
+            type: posts.type,
+          }
         })
+        .from(postTags)
+        .innerJoin(posts, eq(postTags.postId, posts.id))
+        .where(inArray(postTags.tagId, tagIds))
+        .orderBy(desc(postTags.createdAt))
+        .limit(limit * 2)
       })
 
   // Deduplicate posts (same post might have multiple tags from the group)
@@ -168,144 +173,114 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const postIds = uniquePosts.map(pt => pt.postId)
   
   // Get user info for authors
-  const authorIds = [...new Set(uniquePosts.map(pt => pt.Post.authorId))]
-  const [users, actors, organizations] = (authUser && authUser.userId)
+  const authorIds = [...new Set(uniquePosts.map(pt => pt.post.authorId))]
+  const [usersList, actorsList, orgsList] = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
         return await Promise.all([
-          db.user.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, username: true, displayName: true },
-          }),
-          db.actor.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, name: true },
-          }),
-          db.organization.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, name: true },
-          }),
+          db.select({ id: users.id, username: users.username, displayName: users.displayName })
+            .from(users).where(inArray(users.id, authorIds)),
+          db.select({ id: actors.id, name: actors.name })
+            .from(actors).where(inArray(actors.id, authorIds)),
+          db.select({ id: organizations.id, name: organizations.name })
+            .from(organizations).where(inArray(organizations.id, authorIds)),
         ])
       })
     : await asPublic(async (db) => {
         return await Promise.all([
-          db.user.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, username: true, displayName: true },
-          }),
-          db.actor.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, name: true },
-          }),
-          db.organization.findMany({
-            where: { id: { in: authorIds } },
-            select: { id: true, name: true },
-          }),
+          db.select({ id: users.id, username: users.username, displayName: users.displayName })
+            .from(users).where(inArray(users.id, authorIds)),
+          db.select({ id: actors.id, name: actors.name })
+            .from(actors).where(inArray(actors.id, authorIds)),
+          db.select({ id: organizations.id, name: organizations.name })
+            .from(organizations).where(inArray(organizations.id, authorIds)),
         ])
       })
 
-  const userMap = new Map(users.map(u => [u.id, u]))
-  const actorMap = new Map(actors.map(a => [a.id, a]))
-  const orgMap = new Map(organizations.map(o => [o.id, o]))
+  const userMap = new Map(usersList.map(u => [u.id, u]))
+  const actorMap = new Map(actorsList.map(a => [a.id, a]))
+  const orgMap = new Map(orgsList.map(o => [o.id, o]))
   
-  const [likeCounts, commentCounts, shareCounts] = (authUser && authUser.userId)
-    ? await asUser(authUser, async (db) => {
-        return await Promise.all([
-          db.reaction.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-              type: 'like',
-            },
-            _count: { postId: true },
-          }),
-          db.comment.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-            },
-            _count: { postId: true },
-          }),
-          db.share.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-            },
-            _count: { postId: true },
-          }),
-        ])
-      })
-    : await asPublic(async (db) => {
-        return await Promise.all([
-          db.reaction.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-              type: 'like',
-            },
-            _count: { postId: true },
-          }),
-          db.comment.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-            },
-            _count: { postId: true },
-          }),
-          db.share.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-            },
-            _count: { postId: true },
-          }),
-        ])
-      })
+  // Get interaction counts using Drizzle's count aggregation
+  const [likeCounts, commentCounts, shareCounts] = postIds.length > 0
+    ? (authUser && authUser.userId)
+      ? await asUser(authUser, async (db) => {
+          return await Promise.all([
+            db.select({ postId: reactions.postId, count: count() })
+              .from(reactions)
+              .where(inArray(reactions.postId, postIds))
+              .groupBy(reactions.postId),
+            db.select({ postId: comments.postId, count: count() })
+              .from(comments)
+              .where(inArray(comments.postId, postIds))
+              .groupBy(comments.postId),
+            db.select({ postId: shares.postId, count: count() })
+              .from(shares)
+              .where(inArray(shares.postId, postIds))
+              .groupBy(shares.postId),
+          ])
+        })
+      : await asPublic(async (db) => {
+          return await Promise.all([
+            db.select({ postId: reactions.postId, count: count() })
+              .from(reactions)
+              .where(inArray(reactions.postId, postIds))
+              .groupBy(reactions.postId),
+            db.select({ postId: comments.postId, count: count() })
+              .from(comments)
+              .where(inArray(comments.postId, postIds))
+              .groupBy(comments.postId),
+            db.select({ postId: shares.postId, count: count() })
+              .from(shares)
+              .where(inArray(shares.postId, postIds))
+              .groupBy(shares.postId),
+          ])
+        })
+    : [[], [], []]
 
-  const likeMap = new Map(likeCounts.map((lc) => [lc.postId, lc._count.postId || 0]))
-  const commentMap = new Map(commentCounts.map((cc) => [cc.postId, cc._count.postId || 0]))
-  const shareMap = new Map(shareCounts.map((sc) => [sc.postId, sc._count.postId || 0]))
+  const likeMap = new Map(likeCounts.map((lc) => [lc.postId, lc.count || 0]))
+  const commentMap = new Map(commentCounts.map((cc) => [cc.postId, cc.count || 0]))
+  const shareMap = new Map(shareCounts.map((sc) => [sc.postId, sc.count || 0]))
 
   // Format posts
-  const posts = uniquePosts.map((pt) => {
-    const user = userMap.get(pt.Post.authorId)
-    const actor = actorMap.get(pt.Post.authorId)
-    const org = orgMap.get(pt.Post.authorId)
+  const formattedPosts = uniquePosts.map((pt) => {
+    const user = userMap.get(pt.post.authorId)
+    const actor = actorMap.get(pt.post.authorId)
+    const org = orgMap.get(pt.post.authorId)
     
-    let authorName = pt.Post.authorId
+    let authorName = pt.post.authorId
     let authorUsername: string | null = null
     
     if (user) {
-      authorName = user.displayName || user.username || pt.Post.authorId
+      authorName = user.displayName || user.username || pt.post.authorId
       authorUsername = user.username
     } else if (actor) {
       authorName = actor.name
     } else if (org) {
-      authorName = org.name || pt.Post.authorId
+      authorName = org.name || pt.post.authorId
     }
     
     return {
-      id: pt.Post.id,
-      content: pt.Post.content,
-      authorId: pt.Post.authorId,
+      id: pt.post.id,
+      content: pt.post.content,
+      authorId: pt.post.authorId,
       authorName,
       authorUsername,
-      timestamp: pt.Post.timestamp.toISOString(),
-      likeCount: likeMap.get(pt.Post.id) || 0,
-      commentCount: commentMap.get(pt.Post.id) || 0,
-      shareCount: shareMap.get(pt.Post.id) || 0,
-      type: pt.Post.type,
+      timestamp: pt.post.timestamp.toISOString(),
+      likeCount: likeMap.get(pt.post.id) || 0,
+      commentCount: commentMap.get(pt.post.id) || 0,
+      shareCount: shareMap.get(pt.post.id) || 0,
+      type: pt.post.type,
     }
   })
 
   logger.info('Grouped trending posts retrieved', {
-    tagCount: tags.length,
-    postCount: posts.length,
+    tagCount: tagsList.length,
+    postCount: formattedPosts.length,
   }, 'GET /api/trending/group')
 
   return NextResponse.json({
     success: true,
-    posts,
-    tags,
+    posts: formattedPosts,
+    tags: tagsList,
   })
 })
-

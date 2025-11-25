@@ -68,7 +68,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { getCache, setCache } from '@/lib/cache-service';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -109,7 +109,7 @@ export const GET = withErrorHandling(async (
   }
 
   // Verify organization/ticker exists
-  const organization = await prisma.organization.findUnique({
+  const organization = await db.organization.findUnique({
     where: { id: ticker },
     select: {
       id: true,
@@ -127,7 +127,7 @@ export const GET = withErrorHandling(async (
   }
 
   // Get perp positions for this ticker
-  const perpPositions = await prisma.perpPosition.findMany({
+  const perpPositions = await db.perpPosition.findMany({
     where: {
       ticker: ticker,
     },
@@ -137,13 +137,13 @@ export const GET = withErrorHandling(async (
   });
 
   // Get total count for pagination
-  const totalPositions = await prisma.perpPosition.count({
+  const totalPositions = await db.perpPosition.count({
     where: { ticker: ticker },
   });
 
   // Fetch users for perp positions
   const perpUserIds = [...new Set(perpPositions.map(p => p.userId))];
-  const perpUsers = await prisma.user.findMany({
+  const perpUsers = await db.user.findMany({
     where: { id: { in: perpUserIds } },
     select: {
       id: true,
@@ -156,7 +156,7 @@ export const GET = withErrorHandling(async (
   const perpUsersMap = new Map(perpUsers.map(u => [u.id, u]));
 
   // Get NPC trades for this ticker
-  const npcTrades = await prisma.nPCTrade.findMany({
+  const npcTrades = await db.npcTrade.findMany({
     where: {
       marketType: 'perp',
       ticker: ticker,
@@ -168,7 +168,7 @@ export const GET = withErrorHandling(async (
 
   // Fetch NPC actors
   const npcActorIds = [...new Set(npcTrades.map(t => t.npcActorId))];
-  const actors = await prisma.user.findMany({
+  const actors = await db.user.findMany({
     where: { id: { in: npcActorIds }, isActor: true },
     select: {
       id: true,
@@ -182,7 +182,7 @@ export const GET = withErrorHandling(async (
 
   // Get balance transactions for these perp positions
   const positionIds = perpPositions.map(p => p.id);
-  const balanceTransactions = positionIds.length > 0 ? await prisma.balanceTransaction.findMany({
+  const balanceTransactions = positionIds.length > 0 ? await db.balanceTransaction.findMany({
     where: {
       type: { in: ['perp_open', 'perp_close', 'perp_liquidation'] },
       relatedId: { in: positionIds },
@@ -202,7 +202,7 @@ export const GET = withErrorHandling(async (
 
   // Fetch users for transactions
   const txUserIds = [...new Set(balanceTransactions.map(tx => tx.userId))];
-  const txUsers = await prisma.user.findMany({
+  const txUsers = await db.user.findMany({
     where: { id: { in: txUserIds } },
     select: {
       id: true,

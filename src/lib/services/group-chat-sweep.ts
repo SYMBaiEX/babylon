@@ -10,7 +10,15 @@
  * Sweeps run periodically (daily) to maintain chat quality
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  eq,
+  and,
+  desc,
+  chats,
+  messages,
+  groupChatMemberships,
+} from '@/db';
 
 export interface SweepDecision {
   kickChance: number;
@@ -45,14 +53,16 @@ export class GroupChatSweep {
     userId: string,
     chatId: string
   ): Promise<SweepDecision> {
-    const membership = await prisma.groupChatMembership.findUnique({
-      where: {
-        userId_chatId: {
-          userId,
-          chatId,
-        },
-      },
-    });
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
 
     const baseStats = {
       hoursSinceLastMessage: 0,
@@ -70,15 +80,16 @@ export class GroupChatSweep {
     }
 
     // Get messages from this user in this chat
-    const allMessages = await prisma.message.findMany({
-      where: {
-        chatId,
-        senderId: userId,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const allMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.chatId, chatId),
+          eq(messages.senderId, userId)
+        )
+      )
+      .orderBy(desc(messages.createdAt));
 
     const totalMessages = allMessages.length;
     const ticksSinceJoin =
@@ -168,18 +179,20 @@ export class GroupChatSweep {
     chatId: string,
     reason: string
   ): Promise<void> {
-    await prisma.groupChatMembership.updateMany({
-      where: {
-        userId,
-        chatId,
-        isActive: true,
-      },
-      data: {
+    await db
+      .update(groupChatMemberships)
+      .set({
         isActive: false,
         sweepReason: reason,
         removedAt: new Date(),
-      },
-    });
+      })
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      );
   }
 
   /**
@@ -190,12 +203,15 @@ export class GroupChatSweep {
     removed: number;
     reasons: Record<string, number>;
   }> {
-    const memberships = await prisma.groupChatMembership.findMany({
-      where: {
-        chatId,
-        isActive: true,
-      },
-    });
+    const memberships = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.chatId, chatId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      );
 
     let removed = 0;
     const reasons: Record<string, number> = {};
@@ -228,19 +244,15 @@ export class GroupChatSweep {
     totalRemoved: number;
     reasonsSummary: Record<string, number>;
   }> {
-    const chats = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const groupChats = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.isGroup, true));
 
     let totalRemoved = 0;
     const reasonsSummary: Record<string, number> = {};
 
-    for (const chat of chats) {
+    for (const chat of groupChats) {
       const result = await this.sweepChat(chat.id);
       totalRemoved += result.removed;
 
@@ -251,7 +263,7 @@ export class GroupChatSweep {
     }
 
     return {
-      chatsChecked: chats.length,
+      chatsChecked: groupChats.length,
       totalRemoved,
       reasonsSummary,
     };
@@ -265,14 +277,16 @@ export class GroupChatSweep {
     chatId: string,
     newMessageQuality: number
   ): Promise<void> {
-    const membership = await prisma.groupChatMembership.findUnique({
-      where: {
-        userId_chatId: {
-          userId,
-          chatId,
-        },
-      },
-    });
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
 
     if (!membership) return;
 
@@ -282,19 +296,19 @@ export class GroupChatSweep {
       (membership.qualityScore * membership.messageCount + newMessageQuality) /
       totalMessages;
 
-    await prisma.groupChatMembership.update({
-      where: {
-        userId_chatId: {
-          userId,
-          chatId,
-        },
-      },
-      data: {
+    await db
+      .update(groupChatMemberships)
+      .set({
         messageCount: totalMessages,
         qualityScore: newAvgQuality,
         lastMessageAt: new Date(),
-      },
-    });
+      })
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      );
   }
 }
 

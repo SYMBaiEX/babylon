@@ -163,35 +163,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Check if agent exists in database (use upsert to avoid race conditions) with RLS
     // Note: Agents don't have wallet addresses - they're registered via server wallet
     const dbUser = await asUser(user, async (db) => {
-      return await db.user.upsert({
-      where: {
-        username: agentId, // Use username as unique identifier for agents
-      },
-      update: {
-        // Update fields if user exists but data changed
-        displayName: agentName || agentId,
-        bio: `Autonomous AI agent: ${agentId}`,
-      },
-      create: {
-        id: await generateSnowflakeId(),
-        privyId: agentId,
-        username: agentId,
-        displayName: agentName || agentId,
-        virtualBalance: 10000, // Start with 10k points
-        totalDeposited: 10000,
-        bio: `Autonomous AI agent: ${agentId}`,
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-      },
-    })
+      await db.user.upsert({
+        where: {
+          username: agentId, // Use username as unique identifier for agents
+        },
+        update: {
+          // Update fields if user exists but data changed
+          displayName: agentName || agentId,
+          bio: `Autonomous AI agent: ${agentId}`,
+        },
+        create: {
+          id: await generateSnowflakeId(),
+          privyId: agentId,
+          username: agentId,
+          displayName: agentName || agentId,
+          virtualBalance: '10000', // Start with 10k points
+          totalDeposited: '10000',
+          bio: `Autonomous AI agent: ${agentId}`,
+          updatedAt: new Date(),
+        },
+      })
+
+      // Fetch the user with selected fields
+      const userWithFields = await db.user.findUnique({
+        where: { privyId: agentId },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          bio: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          registrationTxHash: true,
+        },
+      })
+
+      if (!userWithFields) {
+        throw new Error('Failed to create or find user')
+      }
+
+      return userWithFields
     })
 
     // Create clients

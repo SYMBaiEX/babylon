@@ -55,12 +55,12 @@
 import type { NextRequest } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request)
 
-  const appeals = await prisma.user.findMany({
+  const appeals = await db.user.findMany({
     where: {
       appealStatus: 'human_review',
       isBanned: true,

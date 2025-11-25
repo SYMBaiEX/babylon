@@ -15,7 +15,7 @@
  * Weights evidence by source reliability and tracks signal strength over time.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, questions, posts, users, actors, eq, lte, inArray, isNull, and } from '@/db';
 import { logger } from '@/lib/logger';
 
 export interface SignalAnalysis {
@@ -59,14 +59,14 @@ export class SignalExtractionService {
    */
   static async extractMarketSignal(questionNumber: number): Promise<SignalAnalysis> {
     // Get the question
-    const question = await prisma.question.findUnique({
-      where: { questionNumber },
-      select: {
-        id: true,
-        questionNumber: true,
-        text: true,
-      },
-    });
+    const [question] = await db.select({
+      id: questions.id,
+      questionNumber: questions.questionNumber,
+      text: questions.text,
+    })
+      .from(questions)
+      .where(eq(questions.questionNumber, questionNumber))
+      .limit(1);
 
     if (!question) {
       throw new Error(`Question ${questionNumber} not found`);
@@ -76,58 +76,51 @@ export class SignalExtractionService {
     // Note: Signal metadata (pointsToward, clueStrength) currently stored in-memory during game
     // For now, we analyze post content and use gameId to find related posts
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        gameId: question.id, // Posts associated with this question's game
-        deletedAt: null,
-        timestamp: { lte: now }, // ✅ No future posts
-      },
-      select: {
-        id: true,
-        content: true,
-        authorId: true,
-        dayNumber: true,
-        sentiment: true,
-        biasScore: true,
-        type: true,
-        createdAt: true,
-      },
-      take: 1000, // Limit to prevent huge queries
-    });
+    const postsList = await db.select({
+      id: posts.id,
+      content: posts.content,
+      authorId: posts.authorId,
+      dayNumber: posts.dayNumber,
+      sentiment: posts.sentiment,
+      biasScore: posts.biasScore,
+      type: posts.type,
+      createdAt: posts.createdAt,
+    })
+      .from(posts)
+      .where(and(
+        eq(posts.gameId, question.id), // Posts associated with this question's game
+        isNull(posts.deletedAt),
+        lte(posts.timestamp, now) // ✅ No future posts
+      ))
+      .limit(1000); // Limit to prevent huge queries
     
     // Get author information separately
-    const authorIds = [...new Set(posts.map(p => p.authorId))];
-    const users = await prisma.user.findMany({
-      where: {
-        id: { in: authorIds },
-      },
-      select: {
-        id: true,
-        displayName: true,
-        isActor: true,
-      },
-    });
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const authorIds = [...new Set(postsList.map(p => p.authorId))];
+    const usersList = authorIds.length > 0 ? await db.select({
+      id: users.id,
+      displayName: users.displayName,
+      isActor: users.isActor,
+    })
+      .from(users)
+      .where(inArray(users.id, authorIds)) : [];
+    const userMap = new Map(usersList.map(u => [u.id, u]));
 
     // Get actor reliability scores for NPC posts
-    const npcPosts = posts.filter(p => {
+    const npcPosts = postsList.filter(p => {
       const user = userMap.get(p.authorId);
       return user?.isActor;
     });
     const npcIds = npcPosts.map(p => p.authorId);
     
-    const actors = await prisma.actor.findMany({
-      where: {
-        id: { in: npcIds },
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-      },
-    });
+    const actorsList = npcIds.length > 0 ? await db.select({
+      id: actors.id,
+      name: actors.name,
+      role: actors.role,
+    })
+      .from(actors)
+      .where(inArray(actors.id, npcIds)) : [];
 
-    const actorMap = new Map(actors.map(a => [a.id, a]));
+    const actorMap = new Map(actorsList.map(a => [a.id, a]));
 
     // Initialize signal accumulators
     let yesSignal = 0;
@@ -153,7 +146,7 @@ export class SignalExtractionService {
     // Process each post
     // NOTE: Currently posts don't have pointsToward in DB
     // We use sentiment analysis as a proxy for signal
-    for (const post of posts) {
+    for (const post of postsList) {
       // Skip non-NPC posts (only NPCs provide signal)
       const user = userMap.get(post.authorId);
       if (!user?.isActor) {
@@ -230,7 +223,7 @@ export class SignalExtractionService {
     }
 
     // Calculate metrics
-    const totalPosts = posts.length;
+    const totalPosts = postsList.length;
     const noisePosts = totalPosts - signalPosts;
     const signalRatio = totalPosts > 0 ? signalPosts / totalPosts : 0;
     

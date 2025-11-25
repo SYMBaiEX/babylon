@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { redirect } from 'next/navigation'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const ogImageUrl = `${appUrl}/api/og/referral/${encodeURIComponent(userId)}`
   
   // Get user data
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: {
       username: true,
@@ -85,7 +85,7 @@ export default async function ShareReferralPage({ params }: PageProps) {
   const userId = decodeURIComponent(rawUserId)
 
   // Check if user exists
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true },
   })

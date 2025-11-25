@@ -9,7 +9,9 @@ import { HuggingFaceDatasetUploader } from './HuggingFaceDatasetUploader';
 import { HuggingFaceModelUploader } from './HuggingFaceModelUploader';
 import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
 import { exportToHuggingFace } from '@/lib/agents/plugins/plugin-trajectory-logger/src/export';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { trainedModels, benchmarkResults, trajectories } from '@/db/schema';
+import { eq, isNotNull, gte, count, desc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 export interface WeeklyUploadResult {
@@ -145,9 +147,13 @@ export class HuggingFaceIntegrationService {
               if (comparison.recommendation === 'deploy' && !options.dryRun) {
                 logger.info(`Model ${modelId} improved, uploading`, undefined, 'HuggingFaceIntegration');
 
-                const model = await prisma.trainedModel.findUnique({
-                  where: { modelId },
-                });
+                const modelResult = await db
+                  .select()
+                  .from(trainedModels)
+                  .where(eq(trainedModels.modelId, modelId))
+                  .limit(1);
+
+                const model = modelResult[0];
 
                 if (model) {
                   const modelName = options.modelNamePrefix 
@@ -167,10 +173,10 @@ export class HuggingFaceIntegrationService {
                     result.models.uploaded++;
                     
                     // Update model with HuggingFace repo
-                    await prisma.trainedModel.update({
-                      where: { modelId },
-                      data: { huggingFaceRepo: modelName },
-                    });
+                    await db
+                      .update(trainedModels)
+                      .set({ huggingFaceRepo: modelName })
+                      .where(eq(trainedModels.modelId, modelId));
                   } else {
                     result.errors.push(`Model upload ${modelId}: ${uploadResult.error}`);
                   }
@@ -224,30 +230,30 @@ export class HuggingFaceIntegrationService {
     };
   }> {
     // Get last upload time from database (we could track this)
-    const lastUpload = await prisma.trainedModel.findFirst({
-      where: {
-        huggingFaceRepo: { not: null },
-      },
-      orderBy: { deployedAt: 'desc' },
-      select: { deployedAt: true },
-    });
+    const lastUploadResult = await db
+      .select({ deployedAt: trainedModels.deployedAt })
+      .from(trainedModels)
+      .where(isNotNull(trainedModels.huggingFaceRepo))
+      .orderBy(desc(trainedModels.deployedAt))
+      .limit(1);
 
-    const lastUploadTime = lastUpload?.deployedAt || new Date(0);
+    const lastUploadTime = lastUploadResult[0]?.deployedAt || new Date(0);
 
     // Check for new benchmarks (from benchmark_results table)
-    const newBenchmarksCount = await prisma.benchmarkResult.count({
-      where: {
-        createdAt: { gte: lastUploadTime },
-      },
-    });
+    const newBenchmarksCountResult = await db
+      .select({ count: count() })
+      .from(benchmarkResults)
+      .where(gte(benchmarkResults.createdAt, lastUploadTime));
+
+    const newBenchmarksCount = newBenchmarksCountResult[0]?.count || 0;
 
     // Check for new trajectories
-    const newTrajectoriesCount = await prisma.trajectory.count({
-      where: {
-        createdAt: { gte: lastUploadTime },
-        isTrainingData: true,
-      },
-    });
+    const newTrajectoriesCountResult = await db
+      .select({ count: count() })
+      .from(trajectories)
+      .where(gte(trajectories.createdAt, lastUploadTime));
+
+    const newTrajectoriesCount = newTrajectoriesCountResult[0]?.count || 0;
 
     // Check for unbenchmarked models
     const unbenchmarkedModels = await ModelBenchmarkService.getUnbenchmarkedModels();
@@ -280,18 +286,18 @@ export class HuggingFaceIntegrationService {
       issues.push('HUGGING_FACE_TOKEN or HF_TOKEN environment variable not set');
     }
 
-    // Check database connection
+    // Check database connection with a simple query
     try {
-      await prisma.$connect();
+      await db.select({ count: count() }).from(trainedModels);
     } catch {
       issues.push('Cannot connect to database');
     }
 
     // Check BenchmarkResult table exists
     try {
-      await prisma.benchmarkResult.count();
+      await db.select({ count: count() }).from(benchmarkResults);
     } catch {
-      issues.push('BenchmarkResult table does not exist. Run: npx prisma migrate dev');
+      issues.push('BenchmarkResult table does not exist. Run: npx drizzle-kit push');
     }
 
     // Check for standard benchmarks
@@ -301,22 +307,23 @@ export class HuggingFaceIntegrationService {
     }
 
     // Check for benchmark data
-    const benchmarkCount = await prisma.benchmarkResult.count();
-    if (benchmarkCount === 0) {
+    const benchmarkCountResult = await db.select({ count: count() }).from(benchmarkResults);
+    if ((benchmarkCountResult[0]?.count || 0) === 0) {
       warnings.push('No benchmark results in database. Run some benchmarks first.');
     }
 
     // Check for trajectory data
-    const trajectoryCount = await prisma.trajectory.count({
-      where: { isTrainingData: true },
-    });
-    if (trajectoryCount === 0) {
+    const trajectoryCountResult = await db
+      .select({ count: count() })
+      .from(trajectories)
+      .where(eq(trajectories.isTrainingData, true));
+    if ((trajectoryCountResult[0]?.count || 0) === 0) {
       warnings.push('No training trajectories in database. Generate with agents or test data.');
     }
 
     // Check for trained models
-    const modelCount = await prisma.trainedModel.count();
-    if (modelCount === 0) {
+    const modelCountResult = await db.select({ count: count() }).from(trainedModels);
+    if ((modelCountResult[0]?.count || 0) === 0) {
       warnings.push('No trained models in database.');
     }
 
@@ -336,36 +343,49 @@ export class HuggingFaceIntegrationService {
     models: { total: number; benchmarked: number; deployed: number };
     huggingface: { datasetsPublished: number; modelsPublished: number };
   }> {
-    const benchmarkCount = await prisma.benchmarkResult.count();
-    const lastBenchmark = await prisma.benchmarkResult.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
+    const benchmarkCountResult = await db.select({ count: count() }).from(benchmarkResults);
+    const benchmarkCount = benchmarkCountResult[0]?.count || 0;
 
-    const trajectoryTotal = await prisma.trajectory.count();
-    const trajectoryTraining = await prisma.trajectory.count({
-      where: { isTrainingData: true },
-    });
+    const lastBenchmarkResult = await db
+      .select({ createdAt: benchmarkResults.createdAt })
+      .from(benchmarkResults)
+      .orderBy(desc(benchmarkResults.createdAt))
+      .limit(1);
 
-    const modelTotal = await prisma.trainedModel.count();
-    const modelBenchmarked = await prisma.trainedModel.count({
-      where: { benchmarkScore: { not: null } },
-    });
-    const modelDeployed = await prisma.trainedModel.count({
-      where: { huggingFaceRepo: { not: null } },
-    });
+    const trajectoryTotalResult = await db.select({ count: count() }).from(trajectories);
+    const trajectoryTotal = trajectoryTotalResult[0]?.count || 0;
+
+    const trajectoryTrainingResult = await db
+      .select({ count: count() })
+      .from(trajectories)
+      .where(eq(trajectories.isTrainingData, true));
+    const trajectoryTraining = trajectoryTrainingResult[0]?.count || 0;
+
+    const modelTotalResult = await db.select({ count: count() }).from(trainedModels);
+    const modelTotal = modelTotalResult[0]?.count || 0;
+
+    const modelBenchmarkedResult = await db
+      .select({ count: count() })
+      .from(trainedModels)
+      .where(isNotNull(trainedModels.benchmarkScore));
+    const modelBenchmarked = modelBenchmarkedResult[0]?.count || 0;
+
+    const modelDeployedResult = await db
+      .select({ count: count() })
+      .from(trainedModels)
+      .where(isNotNull(trainedModels.huggingFaceRepo));
+    const modelDeployed = modelDeployedResult[0]?.count || 0;
 
     // Count unique HuggingFace repos
-    const hfRepos = await prisma.trainedModel.findMany({
-      where: { huggingFaceRepo: { not: null } },
-      select: { huggingFaceRepo: true },
-      distinct: ['huggingFaceRepo'],
-    });
+    const hfRepos = await db
+      .selectDistinctOn([trainedModels.huggingFaceRepo], { huggingFaceRepo: trainedModels.huggingFaceRepo })
+      .from(trainedModels)
+      .where(isNotNull(trainedModels.huggingFaceRepo));
 
     return {
       benchmarks: {
         total: benchmarkCount,
-        lastUpload: lastBenchmark?.createdAt,
+        lastUpload: lastBenchmarkResult[0]?.createdAt,
       },
       trajectories: {
         total: trajectoryTotal,

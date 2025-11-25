@@ -2,7 +2,9 @@
  * Server-side portfolio P&L calculation
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import { users, perpPositions, positions, markets } from '@/db/schema'
+import { eq, isNull, and } from 'drizzle-orm'
 
 export interface PortfolioPnLSnapshot {
   lifetimePnL: number
@@ -31,65 +33,57 @@ function toNumber(value: unknown, fallback = 0): number {
 export async function calculatePortfolioPnL(
   userId: string
 ): Promise<PortfolioPnLSnapshot | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      virtualBalance: true,
-      totalDeposited: true,
-      totalWithdrawn: true,
-      lifetimePnL: true,
-    },
-  })
+  const userResult = await db
+    .select({
+      virtualBalance: users.virtualBalance,
+      totalDeposited: users.totalDeposited,
+      totalWithdrawn: users.totalWithdrawn,
+      lifetimePnL: users.lifetimePnL,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
 
+  const user = userResult[0]
   if (!user) return null
 
-  const perpPositions = await prisma.perpPosition.findMany({
-    where: {
-      userId,
-      closedAt: null,
-    },
-    select: {
-      unrealizedPnL: true,
-    },
-  })
+  const perpPositionResults = await db
+    .select({
+      unrealizedPnL: perpPositions.unrealizedPnL,
+    })
+    .from(perpPositions)
+    .where(and(eq(perpPositions.userId, userId), isNull(perpPositions.closedAt)))
 
-  const predictionPositions = await prisma.position.findMany({
-    where: {
-      userId,
-      Market: {
-        resolved: false,
-      },
-    },
-    select: {
-      shares: true,
-      avgPrice: true,
-      side: true,
-      Market: {
-        select: {
-          yesShares: true,
-          noShares: true,
-        },
-      },
-    },
-  })
+  // For prediction positions, we need to join with markets
+  const predictionPositionResults = await db
+    .select({
+      shares: positions.shares,
+      avgPrice: positions.avgPrice,
+      side: positions.side,
+      marketYesShares: markets.yesShares,
+      marketNoShares: markets.noShares,
+    })
+    .from(positions)
+    .innerJoin(markets, eq(positions.marketId, markets.id))
+    .where(and(eq(positions.userId, userId), eq(markets.resolved, false)))
 
   const totalDeposited = toNumber(user.totalDeposited)
   const totalWithdrawn = toNumber(user.totalWithdrawn)
   const lifetimePnL = toNumber(user.lifetimePnL)
   const availableBalance = toNumber(user.virtualBalance)
 
-  const perpUnrealized = perpPositions.reduce(
+  const perpUnrealized = perpPositionResults.reduce(
     (sum, position) => sum + toNumber(position.unrealizedPnL),
     0
   )
 
-  const predictionUnrealized = predictionPositions.reduce((sum, position) => {
+  const predictionUnrealized = predictionPositionResults.reduce((sum, position) => {
     const shares = toNumber(position.shares)
     const avgPrice = toNumber(position.avgPrice)
     
     // Calculate current price from shares (CPMM pricing)
-    const yesShares = toNumber(position.Market.yesShares)
-    const noShares = toNumber(position.Market.noShares)
+    const yesShares = toNumber(position.marketYesShares)
+    const noShares = toNumber(position.marketNoShares)
     const totalShares = yesShares + noShares
     
     const currentPrice = totalShares > 0

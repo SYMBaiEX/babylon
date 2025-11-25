@@ -8,7 +8,7 @@
 
 Defined in: [src/lib/errors/base.errors.ts:119](https://github.com/lalalune/babylon/blob/309d41be44719cd3238d25a6c463d399f70ddf34/src/lib/errors/base.errors.ts#L119)
 
-Database error for Prisma/database issues
+Database error for Drizzle/database issues
 
 ## Extends
 

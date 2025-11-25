@@ -56,7 +56,7 @@
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { GetMutesSchema } from '@/lib/validation/schemas/moderation';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -69,7 +69,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   const [mutes, total] = await Promise.all([
-    prisma.userMute.findMany({
+    db.userMute.findMany({
       where: { muterId: authUser.userId },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -86,7 +86,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       },
     }),
-    prisma.userMute.count({
+    db.userMute.count({
       where: { muterId: authUser.userId },
     }),
   ]);

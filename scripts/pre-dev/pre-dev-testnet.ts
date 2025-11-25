@@ -126,27 +126,37 @@ if (redisRunning.trim() !== 'babylon-redis') {
 }
 
 // Run database migrations
-const { PrismaClient } = await import('@prisma/client')
-const prisma = new PrismaClient()
+import { db, actors, count, closeDatabase, checkDatabaseHealth } from '@/db'
 
-await prisma.$connect()
+const isConnected = await checkDatabaseHealth().catch(() => false)
+if (!isConnected) {
+  logger.info('Database not ready, running migrations...', undefined, 'Script')
+  await $`bunx drizzle-kit push`.quiet().catch(async () => {
+    await $`bunx drizzle-kit push --force`.quiet()
+  })
+}
+
 logger.info('✅ Database connected', undefined, 'Script')
 
-const actorCount = await prisma.actor.count().catch(async (error: Error) => {
-  const errorMessage = error.message
-  if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
-    logger.info('Running database migrations...', undefined, 'Script')
-    await $`bunx prisma migrate deploy`.quiet().catch(async () => {
-      await $`bunx prisma db push --skip-generate`.quiet()
-    })
+const actorCountResult = await db.select({ count: count() })
+  .from(actors)
+  .catch(async (error: Error) => {
+    const errorMessage = error.message
+    if (errorMessage.includes('does not exist') || errorMessage.includes('relation')) {
+      logger.info('Running database migrations...', undefined, 'Script')
+      await $`bunx drizzle-kit push`.quiet().catch(async () => {
+        await $`bunx drizzle-kit push --force`.quiet()
+      })
 
-    logger.info('Running database seed...', undefined, 'Script')
-    await $`bun run db:seed`
-    logger.info('✅ Database ready', undefined, 'Script')
-    return 0
-  }
-  throw error
-})
+      logger.info('Running database seed...', undefined, 'Script')
+      await $`bun run db:seed`
+      logger.info('✅ Database ready', undefined, 'Script')
+      return [{ count: 0 }]
+    }
+    throw error
+  })
+
+const actorCount = Number(actorCountResult[0]?.count ?? 0)
 
 if (actorCount === 0) {
   logger.info('Running database seed...', undefined, 'Script')
@@ -156,7 +166,7 @@ if (actorCount === 0) {
   logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
 }
 
-await prisma.$disconnect()
+await closeDatabase()
 
 logger.info('', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')
@@ -174,4 +184,3 @@ if (contractValidation.contracts.diamond) {
 logger.info('', undefined, 'Script')
 logger.info('Starting Next.js...', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')
-

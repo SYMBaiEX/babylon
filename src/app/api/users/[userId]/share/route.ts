@@ -105,7 +105,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/prisma'
+import { db, shareActions, eq, and, desc } from '@/db'
 import { AuthorizationError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -147,35 +147,37 @@ export const GET = withErrorHandling(async (
   const contentType = searchParams.get('contentType');
 
   // Query for verified and earned shares
-  const shares = await prisma.shareAction.findMany({
-    where: {
-      userId: canonicalUserId,
-      verified: true,
-      pointsAwarded: true,
-      ...(contentType ? { contentType } : {}),
-    },
-    select: {
-      id: true,
-      platform: true,
-      contentType: true,
-      contentId: true,
-      createdAt: true,
-      verifiedAt: true,
-    },
-    orderBy: {
-      verifiedAt: 'desc',
-    },
-  });
+  const whereConditions = [
+    eq(shareActions.userId, canonicalUserId),
+    eq(shareActions.verified, true),
+    eq(shareActions.pointsAwarded, true),
+  ];
+
+  if (contentType) {
+    whereConditions.push(eq(shareActions.contentType, contentType));
+  }
+
+  const sharesData = await db.select({
+    id: shareActions.id,
+    platform: shareActions.platform,
+    contentType: shareActions.contentType,
+    contentId: shareActions.contentId,
+    createdAt: shareActions.createdAt,
+    verifiedAt: shareActions.verifiedAt,
+  })
+    .from(shareActions)
+    .where(and(...whereConditions))
+    .orderBy(desc(shareActions.verifiedAt));
 
   logger.info(
-    `Retrieved ${shares.length} verified shares for user ${canonicalUserId}`,
-    { userId: canonicalUserId, contentType, count: shares.length },
+    `Retrieved ${sharesData.length} verified shares for user ${canonicalUserId}`,
+    { userId: canonicalUserId, contentType, count: sharesData.length },
     'GET /api/users/[userId]/share'
   );
 
   return successResponse({
-    shares,
-    count: shares.length,
+    shares: sharesData,
+    count: sharesData.length,
   });
 });
 
@@ -204,9 +206,10 @@ export const POST = withErrorHandling(async (
   const { platform, contentType, contentId, url } = ShareRequestSchema.parse(body);
 
   // Create share action record (points will be awarded after verification)
-  const shareAction = await prisma.shareAction.create({
-    data: {
-      id: await generateSnowflakeId(),
+  const shareActionId = await generateSnowflakeId();
+  const [shareAction] = await db.insert(shareActions)
+    .values({
+      id: shareActionId,
       userId: canonicalUserId,
       platform,
       contentType,
@@ -214,12 +217,12 @@ export const POST = withErrorHandling(async (
       url,
       pointsAwarded: false,
       verified: false, // Must be verified before points are awarded
-    },
-  });
+    })
+    .returning();
 
   logger.info(
     `User ${canonicalUserId} initiated share for ${contentType} on ${platform} (pending verification)`,
-    { userId: canonicalUserId, platform, contentType, contentId, shareId: shareAction.id },
+    { userId: canonicalUserId, platform, contentType, contentId, shareId: shareAction?.id },
     'POST /api/users/[userId]/share'
   );
 

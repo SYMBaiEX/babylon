@@ -2,7 +2,7 @@
  * Points Constants
  * 
  * @description Point award amounts for various actions in the rewards system.
- * Extracted to avoid bundling Prisma into client components. These constants
+ * Extracted to avoid bundling database into client components. These constants
  * define the point values awarded for user actions like signup, profile completion,
  * social account linking, and referrals.
  */

@@ -78,10 +78,10 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
+import { db, users, eq } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import {  AuthorizationError } from '@/lib/errors';
+import { AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
@@ -90,6 +90,7 @@ const UpdateVisibilityRequestSchema = z.object({
   platform: z.enum(['twitter', 'farcaster', 'wallet']),
   visible: z.boolean()
 });
+
 export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
@@ -111,7 +112,7 @@ export const POST = withErrorHandling(async (
   const { platform, visible } = UpdateVisibilityRequestSchema.parse(body);
 
   // Build update data based on platform
-  const updateData: Record<string, boolean> = {};
+  const updateData: Partial<typeof users.$inferInsert> = {};
   switch (platform) {
     case 'twitter':
       updateData.showTwitterPublic = visible;
@@ -125,16 +126,15 @@ export const POST = withErrorHandling(async (
   }
 
   // Update user visibility preference
-  const updatedUser = await prisma.user.update({
-    where: { id: canonicalUserId },
-    data: updateData,
-    select: {
-      id: true,
-      showTwitterPublic: true,
-      showFarcasterPublic: true,
-      showWalletPublic: true,
-    },
-  });
+  const [updatedUser] = await db.update(users)
+    .set(updateData)
+    .where(eq(users.id, canonicalUserId))
+    .returning({
+      id: users.id,
+      showTwitterPublic: users.showTwitterPublic,
+      showFarcasterPublic: users.showFarcasterPublic,
+      showWalletPublic: users.showWalletPublic,
+    });
 
   logger.info(
     `User ${canonicalUserId} updated ${platform} visibility to ${visible}`,
@@ -145,9 +145,9 @@ export const POST = withErrorHandling(async (
   return successResponse({
     success: true,
     visibility: {
-      twitter: updatedUser.showTwitterPublic,
-      farcaster: updatedUser.showFarcasterPublic,
-      wallet: updatedUser.showWalletPublic,
+      twitter: updatedUser?.showTwitterPublic ?? false,
+      farcaster: updatedUser?.showFarcasterPublic ?? false,
+      wallet: updatedUser?.showWalletPublic ?? false,
     },
   });
 });

@@ -6,7 +6,7 @@
 
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcResult } from '@/types/a2a'
 import { ErrorCode } from '@/types/a2a'
-import { prisma } from '@/lib/prisma'
+import { db, moderationEscrows, users, eq, and, lt, sql } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
 import { X402Manager } from '@/lib/a2a/payments/x402-manager'
@@ -65,7 +65,7 @@ export async function handleCreateEscrowPayment(
 ): Promise<JsonRpcResponse> {
   try {
     // Verify agent is admin
-    const adminCheck = await prisma.user.findUnique({
+    const adminCheck = await db.user.findUnique({
       where: { id: agentId },
       select: { id: true, isAdmin: true, walletAddress: true },
     })
@@ -107,7 +107,7 @@ export async function handleCreateEscrowPayment(
     }
 
     // Verify recipient exists and is not an actor
-    const recipientCheck = await prisma.user.findUnique({
+    const recipientCheck = await db.user.findUnique({
       where: { id: params.recipientId },
       select: { id: true, username: true, displayName: true, isActor: true, walletAddress: true },
     })
@@ -147,7 +147,7 @@ export async function handleCreateEscrowPayment(
     }
 
     // Check for duplicate recent escrows BEFORE creating payment request (prevent spam and orphaned requests)
-    const recentDuplicate = await prisma.moderationEscrow.findFirst({
+    const recentDuplicate = await db.moderationEscrow.findFirst({
       where: {
         recipientId: params.recipientId,
         adminId: agentId,
@@ -194,23 +194,30 @@ export async function handleCreateEscrowPayment(
 
     // Create escrow record
     const expiresAt = new Date(paymentRequest.expiresAt)
-    const escrow = await prisma.moderationEscrow.create({
-      data: {
-        id: await generateSnowflakeId(),
-        recipientId: params.recipientId,
-        adminId: agentId,
-        amountUSD: params.amountUSD.toString(),
-        amountWei: amountInWei,
-        status: 'pending',
-        reason: params.reason || null,
-        paymentRequestId: paymentRequest.requestId,
-        expiresAt,
-        metadata: {
-          recipientWalletAddress: params.recipientWalletAddress,
-          adminWalletAddress: adminCheck.walletAddress,
-        },
+    const [escrow] = await db.insert(moderationEscrows).values({
+      id: await generateSnowflakeId(),
+      recipientId: params.recipientId,
+      adminId: agentId,
+      amountUSD: params.amountUSD.toString(),
+      amountWei: amountInWei,
+      status: 'pending',
+      reason: params.reason || null,
+      paymentRequestId: paymentRequest.requestId,
+      expiresAt,
+      metadata: {
+        recipientWalletAddress: params.recipientWalletAddress,
+        adminWalletAddress: adminCheck.walletAddress,
       },
-    })
+      updatedAt: new Date(),
+    }).returning()
+
+    if (!escrow) {
+      throw new Error('Failed to create escrow record')
+    }
+
+    if (!escrow) {
+      throw new Error('Failed to create escrow record')
+    }
 
     logger.info('A2A Escrow payment created', {
       agentId,
@@ -264,7 +271,7 @@ export async function handleVerifyEscrowPayment(
 ): Promise<JsonRpcResponse> {
   try {
     // Verify agent is admin
-    const admin = await prisma.user.findUnique({
+    const admin = await db.user.findUnique({
       where: { id: agentId },
       select: { id: true, isAdmin: true },
     })
@@ -283,7 +290,7 @@ export async function handleVerifyEscrowPayment(
     const params = VerifyEscrowPaymentParamsSchema.parse(request.params)
 
     // Get escrow record
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { id: params.escrowId },
     })
 
@@ -301,7 +308,7 @@ export async function handleVerifyEscrowPayment(
     // Check if expired
     if (new Date() > escrow.expiresAt) {
       // Auto-expire if expired
-      await prisma.moderationEscrow.update({
+      await db.moderationEscrow.update({
         where: { id: params.escrowId },
         data: { status: 'expired' },
       })
@@ -351,7 +358,7 @@ export async function handleVerifyEscrowPayment(
     }
 
     // Use transaction to prevent race conditions
-    const verificationResult = await prisma.$transaction(async (tx) => {
+    const verificationResult = await db.$transaction(async (tx) => {
       // Re-fetch escrow within transaction
       const currentEscrow = await tx.moderationEscrow.findUnique({
         where: { id: params.escrowId },
@@ -432,7 +439,7 @@ export async function handleRefundEscrowPayment(
 ): Promise<JsonRpcResponse> {
   try {
     // Verify agent is admin
-    const admin = await prisma.user.findUnique({
+    const admin = await db.user.findUnique({
       where: { id: agentId },
       select: { id: true, isAdmin: true },
     })
@@ -451,7 +458,7 @@ export async function handleRefundEscrowPayment(
     const params = RefundEscrowPaymentParamsSchema.parse(request.params)
 
     // Get escrow record
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { id: params.escrowId },
     })
 
@@ -502,7 +509,7 @@ export async function handleRefundEscrowPayment(
     }
 
     // Use transaction to prevent race conditions
-    const updatedEscrow = await prisma.$transaction(async (tx) => {
+    const updatedEscrow = await db.$transaction(async (tx) => {
       // Re-fetch to ensure still refundable
       const currentEscrow = await tx.moderationEscrow.findUnique({
         where: { id: params.escrowId },
@@ -575,7 +582,7 @@ export async function handleListEscrowPayments(
 ): Promise<JsonRpcResponse> {
   try {
     // Verify agent is admin
-    const admin = await prisma.user.findUnique({
+    const admin = await db.user.findUnique({
       where: { id: agentId },
       select: { id: true, isAdmin: true },
     })
@@ -595,52 +602,49 @@ export async function handleListEscrowPayments(
 
     // Auto-expire old pending escrows before querying
     const now = new Date()
-    await prisma.moderationEscrow.updateMany({
-      where: {
-        status: 'pending',
-        expiresAt: {
-          lt: now,
-        },
-      },
-      data: {
-        status: 'expired',
-      },
-    })
+    await db.update(moderationEscrows)
+      .set({ status: 'expired', updatedAt: new Date() })
+      .where(and(
+        eq(moderationEscrows.status, 'pending'),
+        lt(moderationEscrows.expiresAt, now)
+      ))
 
-    const where: {
-      recipientId?: string
-      adminId?: string
-      status?: string
-    } = {}
+    const whereConditions = []
+    if (params.recipientId) whereConditions.push(eq(moderationEscrows.recipientId, params.recipientId))
+    if (params.adminId) whereConditions.push(eq(moderationEscrows.adminId, params.adminId))
+    if (params.status) whereConditions.push(eq(moderationEscrows.status, params.status))
+    const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined
 
-    if (params.recipientId) where.recipientId = params.recipientId
-    if (params.adminId) where.adminId = params.adminId
-    if (params.status) where.status = params.status
-
-    const [escrows, total] = await Promise.all([
-      prisma.moderationEscrow.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: params.limit,
-        skip: params.offset,
-        include: {
-          User: {
-            select: {
+    const [escrowsRaw, totalResult] = await Promise.all([
+      db.query.moderationEscrows.findMany({
+        where: whereClause ? (moderationEscrows, { eq, and: andFn }) => {
+          const conditions = []
+          if (params.recipientId) conditions.push(eq(moderationEscrows.recipientId, params.recipientId))
+          if (params.adminId) conditions.push(eq(moderationEscrows.adminId, params.adminId))
+          if (params.status) conditions.push(eq(moderationEscrows.status, params.status))
+          return conditions.length > 0 ? andFn(...conditions) : undefined
+        } : undefined,
+        orderBy: (moderationEscrows, { desc: descFn }) => [descFn(moderationEscrows.createdAt)],
+        limit: params.limit,
+        offset: params.offset,
+        with: {
+          recipient: {
+            columns: {
               id: true,
               username: true,
               displayName: true,
               profileImageUrl: true,
             },
           },
-          Admin: {
-            select: {
+          admin: {
+            columns: {
               id: true,
               username: true,
               displayName: true,
             },
           },
-          RefundedByUser: {
-            select: {
+          refundedByUser: {
+            columns: {
               id: true,
               username: true,
               displayName: true,
@@ -648,19 +652,23 @@ export async function handleListEscrowPayments(
           },
         },
       }),
-      prisma.moderationEscrow.count({ where }),
+      db.select({ count: sql<number>`count(*)` })
+        .from(moderationEscrows)
+        .where(whereClause),
     ])
+
+    const total = Number(totalResult[0]?.count ?? 0)
 
     return {
       jsonrpc: '2.0',
       result: {
         success: true,
-        escrows: escrows.map((escrow) => ({
+        escrows: escrowsRaw.map((escrow) => ({
           id: escrow.id,
           recipientId: escrow.recipientId,
-          recipient: escrow.User,
+          recipient: escrow.recipient,
           adminId: escrow.adminId,
-          admin: escrow.Admin,
+          admin: escrow.admin,
           amountUSD: escrow.amountUSD.toString(),
           amountWei: escrow.amountWei,
           status: escrow.status,
@@ -669,7 +677,7 @@ export async function handleListEscrowPayments(
           paymentTxHash: escrow.paymentTxHash,
           refundTxHash: escrow.refundTxHash,
           refundedBy: escrow.refundedBy,
-          refundedByUser: escrow.RefundedByUser,
+          refundedByUser: escrow.refundedByUser,
           refundedAt: escrow.refundedAt?.toISOString(),
           createdAt: escrow.createdAt.toISOString(),
           expiresAt: escrow.expiresAt.toISOString(),
@@ -709,7 +717,7 @@ export async function handleAppealBanWithEscrow(
     }).parse(request.params)
 
     // Get user
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: agentId },
       select: {
         id: true,
@@ -746,7 +754,7 @@ export async function handleAppealBanWithEscrow(
     }
 
     // Find escrow payment by transaction hash
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { paymentTxHash: params.escrowPaymentTxHash },
       include: {
         User: {
@@ -803,7 +811,7 @@ export async function handleAppealBanWithEscrow(
     }
 
     // Check if escrow was already used for an appeal
-    const existingAppealWithEscrow = await prisma.user.findFirst({
+    const existingAppealWithEscrow = await db.user.findFirst({
       where: {
         appealStakeTxHash: params.escrowPaymentTxHash,
       },
@@ -854,17 +862,17 @@ export async function handleAppealBanWithEscrow(
     }
 
     // Update user appeal status (using escrow as stake)
-    await prisma.user.update({
-      where: { id: agentId },
-      data: {
-        appealCount: user.appealCount + 1,
+    await db.update(users)
+      .set({
+        appealCount: (user.appealCount || 0) + 1,
         appealStaked: true,
-          appealStakeAmount: parseFloat(escrow.amountUSD.toString() || '0'),
+        appealStakeAmount: escrow.amountUSD.toString(),
         appealStakeTxHash: params.escrowPaymentTxHash,
         appealStatus: 'lenient_review',
         appealSubmittedAt: new Date(),
-      },
-    })
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, agentId))
 
     logger.info('A2A Ban appeal with escrow', {
       agentId,

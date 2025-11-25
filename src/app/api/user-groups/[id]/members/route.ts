@@ -86,13 +86,13 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { z } from 'zod';
 import { notifyUserGroupInvite } from '@/lib/services/notification-service';
-import { Prisma } from '@prisma/client';
+import { isUniqueConstraintError } from '@/db';
 
 const addMemberSchema = z.object({
   userId: z.string(),
@@ -113,12 +113,10 @@ export const POST = withErrorHandling(async (
   const { userId: inviteeId } = addMemberSchema.parse(body);
 
   // Check if requester is admin
-  const isAdmin = await prisma.userGroupAdmin.findUnique({
+  const isAdmin = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
+      groupId,
+      userId: user.userId,
     },
   });
 
@@ -130,7 +128,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Validate that invitee is a real user (not NPC)
-  const invitee = await prisma.user.findUnique({
+  const invitee = await db.user.findUnique({
     where: { id: inviteeId },
     select: {
       id: true,
@@ -155,12 +153,10 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if already a member
-  const existingMember = await prisma.userGroupMember.findUnique({
+  const existingMember = await db.userGroupMember.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: inviteeId,
-      },
+      groupId,
+      userId: inviteeId,
     },
   });
 
@@ -172,12 +168,10 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if already invited
-  const existingInvite = await prisma.userGroupInvite.findUnique({
+  const existingInvite = await db.userGroupInvite.findFirst({
     where: {
-      groupId_invitedUserId: {
-        groupId,
-        invitedUserId: inviteeId,
-      },
+      groupId,
+      invitedUserId: inviteeId,
     },
   });
 
@@ -189,7 +183,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Get group details for notification
-  const group = await prisma.userGroup.findUnique({
+  const group = await db.userGroup.findUnique({
     where: { id: groupId },
     select: { name: true },
   });
@@ -197,7 +191,7 @@ export const POST = withErrorHandling(async (
   // Create invite - handle unique constraint race condition
   let invite;
   try {
-    invite = await prisma.userGroupInvite.create({
+    invite = await db.userGroupInvite.create({
       data: {
         id: await generateSnowflakeId(),
         groupId,
@@ -208,16 +202,21 @@ export const POST = withErrorHandling(async (
     });
   } catch (error: unknown) {
     // Handle unique constraint violation (race condition)
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      const target = error.meta?.target as string[] | undefined
-      if (target?.includes('groupId') && target?.includes('invitedUserId')) {
+    // PostgreSQL error code 23505 is unique_violation
+    if (isUniqueConstraintError(error)) {
+      // Check if the error is related to the groupId_invitedUserId constraint
+      // PostgreSQL errors include constraint name in the error message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorObj = typeof error === 'object' && error !== null ? error as { constraint?: string; message?: string } : null;
+      
+      // Check if this is the unique constraint on (groupId, invitedUserId)
+      if (errorMessage.includes('groupId') || errorMessage.includes('invitedUserId') || 
+          errorObj?.constraint?.includes('groupId') || errorObj?.constraint?.includes('invitedUserId')) {
         // Check if there's now a pending invite (another request created it)
-        const raceConditionInvite = await prisma.userGroupInvite.findUnique({
+        const raceConditionInvite = await db.userGroupInvite.findFirst({
           where: {
-            groupId_invitedUserId: {
-              groupId,
-              invitedUserId: inviteeId,
-            },
+            groupId,
+            invitedUserId: inviteeId,
           },
         });
         if (raceConditionInvite?.status === 'pending') {

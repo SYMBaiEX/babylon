@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
-import { prisma } from '@/lib/prisma'
+import { db, agentPerformanceMetrics, eq } from '@/db'
 import { updateFeedbackMetrics } from '../reputation-service'
 
 const baseMetrics = {
+  id: 'test-id',
   userId: 'agent',
   totalFeedbackCount: 1,
   averageFeedbackScore: 60,
@@ -17,33 +18,61 @@ const baseMetrics = {
   updatedAt: new Date(),
 }
 
-const findUniqueMock = mock<typeof prisma.agentPerformanceMetrics.findUnique>(
-  async () => ({ ...baseMetrics })
-)
+// Mock the Drizzle query chain
+const findFirstMock = mock(async () => ({ ...baseMetrics }))
+const updateSetMock = mock()
+const updateWhereMock = mock(async () => [{}])
 
-const updateMock = mock<typeof prisma.agentPerformanceMetrics.update>(async () => ({}))
+// Create a mock query object
+const mockQueryMetrics = {
+  findFirst: findFirstMock,
+}
+
+// Create a mock update function that returns chain
+const mockUpdate = mock(() => ({
+  set: mock(() => ({
+    where: updateWhereMock,
+  })),
+}))
+
+// Store captured update data for assertions
+let capturedUpdateData: Record<string, number | Date | null> | null = null
 
 beforeEach(() => {
-  findUniqueMock.mockClear()
-  updateMock.mockClear()
+  findFirstMock.mockClear()
+  updateWhereMock.mockClear()
+  capturedUpdateData = null
+
+  // Mock the query.agentPerformanceMetrics
   // @ts-expect-error - overriding for tests
-  prisma.agentPerformanceMetrics.findUnique = findUniqueMock
+  db.query = {
+    agentPerformanceMetrics: mockQueryMetrics,
+  }
+
+  // Mock db.update to capture the data being set
   // @ts-expect-error - overriding for tests
-  prisma.agentPerformanceMetrics.update = updateMock
+  db.update = mock(() => ({
+    set: mock((data: Record<string, number | Date | null>) => {
+      capturedUpdateData = data
+      return {
+        where: mock(async () => [{}]),
+      }
+    }),
+  }))
 })
 
 describe('updateFeedbackMetrics', () => {
   test('updates intel averages when category=intel', async () => {
     await updateFeedbackMetrics('agent', 90, { category: 'intel' })
-    const call = updateMock.mock.calls[0]?.[0]
-    expect(call?.data.intelFeedbackCount).toBeGreaterThan(1)
-    expect(call?.data.averageIntelScore).toBeGreaterThan(60)
+    expect(capturedUpdateData).not.toBeNull()
+    expect(capturedUpdateData?.intelFeedbackCount).toBeGreaterThan(1)
+    expect(capturedUpdateData?.averageIntelScore).toBeGreaterThan(60)
   })
 
   test('leaves intel averages untouched when not intel', async () => {
     await updateFeedbackMetrics('agent', 20, { category: 'general' })
-    const call = updateMock.mock.calls[0]?.[0]
-    expect(call?.data.intelFeedbackCount).toBe(1)
-    expect(call?.data.averageIntelScore).toBe(60)
+    expect(capturedUpdateData).not.toBeNull()
+    expect(capturedUpdateData?.intelFeedbackCount).toBe(1)
+    expect(capturedUpdateData?.averageIntelScore).toBe(60)
   })
 })

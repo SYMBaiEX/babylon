@@ -62,7 +62,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 
@@ -82,12 +82,10 @@ export const DELETE = withErrorHandling(async (
   const { id: groupId, userId: targetUserId } = await context.params;
 
   // Check if requester is admin
-  const isAdmin = await prisma.userGroupAdmin.findUnique({
+  const isAdmin = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
+      groupId,
+      userId: user.userId,
     },
   });
 
@@ -99,7 +97,7 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Don't allow revoking the group creator's admin status
-  const group = await prisma.userGroup.findUnique({
+  const group = await db.userGroup.findUnique({
     where: { id: groupId },
     select: { createdById: true },
   });
@@ -112,12 +110,10 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Check if target is admin
-  const adminRecord = await prisma.userGroupAdmin.findUnique({
+  const adminRecord = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 
@@ -129,12 +125,10 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Revoke admin
-  await prisma.userGroupAdmin.delete({
+  await db.userGroupAdmin.delete({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: targetUserId,
-      },
+      groupId,
+      userId: targetUserId,
     },
   });
 

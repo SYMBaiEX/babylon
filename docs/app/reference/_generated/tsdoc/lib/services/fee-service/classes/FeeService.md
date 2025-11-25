@@ -140,7 +140,7 @@ Distribute referral fee to referrer
 
 ##### tx
 
-`Omit`\<*typeof* [`prisma`](../../../prisma/variables/prisma.md), `"$connect"` \| `"$disconnect"` \| `"$on"` \| `"$transaction"` \| `"$use"` \| `"$extends"`\>
+`Transaction`
 
 #### Returns
 

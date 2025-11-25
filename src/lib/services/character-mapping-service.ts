@@ -7,8 +7,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-import type { CharacterMapping, OrganizationMapping } from '@prisma/client';
+import { db, eq, desc, characterMappings, organizationMappings, type CharacterMapping, type OrganizationMapping } from '@/db';
 
 /**
  * Text replacement result
@@ -52,29 +51,18 @@ export class CharacterMappingService {
       return; // Use cached data
     }
 
-    // Handle case where prisma models are not available (e.g., test environment without database)
-    if (!prisma?.characterMapping || !prisma?.organizationMapping) {
-      logger.warn(
-        'CharacterMappingService: Database not available, using empty mappings',
-        undefined,
-        'CharacterMappingService'
-      );
-      this.characterMappingsCache = [];
-      this.organizationMappingsCache = [];
-      this.lastCacheUpdate = now;
-      return;
-    }
-
     try {
-      this.characterMappingsCache = await prisma.characterMapping.findMany({
-        where: { isActive: true },
-        orderBy: { priority: 'desc' }, // Higher priority first
-      });
+      this.characterMappingsCache = await db
+        .select()
+        .from(characterMappings)
+        .where(eq(characterMappings.isActive, true))
+        .orderBy(desc(characterMappings.priority));
 
-      this.organizationMappingsCache = await prisma.organizationMapping.findMany({
-        where: { isActive: true },
-        orderBy: { priority: 'desc' },
-      });
+      this.organizationMappingsCache = await db
+        .select()
+        .from(organizationMappings)
+        .where(eq(organizationMappings.isActive, true))
+        .orderBy(desc(organizationMappings.priority));
 
       this.lastCacheUpdate = now;
       logger.info(
@@ -236,8 +224,8 @@ export class CharacterMappingService {
     await this.loadMappings();
 
     let transformedText = text;
-    const characterMappings: Record<string, string> = {};
-    const organizationMappings: Record<string, string> = {};
+    const characterMappingsResult: Record<string, string> = {};
+    const organizationMappingsResult: Record<string, string> = {};
     let replacementCount = 0;
 
     // PHASE 1: Replace usernames FIRST (e.g., @elonmusk → @ailonmusk)
@@ -261,7 +249,7 @@ export class CharacterMappingService {
           const matchedUsername = match.slice(1);
           // Preserve case of the original username
           const casedReplacement = this.preserveCase(matchedUsername, parodyUsername);
-          characterMappings[`@${realUsername}`] = `@${casedReplacement}`;
+          characterMappingsResult[`@${realUsername}`] = `@${casedReplacement}`;
           replacementCount++;
           return `@${casedReplacement}`;
         });
@@ -314,7 +302,7 @@ export class CharacterMappingService {
               // Preserve the case of the original text
               const casedReplacement = this.preserveCase(actualMatch, replacement);
 
-              characterMappings[searchName] = casedReplacement;
+              characterMappingsResult[searchName] = casedReplacement;
               replacementCount++;
 
               return `${leadingChar}${casedReplacement}${trailingChar}`;
@@ -368,7 +356,7 @@ export class CharacterMappingService {
               // Preserve the case of the original text
               const casedReplacement = this.preserveCase(actualMatch, replacement);
 
-              organizationMappings[searchName] = casedReplacement;
+              organizationMappingsResult[searchName] = casedReplacement;
               replacementCount++;
 
               return `${leadingChar}${casedReplacement}${trailingChar}`;
@@ -380,8 +368,8 @@ export class CharacterMappingService {
 
     return {
       transformedText,
-      characterMappings,
-      organizationMappings,
+      characterMappings: characterMappingsResult,
+      organizationMappings: organizationMappingsResult,
       replacementCount,
     };
   }
@@ -463,9 +451,3 @@ function escapeRegex(str: string): string {
 
 // Singleton instance
 export const characterMappingService = new CharacterMappingService();
-
-
-
-
-
-

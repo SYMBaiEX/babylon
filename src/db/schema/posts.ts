@@ -204,38 +204,38 @@ export const trendingTags = pgTable(
 
 // Relations
 export const postsRelations = relations(posts, ({ one, many }) => ({
-  author: one(users, {
+  User: one(users, {
     fields: [posts.authorId],
     references: [users.id],
   }),
-  commentOnPost: one(posts, {
+  Post_commentOnPostIdToPost: one(posts, {
     fields: [posts.commentOnPostId],
     references: [posts.id],
     relationName: 'Post_commentOnPostIdToPost',
   }),
-  commentOnPosts: many(posts, {
+  other_Post_commentOnPostIdToPost: many(posts, {
     relationName: 'Post_commentOnPostIdToPost',
   }),
-  parentComment: one(posts, {
+  Post_parentCommentIdToPost: one(posts, {
     fields: [posts.parentCommentId],
     references: [posts.id],
     relationName: 'Post_parentCommentIdToPost',
   }),
-  childComments: many(posts, {
+  other_Post_parentCommentIdToPost: many(posts, {
     relationName: 'Post_parentCommentIdToPost',
   }),
-  originalPost: one(posts, {
+  Post_originalPostIdToPost: one(posts, {
     fields: [posts.originalPostId],
     references: [posts.id],
     relationName: 'Post_originalPostIdToPost',
   }),
-  reposts: many(posts, {
+  other_Post_originalPostIdToPost: many(posts, {
     relationName: 'Post_originalPostIdToPost',
   }),
-  comments: many(comments),
-  reactions: many(reactions),
-  shares: many(shares),
-  postTags: many(postTags),
+  Comment: many(comments),
+  Reaction: many(reactions),
+  Share: many(shares),
+  PostTag: many(postTags),
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({

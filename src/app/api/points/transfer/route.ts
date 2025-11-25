@@ -65,7 +65,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -110,7 +110,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Verify sender and recipient exist
   const [sender, recipient] = await Promise.all([
-    prisma.user.findUnique({
+    db.user.findUnique({
       where: { id: senderId },
       select: { 
         id: true, 
@@ -119,7 +119,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         username: true,
       },
     }),
-    prisma.user.findUnique({
+    db.user.findUnique({
       where: { id: recipientId },
       select: { 
         id: true, 
@@ -157,23 +157,25 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Perform the transfer in a transaction
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const senderPointsBefore = sender.reputationPoints
     const recipientPointsBefore = recipient.reputationPoints
 
     // Deduct from sender
+    const senderCurrentPoints = Number(sender.reputationPoints);
     const updatedSender = await tx.user.update({
       where: { id: senderId },
       data: {
-        reputationPoints: { decrement: amount },
+        reputationPoints: senderCurrentPoints - amount,
       },
     })
 
     // Add to recipient
+    const recipientCurrentPoints = Number(recipient.reputationPoints);
     const updatedRecipient = await tx.user.update({
       where: { id: recipientId },
       data: {
-        reputationPoints: { increment: amount },
+        reputationPoints: recipientCurrentPoints + amount,
       },
     })
 

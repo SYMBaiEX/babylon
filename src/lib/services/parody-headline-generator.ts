@@ -8,9 +8,9 @@
 
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, parodyHeadlines, gte, inArray, desc } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import type { RSSHeadline, ParodyHeadline } from '@prisma/client';
+import type { RSSHeadline, ParodyHeadline } from '@/db';
 import { characterMappingService } from './character-mapping-service';
 
 /**
@@ -213,8 +213,8 @@ Generate the parody now.`;
           headline.source?.name
         );
 
-        const parodyHeadline = await prisma.parodyHeadline.create({
-          data: {
+        const [parodyHeadline] = await db.insert(parodyHeadlines)
+          .values({
             id: await generateSnowflakeId(),
             originalHeadlineId: headline.id,
             originalTitle: headline.title,
@@ -224,10 +224,12 @@ Generate the parody now.`;
             characterMappings: parody.characterMappings,
             organizationMappings: parody.organizationMappings,
             generatedAt: new Date(),
-          },
-        });
+          })
+          .returning();
 
-        parodies.push(parodyHeadline);
+        if (parodyHeadline) {
+          parodies.push(parodyHeadline);
+        }
 
         logger.info(
           `Generated parody headline`,
@@ -257,29 +259,22 @@ Generate the parody now.`;
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - daysBack);
 
-    return prisma.parodyHeadline.findMany({
-      where: {
-        generatedAt: { gte: sevenDaysAgo },
-      },
-      orderBy: {
-        generatedAt: 'desc',
-      },
-    });
+    return db.select()
+      .from(parodyHeadlines)
+      .where(gte(parodyHeadlines.generatedAt, sevenDaysAgo))
+      .orderBy(desc(parodyHeadlines.generatedAt));
   }
 
   /**
    * Mark parody headlines as used in game context
    */
   async markAsUsed(parodyIds: string[]): Promise<void> {
-    await prisma.parodyHeadline.updateMany({
-      where: {
-        id: { in: parodyIds },
-      },
-      data: {
+    await db.update(parodyHeadlines)
+      .set({
         isUsed: true,
         usedAt: new Date(),
-      },
-    });
+      })
+      .where(inArray(parodyHeadlines.id, parodyIds));
   }
 
   /**

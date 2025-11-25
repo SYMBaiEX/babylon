@@ -129,7 +129,7 @@
 
 import type { NextRequest } from 'next/server';
 import db from '@/lib/database-service';
-import type { Market, Position } from '@prisma/client';
+import type { Market, Position } from '@/db';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -219,10 +219,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get markets and user positions with RLS
   const { markets, userPositionsMap } = (authUser && authUser.userId)
-    ? await asUser(authUser, async (dbPrisma) => {
+    ? await asUser(authUser, async (database) => {
     // Get all markets to check if they exist and get share counts
     const marketIds = questions.map(q => String(q.id));
-    const marketsList = await dbPrisma.market.findMany({
+    const marketsList = await database.market.findMany({
       where: {
         id: { in: marketIds },
       },
@@ -232,19 +232,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Get user positions if userId provided
     const positionsMap = new Map();
     if (userId) {
-      const positions = await dbPrisma.position.findMany({
+      const positions = await database.position.findMany({
         where: {
           userId: userId,
           marketId: { in: marketIds },
         },
-        include: {
-          Market: true,
-        },
       });
+
+      // Get markets for positions
+      const positionMarketIds = [...new Set(positions.map(p => p.marketId))];
+      const positionMarkets = positionMarketIds.length > 0
+        ? await database.market.findMany({
+            where: { id: { in: positionMarketIds } },
+          })
+        : [];
+      const positionMarketMap = new Map(positionMarkets.map(m => [m.id, m]));
 
       // Create map of marketId -> position data
       positions.forEach(p => {
-        const market = p.Market;
+        const positionWithMarket = p as typeof p & { Market?: Market | null };
+        const market = positionMarketMap.get(p.marketId) || positionWithMarket.Market || null;
         const snapshot = buildPositionSnapshot(p, market);
         const existingPositions = positionsMap.get(p.marketId) ?? [];
         positionsMap.set(p.marketId, [...existingPositions, snapshot]);
@@ -253,10 +260,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     return { markets: marketMap, userPositionsMap: positionsMap };
   })
-    : await asPublic(async (dbPrisma) => {
+    : await asPublic(async (database) => {
       // Get all markets to check if they exist and get share counts
       const marketIds = questions.map(q => String(q.id));
-      const marketsList = await dbPrisma.market.findMany({
+      const marketsList = await database.market.findMany({
         where: {
           id: { in: marketIds },
         },
@@ -266,19 +273,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // Get user positions if userId provided
       const positionsMap = new Map();
       if (userId) {
-        const positions = await dbPrisma.position.findMany({
+        const positions = await database.position.findMany({
           where: {
             userId: userId,
             marketId: { in: marketIds },
           },
-          include: {
-            Market: true,
-          },
         });
+
+        // Get markets for positions
+        const positionMarketIds = [...new Set(positions.map(p => p.marketId))];
+        const positionMarkets = positionMarketIds.length > 0
+          ? await database.market.findMany({
+              where: { id: { in: positionMarketIds } },
+            })
+          : [];
+        const positionMarketMap = new Map(positionMarkets.map(m => [m.id, m]));
 
         // Create map of marketId -> position data
         positions.forEach(p => {
-          const market = p.Market;
+          const positionWithMarket = p as typeof p & { Market?: Market | null };
+          const market = positionMarketMap.get(p.marketId) || positionWithMarket.Market || null;
           const snapshot = buildPositionSnapshot(p, market);
           const existingPositions = positionsMap.get(p.marketId) ?? [];
           positionsMap.set(p.marketId, [...existingPositions, snapshot]);

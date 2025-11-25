@@ -50,7 +50,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 export async function GET(
@@ -62,7 +62,7 @@ export async function GET(
 
     // SECURITY CHECK: Verify game is completed
     // For now, check if all questions for this game are resolved
-    const activeQuestions = await prisma.question.findMany({
+    const activeQuestions = await db.question.findMany({
       where: {
         // gameId: gameId,  // Add gameId to Question model if not exists
         status: 'active'
@@ -84,7 +84,7 @@ export async function GET(
     }
 
     // Get all resolved questions
-    const questions = await prisma.question.findMany({
+    const questions = await db.question.findMany({
       where: {
         status: 'resolved'
       },
@@ -93,7 +93,7 @@ export async function GET(
 
     // Get all posts from this time period
     // TODO: Add relatedQuestion field to Post model for better filtering
-    const posts = await prisma.post.findMany({
+    const posts = await db.post.findMany({
       where: {
         gameId: gameId,
         // relatedQuestion: { in: questions.map(q => q.questionNumber) }  // TODO: Add field

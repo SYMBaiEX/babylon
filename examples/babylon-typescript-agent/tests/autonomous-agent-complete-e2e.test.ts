@@ -23,7 +23,8 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { BabylonA2AClient } from '../src/a2a-client'
-import { PrismaClient } from '@prisma/client'
+import { db, eq } from '../../../src/db'
+import { users, markets, organizations, posts } from '../../../src/db/schema'
 import { generateSnowflakeId } from '../../../src/lib/snowflake'
 import dotenv from 'dotenv'
 
@@ -38,7 +39,6 @@ const TEST_AGENT_ADDRESS = '0x' + '1'.repeat(40)
 const TEST_TOKEN_ID = 999999
 
 describe('Autonomous Agent - Complete E2E Test', () => {
-  let prisma: PrismaClient
   let agentUserId: string
   let a2aClient: BabylonA2AClient
   let testMarketId: string | null = null
@@ -49,9 +49,6 @@ describe('Autonomous Agent - Complete E2E Test', () => {
   beforeAll(async () => {
     console.log('\n🧪 Setting up comprehensive E2E test...\n')
     
-    // Initialize Prisma
-    prisma = new PrismaClient()
-    
     // Check if server is running
     const response = await fetch(`${SERVER_URL}/api/health`)
     if (!response.ok) {
@@ -60,56 +57,44 @@ describe('Autonomous Agent - Complete E2E Test', () => {
     console.log('✅ Server is running')
 
     // Create or get test agent user
-    let agent = await prisma.user.findUnique({
-      where: { username: TEST_AGENT_ID }
-    })
+    const existingAgent = await db.select().from(users).where(eq(users.username, TEST_AGENT_ID)).limit(1)
 
-    if (!agent) {
+    if (existingAgent.length === 0) {
       agentUserId = await generateSnowflakeId()
-      agent = await prisma.user.create({
-        data: {
-          id: agentUserId,
-          username: TEST_AGENT_ID,
-          displayName: 'E2E Autonomous Agent',
-          bio: 'Comprehensive E2E test agent',
-          walletAddress: TEST_AGENT_ADDRESS,
-          isAgent: true,
-          virtualBalance: 10000, // Start with $10k
-          reputationPoints: 1000,
-          hasUsername: true,
-          profileComplete: true,
-          updatedAt: new Date()
-        }
+      await db.insert(users).values({
+        id: agentUserId,
+        username: TEST_AGENT_ID,
+        displayName: 'E2E Autonomous Agent',
+        bio: 'Comprehensive E2E test agent',
+        walletAddress: TEST_AGENT_ADDRESS,
+        isAgent: true,
+        virtualBalance: '10000', // Start with $10k
+        reputationPoints: 1000,
+        hasUsername: true,
+        profileComplete: true,
+        updatedAt: new Date()
       })
       console.log(`✅ Created test agent: ${agentUserId}`)
     } else {
-      agentUserId = agent.id
+      agentUserId = existingAgent[0]!.id
       // Ensure agent has balance
-      await prisma.user.update({
-        where: { id: agentUserId },
-        data: { virtualBalance: 10000 }
-      })
+      await db.update(users).set({ virtualBalance: '10000' }).where(eq(users.id, agentUserId))
       console.log(`✅ Using existing agent: ${agentUserId}`)
     }
 
     // Find an active prediction market
-    const market = await prisma.market.findFirst({
-      where: { resolved: false },
-      orderBy: { createdAt: 'desc' }
-    })
-    if (market) {
-      testMarketId = market.id
+    const marketResult = await db.select().from(markets).where(eq(markets.resolved, false)).orderBy(markets.createdAt).limit(1)
+    if (marketResult.length > 0) {
+      testMarketId = marketResult[0]!.id
       console.log(`✅ Found test market: ${testMarketId}`)
     } else {
       console.log('⚠️  No active markets found - some tests will be skipped')
     }
 
     // Find a perpetual market (organization)
-    const org = await prisma.organization.findFirst({
-      orderBy: { createdAt: 'desc' }
-    })
-    if (org) {
-      testPerpTicker = org.ticker || org.name.toUpperCase().substring(0, 4)
+    const orgResult = await db.select().from(organizations).orderBy(organizations.createdAt).limit(1)
+    if (orgResult.length > 0) {
+      testPerpTicker = orgResult[0]!.ticker || orgResult[0]!.name.toUpperCase().substring(0, 4)
       console.log(`✅ Found test perpetual: ${testPerpTicker}`)
     } else {
       console.log('⚠️  No perpetual markets found - some tests will be skipped')
@@ -128,17 +113,14 @@ describe('Autonomous Agent - Complete E2E Test', () => {
     
     // Override agentId to match the database user ID
     // This is critical - the server uses agentId from header to look up the user
-    ;(a2aClient as any).agentId = agentUserId
+    // Note: agentId is public and mutable, so direct assignment is safe
+    a2aClient.agentId = agentUserId
   }, 30000)
 
   afterAll(async () => {
-    // Cleanup
-    if (prisma) {
-      // Clean up test data
-      if (createdPostId) {
-        await prisma.post.delete({ where: { id: createdPostId } })
-      }
-      await prisma.$disconnect()
+    // Cleanup - delete test data
+    if (createdPostId) {
+      await db.delete(posts).where(eq(posts.id, createdPostId))
     }
     console.log('\n✅ Test cleanup complete\n')
   })
@@ -146,7 +128,7 @@ describe('Autonomous Agent - Complete E2E Test', () => {
   describe('Phase 1: Authentication & Connection', () => {
     it('should connect to A2A endpoint', async () => {
       // Ensure agentId matches the database user ID
-      ;(a2aClient as any).agentId = agentUserId
+      a2aClient.agentId = agentUserId
       await a2aClient.connect()
       expect(a2aClient.agentId).toBeDefined()
       expect(a2aClient.agentId).toBe(agentUserId) // Verify it matches
@@ -433,12 +415,12 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       // 1. Gather context
       console.log('   📊 Gathering context...')
       const portfolio = await a2aClient.getPortfolio()
-      const markets = await a2aClient.getMarkets()
+      const marketsData = await a2aClient.getMarkets()
       const feed = await a2aClient.getFeed(10)
       
       console.log(`      Balance: $${portfolio.balance}`)
       console.log(`      Positions: ${portfolio.positions.length}`)
-      console.log(`      Markets: ${markets.predictions.length + markets.perps.length}`)
+      console.log(`      Markets: ${marketsData.predictions.length + marketsData.perps.length}`)
       console.log(`      Feed posts: ${feed.posts.length}`)
 
       // 2. Check if we can trade
@@ -465,11 +447,10 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       console.log('\n   ✅ Complete autonomous cycle finished!\n')
       
       expect(portfolio).toBeDefined()
-      expect(markets).toBeDefined()
+      expect(marketsData).toBeDefined()
       expect(feed).toBeDefined()
     }, 30000)
   })
 })
 
 export {}
-

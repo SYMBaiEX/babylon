@@ -11,7 +11,7 @@
  */
 
 import { execSync } from 'child_process';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface WandbRun {
   id: string;
@@ -241,7 +241,7 @@ async function checkDatabaseModels(): Promise<void> {
     console.log('\n💾 Checking database for trained models...');
     
     try {
-      const models = await prisma.trainedModel.findMany({
+      const models = await db.trainedModel.findMany({
         orderBy: { createdAt: 'desc' },
         take: 5
       });
@@ -281,7 +281,7 @@ async function testWandbInferenceAPI(modelId?: string): Promise<void> {
     
     // If no model ID provided, try to get one from database
     if (!modelId) {
-      const model = await prisma.trainedModel.findFirst({
+      const model = await db.trainedModel.findFirst({
         where: {
           status: 'deployed',
           wandbRunId: { not: null }
@@ -400,7 +400,7 @@ async function main() {
   }
   
   try {
-    await prisma.$disconnect();
+    await db.$disconnect();
   } catch {
     // Ignore disconnect errors
   }

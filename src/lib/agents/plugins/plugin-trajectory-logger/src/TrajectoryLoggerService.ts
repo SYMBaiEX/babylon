@@ -15,7 +15,7 @@ import type {
   RewardComponents 
 } from './types';
 import { v4 as uuidv4 } from 'uuid';
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, llmCallLogs } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -132,44 +132,42 @@ export class TrajectoryLoggerService {
   }
 
   /**
-   * Save LLM call to database
+   * Save LLM call to database using Drizzle
    */
   private async saveLLMCallToDB(
     trajectoryId: string,
     stepId: string,
     llmCall: LLMCall
   ): Promise<void> {
-    await prisma.llmCallLog.create({
-        data: {
-          id: await generateSnowflakeId(),
-          trajectoryId,
-          stepId,
-          callId: llmCall.callId,
-          timestamp: new Date(llmCall.timestamp),
-          latencyMs: llmCall.latencyMs || undefined,
-          model: llmCall.model,
-          purpose: llmCall.purpose,
-          actionType: llmCall.actionType || null,
-          systemPrompt: llmCall.systemPrompt,
-          userPrompt: llmCall.userPrompt,
-          messagesJson: llmCall.messages ? JSON.stringify(llmCall.messages) : null,
-          response: llmCall.response,
-          reasoning: llmCall.reasoning || null,
-          temperature: llmCall.temperature,
-          maxTokens: llmCall.maxTokens,
-          topP: llmCall.topP || null,
-          promptTokens: llmCall.promptTokens || null,
-          completionTokens: llmCall.completionTokens || null,
-          totalTokens: llmCall.promptTokens && llmCall.completionTokens
-            ? llmCall.promptTokens + llmCall.completionTokens
-            : null,
-          metadata: JSON.stringify({
-            purpose: llmCall.purpose,
-            actionType: llmCall.actionType,
-            modelVersion: llmCall.modelVersion, // Store model version in metadata
-          }),
-        },
-      });
+    await db.insert(llmCallLogs).values({
+      id: await generateSnowflakeId(),
+      trajectoryId,
+      stepId,
+      callId: llmCall.callId,
+      timestamp: new Date(llmCall.timestamp),
+      latencyMs: llmCall.latencyMs || undefined,
+      model: llmCall.model,
+      purpose: llmCall.purpose,
+      actionType: llmCall.actionType || null,
+      systemPrompt: llmCall.systemPrompt,
+      userPrompt: llmCall.userPrompt,
+      messagesJson: llmCall.messages ? JSON.stringify(llmCall.messages) : null,
+      response: llmCall.response,
+      reasoning: llmCall.reasoning || null,
+      temperature: llmCall.temperature,
+      maxTokens: llmCall.maxTokens,
+      topP: llmCall.topP || null,
+      promptTokens: llmCall.promptTokens || null,
+      completionTokens: llmCall.completionTokens || null,
+      totalTokens: llmCall.promptTokens && llmCall.completionTokens
+        ? llmCall.promptTokens + llmCall.completionTokens
+        : null,
+      metadata: JSON.stringify({
+        purpose: llmCall.purpose,
+        actionType: llmCall.actionType,
+        modelVersion: llmCall.modelVersion,
+      }),
+    });
   }
 
   /**
@@ -294,7 +292,7 @@ export class TrajectoryLoggerService {
   }
 
   /**
-   * End trajectory and save to database
+   * End trajectory and save to database using Drizzle
    */
   async endTrajectory(
     trajectoryId: string,
@@ -319,41 +317,40 @@ export class TrajectoryLoggerService {
       };
     }
 
-    // Save to database
-    await prisma.trajectory.create({
-        data: {
-          id: await generateSnowflakeId(),
-          trajectoryId,
-          agentId: trajectory.agentId,
-          startTime: new Date(trajectory.startTime),
-          endTime: new Date(trajectory.endTime),
-          durationMs: trajectory.durationMs,
-          episodeId: trajectory.episodeId || null,
-          scenarioId: trajectory.scenarioId || null,
-          batchId: trajectory.batchId || null,
-          stepsJson: JSON.stringify(trajectory.steps),
-          rewardComponentsJson: JSON.stringify(trajectory.rewardComponents),
-          metricsJson: JSON.stringify(trajectory.metrics),
-          metadataJson: JSON.stringify(trajectory.metadata),
-          totalReward: trajectory.totalReward,
-          episodeLength: trajectory.metrics.episodeLength,
-          finalStatus: trajectory.metrics.finalStatus,
-          finalBalance: trajectory.metrics.finalBalance as number | undefined || null,
-          finalPnL: trajectory.metrics.finalPnL as number | undefined || null,
-          tradesExecuted: trajectory.metrics.tradesExecuted as number | undefined || null,
-          postsCreated: trajectory.metrics.postsCreated as number | undefined || null,
-          isTrainingData: (trajectory.metadata.isTrainingData as boolean | undefined) ?? true,
-          isEvaluation: (trajectory.metadata.isEvaluation as boolean | undefined) ?? false,
-          usedInTraining: false,
-        },
-      });
+    // Save to database using Drizzle
+    await db.insert(trajectories).values({
+      id: await generateSnowflakeId(),
+      trajectoryId,
+      agentId: trajectory.agentId,
+      startTime: new Date(trajectory.startTime),
+      endTime: new Date(trajectory.endTime),
+      durationMs: trajectory.durationMs,
+      episodeId: trajectory.episodeId || null,
+      scenarioId: trajectory.scenarioId || null,
+      batchId: trajectory.batchId || null,
+      stepsJson: JSON.stringify(trajectory.steps),
+      rewardComponentsJson: JSON.stringify(trajectory.rewardComponents),
+      metricsJson: JSON.stringify(trajectory.metrics),
+      metadataJson: JSON.stringify(trajectory.metadata),
+      totalReward: trajectory.totalReward,
+      episodeLength: trajectory.metrics.episodeLength,
+      finalStatus: trajectory.metrics.finalStatus,
+      finalBalance: trajectory.metrics.finalBalance as number | undefined ?? null,
+      finalPnL: trajectory.metrics.finalPnL as number | undefined ?? null,
+      tradesExecuted: trajectory.metrics.tradesExecuted as number | undefined ?? null,
+      postsCreated: trajectory.metrics.postsCreated as number | undefined ?? null,
+      isTrainingData: (trajectory.metadata.isTrainingData as boolean | undefined) ?? true,
+      isEvaluation: (trajectory.metadata.isEvaluation as boolean | undefined) ?? false,
+      usedInTraining: false,
+      updatedAt: new Date(),
+    });
 
-      logger.info('Trajectory saved to database', {
-        trajectoryId,
-        agentId: trajectory.agentId,
-        steps: trajectory.steps.length,
-        totalReward: trajectory.totalReward,
-      }, 'TrajectoryLoggerService');
+    logger.info('Trajectory saved to database', {
+      trajectoryId,
+      agentId: trajectory.agentId,
+      steps: trajectory.steps.length,
+      totalReward: trajectory.totalReward,
+    }, 'TrajectoryLoggerService');
 
     // Keep in memory for retrieval
     this.activeTrajectories.set(trajectoryId, trajectory);
@@ -379,4 +376,3 @@ export class TrajectoryLoggerService {
     return null;
   }
 }
-

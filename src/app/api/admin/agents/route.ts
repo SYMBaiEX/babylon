@@ -67,7 +67,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db, agentLogs, count, gte, eq, and } from '@/db';
 import { logger } from '@/lib/logger';
 import { agentRegistry } from '@/lib/services/agent-registry.service';
 import { AgentType } from '@/types/agent-registry.types';
@@ -80,64 +80,25 @@ import { getExternalAgentAdapter } from '@/lib/agents/external/ExternalAgentAdap
 export async function GET(_req: NextRequest) {
   try {
     // Get all agents
-    const agents = await prisma.user.findMany({
+    const agents = await db.user.findMany({
       where: {
         isAgent: true,
-      },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        
-        // Agent config
-        agentSystem: true,
-        agentModelTier: true,
-        agentPointsBalance: true,
-        
-        // Autonomous flags
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-        autonomousGroupChats: true,
-        
-        // Performance
-        lifetimePnL: true,
-        
-        // Status
-        agentStatus: true,
-        agentErrorMessage: true,
-        agentLastTickAt: true,
-        agentLastChatAt: true,
-        
-        // Timing
-        createdAt: true,
-        updatedAt: true,
-        
-        // Creator
-        managedBy: true,
-
-        // Performance metrics relation
-        AgentPerformanceMetrics: {
-          select: {
-            totalTrades: true,
-            profitableTrades: true,
-            reputationScore: true,
-            averageFeedbackScore: true,
-            totalFeedbackCount: true,
-          },
-        },
       },
       orderBy: {
         agentLastTickAt: 'desc',
       },
     });
 
+    // Get performance metrics for all agents
+    const agentIds = agents.map(a => a.id);
+    const performanceMetrics = await db.agentPerformanceMetrics.findMany({
+      where: { userId: { in: agentIds } },
+    });
+    const metricsMap = new Map(performanceMetrics.map(m => [m.userId, m]));
+
     // Get creator names
     const creatorIds = agents.map(a => a.managedBy).filter(Boolean) as string[];
-    const creators = await prisma.user.findMany({
+    const creators = await db.user.findMany({
       where: { id: { in: creatorIds } },
       select: { id: true, displayName: true, username: true },
     });
@@ -145,30 +106,32 @@ export async function GET(_req: NextRequest) {
 
     // Get recent logs count for each agent (last 24 hours)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const logCounts = await prisma.agentLog.groupBy({
-      by: ['agentUserId'],
-      where: {
-        createdAt: { gte: oneDayAgo },
-      },
-      _count: true,
-    });
-    const logCountMap = new Map(logCounts.map(l => [l.agentUserId, l._count]));
+    const logCounts = await db
+      .select({
+        agentUserId: agentLogs.agentUserId,
+        _count: count(),
+      })
+      .from(agentLogs)
+      .where(gte(agentLogs.createdAt, oneDayAgo))
+      .groupBy(agentLogs.agentUserId);
+    const logCountMap = new Map(logCounts.map(l => [l.agentUserId, Number(l._count)]));
 
     // Get error counts
-    const errorCounts = await prisma.agentLog.groupBy({
-      by: ['agentUserId'],
-      where: {
-        createdAt: { gte: oneDayAgo },
-        level: 'error',
-      },
-      _count: true,
-    });
-    const errorCountMap = new Map(errorCounts.map(e => [e.agentUserId, e._count]));
+    const errorCounts = await db
+      .select({
+        agentUserId: agentLogs.agentUserId,
+        _count: count(),
+      })
+      .from(agentLogs)
+      .where(and(gte(agentLogs.createdAt, oneDayAgo), eq(agentLogs.level, 'error')))
+      .groupBy(agentLogs.agentUserId);
+    const errorCountMap = new Map(errorCounts.map(e => [e.agentUserId, Number(e._count)]));
 
     // Format agents
     const formattedAgents = agents.map(agent => {
-      const totalTrades = agent.AgentPerformanceMetrics?.totalTrades ?? 0;
-      const profitableTrades = agent.AgentPerformanceMetrics?.profitableTrades ?? 0;
+      const metrics = metricsMap.get(agent.id);
+      const totalTrades = metrics?.totalTrades ?? 0;
+      const profitableTrades = metrics?.profitableTrades ?? 0;
       const autonomousEnabled = 
         agent.autonomousTrading ||
         agent.autonomousPosting ||
@@ -203,9 +166,9 @@ export async function GET(_req: NextRequest) {
         lifetimePnL: Number(agent.lifetimePnL || 0),
         totalTrades,
         winRate,
-        reputationScore: agent.AgentPerformanceMetrics?.reputationScore ?? 50,
-        averageFeedbackScore: agent.AgentPerformanceMetrics?.averageFeedbackScore ?? 0,
-        totalFeedbackCount: agent.AgentPerformanceMetrics?.totalFeedbackCount ?? 0,
+        reputationScore: metrics?.reputationScore ?? 50,
+        averageFeedbackScore: metrics?.averageFeedbackScore ?? 0,
+        totalFeedbackCount: metrics?.totalFeedbackCount ?? 0,
         
         // Status
         agentStatus: agent.agentStatus,

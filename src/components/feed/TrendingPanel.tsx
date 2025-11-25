@@ -1,25 +1,11 @@
 'use client'
 
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
-import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
+import { useWidgetCacheStore, type TrendingItem } from '@/stores/widgetCacheStore'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { useSSEChannel } from '@/hooks/useSSE'
-
-/**
- * Trending item structure for trending panel (supports grouped trends).
- */
-interface TrendingItem {
-  id: string
-  tags: string[] // Array of tag names (e.g., ["OpenAGI", "Sam Altman"])
-  tagSlugs: string[] // Array of tag slugs for routing
-  tagIds: string[] // Array of tag IDs
-  category?: string | null
-  totalPostCount: number
-  summary?: string | null
-  rank: number
-}
 
 /**
  * Trending panel component for displaying trending topics.
@@ -53,15 +39,15 @@ export function TrendingPanel() {
     if (!skipCache) {
       const cached = getTrending()
       // Only use cache if it has data (don't cache empty arrays)
-      if (cached && Array.isArray(cached) && cached.length > 0) {
-        setTrending(cached as TrendingItem[])
+      if (cached && cached.length > 0) {
+        setTrending(cached)
         setLoading(false)
         return
       }
     }
 
     const response = await fetch('/api/feed/widgets/trending')
-    const data = await response.json()
+    const data = await response.json() as { success: boolean; trending?: TrendingItem[] }
     
     if (data.success) {
       const trendingData = data.trending || []

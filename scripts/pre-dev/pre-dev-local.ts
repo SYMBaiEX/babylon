@@ -176,37 +176,75 @@ if (minioRunning.trim() !== MINIO_CONTAINER) {
 }
 
 // 9. Run database migrations and seed
-const { PrismaClient } = await import('@prisma/client')
-const prisma = new PrismaClient()
+// Force local database URL for local development (overrides .env.local if present)
+const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon'
+process.env.DATABASE_URL = LOCAL_DATABASE_URL
 
-await prisma.$connect()
-logger.info('✅ Database connected', undefined, 'Script')
-
-const actorCount = await prisma.actor.count().catch(async (error: Error) => {
-  const errorMessage = error.message
-  if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
-    logger.info('Running database migrations...', undefined, 'Script')
-    await $`bunx prisma migrate deploy`.quiet().catch(async () => {
-      await $`bunx prisma db push --skip-generate`.quiet()
-    })
-
-    logger.info('Running database seed...', undefined, 'Script')
-    await $`bun run db:seed`
-    logger.info('✅ Database ready', undefined, 'Script')
-    return 0
-  }
-  throw error
-})
-
-if (actorCount === 0) {
-  logger.info('Running database seed...', undefined, 'Script')
-  await $`bun run db:seed`
-  logger.info('✅ Database seeded', undefined, 'Script')
-} else if (actorCount > 0) {
-  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
+/**
+ * Run drizzle-kit push with timeout and proper error handling
+ * Uses stdin redirection (< /dev/null) to auto-select defaults for prompts
+ * This prevents interactive prompts from blocking the script
+ */
+async function runMigrations(): Promise<void> {
+  const MIGRATION_TIMEOUT_MS = 120_000 // 120 seconds (schema pull can be slow)
+  
+  logger.info('Running database migrations (drizzle-kit push)...', undefined, 'Script')
+  
+  const migrationPromise = (async () => {
+    // Run with stdin from /dev/null to auto-select default options for prompts
+    // This matches CI behavior where there's no TTY
+    // Explicitly set DATABASE_URL to local for the subprocess
+    const result = await $`DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push < /dev/null`
+    if (result.exitCode !== 0) {
+      throw new Error(`drizzle-kit push failed with exit code ${result.exitCode}`)
+    }
+    logger.info('✅ Migrations completed', undefined, 'Script')
+  })()
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Migration timed out after ${MIGRATION_TIMEOUT_MS / 1000} seconds`))
+    }, MIGRATION_TIMEOUT_MS)
+  })
+  
+  await Promise.race([migrationPromise, timeoutPromise])
 }
 
-await prisma.$disconnect()
+// Query actors table directly to check if database is ready
+// This avoids potential issues with the health check returning false incorrectly
+let actorCount = 0
+let needsMigrations = false
+let needsSeed = false
+
+try {
+  // Use a simple query via bun shell to avoid connection state issues
+  const countResult = await $`docker exec babylon-postgres psql -U babylon -d babylon -t -c "SELECT count(*) FROM \"Actor\";"`.quiet()
+  actorCount = parseInt(countResult.text().trim(), 10)
+  if (isNaN(actorCount)) actorCount = 0
+  logger.info(`✅ Database connected (${actorCount} actors)`, undefined, 'Script')
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  if (errorMessage.includes('does not exist') || errorMessage.includes('relation')) {
+    logger.info('Database tables not found, running migrations...', undefined, 'Script')
+    needsMigrations = true
+    needsSeed = true
+  } else {
+    logger.info('Database not ready, running migrations...', undefined, 'Script')
+    needsMigrations = true
+  }
+}
+
+if (needsMigrations) {
+  await runMigrations()
+}
+
+if (needsSeed || actorCount === 0) {
+  logger.info('Running database seed...', undefined, 'Script')
+  // Explicitly set DATABASE_URL to local for the seed subprocess
+  await $`DATABASE_URL=${LOCAL_DATABASE_URL} bun run db:seed`
+  logger.info('✅ Database seeded', undefined, 'Script')
+}
+
 
 // 10. Validate environment
 logger.info('', undefined, 'Script')
@@ -229,4 +267,3 @@ logger.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets
 logger.info('', undefined, 'Script')
 logger.info('Starting services (Hardhat, Next.js, Cron)...', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')
-

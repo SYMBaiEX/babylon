@@ -8,16 +8,16 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { acquireGenerationLock, releaseGenerationLock, checkGenerationLock } from '../generation-lock-service';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 describe('GenerationLockService', () => {
   // Clean up locks before and after each test
   beforeEach(async () => {
-    await prisma.generationLock.deleteMany({});
+    await db.generationLock.deleteMany({});
   });
 
   afterEach(async () => {
-    await prisma.generationLock.deleteMany({});
+    await db.generationLock.deleteMany({});
   });
 
   test('acquireGenerationLock succeeds when no lock exists', async () => {

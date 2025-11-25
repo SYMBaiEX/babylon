@@ -72,7 +72,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/prisma'
+import { db, users, eq, and, ne } from '@/db'
 import { AuthorizationError, ConflictError, NotFoundError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -115,16 +115,16 @@ export const POST = withErrorHandling(async (
   const { platform, username, address } = LinkSocialRequestSchema.parse(body);
 
   // Get current user state
-  const user = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: {
-      hasFarcaster: true,
-      hasTwitter: true,
-      walletAddress: true,
-      farcasterFid: true,
-      twitterId: true,
-    },
-  });
+  const [user] = await db.select({
+    hasFarcaster: users.hasFarcaster,
+    hasTwitter: users.hasTwitter,
+    walletAddress: users.walletAddress,
+    farcasterFid: users.farcasterFid,
+    twitterId: users.twitterId,
+  })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   if (!user) {
     throw new NotFoundError('User', canonicalUserId);
@@ -137,13 +137,13 @@ export const POST = withErrorHandling(async (
       alreadyLinked = user.hasFarcaster;
       // Check if Farcaster username is already linked to another user
       if (username && !alreadyLinked) {
-        const existingFarcasterUser = await prisma.user.findFirst({
-          where: {
-            farcasterUsername: username,
-            id: { not: canonicalUserId },
-          },
-          select: { id: true },
-        });
+        const [existingFarcasterUser] = await db.select({ id: users.id })
+          .from(users)
+          .where(and(
+            eq(users.farcasterUsername, username),
+            ne(users.id, canonicalUserId)
+          ))
+          .limit(1);
         if (existingFarcasterUser) {
           throw new ConflictError('Farcaster account already linked to another user', 'User.farcasterUsername');
         }
@@ -153,13 +153,13 @@ export const POST = withErrorHandling(async (
       alreadyLinked = user.hasTwitter;
       // Check if Twitter account is already linked to another user
       if (username && !alreadyLinked) {
-        const existingTwitterUser = await prisma.user.findFirst({
-          where: {
-            twitterUsername: username,
-            id: { not: canonicalUserId },
-          },
-          select: { id: true },
-        });
+        const [existingTwitterUser] = await db.select({ id: users.id })
+          .from(users)
+          .where(and(
+            eq(users.twitterUsername, username),
+            ne(users.id, canonicalUserId)
+          ))
+          .limit(1);
         if (existingTwitterUser) {
           throw new ConflictError('Twitter account already linked to another user', 'User.twitterUsername');
         }
@@ -172,10 +172,10 @@ export const POST = withErrorHandling(async (
 
   // Check if wallet address is already in use by another user
   if (platform === 'wallet' && address) {
-    const existingWalletUser = await prisma.user.findUnique({
-      where: { walletAddress: address.toLowerCase() },
-      select: { id: true },
-    });
+    const [existingWalletUser] = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.walletAddress, address.toLowerCase()))
+      .limit(1);
 
     if (existingWalletUser && existingWalletUser.id !== canonicalUserId) {
       throw new ConflictError('Wallet address already linked to another account', 'User.walletAddress');
@@ -183,7 +183,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Update user with social connection
-  const updateData: Record<string, string | boolean> = {};
+  const updateData: Partial<typeof users.$inferInsert> = {};
   switch (platform) {
     case 'farcaster':
       updateData.hasFarcaster = true;
@@ -198,10 +198,9 @@ export const POST = withErrorHandling(async (
       break;
   }
 
-  await prisma.user.update({
-    where: { id: canonicalUserId },
-    data: updateData,
-  });
+  await db.update(users)
+    .set(updateData)
+    .where(eq(users.id, canonicalUserId));
 
   // Award points if not already linked
   let pointsResult;

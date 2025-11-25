@@ -144,7 +144,7 @@ import { asUser } from '@/lib/db/context'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { notifyUserGroupInvite } from '@/lib/services/notification-service'
-import { Prisma } from '@prisma/client'
+import { isUniqueConstraintError } from '@/db'
 
 const AddMemberSchema = z.object({
   userId: z.string(),
@@ -224,18 +224,23 @@ export const POST = withErrorHandling(
         })
       } catch (error: unknown) {
         // Handle unique constraint violation (race condition)
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          const target = error.meta?.target as string[] | undefined
-          if (target?.includes('groupId') && target?.includes('invitedUserId')) {
-          // Check if there's now a pending invite (another request created it)
-          const raceConditionInvite = await db.userGroupInvite.findUnique({
-            where: {
-              groupId_invitedUserId: {
+        if (isUniqueConstraintError(error)) {
+          // Check if the error is related to the groupId_invitedUserId constraint
+          // PostgreSQL errors include constraint name in the error message
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorObj = typeof error === 'object' && error !== null ? error as { constraint?: string; message?: string } : null;
+          
+          // Check if this is the unique constraint on (groupId, invitedUserId)
+          if (errorMessage.includes('groupId') || errorMessage.includes('invitedUserId') || 
+              errorMessage.includes('UserGroupInvite_groupId_invitedUserId_key') ||
+              errorObj?.constraint?.includes('groupId') || errorObj?.constraint?.includes('invitedUserId')) {
+            // Check if there's now a pending invite (another request created it)
+            const raceConditionInvite = await db.userGroupInvite.findFirst({
+              where: {
                 groupId,
                 invitedUserId: data.userId,
               },
-            },
-          })
+            })
             if (raceConditionInvite?.status === 'pending') {
               inviteId = raceConditionInvite.id
               throw new ApiError('User already has a pending invite', 400)

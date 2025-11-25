@@ -65,7 +65,7 @@
 
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { cachedDb } from '@/lib/cached-database-service';
-import { prisma } from '@/lib/prisma';
+import { db, users } from '@/db';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -119,14 +119,16 @@ export const GET = withErrorHandling(async (
   });
 
   if (!dbUser) {
-    dbUser = await prisma.user.create({
-      data: {
-        id: userId,
-        privyId: userId,
-        isActor: false,
-        updatedAt: new Date(),
-      },
-    });
+    const [newUser] = await db.insert(users).values({
+      id: userId,
+      privyId: userId,
+      isActor: false,
+      updatedAt: new Date(),
+    }).returning();
+    if (!newUser) {
+      throw new Error('Failed to create user');
+    }
+    dbUser = newUser;
   }
 
   const canonicalUserId = dbUser!.id;

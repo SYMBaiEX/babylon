@@ -153,9 +153,10 @@ export const POST = withErrorHandling(async (
 
     // Create reply (comment with parentCommentId)
     const now = new Date();
+    const replyId = await generateSnowflakeId();
     const newReply = await db.comment.create({
       data: {
-        id: await generateSnowflakeId(),
+        id: replyId,
         content: content.trim(),
         postId: parentComment.postId,
         authorId: user.userId,
@@ -163,29 +164,25 @@ export const POST = withErrorHandling(async (
         createdAt: now,
         updatedAt: now,
       },
-      include: {
-        User: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-          },
-        },
-        _count: {
-          select: {
-            Reaction: true,
-            other_Comment: true,
-          },
-        },
+    });
+
+    // Fetch author details
+    const author = await db.user.findUnique({
+      where: { id: user.userId },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        profileImageUrl: true,
       },
     });
 
-    return newReply;
+    return { ...newReply, author };
   });
 
   logger.info('Reply created successfully', { parentCommentId, userId: user.userId, replyId: reply.id }, 'POST /api/comments/[id]/replies');
 
+  // New replies have 0 likes and 0 replies
   return successResponse(
     {
       id: reply.id,
@@ -195,9 +192,9 @@ export const POST = withErrorHandling(async (
       parentCommentId: reply.parentCommentId,
       createdAt: reply.createdAt,
       updatedAt: reply.updatedAt,
-      author: reply.User,
-      likeCount: reply._count.Reaction,
-      replyCount: reply._count.other_Comment,
+      author: reply.author,
+      likeCount: 0,
+      replyCount: 0,
     },
     201
   );

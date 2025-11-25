@@ -92,7 +92,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { getCache, setCache } from '@/lib/cache-service';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -131,7 +131,7 @@ export const GET = withErrorHandling(async (
   }
 
   // Verify market exists
-  const market = await prisma.market.findUnique({
+  const market = await db.market.findUnique({
     where: { id: marketId },
     select: {
       id: true,
@@ -149,38 +149,47 @@ export const GET = withErrorHandling(async (
   }
 
   // Get positions for this market (user trades)
-  const positions = await prisma.position.findMany({
+  const positionsRaw = await db.position.findMany({
     where: {
       marketId: marketId,
-      shares: { gt: 0 }, // Only positions with shares
+      shares: { gt: '0' }, // Only positions with shares (shares is string)
     },
     orderBy: { updatedAt: 'desc' },
     take: queryParams.limit,
     skip: queryParams.offset,
-    include: {
-      User: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-          isActor: true,
-        },
-      },
-    },
   });
 
+  // Get users for positions
+  const userIds = [...new Set(positionsRaw.map(p => p.userId))];
+  const users = userIds.length > 0 ? await db.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      profileImageUrl: true,
+      isActor: true,
+    },
+  }) : [];
+  const userMap = new Map(users.map(u => [u.id, u]));
+
+  // Join positions with users
+  const positions = positionsRaw.map(pos => ({
+    ...pos,
+    User: userMap.get(pos.userId),
+  }));
+
   // Get total count for pagination
-  const totalPositions = await prisma.position.count({
+  const totalPositions = await db.position.count({
     where: {
       marketId: marketId,
-      shares: { gt: 0 },
+      shares: { gt: '0' }, // shares is string
     },
   });
 
   // Get balance transactions for these positions
   const positionIds = positions.map(p => p.id);
-  const balanceTransactions = positionIds.length > 0 ? await prisma.balanceTransaction.findMany({
+  const balanceTransactions = positionIds.length > 0 ? await db.balanceTransaction.findMany({
     where: {
       type: { in: ['pred_buy', 'pred_sell'] },
       relatedId: { in: positionIds },
@@ -200,7 +209,7 @@ export const GET = withErrorHandling(async (
 
   // Fetch users for transactions
   const txUserIds = [...new Set(balanceTransactions.map(tx => tx.userId))];
-  const txUsers = await prisma.user.findMany({
+  const txUsers = await db.user.findMany({
     where: { id: { in: txUserIds } },
     select: {
       id: true,

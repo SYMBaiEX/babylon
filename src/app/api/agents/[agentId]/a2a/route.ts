@@ -77,8 +77,17 @@ import { DefaultRequestHandler, DefaultExecutionEventBusManager, JsonRpcTranspor
 import type { DefaultRequestHandler as DefaultRequestHandlerType } from '@a2a-js/sdk/server'
 import { BabylonAgentExecutor } from '@/lib/a2a/executors/babylon-executor'
 import { ExtendedTaskStore, type ListTasksParams } from '@/lib/a2a/extended-task-store'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateAgentCardSync } from '@/lib/a2a/sdk/agent-card-generator'
+
+// Interface for accessing private SDK properties (needed for tasks/list handling)
+interface JsonRpcHandlerWithRequestHandler {
+  requestHandler: DefaultRequestHandlerType
+}
+
+interface RequestHandlerWithTaskStore {
+  taskStore: ExtendedTaskStore
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -103,7 +112,7 @@ async function getAgentJsonRpcHandler(agentId: string): Promise<JsonRpcTransport
       const eventBusManager = new DefaultExecutionEventBusManager()
       
       // Get agent data for card generation
-      const agentData = await prisma.user.findUnique({
+      const agentData = await db.user.findUnique({
         where: { id: agentId },
         select: {
           id: true,
@@ -141,7 +150,7 @@ export async function POST(
   const { agentId } = await params
   
   // Verify agent exists and has A2A enabled
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentId },
     select: {
       id: true,
@@ -240,8 +249,18 @@ export async function POST(
       // Handle tasks/list manually
       if (body.method === 'tasks/list') {
         const jsonRpcHandler = await getAgentJsonRpcHandler(agentId)
-        const handler = jsonRpcHandler as unknown as { requestHandler: DefaultRequestHandlerType }
-        const taskStore = (handler.requestHandler as unknown as { taskStore: ExtendedTaskStore }).taskStore
+        // Access requestHandler from jsonRpcHandler - it's a known property
+        // Type guard to ensure structure matches expected
+        if (!jsonRpcHandler || typeof jsonRpcHandler !== 'object' || !('requestHandler' in jsonRpcHandler)) {
+          throw new Error('Invalid JSON-RPC handler structure')
+        }
+        // Cast through unknown to access private properties - the SDK doesn't expose these publicly
+        const handler = jsonRpcHandler as unknown as JsonRpcHandlerWithRequestHandler
+        // Access taskStore from requestHandler - ExtendedTaskStore is a known property
+        if (!handler.requestHandler || typeof handler.requestHandler !== 'object' || !('taskStore' in handler.requestHandler)) {
+          throw new Error('Invalid request handler structure - missing taskStore')
+        }
+        const taskStore = (handler.requestHandler as unknown as RequestHandlerWithTaskStore).taskStore
         
         const params = (body.params || {}) as {
           contextId?: string
@@ -345,7 +364,7 @@ export async function GET(
   const { agentId } = await params
   
   // Verify agent exists and has A2A enabled
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentId },
     select: {
       id: true,

@@ -6,7 +6,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db, trendingTags, desc } from '@/db'
 import {
   getTagStatistics,
   storeTrendingTags,
@@ -20,10 +20,10 @@ const TRENDING_WINDOW_DAYS = 7 // Look at last 7 days
  * Check if we should recalculate trending tags
  */
 export async function shouldRecalculateTrending(): Promise<boolean> {
-  const lastCalculation = await prisma.trendingTag.findFirst({
-    orderBy: { calculatedAt: 'desc' },
-    select: { calculatedAt: true },
-  })
+  const [lastCalculation] = await db.select({ calculatedAt: trendingTags.calculatedAt })
+    .from(trendingTags)
+    .orderBy(desc(trendingTags.calculatedAt))
+    .limit(1)
 
   if (!lastCalculation) {
     return true // Never calculated before

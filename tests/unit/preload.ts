@@ -2,7 +2,10 @@
  * Preload file for unit tests
  *
  * This file is loaded before all unit tests to set up the test environment.
- * It mocks external dependencies like database and Redis connections.
+ * It mocks external dependencies like Redis connections.
+ * 
+ * NOTE: Database (@/db) is NOT mocked here - tests should mock it themselves
+ * because the db module has many exports that tests need to control individually.
  */
 
 import { mock } from 'bun:test'
@@ -13,102 +16,6 @@ process.env.NODE_ENV = 'test'
 process.env.BUN_ENV = 'test'
 process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test'
 process.env.REDIS_URL = 'redis://localhost:6379'
-
-// Mock Prisma before any imports
-mock.module('@/lib/prisma', () => {
-  const createMockPrismaClient = () => {
-    const mockModels = [
-      'actor', 'actorFollow', 'actorRelationship', 'agentLog', 'agentMessage',
-      'agentPerformanceMetrics', 'agentGoal', 'agentGoalAction', 'agentPointsTransaction',
-      'agentTrade', 'balanceTransaction', 'chat', 'chatParticipant', 'comment',
-      'dMAcceptance', 'favorite', 'feedback', 'follow', 'followStatus', 'game',
-      'gameConfig', 'groupChatMembership', 'market', 'message', 'nPCTrade',
-      'notification', 'oAuthState', 'onboardingIntent', 'oracleCommitment',
-      'oracleTransaction', 'organization', 'perpPosition', 'pointsTransaction',
-      'pool', 'poolDeposit', 'poolPosition', 'position', 'post', 'postTag',
-      'profileUpdateLog', 'question', 'reaction', 'referral', 'share', 'shareAction',
-      'stockPrice', 'tag', 'tradingFee', 'trendingTag', 'twitterOAuthToken', 'user',
-      'userActorFollow', 'userGroup', 'userGroupAdmin', 'userGroupInvite',
-      'userGroupMember', 'userInteraction', 'widgetCache', 'worldEvent', 'llmCallLog',
-      'market_outcomes', 'trainedModel', 'trainingBatch', 'trajectory', 'rewardJudgment',
-      'userBlock', 'userMute', 'report', 'systemSettings', 'worldFact', 'rSSFeedSource',
-      'rSSHeadline', 'parodyHeadline', 'characterMapping', 'organizationMapping'
-    ]
-
-    const mockClient: any = {
-      $connect: mock(() => Promise.resolve()),
-      $disconnect: mock(() => Promise.resolve()),
-      $queryRaw: mock(() => Promise.resolve([])),
-      $executeRaw: mock(() => Promise.resolve(0)),
-      $transaction: mock(async (fn: any) => {
-        return await fn(mockClient)
-      })
-    }
-
-    for (const modelName of mockModels) {
-      mockClient[modelName] = {
-        findUnique: mock(() => Promise.resolve(null)),
-        findMany: mock(() => Promise.resolve([])),
-        findFirst: mock(() => Promise.resolve(null)),
-        count: mock(() => Promise.resolve(0)),
-        create: mock((args: any) => {
-          // Return the data that was passed in, with defaults for required fields
-          const data = args?.data || {}
-          return Promise.resolve({
-            id: data.id || 'mock-id',
-            createdAt: data.createdAt || new Date(),
-            updatedAt: data.updatedAt || new Date(),
-            ...data
-          })
-        }),
-        createMany: mock((args: any) => {
-          const count = args?.data?.length || 0
-          return Promise.resolve({ count })
-        }),
-        update: mock((args: any) => {
-          const data = args?.data || {}
-          return Promise.resolve({
-            id: args?.where?.id || 'mock-id',
-            updatedAt: new Date(),
-            ...data
-          })
-        }),
-        updateMany: mock((args: any) => {
-          return Promise.resolve({ count: args?.data ? 1 : 0 })
-        }),
-        upsert: mock((args: any) => {
-          const data = args?.create || args?.update || {}
-          return Promise.resolve({
-            id: args?.where?.id || 'mock-id',
-            createdAt: data.createdAt || new Date(),
-            updatedAt: new Date(),
-            ...data
-          })
-        }),
-        delete: mock((args: any) => {
-          return Promise.resolve({ id: args?.where?.id || 'mock-id' })
-        }),
-        deleteMany: mock(() => Promise.resolve({ count: 0 })),
-        aggregate: mock(() => Promise.resolve({
-          _count: 0,
-          _sum: null,
-          _avg: null,
-          _min: null,
-          _max: null
-        })),
-        groupBy: mock(() => Promise.resolve([]))
-      }
-    }
-
-    return mockClient
-  }
-
-  const mockPrismaClient = createMockPrismaClient()
-  return {
-    prisma: mockPrismaClient,
-    prismaBase: mockPrismaClient
-  }
-})
 
 // Mock Redis/ioredis
 mock.module('ioredis', () => {
@@ -145,12 +52,12 @@ mock.module('ioredis', () => {
       zrevrange() { return Promise.resolve([]) }
       pipeline() {
         const pipeline = {
-          commands: [] as any[],
+          commands: [] as unknown[],
           get(key: string) {
             this.commands.push(['get', key])
             return this
           },
-          set(key: string, value: any) {
+          set(key: string, value: unknown) {
             this.commands.push(['set', key, value])
             return this
           },
@@ -168,30 +75,13 @@ mock.module('ioredis', () => {
   }
 })
 
-// Mock logger for all tests
-// Note: Using plain functions instead of mock() to avoid undefined issues
-mock.module('@/lib/logger', () => {
-  const noop = () => {};
-  const mockLogger = {
-    debug: noop,
-    info: noop,
-    warn: noop,
-    error: noop,
-    setLevel: noop,
-    getLevel: () => 'debug' as const,
-  }
-  return {
-    logger: mockLogger,
-    Logger: class MockLogger {
-      debug = noop
-      info = noop
-      warn = noop
-      error = noop
-      setLevel = noop
-      getLevel = () => 'debug' as const
-    }
-  }
-})
+// Note: Logger is NOT mocked - it's a simple console wrapper with no side effects
+// Keeping real logger helps debug failing tests
 
-// Mock other external dependencies if needed
-console.log('Unit test environment initialized with mocked dependencies')
+// Note: @/db is NOT mocked here - individual tests should mock it as needed
+// This is because:
+// 1. The db module has many named exports (tables, operators) that tests need
+// 2. Tests may need to control mock return values differently
+// 3. Mocking everything globally makes it hard to test specific behaviors
+
+console.log('Unit test environment initialized (Redis mocked, DB not mocked)')

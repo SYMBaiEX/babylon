@@ -4,7 +4,7 @@
  * Handles agents responding to direct messages autonomously
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, messages, users, eq, ne, gte, and, desc } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -15,43 +15,44 @@ export class AutonomousDMService {
    * Check for unread DMs and respond
    */
   async respondToDMs(agentUserId: string, _runtime: IAgentRuntime): Promise<number> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
     if (!agent?.isAgent) {
       throw new Error('Agent not found')
     }
 
       // Get agent's DM chats (non-group chats)
-      const dmChats = await prisma.chatParticipant.findMany({
-        where: { userId: agentUserId },
-        include: {
-          Chat: true
-        }
+      const dmChatsRaw = await db.query.chatParticipants.findMany({
+        where: (chatParticipants, { eq }) => eq(chatParticipants.userId, agentUserId),
+        with: {
+          chat: true,
+        },
       })
 
       let responsesCreated = 0
 
-      for (const chatParticipant of dmChats) {
-        const chat = chatParticipant.Chat
-        
-        if (chat.isGroup) continue // Skip group chats
+      for (const chatParticipant of dmChatsRaw) {
+        const chat = chatParticipant.chat
+        if (!chat || chat.isGroup) continue // Skip group chats
         
         // Get recent messages in this chat
-        const unreadMessages = await prisma.message.findMany({
-          where: {
-            chatId: chat.id,
-            senderId: { not: agentUserId },
-            createdAt: {
-              gte: new Date(Date.now() - 60 * 60 * 1000) // Last hour
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 5
-        })
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+        const unreadMessages = await db.select()
+          .from(messages)
+          .where(and(
+            eq(messages.chatId, chat.id),
+            ne(messages.senderId, agentUserId),
+            gte(messages.createdAt, oneHourAgo)
+          ))
+          .orderBy(desc(messages.createdAt))
+          .limit(5)
 
         if (unreadMessages.length === 0) continue
 
         // Get conversation context
-        const allMessages = await prisma.message.findMany({
+        const allMessages = await db.message.findMany({
           where: { chatId: chat.id },
           orderBy: { createdAt: 'asc' },
           take: 10
@@ -95,7 +96,7 @@ Generate ONLY the response text, nothing else.`
         }
 
         // Create response message
-        await prisma.message.create({
+        await db.message.create({
           data: {
             id: await generateSnowflakeId(),
             chatId: chat.id,

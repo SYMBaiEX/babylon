@@ -11,7 +11,7 @@
 import { HuggingFaceDatasetUploader } from '@/lib/huggingface/HuggingFaceDatasetUploader';
 import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
 import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 
@@ -58,8 +58,8 @@ async function main() {
 
   // Test 2: Database connectivity
   await test('Database Connection', async () => {
-    await prisma.$connect();
-    const count = await prisma.trainedModel.count();
+    await db.$connect();
+    const count = await db.trainedModel.count();
     console.log(`   Found ${count} trained models in database`);
   });
 
@@ -108,20 +108,20 @@ async function main() {
   // Test 8: Check BenchmarkResult table exists
   await test('BenchmarkResult Table Exists', async () => {
     try {
-      const count = await prisma.benchmarkResult.count();
+      const count = await db.benchmarkResult.count();
       console.log(`   BenchmarkResult table has ${count} records`);
     } catch (error) {
-      throw new Error('BenchmarkResult table not found. Run: npx prisma migrate dev');
+      throw new Error('BenchmarkResult table not found. Run: npx drizzle-kit push');
     }
   });
 
   // Test 9: Check TrainedModel has new fields
   await test('TrainedModel Schema Updated', async () => {
-    const model = await prisma.trainedModel.findFirst();
+    const model = await db.trainedModel.findFirst();
     if (model) {
       const hasNewFields = 'huggingFaceRepo' in model && 'lastBenchmarked' in model && 'benchmarkCount' in model;
       if (!hasNewFields) {
-        throw new Error('TrainedModel missing new fields. Run: npx prisma migrate dev');
+        throw new Error('TrainedModel missing new fields. Run: npx drizzle-kit push');
       }
       console.log('   Schema includes: huggingFaceRepo, lastBenchmarked, benchmarkCount');
     } else {
@@ -142,7 +142,7 @@ async function main() {
 
   // Test 11: Trajectory table exists and has data
   await test('Trajectory Data Availability', async () => {
-    const count = await prisma.trajectory.count();
+    const count = await db.trajectory.count();
     console.log(`   Found ${count} trajectories in database`);
     if (count === 0) {
       console.log('   ⚠️  No trajectories found (trajectory dataset will be empty)');
@@ -208,7 +208,7 @@ async function main() {
   if (failed === 0) {
     console.log('🎉 ALL TESTS PASSED! System is ready for deployment.\n');
     console.log('Next steps:');
-    console.log('1. Apply migration: npx prisma migrate dev --name add_benchmark_results_table');
+    console.log('1. Apply migration: npx drizzle-kit push --name add_benchmark_results_table');
     console.log('2. Set HUGGING_FACE_TOKEN in your environment');
     console.log('3. Test uploads: bun run hf:upload-dataset --dataset=test-org/test-dataset');
     console.log('4. Deploy to production\n');
@@ -217,12 +217,12 @@ async function main() {
     process.exit(1);
   }
 
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch(async (error) => {
   console.error('\n💥 Test suite crashed:', error);
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(1);
 });
 

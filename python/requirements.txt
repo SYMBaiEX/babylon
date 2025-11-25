@@ -1,6 +1,7 @@
-# Babylon RL Training with ART ServerlessBackend
+# Babylon RL Training - Multi-Backend Support
+# Supports: CUDA (GPU), MLX (Apple Silicon), CPU, and W&B Serverless
 
-# Core ART framework
+# Core ART framework (for CUDA/Serverless backends)
 openpipe-art>=0.5.0
 
 # Database
@@ -28,3 +29,26 @@ pytest-asyncio>=0.21.0
 # Utilities
 tqdm>=4.66.0
 psutil>=5.9.0  # For resource checking
+
+# ============================================
+# OPTIONAL: MLX Backend (Apple Silicon only)
+# ============================================
+# Install on Mac with Apple Silicon:
+#   pip install mlx mlx-lm
+#
+# For fine-tuning support:
+#   pip install mlx-lm[finetuning]
+#
+# Recommended models for MLX:
+#   - mlx-community/Qwen2.5-3B-Instruct-4bit
+#   - mlx-community/Qwen2.5-7B-Instruct-4bit
+#   - mlx-community/Qwen3-4B-4bit
+
+# ============================================
+# OPTIONAL: CPU Backend (transformers/peft)
+# ============================================
+# Install for CPU training (SLOW):
+#   pip install transformers peft torch
+#
+# Recommended models for CPU:
+#   - unsloth/Qwen3-4B-128K (with reduced batch size)

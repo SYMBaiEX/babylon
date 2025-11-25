@@ -7,13 +7,13 @@
  * @module services/rss-feed-service
  */
 
+import type { RSSHeadline } from '@/db';
+import { db, rssFeedSources, rssHeadlines, parodyHeadlines, eq, lt, desc, sql } from '@/db';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import type { Prisma, RSSHeadline } from '@prisma/client';
 import { parseStringPromise } from 'xml2js';
 
-import type { JsonValue } from '@/types/common'
+import type { JsonValue } from '@/types/common';
 
 type Xml2JsFeed = {
   rss?: {
@@ -169,9 +169,9 @@ export class RSSFeedService {
    * Fetch all active RSS feeds and store new headlines
    */
   async fetchAllFeeds(): Promise<{ fetched: number; stored: number; errors: number }> {
-    const sources = await prisma.rSSFeedSource.findMany({
-      where: { isActive: true },
-    });
+    const sources = await db.select()
+      .from(rssFeedSources)
+      .where(eq(rssFeedSources.isActive, true));
 
     logger.info(`Fetching ${sources.length} RSS feeds`, undefined, 'RSSFeedService');
 
@@ -189,18 +189,21 @@ export class RSSFeedService {
           if (!item.title) continue;
 
           // Check if we already have this headline
-          const existing = item.link
-            ? await prisma.rSSHeadline.findFirst({
-                where: { link: item.link },
-              })
-            : null;
+          const existingResult = item.link
+            ? await db.select({ id: rssHeadlines.id })
+                .from(rssHeadlines)
+                .where(eq(rssHeadlines.link, item.link))
+                .limit(1)
+            : [];
+
+          const existing = existingResult[0];
 
           if (existing) continue;
 
           const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
-          await prisma.rSSHeadline.create({
-            data: {
+          await db.insert(rssHeadlines)
+            .values({
               id: await generateSnowflakeId(),
               sourceId: source.id,
               title: item.title,
@@ -208,22 +211,22 @@ export class RSSFeedService {
               publishedAt,
               summary: item.description || null,
               content: item.content || null,
-              rawData: item as unknown as Prisma.InputJsonValue,
+              // RSSFeedItem is a plain object with JsonValue-compatible fields (all string/undefined)
+              // Convert through unknown first for type safety
+              rawData: JSON.parse(JSON.stringify(item)) as JsonValue,
               fetchedAt: new Date(),
-            },
-          });
+            });
 
           stored++;
         }
 
         // Update last fetched timestamp
-        await prisma.rSSFeedSource.update({
-          where: { id: source.id },
-          data: {
+        await db.update(rssFeedSources)
+          .set({
             lastFetched: new Date(),
             fetchErrors: 0,
-          },
-        });
+          })
+          .where(eq(rssFeedSources.id, source.id));
       } catch (error) {
         errors++;
         logger.error(
@@ -233,12 +236,11 @@ export class RSSFeedService {
         );
 
         // Increment error counter
-        await prisma.rSSFeedSource.update({
-          where: { id: source.id },
-          data: {
-            fetchErrors: { increment: 1 },
-          },
-        });
+        await db.update(rssFeedSources)
+          .set({
+            fetchErrors: sql`${rssFeedSources.fetchErrors} + 1`,
+          })
+          .where(eq(rssFeedSources.id, source.id));
       }
     }
 
@@ -259,19 +261,19 @@ export class RSSFeedService {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    return prisma.rSSHeadline.findMany({
-      where: {
-        parodyHeadline: null,
-        publishedAt: { gte: sevenDaysAgo },
-      },
-      orderBy: {
-        publishedAt: 'desc',
-      },
-      take: limit,
-      include: {
-        source: true,
-      },
-    });
+    // Get headlines without parody by checking if no parodyHeadline exists with matching originalHeadlineId
+    const results = await db.select()
+      .from(rssHeadlines)
+      .where(
+        sql`${rssHeadlines.publishedAt} >= ${sevenDaysAgo} AND NOT EXISTS (
+          SELECT 1 FROM ${parodyHeadlines} 
+          WHERE ${parodyHeadlines.originalHeadlineId} = ${rssHeadlines.id}
+        )`
+      )
+      .orderBy(desc(rssHeadlines.publishedAt))
+      .limit(limit);
+
+    return results;
   }
 
   /**
@@ -281,22 +283,24 @@ export class RSSFeedService {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const result = await prisma.rSSHeadline.deleteMany({
-      where: {
-        publishedAt: { lt: sevenDaysAgo },
-      },
-    });
+    const result = await db.delete(rssHeadlines)
+      .where(lt(rssHeadlines.publishedAt, sevenDaysAgo))
+      .returning({ id: rssHeadlines.id });
+
+    const count = result.length;
 
     logger.info(
-      `Cleaned up ${result.count} old RSS headlines`,
-      { count: result.count },
+      `Cleaned up ${count} old RSS headlines`,
+      { count },
       'RSSFeedService'
     );
 
-    return result.count;
+    return count;
   }
 }
 
 // Singleton instance
 export const rssFeedService = new RSSFeedService();
+
+
 

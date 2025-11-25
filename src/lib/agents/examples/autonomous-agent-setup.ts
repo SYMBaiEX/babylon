@@ -11,14 +11,14 @@ import { babylonPlugin } from '../plugins/babylon'
 import { autonomousCoordinator } from '../autonomous'
 import { groqPlugin } from '../plugins/groq'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 /**
  * Example 1: Basic Autonomous Agent Setup
  */
 export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ agent: { id: string; displayName: string | null; isAgent: boolean; agentSystem: string | null }; runtime: AgentRuntime }> {
   // 1. Load agent from database
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: agentUserId },
     select: {
       id: true,
@@ -76,7 +76,7 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
   const runtime = new AgentRuntime({
     agentId: agent.id as `${string}-${string}-${string}-${string}-${string}`,
     character,
-    databaseAdapter: undefined // Using our own Prisma setup
+    databaseAdapter: undefined // Using our own database setup
   } as ConstructorParameters<typeof AgentRuntime>[0])
 
   // CRITICAL: Set logger on runtime (use console.bind pattern from otc-agent working implementation)
@@ -106,7 +106,7 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
   await runtime.registerPlugin(babylonPlugin)
 
   // Note: Not calling runtime.initialize() since we don't use SQL plugin
-  // We have our own Prisma database setup
+  // We have our own database setup
 
   logger.info(`Runtime fully initialized and ready`, undefined, 'AgentSetup')
 

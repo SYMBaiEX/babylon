@@ -66,7 +66,7 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
   const toUser = await requireUserByIdentifier(body.toUserId)
 
   const now = new Date()
-  const feedback = await prisma.feedback.create({
+  const feedback = await db.feedback.create({
     data: {
       id: await generateSnowflakeId(),
       fromUserId: fromUser.id,

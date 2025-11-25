@@ -93,8 +93,8 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import type { JsonValue } from '@/db'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
   const toUser = await requireUserByIdentifier(body.toUserId)
 
   const now = new Date()
-  const feedback = await prisma.feedback.create({
+  const feedback = await db.feedback.create({
     data: {
       id: await generateSnowflakeId(),
       fromUserId: fromAgent.id,
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       comment: body.comment,
       category: body.category,
       interactionType: body.interactionType ?? 'agent_to_user',
-      metadata: body.metadata as Prisma.InputJsonValue | undefined,
+      metadata: body.metadata as JsonValue | undefined,
       createdAt: now,
       updatedAt: now,
     },
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
 
   const user = await requireUserByIdentifier(userId)
 
-  const feedback = await prisma.feedback.findMany({
+  const feedback = await db.feedback.findMany({
     where: {
       toUserId: user.id,
       interactionType: {
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
     skip: offset,
   })
 
-  const total = await prisma.feedback.count({
+  const total = await db.feedback.count({
     where: {
       toUserId: user.id,
       interactionType: {

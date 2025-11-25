@@ -9,7 +9,7 @@
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentMetadata } from '@/agents/agent0/IPFSPublisher'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { JsonValue } from '@/types/common'
 
@@ -47,7 +47,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   if (process.env.BABYLON_REGISTRY_REGISTERED === 'true') {
     logger.info('Babylon already registered, skipping registration...', undefined, 'BabylonRegistry')
     
-    const config = await prisma.gameConfig.findUnique({
+    const config = await db.gameConfig.findUnique({
       where: { key: 'agent0_registration' }
     })
     
@@ -441,7 +441,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   logger.info(`   Token ID: ${result.tokenId}`, undefined, 'BabylonRegistry')
   logger.info(`   Metadata CID: ${metadataCID}`, undefined, 'BabylonRegistry')
 
-  await prisma.gameConfig.upsert({
+  await db.gameConfig.upsert({
     where: { key: 'agent0_registration' },
     create: {
       id: await generateSnowflakeId(),

@@ -1,8 +1,8 @@
-import { Prisma } from '@prisma/client'
 import { createWalletClient, createPublicClient, http, decodeEventLog, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia, foundry } from 'viem/chains'
-import { prisma } from '@/lib/prisma'
+import { db, users, balanceTransactions, referrals, follows, Decimal, eq, and } from '@/db'
+import type { JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
@@ -13,7 +13,6 @@ import type { AgentCapabilities } from '@/types/a2a'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
-import type { JsonValue } from '@/types/common'
 import { POINTS } from '@/lib/constants/points'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 import { getContractAddresses, getRpcUrl } from '@/lib/deployment/addresses'
@@ -151,10 +150,10 @@ export async function processOnchainRegistration({
 
   let referrerId: string | null = null
   if (referralCode) {
-    const referrer = await prisma.user.findUnique({
-      where: { username: referralCode },
-      select: { id: true },
-    })
+    const [referrer] = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, referralCode))
+      .limit(1)
 
     // Prevent self-referral by username
     if (referrer && referrer.id !== user.userId) {
@@ -162,10 +161,10 @@ export async function processOnchainRegistration({
       logger.info('Valid referral code (username) found', { referralCode, referrerId }, 'OnboardingOnchain')
     } else {
       // Look up who owns this referral code
-      const referralOwner = await prisma.user.findUnique({
-        where: { referralCode },
-        select: { id: true },
-      })
+      const [referralOwner] = await db.select({ id: users.id })
+        .from(users)
+        .where(eq(users.referralCode, referralCode))
+        .limit(1)
 
       // Prevent self-referral by referral code
       if (referralOwner && referralOwner.id !== user.userId) {
@@ -187,87 +186,85 @@ export async function processOnchainRegistration({
   } | null = null
 
   if (user.isAgent) {
-    dbUser = await prisma.user.findUnique({
-      where: { username: user.userId },
-      select: {
-        id: true,
-        username: true,
-        walletAddress: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        referredBy: true,
-      },
+    const [existingUser] = await db.select({
+      id: users.id,
+      username: users.username,
+      walletAddress: users.walletAddress,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      referredBy: users.referredBy,
     })
+      .from(users)
+      .where(eq(users.username, user.userId))
+      .limit(1)
+    dbUser = existingUser ?? null
 
     if (!dbUser) {
-      dbUser = await prisma.user.create({
-        data: {
-          id: await generateSnowflakeId(),
-          privyId: user.userId,
-          username: user.userId,
-          displayName: displayName || username || user.userId,
-          bio: bio || `Autonomous AI agent: ${user.userId}`,
-          profileImageUrl: profileImageUrl || null,
-          coverImageUrl: coverImageUrl || null,
-          isActor: false,
-          virtualBalance: 10000,
-          totalDeposited: 10000,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          username: true,
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          referredBy: true,
-        },
+      const newId = await generateSnowflakeId()
+      const [createdUser] = await db.insert(users).values({
+        id: newId,
+        privyId: user.userId,
+        username: user.userId,
+        displayName: displayName || username || user.userId,
+        bio: bio || `Autonomous AI agent: ${user.userId}`,
+        profileImageUrl: profileImageUrl || null,
+        coverImageUrl: coverImageUrl || null,
+        isActor: false,
+        virtualBalance: '10000',
+        totalDeposited: '10000',
+        updatedAt: new Date(),
+      }).returning({
+        id: users.id,
+        username: users.username,
+        walletAddress: users.walletAddress,
+        onChainRegistered: users.onChainRegistered,
+        nftTokenId: users.nftTokenId,
+        referredBy: users.referredBy,
       })
+      dbUser = createdUser ?? null
     }
   } else {
-    dbUser = await prisma.user.findUnique({
-      where: { id: user.userId },
-      select: {
-        id: true,
-        username: true,
-        walletAddress: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        referredBy: true,
-      },
+    const [existingUser] = await db.select({
+      id: users.id,
+      username: users.username,
+      walletAddress: users.walletAddress,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      referredBy: users.referredBy,
     })
+      .from(users)
+      .where(eq(users.id, user.userId))
+      .limit(1)
+    dbUser = existingUser ?? null
 
     if (!dbUser) {
-      dbUser = await prisma.user.create({
-        data: {
-          id: user.userId,
-          privyId: user.privyId ?? user.userId,
-          walletAddress: walletAddress?.toLowerCase() ?? null,
-          username: finalUsername,
-          displayName: displayName || finalUsername,
-          bio: bio || '',
-          profileImageUrl: profileImageUrl || null,
-          coverImageUrl: coverImageUrl || null,
-          isActor: false,
-          virtualBalance: 0,
-          totalDeposited: 0,
-          referredBy: referrerId,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          username: true,
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          referredBy: true,
-        },
+      const [createdUser] = await db.insert(users).values({
+        id: user.userId,
+        privyId: user.privyId ?? user.userId,
+        walletAddress: walletAddress?.toLowerCase() ?? null,
+        username: finalUsername,
+        displayName: displayName || finalUsername,
+        bio: bio || '',
+        profileImageUrl: profileImageUrl || null,
+        coverImageUrl: coverImageUrl || null,
+        isActor: false,
+        virtualBalance: '0',
+        totalDeposited: '0',
+        referredBy: referrerId,
+        updatedAt: new Date(),
+      }).returning({
+        id: users.id,
+        username: users.username,
+        walletAddress: users.walletAddress,
+        onChainRegistered: users.onChainRegistered,
+        nftTokenId: users.nftTokenId,
+        referredBy: users.referredBy,
       })
+      dbUser = createdUser ?? null
     } else {
-      const fullUser = await prisma.user.findUnique({ where: { id: dbUser.id } })
-      dbUser = await prisma.user.update({
-        where: { id: dbUser.id },
-        data: {
+      const [fullUser] = await db.select().from(users).where(eq(users.id, dbUser.id)).limit(1)
+      const [updatedUser] = await db.update(users)
+        .set({
           walletAddress: walletAddress?.toLowerCase() ?? dbUser.walletAddress,
           username: finalUsername || dbUser.username,
           displayName: displayName || finalUsername || fullUser?.displayName,
@@ -275,16 +272,17 @@ export async function processOnchainRegistration({
           profileImageUrl: profileImageUrl ?? fullUser?.profileImageUrl,
           coverImageUrl: coverImageUrl ?? fullUser?.coverImageUrl,
           referredBy: referrerId ?? dbUser.referredBy ?? undefined,
-        },
-        select: {
-          id: true,
-          username: true,
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          referredBy: true,
-        },
-      })
+        })
+        .where(eq(users.id, dbUser.id))
+        .returning({
+          id: users.id,
+          username: users.username,
+          walletAddress: users.walletAddress,
+          onChainRegistered: users.onChainRegistered,
+          nftTokenId: users.nftTokenId,
+          referredBy: users.referredBy,
+        })
+      dbUser = updatedUser ?? null
     }
   }
 
@@ -331,13 +329,12 @@ export async function processOnchainRegistration({
   if (isRegistered && tokenId) {
     // User is already registered on-chain, sync the DB if needed
     if (!dbUser.onChainRegistered || dbUser.nftTokenId !== tokenId) {
-      await prisma.user.update({
-        where: { id: dbUser.id },
-        data: {
+      await db.update(users)
+        .set({
           onChainRegistered: true,
           nftTokenId: tokenId,
-        },
-      })
+        })
+        .where(eq(users.id, dbUser.id))
       logger.info(
         'Synced on-chain registration status to database',
         { userId: dbUser.id, tokenId, wasRegistered: dbUser.onChainRegistered },
@@ -345,12 +342,13 @@ export async function processOnchainRegistration({
       )
     }
 
-    const hasWelcomeBonus = await prisma.balanceTransaction.findFirst({
-      where: {
-        userId: dbUser.id,
-        description: 'Welcome bonus - initial signup',
-      },
-    })
+    const [hasWelcomeBonus] = await db.select({ id: balanceTransactions.id })
+      .from(balanceTransactions)
+      .where(and(
+        eq(balanceTransactions.userId, dbUser.id),
+        eq(balanceTransactions.description, 'Welcome bonus - initial signup')
+      ))
+      .limit(1)
 
     logger.info(
       'User already registered on-chain, returning existing registration',
@@ -469,20 +467,20 @@ export async function processOnchainRegistration({
             })
           )
 
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: {
+          await db.update(users)
+            .set({
               onChainRegistered: true,
               nftTokenId: tokenOnChain,
-            },
-          })
+            })
+            .where(eq(users.id, dbUser.id))
 
-          const hasWelcomeBonus = await prisma.balanceTransaction.findFirst({
-            where: {
-              userId: dbUser.id,
-              description: 'Welcome bonus - initial signup',
-            },
-          })
+          const [hasWelcomeBonusRetry] = await db.select({ id: balanceTransactions.id })
+            .from(balanceTransactions)
+            .where(and(
+              eq(balanceTransactions.userId, dbUser.id),
+              eq(balanceTransactions.description, 'Welcome bonus - initial signup')
+            ))
+            .limit(1)
 
           logger.info(
             'Detected prior registration for wallet during server signer attempt',
@@ -495,7 +493,7 @@ export async function processOnchainRegistration({
             tokenId: tokenOnChain,
             alreadyRegistered: true,
             userId: dbUser.id,
-            pointsAwarded: hasWelcomeBonus ? 1000 : 0,
+            pointsAwarded: hasWelcomeBonusRetry ? 1000 : 0,
           }
         }
 
@@ -581,23 +579,22 @@ export async function processOnchainRegistration({
     )
   }
 
-  await prisma.user.update({
-    where: { id: dbUser.id },
-    data: {
+  await db.update(users)
+    .set({
       onChainRegistered: true,
       nftTokenId: tokenId,
       registrationTxHash: registrationTxHash ?? submittedTxHash ?? null,
       // Store registration blockchain metadata
-      registrationBlockNumber: finalizedReceipt.blockNumber,
-      registrationGasUsed: finalizedReceipt.gasUsed,
+      registrationBlockNumber: BigInt(finalizedReceipt.blockNumber),
+      registrationGasUsed: BigInt(finalizedReceipt.gasUsed),
       registrationTimestamp: new Date(),
       username: user.isAgent ? user.userId : (username || dbUser.username),
       displayName: displayName || username || dbUser.username || user.userId,
       bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined) || dbUser.username || null,
       profileImageUrl: profileImageUrl ?? undefined,
       coverImageUrl: coverImageUrl ?? undefined,
-    },
-  })
+    })
+    .where(eq(users.id, dbUser.id))
 
   if (user.isAgent) {
     const agent0Client = getAgent0Client()
@@ -621,14 +618,13 @@ export async function processOnchainRegistration({
     })
 
     // Store Agent0 registration metadata
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
+    await db.update(users)
+      .set({
         agent0TokenId: agent0Result.tokenId,
         agent0MetadataCID: agent0Result.metadataCID ?? null,
         agent0RegisteredAt: new Date(),
-      },
-    })
+      })
+      .where(eq(users.id, dbUser.id))
 
     logger.info('Agent registered with Agent0', {
       agentId: user.userId,
@@ -644,34 +640,40 @@ export async function processOnchainRegistration({
     }, 'OnboardingOnchain')
   }
 
-  const userWithBalance = await prisma.user.findUnique({
-    where: { id: dbUser.id },
-    select: { virtualBalance: true },
+  const [userWithBalance] = await db.select({ virtualBalance: users.virtualBalance })
+    .from(users)
+    .where(eq(users.id, dbUser.id))
+    .limit(1)
+
+  const balanceBefore = new Decimal(userWithBalance?.virtualBalance ?? '0')
+  const amountDecimal = new Decimal('1000')
+  const balanceAfter = Decimal.add(balanceBefore, amountDecimal)
+
+  await db.insert(balanceTransactions).values({
+    id: await generateSnowflakeId(),
+    userId: dbUser.id,
+    type: 'deposit',
+    amount: amountDecimal.toString(),
+    balanceBefore: balanceBefore.toString(),
+    balanceAfter: balanceAfter.toString(),
+    description: 'Welcome bonus - initial signup',
+    createdAt: new Date(),
   })
 
-  const balanceBefore = userWithBalance?.virtualBalance ?? new Prisma.Decimal(0)
-  const amountDecimal = new Prisma.Decimal(1000)
-  const balanceAfter = balanceBefore.plus(amountDecimal)
-
-  await prisma.balanceTransaction.create({
-    data: {
-      id: await generateSnowflakeId(),
-      userId: dbUser.id,
-      type: 'deposit',
-      amount: amountDecimal,
-      balanceBefore,
-      balanceAfter,
-      description: 'Welcome bonus - initial signup',
-    },
-  })
-
-  await prisma.user.update({
-    where: { id: dbUser.id },
-    data: {
-      virtualBalance: { increment: 1000 },
-      totalDeposited: { increment: 1000 },
-    },
-  })
+  // Get current balances and update with increment
+  const currentBalance = Number(userWithBalance?.virtualBalance ?? '0')
+  const [currentUser] = await db.select({ totalDeposited: users.totalDeposited })
+    .from(users)
+    .where(eq(users.id, dbUser.id))
+    .limit(1)
+  const currentDeposited = Number(currentUser?.totalDeposited ?? '0')
+  
+  await db.update(users)
+    .set({
+      virtualBalance: String(currentBalance + 1000),
+      totalDeposited: String(currentDeposited + 1000),
+    })
+    .where(eq(users.id, dbUser.id))
 
   logger.info('Successfully awarded 1,000 points to user', undefined, 'OnboardingOnchain')
 
@@ -697,43 +699,52 @@ export async function processOnchainRegistration({
 
       if (referralCode) {
         // Create or update referral record (idempotent for retries)
-        await prisma.referral.upsert({
-          where: {
-            referralCode_referredUserId: {
-              referralCode,
-              referredUserId: dbUser.id,
-            },
-          },
-          create: {
+        // Check if exists first
+        const [existingReferral] = await db.select({ id: referrals.id })
+          .from(referrals)
+          .where(and(
+            eq(referrals.referralCode, referralCode),
+            eq(referrals.referredUserId, dbUser.id)
+          ))
+          .limit(1)
+        
+        if (existingReferral) {
+          await db.update(referrals)
+            .set({
+              status: 'completed',
+              completedAt: new Date(),
+            })
+            .where(eq(referrals.id, existingReferral.id))
+        } else {
+          await db.insert(referrals).values({
             id: await generateSnowflakeId(),
             referrerId,
             referralCode,
             referredUserId: dbUser.id,
             status: 'completed',
             completedAt: new Date(),
-          },
-          update: {
-            // On retry, ensure status is completed
-            status: 'completed',
-            completedAt: new Date(),
-          },
-        })
+            createdAt: new Date(),
+          })
+        }
       }
 
-      await prisma.follow.upsert({
-        where: {
-          followerId_followingId: {
-            followerId: dbUser.id,      // New user is the follower
-            followingId: referrerId,     // Referrer is being followed
-          },
-        },
-        update: {},
-        create: {
+      // Check if follow exists first
+      const [existingFollow] = await db.select({ id: follows.id })
+        .from(follows)
+        .where(and(
+          eq(follows.followerId, dbUser.id),
+          eq(follows.followingId, referrerId)
+        ))
+        .limit(1)
+      
+      if (!existingFollow) {
+        await db.insert(follows).values({
           id: await generateSnowflakeId(),
           followerId: dbUser.id,
           followingId: referrerId,
-        },
-      })
+          createdAt: new Date(),
+        })
+      }
       
       logger.info('New user auto-followed referrer', { referrerId, referredUserId: dbUser.id }, 'OnboardingOnchain')
       logger.info('Awarded referral points to both referrer and referee', { 
@@ -746,24 +757,29 @@ export async function processOnchainRegistration({
       // Referral was blocked (self-referral, weekly limit, etc.)
       // Update referral status to rejected
       if (referralCode) {
-        await prisma.referral.upsert({
-          where: {
-            referralCode_referredUserId: {
-              referralCode,
-              referredUserId: dbUser.id,
-            },
-          },
-          create: {
+        // Check if referral exists first
+        const [existingRejectedReferral] = await db.select({ id: referrals.id })
+          .from(referrals)
+          .where(and(
+            eq(referrals.referralCode, referralCode),
+            eq(referrals.referredUserId, dbUser.id)
+          ))
+          .limit(1)
+        
+        if (existingRejectedReferral) {
+          await db.update(referrals)
+            .set({ status: 'rejected' })
+            .where(eq(referrals.id, existingRejectedReferral.id))
+        } else {
+          await db.insert(referrals).values({
             id: await generateSnowflakeId(),
             referrerId,
             referralCode,
             referredUserId: dbUser.id,
             status: 'rejected',
-          },
-          update: {
-            status: 'rejected',
-          },
-        })
+            createdAt: new Date(),
+          })
+        }
       }
       
       logger.warn(
@@ -932,25 +948,25 @@ export async function confirmOnchainProfileUpdate({
 }
 
 export async function getOnchainRegistrationStatus(user: AuthenticatedUser): Promise<OnchainRegistrationStatus> {
-  const userRecord = user.isAgent
-    ? await prisma.user.findUnique({
-        where: { username: user.userId },
-        select: {
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          registrationTxHash: true,
-        },
+  const [userRecord] = user.isAgent
+    ? await db.select({
+        walletAddress: users.walletAddress,
+        onChainRegistered: users.onChainRegistered,
+        nftTokenId: users.nftTokenId,
+        registrationTxHash: users.registrationTxHash,
       })
-    : await prisma.user.findUnique({
-        where: { id: user.userId },
-        select: {
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          registrationTxHash: true,
-        },
+        .from(users)
+        .where(eq(users.username, user.userId))
+        .limit(1)
+    : await db.select({
+        walletAddress: users.walletAddress,
+        onChainRegistered: users.onChainRegistered,
+        nftTokenId: users.nftTokenId,
+        registrationTxHash: users.registrationTxHash,
       })
+        .from(users)
+        .where(eq(users.id, user.userId))
+        .limit(1)
 
   if (!userRecord) {
     logger.info('Registration status checked (no user record)', { userId: user.userId }, 'OnboardingOnchain')
