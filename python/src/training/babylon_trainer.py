@@ -770,18 +770,29 @@ class BabylonTrainer:
         logger.info("🍎 Training with MLX backend...")
         logger.info(f"   Training examples: {len(training_data)}")
         
-        # MLX-LM doesn't have built-in LoRA fine-tuning in the base package
-        # We need to use mlx-lm's fine-tuning capabilities or a simpler approach
-        
-        # For now, we'll save training data and provide instructions
         output_dir = Path(f"./trained_models/mlx-{window_id.replace(':', '-')}")
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Save training data in JSONL format for mlx-lm fine-tuning
         train_file = output_dir / "train.jsonl"
+        valid_file = output_dir / "valid.jsonl"  # MLX requires valid.jsonl too
+        
         with open(train_file, 'w') as f:
             for item in training_data:
-                # Convert to mlx-lm expected format
+                # Convert to mlx-lm expected format (ChatML)
+                text = ""
+                for msg in item["messages"]:
+                    if msg["role"] == "system":
+                        text += f"<|im_start|>system\n{msg['content']}<|im_end|>\n"
+                    elif msg["role"] == "user":
+                        text += f"<|im_start|>user\n{msg['content']}<|im_end|>\n"
+                    elif msg["role"] == "assistant":
+                        text += f"<|im_start|>assistant\n{msg['content']}<|im_end|>\n"
+                f.write(json.dumps({"text": text}) + "\n")
+        
+        # Create a small valid set (reuse some training data)
+        with open(valid_file, 'w') as f:
+            for item in training_data[:max(1, len(training_data) // 5)]:
                 text = ""
                 for msg in item["messages"]:
                     if msg["role"] == "system":
@@ -794,55 +805,62 @@ class BabylonTrainer:
         
         logger.info(f"   Saved training data to: {train_file}")
         
-        # Attempt LoRA fine-tuning with mlx-lm
+        # Attempt LoRA fine-tuning with mlx-lm CLI
         try:
-            from mlx_lm import finetuning
+            import subprocess
             
             logger.info("   Starting MLX LoRA fine-tuning...")
             
-            # LoRA config
-            lora_config = {
-                "num_layers": 4,
-                "lora_rank": 8,
-                "lora_alpha": 16,
-                "lora_dropout": 0.05,
-            }
-            
-            # Training config
-            train_config = {
-                "iters": min(100, len(training_data) * 3),  # Reasonable iterations
-                "batch_size": 1,
-                "learning_rate": float(os.getenv("LEARNING_RATE", "1e-5")),
-                "save_every": 50,
-            }
-            
+            iters = min(100, len(training_data) * 10)
             adapter_path = output_dir / "adapters"
             
-            # Run fine-tuning
-            finetuning.train(
-                model=self._mlx_model,
-                tokenizer=self._mlx_tokenizer,
-                train_data=str(train_file),
-                adapter_path=str(adapter_path),
-                lora_config=lora_config,
-                train_config=train_config,
+            # Build the CLI command
+            cmd = [
+                "python", "-m", "mlx_lm", "lora",
+                "--model", self.base_model,
+                "--train",
+                "--data", str(output_dir),
+                "--batch-size", "1",
+                "--iters", str(iters),
+                "--learning-rate", os.getenv("LEARNING_RATE", "1e-5"),
+                "--adapter-path", str(adapter_path),
+                "--num-layers", os.getenv("MLX_LORA_LAYERS", "4"),
+                "--steps-per-report", "10",
+                "--save-every", str(max(10, iters // 2)),
+            ]
+            
+            logger.info(f"   Training for {iters} iterations...")
+            logger.info(f"   Command: {' '.join(cmd)}")
+            
+            # Run the training
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(Path.cwd()),
             )
             
-            logger.info(f"✓ MLX fine-tuning complete!")
-            logger.info(f"   Adapter saved to: {adapter_path}")
+            if result.returncode == 0:
+                logger.info(f"✓ MLX fine-tuning complete!")
+                logger.info(f"   Adapter saved to: {adapter_path}")
+                
+                return {
+                    "model_path": str(output_dir),
+                    "adapter_path": str(adapter_path),
+                    "training_examples": len(training_data),
+                    "iterations": iters,
+                }
+            else:
+                logger.warning(f"   MLX fine-tuning returned non-zero: {result.returncode}")
+                if result.stderr:
+                    logger.warning(f"   stderr: {result.stderr[:500]}")
+                raise RuntimeError(f"MLX fine-tuning failed: {result.stderr[:200]}")
             
-            return {
-                "model_path": str(output_dir),
-                "adapter_path": str(adapter_path),
-                "training_examples": len(training_data),
-            }
-            
-        except (ImportError, AttributeError) as e:
-            logger.warning(f"   MLX fine-tuning not available: {e}")
-            logger.info("   💡 To fine-tune with MLX, install: pip install mlx-lm[finetuning]")
+        except Exception as e:
+            logger.warning(f"   MLX fine-tuning failed: {e}")
             logger.info(f"   Training data saved to: {train_file}")
             logger.info("   You can fine-tune manually with:")
-            logger.info(f"      mlx_lm.lora --model {self.base_model} --train --data {train_file}")
+            logger.info(f"      python -m mlx_lm lora --model {self.base_model} --train --data {output_dir}")
             
             return {
                 "model_path": str(output_dir),
@@ -1068,14 +1086,7 @@ class BabylonTrainer:
             groups = []
             for i in range(0, len(art_trajs), max_per_group):
                 batch = art_trajs[i:i + max_per_group]
-                groups.append(art.TrajectoryGroup(
-                    trajectories=batch,
-                    metadata={
-                        'window_id': window_id,
-                        'batch_index': i // max_per_group,
-                        'batch_size': len(batch)
-                    }
-                ))
+                groups.append(art.TrajectoryGroup(trajectories=batch))
             
             logger.info(f"Split into {len(groups)} groups of max {max_per_group}")
             

@@ -30,13 +30,13 @@ describe('Admin Agents Reputation Integration', () => {
       console.warn('⚠️  Server not available, some tests may be skipped')
     }
 
-    // Create test agent
+    // Create test agent (use 'rep-agent' prefix to avoid preload cleanup which targets 'test-*')
     testAgentUserId = await generateSnowflakeId()
 
     await db.user.create({
       data: {
         id: testAgentUserId,
-        username: `test-agent-${Date.now()}`,
+        username: `rep-agent-${testAgentUserId}`,
         displayName: 'Test Agent for Reputation',
         isAgent: true,
         agent0TokenId: 99999,
@@ -115,12 +115,50 @@ describe('Admin Agents Reputation Integration', () => {
   })
 
   test('should verify reputation data structure', async () => {
-    const agent = await db.user.findUnique({
+    // Re-verify or recreate test data in case it was cleaned up
+    let agent = await db.user.findUnique({
       where: { id: testAgentUserId },
       include: {
         AgentPerformanceMetrics: true,
       },
     })
+
+    // If agent was cleaned up by another test, recreate it
+    if (!agent) {
+      await db.user.create({
+        data: {
+          id: testAgentUserId,
+          username: `rep-agent-${testAgentUserId}`,
+          displayName: 'Test Agent for Reputation',
+          isAgent: true,
+          agent0TokenId: 99999,
+          autonomousTrading: true,
+          agentModelTier: 'pro',
+          agentPointsBalance: 1000,
+          updatedAt: new Date(),
+        },
+      })
+
+      await db.agentPerformanceMetrics.create({
+        data: {
+          id: await generateSnowflakeId(),
+          userId: testAgentUserId,
+          reputationScore: 85,
+          averageFeedbackScore: 82,
+          totalFeedbackCount: 15,
+          totalTrades: 50,
+          profitableTrades: 35,
+          updatedAt: new Date(),
+        },
+      })
+
+      agent = await db.user.findUnique({
+        where: { id: testAgentUserId },
+        include: {
+          AgentPerformanceMetrics: true,
+        },
+      })
+    }
 
     expect(agent).toBeDefined()
     const agentWithMetrics = agent as typeof agent & { AgentPerformanceMetrics: { reputationScore: number; averageFeedbackScore: number | null; totalFeedbackCount: number } | null };

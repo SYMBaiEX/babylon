@@ -873,16 +873,43 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     // Handle XML structure - may be nested like { scenarios: { scenario: [...] } }
     let scenarios: Scenario[];
     
-    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response && rawResult.response.scenarios) {
-      const responseSc = rawResult.response.scenarios;
-      if (Array.isArray(responseSc)) {
-        scenarios = responseSc;
-      } else if (typeof responseSc === 'object' && 'scenario' in responseSc) {
-        const nested = (responseSc as { scenario: Scenario[] | Scenario }).scenario;
-        scenarios = Array.isArray(nested) ? nested : [nested];
+    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response) {
+      // Check if LLM returned questions instead of scenarios wrapped in response
+      if ('questions' in rawResult.response && rawResult.response.questions && !rawResult.response.scenarios) {
+        logger.error('LLM returned response.questions instead of response.scenarios. Retrying with stricter prompt...', undefined, 'GameGenerator');
+        
+        // Retry ONCE with a very strict prompt
+        const retryPrompt = `${prompt}\n\nSYSTEM: You returned questions instead of scenarios. Generate SCENARIOS only. The XML root must be <scenarios>. Do not generate <questions>.`;
+        
+        const retryResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(retryPrompt, undefined, {
+          temperature: 0.7,
+          maxTokens: 8000,
+          promptType: 'generate_scenarios_retry',
+        });
+
+        if (retryResult && ('scenarios' in retryResult || ('response' in retryResult && retryResult.response?.scenarios))) {
+           if ('scenarios' in retryResult) {
+              scenarios = retryResult.scenarios;
+           } else {
+              scenarios = (retryResult as { response: { scenarios: Scenario[] } }).response.scenarios;
+           }
+        } else {
+          throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+        }
+      } else if (rawResult.response.scenarios) {
+        const responseSc = rawResult.response.scenarios;
+        if (Array.isArray(responseSc)) {
+          scenarios = responseSc;
+        } else if (typeof responseSc === 'object' && 'scenario' in responseSc) {
+          const nested = (responseSc as { scenario: Scenario[] | Scenario }).scenario;
+          scenarios = Array.isArray(nested) ? nested : [nested];
+        } else {
+          logger.error('Invalid scenarios in response:', JSON.stringify(responseSc, null, 2), 'GameGenerator');
+          throw new Error('LLM returned invalid scenarios in response');
+        }
       } else {
-        logger.error('Invalid scenarios in response:', JSON.stringify(responseSc, null, 2), 'GameGenerator');
-        throw new Error('LLM returned invalid scenarios in response');
+        logger.error('Response object has neither scenarios nor questions:', JSON.stringify(rawResult.response, null, 2), 'GameGenerator');
+        throw new Error('LLM returned response object without scenarios');
       }
     } else if (rawResult && 'scenarios' in rawResult && rawResult.scenarios) {
       if (Array.isArray(rawResult.scenarios)) {

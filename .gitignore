@@ -85,3 +85,5 @@ public/uploads/covers/*
 public/uploads/posts/*
 !public/uploads/.gitkeep
 !public/uploads/*/.gitkeep
+
+python/trained_models

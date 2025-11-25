@@ -182,20 +182,22 @@ process.env.DATABASE_URL = LOCAL_DATABASE_URL
 
 /**
  * Run drizzle-kit push with timeout and proper error handling
- * Uses stdin redirection (< /dev/null) to auto-select defaults for prompts
- * This prevents interactive prompts from blocking the script
+ * Uses --force flag to skip interactive confirmations
+ * This prevents prompts from blocking the script in development
  */
 async function runMigrations(): Promise<void> {
   const MIGRATION_TIMEOUT_MS = 120_000 // 120 seconds (schema pull can be slow)
   
-  logger.info('Running database migrations (drizzle-kit push)...', undefined, 'Script')
+  logger.info('Running database migrations (drizzle-kit push --force)...', undefined, 'Script')
   
   const migrationPromise = (async () => {
-    // Run with stdin from /dev/null to auto-select default options for prompts
-    // This matches CI behavior where there's no TTY
+    // Run with --force to skip interactive prompts (safe for development)
+    // The --force flag auto-accepts all changes without confirmation
     // Explicitly set DATABASE_URL to local for the subprocess
-    const result = await $`DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push < /dev/null`
-    if (result.exitCode !== 0) {
+    // Using yes | ... as a fallback for any remaining prompts
+    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push --force`.nothrow()
+    if (result.exitCode !== 0 && result.exitCode !== 141) {
+      // Exit code 141 is SIGPIPE from yes being closed, which is expected
       throw new Error(`drizzle-kit push failed with exit code ${result.exitCode}`)
     }
     logger.info('✅ Migrations completed', undefined, 'Script')
