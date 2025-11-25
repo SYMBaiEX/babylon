@@ -105,9 +105,7 @@ export function ComingSoon() {
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [leaderboardPage, setLeaderboardPage] = useState(1)
   const [leaderboardTotalPages, setLeaderboardTotalPages] = useState(10) // 10 pages for top 100
-  const [leaderboardHasMore, setLeaderboardHasMore] = useState(true)
   const [leaderboardTab, setLeaderboardTab] = useState<'leaderboard' | 'inviters'>('leaderboard')
-  const usersPerPage = 10
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('qualified')
@@ -387,7 +385,6 @@ export function ComingSoon() {
       const data = await response.json()
       setTopUsers(data.leaderboard || [])
       setLeaderboardTotalPages(data.totalPages || 10)
-      setLeaderboardHasMore(data.hasMore || false)
       setLeaderboardLastFetched(Date.now())
       return true
     } catch (error) {
@@ -493,7 +490,6 @@ export function ComingSoon() {
             const leaderboardData = await leaderboardResponse.json()
             setTopUsers(leaderboardData.leaderboard || [])
             setLeaderboardTotalPages(leaderboardData.totalPages || 10)
-            setLeaderboardHasMore(leaderboardData.hasMore || false)
             setLeaderboardLastFetched(now)
             // Reset to first page when leaderboard updates
             setLeaderboardPage(1)
@@ -1953,15 +1949,17 @@ export function ComingSoon() {
                     </div>
 
                     {/* Show current user if not on current page */}
-                    {!currentUserInPage && currentUserRank > 0 && (() => {
-                      const currentUser = sortedUsers.find(u => u.id === dbUser.id)
-                      if (!currentUser) return null
+                    {!currentUserInPage && waitlistData?.leaderboardRank && waitlistData.leaderboardRank > 0 && (() => {
+                      // Use waitlistData for current user's rank and points
+                      const userRank = waitlistData.leaderboardRank
+                      const reputationPoints = waitlistData.pointsBreakdown?.total ?? 0
+                      const invitePoints = waitlistData.pointsBreakdown?.invite ?? 0
                       return (
                         <div className="mb-6 pt-4 border-t border-border/50">
                           <div className="flex items-center justify-between p-4 lg:p-5 rounded-xl bg-primary/20 border border-primary shadow-md">
                             <div className="flex items-center gap-4 min-w-0 flex-1">
                               <div className="text-lg lg:text-xl font-bold text-primary shrink-0 w-12 text-center">
-                                #{currentUserRank}
+                                #{userRank}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-semibold text-base lg:text-lg flex items-center gap-2">
@@ -1971,13 +1969,13 @@ export function ComingSoon() {
                                   </span>
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-0.5">
-                                  {currentUser.referralCount} {currentUser.referralCount === 1 ? 'referral' : 'referrals'}
+                                  {waitlistData.referralCount} {waitlistData.referralCount === 1 ? 'referral' : 'referrals'}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className="font-bold text-primary text-lg lg:text-xl">
-                                {(leaderboardTab === 'leaderboard' ? currentUser.reputationPoints : currentUser.invitePoints).toLocaleString()}
+                                {(leaderboardTab === 'leaderboard' ? reputationPoints : invitePoints).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {leaderboardTab === 'leaderboard' ? 'points' : 'invite pts'}

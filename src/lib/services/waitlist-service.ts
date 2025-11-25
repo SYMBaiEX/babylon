@@ -448,14 +448,17 @@ export class WaitlistService {
     })
 
     return users.map((user: typeof users[0], index: number) => ({
-      userId: user.id,
+      id: user.id, // For frontend compatibility (TopUser interface expects 'id')
+      userId: user.id, // Keep for backward compatibility
       username: user.username,
       displayName: user.displayName,
       // Only send profileImageUrl if it's a reasonable size (not a data URI)
-      profileImageUrl: user.profileImageUrl && user.profileImageUrl.length < 500 
-        ? user.profileImageUrl 
+      profileImageUrl: user.profileImageUrl && user.profileImageUrl.length < 500
+        ? user.profileImageUrl
         : null,
-      points: user.invitePoints,
+      points: user.invitePoints, // Keep for backward compatibility
+      invitePoints: user.invitePoints, // For frontend TopUser interface
+      reputationPoints: user.reputationPoints, // For frontend TopUser interface
       referralCount: user.referralCount,
       rank: safeOffset + index + 1, // Adjust rank based on offset
     }))

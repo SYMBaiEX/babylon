@@ -41,13 +41,28 @@
  *                   items:
  *                     type: object
  *                     properties:
+ *                       id:
+ *                         type: string
  *                       userId:
  *                         type: string
- *                       rank:
+ *                       username:
+ *                         type: string
+ *                         nullable: true
+ *                       displayName:
+ *                         type: string
+ *                         nullable: true
+ *                       profileImageUrl:
+ *                         type: string
+ *                         nullable: true
+ *                       invitePoints:
+ *                         type: integer
+ *                       reputationPoints:
  *                         type: integer
  *                       points:
- *                         type: number
+ *                         type: integer
  *                       referralCount:
+ *                         type: integer
+ *                       rank:
  *                         type: integer
  *                 totalShown:
  *                   type: integer
@@ -106,7 +121,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       if (cached) {
         return successResponse(cached, 200, {
           'x-cache': 'waitlist-leaderboard-hit',
-          'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}, immutable`,
+          'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
           'Vary': 'Accept-Encoding',
         })
       }
@@ -115,17 +130,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     logger.info('Waitlist leaderboard request', { page, limit, offset }, 'GET /api/waitlist/leaderboard')
 
     const topUsers = await WaitlistService.getTopWaitlistUsers(limit, offset)
-    
-    // Calculate total pages (max 100 users = 10 pages with limit=10)
+
+    // Calculate total pages (cap at 100 users for leaderboard display)
+    // Determine hasMore based on whether we got a full page of results
     const maxUsers = 100
     const totalPages = Math.ceil(maxUsers / limit)
+    const hasMore = topUsers.length === limit && page < totalPages
 
     const responseBody: LeaderboardResponse = {
       leaderboard: topUsers,
       totalShown: topUsers.length,
       page,
       totalPages,
-      hasMore: page < totalPages,
+      hasMore,
     }
 
     if (CACHE_TTL_MS > 0) {
