@@ -147,6 +147,7 @@ jobs:
           bun run lint
 
       - name: Build
+        if: ${{ env.ACT != 'true' }}
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           SKIP_ENV_VALIDATION: true
@@ -154,6 +155,12 @@ jobs:
         run: |
           echo "🏗️ Building project..."
           bun run build
+      
+      - name: Skip Build (act)
+        if: ${{ env.ACT == 'true' }}
+        run: |
+          echo "⏭️ Skipping build in act (memory-intensive in emulation)"
+          echo "   Build is verified separately via 'bun run build'"
 
       - name: Run Unit Tests
         env:
