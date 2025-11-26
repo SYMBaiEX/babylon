@@ -418,21 +418,35 @@ export class WaitlistService {
    * Sorted by invite points (most invites = best position)
    * Supports pagination with offset
    */
-  static async getTopWaitlistUsers(limit: number = 10, offset: number = 0) {
+  static async getTopWaitlistUsers(
+    limit: number = 10,
+    offset: number = 0,
+    pointsType: 'total' | 'invite' = 'invite'
+  ) {
     // Ensure limit is reasonable
     const safeLimit = Math.min(Math.max(1, limit), 100)
     const safeOffset = Math.max(0, offset)
-    
+
+    const orderBy =
+      pointsType === 'total'
+        ? [
+            { reputationPoints: 'desc' as const },
+            { invitePoints: 'desc' as const },
+            { waitlistJoinedAt: 'asc' as const },
+          ]
+        : [
+            { invitePoints: 'desc' as const },
+            { reputationPoints: 'desc' as const },
+            { waitlistJoinedAt: 'asc' as const },
+          ]
+
     const users = await prisma.user.findMany({
       where: { 
         isWaitlistActive: true,
         // Only include users with usernames (required for referral codes)
         username: { not: null },
       },
-      orderBy: [
-        { invitePoints: 'desc' },       // Primary: Most invite points
-        { waitlistJoinedAt: 'asc' },    // Tie-breaker: Earlier signup
-      ],
+      orderBy,
       skip: safeOffset,
       take: safeLimit,
       select: {
@@ -453,7 +467,7 @@ export class WaitlistService {
       username: user.username,
       displayName: user.displayName,
       // profileImageUrl removed - fetch on-demand when profile is clicked to reduce bandwidth
-      points: user.invitePoints, // Keep for backward compatibility
+      points: pointsType === 'total' ? user.reputationPoints : user.invitePoints, // Keep for backward compatibility
       invitePoints: user.invitePoints, // For frontend TopUser interface
       reputationPoints: user.reputationPoints, // For frontend TopUser interface
       referralCount: user.referralCount,
@@ -461,4 +475,3 @@ export class WaitlistService {
     }))
   }
 }
-

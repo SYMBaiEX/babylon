@@ -766,7 +766,7 @@ describeWaitlist('WaitlistService', () => {
 
     describe('getTopWaitlistUsers', () => {
       it('should return users sorted by invite points', async () => {
-      if (!prismaModelsAvailable) return;
+        if (!prismaModelsAvailable) return;
         // Create users with different invite points
         const users = await Promise.all([
           prisma.user.create({
@@ -837,6 +837,70 @@ describeWaitlist('WaitlistService', () => {
           expect(testUser100.rank).toBeLessThan(testUser50.rank)
         }
       })
+
+      it('should sort by total reputation points when requested', async () => {
+        if (!prismaModelsAvailable) return;
+        const users = await Promise.all([
+          prisma.user.create({
+            data: {
+              id: await generateSnowflakeId(),
+              privyId: `total-top1-${Date.now()}`,
+              username: `total1-${Date.now()}`,
+              displayName: 'Total Top 1',
+              reputationPoints: 5000,
+              invitePoints: 25,
+              isWaitlistActive: true,
+              isTest: true,
+
+              updatedAt: new Date(),
+            },
+          }),
+          prisma.user.create({
+            data: {
+              id: await generateSnowflakeId(),
+              privyId: `total-top2-${Date.now()}`,
+              username: `total2-${Date.now()}`,
+              displayName: 'Total Top 2',
+              reputationPoints: 4000,
+              invitePoints: 400,
+              isWaitlistActive: true,
+              isTest: true,
+
+              updatedAt: new Date(),
+            },
+          }),
+          prisma.user.create({
+            data: {
+              id: await generateSnowflakeId(),
+              privyId: `total-top3-${Date.now()}`,
+              username: `total3-${Date.now()}`,
+              displayName: 'Total Top 3',
+              reputationPoints: 3000,
+              invitePoints: 800,
+              isWaitlistActive: true,
+              isTest: true,
+
+              updatedAt: new Date(),
+            },
+          }),
+        ])
+        testUserIds.push(...users.map(u => u.id))
+
+        const topUsers = await WaitlistService.getTopWaitlistUsers(10, 0, 'total')
+
+        const indexById = (id: string) => topUsers.findIndex(u => u.id === id)
+
+        const firstIdx = indexById(users[0]!.id)
+        const secondIdx = indexById(users[1]!.id)
+        const thirdIdx = indexById(users[2]!.id)
+
+        expect(firstIdx).toBeGreaterThanOrEqual(0)
+        expect(secondIdx).toBeGreaterThanOrEqual(0)
+        expect(thirdIdx).toBeGreaterThanOrEqual(0)
+
+        // Ensure ordering follows reputation points, not invite points
+        expect(firstIdx).toBeLessThan(secondIdx)
+        expect(secondIdx).toBeLessThan(thirdIdx)
+      })
     })
   })
-
