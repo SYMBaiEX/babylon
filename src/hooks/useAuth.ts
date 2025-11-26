@@ -240,6 +240,8 @@ export function useAuth(): UseAuthReturn {
             referralCode: me.user.referralCode ?? undefined,
             hasFarcaster: me.user.hasFarcaster ?? undefined,
             hasTwitter: me.user.hasTwitter ?? undefined,
+            pointsAwardedForFarcasterFollow: me.user.pointsAwardedForFarcasterFollow ?? undefined,
+            pointsAwardedForTwitterFollow: me.user.pointsAwardedForTwitterFollow ?? undefined,
             farcasterUsername: me.user.farcasterUsername ?? undefined,
             twitterUsername: me.user.twitterUsername ?? undefined,
             showTwitterPublic: me.user.showTwitterPublic ?? undefined,
