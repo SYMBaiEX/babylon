@@ -2261,9 +2261,6 @@ export function ComingSoon() {
                             <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
                             <span className="font-semibold text-sm">Join Babylon Discord</span>
                           </div>
-                          {!dbUser?.hasDiscord && (
-                            <p className="text-xs text-muted-foreground mt-1 ml-8">Link your Discord account first</p>
-                          )}
                         </div>
                         <span className="text-primary font-bold text-sm ml-2">+{POINTS.DISCORD_JOIN}</span>
                       </button>
