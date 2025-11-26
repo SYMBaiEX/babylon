@@ -2037,138 +2037,7 @@ export function ComingSoon() {
                     </div>
                   )}
 
-                  {/* Link Discord */}
-                  {!dbUser?.hasDiscord && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDiscordOAuth()
-                      }}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                        <span className="font-semibold text-sm">Link Discord</span>
-                      </div>
-                      <span className="text-primary font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
-                    </button>
-                  )}
-                  {dbUser?.hasDiscord && (
-                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
-                      <div className="flex items-center gap-3">
-                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
-                        <span className="font-semibold text-sm">Discord Linked</span>
-                      </div>
-                      <span className="text-green-500 font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
-                    </div>
-                  )}
-
-                  {/* Farcaster Link */}
-                  {!dbUser?.hasFarcaster && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleFarcasterOAuth()
-                      }}
-                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                        <span className="font-semibold text-sm">Link Farcaster</span>
-                      </div>
-                      <span className="text-primary font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
-                    </button>
-                  )}
-                  {dbUser?.hasFarcaster && (
-                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
-                      <div className="flex items-center gap-3">
-                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
-                        <span className="font-semibold text-sm">Farcaster Linked</span>
-                      </div>
-                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
-                    </div>
-                  )}
-
-                  {/* Follow Babylon on Farcaster */}
-                  {!hasFarcasterFollow && !showVerifyFollowButton && (
-                    <div className="w-full space-y-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          if (dbUser?.hasFarcaster) {
-                            handleFarcasterFollow()
-                          } else {
-                            toast.error('Please link your Farcaster account first')
-                          }
-                        }}
-                        disabled={!dbUser?.hasFarcaster}
-                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <div className="">
-                          <div className="flex items-center gap-3">
-                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                            <span className="font-semibold text-sm">Follow @playbabylon on Farcaster</span>
-                          </div>
-                        </div>
-                        <span className="text-primary font-bold text-sm ml-2">+{POINTS.FARCASTER_FOLLOW}</span>
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* Verify Follow Section - shows after clicking follow link */}
-                  {showVerifyFollowButton && !hasFarcasterFollow && (
-                    <div className="w-full space-y-2">
-                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleVerifyFollow()
-                            }}
-                            disabled={isVerifyingFollow}
-                            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 active:scale-[0.98] text-primary-foreground rounded-lg p-3 transition-all duration-200 touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span className="text-sm">
-                              {isVerifyingFollow ? 'Verifying...' : 'Verify Follow'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setShowVerifyFollowButton(false)
-                            }}
-                            disabled={isVerifyingFollow}
-                            className="px-4 bg-background/50 hover:bg-background border border-border rounded-lg transition-all duration-200 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {hasFarcasterFollow && (
-                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
-                      <div className="flex items-center gap-3">
-                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
-                        <span className="font-semibold text-sm">Following @playbabylon</span>
-                      </div>
-                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_FOLLOW}</span>
-                    </div>
-                  )}
-
-                  {/* Follow Babylon on Twitter */}
+                  {/* Follow Babylon on Twitter/X - Right under Twitter Link */}
                   {!hasTwitterFollow && !showVerifyTwitterFollowButton && (
                     <div className="w-full space-y-2">
                       <button
@@ -2196,7 +2065,7 @@ export function ComingSoon() {
                     </div>
                   )}
                   
-                  {/* Verify Twitter Follow Section - shows after clicking follow link */}
+                  {/* Verify Twitter Follow Section */}
                   {showVerifyTwitterFollowButton && !hasTwitterFollow && (
                     <div className="w-full space-y-2">
                       <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
@@ -2243,7 +2112,35 @@ export function ComingSoon() {
                     </div>
                   )}
 
-                  {/* Discord Join Button */}
+                  {/* Link Discord */}
+                  {!dbUser?.hasDiscord && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDiscordOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Link Discord</span>
+                      </div>
+                      <span className="text-primary font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
+                    </button>
+                  )}
+                  {dbUser?.hasDiscord && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Discord Linked</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
+                    </div>
+                  )}
+
+                  {/* Join Discord - Right under Discord Link */}
                   {!hasDiscordJoin && !showVerifyDiscordJoinButton && (
                     <div className="w-full">
                       <button
@@ -2251,7 +2148,11 @@ export function ComingSoon() {
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          handleDiscordJoin()
+                          if (dbUser?.hasDiscord) {
+                            handleDiscordJoin()
+                          } else {
+                            toast.error('Please link your Discord account first')
+                          }
                         }}
                         disabled={!dbUser?.hasDiscord}
                         className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background/50"
@@ -2267,7 +2168,7 @@ export function ComingSoon() {
                     </div>
                   )}
                   
-                  {/* Verify Discord Join Section - shows after clicking join link */}
+                  {/* Verify Discord Join Section */}
                   {showVerifyDiscordJoinButton && !hasDiscordJoin && (
                     <div className="w-full space-y-2">
                       <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
@@ -2303,7 +2204,7 @@ export function ComingSoon() {
                       </div>
                     </div>
                   )}
-
+                  
                   {hasDiscordJoin && (
                     <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
                       <div className="flex items-center gap-3">
@@ -2311,6 +2212,109 @@ export function ComingSoon() {
                         <span className="font-semibold text-sm">Joined Babylon Discord</span>
                       </div>
                       <span className="text-green-500 font-bold text-sm">+{POINTS.DISCORD_JOIN}</span>
+                    </div>
+                  )}
+
+                  {/* Farcaster Link */}
+                  {!dbUser?.hasFarcaster && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleFarcasterOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Link Farcaster</span>
+                      </div>
+                      <span className="text-primary font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
+                    </button>
+                  )}
+                  {dbUser?.hasFarcaster && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Farcaster Linked</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
+                    </div>
+                  )}
+
+                  {/* Follow Babylon on Farcaster - Right under Farcaster Link */}
+                  {!hasFarcasterFollow && !showVerifyFollowButton && (
+                    <div className="w-full space-y-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (dbUser?.hasFarcaster) {
+                            handleFarcasterFollow()
+                          } else {
+                            toast.error('Please link your Farcaster account first')
+                          }
+                        }}
+                        disabled={!dbUser?.hasFarcaster}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="">
+                          <div className="flex items-center gap-3">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                            <span className="font-semibold text-sm">Follow @playbabylon on Farcaster</span>
+                          </div>
+                        </div>
+                        <span className="text-primary font-bold text-sm ml-2">+{POINTS.FARCASTER_FOLLOW}</span>
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Verify Farcaster Follow Section */}
+                  {showVerifyFollowButton && !hasFarcasterFollow && (
+                    <div className="w-full space-y-2">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleVerifyFollow()
+                            }}
+                            disabled={isVerifyingFollow}
+                            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 active:scale-[0.98] text-primary-foreground rounded-lg p-3 transition-all duration-200 touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span className="text-sm">
+                              {isVerifyingFollow ? 'Verifying...' : 'Verify Follow'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setShowVerifyFollowButton(false)
+                            }}
+                            disabled={isVerifyingFollow}
+                            className="px-4 bg-background/50 hover:bg-background border border-border rounded-lg transition-all duration-200 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {hasFarcasterFollow && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Following @playbabylon</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_FOLLOW}</span>
                     </div>
                   )}
 
