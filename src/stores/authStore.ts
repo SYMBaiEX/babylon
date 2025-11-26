@@ -35,9 +35,14 @@ export interface User {
   onChainRegistered?: boolean
   hasFarcaster?: boolean
   hasTwitter?: boolean
+  hasDiscord?: boolean
   pointsAwardedForEmail?: boolean
+  pointsAwardedForFarcasterFollow?: boolean
+  pointsAwardedForTwitterFollow?: boolean
+  pointsAwardedForDiscordJoin?: boolean
   farcasterUsername?: string
   twitterUsername?: string
+  discordUsername?: string
   showTwitterPublic?: boolean
   showFarcasterPublic?: boolean
   showWalletPublic?: boolean

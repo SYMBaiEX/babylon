@@ -17,7 +17,11 @@ export const POINTS = {
   INITIAL_SIGNUP: 1000,
   PROFILE_COMPLETION: 200, // Username + Profile Image + Bio (consolidated)
   FARCASTER_LINK: 300,
+  FARCASTER_FOLLOW: 100, // Follow Babylon on Farcaster
   TWITTER_LINK: 300,
+  TWITTER_FOLLOW: 100, // Follow Babylon on Twitter/X
+  DISCORD_LINK: 300, // Link Discord account
+  DISCORD_JOIN: 100, // Join Babylon Discord server
   WALLET_CONNECT: 300,
   SHARE_ACTION: 500,
   SHARE_TO_TWITTER: 500,
@@ -38,7 +42,11 @@ export type PointsReason =
   | 'initial_signup'
   | 'profile_completion'
   | 'farcaster_link'
+  | 'farcaster_follow'
   | 'twitter_link'
+  | 'twitter_follow'
+  | 'discord_link'
+  | 'discord_join'
   | 'wallet_connect'
   | 'share_action'
   | 'share_to_twitter'
