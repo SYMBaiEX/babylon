@@ -391,39 +391,15 @@ export function ComingSoon() {
   useEffect(() => {
     if (!authenticated || !dbUser?.id) return
 
-    const checkFollowRewards = async () => {
-      try {
-        const token = await getAccessToken()
-        const response = await fetch(`/api/users/${encodeURIComponent(dbUser.id)}/points-history`, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          const transactions = data.transactions || []
-          
-          // Check if user has been awarded Farcaster follow points
-          const hasFarcasterFollowReward = transactions.some(
-            (tx: { reason: string }) => tx.reason === 'farcaster_follow'
-          )
-          setHasFarcasterFollow(hasFarcasterFollowReward)
-          
-          // Check if user has been awarded Twitter follow points
-          const hasTwitterFollowReward = transactions.some(
-            (tx: { reason: string }) => tx.reason === 'twitter_follow'
-          )
-          setHasTwitterFollow(hasTwitterFollowReward)
-        }
-      } catch (error) {
-        logger.error('Error checking follow rewards status', {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        }, 'ComingSoon')
-      }
+    // Use dbUser fields to check if rewards were already claimed
+    if (dbUser.pointsAwardedForFarcasterFollow) {
+      setHasFarcasterFollow(true)
     }
-
-    void checkFollowRewards()
-  }, [authenticated, dbUser?.id])
+    
+    if (dbUser.pointsAwardedForTwitterFollow) {
+      setHasTwitterFollow(true)
+    }
+  }, [authenticated, dbUser?.id, dbUser?.pointsAwardedForFarcasterFollow, dbUser?.pointsAwardedForTwitterFollow])
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {

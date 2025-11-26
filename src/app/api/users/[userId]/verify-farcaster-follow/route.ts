@@ -47,7 +47,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { db, users, pointsTransactions, eq, and } from '@/db'
+import { db, users, eq } from '@/db'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -88,6 +88,7 @@ export const POST = withErrorHandling(async (
   const [user] = await db.select({
     farcasterUsername: users.farcasterUsername,
     farcasterFid: users.farcasterFid,
+    pointsAwardedForFarcasterFollow: users.pointsAwardedForFarcasterFollow,
   })
     .from(users)
     .where(eq(users.id, canonicalUserId))
@@ -104,16 +105,7 @@ export const POST = withErrorHandling(async (
     throw new BusinessLogicError('Farcaster FID not found. Please re-link your Farcaster account.', 'FARCASTER_FID_NOT_FOUND');
   }
 
-  // Check if user has already been awarded points for following
-  const existingTransaction = await db.select()
-    .from(pointsTransactions)
-    .where(and(
-      eq(pointsTransactions.userId, canonicalUserId),
-      eq(pointsTransactions.reason, 'farcaster_follow')
-    ))
-    .limit(1);
-
-  const alreadyAwarded = existingTransaction.length > 0;
+  const alreadyAwarded = user.pointsAwardedForFarcasterFollow;
 
   // Check if Neynar API key is configured
   if (!process.env.NEYNAR_API_KEY) {

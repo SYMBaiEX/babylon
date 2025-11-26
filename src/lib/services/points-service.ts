@@ -58,7 +58,9 @@ export class PointsService {
       bonusPoints: users.bonusPoints,
       pointsAwardedForProfile: users.pointsAwardedForProfile,
       pointsAwardedForFarcaster: users.pointsAwardedForFarcaster,
+      pointsAwardedForFarcasterFollow: users.pointsAwardedForFarcasterFollow,
       pointsAwardedForTwitter: users.pointsAwardedForTwitter,
+      pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
       pointsAwardedForWallet: users.pointsAwardedForWallet,
       pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
       pointsAwardedForShare: users.pointsAwardedForShare,
@@ -101,7 +103,9 @@ export class PointsService {
       bonusPoints: number;
       pointsAwardedForProfile: boolean;
       pointsAwardedForFarcaster: boolean;
+      pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
+      pointsAwardedForTwitterFollow: boolean;
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
       pointsAwardedForShare: boolean;
@@ -124,9 +128,17 @@ export class PointsService {
         updateData.bonusPoints = user.bonusPoints + amount;
         updateData.pointsAwardedForFarcaster = true;
         break;
+      case 'farcaster_follow':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForFarcasterFollow = true;
+        break;
       case 'twitter_link':
         updateData.bonusPoints = user.bonusPoints + amount;
         updateData.pointsAwardedForTwitter = true;
+        break;
+      case 'twitter_follow':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForTwitterFollow = true;
         break;
       case 'wallet_connect':
         updateData.bonusPoints = user.bonusPoints + amount;
@@ -664,7 +676,9 @@ export class PointsService {
     user: {
       pointsAwardedForProfile: boolean;
       pointsAwardedForFarcaster: boolean;
+      pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
+      pointsAwardedForTwitterFollow: boolean;
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
       pointsAwardedForShare: boolean;
@@ -676,8 +690,12 @@ export class PointsService {
         return user.pointsAwardedForProfile;
       case 'farcaster_link':
         return user.pointsAwardedForFarcaster;
+      case 'farcaster_follow':
+        return user.pointsAwardedForFarcasterFollow;
       case 'twitter_link':
         return user.pointsAwardedForTwitter;
+      case 'twitter_follow':
+        return user.pointsAwardedForTwitterFollow;
       case 'wallet_connect':
         return user.pointsAwardedForWallet;
       case 'referral_bonus':

@@ -47,7 +47,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { db, users, pointsTransactions, eq, and } from '@/db'
+import { db, users, eq } from '@/db'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -85,6 +85,7 @@ export const POST = withErrorHandling(async (
   const [user] = await db.select({
     twitterUsername: users.twitterUsername,
     twitterId: users.twitterId,
+    pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
   })
     .from(users)
     .where(eq(users.id, canonicalUserId))
@@ -95,16 +96,7 @@ export const POST = withErrorHandling(async (
     throw new BusinessLogicError('Please link your Twitter account first to claim this reward.', 'TWITTER_NOT_LINKED');
   }
 
-  // Check if user has already been awarded points for following
-  const existingTransaction = await db.select()
-    .from(pointsTransactions)
-    .where(and(
-      eq(pointsTransactions.userId, canonicalUserId),
-      eq(pointsTransactions.reason, 'twitter_follow')
-    ))
-    .limit(1);
-
-  const alreadyAwarded = existingTransaction.length > 0;
+  const alreadyAwarded = user.pointsAwardedForTwitterFollow;
 
   if (alreadyAwarded) {
     logger.info(

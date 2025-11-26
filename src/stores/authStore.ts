@@ -36,6 +36,8 @@ export interface User {
   hasFarcaster?: boolean
   hasTwitter?: boolean
   pointsAwardedForEmail?: boolean
+  pointsAwardedForFarcasterFollow?: boolean
+  pointsAwardedForTwitterFollow?: boolean
   farcasterUsername?: string
   twitterUsername?: string
   showTwitterPublic?: boolean

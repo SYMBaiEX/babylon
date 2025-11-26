@@ -59,6 +59,9 @@ export const users = pgTable(
     pointsAwardedForFarcaster: boolean('pointsAwardedForFarcaster')
       .notNull()
       .default(false),
+    pointsAwardedForFarcasterFollow: boolean('pointsAwardedForFarcasterFollow')
+      .notNull()
+      .default(false),
     pointsAwardedForProfile: boolean('pointsAwardedForProfile')
       .notNull()
       .default(false),
@@ -66,6 +69,9 @@ export const users = pgTable(
       .notNull()
       .default(false),
     pointsAwardedForTwitter: boolean('pointsAwardedForTwitter')
+      .notNull()
+      .default(false),
+    pointsAwardedForTwitterFollow: boolean('pointsAwardedForTwitterFollow')
       .notNull()
       .default(false),
     pointsAwardedForUsername: boolean('pointsAwardedForUsername')
