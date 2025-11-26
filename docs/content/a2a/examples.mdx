@@ -20,7 +20,7 @@ import { ethers } from 'ethers'
 async function main() {
  // 1. Initialize client (handles auth automatically)
  const client = new A2AClient({
- endpoint: 'http://localhost:3000/api/a2a',
+ endpoint: 'http://localhost:3000/a2a',
  credentials: {
  address: '0x...',
  privateKey: process.env.AGENT_PRIVATE_KEY,
@@ -269,7 +269,7 @@ class AutonomousTradingBot {
  this.wallet = new ethers.Wallet(privateKey);
  
  this.client = new A2AClient({
- endpoint: 'http://localhost:3000/api/a2a',
+ endpoint: 'http://localhost:3000/a2a',
  agentId,
  wallet: this.wallet
  });

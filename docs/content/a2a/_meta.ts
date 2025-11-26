@@ -1,4 +1,5 @@
 export default {
+  index: 'A2A Protocol',
   protocol: {
     type: 'page',
     title: 'Protocol Specification',

@@ -314,15 +314,15 @@ function buildOrderBy<TTable extends PgTable>(
   const result: SQL[] = [];
 
     const tableConfig = getTableConfig(table);
-    for (const order of orders) {
-      for (const [key, direction] of Object.entries(order)) {
+  for (const order of orders) {
+    for (const [key, direction] of Object.entries(order)) {
         // Find column by name - columns is an array
         const column = findColumnByName(tableConfig, key);
-        if (column) {
-          result.push(direction === 'desc' ? desc(column) : asc(column));
-        }
+      if (column) {
+        result.push(direction === 'desc' ? desc(column) : asc(column));
       }
     }
+  }
 
   return result;
 }
@@ -398,10 +398,10 @@ export class TableRepository<
     const relationalBuilder = getRelationalQueryBuilder(this.queryAPI, this.tableName);
     if (options.include && relationalBuilder?.findFirst) {
       const result = await relationalBuilder.findFirst({
-        where: whereClause,
-        with: this.buildWithClause(options.include),
-      });
-      return result as TSelect | null;
+          where: whereClause,
+          with: this.buildWithClause(options.include),
+        });
+        return result as TSelect | null;
     }
 
     // Use Drizzle's typed query builder - helper ensures type safety
@@ -436,11 +436,11 @@ export class TableRepository<
     const relationalBuilder = getRelationalQueryBuilder(this.queryAPI, this.tableName);
     if (options.include && relationalBuilder?.findFirst) {
       const result = await relationalBuilder.findFirst({
-        where: whereClause,
-        with: this.buildWithClause(options.include),
-        orderBy: orderByClause.length > 0 ? orderByClause : undefined,
-      });
-      return result as TSelect | null;
+          where: whereClause,
+          with: this.buildWithClause(options.include),
+          orderBy: orderByClause.length > 0 ? orderByClause : undefined,
+        });
+        return result as TSelect | null;
     }
 
     // Use Drizzle's typed query builder with $dynamic() for conditional chaining
@@ -476,13 +476,13 @@ export class TableRepository<
     const relationalBuilder = getRelationalQueryBuilder(this.queryAPI, this.tableName);
     if (options.include && relationalBuilder?.findMany) {
       const results = await relationalBuilder.findMany({
-        where: whereClause,
-        with: this.buildWithClause(options.include),
-        orderBy: orderByClause.length > 0 ? orderByClause : undefined,
-        limit: options.take,
-        offset: options.skip,
-      });
-      return results as TSelect[];
+          where: whereClause,
+          with: this.buildWithClause(options.include),
+          orderBy: orderByClause.length > 0 ? orderByClause : undefined,
+          limit: options.take,
+          offset: options.skip,
+        });
+        return results as TSelect[];
     }
 
     // Use Drizzle's typed query builder with $dynamic() for conditional chaining

@@ -19,7 +19,7 @@ sequenceDiagram
  participant Server
  participant Blockchain
  
- Agent->>Server: HTTP POST /api/a2a
+ Agent->>Server: HTTP POST /a2a
  Server->>Agent: HTTP 200 Response
  Agent->>Server: a2a.handshake (HTTP POST)
  Server->>Blockchain: Verify Identity
@@ -36,7 +36,7 @@ sequenceDiagram
 ### 1. Connection
 
 ```typescript
-const response = await fetch('http://localhost:3000/api/a2a', {
+const response = await fetch('http://localhost:3000/a2a', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -464,7 +464,7 @@ All requests must include authentication:
 async function sendRequest(method: string, params: any, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch('http://localhost:3000/api/a2a', {
+      const response = await fetch('http://localhost:3000/a2a', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

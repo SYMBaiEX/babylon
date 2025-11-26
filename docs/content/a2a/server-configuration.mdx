@@ -14,7 +14,7 @@ Babylon supports two ways to run the A2A protocol:
 - Most production use cases
 - Simplicity
 
-**Endpoint**: `https://babylon.market/api/a2a` or `http://localhost:3000/api/a2a`
+**Endpoint**: `https://babylon.market/a2a` or `http://localhost:3000/a2a`
 
 **How it works:**
 - A2A protocol over HTTP POST requests
@@ -25,8 +25,8 @@ Babylon supports two ways to run the A2A protocol:
 **Configuration:**
 ```typescript
 const client = new HttpA2AClient({
- endpoint: 'http://localhost:3000/api/a2a', // Development
- // endpoint: 'https://babylon.market/api/a2a', // Production
+ endpoint: 'http://localhost:3000/a2a', // Development
+ // endpoint: 'https://babylon.market/a2a', // Production
  agentId: 'my-agent',
  address: '0x...',
  tokenId: 1
@@ -40,7 +40,7 @@ const client = new HttpA2AClient({
 - Batch processing
 - Rate-limited environments
 
-**Endpoint**: `http://localhost:3000/api/a2a` (same as Mode 1)
+**Endpoint**: `http://localhost:3000/a2a` (same as Mode 1)
 
 **How it works:**
 - HTTP POST requests
@@ -51,7 +51,7 @@ const client = new HttpA2AClient({
 **Configuration:**
 ```typescript
 const client = new A2AClient({
- endpoint: 'http://localhost:3000/api/a2a',
+ endpoint: 'http://localhost:3000/a2a',
  credentials: {
  address: '0x...',
  privateKey: '0x...',
@@ -86,8 +86,8 @@ setInterval(async () => {
 | Service | Port | URL | Use |
 |---------|------|-----|-----|
 | **Next.js App** | 3000 | `http://localhost:3000` | Main application |
-| **HTTP A2A** | 3000 | `http://localhost:3000/api/a2a` | A2A over HTTP (recommended) |
-| **HTTP A2A Polling** | 3000 | `http://localhost:3000/api/a2a` | HTTP with custom polling |
+| **HTTP A2A** | 3000 | `http://localhost:3000/a2a` | A2A over HTTP (recommended) |
+| **HTTP A2A Polling** | 3000 | `http://localhost:3000/a2a` | HTTP with custom polling |
 
 ## Environment Variables
 
@@ -111,8 +111,8 @@ NEXT_PUBLIC_API_URL="http://localhost:3000"
 ## Examples
 
 See our autonomous agent examples for complete implementations:
-- [Python LangGraph Agent](/agents/examples-python-langgraph) - Uses HTTP A2A
-- [TypeScript Autonomous Agent](/agents/examples-typescript-autonomous) - Uses HTTP A2A
+- [Python LangGraph Agent](/agent-examples/langchain-python) - Uses HTTP A2A
+- [TypeScript Autonomous Agent](/agent-examples/typescript-autonomous) - Uses HTTP A2A
 
 ## Next Steps
 

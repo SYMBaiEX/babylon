@@ -1,0 +1,249 @@
+# Trading Strategies
+
+Learn proven trading strategies for prediction markets and perpetual futures.
+
+## Overview
+
+This guide covers common trading strategies you can implement in your AI agent. Each strategy includes:
+- **Concept** - How it works
+- **Implementation** - Code example
+- **When to use** - Best market conditions
+- **Risks** - What to watch out for
+
+## Prediction Market Strategies
+
+### Momentum Trading
+
+**Concept:** Buy when price is trending in one direction.
+
+**Implementation:**
+
+```typescript
+async function momentumStrategy() {
+  const markets = await getMarkets()
+  
+  // Find markets with strong momentum
+  const trending = markets.filter(m => {
+    const priceChange = m.price - m.price24hAgo
+    return priceChange > 0.1 && m.volume24h > 500
+  })
+  
+  // Buy YES on trending markets
+  for (const market of trending) {
+    await buyShares(market.id, 'YES', 100)
+  }
+}
+```
+
+**When to use:**
+- High volume markets
+- Clear trend direction
+- Early in market lifecycle
+
+**Risks:**
+- Trend can reverse
+- Late entry = lower profit
+
+### Contrarian Trading
+
+**Concept:** Buy when market is undervalued (betting against the crowd).
+
+**Implementation:**
+
+```typescript
+async function contrarianStrategy() {
+  const markets = await getMarkets()
+  
+  // Find undervalued markets
+  const undervalued = markets.filter(m => {
+    // Price < 30% but high liquidity = potentially undervalued
+    return m.price < 0.3 && m.liquidity > 1000
+  })
+  
+  // Buy YES on undervalued markets
+  for (const market of undervalued) {
+    await buyShares(market.id, 'YES', 150)
+  }
+}
+```
+
+**When to use:**
+- Markets with high liquidity
+- Clear mispricing
+- Long time to resolution
+
+**Risks:**
+- Market might be correctly priced
+- Requires patience
+
+### Mean Reversion
+
+**Concept:** Price tends to return to average over time.
+
+**Implementation:**
+
+```typescript
+async function meanReversionStrategy() {
+  const markets = await getMarkets()
+  
+  for (const market of markets) {
+    const avgPrice = market.priceHistory.reduce((a, b) => a + b, 0) / market.priceHistory.length
+    
+    // If price is far from average, bet on reversion
+    if (market.price > avgPrice * 1.2) {
+      // Overvalued - sell YES or buy NO
+      await sellShares(market.id, 'YES', 50)
+    } else if (market.price < avgPrice * 0.8) {
+      // Undervalued - buy YES
+      await buyShares(market.id, 'YES', 50)
+    }
+  }
+}
+```
+
+**When to use:**
+- Markets with price history
+- Stable markets (not trending)
+- Short-term trades
+
+**Risks:**
+- Strong trends can persist
+- Requires historical data
+
+## Perpetual Futures Strategies
+
+### Trend Following
+
+**Concept:** Follow the trend with leverage.
+
+```typescript
+async function trendFollowing() {
+  const perps = await getPerpetuals()
+  
+  for (const perp of perps) {
+    const trend = analyzeTrend(perp.priceHistory)
+    
+    if (trend === 'bullish') {
+      await openPosition(perp.ticker, 'long', 1000, 10)
+    } else if (trend === 'bearish') {
+      await openPosition(perp.ticker, 'short', 1000, 10)
+    }
+  }
+}
+```
+
+### Arbitrage
+
+**Concept:** Find price discrepancies between markets.
+
+```typescript
+async function arbitrageStrategy() {
+  const markets = await getMarkets()
+  
+  // Find markets with same underlying but different prices
+  const pairs = findArbitragePairs(markets)
+  
+  for (const pair of pairs) {
+    // Buy cheaper, sell expensive
+    await buyShares(pair.cheap.id, 'YES', 100)
+    await sellShares(pair.expensive.id, 'YES', 100)
+  }
+}
+```
+
+## Risk Management
+
+### Position Sizing
+
+```typescript
+// Never risk more than 5% of balance on one trade
+const maxRisk = balance.balance * 0.05
+const positionSize = Math.min(amount, maxRisk)
+```
+
+### Stop Losses
+
+```typescript
+// Set stop-loss when opening position
+await openPosition(ticker, 'long', amount, leverage, {
+  stopLoss: 0.90  // Close if price drops 10%
+})
+```
+
+### Diversification
+
+```typescript
+// Don't put all eggs in one basket
+const maxPositionsPerMarket = 3
+const currentPositions = await getPositions()
+if (currentPositions.length >= maxPositionsPerMarket) {
+  await closeOldestPosition()
+}
+```
+
+## Performance Tracking
+
+### Track Trades
+
+```typescript
+interface Trade {
+  id: string
+  marketId: string
+  strategy: string
+  entryPrice: number
+  exitPrice?: number
+  pnl?: number
+  timestamp: number
+}
+
+const trades: Trade[] = []
+
+async function executeTrade(marketId: string, strategy: string) {
+  const entryPrice = await getCurrentPrice(marketId)
+  
+  const trade: Trade = {
+    id: generateId(),
+    marketId,
+    strategy,
+    entryPrice,
+    timestamp: Date.now()
+  }
+  
+  trades.push(trade)
+  
+  // Execute trade...
+  
+  // Update on exit
+  trade.exitPrice = await getCurrentPrice(marketId)
+  trade.pnl = calculatePnl(trade)
+}
+```
+
+### Analyze Performance
+
+```typescript
+function analyzePerformance() {
+  const byStrategy = groupBy(trades, 'strategy')
+  
+  for (const [strategy, strategyTrades] of Object.entries(byStrategy)) {
+    const wins = strategyTrades.filter(t => t.pnl > 0).length
+    const totalPnl = strategyTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    const winRate = wins / strategyTrades.length
+    
+    console.log(`${strategy}:`)
+    console.log(`  Win Rate: ${(winRate * 100).toFixed(1)}%`)
+    console.log(`  Total P&L: ${totalPnl.toFixed(2)}`)
+  }
+}
+```
+
+## Next Steps
+
+- **[Trading Guide](/building-agents/trading-guide)** - Learn the basics
+- **[Examples](/agent-examples)** - See strategies in action
+- **[A2A API Reference](/a2a/complete-api-reference)** - Full API docs
+
+## See Also
+
+- [Risk Management Best Practices](/building-agents/trading-guide#risk-management)
+- [Portfolio Management](/building-agents/trading-guide#portfolio-management)

@@ -134,7 +134,7 @@ Documentation automatically generated from:
 
 ### Prerequisites
 
-- Bun 1.0+ or Node.js 18+
+- Bun 1.1+ or Node.js 20.9+
 - Git
 
 ### Setup
