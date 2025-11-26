@@ -216,15 +216,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <WidgetRefreshProvider>
                 {mounted ? (
                   <Fragment>
-                    {/* Debug banner for CI/development - shows when Privy is not configured */}
-                    {process.env.NODE_ENV !== 'production' && (
-                      <div 
-                        data-testid="privy-not-configured-warning"
-                        className="fixed top-0 left-0 right-0 z-[9999] bg-yellow-500 text-black text-center py-1 text-sm font-medium"
-                      >
-                        ⚠️ Privy authentication not configured - NEXT_PUBLIC_PRIVY_APP_ID missing at build time
-                      </div>
-                    )}
+                    {/* Debug banner - shows when Privy is not configured (visible in all environments for E2E test detection) */}
+                    <div 
+                      data-testid="privy-not-configured-warning"
+                      className="fixed top-0 left-0 right-0 z-[9999] bg-yellow-500 text-black text-center py-1 text-sm font-medium"
+                    >
+                      ⚠️ Privy authentication not configured - NEXT_PUBLIC_PRIVY_APP_ID missing at build time
+                    </div>
                     {children}
                   </Fragment>
                 ) : (

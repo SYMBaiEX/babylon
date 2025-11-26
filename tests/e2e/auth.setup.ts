@@ -107,30 +107,46 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
   } catch (e) {
     console.log('❌ Privy SDK check timed out')
     
-    // Log more diagnostic info
-    const content = await page.content()
-    const scripts = await page.evaluate(() => {
-      const scriptTags = Array.from(document.querySelectorAll('script'))
-      return scriptTags.map(s => s.src).filter(src => src).slice(0, 10)
-    })
+    // Diagnostic code - wrap in try-catch to handle case where page is already closed
+    // This can happen if the test timeout is exceeded during the waitForFunction
+    let diagnosticInfo = { hasPrivyScript: false, hasPrivyRoot: false, hasWarningBanner: false };
+    let content = '';
+    let scripts: string[] = [];
     
-    // Check for console errors
-    const consoleErrors = await page.evaluate(() => {
-      // Check if there are any obvious issues
-      const hasPrivyScript = document.querySelector('script[src*="privy"]') !== null
-      const hasPrivyRoot = document.querySelector('[data-privy-root]') !== null
-      const hasWarningBanner = document.querySelector('[data-testid="privy-not-configured-warning"]') !== null
-      return { hasPrivyScript, hasPrivyRoot, hasWarningBanner }
-    }).catch(() => ({ hasPrivyScript: false, hasPrivyRoot: false, hasWarningBanner: false }))
+    try {
+      // Check if page is still usable before trying to get diagnostics
+      if (!page.isClosed()) {
+        diagnosticInfo = await page.evaluate(() => {
+          const hasPrivyScript = document.querySelector('script[src*="privy"]') !== null
+          const hasPrivyRoot = document.querySelector('[data-privy-root]') !== null
+          const hasWarningBanner = document.querySelector('[data-testid="privy-not-configured-warning"]') !== null
+          return { hasPrivyScript, hasPrivyRoot, hasWarningBanner }
+        }).catch(() => ({ hasPrivyScript: false, hasPrivyRoot: false, hasWarningBanner: false }))
+        
+        content = await page.content().catch(() => '(page content unavailable)')
+        scripts = await page.evaluate(() => {
+          const scriptTags = Array.from(document.querySelectorAll('script'))
+          return scriptTags.map(s => s.src).filter(src => src).slice(0, 10)
+        }).catch(() => [])
+      } else {
+        console.log('⚠️  Page is already closed - cannot get detailed diagnostics')
+      }
+    } catch (diagError) {
+      console.log('⚠️  Could not gather diagnostics (page may be closed):', diagError instanceof Error ? diagError.message : String(diagError))
+    }
     
     console.log(`📋 Privy diagnostics:`)
-    console.log(`   - Privy script tag: ${consoleErrors.hasPrivyScript ? 'FOUND' : 'NOT FOUND'}`)
-    console.log(`   - Privy root element: ${consoleErrors.hasPrivyRoot ? 'FOUND' : 'NOT FOUND'}`)
-    console.log(`   - Warning banner: ${consoleErrors.hasWarningBanner ? 'VISIBLE (Privy not configured!)' : 'not visible'}`)
-    console.log(`📄 Page content preview: ${content.substring(0, 500)}...`)
-    console.log(`📜 Script tags found:`, scripts)
+    console.log(`   - Privy script tag: ${diagnosticInfo.hasPrivyScript ? 'FOUND' : 'NOT FOUND'}`)
+    console.log(`   - Privy root element: ${diagnosticInfo.hasPrivyRoot ? 'FOUND' : 'NOT FOUND'}`)
+    console.log(`   - Warning banner: ${diagnosticInfo.hasWarningBanner ? 'VISIBLE (Privy not configured!)' : 'not visible'}`)
+    if (content) {
+      console.log(`📄 Page content preview: ${content.substring(0, 500)}...`)
+    }
+    if (scripts.length > 0) {
+      console.log(`📜 Script tags found:`, scripts)
+    }
     
-    if (!consoleErrors.hasPrivyScript && !consoleErrors.hasPrivyRoot) {
+    if (!diagnosticInfo.hasPrivyScript && !diagnosticInfo.hasPrivyRoot) {
       throw new Error(
         'Privy SDK failed to load - NEXT_PUBLIC_PRIVY_APP_ID may not have been set at build time.\n' +
         'Check the CI "Build production" step logs for the secret availability check.'
@@ -430,7 +446,7 @@ async function authenticateWithPrivy(page: Page, email: string, password: string
  * The authenticated state is saved to .playwright/auth.json and reused.
  */
 setup('authenticate as admin', async ({ page }) => {
-  setup.setTimeout(120000) // Increase timeout to 120s for auth flow in CI (Blacksmith runners may be slower)
+  setup.setTimeout(180000) // Increase timeout to 180s for auth flow in CI (includes Privy SDK load + diagnostics)
   const { email, password } = getPrivyTestAccount()
 
   console.log(`🔐 Authenticating with email: ${email}`)

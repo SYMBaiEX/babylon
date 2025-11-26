@@ -117,6 +117,7 @@ const mockDb = {
 };
 
 const mockLogger = {
+  debug: mock(),
   info: mock(),
   warn: mock(),
   error: mock(),
