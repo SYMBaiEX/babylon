@@ -111,6 +111,9 @@ export function ComingSoon() {
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   const [referralTab, setReferralTab] = useState<'pending' | 'qualified'>('qualified')
   const [leaderboardLastFetched, setLeaderboardLastFetched] = useState<number>(0)
+  const [hasFarcasterFollow, setHasFarcasterFollow] = useState(false)
+  const [isVerifyingFollow, setIsVerifyingFollow] = useState(false)
+  const [showVerifyFollowButton, setShowVerifyFollowButton] = useState(false)
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -253,6 +256,70 @@ export function ComingSoon() {
     }
   }
 
+  // Handle Farcaster Follow - just open the link
+  const handleFarcasterFollow = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Farcaster follow link clicked without user ID', {}, 'ComingSoon')
+      return
+    }
+
+    if (!dbUser?.hasFarcaster) {
+      toast.error('Please link your Farcaster account first')
+      return
+    }
+
+    // Open Farcaster profile in new tab
+    window.open('https://warpcast.com/playbabylon', '_blank')
+    
+    // Show verify button
+    setShowVerifyFollowButton(true)
+    toast.success('After following, click the "Verify Follow" button below!')
+  }
+
+  // Handle verify follow - check if they actually followed
+  const handleVerifyFollow = async () => {
+    if (!dbUser?.id) return
+
+    setIsVerifyingFollow(true)
+    try {
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.verified) {
+        setHasFarcasterFollow(true)
+        setShowVerifyFollowButton(false)
+        
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id)
+
+        if (data.points?.awarded > 0) {
+          toast.success(`Follow verified! +${data.points.awarded} points awarded`)
+        } else {
+          toast.success('Follow verified! You already received points for this action.')
+        }
+      } else {
+        toast.error(data.message || 'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.')
+      }
+    } catch (error) {
+      logger.error('Error verifying Farcaster follow', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to verify follow. Please try again.')
+    } finally {
+      setIsVerifyingFollow(false)
+    }
+  }
+
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
     if (!authenticated || !dbUser || !dbUser.id) return
@@ -268,6 +335,22 @@ export function ComingSoon() {
       const existingPosition = await fetchWaitlistPosition(userId)
       if (existingPosition) {
         // Already setup, just refresh data
+        // Check if user has been awarded points for Farcaster follow
+        try {
+          const token = await getAccessToken()
+          const response = await fetch(`/api/waitlist/position`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          })
+          
+          if (response.ok) {
+            // Check points transactions to see if farcaster_follow was awarded
+            // For now, we'll fetch this status when needed
+          }
+        } catch (error) {
+          logger.error('Error checking Farcaster follow status', {
+            error: error instanceof Error ? error.message : String(error),
+          }, 'ComingSoon')
+        }
         return
       }
 
@@ -1811,6 +1894,81 @@ export function ComingSoon() {
                         <span className="font-semibold text-sm">Farcaster Linked</span>
                       </div>
                       <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_LINK}</span>
+                    </div>
+                  )}
+
+                  {/* Follow Babylon on Farcaster */}
+                  {!hasFarcasterFollow && !showVerifyFollowButton && (
+                    <div className="w-full space-y-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (dbUser?.hasFarcaster) {
+                            handleFarcasterFollow()
+                          } else {
+                            toast.error('Please link your Farcaster account first')
+                          }
+                        }}
+                        disabled={!dbUser?.hasFarcaster}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="">
+                          <div className="flex items-center gap-3">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                            <span className="font-semibold text-sm">Follow @playbabylon on Farcaster</span>
+                          </div>
+                        </div>
+                        <span className="text-primary font-bold text-sm ml-2">+{POINTS.FARCASTER_FOLLOW}</span>
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Verify Follow Section - shows after clicking follow link */}
+                  {showVerifyFollowButton && !hasFarcasterFollow && (
+                    <div className="w-full space-y-2">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleVerifyFollow()
+                            }}
+                            disabled={isVerifyingFollow}
+                            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 active:scale-[0.98] text-primary-foreground rounded-lg p-3 transition-all duration-200 touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span className="text-sm">
+                              {isVerifyingFollow ? 'Verifying...' : 'Verify Follow'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setShowVerifyFollowButton(false)
+                            }}
+                            disabled={isVerifyingFollow}
+                            className="px-4 bg-background/50 hover:bg-background border border-border rounded-lg transition-all duration-200 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {hasFarcasterFollow && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Following @playbabylon</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_FOLLOW}</span>
                     </div>
                   )}
 

@@ -206,6 +206,18 @@ export class PointsService {
   }
 
   /**
+   * Award points for Farcaster follow
+   */
+  static async awardFarcasterFollow(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.FARCASTER_FOLLOW,
+      'farcaster_follow',
+      { action: 'follow_playbabylon' }
+    );
+  }
+
+  /**
    * Award points for Twitter link
    */
   static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {

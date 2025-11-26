@@ -17,6 +17,7 @@ export const POINTS = {
   INITIAL_SIGNUP: 1000,
   PROFILE_COMPLETION: 200, // Username + Profile Image + Bio (consolidated)
   FARCASTER_LINK: 300,
+  FARCASTER_FOLLOW: 100, // Follow Babylon on Farcaster
   TWITTER_LINK: 300,
   WALLET_CONNECT: 300,
   SHARE_ACTION: 500,
@@ -38,6 +39,7 @@ export type PointsReason =
   | 'initial_signup'
   | 'profile_completion'
   | 'farcaster_link'
+  | 'farcaster_follow'
   | 'twitter_link'
   | 'wallet_connect'
   | 'share_action'
