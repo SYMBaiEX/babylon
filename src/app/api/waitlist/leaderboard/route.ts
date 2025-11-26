@@ -5,8 +5,10 @@
  * @access Public
  * 
  * @description
- * Returns top waitlist users ranked by invite points. Shows leaderboard with
- * user rankings and points. Supports pagination.
+ * Returns top waitlist users ranked by points. By default results are sorted
+ * by invite points, but you can set `pointsType=total` to sort by total
+ * reputation points. Shows leaderboard with user rankings and points.
+ * Supports pagination.
  * 
  * @openapi
  * /api/waitlist/leaderboard:
@@ -14,7 +16,7 @@
  *     tags:
  *       - Waitlist
  *     summary: Get waitlist leaderboard
- *     description: Returns top waitlist users ranked by invite points with pagination
+ *     description: Returns top waitlist users ranked by invite points (default) or total points with pagination
  *     parameters:
  *       - in: query
  *         name: page
@@ -28,6 +30,13 @@
  *           type: integer
  *           default: 10
  *         description: Number of users per page (max 100)
+ *       - in: query
+ *         name: pointsType
+ *         schema:
+ *           type: string
+ *           enum: [total, invite]
+ *           default: invite
+ *         description: Sort by total reputation points (total) or invite points (invite)
  *     responses:
  *       200:
  *         description: Leaderboard retrieved successfully
@@ -91,6 +100,7 @@ type LeaderboardResponse = {
   page: number
   totalPages: number
   hasMore: boolean
+  pointsType: 'total' | 'invite'
 }
 
 const CACHE_KEY_NAMESPACE = 'waitlist:leaderboard'
@@ -104,12 +114,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(parseInt(searchParams.get('limit') || '10', 10), 100) // Cap at 100
+    const pointsTypeParam = (searchParams.get('pointsType') || '').toLowerCase()
+    const pointsType: 'total' | 'invite' = pointsTypeParam === 'total' ? 'total' : 'invite'
     
     // Calculate offset for pagination
     const offset = (page - 1) * limit
     
-    // Cache key includes both page and limit
-    const cacheKey = `${page}-${limit}`
+    // Cache key includes page, limit, and points type
+    const cacheKey = `${pointsType}-${page}-${limit}`
 
     if (CACHE_TTL_MS > 0) {
       const cached = await getCache<LeaderboardResponse>(cacheKey, {
@@ -124,9 +136,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
     }
 
-    logger.info('Waitlist leaderboard request', { page, limit, offset }, 'GET /api/waitlist/leaderboard')
+    logger.info('Waitlist leaderboard request', { page, limit, offset, pointsType }, 'GET /api/waitlist/leaderboard')
 
-    const topUsers = await WaitlistService.getTopWaitlistUsers(limit, offset)
+    const topUsers = await WaitlistService.getTopWaitlistUsers(limit, offset, pointsType)
 
     // Calculate total pages (cap at 100 users for leaderboard display)
     // Determine hasMore based on whether we got a full page of results
@@ -140,6 +152,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       page,
       totalPages,
       hasMore,
+      pointsType,
     }
 
     if (CACHE_TTL_MS > 0) {

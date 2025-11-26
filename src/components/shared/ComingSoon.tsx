@@ -374,10 +374,14 @@ export function ComingSoon() {
     return () => clearInterval(refreshInterval)
   }, [authenticated, dbUser?.id, waitlistData])
 
+  const getPointsTypeForTab = (tab: 'leaderboard' | 'inviters') =>
+    tab === 'leaderboard' ? 'total' : 'invite'
+
   // Fetch leaderboard for a specific page
-  const fetchLeaderboardPage = async (page: number) => {
+  const fetchLeaderboardPage = async (page: number, tab: 'leaderboard' | 'inviters' = leaderboardTab) => {
+    const pointsType = getPointsTypeForTab(tab)
     try {
-      const response = await fetch(`/api/waitlist/leaderboard?page=${page}&limit=10`)
+      const response = await fetch(`/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`)
       if (!response.ok) {
         logger.warn('Failed to fetch leaderboard page', { page, status: response.status }, 'ComingSoon')
         return false
@@ -402,6 +406,7 @@ export function ComingSoon() {
       // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
       const now = Date.now()
       const shouldFetchLeaderboard = !skipLeaderboard && (now - leaderboardLastFetched > 5 * 60 * 1000)
+      const pointsType = getPointsTypeForTab(leaderboardTab)
       
       // Get auth token for authenticated position endpoint
       const token = await getAccessToken()
@@ -413,7 +418,7 @@ export function ComingSoon() {
       ]
       if (shouldFetchLeaderboard) {
         // Fetch first page of leaderboard with pagination
-        requests.push(fetch('/api/waitlist/leaderboard?page=1&limit=10'))
+        requests.push(fetch(`/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`))
       }
       
       const results = await Promise.allSettled(requests)
@@ -1856,7 +1861,7 @@ export function ComingSoon() {
                         onClick={() => {
                           setLeaderboardTab('leaderboard')
                           setLeaderboardPage(1)
-                          void fetchLeaderboardPage(1)
+                          void fetchLeaderboardPage(1, 'leaderboard')
                         }}
                         className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
                           leaderboardTab === 'leaderboard'
@@ -1873,7 +1878,7 @@ export function ComingSoon() {
                         onClick={() => {
                           setLeaderboardTab('inviters')
                           setLeaderboardPage(1)
-                          void fetchLeaderboardPage(1)
+                          void fetchLeaderboardPage(1, 'inviters')
                         }}
                         className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
                           leaderboardTab === 'inviters'
@@ -1995,7 +2000,7 @@ export function ComingSoon() {
                           onClick={() => {
                             const newPage = Math.max(1, leaderboardPage - 1)
                             setLeaderboardPage(newPage)
-                            void fetchLeaderboardPage(newPage)
+                            void fetchLeaderboardPage(newPage, leaderboardTab)
                           }}
                           disabled={leaderboardPage === 1}
                           className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
@@ -2010,7 +2015,7 @@ export function ComingSoon() {
                           onClick={() => {
                             const newPage = Math.min(totalPages, leaderboardPage + 1)
                             setLeaderboardPage(newPage)
-                            void fetchLeaderboardPage(newPage)
+                            void fetchLeaderboardPage(newPage, leaderboardTab)
                           }}
                           disabled={leaderboardPage >= totalPages}
                           className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-background border border-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-semibold touch-manipulation min-h-[44px]"
@@ -2206,4 +2211,3 @@ export function ComingSoon() {
     </div>
   )
 }
-

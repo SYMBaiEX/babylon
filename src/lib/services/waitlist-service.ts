@@ -3,7 +3,7 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
-import { db, users, referrals, pointsTransactions, eq, and, or, gt, lt, ne, desc, count } from '@/db';
+import { db, users, referrals, pointsTransactions, eq, and, or, gt, lt, ne, desc, asc, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { nanoid } from 'nanoid';
@@ -437,12 +437,21 @@ export class WaitlistService {
    * Sorted by invite points (most invites = best position)
    * Supports pagination with offset
    */
-  static async getTopWaitlistUsers(limit: number = 10, offset: number = 0) {
+  static async getTopWaitlistUsers(
+    limit: number = 10,
+    offset: number = 0,
+    pointsType: 'total' | 'invite' = 'invite'
+  ) {
     // Ensure limit is reasonable
     const safeLimit = Math.min(Math.max(1, limit), 100)
     const safeOffset = Math.max(0, offset)
-    
-const usersResult = await db.select({
+
+    // Build orderBy based on pointsType
+    const orderByColumns = pointsType === 'total'
+      ? [desc(users.reputationPoints), desc(users.invitePoints), asc(users.waitlistJoinedAt)]
+      : [desc(users.invitePoints), desc(users.reputationPoints), asc(users.waitlistJoinedAt)]
+
+    const usersResult = await db.select({
       id: users.id,
       username: users.username,
       displayName: users.displayName,
@@ -458,7 +467,7 @@ const usersResult = await db.select({
         // Only include users with usernames (required for referral codes)
         ne(users.username, '')
       ))
-      .orderBy(desc(users.invitePoints), users.waitlistJoinedAt)
+      .orderBy(...orderByColumns)
       .offset(safeOffset)
       .limit(safeLimit)
 
@@ -468,7 +477,7 @@ const usersResult = await db.select({
       username: user.username,
       displayName: user.displayName,
       // profileImageUrl removed - fetch on-demand when profile is clicked to reduce bandwidth
-      points: user.invitePoints, // Keep for backward compatibility
+      points: pointsType === 'total' ? user.reputationPoints : user.invitePoints, // Keep for backward compatibility
       invitePoints: user.invitePoints, // For frontend TopUser interface
       reputationPoints: user.reputationPoints, // For frontend TopUser interface
       referralCount: user.referralCount,
