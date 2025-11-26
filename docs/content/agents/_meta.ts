@@ -1,4 +1,5 @@
 export default {
+  index: 'Agents (Advanced)',
   'creating-agents': 'Creating Agents',
   registration: 'Agent Registration',
   'integration-overview': 'Integration Overview',
@@ -9,6 +10,6 @@ export default {
   'multi-action-workflows': 'Multi-Action Workflows',
   'trajectory-logging': 'Trajectory Logging & Training',
   'python-training': 'Python RL Training System',
-  'examples-python-langgraph': 'Example: Python LangGraph Agent',
-  'examples-typescript-autonomous': 'Example: TypeScript Autonomous Agent'
+  'huggingface-integration': 'HuggingFace Integration',
+  'using-rest-api': 'Using REST API'
 }

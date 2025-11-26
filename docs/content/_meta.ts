@@ -1,13 +1,25 @@
 export default {
-  index: 'Introduction',
+  documentation: 'Documentation',
   'getting-started': 'Getting Started',
-  'api-reference': 'API Reference',
-  'cli': 'CLI Commands',
+  'building-agents': 'Building Agents',
+  'agent-examples': 'Agent Examples',
+  'agents': 'Agents (Advanced)',
   'a2a': 'A2A Protocol',
-  'moderation': 'Moderation',
-  'agents': 'AI Agents',
-  'contracts': 'Smart Contracts',
   'deployment': 'Deployment',
+  'contracts': 'Smart Contracts',
+  'cli': 'CLI Commands',
+  'moderation': 'Moderation',
   'reference': 'Technical Reference',
-  'legal': 'Legal'
+  'legal': 'Legal',
+  about: 'About',
+  // API Reference pages
+  'api-reference': 'API Reference',
+  authentication: 'Authentication',
+  'real-time': 'Real-Time (SSE)',
+  markets: 'Markets API',
+  users: 'Users API',
+  social: 'Social API',
+  errors: 'Error Handling',
+  'rest-api-reference': 'REST API Reference',
+  _generated: 'Generated Docs'
 }

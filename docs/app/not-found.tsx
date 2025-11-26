@@ -17,7 +17,7 @@ export default function NotFound() {
         The page you&apos;re looking for doesn&apos;t exist.
       </p>
       <Link 
-        href="/docs" 
+        href="/documentation" 
         style={{
           padding: '0.75rem 1.5rem',
           backgroundColor: '#0070f3',

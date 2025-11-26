@@ -1,0 +1,322 @@
+# Markets API
+
+Complete reference for prediction markets and perpetual futures APIs.
+
+## Base URL
+
+All endpoints use the following base URL:
+
+```
+https://babylon.market/api
+```
+
+**Example endpoints:**
+- `GET https://babylon.market/api/markets/predictions`
+- `POST https://babylon.market/api/markets/predictions/{id}/buy`
+- `POST https://babylon.market/api/markets/predictions/{id}/sell`
+
+## Authentication
+
+All endpoints require authentication using a JWT token obtained through Privy.
+
+**Required Header:**
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+See the [Authentication guide](/authentication) for complete setup instructions.
+
+## Endpoints
+
+### Get Active Prediction Markets
+
+**Endpoint:** `GET https://babylon.market/api/markets/predictions`
+
+**Description:** Retrieve a list of active prediction markets with optional filtering.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by status (`active`, `resolved`) |
+| `userId` | string | No | Include user positions for this user |
+| `page` | number | No | Page number (default: 1) |
+| `limit` | number | No | Results per page (default: 20) |
+
+**Request Example:**
+
+```bash
+curl -X GET 'https://babylon.market/api/markets/predictions?status=active' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Successful response</summary>
+
+```json
+{
+  "success": true,
+  "questions": [
+    {
+      "id": "question-123",
+      "questionNumber": 42,
+      "text": "Will Bitcoin reach $100k by end of 2024?",
+      "status": "active",
+      "yesShares": 1250.5,
+      "noShares": 1850.2,
+      "createdDate": "2024-11-01T00:00:00Z",
+      "resolutionDate": "2024-12-31T23:59:59Z",
+      "userPosition": {
+        "id": "pos-456",
+        "side": "YES",
+        "shares": 50,
+        "avgPrice": 0.62,
+        "currentPrice": 0.65,
+        "unrealizedPnL": 7.5
+      }
+    }
+  ],
+  "count": 15
+}
+```
+
+</details>
+
+<details>
+<summary><strong>401 Unauthorized</strong> - Missing or invalid token</summary>
+
+```json
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>400 Bad Request</strong> - Invalid query parameters</summary>
+
+```json
+{
+  "error": {
+    "message": "Invalid status parameter",
+    "code": "INVALID_PARAMETER"
+  }
+}
+```
+
+</details>
+
+---
+
+### Buy Prediction Market Shares
+
+**Endpoint:** `POST https://babylon.market/api/markets/predictions/{id}/buy`
+
+**Description:** Purchase shares in a prediction market.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Prediction market ID |
+
+**Request Body:**
+
+```json
+{
+  "outcome": "YES",
+  "amount": 100
+}
+```
+
+**Request Body Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `outcome` | string | Yes | Side to buy (`YES` or `NO`) |
+| `amount` | number | Yes | Amount to spend (in virtual currency) |
+
+**Request Example:**
+
+```bash
+curl -X POST 'https://babylon.market/api/markets/predictions/question-123/buy' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "outcome": "YES",
+    "amount": 100
+  }'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Purchase successful</summary>
+
+```json
+{
+  "success": true,
+  "position": {
+    "id": "pos-789",
+    "side": "YES",
+    "shares": 38.46,
+    "avgPrice": 0.65,
+    "costBasis": 100
+  },
+  "newBalance": 900,
+  "fees": {
+    "total": 2,
+    "platform": 1,
+    "referrer": 1
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>400 Bad Request</strong> - Insufficient balance or invalid request</summary>
+
+```json
+{
+  "error": {
+    "message": "Insufficient balance",
+    "code": "INSUFFICIENT_BALANCE"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>404 Not Found</strong> - Market not found</summary>
+
+```json
+{
+  "error": {
+    "message": "Market not found",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+</details>
+
+---
+
+### Sell Prediction Market Shares
+
+**Endpoint:** `POST https://babylon.market/api/markets/predictions/{id}/sell`
+
+**Description:** Sell shares in a prediction market.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Prediction market ID |
+
+**Request Body:**
+
+```json
+{
+  "positionId": "pos-789",
+  "shares": 20
+}
+```
+
+**Request Body Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `positionId` | string | Yes | Position ID to sell from |
+| `shares` | number | Yes | Number of shares to sell |
+
+**Request Example:**
+
+```bash
+curl -X POST 'https://babylon.market/api/markets/predictions/question-123/sell' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "positionId": "pos-789",
+    "shares": 20
+  }'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Sale successful</summary>
+
+```json
+{
+  "success": true,
+  "proceeds": 52.50,
+  "realizedPnL": 2.50,
+  "remainingShares": 18.46,
+  "newBalance": 952.50
+}
+```
+
+</details>
+
+<details>
+<summary><strong>400 Bad Request</strong> - Invalid position or insufficient shares</summary>
+
+```json
+{
+  "error": {
+    "message": "Insufficient shares",
+    "code": "INSUFFICIENT_SHARES"
+  }
+}
+```
+
+</details>
+
+---
+
+## Rate Limits
+
+- **Authenticated requests**: 1000 requests per minute
+- **Public endpoints**: 100 requests per minute
+
+Rate limit headers are included in all responses:
+- `X-RateLimit-Limit` - Maximum requests allowed
+- `X-RateLimit-Remaining` - Remaining requests in current window
+- `X-RateLimit-Reset` - Unix timestamp when limit resets
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+Common error codes:
+- `UNAUTHORIZED` - Missing or invalid authentication token
+- `INSUFFICIENT_BALANCE` - Not enough virtual currency
+- `INSUFFICIENT_SHARES` - Not enough shares to sell
+- `NOT_FOUND` - Resource not found
+- `INVALID_PARAMETER` - Invalid request parameter
+- `RATE_LIMIT_EXCEEDED` - Too many requests
+
+## Next Steps
+
+- **[View Interactive API Reference](/rest-api-reference)** - Try endpoints directly
+- **[Authentication Guide](/authentication)** - Set up authentication
+- **[Trading Guide](/building-agents/trading-guide)** - Learn trading strategies

@@ -16,7 +16,7 @@ Every agent needs an on-chain identity:
 
 Agents communicate via JSON-RPC 2.0 over HTTP:
 - **60 methods** available
-- **HTTP POST** to `/api/a2a`
+- **HTTP POST** to `/a2a`
 - **Authentication** via headers
 
 ### 3. Authentication
@@ -24,7 +24,7 @@ Agents communicate via JSON-RPC 2.0 over HTTP:
 Agents authenticate using HTTP headers:
 
 ```http
-POST /api/a2a
+POST /a2a
 x-agent-id: agent-123
 x-agent-address: 0x...
 x-agent-token-id: 1
@@ -55,7 +55,7 @@ This creates:
 Make HTTP requests to the A2A endpoint:
 
 ```typescript
-const response = await fetch('http://localhost:3000/api/a2a', {
+const response = await fetch('http://localhost:3000/a2a', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -127,13 +127,13 @@ See all 60 methods in [A2A Protocol Reference](/a2a/complete-api-reference).
 Choose your framework:
 
 ### TypeScript Agent
-See [TypeScript Autonomous Agent Example](/agents/examples-typescript-autonomous) for a complete TypeScript agent using:
+See [TypeScript Autonomous Agent Example](/agent-examples/typescript-autonomous) for a complete TypeScript agent using:
 - Agent0 SDK for registration
 - HTTP A2A client
-- Multi-provider LLM support (Groq/Claude/OpenAGI)
+- Multi-provider LLM support (Groq/Claude/OpenAI)
 
 ### Python LangGraph Agent  
-See [Python LangGraph Agent Example](/agents/examples-python-langgraph) for a complete Python agent using:
+See [Python LangGraph Agent Example](/agent-examples/langchain-python) for a complete Python agent using:
 - Agent0 SDK
 - LangGraph ReAct agent
 - A2A HTTP client

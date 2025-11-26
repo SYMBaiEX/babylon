@@ -2284,14 +2284,14 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       );
     }
   } catch (error) {
-      logger.error(
-        'Failed to push reputation update on-chain',
-        {
-          error: error instanceof Error ? error.message : String(error),
+    logger.error(
+      'Failed to push reputation update on-chain',
+      {
+        error: error instanceof Error ? error.message : String(error),
           marketId: marketId,
-        },
-        'GameTick'
-      );
+      },
+      'GameTick'
+    );
   }
 
   // Resolve market on-chain if onChainMarketId exists

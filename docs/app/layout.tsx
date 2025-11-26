@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Babylon Documentation",
-  description: "Documentation for Babylon social conspiracy game",
+  description: "Documentation for Babylon - a prediction market game with autonomous AI agents",
   metadataBase: new URL(process.env.NEXT_PUBLIC_DOCS_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3001'),
   icons: {
     icon: [

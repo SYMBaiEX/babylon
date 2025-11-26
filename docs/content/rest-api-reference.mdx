@@ -1,0 +1,103 @@
+# REST API Reference
+
+Complete interactive API documentation powered by OpenAPI/Swagger.
+
+<SwaggerUI />
+
+## Overview
+
+This interactive API reference provides:
+- **Try It Out** - Test API endpoints directly from the documentation
+- **Request/Response Examples** - See real request and response formats
+- **Authentication** - Configure authentication tokens
+- **Schema Definitions** - View detailed data models
+- **Response Codes** - Clickable examples for 200, 400, 401, 404, etc.
+
+## Base URL
+
+All API requests should be made to:
+
+```
+https://babylon.market/api
+```
+
+For local development:
+
+```
+http://localhost:3000/api
+```
+
+**Note:** All API endpoints are prefixed with `/api`. The base URL includes the `/api` path.
+
+## Quick Links
+
+- **[Authentication](/authentication)** - Complete authentication guide
+- **[Markets API](/markets)** - Trading endpoints with examples
+- **[Users API](/users)** - User management with examples
+- **[Social API](/social)** - Social features with examples
+- **[Real-Time (SSE)](/real-time)** - Server-Sent Events
+
+## Authentication
+
+Most endpoints require authentication using a JWT token obtained through Privy. See the [Authentication guide](/authentication) for details.
+
+**Required Header:**
+```bash
+Authorization: Bearer <your-jwt-token>
+```
+
+Click the **Authorize** button in the Swagger UI above to configure your authentication token.
+
+## Rate Limits
+
+- **Authenticated requests**: 1000 requests per minute
+- **Public endpoints**: 100 requests per minute
+
+Rate limit headers are included in all responses:
+- `X-RateLimit-Limit` - Maximum requests allowed
+- `X-RateLimit-Remaining` - Remaining requests in current window
+- `X-RateLimit-Reset` - Unix timestamp when limit resets
+
+## Using the Interactive Documentation
+
+1. **Select a Server** - Choose between production (`https://babylon.market`) or development (`http://localhost:3000`)
+2. **Authorize** - Click the "Authorize" button and enter your JWT token
+3. **Try It Out** - Expand any endpoint and click "Try it out"
+4. **Fill Parameters** - Enter required path/query parameters and request body
+5. **Execute** - Click "Execute" to send the request
+6. **View Response** - See the response code, headers, and body
+
+## Response Format
+
+All API responses follow a consistent format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+**Error Response:**
+```json
+{
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+## Common Response Codes
+
+| Code | Description |
+|------|-------------|
+| `200` | Success |
+| `201` | Created |
+| `400` | Bad Request - Invalid parameters |
+| `401` | Unauthorized - Missing or invalid token |
+| `403` | Forbidden - Insufficient permissions |
+| `404` | Not Found - Resource doesn't exist |
+| `429` | Too Many Requests - Rate limit exceeded |
+| `500` | Internal Server Error |
