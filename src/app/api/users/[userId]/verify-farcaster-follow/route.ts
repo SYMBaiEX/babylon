@@ -139,8 +139,6 @@ export const POST = withErrorHandling(async (
     if (neynarResponse.ok) {
       const neynarData = await neynarResponse.json();
 
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Neynar API response:', JSON.stringify(neynarData, null, 2));
-
       logger.info(
         `Neynar API response received`,
         { userId: canonicalUserId, hasUsers: !!neynarData.users },
@@ -155,9 +153,6 @@ export const POST = withErrorHandling(async (
         //   - followed_by: true = user follows Babylon ✅ (this is what we want!)
         //   - following: true = Babylon follows user (not what we want)
         const viewerContext = userData.viewer_context;
-
-        console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Viewer context:', viewerContext);
-        console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Followed by (user follows Babylon):', viewerContext?.followed_by);
         
         if (viewerContext && viewerContext.followed_by) {
           isFollowing = true;
