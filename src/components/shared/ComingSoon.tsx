@@ -118,6 +118,11 @@ export function ComingSoon() {
   const [isVerifyingTwitterFollow, setIsVerifyingTwitterFollow] = useState(false)
   const [showVerifyTwitterFollowButton, setShowVerifyTwitterFollowButton] = useState(false)
   
+  // Discord join state
+  const [hasDiscordJoin, setHasDiscordJoin] = useState(false)
+  const [isVerifyingDiscordJoin, setIsVerifyingDiscordJoin] = useState(false)
+  const [showVerifyDiscordJoinButton, setShowVerifyDiscordJoinButton] = useState(false)
+  
   // Profile form state
   const [profileForm, setProfileForm] = useState({
     username: dbUser?.username || '',
@@ -169,6 +174,19 @@ export function ComingSoon() {
     // Redirect to Twitter OAuth initiation
     // Cookies should be sent automatically with the redirect
     window.location.href = '/api/auth/twitter/initiate'
+  }
+
+  const handleDiscordOAuth = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Discord OAuth attempted without user ID', {}, 'ComingSoon')
+      return
+    }
+    
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    // Redirect to Discord OAuth initiation
+    window.location.href = '/api/auth/discord/initiate'
   }
 
   // Handle Farcaster OAuth - uses proper Sign In with Farcaster (SIWF) protocol
@@ -387,6 +405,71 @@ export function ComingSoon() {
     }
   }
 
+  // Handle Discord Join - open invite link
+  const handleDiscordJoin = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Discord join link clicked without user ID', {}, 'ComingSoon')
+      return
+    }
+
+    if (!dbUser?.hasDiscord) {
+      toast.error('Please link your Discord account first')
+      return
+    }
+
+    // Open Discord invite in new tab
+    const discordInviteUrl = process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || 'https://discord.gg/babylon'
+    window.open(discordInviteUrl, '_blank')
+    
+    // Show verify button
+    setShowVerifyDiscordJoinButton(true)
+    toast.success('After joining, click the "Verify Join" button below!')
+  }
+
+  // Handle verify Discord join - check if they actually joined
+  const handleVerifyDiscordJoin = async () => {
+    if (!dbUser?.id) return
+
+    setIsVerifyingDiscordJoin(true)
+    try {
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.verified) {
+        setHasDiscordJoin(true)
+        setShowVerifyDiscordJoinButton(false)
+        
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id)
+
+        if (data.points?.awarded > 0) {
+          toast.success(`Discord membership verified! +${data.points.awarded} points awarded`)
+        } else {
+          toast.success('Membership verified! You already received points for this action.')
+        }
+      } else {
+        toast.error(data.message || 'Could not verify membership. Please make sure you joined the Babylon Discord server.')
+      }
+    } catch (error) {
+      logger.error('Error verifying Discord join', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to verify Discord membership. Please try again.')
+    } finally {
+      setIsVerifyingDiscordJoin(false)
+    }
+  }
+
   // Check if user has already been awarded follow rewards on page load
   useEffect(() => {
     if (!authenticated || !dbUser?.id) return
@@ -399,7 +482,11 @@ export function ComingSoon() {
     if (dbUser.pointsAwardedForTwitterFollow) {
       setHasTwitterFollow(true)
     }
-  }, [authenticated, dbUser?.id, dbUser?.pointsAwardedForFarcasterFollow, dbUser?.pointsAwardedForTwitterFollow])
+
+    if (dbUser.pointsAwardedForDiscordJoin) {
+      setHasDiscordJoin(true)
+    }
+  }, [authenticated, dbUser?.id, dbUser?.pointsAwardedForFarcasterFollow, dbUser?.pointsAwardedForTwitterFollow, dbUser?.pointsAwardedForDiscordJoin])
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -1950,6 +2037,34 @@ export function ComingSoon() {
                     </div>
                   )}
 
+                  {/* Link Discord */}
+                  {!dbUser?.hasDiscord && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDiscordOAuth()
+                      }}
+                      className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                        <span className="font-semibold text-sm">Link Discord</span>
+                      </div>
+                      <span className="text-primary font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
+                    </button>
+                  )}
+                  {dbUser?.hasDiscord && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Discord Linked</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.DISCORD_LINK}</span>
+                    </div>
+                  )}
+
                   {/* Farcaster Link */}
                   {!dbUser?.hasFarcaster && (
                     <button
@@ -2125,6 +2240,80 @@ export function ComingSoon() {
                         <span className="font-semibold text-sm">Following @PlayBabylon</span>
                       </div>
                       <span className="text-green-500 font-bold text-sm">+{POINTS.TWITTER_FOLLOW}</span>
+                    </div>
+                  )}
+
+                  {/* Discord Join Button */}
+                  {!hasDiscordJoin && !showVerifyDiscordJoinButton && (
+                    <div className="w-full">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleDiscordJoin()
+                        }}
+                        disabled={!dbUser?.hasDiscord}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background/50"
+                      >
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                            <span className="font-semibold text-sm">Join Babylon Discord</span>
+                          </div>
+                          {!dbUser?.hasDiscord && (
+                            <p className="text-xs text-muted-foreground mt-1 ml-8">Link your Discord account first</p>
+                          )}
+                        </div>
+                        <span className="text-primary font-bold text-sm ml-2">+{POINTS.DISCORD_JOIN}</span>
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Verify Discord Join Section - shows after clicking join link */}
+                  {showVerifyDiscordJoinButton && !hasDiscordJoin && (
+                    <div className="w-full space-y-2">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleVerifyDiscordJoin()
+                            }}
+                            disabled={isVerifyingDiscordJoin}
+                            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 active:scale-[0.98] text-primary-foreground rounded-lg p-3 transition-all duration-200 touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span className="text-sm">
+                              {isVerifyingDiscordJoin ? 'Verifying...' : 'Verify Join'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setShowVerifyDiscordJoinButton(false)
+                            }}
+                            disabled={isVerifyingDiscordJoin}
+                            className="px-4 bg-background/50 hover:bg-background border border-border rounded-lg transition-all duration-200 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {hasDiscordJoin && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Joined Babylon Discord</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.DISCORD_JOIN}</span>
                     </div>
                   )}
 

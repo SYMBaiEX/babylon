@@ -61,6 +61,8 @@ export class PointsService {
       pointsAwardedForFarcasterFollow: users.pointsAwardedForFarcasterFollow,
       pointsAwardedForTwitter: users.pointsAwardedForTwitter,
       pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
+      pointsAwardedForDiscord: users.pointsAwardedForDiscord,
+      pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
       pointsAwardedForWallet: users.pointsAwardedForWallet,
       pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
       pointsAwardedForShare: users.pointsAwardedForShare,
@@ -106,6 +108,8 @@ export class PointsService {
       pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
       pointsAwardedForTwitterFollow: boolean;
+      pointsAwardedForDiscord: boolean;
+      pointsAwardedForDiscordJoin: boolean;
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
       pointsAwardedForShare: boolean;
@@ -139,6 +143,14 @@ export class PointsService {
       case 'twitter_follow':
         updateData.bonusPoints = user.bonusPoints + amount;
         updateData.pointsAwardedForTwitterFollow = true;
+        break;
+      case 'discord_link':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForDiscord = true;
+        break;
+      case 'discord_join':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForDiscordJoin = true;
         break;
       case 'wallet_connect':
         updateData.bonusPoints = user.bonusPoints + amount;
@@ -238,6 +250,24 @@ export class PointsService {
       POINTS.TWITTER_FOLLOW,
       'twitter_follow',
       { action: 'follow_playbabylon' }
+    );
+  }
+
+  static async awardDiscordLink(userId: string, discordUsername?: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.DISCORD_LINK,
+      'discord_link',
+      discordUsername ? { discordUsername } : undefined
+    );
+  }
+
+  static async awardDiscordJoin(userId: string, discordUsername?: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.DISCORD_JOIN,
+      'discord_join',
+      discordUsername ? { discordUsername } : undefined
     );
   }
 
@@ -679,6 +709,8 @@ export class PointsService {
       pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
       pointsAwardedForTwitterFollow: boolean;
+      pointsAwardedForDiscord: boolean;
+      pointsAwardedForDiscordJoin: boolean;
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
       pointsAwardedForShare: boolean;
@@ -696,6 +728,10 @@ export class PointsService {
         return user.pointsAwardedForTwitter;
       case 'twitter_follow':
         return user.pointsAwardedForTwitterFollow;
+      case 'discord_link':
+        return user.pointsAwardedForDiscord;
+      case 'discord_join':
+        return user.pointsAwardedForDiscordJoin;
       case 'wallet_connect':
         return user.pointsAwardedForWallet;
       case 'referral_bonus':

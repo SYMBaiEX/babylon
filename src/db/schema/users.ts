@@ -54,6 +54,7 @@ export const users = pgTable(
     farcasterUsername: text('farcasterUsername'),
     hasFarcaster: boolean('hasFarcaster').notNull().default(false),
     hasTwitter: boolean('hasTwitter').notNull().default(false),
+    hasDiscord: boolean('hasDiscord').notNull().default(false),
     nftTokenId: integer('nftTokenId').unique(),
     onChainRegistered: boolean('onChainRegistered').notNull().default(false),
     pointsAwardedForFarcaster: boolean('pointsAwardedForFarcaster')
@@ -72,6 +73,12 @@ export const users = pgTable(
       .notNull()
       .default(false),
     pointsAwardedForTwitterFollow: boolean('pointsAwardedForTwitterFollow')
+      .notNull()
+      .default(false),
+    pointsAwardedForDiscord: boolean('pointsAwardedForDiscord')
+      .notNull()
+      .default(false),
+    pointsAwardedForDiscordJoin: boolean('pointsAwardedForDiscordJoin')
       .notNull()
       .default(false),
     pointsAwardedForUsername: boolean('pointsAwardedForUsername')
@@ -147,6 +154,12 @@ export const users = pgTable(
     twitterRefreshToken: text('twitterRefreshToken'),
     twitterTokenExpiresAt: timestamp('twitterTokenExpiresAt', { mode: 'date' }),
     twitterVerifiedAt: timestamp('twitterVerifiedAt', { mode: 'date' }),
+    discordId: text('discordId').unique(),
+    discordUsername: text('discordUsername'),
+    discordAccessToken: text('discordAccessToken'),
+    discordRefreshToken: text('discordRefreshToken'),
+    discordTokenExpiresAt: timestamp('discordTokenExpiresAt', { mode: 'date' }),
+    discordVerifiedAt: timestamp('discordVerifiedAt', { mode: 'date' }),
     tosAccepted: boolean('tosAccepted').notNull().default(false),
     tosAcceptedAt: timestamp('tosAcceptedAt', { mode: 'date' }),
     tosAcceptedVersion: text('tosAcceptedVersion').default('2025-11-11'),
