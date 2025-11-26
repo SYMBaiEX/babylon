@@ -114,6 +114,9 @@ export function ComingSoon() {
   const [hasFarcasterFollow, setHasFarcasterFollow] = useState(false)
   const [isVerifyingFollow, setIsVerifyingFollow] = useState(false)
   const [showVerifyFollowButton, setShowVerifyFollowButton] = useState(false)
+  const [hasTwitterFollow, setHasTwitterFollow] = useState(false)
+  const [isVerifyingTwitterFollow, setIsVerifyingTwitterFollow] = useState(false)
+  const [showVerifyTwitterFollowButton, setShowVerifyTwitterFollowButton] = useState(false)
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -317,6 +320,70 @@ export function ComingSoon() {
       toast.error('Failed to verify follow. Please try again.')
     } finally {
       setIsVerifyingFollow(false)
+    }
+  }
+
+  // Handle Twitter Follow - just open the follow intent link
+  const handleTwitterFollow = () => {
+    if (!dbUser?.id) {
+      toast.error('Please complete your profile first')
+      logger.warn('Twitter follow link clicked without user ID', {}, 'ComingSoon')
+      return
+    }
+
+    if (!dbUser?.hasTwitter) {
+      toast.error('Please link your Twitter account first')
+      return
+    }
+
+    // Open Twitter follow intent in new tab
+    window.open('https://x.com/intent/follow?screen_name=PlayBabylon', '_blank')
+    
+    // Show verify button
+    setShowVerifyTwitterFollowButton(true)
+    toast.success('After following, click the "Claim Reward" button below!')
+  }
+
+  // Handle verify Twitter follow - award points (trusted system)
+  const handleVerifyTwitterFollow = async () => {
+    if (!dbUser?.id) return
+
+    setIsVerifyingTwitterFollow(true)
+    try {
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.verified) {
+        setHasTwitterFollow(true)
+        setShowVerifyTwitterFollowButton(false)
+        
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id)
+
+        if (data.points?.awarded > 0) {
+          toast.success(`Thank you for following! +${data.points.awarded} points awarded`)
+        } else {
+          toast.success('You already received points for this action.')
+        }
+      } else {
+        toast.error(data.message || 'Could not claim reward. Please try again.')
+      }
+    } catch (error) {
+      logger.error('Error claiming Twitter follow reward', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: dbUser.id,
+      }, 'ComingSoon')
+      toast.error('Failed to claim reward. Please try again.')
+    } finally {
+      setIsVerifyingTwitterFollow(false)
     }
   }
 
@@ -1969,6 +2036,81 @@ export function ComingSoon() {
                         <span className="font-semibold text-sm">Following @playbabylon</span>
                       </div>
                       <span className="text-green-500 font-bold text-sm">+{POINTS.FARCASTER_FOLLOW}</span>
+                    </div>
+                  )}
+
+                  {/* Follow Babylon on Twitter */}
+                  {!hasTwitterFollow && !showVerifyTwitterFollowButton && (
+                    <div className="w-full space-y-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (dbUser?.hasTwitter) {
+                            handleTwitterFollow()
+                          } else {
+                            toast.error('Please link your Twitter account first')
+                          }
+                        }}
+                        disabled={!dbUser?.hasTwitter}
+                        className="w-full flex items-center justify-between bg-background/50 hover:bg-background active:scale-[0.98] border border-border rounded-lg p-3 sm:p-4 transition-all duration-200 hover:border-primary/30 touch-manipulation min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="">
+                          <div className="flex items-center gap-3">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                            <span className="font-semibold text-sm">Follow @PlayBabylon on X</span>
+                          </div>
+                        </div>
+                        <span className="text-primary font-bold text-sm ml-2">+{POINTS.TWITTER_FOLLOW}</span>
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Verify Twitter Follow Section - shows after clicking follow link */}
+                  {showVerifyTwitterFollowButton && !hasTwitterFollow && (
+                    <div className="w-full space-y-2">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleVerifyTwitterFollow()
+                            }}
+                            disabled={isVerifyingTwitterFollow}
+                            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 active:scale-[0.98] text-primary-foreground rounded-lg p-3 transition-all duration-200 touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span className="text-sm">
+                              {isVerifyingTwitterFollow ? 'Processing...' : 'Claim Reward'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setShowVerifyTwitterFollowButton(false)
+                            }}
+                            disabled={isVerifyingTwitterFollow}
+                            className="px-4 bg-background/50 hover:bg-background border border-border rounded-lg transition-all duration-200 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {hasTwitterFollow && (
+                    <div className="w-full flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 shrink-0" />
+                        <span className="font-semibold text-sm">Following @PlayBabylon</span>
+                      </div>
+                      <span className="text-green-500 font-bold text-sm">+{POINTS.TWITTER_FOLLOW}</span>
                     </div>
                   )}
 

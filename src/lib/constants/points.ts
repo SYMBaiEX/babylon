@@ -19,6 +19,7 @@ export const POINTS = {
   FARCASTER_LINK: 300,
   FARCASTER_FOLLOW: 100, // Follow Babylon on Farcaster
   TWITTER_LINK: 300,
+  TWITTER_FOLLOW: 100, // Follow Babylon on Twitter/X
   WALLET_CONNECT: 300,
   SHARE_ACTION: 500,
   SHARE_TO_TWITTER: 500,
@@ -41,6 +42,7 @@ export type PointsReason =
   | 'farcaster_link'
   | 'farcaster_follow'
   | 'twitter_link'
+  | 'twitter_follow'
   | 'wallet_connect'
   | 'share_action'
   | 'share_to_twitter'

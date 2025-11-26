@@ -218,6 +218,18 @@ export class PointsService {
   }
 
   /**
+   * Award points for Twitter follow
+   */
+  static async awardTwitterFollow(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.TWITTER_FOLLOW,
+      'twitter_follow',
+      { action: 'follow_playbabylon' }
+    );
+  }
+
+  /**
    * Award points for Twitter link
    */
   static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {
