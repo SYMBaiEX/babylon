@@ -76,7 +76,7 @@ echo "🚀 Applying indexes..."
 echo ""
 
 # Apply the indexes
-if psql "$DATABASE_URL" < prisma/migrations/add_a2a_performance_indexes.sql; then
+if psql "$DATABASE_URL" < drizzle/migrations/add_a2a_performance_indexes.sql; then
   echo ""
   echo "═══════════════════════════════════════════════════════"
   echo "✅ SUCCESS - Indexes applied successfully!"

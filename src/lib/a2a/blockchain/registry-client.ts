@@ -56,6 +56,9 @@ export class RegistryClient {
     // Initialize all properties in constructor to satisfy strictPropertyInitialization
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl)
 
+    // ethers.Contract doesn't have strong typing, so we cast to our interface types
+    // These contracts implement the methods defined in IdentityRegistryContract and ReputationSystemContract
+    // Cast through unknown since ethers.Contract doesn't overlap with our typed interfaces
     this.identityRegistry = new ethers.Contract(
       config.identityRegistryAddress,
       IDENTITY_ABI,

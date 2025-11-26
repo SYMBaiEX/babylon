@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { PriceUpdateService } from '../price-update-service';
+import type { ParsedAbiEntry } from '../../../../tests/types/test-types';
 
 // Mock dependencies
 const mockFindUnique = mock();
@@ -26,9 +27,9 @@ mock.module('viem', () => {
       writeContract: mockWriteContract,
     }),
     http: () => 'http-transport',
-    parseAbi: (abi: any) => {
+    parseAbi: (abi: readonly string[]): ParsedAbiEntry[] => {
         // Return a distinct object so we can verify it was called
-        return [{ type: 'parsed', original: abi }];
+        return [{ type: 'parsed', original: [...abi] }];
     },
     encodePacked: () => '0xencoded',
     keccak256: () => '0xhash',
@@ -39,8 +40,8 @@ mock.module('viem/accounts', () => ({
   privateKeyToAccount: () => ({ address: '0xaccount' }),
 }));
 
-mock.module('@/lib/prisma', () => ({
-  prisma: {
+mock.module('@/db', () => ({
+  db: {
     organization: {
       findUnique: mockFindUnique,
       update: mockUpdateOrg,

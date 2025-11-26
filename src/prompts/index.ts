@@ -72,6 +72,7 @@ export { questions } from './game/questions';
 export { groupMessage } from './game/group-message';
 export { priceAnnouncement } from './game/price-announcement';
 export { questionGeneration } from './game/question-generation';
+export { trendingTopics } from './game/trending-topics';
 export { worldImpactAssessment } from './game/world-impact';
 
 // Image prompts
@@ -91,7 +92,7 @@ export { daySummary } from './world/day-summary';
 export { newsReport } from './world/news-report';
 
 // Trading prompts
-export { npcMarketDecisions } from './trading/npc-market-decisions';
+export { npcMarketDecisions, getShuffledExamplesText } from './trading/npc-market-decisions';
 
 /**
  * Usage examples:

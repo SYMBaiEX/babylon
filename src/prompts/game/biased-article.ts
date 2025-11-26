@@ -15,8 +15,9 @@ export const biasedArticle = definePrompt({
   description: 'Generates biased news articles about world events',
   temperature: 0.85,
   maxTokens: 2500,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are a journalist writing for {{orgName}}, a {{orgType}} organization.
 Style: {{orgStyle}}

@@ -104,7 +104,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db, userGroups, userGroupMembers, userGroupAdmins, users, chats, chatParticipants, eq, and, inArray } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 
@@ -124,14 +124,10 @@ export const GET = withErrorHandling(async (
   const { id: groupId } = await context.params;
 
   // Check if user is a member
-  const membership = await prisma.userGroupMember.findUnique({
-    where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
-    },
-  });
+  const [membership] = await db.select({ userId: userGroupMembers.userId })
+    .from(userGroupMembers)
+    .where(eq(userGroupMembers.groupId, groupId))
+    .limit(1);
 
   if (!membership) {
     return NextResponse.json(
@@ -140,50 +136,50 @@ export const GET = withErrorHandling(async (
     );
   }
 
-  // Get group with members and admins
-  const group = await prisma.userGroup.findUnique({
-    where: { id: groupId },
-    include: {
-      UserGroupMember: {
-        select: {
-          userId: true,
-          joinedAt: true,
-          addedBy: true,
-        },
-      },
-      UserGroupAdmin: {
-        select: {
-          userId: true,
-          grantedAt: true,
-          grantedBy: true,
-        },
-      },
-    },
-  });
+  // Get group
+  const [group] = await db.select()
+    .from(userGroups)
+    .where(eq(userGroups.id, groupId))
+    .limit(1);
 
   if (!group) {
     return NextResponse.json({ error: 'Group not found' }, { status: 404 });
   }
 
+  // Get group members
+  const groupMembersList = await db.select({
+    userId: userGroupMembers.userId,
+    joinedAt: userGroupMembers.joinedAt,
+    addedBy: userGroupMembers.addedBy,
+  })
+    .from(userGroupMembers)
+    .where(eq(userGroupMembers.groupId, groupId));
+
+  // Get group admins
+  const groupAdminsList = await db.select({
+    userId: userGroupAdmins.userId,
+    grantedAt: userGroupAdmins.grantedAt,
+    grantedBy: userGroupAdmins.grantedBy,
+  })
+    .from(userGroupAdmins)
+    .where(eq(userGroupAdmins.groupId, groupId));
+
   // Get user details for members
-  const memberIds = group.UserGroupMember.map(m => m.userId);
-  const users = await prisma.user.findMany({
-    where: {
-      id: {
-        in: memberIds,
-      },
-    },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      profileImageUrl: true,
-    },
-  });
+  const memberIds = groupMembersList.map((m: typeof groupMembersList[number]) => m.userId);
+  const usersList = memberIds.length > 0
+    ? await db.select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(users)
+      .where(inArray(users.id, memberIds))
+    : [];
 
   // Map users to members
-  const members = group.UserGroupMember.map(member => {
-    const userDetails = users.find(u => u.id === member.userId);
+  const members = groupMembersList.map((member: typeof groupMembersList[number]) => {
+    const userDetails = usersList.find((u: typeof usersList[number]) => u.id === member.userId);
     return {
       userId: member.userId,
       username: userDetails?.username,
@@ -191,7 +187,7 @@ export const GET = withErrorHandling(async (
       profileImageUrl: userDetails?.profileImageUrl,
       joinedAt: member.joinedAt,
       addedBy: member.addedBy,
-      isAdmin: group.UserGroupAdmin.some(admin => admin.userId === member.userId),
+      isAdmin: groupAdminsList.some((admin: typeof groupAdminsList[number]) => admin.userId === member.userId),
     };
   });
 
@@ -204,7 +200,7 @@ export const GET = withErrorHandling(async (
       createdById: group.createdById,
       createdAt: group.createdAt,
       members,
-      isCurrentUserAdmin: group.UserGroupAdmin.some(admin => admin.userId === user.userId),
+      isCurrentUserAdmin: groupAdminsList.some((admin: typeof groupAdminsList[number]) => admin.userId === user.userId),
     },
   });
 });
@@ -235,14 +231,13 @@ export const PUT = withErrorHandling(async (
   const validatedData = updateSchema.parse(body);
 
   // Check if user is admin
-  const isAdmin = await prisma.userGroupAdmin.findUnique({
-    where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
-    },
-  });
+  const [isAdmin] = await db.select({ userId: userGroupAdmins.userId })
+    .from(userGroupAdmins)
+    .where(and(
+      eq(userGroupAdmins.groupId, groupId),
+      eq(userGroupAdmins.userId, user.userId)
+    ))
+    .limit(1);
 
   if (!isAdmin) {
     return NextResponse.json(
@@ -252,35 +247,43 @@ export const PUT = withErrorHandling(async (
   }
 
   // Update the group
-  const updatedGroup = await prisma.userGroup.update({
-    where: { id: groupId },
-    data: {
+  const [updatedGroup] = await db.update(userGroups)
+    .set({
       ...validatedData,
       updatedAt: new Date(),
-    },
-  });
+    })
+    .where(eq(userGroups.id, groupId))
+    .returning();
+
+  if (!updatedGroup) {
+    return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+  }
 
   // If name changed, update associated chat name
   if (validatedData.name) {
-    const chat = await prisma.chat.findFirst({
-      where: {
-        isGroup: true,
-        ChatParticipant: {
-          some: {
-            userId: user.userId,
-          },
-        },
-      },
-    });
+    // Find chat where user is a participant
+    const [participant] = await db.select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, user.userId))
+      .limit(1);
+    
+    if (participant) {
+      const [chat] = await db.select({ id: chats.id })
+        .from(chats)
+        .where(and(
+          eq(chats.id, participant.chatId),
+          eq(chats.isGroup, true)
+        ))
+        .limit(1);
 
-    if (chat) {
-      await prisma.chat.update({
-        where: { id: chat.id },
-        data: {
-          name: validatedData.name,
-          updatedAt: new Date(),
-        },
-      });
+      if (chat) {
+        await db.update(chats)
+          .set({
+            name: validatedData.name,
+            updatedAt: new Date(),
+          })
+          .where(eq(chats.id, chat.id));
+      }
     }
   }
 
@@ -310,13 +313,11 @@ export const DELETE = withErrorHandling(async (
 
   const { id: groupId } = await context.params;
 
-  // Check if user is admin
-  const isAdmin = await prisma.userGroupAdmin.findUnique({
+  // Check if user is admin (using compound key lookup)
+  const isAdmin = await db.userGroupAdmin.findFirst({
     where: {
-      groupId_userId: {
-        groupId,
-        userId: user.userId,
-      },
+      groupId,
+      userId: user.userId,
     },
   });
 
@@ -328,7 +329,7 @@ export const DELETE = withErrorHandling(async (
   }
 
   // Delete the group (cascade will delete members and admins)
-  await prisma.userGroup.delete({
+  await db.userGroup.delete({
     where: { id: groupId },
   });
 

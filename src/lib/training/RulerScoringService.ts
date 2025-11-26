@@ -13,7 +13,7 @@
  * Based on: https://art.openpipe.ai/fundamentals/ruler
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, eq, and, isNull, not, inArray, asc } from '@/db';
 import { logger } from '@/lib/logger';
 import { callGroqDirect } from '@/lib/agents/llm/direct-groq';
 import { toARTMessages } from '@/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
@@ -68,19 +68,19 @@ export class RulerScoringService {
    * @returns Number of trajectories successfully scored
    */
   async scoreTrajectories(trajectoryIds?: string[]): Promise<number> {
-    const trajectories = await this.getTrajectoriesToScore(trajectoryIds);
+    const trajectoriesResult = await this.getTrajectoriesToScore(trajectoryIds);
     
-    if (trajectories.length === 0) {
+    if (trajectoriesResult.length === 0) {
       logger.info('No trajectories to score', {}, 'RulerScoring');
       return 0;
     }
 
-    const groups = this.groupByScenario(trajectories);
+    const groups = this.groupByScenario(trajectoriesResult);
     
     logger.info('Grouped trajectories for RULER scoring', {
-      totalTrajectories: trajectories.length,
+      totalTrajectories: trajectoriesResult.length,
       groups: groups.length,
-      avgGroupSize: groups.length > 0 ? trajectories.length / groups.length : 0
+      avgGroupSize: groups.length > 0 ? trajectoriesResult.length / groups.length : 0
     }, 'RulerScoring');
 
     let totalScored = 0;
@@ -105,7 +105,7 @@ export class RulerScoringService {
 
     logger.info('RULER scoring complete', {
       totalScored,
-      totalTrajectories: trajectories.length
+      totalTrajectories: trajectoriesResult.length
     }, 'RulerScoring');
 
     return totalScored;
@@ -123,15 +123,17 @@ export class RulerScoringService {
       return null;
     }
 
-    const updated = await prisma.trajectory.findUnique({
-      where: { trajectoryId },
-      select: {
-        trajectoryId: true,
-        aiJudgeReward: true,
-        aiJudgeReasoning: true,
-        judgedAt: true
-      }
-    });
+    const updatedResult = await db.select({
+      trajectoryId: trajectories.trajectoryId,
+      aiJudgeReward: trajectories.aiJudgeReward,
+      aiJudgeReasoning: trajectories.aiJudgeReasoning,
+      judgedAt: trajectories.judgedAt
+    })
+      .from(trajectories)
+      .where(eq(trajectories.trajectoryId, trajectoryId))
+      .limit(1);
+    
+    const updated = updatedResult[0];
 
     if (!updated || updated.aiJudgeReward === null) {
       return null;
@@ -156,12 +158,12 @@ export class RulerScoringService {
    * 5. Save scores to database
    */
   private async scoreGroup(
-    trajectories: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>,
+    trajectoriesData: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>,
     scenarioId: string
   ): Promise<number> {
     const richTrajectories: Array<{ traj: RichTrajectory; messages: Array<{ role: string; content: string }> }> = [];
     
-    for (const dbTraj of trajectories) {
+    for (const dbTraj of trajectoriesData) {
       if (!dbTraj.stepsJson || dbTraj.stepsJson === 'null' || dbTraj.stepsJson === '[]') {
         logger.warn('Skipping trajectory with invalid stepsJson', {
           trajectoryId: dbTraj.trajectoryId
@@ -302,15 +304,14 @@ export class RulerScoringService {
 
       const trajectoryId = richTrajectories[i]!.traj.trajectoryId;
       
-      await prisma.trajectory.update({
-        where: { trajectoryId },
-        data: {
+      await db.update(trajectories)
+        .set({
           aiJudgeReward: Math.max(0, Math.min(1, scoreData.score)),
           aiJudgeReasoning: scoreData.explanation,
           judgedAt: new Date(),
           isTrainingData: true
-        }
-      });
+        })
+        .where(eq(trajectories.trajectoryId, trajectoryId));
 
       scored++;
     }
@@ -444,7 +445,8 @@ Return ONLY the JSON, no other text.`;
       system: promptData.system,
       modelSize: 'large',
       temperature: 0.3,
-      maxTokens: 2000
+      maxTokens: 2000,
+      actionType: 'ruler_score_trajectories'
     });
 
     let jsonText = response.trim();
@@ -518,11 +520,11 @@ Return ONLY the JSON, no other text.`;
    * Group trajectories by scenarioId
    */
   private groupByScenario(
-    trajectories: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>
-  ): Array<{ scenarioId: string; trajectories: typeof trajectories }> {
-    const groups = new Map<string, typeof trajectories>();
+    trajectoriesData: Array<{ trajectoryId: string; stepsJson: string | null; scenarioId: string | null; finalPnL: number | null; episodeLength: number | null }>
+  ): Array<{ scenarioId: string; trajectories: typeof trajectoriesData }> {
+    const groups = new Map<string, typeof trajectoriesData>();
     
-    for (const traj of trajectories) {
+    for (const traj of trajectoriesData) {
       const scenarioId = traj.scenarioId || 'default';
       if (!groups.has(scenarioId)) {
         groups.set(scenarioId, []);
@@ -552,73 +554,64 @@ Return ONLY the JSON, no other text.`;
    */
   private async getTrajectoriesToScore(trajectoryIds?: string[]) {
     if (trajectoryIds && trajectoryIds.length > 0) {
-      return await prisma.trajectory.findMany({
-        where: {
-          trajectoryId: { in: trajectoryIds },
-          aiJudgeReward: null // Only unscored
-        },
-        select: {
-          trajectoryId: true,
-          stepsJson: true,
-          scenarioId: true,
-          finalPnL: true,
-          episodeLength: true
-        }
-      });
+      return await db.select({
+        trajectoryId: trajectories.trajectoryId,
+        stepsJson: trajectories.stepsJson,
+        scenarioId: trajectories.scenarioId,
+        finalPnL: trajectories.finalPnL,
+        episodeLength: trajectories.episodeLength
+      })
+        .from(trajectories)
+        .where(
+          and(
+            inArray(trajectories.trajectoryId, trajectoryIds),
+            isNull(trajectories.aiJudgeReward)
+          )
+        );
     }
 
     // Get all unscored trajectories
-    return await prisma.trajectory.findMany({
-      where: {
-        aiJudgeReward: null,
-        isTrainingData: true,
-        NOT: {
-          OR: [
-            { stepsJson: 'null' },
-            { stepsJson: '[]' }
-          ]
-        }
-      },
-      select: {
-        trajectoryId: true,
-        stepsJson: true,
-        scenarioId: true,
-        finalPnL: true,
-        episodeLength: true
-      },
-      orderBy: {
-        startTime: 'asc'
-      }
-    });
+    return await db.select({
+      trajectoryId: trajectories.trajectoryId,
+      stepsJson: trajectories.stepsJson,
+      scenarioId: trajectories.scenarioId,
+      finalPnL: trajectories.finalPnL,
+      episodeLength: trajectories.episodeLength
+    })
+      .from(trajectories)
+      .where(
+        and(
+          isNull(trajectories.aiJudgeReward),
+          eq(trajectories.isTrainingData, true),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      )
+      .orderBy(asc(trajectories.startTime));
   }
 
   /**
    * Score all unscored trajectories in a time window
    */
   async scoreWindow(windowId: string): Promise<number> {
-    const trajectories = await prisma.trajectory.findMany({
-      where: {
-        windowId,
-        isTrainingData: true,
-        aiJudgeReward: null,
-        NOT: {
-          OR: [
-            { stepsJson: 'null' },
-            { stepsJson: '[]' }
-          ]
-        }
-      },
-      select: {
-        trajectoryId: true
-      }
-    });
+    const trajectoriesResult = await db.select({ trajectoryId: trajectories.trajectoryId })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.windowId, windowId),
+          eq(trajectories.isTrainingData, true),
+          isNull(trajectories.aiJudgeReward),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      );
 
-    if (trajectories.length === 0) {
+    if (trajectoriesResult.length === 0) {
       return 0;
     }
 
     return await this.scoreTrajectories(
-      trajectories.map(t => t.trajectoryId)
+      trajectoriesResult.map(t => t.trajectoryId)
     );
   }
 }

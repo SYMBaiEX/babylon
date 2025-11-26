@@ -4,7 +4,7 @@
  * Tests creating a trade via admin API and verifying it appears in the public feed
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 
 async function testAdminTrade() {
   console.log('\n🧪 Testing Admin Trade Creation\n');
@@ -13,7 +13,7 @@ async function testAdminTrade() {
   try {
     // Step 1: Get a test user
     console.log('📊 Step 1: Finding a test user...\n');
-    const user = await prisma.user.findFirst({
+    const user = await db.user.findFirst({
       where: {
         isActor: false,
         isAgent: false,
@@ -40,7 +40,7 @@ async function testAdminTrade() {
 
     // Step 2: Check current trades count
     console.log('📊 Step 2: Checking current trades...\n');
-    const beforeTrades = await prisma.balanceTransaction.count({
+    const beforeTrades = await db.balanceTransaction.count({
       where: {
         userId: user.id,
         type: {
@@ -58,12 +58,12 @@ async function testAdminTrade() {
     const currentBalance = Number(user.virtualBalance);
     const newBalance = currentBalance + testAmount;
 
-    const transaction = await prisma.$transaction(async (tx) => {
+    const transaction = await db.$transaction(async (tx: typeof db) => {
       // Update user balance
       await tx.user.update({
         where: { id: user.id },
         data: {
-          virtualBalance: newBalance,
+          virtualBalance: newBalance.toString(),
         },
       });
 
@@ -74,9 +74,9 @@ async function testAdminTrade() {
           id: await generateSnowflakeId(),
           userId: user.id,
           type: 'pred_buy',
-          amount: testAmount,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
+          amount: testAmount.toString(),
+          balanceBefore: currentBalance.toString(),
+          balanceAfter: newBalance.toString(),
           description: testDescription,
           relatedId: null,
         },
@@ -94,7 +94,7 @@ async function testAdminTrade() {
     // Step 4: Verify it appears in public feed
     console.log('📊 Step 4: Verifying trade appears in public feed...\n');
     
-    const publicFeedTrades = await prisma.balanceTransaction.findMany({
+    const publicFeedTrades = await db.balanceTransaction.findMany({
       where: {
         type: {
           in: ['pred_buy', 'pred_sell', 'perp_open', 'perp_close', 'perp_liquidation'],
@@ -103,7 +103,7 @@ async function testAdminTrade() {
       orderBy: { createdAt: 'desc' },
       take: 10,
       include: {
-        User: {
+        user: {
           select: {
             id: true,
             username: true,
@@ -118,8 +118,19 @@ async function testAdminTrade() {
     const foundTrade = publicFeedTrades.find(t => t.id === transaction.id);
     
     if (foundTrade) {
+      type TradeWithUser = typeof foundTrade & {
+        user?: {
+          id: string;
+          username: string | null;
+          displayName: string | null;
+          profileImageUrl: string | null;
+          isActor: boolean;
+        } | null;
+      };
+      const tradeWithUser = foundTrade as TradeWithUser;
+      const userData = tradeWithUser.user;
       console.log(`  ✅ Trade found in public feed!`);
-      console.log(`     User: ${foundTrade.User?.displayName || foundTrade.User?.username || 'Unknown'}`);
+      console.log(`     User: ${userData?.displayName || userData?.username || 'Unknown'}`);
       console.log(`     Description: ${foundTrade.description || 'N/A'}`);
       console.log(`     Amount: $${Number(foundTrade.amount).toFixed(2)}\n`);
     } else {
@@ -129,7 +140,7 @@ async function testAdminTrade() {
 
     // Step 5: Verify user balance was updated
     console.log('📊 Step 5: Verifying user balance was updated...\n');
-    const updatedUser = await prisma.user.findUnique({
+    const updatedUser = await db.user.findUnique({
       where: { id: user.id },
       select: { virtualBalance: true },
     });
@@ -157,12 +168,14 @@ async function testAdminTrade() {
     }
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 
 // Run the test
 testAdminTrade().catch(console.error);
+
+
 
 
 

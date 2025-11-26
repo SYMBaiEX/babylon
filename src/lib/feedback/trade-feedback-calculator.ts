@@ -5,7 +5,9 @@
  * Analyzes entry timing, exit timing, hold duration, and risk management.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import { positions, questions, users } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import type { TradeMetrics } from '@/lib/reputation/reputation-service'
 
 interface TradePosition {
@@ -158,21 +160,41 @@ export function calculateRiskScore(
  * @returns TradeMetrics or null if position not found
  */
 export async function calculateTradeMetrics(positionId: string): Promise<TradeMetrics | null> {
-  // Fetch position with related data
-  const position = await prisma.position.findUnique({
-    where: { id: positionId },
-    include: {
-      Question: true,
-      User: {
-        select: {
-          virtualBalance: true,
-          totalDeposited: true,
-        },
-      },
-    },
-  })
+  // Fetch position with related data using Drizzle
+  const positionResult = await db
+    .select({
+      id: positions.id,
+      userId: positions.userId,
+      questionId: positions.questionId,
+      outcome: positions.outcome,
+      amount: positions.amount,
+      pnl: positions.pnl,
+      createdAt: positions.createdAt,
+      resolvedAt: positions.resolvedAt,
+      questionResolutionDate: questions.resolutionDate,
+    })
+    .from(positions)
+    .leftJoin(questions, eq(positions.questionId, questions.questionNumber))
+    .where(eq(positions.id, positionId))
+    .limit(1)
 
-  if (!position || !position.Question || !position.questionId) {
+  const position = positionResult[0]
+  if (!position || !position.questionId) {
+    return null
+  }
+
+  // Fetch user balance separately
+  const userResult = await db
+    .select({
+      virtualBalance: users.virtualBalance,
+      totalDeposited: users.totalDeposited,
+    })
+    .from(users)
+    .where(eq(users.id, position.userId))
+    .limit(1)
+
+  const userBalance = userResult[0]
+  if (!userBalance) {
     return null
   }
 
@@ -189,8 +211,8 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
   }
 
   // Market resolution date (use question's resolution date or current date)
-  const marketResolutionDate = position.Question.resolutionDate
-    ? new Date(position.Question.resolutionDate)
+  const marketResolutionDate = position.questionResolutionDate
+    ? new Date(position.questionResolutionDate)
     : new Date()
 
   // Calculate component scores
@@ -198,8 +220,8 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
   const exitTimingScore = calculateExitTimingScore(tradePosition, marketResolutionDate)
 
   // User's total balance at trade time (approximate with current balance + PnL)
-  const userBalance = Number(position.User.virtualBalance) + Number(position.User.totalDeposited)
-  const riskScore = calculateRiskScore(tradePosition, userBalance)
+  const totalUserBalance = Number(userBalance.virtualBalance) + Number(userBalance.totalDeposited)
+  const riskScore = calculateRiskScore(tradePosition, totalUserBalance)
 
   // Combined timing score (weighted average of entry and exit)
   const timingScore = (entryTimingScore * 0.6 + exitTimingScore * 0.4)

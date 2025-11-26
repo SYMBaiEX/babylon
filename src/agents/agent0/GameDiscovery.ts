@@ -8,7 +8,7 @@
 import { SubgraphClient } from './SubgraphClient'
 import { IPFSPublisher } from './IPFSPublisher'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 
 const GameConfigValueSchema = z.object({
@@ -128,7 +128,7 @@ export class GameDiscoveryService {
       }
     
       if (process.env.NEXT_RUNTIME === 'nodejs') {
-        const config = await prisma.gameConfig.findUnique({
+        const config = await db.gameConfig.findUnique({
           where: { key: 'agent0_registration' }
         })
         

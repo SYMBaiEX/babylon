@@ -19,7 +19,7 @@ const state = {
 const clone = <T>(value: T): T =>
   typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value))
 
-const prismaMock = {
+const dbMock = {
   user: {
     findUnique: async ({ where }: { where: { id?: string; privyId?: string } }) => {
       if (where.id) {
@@ -84,7 +84,7 @@ const prismaMock = {
 }
 
 mock.module('@/lib/database-service', () => ({
-  prisma: prismaMock,
+  db: dbMock,
 }))
 
 describe('ensureUserForAuth', () => {

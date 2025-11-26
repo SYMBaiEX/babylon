@@ -20,7 +20,7 @@ import type {
 } from '@a2a-js/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db, userBlocks, userMutes, reports, follows, eq, and, or } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { cachedDb } from '@/lib/cached-database-service'
 import type { JsonValue } from '@/types/common'
@@ -245,7 +245,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('content is required')
     }
 
-    const post = await prisma.post.create({
+    const post = await db.post.create({
       data: {
         id: await generateSnowflakeId(),
         content,
@@ -272,7 +272,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
   private async listPredictionMarkets(params: Record<string, unknown>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50)
-    const markets = await prisma.market.findMany({
+    const markets = await db.market.findMany({
       take: limit,
       where: { resolved: false },
       orderBy: { createdAt: 'desc' }
@@ -294,7 +294,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     const limit = this.parsePositiveInt(params.limit, 20, 50)
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       where: {
         OR: [
           { username: { contains: query, mode: 'insensitive' } },
@@ -309,16 +309,16 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
   private async getSystemStats() {
     const [userCount, postCount, marketCount] = await Promise.all([
-      prisma.user.count(),
-      prisma.post.count(),
-      prisma.market.count()
+      db.user.count(),
+      db.post.count(),
+      db.market.count()
     ])
     return { users: userCount, posts: postCount, markets: marketCount }
   }
 
   private async getLeaderboard(params: Record<string, unknown>) {
     const limit = this.parsePositiveInt(params.limit, 10, 50)
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       take: limit,
       orderBy: { reputationPoints: 'desc' },
       select: { id: true, username: true, displayName: true, reputationPoints: true }
@@ -470,7 +470,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const reason = params.reason ? String(params.reason) : null
 
     // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id: targetUserId },
       select: { id: true, username: true, displayName: true },
     })
@@ -480,38 +480,37 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Check if already blocked
-    const existingBlock = await prisma.userBlock.findUnique({
-      where: {
-        blockerId_blockedId: {
-          blockerId: agentId,
-          blockedId: targetUserId,
-        },
-      },
-    })
+    const [existingBlock] = await db.select()
+      .from(userBlocks)
+      .where(and(
+        eq(userBlocks.blockerId, agentId),
+        eq(userBlocks.blockedId, targetUserId)
+      ))
+      .limit(1)
 
     if (existingBlock) {
       return { success: false, message: 'User is already blocked' }
     }
 
     // Create block
-    const block = await prisma.userBlock.create({
-      data: {
-        id: await generateSnowflakeId(),
-        blockerId: agentId,
-        blockedId: targetUserId,
-        reason,
-      },
-    })
+    const [block] = await db.insert(userBlocks).values({
+      id: await generateSnowflakeId(),
+      blockerId: agentId,
+      blockedId: targetUserId,
+      reason: reason || null,
+    }).returning()
 
     // Unfollow if following
-    await prisma.follow.deleteMany({
-      where: {
-        OR: [
-          { followerId: agentId, followingId: targetUserId },
-          { followerId: targetUserId, followingId: agentId },
-        ],
-      },
-    })
+    await db.delete(follows).where(or(
+      and(
+        eq(follows.followerId, agentId),
+        eq(follows.followingId, targetUserId)
+      ),
+      and(
+        eq(follows.followerId, targetUserId),
+        eq(follows.followingId, agentId)
+      )
+    ))
 
     return { success: true, message: 'User blocked successfully', block }
   }
@@ -520,7 +519,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId
     const targetUserId = String(params.userId ?? '')
 
-    const deleted = await prisma.userBlock.deleteMany({
+    const deleted = await db.userBlock.deleteMany({
       where: {
         blockerId: agentId,
         blockedId: targetUserId,
@@ -540,7 +539,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const reason = params.reason ? String(params.reason) : null
 
     // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id: targetUserId },
       select: { id: true },
     })
@@ -550,28 +549,25 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Check if already muted
-    const existingMute = await prisma.userMute.findUnique({
-      where: {
-        muterId_mutedId: {
-          muterId: agentId,
-          mutedId: targetUserId,
-        },
-      },
-    })
+    const [existingMute] = await db.select()
+      .from(userMutes)
+      .where(and(
+        eq(userMutes.muterId, agentId),
+        eq(userMutes.mutedId, targetUserId)
+      ))
+      .limit(1)
 
     if (existingMute) {
       return { success: false, message: 'User is already muted' }
     }
 
     // Create mute
-    const mute = await prisma.userMute.create({
-      data: {
-        id: await generateSnowflakeId(),
-        muterId: agentId,
-        mutedId: targetUserId,
-        reason,
-      },
-    })
+    const [mute] = await db.insert(userMutes).values({
+      id: await generateSnowflakeId(),
+      muterId: agentId,
+      mutedId: targetUserId,
+      reason: reason || null,
+    }).returning()
 
     return { success: true, message: 'User muted successfully', mute }
   }
@@ -580,7 +576,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId
     const targetUserId = String(params.userId ?? '')
 
-    const deleted = await prisma.userMute.deleteMany({
+    const deleted = await db.userMute.deleteMany({
       where: {
         muterId: agentId,
         mutedId: targetUserId,
@@ -602,7 +598,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const evidence = params.evidence ? String(params.evidence) : null
 
     // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id: targetUserId },
       select: { id: true },
     })
@@ -620,19 +616,18 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Create report
-    const report = await prisma.report.create({
-      data: {
-        id: await generateSnowflakeId(),
-        reporterId: agentId,
-        reportedUserId: targetUserId,
-        reportType: 'user',
-        category,
-        reason,
-        evidence,
-        priority,
-        status: 'pending',
-      },
-    })
+    const [report] = await db.insert(reports).values({
+      id: await generateSnowflakeId(),
+      reporterId: agentId,
+      reportedUserId: targetUserId,
+      reportType: 'user',
+      category,
+      reason,
+      evidence: evidence || null,
+      priority,
+      status: 'pending',
+      updatedAt: new Date(),
+    }).returning()
 
     return { success: true, message: 'Report submitted successfully', report }
   }
@@ -645,7 +640,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const evidence = params.evidence ? String(params.evidence) : null
 
     // Check if post exists
-    const post = await prisma.post.findUnique({
+    const post = await db.post.findUnique({
       where: { id: postId },
       select: { id: true, authorId: true },
     })
@@ -663,19 +658,18 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Create report
-    const report = await prisma.report.create({
-      data: {
-        id: await generateSnowflakeId(),
-        reporterId: agentId,
-        reportedPostId: postId,
-        reportType: 'post',
-        category,
-        reason,
-        evidence,
-        priority,
-        status: 'pending',
-      },
-    })
+    const [report] = await db.insert(reports).values({
+      id: await generateSnowflakeId(),
+      reporterId: agentId,
+      reportedPostId: postId,
+      reportType: 'post',
+      category,
+      reason,
+      evidence: evidence || null,
+      priority,
+      status: 'pending',
+      updatedAt: new Date(),
+    }).returning()
 
     return { success: true, message: 'Report submitted successfully', report }
   }
@@ -686,7 +680,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const offset = params.offset ? Number(params.offset) : 0
 
     const [blocks, total] = await Promise.all([
-      prisma.userBlock.findMany({
+      db.userBlock.findMany({
         where: { blockerId: agentId },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -702,7 +696,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
           },
         },
       }),
-      prisma.userBlock.count({
+      db.userBlock.count({
         where: { blockerId: agentId },
       }),
     ])
@@ -723,7 +717,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const offset = params.offset ? Number(params.offset) : 0
 
     const [mutes, total] = await Promise.all([
-      prisma.userMute.findMany({
+      db.userMute.findMany({
         where: { muterId: agentId },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -739,7 +733,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
           },
         },
       }),
-      prisma.userMute.count({
+      db.userMute.count({
         where: { muterId: agentId },
       }),
     ])
@@ -758,19 +752,17 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId
     const targetUserId = String(params.userId ?? '')
 
-    const block = await prisma.userBlock.findUnique({
-      where: {
-        blockerId_blockedId: {
-          blockerId: agentId,
-          blockedId: targetUserId,
-        },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        reason: true,
-      },
+    const [block] = await db.select({
+      id: userBlocks.id,
+      createdAt: userBlocks.createdAt,
+      reason: userBlocks.reason,
     })
+      .from(userBlocks)
+      .where(and(
+        eq(userBlocks.blockerId, agentId),
+        eq(userBlocks.blockedId, targetUserId)
+      ))
+      .limit(1)
 
     return {
       isBlocked: !!block,
@@ -782,19 +774,17 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId
     const targetUserId = String(params.userId ?? '')
 
-    const mute = await prisma.userMute.findUnique({
-      where: {
-        muterId_mutedId: {
-          muterId: agentId,
-          mutedId: targetUserId,
-        },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        reason: true,
-      },
+    const [mute] = await db.select({
+      id: userMutes.id,
+      createdAt: userMutes.createdAt,
+      reason: userMutes.reason,
     })
+      .from(userMutes)
+      .where(and(
+        eq(userMutes.muterId, agentId),
+        eq(userMutes.mutedId, targetUserId)
+      ))
+      .limit(1)
 
     return {
       isMuted: !!mute,

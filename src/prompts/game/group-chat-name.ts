@@ -17,8 +17,6 @@ export const groupChatName = definePrompt({
   temperature: 0.9,
   maxTokens: 500,
   template: `
-You must respond with valid XML only.
-
 Generate a funny, satirical group chat name for this private group.
 
 ADMIN (group creator): {{adminName}}

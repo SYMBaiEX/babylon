@@ -19,8 +19,13 @@ from .data_bridge import (
 )
 
 from .training import (
-    ContinuousMMOTrainer,
-    TRADING_RUBRIC
+    BabylonTrainer,
+    detect_hardware,
+    check_mlx_available,
+    BACKEND_CUDA,
+    BACKEND_MLX,
+    BACKEND_CPU,
+    BACKEND_SERVERLESS,
 )
 
 __all__ = [
@@ -36,6 +41,11 @@ __all__ = [
     "calculate_dropout_rate",
     
     # Training
-    "ContinuousMMOTrainer",
-    "TRADING_RUBRIC"
+    "BabylonTrainer",
+    "detect_hardware",
+    "check_mlx_available",
+    "BACKEND_CUDA",
+    "BACKEND_MLX",
+    "BACKEND_CPU",
+    "BACKEND_SERVERLESS",
 ]

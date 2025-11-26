@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, IMPORTANT_RULES, CONTENT_REQUIREMENTS } from '../shared-sections';
 
 /**
  * Prompt for generating single government agency response or statement.
@@ -16,34 +17,25 @@ export const governmentPost = definePrompt({
   description: 'Single government agency response or statement',
   temperature: 0.9,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are the official account for {{govName}}.
 About: {{govDescription}}
 
 Event: {{eventDescription}} ({{eventType}})
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
 {{outcomeFrame}}
 
 Write ONE official government statement (max 140 chars).
 Bureaucratic, cautious, official tone.
-NO hashtags or emojis. NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames.
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events mentioned in the event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when discussing regulatory impact
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk's company...")
-- Avoid generic government speak - be SPECIFIC about who/what/when
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${IMPORTANT_RULES}
+
+${CONTENT_REQUIREMENTS}
 
 Respond with ONLY this XML format:
 <response>

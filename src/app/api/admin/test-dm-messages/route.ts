@@ -62,7 +62,7 @@
  */
 
 import { requireAdmin } from '@/lib/api/admin-middleware';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -130,11 +130,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const sortedIds = [resolvedSenderId, resolvedRecipientId].sort()
   const chatId = `dm-${sortedIds.join('-')}`
 
-  await prisma.chat.findUnique({
+  await db.chat.findUnique({
     where: { id: chatId },
   })
 
-  await prisma.chat.create({
+  await db.chat.create({
     data: {
       id: chatId,
       name: null,
@@ -144,14 +144,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
 
   const [senderParticipant, recipientParticipant] = await Promise.all([
-    prisma.chatParticipant.create({
+    db.chatParticipant.create({
       data: {
         id: await generateSnowflakeId(),
         chatId,
         userId: resolvedSenderId,
       },
     }),
-    prisma.chatParticipant.create({
+    db.chatParticipant.create({
       data: {
         id: await generateSnowflakeId(),
         chatId,
@@ -201,7 +201,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
     }
 
-    const result = await prisma.message.createMany({
+    const result = await db.message.createMany({
       data: batch,
     })
     
@@ -239,7 +239,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Update chat updatedAt
-  await prisma.chat.update({
+  await db.chat.update({
     where: { id: chatId },
     data: { updatedAt: new Date() },
   });

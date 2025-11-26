@@ -62,7 +62,25 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { 
+  db, 
+  users, 
+  comments, 
+  reactions, 
+  posts, 
+  positions, 
+  follows, 
+  balanceTransactions,
+  pointsTransactions,
+  referrals,
+  notifications,
+  feedbacks,
+  agentPerformanceMetrics,
+  tradingFees,
+  eq,
+  or,
+  desc,
+} from '@/db'
 import { logger } from '@/lib/logger'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -73,250 +91,238 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch all user data from database
   const [
-    user,
-    comments,
-    reactions,
-    posts,
-    positions,
-    follows,
-    followers,
-    balanceTransactions,
-    pointsTransactions,
-    referrals,
-    notifications,
-    feedback,
-    performanceMetrics,
-    tradingFees,
+    [user],
+    userComments,
+    userReactions,
+    userPosts,
+    userPositions,
+    userFollows,
+    userFollowers,
+    userBalanceTransactions,
+    userPointsTransactions,
+    userReferrals,
+    userNotifications,
+    userFeedback,
+    [performanceMetrics],
+    userTradingFees,
     referralFeesEarned,
   ] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        privyId: true,
-        walletAddress: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        coverImageUrl: true,
-        email: true,
-        virtualBalance: true,
-        totalDeposited: true,
-        totalWithdrawn: true,
-        lifetimePnL: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-        registrationBlockNumber: true,
-        registrationTimestamp: true,
-        reputationPoints: true,
-        invitePoints: true,
-        earnedPoints: true,
-        bonusPoints: true,
-        profileComplete: true,
-        hasFarcaster: true,
-        hasTwitter: true,
-        farcasterUsername: true,
-        farcasterFid: true,
-        twitterUsername: true,
-        twitterId: true,
-        referralCode: true,
-        referredBy: true,
-        referralCount: true,
-        waitlistPosition: true,
-        waitlistJoinedAt: true,
-        isWaitlistActive: true,
-        waitlistGraduatedAt: true,
-        tosAccepted: true,
-        tosAcceptedAt: true,
-        tosAcceptedVersion: true,
-        privacyPolicyAccepted: true,
-        privacyPolicyAcceptedAt: true,
-        privacyPolicyAcceptedVersion: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.comment.findMany({
-      where: { authorId: userId },
-      select: {
-        id: true,
-        content: true,
-        postId: true,
-        parentCommentId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.reaction.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        postId: true,
-        commentId: true,
-        type: true,
-        createdAt: true,
-      },
-    }),
-    prisma.post.findMany({
-      where: { authorId: userId },
-      select: {
-        id: true,
-        type: true,
-        content: true,
-        fullContent: true,
-        articleTitle: true,
-        timestamp: true,
-        createdAt: true,
-        deletedAt: true, // Include deleted status for GDPR export
-      },
-    }),
-    prisma.position.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        marketId: true,
-        side: true,
-        shares: true,
-        avgPrice: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.follow.findMany({
-      where: { followerId: userId },
-      select: {
-        id: true,
-        followingId: true,
-        createdAt: true,
-      },
-    }),
-    prisma.follow.findMany({
-      where: { followingId: userId },
-      select: {
-        id: true,
-        followerId: true,
-        createdAt: true,
-      },
-    }),
-    prisma.balanceTransaction.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        type: true,
-        amount: true,
-        balanceBefore: true,
-        balanceAfter: true,
-        relatedId: true,
-        description: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.pointsTransaction.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        amount: true,
-        pointsBefore: true,
-        pointsAfter: true,
-        reason: true,
-        metadata: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.referral.findMany({
-      where: { referrerId: userId },
-      select: {
-        id: true,
-        referralCode: true,
-        referredUserId: true,
-        status: true,
-        createdAt: true,
-        completedAt: true,
-      },
-    }),
-    prisma.notification.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        type: true,
-        actorId: true,
-        postId: true,
-        commentId: true,
-        title: true,
-        message: true,
-        read: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100, // Limit to recent notifications
-    }),
-    prisma.feedback.findMany({
-      where: {
-        OR: [{ fromUserId: userId }, { toUserId: userId }],
-      },
-      select: {
-        id: true,
-        fromUserId: true,
-        toUserId: true,
-        score: true,
-        rating: true,
-        comment: true,
-        category: true,
-        interactionType: true,
-        createdAt: true,
-      },
-    }),
-    prisma.agentPerformanceMetrics.findUnique({
-      where: { userId },
-      select: {
-        id: true,
-        gamesPlayed: true,
-        gamesWon: true,
-        averageGameScore: true,
-        normalizedPnL: true,
-        totalTrades: true,
-        profitableTrades: true,
-        winRate: true,
-        averageROI: true,
-        reputationScore: true,
-        trustLevel: true,
-        totalFeedbackCount: true,
-        averageFeedbackScore: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.tradingFee.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        tradeType: true,
-        tradeId: true,
-        marketId: true,
-        feeAmount: true,
-        platformFee: true,
-        referrerFee: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    }),
-    prisma.tradingFee.findMany({
-      where: { referrerId: userId },
-      select: {
-        id: true,
-        userId: true,
-        tradeType: true,
-        referrerFee: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    }),
+    db.select({
+      id: users.id,
+      privyId: users.privyId,
+      walletAddress: users.walletAddress,
+      username: users.username,
+      displayName: users.displayName,
+      bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
+      coverImageUrl: users.coverImageUrl,
+      email: users.email,
+      virtualBalance: users.virtualBalance,
+      totalDeposited: users.totalDeposited,
+      totalWithdrawn: users.totalWithdrawn,
+      lifetimePnL: users.lifetimePnL,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      registrationTxHash: users.registrationTxHash,
+      registrationBlockNumber: users.registrationBlockNumber,
+      registrationTimestamp: users.registrationTimestamp,
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      earnedPoints: users.earnedPoints,
+      bonusPoints: users.bonusPoints,
+      profileComplete: users.profileComplete,
+      hasFarcaster: users.hasFarcaster,
+      hasTwitter: users.hasTwitter,
+      farcasterUsername: users.farcasterUsername,
+      farcasterFid: users.farcasterFid,
+      twitterUsername: users.twitterUsername,
+      twitterId: users.twitterId,
+      referralCode: users.referralCode,
+      referredBy: users.referredBy,
+      referralCount: users.referralCount,
+      waitlistPosition: users.waitlistPosition,
+      waitlistJoinedAt: users.waitlistJoinedAt,
+      isWaitlistActive: users.isWaitlistActive,
+      waitlistGraduatedAt: users.waitlistGraduatedAt,
+      tosAccepted: users.tosAccepted,
+      tosAcceptedAt: users.tosAcceptedAt,
+      tosAcceptedVersion: users.tosAcceptedVersion,
+      privacyPolicyAccepted: users.privacyPolicyAccepted,
+      privacyPolicyAcceptedAt: users.privacyPolicyAcceptedAt,
+      privacyPolicyAcceptedVersion: users.privacyPolicyAcceptedVersion,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1),
+    db.select({
+      id: comments.id,
+      content: comments.content,
+      postId: comments.postId,
+      parentCommentId: comments.parentCommentId,
+      createdAt: comments.createdAt,
+      updatedAt: comments.updatedAt,
+    })
+      .from(comments)
+      .where(eq(comments.authorId, userId)),
+    db.select({
+      id: reactions.id,
+      postId: reactions.postId,
+      commentId: reactions.commentId,
+      type: reactions.type,
+      createdAt: reactions.createdAt,
+    })
+      .from(reactions)
+      .where(eq(reactions.userId, userId)),
+    db.select({
+      id: posts.id,
+      type: posts.type,
+      content: posts.content,
+      fullContent: posts.fullContent,
+      articleTitle: posts.articleTitle,
+      timestamp: posts.timestamp,
+      createdAt: posts.createdAt,
+      deletedAt: posts.deletedAt, // Include deleted status for GDPR export
+    })
+      .from(posts)
+      .where(eq(posts.authorId, userId)),
+    db.select({
+      id: positions.id,
+      marketId: positions.marketId,
+      side: positions.side,
+      shares: positions.shares,
+      avgPrice: positions.avgPrice,
+      createdAt: positions.createdAt,
+      updatedAt: positions.updatedAt,
+    })
+      .from(positions)
+      .where(eq(positions.userId, userId)),
+    db.select({
+      id: follows.id,
+      followingId: follows.followingId,
+      createdAt: follows.createdAt,
+    })
+      .from(follows)
+      .where(eq(follows.followerId, userId)),
+    db.select({
+      id: follows.id,
+      followerId: follows.followerId,
+      createdAt: follows.createdAt,
+    })
+      .from(follows)
+      .where(eq(follows.followingId, userId)),
+    db.select({
+      id: balanceTransactions.id,
+      type: balanceTransactions.type,
+      amount: balanceTransactions.amount,
+      balanceBefore: balanceTransactions.balanceBefore,
+      balanceAfter: balanceTransactions.balanceAfter,
+      relatedId: balanceTransactions.relatedId,
+      description: balanceTransactions.description,
+      createdAt: balanceTransactions.createdAt,
+    })
+      .from(balanceTransactions)
+      .where(eq(balanceTransactions.userId, userId))
+      .orderBy(desc(balanceTransactions.createdAt)),
+    db.select({
+      id: pointsTransactions.id,
+      amount: pointsTransactions.amount,
+      pointsBefore: pointsTransactions.pointsBefore,
+      pointsAfter: pointsTransactions.pointsAfter,
+      reason: pointsTransactions.reason,
+      metadata: pointsTransactions.metadata,
+      createdAt: pointsTransactions.createdAt,
+    })
+      .from(pointsTransactions)
+      .where(eq(pointsTransactions.userId, userId))
+      .orderBy(desc(pointsTransactions.createdAt)),
+    db.select({
+      id: referrals.id,
+      referralCode: referrals.referralCode,
+      referredUserId: referrals.referredUserId,
+      status: referrals.status,
+      createdAt: referrals.createdAt,
+      completedAt: referrals.completedAt,
+    })
+      .from(referrals)
+      .where(eq(referrals.referrerId, userId)),
+    db.select({
+      id: notifications.id,
+      type: notifications.type,
+      actorId: notifications.actorId,
+      postId: notifications.postId,
+      commentId: notifications.commentId,
+      title: notifications.title,
+      message: notifications.message,
+      read: notifications.read,
+      createdAt: notifications.createdAt,
+    })
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100), // Limit to recent notifications
+    db.select({
+      id: feedbacks.id,
+      fromUserId: feedbacks.fromUserId,
+      toUserId: feedbacks.toUserId,
+      score: feedbacks.score,
+      rating: feedbacks.rating,
+      comment: feedbacks.comment,
+      category: feedbacks.category,
+      interactionType: feedbacks.interactionType,
+      createdAt: feedbacks.createdAt,
+    })
+      .from(feedbacks)
+      .where(or(
+        eq(feedbacks.fromUserId, userId),
+        eq(feedbacks.toUserId, userId)
+      )),
+    db.select({
+      id: agentPerformanceMetrics.id,
+      gamesPlayed: agentPerformanceMetrics.gamesPlayed,
+      gamesWon: agentPerformanceMetrics.gamesWon,
+      averageGameScore: agentPerformanceMetrics.averageGameScore,
+      normalizedPnL: agentPerformanceMetrics.normalizedPnL,
+      totalTrades: agentPerformanceMetrics.totalTrades,
+      profitableTrades: agentPerformanceMetrics.profitableTrades,
+      winRate: agentPerformanceMetrics.winRate,
+      averageROI: agentPerformanceMetrics.averageROI,
+      reputationScore: agentPerformanceMetrics.reputationScore,
+      trustLevel: agentPerformanceMetrics.trustLevel,
+      totalFeedbackCount: agentPerformanceMetrics.totalFeedbackCount,
+      averageFeedbackScore: agentPerformanceMetrics.averageFeedbackScore,
+      createdAt: agentPerformanceMetrics.createdAt,
+      updatedAt: agentPerformanceMetrics.updatedAt,
+    })
+      .from(agentPerformanceMetrics)
+      .where(eq(agentPerformanceMetrics.userId, userId))
+      .limit(1),
+    db.select({
+      id: tradingFees.id,
+      tradeType: tradingFees.tradeType,
+      tradeId: tradingFees.tradeId,
+      marketId: tradingFees.marketId,
+      feeAmount: tradingFees.feeAmount,
+      platformFee: tradingFees.platformFee,
+      referrerFee: tradingFees.referrerFee,
+      createdAt: tradingFees.createdAt,
+    })
+      .from(tradingFees)
+      .where(eq(tradingFees.userId, userId))
+      .orderBy(desc(tradingFees.createdAt))
+      .limit(100),
+    db.select({
+      id: tradingFees.id,
+      userId: tradingFees.userId,
+      tradeType: tradingFees.tradeType,
+      referrerFee: tradingFees.referrerFee,
+      createdAt: tradingFees.createdAt,
+    })
+      .from(tradingFees)
+      .where(eq(tradingFees.referrerId, userId))
+      .orderBy(desc(tradingFees.createdAt))
+      .limit(100),
   ])
 
   if (!user) {
@@ -337,29 +343,29 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         'On-chain data (wallet address, NFT token ID, registration transaction) is recorded on public blockchain and cannot be deleted.',
     },
     content: {
-      posts,
-      comments,
-      reactions,
+      posts: userPosts,
+      comments: userComments,
+      reactions: userReactions,
     },
     trading: {
-      positions,
-      balance_transactions: balanceTransactions,
+      positions: userPositions,
+      balance_transactions: userBalanceTransactions,
     },
     social: {
-      following: follows,
-      followers,
-      referrals,
+      following: userFollows,
+      followers: userFollowers,
+      referrals: userReferrals,
     },
     points_and_reputation: {
-      points_transactions: pointsTransactions,
-      performance_metrics: performanceMetrics,
-      feedback_given_and_received: feedback,
+      points_transactions: userPointsTransactions,
+      performance_metrics: performanceMetrics || null,
+      feedback_given_and_received: userFeedback,
     },
     financial: {
-      trading_fees_paid: tradingFees,
+      trading_fees_paid: userTradingFees,
       referral_fees_earned: referralFeesEarned,
     },
-    notifications: notifications,
+    notifications: userNotifications,
     legal_consent: {
       terms_of_service: {
         accepted: user.tosAccepted,
@@ -383,4 +389,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   })
 })
-

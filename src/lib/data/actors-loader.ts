@@ -200,11 +200,28 @@ export function loadActorsData(options?: LoadActorsOptions): ActorsDatabase {
   
   // If it's already a full structure (no "file" property), return it directly
   // This handles legacy actors.json format if someone is using it
-  if (indexData.actors?.[0] && !('file' in indexData.actors[0])) {
+  // Type guard to check if data is already in full format
+  const isFullFormat = (data: IndexReference | ActorData): data is ActorData => {
+    return typeof data === 'object' && data !== null && !('file' in data)
+  }
+  
+  // Cast to union type for proper type guard narrowing (runtime check validates)
+  const actorsUnion = indexData.actors as (IndexReference | ActorData)[]
+  
+  if (actorsUnion?.[0] && isFullFormat(actorsUnion[0])) {
+    // Verify all arrays match expected types
+    const actors = actorsUnion.filter(isFullFormat)
+    const organizations = (indexData.organizations?.filter((org) => 
+      typeof org === 'object' && org !== null && !('file' in org)
+    ) ?? []) as Organization[]
+    const relationships = (indexData.relationships?.filter((rel) =>
+      typeof rel === 'object' && rel !== null && !('file' in rel)
+    ) ?? []) as RelationshipFileData[]
+    
     return {
-      actors: indexData.actors as unknown as ActorData[],
-      organizations: indexData.organizations as unknown as Organization[],
-      relationships: indexData.relationships as unknown as RelationshipFileData[] || []
+      actors,
+      organizations,
+      relationships
     };
   }
 

@@ -27,6 +27,15 @@ on:
         required: false
         type: boolean
         default: false
+      use_local_backend:
+        description: 'Use LocalBackend instead of W&B Serverless (for testing with smaller models)'
+        required: false
+        type: boolean
+        default: false
+      base_model:
+        description: 'Base model to use (e.g., Qwen/Qwen2.5-7B-Instruct for local, OpenPipe/Qwen3-14B-Instruct for serverless)'
+        required: false
+        type: string
 
 env:
   PYTHON_VERSION: '3.11'
@@ -74,14 +83,11 @@ jobs:
           python -c "
           import asyncio
           import asyncpg
-          import json
           import os
           import sys
-          from datetime import datetime
           
           async def check():
               try:
-                  # Connect to database with timeout
                   pool = await asyncpg.create_pool(
                       os.getenv('DATABASE_URL'),
                       min_size=1,
@@ -103,8 +109,8 @@ jobs:
                   print(f'✅ Database connected')
                   print(f'📊 Trajectories ready for training: {count}')
                   
-                  # Align with ModelSelectionService MIN_BUNDLES_FOR_TRAINING = 100
-                  min_required = 100  # Need 100 bundles minimum (matches TypeScript)
+                  # Need 100 bundles minimum
+                  min_required = 100
                   ready = count >= min_required
                   
                   if ready:
@@ -112,8 +118,6 @@ jobs:
                   else:
                       print(f'⏳ NOT READY: {count} < {min_required} (need {min_required - count} more)')
                   
-                  # Set outputs for next steps (using new syntax)
-                  import os
                   with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
                       f.write(f'ready={str(ready).lower()}\\n')
                       f.write(f'count={count}\\n')
@@ -122,8 +126,9 @@ jobs:
                   
               except Exception as e:
                   print(f'❌ Error checking readiness: {e}', file=sys.stderr)
-                  print(f'::set-output name=ready::false')
-                  print(f'::set-output name=count::0')
+                  with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+                      f.write('ready=false\\n')
+                      f.write('count=0\\n')
                   sys.exit(1)
           
           asyncio.run(check())
@@ -136,13 +141,15 @@ jobs:
           BATCH_ID_INPUT: ${{ inputs.batch_id || '' }}
           WINDOW_ID_INPUT: ${{ inputs.window_id || '' }}
           FORCE_INPUT: ${{ inputs.force || 'false' }}
+          USE_LOCAL_INPUT: ${{ inputs.use_local_backend || 'false' }}
+          BASE_MODEL_INPUT: ${{ inputs.base_model || '' }}
           # From repository_dispatch payload:
           BATCH_ID_PAYLOAD: ${{ github.event.client_payload.batch_id || '' }}
           WINDOW_ID_PAYLOAD: ${{ github.event.client_payload.window_id || '' }}
           FORCE_PAYLOAD: ${{ github.event.client_payload.force || 'false' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          # Determine batch_id (prefer dispatch payload over input)
+          # Determine batch_id
           if [ -n "$BATCH_ID_PAYLOAD" ]; then
             echo "batch_id=$BATCH_ID_PAYLOAD" >> $GITHUB_OUTPUT
           elif [ -n "$BATCH_ID_INPUT" ]; then
@@ -157,7 +164,6 @@ jobs:
           elif [ -n "$WINDOW_ID_INPUT" ]; then
             echo "window_id=$WINDOW_ID_INPUT" >> $GITHUB_OUTPUT
           else
-            # Format: YYYY-MM-DDTHH:00
             WINDOW=$(date -u +"%Y-%m-%dT%H:00")
             echo "window_id=$WINDOW" >> $GITHUB_OUTPUT
           fi
@@ -169,7 +175,25 @@ jobs:
             echo "force=false" >> $GITHUB_OUTPUT
           fi
           
-          # Generate model version (semantic versioning)
+          # Determine backend
+          if [ "$USE_LOCAL_INPUT" = "true" ]; then
+            echo "use_local=true" >> $GITHUB_OUTPUT
+            echo "Backend: LocalBackend (local GPU simulation - will fail without GPU)"
+          else
+            echo "use_local=false" >> $GITHUB_OUTPUT
+            echo "Backend: ServerlessBackend (W&B cloud)"
+          fi
+          
+          # Determine base model
+          if [ -n "$BASE_MODEL_INPUT" ]; then
+            echo "base_model=$BASE_MODEL_INPUT" >> $GITHUB_OUTPUT
+          elif [ "$USE_LOCAL_INPUT" = "true" ]; then
+            echo "base_model=Qwen/Qwen2.5-7B-Instruct" >> $GITHUB_OUTPUT
+          else
+            echo "base_model=OpenPipe/Qwen3-14B-Instruct" >> $GITHUB_OUTPUT
+          fi
+          
+          # Generate model version
           MODEL_VERSION=$(python -c "
           import asyncio
           import asyncpg
@@ -180,7 +204,6 @@ jobs:
               try:
                   pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'), timeout=10)
                   
-                  # Get latest model version
                   latest = await pool.fetchval('''
                       SELECT version FROM trained_models 
                       WHERE status IN ('ready', 'deployed')
@@ -189,22 +212,18 @@ jobs:
                   ''')
                   
                   if latest:
-                      # Parse version and increment (e.g., v1.0.0 -> v1.0.1)
                       parts = latest.strip('v').split('.')
                       patch = int(parts[2]) + 1
                       version = f'v{parts[0]}.{parts[1]}.{patch}'
                   else:
-                      # First model
                       version = 'v1.0.0'
                   
                   print(version)
                   await pool.close()
                   
               except Exception as e:
-                  # Fallback to timestamp-based version
                   import time
                   version = f'v1.0.{int(time.time()) % 10000}'
-                  print(version, file=sys.stderr)
                   print(version)
           
           asyncio.run(get_version())
@@ -231,7 +250,6 @@ jobs:
           import asyncio
           import asyncpg
           import os
-          from datetime import datetime
           
           async def update():
               pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
@@ -239,7 +257,6 @@ jobs:
               
               async with pool.acquire() as conn:
                   async with conn.transaction():
-                      # Update or create batch record (transaction-safe)
                       await conn.execute('''
                           INSERT INTO training_batches (
                               \"batchId\", id, status, \"startedAt\", \"createdAt\"
@@ -261,6 +278,8 @@ jobs:
         if: steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          USE_LOCAL: ${{ steps.batch.outputs.use_local }}
+          BASE_MODEL_OVERRIDE: ${{ steps.batch.outputs.base_model }}
         run: |
           python -c "
           import asyncio
@@ -271,6 +290,8 @@ jobs:
           async def select_model():
               try:
                   pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+                  use_local = os.getenv('USE_LOCAL', 'false') == 'true'
+                  base_model_override = os.getenv('BASE_MODEL_OVERRIDE', '')
                   
                   # Count training bundles
                   bundle_count = await pool.fetchval('''
@@ -284,68 +305,36 @@ jobs:
                   ''')
                   
                   print(f'📊 Bundle count: {bundle_count}')
+                  print(f'🔧 Use local backend: {use_local}')
                   
-                  # Count existing models
-                  model_count = await pool.fetchval('''
-                      SELECT COUNT(*) FROM trained_models 
-                      WHERE status IN ('training', 'ready', 'deployed')
-                  ''')
-                  
-                  # Decision logic
-                  # NOTE: W&B ART only supports OpenPipe/Qwen3-14B-Instruct (32K context)
-                  # https://docs.wandb.ai/guides/models/model-catalog
-                  
-                  if model_count == 0:
-                      print('🆕 No models exist - forcing first model from base')
-                      base_model = 'OpenPipe/Qwen3-14B-Instruct'  # ONLY model in W&B catalog
-                      strategy = 'force_first'
-                      max_examples = None
-                  elif bundle_count < 1000:
-                      print(f'📈 Bundle count {bundle_count} < 1000 - using base model')
-                      base_model = 'OpenPipe/Qwen3-14B-Instruct'  # ONLY model in W&B catalog
-                      strategy = 'base'
-                      max_examples = None
+                  # Use override if provided
+                  if base_model_override:
+                      base_model = base_model_override
+                      strategy = 'override'
+                  elif use_local:
+                      # LocalBackend: use smaller model
+                      base_model = 'Qwen/Qwen2.5-7B-Instruct'
+                      strategy = 'local'
                   else:
-                      print(f'🎯 Bundle count {bundle_count} >= 1000 - using best model')
-                      
-                      # Get best performing model
-                      best = await pool.fetchrow('''
-                          SELECT \"modelId\", \"storagePath\", \"benchmarkScore\" 
-                          FROM trained_models
-                          WHERE status IN ('ready', 'deployed')
-                          AND \"benchmarkScore\" IS NOT NULL
-                          ORDER BY \"benchmarkScore\" DESC
-                          LIMIT 1
-                      ''')
-                      
-                      if best:
-                          base_model = best['storagePath'] or best['modelId']
-                          print(f'✨ Best model: {best[\"modelId\"]} (score: {best[\"benchmarkScore\"]})')
-                      else:
-                          base_model = 'OpenPipe/Qwen3-14B-Instruct'  # ONLY model in W&B catalog
-                          print('⚠️  No benchmarked models found - using base')
-                      
-                      strategy = 'continue'
-                      max_examples = 2000  # Keep under 32K context limit
+                      # ServerlessBackend: only OpenPipe/Qwen3-14B-Instruct is supported
+                      base_model = 'OpenPipe/Qwen3-14B-Instruct'
+                      strategy = 'serverless'
                   
-                  # Output for next steps (using new syntax)
-                  import os as os_module
-                  with open(os_module.getenv('GITHUB_OUTPUT'), 'a') as f:
+                  print(f'📦 Selected model: {base_model}')
+                  print(f'📋 Strategy: {strategy}')
+                  
+                  with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
                       f.write(f'base_model={base_model}\\n')
                       f.write(f'strategy={strategy}\\n')
-                      f.write(f'max_examples={max_examples or \"\"}\\n')
                       f.write(f'bundle_count={bundle_count}\\n')
                   
                   await pool.close()
                   
               except Exception as e:
                   print(f'❌ Model selection failed: {e}', file=sys.stderr)
-                  # Fallback to base model (ONLY model in W&B catalog)
-                  import os as os_module
-                  with open(os_module.getenv('GITHUB_OUTPUT'), 'a') as f:
+                  with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
                       f.write('base_model=OpenPipe/Qwen3-14B-Instruct\\n')
-                      f.write('strategy=base\\n')
-                      f.write('max_examples=\\n')
+                      f.write('strategy=fallback\\n')
                   sys.exit(1)
           
           asyncio.run(select_model())
@@ -358,12 +347,16 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_PROJECT: ${{ env.WANDB_PROJECT }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY || 'eliza-labs' }}
           BATCH_ID: ${{ steps.batch.outputs.batch_id }}
           WINDOW_ID: ${{ steps.batch.outputs.window_id }}
           MODEL_VERSION: ${{ steps.batch.outputs.model_version }}
           BASE_MODEL: ${{ steps.model_selection.outputs.base_model }}
+          USE_LOCAL_BACKEND: ${{ steps.batch.outputs.use_local }}
           MODE: single
-          MAX_EXAMPLES: ${{ steps.model_selection.outputs.max_examples }}
+          MAX_EXAMPLES: "2000"
+          MAX_STEPS_PER_TRAJECTORY: "20"
+          MAX_SEQ_LENGTH: "8192"
         working-directory: python
         run: |
           echo "🚀 Starting training"
@@ -372,7 +365,7 @@ jobs:
           echo "Model Version: $MODEL_VERSION"
           echo "Strategy: ${{ steps.model_selection.outputs.strategy }}"
           echo "Base Model: $BASE_MODEL"
-          echo "Max Examples: $MAX_EXAMPLES"
+          echo "Use Local Backend: $USE_LOCAL_BACKEND"
           echo "Trajectories available: ${{ steps.readiness.outputs.count }}"
           echo "Bundle count: ${{ steps.model_selection.outputs.bundle_count }}"
           
@@ -451,4 +444,5 @@ jobs:
           echo "Window ID: ${{ steps.batch.outputs.window_id }}"
           echo "Ready: ${{ steps.readiness.outputs.ready }}"
           echo "Trajectories: ${{ steps.readiness.outputs.count }}"
-
+          echo "Backend: ${{ steps.batch.outputs.use_local == 'true' && 'LocalBackend' || 'ServerlessBackend' }}"
+          echo "Model: ${{ steps.model_selection.outputs.base_model }}"

@@ -13,7 +13,7 @@ Defined in: [src/lib/constants/points.ts:9](https://github.com/lalalune/babylon/
 Points Constants
 
 Point award amounts for various actions in the rewards system.
-Extracted to avoid bundling Prisma into client components.
+Extracted to avoid bundling database code into client components.
 
 ## Type Declaration
 

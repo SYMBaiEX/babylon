@@ -83,29 +83,19 @@ interface SelectedActorsByTier {
 }
 
 /**
- * Generate context from previous month's game
+ * Generate context from previous month's game (compact format)
  */
 function generatePreviousMonthContext(previousHistory: GameHistory[]): string {
-  if (previousHistory.length === 0) {
-    return ''; // No previous history available
-  }
+  if (previousHistory.length === 0) return '';
   
   const lastGame = previousHistory[previousHistory.length - 1]!;
+  const outcomes = lastGame.keyOutcomes.map(o => `${o.questionText.substring(0, 40)}...→${o.outcome ? 'Y' : 'N'}`).join(' | ');
   
-  return `
-━━━ PREVIOUS MONTH CONTEXT ━━━
-${lastGame.summary}
-
-Prediction outcomes from last month:
-${lastGame.keyOutcomes.map(o => `- ${o.questionText} → ${o.outcome ? 'YES' : 'NO'}`).join('\n')}
-
-Key moments: ${lastGame.highlights.slice(0, 3).join('; ')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  return `PREV_MONTH: ${lastGame.summary.substring(0, 100)}... | OUTCOMES: ${outcomes}`;
 }
 
 /**
- * Generate current month setup context
+ * Generate current month setup context (compact format)
  */
 function generateCurrentMonthContext(
   mainActors: SelectedActor[],
@@ -113,37 +103,28 @@ function generateCurrentMonthContext(
   questions: Question[],
   day: number
 ): string {
-  return `
-━━━ CURRENT MONTH - DAY ${day}/30 ━━━
-
-MAIN ACTORS (focus on these):
-${mainActors.map(a => `- ${a.name}: ${a.description} [${a.affiliations?.join(', ') || 'independent'}]`).join('\n')}
-
-ACTIVE SCENARIOS:
-${scenarios.map(s => `- ${s.title}: ${s.description}`).join('\n')}
-
-PREDICTION MARKETS:
-${questions.map(q => `- ${q.text}`).join('\n')}
-
-ORGANIZATIONS: ${scenarios.flatMap(s => s.involvedOrganizations).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  const actors = mainActors.map(a => `${a.name}[${a.affiliations?.join(',') || 'ind'}]`).join(', ');
+  const scenarioList = scenarios.map(s => s.title).join(', ');
+  const questionList = questions.slice(0, 5).map(q => `"${q.text.substring(0, 40)}..."`).join(' | ');
+  const orgs = scenarios.flatMap(s => s.involvedOrganizations).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+  
+  return `DAY ${day}/30 | ACTORS: ${actors} | SCENARIOS: ${scenarioList} | QUESTIONS: ${questionList} | ORGS: ${orgs}`;
 }
 
 /**
- * Generate day-by-day summaries for this month
+ * Generate day-by-day summaries for this month (compact format)
  */
 function generateDaySummariesContext(previousDays: DayTimeline[]): string {
-  return `
-━━━ THIS MONTH SO FAR ━━━
-${previousDays.map(d => `Day ${d.day}: ${d.summary}
-Events: ${d.events.map(e => e.description).join('; ')}`).join('\n\n')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  const summaries = previousDays.slice(-5).map(d => {
+    const events = d.events.slice(0, 2).map(e => e.description.substring(0, 30)).join('; ');
+    return `D${d.day}:${d.summary.substring(0, 40)}...[${events}]`;
+  }).join(' | ');
+  
+  return `HISTORY(last5): ${summaries}`;
 }
 
 /**
- * Get actor's group context - all groups they're in + recent messages
+ * Get actor's group context - all groups they're in + recent messages (compact format)
  */
 function getActorGroupContext(
   actorId: string,
@@ -152,37 +133,33 @@ function getActorGroupContext(
   allActors: SelectedActor[]
 ): string {
   const memberOf = allGroups.filter(g => g.members.includes(actorId));
+  if (memberOf.length === 0) return '';
   
-  const groupContexts = memberOf.map(group => {
+  const groupContexts = memberOf.slice(0, 3).map(group => {
     const recentMessages: string[] = [];
     
-    for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 3); i--) {
+    for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 2); i--) {
       const dayData = previousDays[i];
       if (!dayData) continue;
       
       const msgs = dayData.groupChats?.[group.id] || [];
-      
-      msgs.slice(-3).forEach((msg: ChatMessage) => {
+      msgs.slice(-2).forEach((msg: ChatMessage) => {
         const actor = allActors.find(a => a.id === msg.from);
-        recentMessages.push(`${actor?.name || msg.from}: "${msg.message}"`);
+        const content = msg.message.length > 40 ? msg.message.substring(0, 40) + '...' : msg.message;
+        recentMessages.push(`${actor?.name || msg.from}:"${content}"`);
       });
     }
     
-    const memberNames = group.members
+    const members = group.members
       .map(id => allActors.find(a => a.id === id)?.name || id)
-      .filter(name => name !== allActors.find(a => a.id === actorId)?.name);
+      .filter(name => name !== allActors.find(a => a.id === actorId)?.name)
+      .slice(0, 3)
+      .join(',');
     
-    return `- "${group.name}": ${memberNames.join(', ')}
-  ${recentMessages.length > 0 ? `Recent: ${recentMessages.slice(-3).join('; ')}` : 'No recent messages'}`;
-  }).join('\n');
+    return `${group.name}[${members}]${recentMessages.length > 0 ? ':' + recentMessages.join('|') : ''}`;
+  }).join(' | ');
   
-  return memberOf.length > 0 ? `
-━━━ YOUR PRIVATE GROUP CHATS ━━━
-${groupContexts}
-
-You're aware of these conversations. They inform your knowledge and perspective.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-` : '';
+  return `GROUPS: ${groupContexts}`;
 }
 
 export function createScenarioPrompt(mainActors: Actor[], organizations?: Organization[]) {
@@ -657,8 +634,13 @@ export class GameGenerator {
     const rawResponse = await this.llm.generateJSON<{ event: string } | { response: { event: string } }>(
       prompt,
       undefined,
-      { temperature: 0.7, maxTokens: 5000 }
+      { temperature: 0.7, maxTokens: 5000, promptType: 'generate_baseline_event' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `${actors[0]?.name || 'Actor'} ${type}`;
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -863,17 +845,24 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
    */
   private async generateScenarios(mains: SelectedActor[], organizations: Organization[]): Promise<Scenario[]> {
     const historyContext = this.getHistoryContext();
+    // Clean history context to remove explicit question lists that confuse the LLM
+    const cleanHistoryContext = historyContext.replace(/Prediction outcomes from last month:[\s\S]*?Key moments:/, 'Key moments:');
+    
     const basePrompt = createScenarioPrompt(mains, organizations);
     const prompt = `${basePrompt}
 
-${historyContext}
+PREVIOUS GAME HISTORY (Context only - do not repeat these questions):
+${cleanHistoryContext}
 
 If there's previous game history, reference it naturally (e.g., "After the events of last game...", "Following up on...").
-Otherwise, start fresh.`;
+Otherwise, start fresh.
+
+REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     
     const rawResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(prompt, undefined, {
       temperature: 0.9,
       maxTokens: 8000,
+      promptType: 'generate_scenarios',
     });
     
     if (!rawResult) {
@@ -884,16 +873,43 @@ Otherwise, start fresh.`;
     // Handle XML structure - may be nested like { scenarios: { scenario: [...] } }
     let scenarios: Scenario[];
     
-    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response && rawResult.response.scenarios) {
-      const responseSc = rawResult.response.scenarios;
-      if (Array.isArray(responseSc)) {
-        scenarios = responseSc;
-      } else if (typeof responseSc === 'object' && 'scenario' in responseSc) {
-        const nested = (responseSc as { scenario: Scenario[] | Scenario }).scenario;
-        scenarios = Array.isArray(nested) ? nested : [nested];
+    if (typeof rawResult === 'object' && rawResult !== null && 'response' in rawResult && rawResult.response) {
+      // Check if LLM returned questions instead of scenarios wrapped in response
+      if ('questions' in rawResult.response && rawResult.response.questions && !rawResult.response.scenarios) {
+        logger.error('LLM returned response.questions instead of response.scenarios. Retrying with stricter prompt...', undefined, 'GameGenerator');
+        
+        // Retry ONCE with a very strict prompt
+        const retryPrompt = `${prompt}\n\nSYSTEM: You returned questions instead of scenarios. Generate SCENARIOS only. The XML root must be <scenarios>. Do not generate <questions>.`;
+        
+        const retryResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(retryPrompt, undefined, {
+          temperature: 0.7,
+          maxTokens: 8000,
+          promptType: 'generate_scenarios_retry',
+        });
+
+        if (retryResult && ('scenarios' in retryResult || ('response' in retryResult && retryResult.response?.scenarios))) {
+           if ('scenarios' in retryResult) {
+              scenarios = retryResult.scenarios;
+           } else {
+              scenarios = (retryResult as { response: { scenarios: Scenario[] } }).response.scenarios;
+           }
+        } else {
+          throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+        }
+      } else if (rawResult.response.scenarios) {
+        const responseSc = rawResult.response.scenarios;
+        if (Array.isArray(responseSc)) {
+          scenarios = responseSc;
+        } else if (typeof responseSc === 'object' && 'scenario' in responseSc) {
+          const nested = (responseSc as { scenario: Scenario[] | Scenario }).scenario;
+          scenarios = Array.isArray(nested) ? nested : [nested];
+        } else {
+          logger.error('Invalid scenarios in response:', JSON.stringify(responseSc, null, 2), 'GameGenerator');
+          throw new Error('LLM returned invalid scenarios in response');
+        }
       } else {
-        logger.error('Invalid scenarios in response:', JSON.stringify(responseSc, null, 2), 'GameGenerator');
-        throw new Error('LLM returned invalid scenarios in response');
+        logger.error('Response object has neither scenarios nor questions:', JSON.stringify(rawResult.response, null, 2), 'GameGenerator');
+        throw new Error('LLM returned response object without scenarios');
       }
     } else if (rawResult && 'scenarios' in rawResult && rawResult.scenarios) {
       if (Array.isArray(rawResult.scenarios)) {
@@ -905,10 +921,32 @@ Otherwise, start fresh.`;
         logger.error('Invalid scenarios structure:', JSON.stringify(rawResult.scenarios, null, 2), 'GameGenerator');
         throw new Error('LLM returned invalid scenarios structure');
       }
+    } else if (rawResult && 'scenario' in rawResult && rawResult.scenario) {
+      // LLM returned singular 'scenario' instead of 'scenarios' - handle this common variation
+      const scenarioData = (rawResult as { scenario: Scenario[] | Scenario }).scenario;
+      scenarios = Array.isArray(scenarioData) ? scenarioData : [scenarioData];
     } else if (rawResult && 'questions' in rawResult && rawResult.questions) {
-      // LLM returned questions instead of scenarios - this is a format error
-      logger.error('LLM returned questions instead of scenarios. Expected scenarios array with mainActors, involvedOrganizations, etc.', JSON.stringify(rawResult, null, 2), 'GameGenerator');
-      throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+      // LLM returned questions instead of scenarios - try to recover or fail gracefully
+      logger.error('LLM returned questions instead of scenarios. Retrying with stricter prompt...', undefined, 'GameGenerator');
+      
+      // Retry ONCE with a very strict prompt
+      const retryPrompt = `${prompt}\n\nSYSTEM: You returned questions instead of scenarios. Generate SCENARIOS only. The XML root must be <scenarios>. Do not generate <questions>.`;
+      
+      const retryResult = await this.llm.generateJSON<{ scenarios: Scenario[] } | { response: { scenarios: Scenario[] } }>(retryPrompt, undefined, {
+        temperature: 0.7,
+        maxTokens: 8000,
+        promptType: 'generate_scenarios_retry',
+      });
+
+      if (retryResult && ('scenarios' in retryResult || ('response' in retryResult && retryResult.response?.scenarios))) {
+         if ('scenarios' in retryResult) {
+            scenarios = retryResult.scenarios;
+         } else {
+            scenarios = (retryResult as { response: { scenarios: Scenario[] } }).response.scenarios;
+         }
+      } else {
+        throw new Error('LLM returned questions instead of scenarios. The prompt requires scenarios (with mainActors, involvedOrganizations, description), not questions. Please check the LLM response format.');
+      }
     } else {
       logger.error('No scenarios found in response:', JSON.stringify(rawResult, null, 2), 'GameGenerator');
       throw new Error('LLM returned no scenarios');
@@ -960,6 +998,7 @@ Otherwise, start fresh.`;
     const rawResult = await this.llm.generateJSON<{ questions: Question[] } | Array<{ questions: Question[] }>>(prompt, undefined, {
       temperature: 0.85,
       maxTokens: 8000,
+      promptType: 'generate_questions',
     });
     
     if (!rawResult) {
@@ -1029,7 +1068,9 @@ Otherwise, start fresh.`;
       questionsList
     });
 
-    const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt);
+    const rawResult = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] } | { response: { rankings: { questionId: number; rank: number }[] } }>(prompt, undefined, {
+      promptType: 'rank_questions',
+    });
     
     if (!rawResult) {
       logger.warn('LLM returned null/undefined rankings response, using default ranking', undefined, 'GameGenerator');
@@ -1183,7 +1224,7 @@ Otherwise, start fresh.`;
 
     const rawResponse = await this.llm.generateJSON<{ name: string } | { response: { name: string } }>(prompt, {
       required: ['name']
-    });
+    }, { promptType: 'generate_group_chat_name' });
 
     let parsedResponse = rawResponse;
     if (typeof rawResponse === 'string') {
@@ -1201,7 +1242,12 @@ Otherwise, start fresh.`;
     // Handle XML structure
     const response = 'response' in parsedResponse && parsedResponse.response
       ? parsedResponse.response
-      : parsedResponse as { name: string };
+      : parsedResponse as { name?: string };
+
+    // Handle missing name property
+    if (!response || typeof response.name !== 'string') {
+      return `${admin.name}'s Group`; // Fallback
+    }
 
     return response.name.toLowerCase();
   }
@@ -1509,7 +1555,7 @@ Otherwise, start fresh.`;
           pointsToward: 'YES' | 'NO' | null 
         }> 
       }
-    }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000 });
+    }>(prompt, undefined, { temperature: 0.9, maxTokens: 5000, promptType: 'generate_day_events' });
 
     if (!rawResponse) {
       logger.warn('LLM returned null/undefined events response, falling back to simple events', undefined, 'GameGenerator');
@@ -1607,8 +1653,13 @@ Max 120 characters, one sentence.`;
     const rawResponse = await this.llm.generateJSON<{ event: string } | { response: { event: string } }>(
       prompt,
       undefined,
-      { temperature: 0.9 }
+      { temperature: 0.9, promptType: 'generate_event_description' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `${actorNames} ${type}`;
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -1655,8 +1706,22 @@ Max 120 characters, one sentence.`;
     const rawResponse = await this.llm.generateJSON<{ event: string; type: 'announcement' | 'revelation' } | { response: { event: string; type: 'announcement' | 'revelation' } }>(
       prompt,
       undefined,
-      { temperature: 0.7, maxTokens: 5000 }
+      { temperature: 0.7, maxTokens: 5000, promptType: 'generate_resolution_event' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return {
+        id: `resolution-${day}-${question.id}`,
+        day,
+        type: 'revelation' as const,
+        actors: mainActors.map(a => a.id),
+        description: `Resolution event for question ${question.id}`,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: question.outcome ? 'YES' : 'NO',
+        visibility: 'public',
+      };
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -1886,11 +1951,11 @@ ${req.members.map((m, idx) => {
       }>(
         prompt,
         { required: ['groups'] },
-        { temperature: 1.0, maxTokens: 5000 }
+        { temperature: 1.0, maxTokens: 5000, promptType: 'generate_group_messages_batch' }
       );
 
-      if (!rawResponse) {
-        logger.warn(`LLM returned null/undefined group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
+      if (!rawResponse || typeof rawResponse !== 'object') {
+        logger.warn(`LLM returned null/undefined/invalid group messages response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'GameGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
@@ -1899,30 +1964,77 @@ ${req.members.map((m, idx) => {
         return messages;
       }
 
-      // Handle XML structure
-      const response = 'response' in rawResponse && rawResponse.response
+      // Handle XML structure - may be wrapped in 'response' or have nested 'group' array
+      // Message type that handles both 'message' and 'content' fields from LLM
+      type GroupMessageItem = { actorId: string; message?: string; content?: string };
+      type ExtractedGroup = { groupId: string; messages: GroupMessageItem[] };
+      
+      let extractedGroups: ExtractedGroup[] = [];
+      
+      // First, unwrap 'response' if present
+      const responseData = 'response' in rawResponse && rawResponse.response
         ? rawResponse.response
-        : rawResponse as { groups: Array<{ groupId: string; messages: Array<{ actorId: string; message: string }> }> };
-
-      const groups = response.groups || [];
-      if (groups.length === groupRequests.length && groups.every(g => g.messages && g.messages.length > 0)) {
-        // Convert to expected format
-        groups.forEach((group, i) => {
+        : rawResponse as { groups: unknown };
+      
+      // Now extract groups - handle various XML structures
+      if (responseData && typeof responseData === 'object' && 'groups' in responseData) {
+        const groupsData = responseData.groups;
+        
+        if (Array.isArray(groupsData)) {
+          // Direct array: { groups: [{...}, {...}] }
+          extractedGroups = groupsData as ExtractedGroup[];
+        } else if (groupsData && typeof groupsData === 'object') {
+          // Check for XML nested structure: { groups: { group: [...] } } or { groups: { group: {...} } }
+          if ('group' in groupsData) {
+            const groupContent = (groupsData as { group: unknown }).group;
+            if (Array.isArray(groupContent)) {
+              extractedGroups = groupContent as ExtractedGroup[];
+            } else if (groupContent && typeof groupContent === 'object') {
+              // Single group wrapped in object
+              extractedGroups = [groupContent as ExtractedGroup];
+            }
+          } else {
+            // Single group returned directly as object: { groups: { groupId: "...", messages: [...] } }
+            extractedGroups = [groupsData as ExtractedGroup];
+          }
+        }
+      }
+      
+      // Ensure messages arrays are properly formatted (handle XML nested message structure)
+      extractedGroups = extractedGroups.map(g => {
+        let groupMessages = g.messages;
+        if (groupMessages && typeof groupMessages === 'object' && !Array.isArray(groupMessages)) {
+          // Handle { messages: { message: [...] } } or { messages: { message: {...} } }
+          if ('message' in groupMessages) {
+            const messageContent = (groupMessages as { message: unknown }).message;
+            groupMessages = Array.isArray(messageContent) ? messageContent : [messageContent as GroupMessageItem];
+          }
+        }
+        return { ...g, messages: groupMessages || [] };
+      });
+      
+      if (extractedGroups.length === groupRequests.length && extractedGroups.every(g => g.messages && g.messages.length > 0)) {
+        // Convert to expected format - handle both 'message' and 'content' fields
+        extractedGroups.forEach((group, i) => {
           const req = groupRequests[i];
           if (!req) return; // Skip if no matching request
 
-          messages[group.groupId] = group.messages.map((msg, j) => ({
-            from: msg.actorId,
-            message: msg.message,
-            timestamp: `2025-10-${String(day).padStart(2, '0')}T${String(10 + j * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            clueStrength: req.members.find(m => m.actorId === msg.actorId)?.role === 'main' ? 0.7 : 0.4,
-          }));
+          messages[group.groupId] = (group.messages as GroupMessageItem[]).map((msg, j) => {
+            // LLM may return 'content' field instead of 'message' field
+            const messageText = msg.message || msg.content || '';
+            return {
+              from: msg.actorId,
+              message: messageText,
+              timestamp: `2025-10-${String(day).padStart(2, '0')}T${String(10 + j * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+              clueStrength: req.members.find(m => m.actorId === msg.actorId)?.role === 'main' ? 0.7 : 0.4,
+            };
+          });
         });
         
         return messages;
       }
 
-      logger.warn(`Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${groups.length}`, undefined, 'GameGenerator');
+      logger.warn(`Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${extractedGroups.length}`, undefined, 'GameGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1969,8 +2081,13 @@ ${req.members.map((m, idx) => {
     const rawResponse = await this.llm.generateJSON<{ message: string } | { response: { message: string } }>(
       prompt,
       undefined,
-      { temperature: 1.0 }
+      { temperature: 1.0, promptType: 'generate_group_message' }
     );
+
+    // Handle null/undefined or non-object response
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      return `Day ${day}: Interesting developments...`;
+    }
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response

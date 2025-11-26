@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 import { issueRealtimeToken, type RealtimeChannel } from '@/lib/realtime'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 const BodySchema = z.object({
   channels: z.array(z.string()).optional(),
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   const allowedChatIds = new Set<string>()
 
   if (derivedChatIds.length > 0) {
-    const allowedChats = await prisma.chatParticipant.findMany({
+    const allowedChats = await db.chatParticipant.findMany({
       where: { userId: user.userId, chatId: { in: derivedChatIds } },
       select: { chatId: true },
     })

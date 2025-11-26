@@ -92,9 +92,10 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, users, comments, reactions, positions, follows, reports, userBlocks, userMutes, eq, and, or, ilike, asc, desc, count } from '@/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import type { SQL } from 'drizzle-orm';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -133,99 +134,168 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   logger.info(`Admin users list requested`, { params }, 'GET /api/admin/users');
 
-  // Build where clause
-  const where: Record<string, unknown> = {};
+  // Build where conditions
+  const conditions: SQL[] = [];
 
   if (params.filter === 'actors') {
-    where.isActor = true;
+    conditions.push(eq(users.isActor, true));
   } else if (params.filter === 'users') {
-    where.isActor = false;
+    conditions.push(eq(users.isActor, false));
   } else if (params.filter === 'banned') {
-    where.isBanned = true;
+    conditions.push(eq(users.isBanned, true));
   } else if (params.filter === 'admins') {
-    where.isAdmin = true;
+    conditions.push(eq(users.isAdmin, true));
   }
 
   if (params.search) {
-    where.OR = [
-      { username: { contains: params.search, mode: 'insensitive' } },
-      { displayName: { contains: params.search, mode: 'insensitive' } },
-      { walletAddress: { contains: params.search, mode: 'insensitive' } },
-    ];
+    conditions.push(
+      or(
+        ilike(users.username, `%${params.search}%`),
+        ilike(users.displayName, `%${params.search}%`),
+        ilike(users.walletAddress, `%${params.search}%`)
+      )!
+    );
   }
 
-  // Get users with moderation metrics
-  let users = await prisma.user.findMany({
-    where,
-    take: params.limit,
-    skip: params.offset,
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      walletAddress: true,
-      profileImageUrl: true,
-      isActor: true,
-      isAdmin: true,
-      isBanned: true,
-      bannedAt: true,
-      bannedReason: true,
-      bannedBy: true,
-      virtualBalance: true,
-      totalDeposited: true,
-      totalWithdrawn: true,
-      lifetimePnL: true,
-      reputationPoints: true,
-      referralCount: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-      hasFarcaster: true,
-      hasTwitter: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          Comment: true,
-          Reaction: true,
-          Position: true,
-          Follow_Follow_followerIdToUser: true,
-          Follow_Follow_followingIdToUser: true,
-          Report_Report_reportedUserIdToUser: true,
-          UserBlock_UserBlock_blockedIdToUser: true,
-          UserMute_UserMute_mutedIdToUser: true,
-          Report_Report_reporterIdToUser: true,
-        },
-      },
-    },
-  });
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const total = await prisma.user.count({ where });
+  // Determine sort order
+  const sortFn = params.sortOrder === 'asc' ? asc : desc;
+  let orderByClause: SQL | undefined;
+
+  if (params.sortBy === 'created') {
+    orderByClause = sortFn(users.createdAt);
+  } else if (params.sortBy === 'balance') {
+    orderByClause = sortFn(users.virtualBalance);
+  } else if (params.sortBy === 'reputation') {
+    orderByClause = sortFn(users.reputationPoints);
+  } else if (params.sortBy === 'username') {
+    orderByClause = sortFn(users.username);
+  }
+
+  // Get users
+  const usersResult = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    walletAddress: users.walletAddress,
+    profileImageUrl: users.profileImageUrl,
+    isActor: users.isActor,
+    isAdmin: users.isAdmin,
+    isBanned: users.isBanned,
+    bannedAt: users.bannedAt,
+    bannedReason: users.bannedReason,
+    bannedBy: users.bannedBy,
+    virtualBalance: users.virtualBalance,
+    totalDeposited: users.totalDeposited,
+    totalWithdrawn: users.totalWithdrawn,
+    lifetimePnL: users.lifetimePnL,
+    reputationPoints: users.reputationPoints,
+    referralCount: users.referralCount,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
+    hasFarcaster: users.hasFarcaster,
+    hasTwitter: users.hasTwitter,
+    createdAt: users.createdAt,
+    updatedAt: users.updatedAt,
+  })
+    .from(users)
+    .where(whereClause)
+    .orderBy(orderByClause ?? desc(users.createdAt))
+    .limit(params.limit)
+    .offset(params.offset);
+
+  // Get total count
+  const [totalResult] = await db.select({ count: count() })
+    .from(users)
+    .where(whereClause);
+  const total = totalResult?.count ?? 0;
+
+  // Get moderation counts per user (batched queries)
+  const [commentCounts, reactionCounts, positionCounts, followerCounts, followingCounts, reportsReceived, blocksReceived, mutesReceived, reportsSent] = await Promise.all([
+    // Comment counts
+    db.select({ userId: comments.authorId, count: count() })
+      .from(comments)
+      .groupBy(comments.authorId),
+    // Reaction counts
+    db.select({ userId: reactions.userId, count: count() })
+      .from(reactions)
+      .groupBy(reactions.userId),
+    // Position counts
+    db.select({ userId: positions.userId, count: count() })
+      .from(positions)
+      .groupBy(positions.userId),
+    // Follower counts (users following this user)
+    db.select({ userId: follows.followingId, count: count() })
+      .from(follows)
+      .groupBy(follows.followingId),
+    // Following counts (users this user follows)
+    db.select({ userId: follows.followerId, count: count() })
+      .from(follows)
+      .groupBy(follows.followerId),
+    // Reports received
+    db.select({ userId: reports.reportedUserId, count: count() })
+      .from(reports)
+      .groupBy(reports.reportedUserId),
+    // Blocks received
+    db.select({ userId: userBlocks.blockedId, count: count() })
+      .from(userBlocks)
+      .groupBy(userBlocks.blockedId),
+    // Mutes received
+    db.select({ userId: userMutes.mutedId, count: count() })
+      .from(userMutes)
+      .groupBy(userMutes.mutedId),
+    // Reports sent
+    db.select({ userId: reports.reporterId, count: count() })
+      .from(reports)
+      .groupBy(reports.reporterId),
+  ]);
+
+  // Build lookup maps
+  const commentCountMap = new Map(commentCounts.filter(c => c.userId).map(c => [c.userId!, c.count]));
+  const reactionCountMap = new Map(reactionCounts.filter(r => r.userId).map(r => [r.userId!, r.count]));
+  const positionCountMap = new Map(positionCounts.filter(p => p.userId).map(p => [p.userId!, p.count]));
+  const followerCountMap = new Map(followerCounts.filter(f => f.userId).map(f => [f.userId!, f.count]));
+  const followingCountMap = new Map(followingCounts.filter(f => f.userId).map(f => [f.userId!, f.count]));
+  const reportsReceivedMap = new Map(reportsReceived.filter(r => r.userId).map(r => [r.userId!, r.count]));
+  const blocksReceivedMap = new Map(blocksReceived.filter(b => b.userId).map(b => [b.userId!, b.count]));
+  const mutesReceivedMap = new Map(mutesReceived.filter(m => m.userId).map(m => [m.userId!, m.count]));
+  const reportsSentMap = new Map(reportsSent.filter(r => r.userId).map(r => [r.userId!, r.count]));
 
   // Calculate moderation metrics and bad user scores
-  const usersWithMetrics = users.map(user => {
-    const followers = user._count.Follow_Follow_followingIdToUser;
-    const reportsReceived = user._count.Report_Report_reportedUserIdToUser;
-    const blocksReceived = user._count.UserBlock_UserBlock_blockedIdToUser;
-    const mutesReceived = user._count.UserMute_UserMute_mutedIdToUser;
-    const reportsSent = user._count.Report_Report_reporterIdToUser;
+  const usersWithMetrics = usersResult.map(user => {
+    const followers = followerCountMap.get(user.id) || 0;
+    const reportsReceivedCount = reportsReceivedMap.get(user.id) || 0;
+    const blocksReceivedCount = blocksReceivedMap.get(user.id) || 0;
+    const mutesReceivedCount = mutesReceivedMap.get(user.id) || 0;
+    const reportsSentCount = reportsSentMap.get(user.id) || 0;
 
     // Calculate ratios (avoid division by zero)
-    const reportRatio = followers > 0 ? reportsReceived / followers : reportsReceived;
-    const blockRatio = followers > 0 ? blocksReceived / followers : blocksReceived;
-    const muteRatio = followers > 0 ? mutesReceived / followers : mutesReceived;
+    const reportRatio = followers > 0 ? reportsReceivedCount / followers : reportsReceivedCount;
+    const blockRatio = followers > 0 ? blocksReceivedCount / followers : blocksReceivedCount;
+    const muteRatio = followers > 0 ? mutesReceivedCount / followers : mutesReceivedCount;
 
     // Calculate combined bad user score
-    // Formula: (reportRatio * 5) + (blockRatio * 3) + (muteRatio * 1)
-    // This weighs reports more heavily than blocks, and blocks more than mutes
     const badUserScore = (reportRatio * 5) + (blockRatio * 3) + (muteRatio * 1);
 
     return {
       ...user,
+      _count: {
+        comments: commentCountMap.get(user.id) || 0,
+        reactions: reactionCountMap.get(user.id) || 0,
+        positions: positionCountMap.get(user.id) || 0,
+        following: followingCountMap.get(user.id) || 0,
+        followedBy: followers,
+        reportsReceived: reportsReceivedCount,
+        blocksReceived: blocksReceivedCount,
+        mutesReceived: mutesReceivedCount,
+        reportsSent: reportsSentCount,
+      },
       _moderation: {
-        reportsReceived,
-        blocksReceived,
-        mutesReceived,
-        reportsSent,
+        reportsReceived: reportsReceivedCount,
+        blocksReceived: blocksReceivedCount,
+        mutesReceived: mutesReceivedCount,
+        reportsSent: reportsSentCount,
         reportRatio,
         blockRatio,
         muteRatio,
@@ -265,95 +335,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const diff = b._moderation.badUserScore - a._moderation.badUserScore;
       return params.sortOrder === 'asc' ? -diff : diff;
     });
-  } else {
-    // Standard sorting using Prisma orderBy
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    if (params.sortBy === 'created') {
-      orderBy.createdAt = params.sortOrder;
-    } else if (params.sortBy === 'balance') {
-      orderBy.virtualBalance = params.sortOrder;
-    } else if (params.sortBy === 'reputation') {
-      orderBy.reputationPoints = params.sortOrder;
-    } else if (params.sortBy === 'username') {
-      orderBy.username = params.sortOrder;
-    }
-
-    // Re-fetch with proper ordering for non-moderation sorts
-    if (Object.keys(orderBy).length > 0) {
-      users = await prisma.user.findMany({
-        where,
-        orderBy,
-        take: params.limit,
-        skip: params.offset,
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          walletAddress: true,
-          profileImageUrl: true,
-          isActor: true,
-          isAdmin: true,
-          isBanned: true,
-          bannedAt: true,
-          bannedReason: true,
-          bannedBy: true,
-          virtualBalance: true,
-          totalDeposited: true,
-          totalWithdrawn: true,
-          lifetimePnL: true,
-          reputationPoints: true,
-          referralCount: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          hasFarcaster: true,
-          hasTwitter: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              Comment: true,
-              Reaction: true,
-              Position: true,
-              Follow_Follow_followerIdToUser: true,
-              Follow_Follow_followingIdToUser: true,
-              Report_Report_reportedUserIdToUser: true,
-              UserBlock_UserBlock_blockedIdToUser: true,
-              UserMute_UserMute_mutedIdToUser: true,
-              Report_Report_reporterIdToUser: true,
-            },
-          },
-        },
-      });
-
-      // Recalculate metrics for re-fetched data
-      usersWithMetrics.length = 0;
-      users.forEach(user => {
-        const followers = user._count.Follow_Follow_followingIdToUser;
-        const reportsReceived = user._count.Report_Report_reportedUserIdToUser;
-        const blocksReceived = user._count.UserBlock_UserBlock_blockedIdToUser;
-        const mutesReceived = user._count.UserMute_UserMute_mutedIdToUser;
-        const reportsSent = user._count.Report_Report_reporterIdToUser;
-
-        const reportRatio = followers > 0 ? reportsReceived / followers : reportsReceived;
-        const blockRatio = followers > 0 ? blocksReceived / followers : blocksReceived;
-        const muteRatio = followers > 0 ? mutesReceived / followers : mutesReceived;
-        const badUserScore = (reportRatio * 5) + (blockRatio * 3) + (muteRatio * 1);
-
-        usersWithMetrics.push({
-          ...user,
-          _moderation: {
-            reportsReceived,
-            blocksReceived,
-            mutesReceived,
-            reportsSent,
-            reportRatio,
-            blockRatio,
-            muteRatio,
-            badUserScore,
-          },
-        });
-      });
-    }
   }
 
   return successResponse({
@@ -363,17 +344,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalDeposited: user.totalDeposited.toString(),
       totalWithdrawn: user.totalWithdrawn.toString(),
       lifetimePnL: user.lifetimePnL.toString(),
-      _count: {
-        comments: user._count.Comment,
-        reactions: user._count.Reaction,
-        positions: user._count.Position,
-        following: user._count.Follow_Follow_followerIdToUser,
-        followedBy: user._count.Follow_Follow_followingIdToUser,
-        reportsReceived: user._count.Report_Report_reportedUserIdToUser,
-        blocksReceived: user._count.UserBlock_UserBlock_blockedIdToUser,
-        mutesReceived: user._count.UserMute_UserMute_mutedIdToUser,
-        reportsSent: user._count.Report_Report_reporterIdToUser,
-      },
       _moderation: {
         reportsReceived: user._moderation.reportsReceived,
         blocksReceived: user._moderation.blocksReceived,
@@ -392,4 +362,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 });
-

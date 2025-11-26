@@ -5,7 +5,7 @@
  * CSAM/scammer is confirmed.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, reports, pointsTransactions, eq, gte, and, asc } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { PointsService } from '@/lib/services/points-service'
@@ -26,16 +26,16 @@ export async function distributePointsToReporters(
   }, 'PointsDistribution')
 
   // Get the reported user's point balance
-  const reportedUser = await prisma.user.findUnique({
-    where: { id: reportedUserId },
-    select: {
-      id: true,
-      reputationPoints: true,
-      earnedPoints: true,
-      invitePoints: true,
-      bonusPoints: true,
-    },
+  const [reportedUser] = await db.select({
+    id: users.id,
+    reputationPoints: users.reputationPoints,
+    earnedPoints: users.earnedPoints,
+    invitePoints: users.invitePoints,
+    bonusPoints: users.bonusPoints,
   })
+    .from(users)
+    .where(eq(users.id, reportedUserId))
+    .limit(1)
 
   if (!reportedUser) {
     logger.warn('Reported user not found', { reportedUserId }, 'PointsDistribution')
@@ -52,26 +52,21 @@ export async function distributePointsToReporters(
   }
 
   // Find all successful reports for this user
-  // Successful = reports that led to this ban (CSAM/scammer)
-  const successfulReports = await prisma.report.findMany({
-    where: {
-      reportedUserId,
-      status: 'resolved',
-      category: reason === 'scammer' ? 'spam' : 'inappropriate', // Map to report categories
-      createdAt: {
-        // Only consider reports from last 90 days
-        gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
-      },
-    },
-    select: {
-      id: true,
-      reporterId: true,
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: 'asc', // Earlier reports get priority
-    },
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+  
+  const successfulReports = await db.select({
+    id: reports.id,
+    reporterId: reports.reporterId,
+    createdAt: reports.createdAt,
   })
+    .from(reports)
+    .where(and(
+      eq(reports.reportedUserId, reportedUserId),
+      eq(reports.status, 'resolved'),
+      eq(reports.category, reason === 'scammer' ? 'spam' : 'inappropriate'),
+      gte(reports.createdAt, ninetyDaysAgo)
+    ))
+    .orderBy(asc(reports.createdAt))
 
   if (successfulReports.length === 0) {
     logger.info('No successful reports found', { reportedUserId }, 'PointsDistribution')
@@ -148,14 +143,14 @@ export async function distributePointsToReporters(
  * Forfeit points from a user (remove bonus/invite points)
  */
 async function forfeitUserPoints(userId: string, amount: number): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      reputationPoints: true,
-      invitePoints: true,
-      bonusPoints: true,
-    },
+  const [user] = await db.select({
+    reputationPoints: users.reputationPoints,
+    invitePoints: users.invitePoints,
+    bonusPoints: users.bonusPoints,
   })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
 
   if (!user) {
     return
@@ -176,18 +171,17 @@ async function forfeitUserPoints(userId: string, amount: number): Promise<void> 
   const bonusToRemove = Math.floor(amount * bonusRatio)
 
   // Update user
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
+  await db.update(users)
+    .set({
       invitePoints: Math.max(0, user.invitePoints - inviteToRemove),
       bonusPoints: Math.max(0, user.bonusPoints - bonusToRemove),
       reputationPoints: Math.max(0, user.reputationPoints - amount),
-    },
-  })
+    })
+    .where(eq(users.id, userId))
 
   // Create transaction record
-  await prisma.pointsTransaction.create({
-    data: {
+  await db.insert(pointsTransactions)
+    .values({
       id: await generateSnowflakeId(),
       userId,
       amount: -amount,
@@ -198,8 +192,7 @@ async function forfeitUserPoints(userId: string, amount: number): Promise<void> 
         reason: 'csam_or_scammer_confirmed',
         forfeitedAmount: amount,
       }),
-    },
-  })
+    })
 
   logger.info('Forfeited points from user', {
     userId,
@@ -213,16 +206,16 @@ async function forfeitUserPoints(userId: string, amount: number): Promise<void> 
  * Check if a user should have points distributed (CSAM/scammer confirmed)
  */
 export async function shouldDistributePoints(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      isBanned: true,
-      isScammer: true,
-      isCSAM: true,
-      invitePoints: true,
-      bonusPoints: true,
-    },
+  const [user] = await db.select({
+    isBanned: users.isBanned,
+    isScammer: users.isScammer,
+    isCSAM: users.isCSAM,
+    invitePoints: users.invitePoints,
+    bonusPoints: users.bonusPoints,
   })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
 
   if (!user) {
     return false
@@ -231,4 +224,3 @@ export async function shouldDistributePoints(userId: string): Promise<boolean> {
   // Only distribute if user is banned AND marked as scammer or CSAM
   return user.isBanned && (user.isScammer || user.isCSAM)
 }
-

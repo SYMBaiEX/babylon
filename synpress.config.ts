@@ -63,6 +63,11 @@ export default defineConfig({
     
     /* Navigation timeout - reduced in CI */
     navigationTimeout: process.env.CI ? 30 * 1000 : 60 * 1000,
+
+    /* Launch Options to prevent CI crashes */
+    launchOptions: {
+      args: ['--disable-dev-shm-usage'],
+    },
   },
 
   /* Configure projects for major browsers with wallet setup */

@@ -4,7 +4,7 @@
  * These functions use 'use cache: private' for personalized content
  * that depends on cookies, headers, or user context.
  */
-import { prisma } from '@/lib/prisma';
+import { db, follows, followStatuses, posts, users, balanceTransactions, chats, groupChatMemberships, chatParticipants, messages, eq, and, inArray, desc, lte, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { ParticipationService } from '@/lib/services/participation-service';
@@ -36,24 +36,36 @@ export async function getCachedUserPositions(userId: string) {
     const perpPositions = perpsEngine.getUserPositions(userId);
 
     // Get prediction market positions
-    const predictionPositions = await prisma.position.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        Market: {
-          select: {
-            id: true,
-            question: true,
-            endDate: true,
-            resolved: true,
-            resolution: true,
-            yesShares: true,
-            noShares: true,
-          },
-        },
-      },
-    });
+    const { positions, markets } = await import('@/db/schema/markets');
+    
+    const predictionPositions = await db.select({
+      id: positions.id,
+      userId: positions.userId,
+      marketId: positions.marketId,
+      side: positions.side,
+      shares: positions.shares,
+      avgPrice: positions.avgPrice,
+    })
+      .from(positions)
+      .where(eq(positions.userId, userId));
+
+    // Get market details for positions
+    const marketIds = predictionPositions.map(p => p.marketId);
+    const marketsData = marketIds.length > 0
+      ? await db.select({
+          id: markets.id,
+          question: markets.question,
+          endDate: markets.endDate,
+          resolved: markets.resolved,
+          resolution: markets.resolution,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
+        })
+        .from(markets)
+        .where(inArray(markets.id, marketIds))
+      : [];
+    
+    const marketMap = new Map(marketsData.map(m => [m.id, m]));
 
     const perpStats = {
       totalPositions: perpPositions.length,
@@ -84,21 +96,26 @@ export async function getCachedUserPositions(userId: string) {
         stats: perpStats,
       },
       predictions: {
-        positions: predictionPositions.map((p: typeof predictionPositions[number]) => ({
-          id: p.id,
-          marketId: p.marketId,
-          question: p.Market.question,
-          side: p.side ? 'YES' : 'NO',
-          shares: Number(p.shares),
-          avgPrice: Number(p.avgPrice),
-          currentPrice: p.side
-            ? Number(p.Market.yesShares) /
-              (Number(p.Market.yesShares) + Number(p.Market.noShares))
-            : Number(p.Market.noShares) /
-              (Number(p.Market.yesShares) + Number(p.Market.noShares)),
-          resolved: p.Market.resolved,
-          resolution: p.Market.resolution,
-        })),
+        positions: predictionPositions.map((p) => {
+          const market = marketMap.get(p.marketId);
+          const yesShares = market ? Number(market.yesShares) : 0;
+          const noShares = market ? Number(market.noShares) : 0;
+          const totalShares = yesShares + noShares;
+          
+          return {
+            id: p.id,
+            marketId: p.marketId,
+            question: market?.question || '',
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+            avgPrice: Number(p.avgPrice),
+            currentPrice: p.side
+              ? (totalShares > 0 ? yesShares / totalShares : 0.5)
+              : (totalShares > 0 ? noShares / totalShares : 0.5),
+            resolved: market?.resolved || false,
+            resolution: market?.resolution,
+          };
+        }),
         stats: {
           totalPositions: predictionPositions.length,
         },
@@ -148,28 +165,22 @@ export async function getCachedFollowingFeed(
 
   try {
     // Get list of followed users
-    const userFollows = await prisma.follow.findMany({
-      where: {
-        followerId: userId,
-      },
-      select: {
-        followingId: true,
-      },
-    });
+    const userFollows = await db.select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
 
     // Get list of followed actors
-    const actorFollows = await prisma.followStatus.findMany({
-      where: {
-        userId: userId,
-        isActive: true,
-      },
-      select: {
-        npcId: true,
-      },
-    });
+    const actorFollows = await db.select({ npcId: followStatuses.npcId })
+      .from(followStatuses)
+      .where(
+        and(
+          eq(followStatuses.userId, userId),
+          eq(followStatuses.isActive, true)
+        )
+      );
 
-    const followedUserIds = userFollows.map((f: typeof userFollows[number]) => f.followingId);
-    const followedActorIds = actorFollows.map((f: typeof actorFollows[number]) => f.npcId);
+    const followedUserIds = userFollows.map((f) => f.followingId);
+    const followedActorIds = actorFollows.map((f) => f.npcId);
     const allFollowedIds = [...followedUserIds, ...followedActorIds];
 
     if (allFollowedIds.length === 0) {
@@ -185,42 +196,42 @@ export async function getCachedFollowingFeed(
 
     // Get posts from followed users/actors (up to current time)
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        authorId: { in: allFollowedIds },
-        timestamp: { lte: now }, // ✅ No future posts
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-      take: limit,
-      skip: offset,
-      select: {
-        id: true,
-        content: true,
-        authorId: true,
-        timestamp: true,
-        createdAt: true,
-      },
-    });
+    const postsResult = await db.select({
+      id: posts.id,
+      content: posts.content,
+      authorId: posts.authorId,
+      timestamp: posts.timestamp,
+      createdAt: posts.createdAt,
+    })
+      .from(posts)
+      .where(
+        and(
+          inArray(posts.authorId, allFollowedIds),
+          lte(posts.timestamp, now)
+        )
+      )
+      .orderBy(desc(posts.timestamp))
+      .limit(limit)
+      .offset(offset);
 
     // Fetch user details separately since Post doesn't have author relation
-    const authorIds = [...new Set(posts.map((p: typeof posts[number]) => p.authorId))];
-    const authors = await prisma.user.findMany({
-      where: { id: { in: authorIds } },
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        profileImageUrl: true,
-      },
-    });
-    const authorMap = new Map(authors.map((a: typeof authors[number]) => [a.id, a]));
+    const authorIds = [...new Set(postsResult.map((p) => p.authorId))];
+    const authors = authorIds.length > 0
+      ? await db.select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(inArray(users.id, authorIds))
+      : [];
+    const authorMap = new Map(authors.map((a) => [a.id, a]));
 
     type AuthorType = typeof authors[number];
     const result = {
       success: true,
-      posts: posts.map((post: typeof posts[number]) => {
+      posts: postsResult.map((post) => {
         const author = authorMap.get(post.authorId) as AuthorType | undefined;
         return {
           id: post.id,
@@ -238,7 +249,7 @@ export async function getCachedFollowingFeed(
           createdAt: post.createdAt.toISOString(),
         };
       }),
-      total: posts.length,
+      total: postsResult.length,
       limit,
       offset,
       source: 'following',
@@ -335,36 +346,33 @@ export async function getCachedUserProfile(userId: string) {
   cacheLife({ expire: 300 });
 
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        walletAddress: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        isActor: true,
-        profileComplete: true,
-        hasUsername: true,
-        hasBio: true,
-        hasProfileImage: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        createdAt: true,
-        _count: {
-          select: {
-            Position: true,
-            Comment: true,
-            Reaction: true,
-            Follow_Follow_followerIdToUser: true,
-            Follow_Follow_followingIdToUser: true,
-          },
-        },
-      },
-    });
+    // Import necessary tables
+    const { positions } = await import('@/db/schema/markets');
+    const { comments, reactions } = await import('@/db/schema/posts');
+    
+    const dbUserResult = await db.select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+      username: users.username,
+      displayName: users.displayName,
+      bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
+      isActor: users.isActor,
+      profileComplete: users.profileComplete,
+      hasUsername: users.hasUsername,
+      hasBio: users.hasBio,
+      hasProfileImage: users.hasProfileImage,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      virtualBalance: users.virtualBalance,
+      lifetimePnL: users.lifetimePnL,
+      createdAt: users.createdAt,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const dbUser = dbUserResult[0];
 
     if (!dbUser) {
       const responseTime = Date.now() - startTime;
@@ -375,6 +383,13 @@ export async function getCachedUserProfile(userId: string) {
         user: null,
       };
     }
+
+    // Get counts
+    const positionCount = await db.select({ count: count() }).from(positions).where(eq(positions.userId, userId));
+    const commentCount = await db.select({ count: count() }).from(comments).where(eq(comments.authorId, userId));
+    const reactionCount = await db.select({ count: count() }).from(reactions).where(eq(reactions.userId, userId));
+    const followerCount = await db.select({ count: count() }).from(follows).where(eq(follows.followingId, userId));
+    const followingCount = await db.select({ count: count() }).from(follows).where(eq(follows.followerId, userId));
 
     const result = {
       success: true,
@@ -396,11 +411,11 @@ export async function getCachedUserProfile(userId: string) {
         lifetimePnL: Number(dbUser.lifetimePnL),
         createdAt: dbUser.createdAt.toISOString(),
         stats: {
-          positions: dbUser._count.Position,
-          comments: dbUser._count.Comment,
-          reactions: dbUser._count.Reaction,
-          followers: dbUser._count.Follow_Follow_followerIdToUser,
-          following: dbUser._count.Follow_Follow_followingIdToUser,
+          positions: positionCount[0]?.count || 0,
+          comments: commentCount[0]?.count || 0,
+          reactions: reactionCount[0]?.count || 0,
+          followers: followerCount[0]?.count || 0,
+          following: followingCount[0]?.count || 0,
         },
       },
     };
@@ -443,98 +458,115 @@ export async function getCachedUserChats(userId: string) {
 
   try {
     // Get user's group chat memberships
-    const memberships = await prisma.groupChatMembership.findMany({
-      where: {
-        userId: userId,
-        isActive: true,
-      },
-      orderBy: {
-        lastMessageAt: 'desc',
-      },
-    });
+    const memberships = await db.select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      )
+      .orderBy(desc(groupChatMemberships.lastMessageAt));
 
     // Get chat details for group chats
-    const groupChatIds = memberships.map((m: typeof memberships[number]) => m.chatId);
-    const groupChatDetails = await prisma.chat.findMany({
-      where: {
-        id: { in: groupChatIds },
-      },
-      include: {
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
+    const groupChatIds = memberships.map((m) => m.chatId);
+    const groupChatDetails = groupChatIds.length > 0
+      ? await db.select()
+        .from(chats)
+        .where(inArray(chats.id, groupChatIds))
+      : [];
 
-    const chatDetailsMap = new Map(groupChatDetails.map((c: typeof groupChatDetails[number]) => [c.id, c]));
+    const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
 
     // Get DM chats the user participates in
-    const dmParticipants = await prisma.chatParticipant.findMany({
-      where: {
-        userId: userId,
-      },
-    });
+    const dmParticipants = await db.select()
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, userId));
 
-    const dmChatIds = dmParticipants.map((p: typeof dmParticipants[number]) => p.chatId);
-    const dmChatsDetails = await prisma.chat.findMany({
-      where: {
-        id: { in: dmChatIds },
-        isGroup: false,
-      },
-      include: {
-        ChatParticipant: true,
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
+    const dmChatIds = dmParticipants.map((p) => p.chatId);
+    const dmChatsDetails = dmChatIds.length > 0
+      ? await db.select()
+        .from(chats)
+        .where(
+          and(
+            inArray(chats.id, dmChatIds),
+            eq(chats.isGroup, false)
+          )
+        )
+      : [];
+
+    // Get last messages and participant counts for DM chats
+    const dmChatsWithDetails = await Promise.all(
+      dmChatsDetails.map(async (chat) => {
+        const lastMessageResult = await db.select()
+          .from(messages)
+          .where(eq(messages.chatId, chat.id))
+          .orderBy(desc(messages.createdAt))
+          .limit(1);
+        
+        const participantCountResult = await db.select({ count: count() })
+          .from(chatParticipants)
+          .where(eq(chatParticipants.chatId, chat.id));
+        
+        return {
+          ...chat,
+          lastMessage: lastMessageResult[0] || null,
+          participantCount: participantCountResult[0]?.count || 0,
+        };
+      })
+    );
 
     // Format group chats
-    type ChatDetailsType = typeof groupChatDetails[number];
     type GroupChatType = {
       id: string;
       name: string;
       isGroup: boolean;
-      lastMessage: typeof groupChatDetails[number]['Message'][number] | null;
+      lastMessage: typeof messages.$inferSelect | null;
       messageCount: number;
       qualityScore: number | null;
       lastMessageAt: Date | null;
       updatedAt: Date;
     };
-    const groupChats = memberships
-      .map((membership: typeof memberships[number]): GroupChatType | null => {
-        const chat = chatDetailsMap.get(membership.chatId) as ChatDetailsType | undefined;
-        if (!chat) return null;
-        return {
-          id: membership.chatId,
-          name: chat.name || 'Unnamed Group',
-          isGroup: true,
-          lastMessage: chat.Message[0] || null,
-          messageCount: membership.messageCount,
-          qualityScore: membership.qualityScore,
-          lastMessageAt: membership.lastMessageAt,
-          updatedAt: chat.updatedAt,
-        };
-      })
-      .filter((c: GroupChatType | null): c is GroupChatType => c !== null);
+    
+    const groupChatsFormatted: GroupChatType[] = [];
+    for (const membership of memberships) {
+      const chat = chatDetailsMap.get(membership.chatId);
+      if (!chat) continue;
+      
+      // Get last message for this chat
+      const lastMessageResult = await db.select()
+        .from(messages)
+        .where(eq(messages.chatId, membership.chatId))
+        .orderBy(desc(messages.createdAt))
+        .limit(1);
+      
+      groupChatsFormatted.push({
+        id: membership.chatId,
+        name: chat.name || 'Unnamed Group',
+        isGroup: true,
+        lastMessage: lastMessageResult[0] || null,
+        messageCount: membership.messageCount,
+        qualityScore: membership.qualityScore,
+        lastMessageAt: membership.lastMessageAt,
+        updatedAt: chat.updatedAt,
+      });
+    }
 
     // Format DM chats
-    const directChats = dmChatsDetails.map((chat: typeof dmChatsDetails[number]) => ({
+    const directChats = dmChatsWithDetails.map((chat) => ({
       id: chat.id,
       name: chat.name || 'Direct Message',
       isGroup: false,
-      lastMessage: chat.Message[0] || null,
-      participants: chat.ChatParticipant.length,
+      lastMessage: chat.lastMessage,
+      participants: chat.participantCount,
       updatedAt: chat.updatedAt,
     }));
 
     const result = {
       success: true,
-      groupChats,
+      groupChats: groupChatsFormatted,
       directChats,
-      total: groupChats.length + directChats.length,
+      total: groupChatsFormatted.length + directChats.length,
     };
 
     const responseTime = Date.now() - startTime;
@@ -576,6 +608,9 @@ export async function getCachedUserReputation(userId: string) {
   cacheLife({ expire: 120 });
 
   try {
+    // Import tables
+    const { positions, markets } = await import('@/db/schema/markets');
+    
     // Get on-chain reputation
     const onChainReputation =
       await ReputationService.getOnChainReputation(userId);
@@ -599,43 +634,55 @@ export async function getCachedUserReputation(userId: string) {
     );
 
     // Get recent activity
-    const recentActivity = await prisma.balanceTransaction.findMany({
-      where: {
-        userId,
-        description: {
-          contains: 'market resolution',
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 10,
-      select: {
-        id: true,
-        description: true,
-        amount: true,
-        createdAt: true,
-      },
-    });
+    const recentActivity = await db.select({
+      id: balanceTransactions.id,
+      description: balanceTransactions.description,
+      amount: balanceTransactions.amount,
+      createdAt: balanceTransactions.createdAt,
+    })
+      .from(balanceTransactions)
+      .where(
+        and(
+          eq(balanceTransactions.userId, userId),
+          sql`${balanceTransactions.description} LIKE '%market resolution%'`
+        )
+      )
+      .orderBy(desc(balanceTransactions.createdAt))
+      .limit(10);
 
-    // Count wins and losses
-    const userPositions = await prisma.position.findMany({
-      where: { userId },
-      include: {
-        Market: {
-          select: {
-            id: true,
-            question: true,
-            resolved: true,
-            resolution: true,
-          },
-        },
-      },
-    });
+    // Get user positions with market details
+    const userPositions = await db.select({
+      id: positions.id,
+      side: positions.side,
+      marketId: positions.marketId,
+    })
+      .from(positions)
+      .where(eq(positions.userId, userId));
 
-    const resolvedPositions = userPositions.filter((p: typeof userPositions[number]) => p.Market.resolved);
+    // Get market details for positions
+    const marketIds = userPositions.map(p => p.marketId);
+    const marketsData = marketIds.length > 0
+      ? await db.select({
+          id: markets.id,
+          question: markets.question,
+          resolved: markets.resolved,
+          resolution: markets.resolution,
+        })
+        .from(markets)
+        .where(inArray(markets.id, marketIds))
+      : [];
+    
+    const marketMap = new Map(marketsData.map(m => [m.id, m]));
+
+    // Calculate wins and losses
+    const positionsWithMarkets = userPositions.map(p => ({
+      ...p,
+      market: marketMap.get(p.marketId),
+    }));
+    
+    const resolvedPositions = positionsWithMarkets.filter((p) => p.market?.resolved);
     const wins = resolvedPositions.filter(
-      (p: typeof resolvedPositions[number]) => p.Market.resolution === p.side
+      (p) => p.market?.resolution === p.side
     ).length;
     const losses = resolvedPositions.length - wins;
     const winRate =
@@ -670,7 +717,7 @@ export async function getCachedUserReputation(userId: string) {
           }
         : null,
       hasNft: onChainReputation !== null,
-      recentActivity: recentActivity.map((activity: typeof recentActivity[number]) => ({
+      recentActivity: recentActivity.map((activity) => ({
         id: activity.id,
         description: activity.description,
         amount: Number(activity.amount),
@@ -701,3 +748,6 @@ export async function getCachedUserReputation(userId: string) {
     };
   }
 }
+
+// Import sql for like queries
+import { sql } from 'drizzle-orm';

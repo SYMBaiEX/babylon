@@ -78,7 +78,7 @@ if (queryStats.totalQueries > 0) {
 } else {
   console.log('⚠️  MONITORING NOT INTEGRATED WITH API ROUTES');
   console.log('   Query monitor is working but not hooked into live requests');
-  console.log('   Need to ensure createMonitoredPrismaClient is used');
+  console.log('   Need to ensure createMonitoredDatabase is used');
   console.log('   Set ENABLE_QUERY_MONITORING=true in .env.local');
 }
 

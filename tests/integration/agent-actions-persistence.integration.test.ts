@@ -11,7 +11,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { createTestAgent } from '@/lib/agents/utils/createTestAgent'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { autonomousCoordinator } from '@/lib/agents/autonomous'
@@ -201,13 +201,13 @@ describe('Agent Actions Persistence Integration', () => {
     // Create a test market for trading
     testMarketId = await generateSnowflakeId()
     try {
-      await prisma.market.create({
+      await db.market.create({
         data: {
           id: testMarketId,
           question: 'Integration test: Will agents trade?',
-          yesShares: 100,
-          noShares: 100,
-          liquidity: 200, // Required field
+          yesShares: '100',
+          noShares: '100',
+          liquidity: '200', // Required field
           resolved: false,
           endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           createdAt: new Date(),
@@ -223,7 +223,7 @@ describe('Agent Actions Persistence Integration', () => {
     // Create a test post for commenting
     testPostId = await generateSnowflakeId()
     const testAuthorId = await generateSnowflakeId()
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAuthorId,
         username: `test-author-${testAuthorId.slice(-6)}`,
@@ -231,7 +231,7 @@ describe('Agent Actions Persistence Integration', () => {
         updatedAt: new Date()
       }
     })
-    await prisma.post.create({
+    await db.post.create({
       data: {
         id: testPostId,
         content: 'Test post for agent commenting',
@@ -251,15 +251,15 @@ describe('Agent Actions Persistence Integration', () => {
     if (testAgentId) {
       try {
         // Delete positions
-        await prisma.position.deleteMany({ where: { userId: testAgentId } })
+        await db.position.deleteMany({ where: { userId: testAgentId } })
         // Delete posts
-        await prisma.post.deleteMany({ where: { authorId: testAgentId } })
+        await db.post.deleteMany({ where: { authorId: testAgentId } })
         // Delete comments
-        await prisma.comment.deleteMany({ where: { authorId: testAgentId } })
+        await db.comment.deleteMany({ where: { authorId: testAgentId } })
         // Delete messages
-        await prisma.message.deleteMany({ where: { senderId: testAgentId } })
+        await db.message.deleteMany({ where: { senderId: testAgentId } })
         // Delete agent
-        await prisma.user.delete({ where: { id: testAgentId } })
+        await db.user.delete({ where: { id: testAgentId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -268,18 +268,18 @@ describe('Agent Actions Persistence Integration', () => {
     if (testMarketId) {
       try {
         // Check if market exists before trying to delete
-        const marketExists = await prisma.market.findUnique({
+        const marketExists = await db.market.findUnique({
           where: { id: testMarketId },
           select: { id: true }
         })
         
         if (marketExists) {
           // Delete positions first (foreign key constraint)
-          await prisma.position.deleteMany({ where: { marketId: testMarketId } }).catch(() => {})
+          await db.position.deleteMany({ where: { marketId: testMarketId } }).catch(() => {})
           // Delete prediction price history
-          await prisma.predictionPriceHistory.deleteMany({ where: { marketId: testMarketId } }).catch(() => {})
+          await db.predictionPriceHistory.deleteMany({ where: { marketId: testMarketId } }).catch(() => {})
           // Now delete the market
-          await prisma.market.delete({ where: { id: testMarketId } }).catch(() => {})
+          await db.market.delete({ where: { id: testMarketId } }).catch(() => {})
         }
       } catch (error) {
         // Cleanup errors not critical - market may have been deleted already
@@ -288,7 +288,7 @@ describe('Agent Actions Persistence Integration', () => {
 
     if (testPostId) {
       try {
-        await prisma.post.delete({ where: { id: testPostId } })
+        await db.post.delete({ where: { id: testPostId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -302,7 +302,7 @@ describe('Agent Actions Persistence Integration', () => {
     }
 
     // Get initial position count
-    const initialPositions = await prisma.position.count({
+    const initialPositions = await db.position.count({
       where: { userId: testAgentId }
     })
 
@@ -328,7 +328,7 @@ describe('Agent Actions Persistence Integration', () => {
     expect(result.success).toBe(true)
 
     // Check if positions were created (may or may not trade depending on LLM decision)
-    const afterPositions = await prisma.position.count({
+    const afterPositions = await db.position.count({
       where: { userId: testAgentId }
     })
 
@@ -337,7 +337,7 @@ describe('Agent Actions Persistence Integration', () => {
       expect(afterPositions).toBeGreaterThan(initialPositions)
       
       // Verify position has correct data
-      const positions = await prisma.position.findMany({
+      const positions = await db.position.findMany({
         where: { userId: testAgentId },
         orderBy: { createdAt: 'desc' },
         take: 1
@@ -362,7 +362,7 @@ describe('Agent Actions Persistence Integration', () => {
     }
 
     // Get initial post count
-    const initialPosts = await prisma.post.count({
+    const initialPosts = await db.post.count({
       where: { authorId: testAgentId }
     })
 
@@ -385,7 +385,7 @@ describe('Agent Actions Persistence Integration', () => {
     expect(result.success).toBe(true)
 
     // Check if posts were created (may or may not post depending on LLM decision)
-    const afterPosts = await prisma.post.count({
+    const afterPosts = await db.post.count({
       where: { authorId: testAgentId }
     })
 
@@ -394,7 +394,7 @@ describe('Agent Actions Persistence Integration', () => {
       expect(afterPosts).toBeGreaterThan(initialPosts)
       
       // Verify post has correct data
-      const posts = await prisma.post.findMany({
+      const posts = await db.post.findMany({
         where: { authorId: testAgentId },
         orderBy: { createdAt: 'desc' },
         take: 1
@@ -414,7 +414,7 @@ describe('Agent Actions Persistence Integration', () => {
     }
 
     // Get initial comment count
-    const initialComments = await prisma.comment.count({
+    const initialComments = await db.comment.count({
       where: { authorId: testAgentId }
     })
 
@@ -437,7 +437,7 @@ describe('Agent Actions Persistence Integration', () => {
     expect(result.success).toBe(true)
 
     // Check if comments were created (may or may not comment depending on LLM decision)
-    const afterComments = await prisma.comment.count({
+    const afterComments = await db.comment.count({
       where: { authorId: testAgentId }
     })
 
@@ -446,7 +446,7 @@ describe('Agent Actions Persistence Integration', () => {
       expect(afterComments).toBeGreaterThan(initialComments)
       
       // Verify comment has correct data
-      const comments = await prisma.comment.findMany({
+      const comments = await db.comment.findMany({
         where: { authorId: testAgentId },
         orderBy: { createdAt: 'desc' },
         take: 1
@@ -486,7 +486,7 @@ describe('Agent Actions Persistence Integration', () => {
 
     // If agent traded, P&L may have changed (depending on market movements)
     if (result.actionsExecuted.trades > 0) {
-      const agentAfter = await prisma.user.findUnique({
+      const agentAfter = await db.user.findUnique({
         where: { id: testAgentId },
         select: { lifetimePnL: true }
       })

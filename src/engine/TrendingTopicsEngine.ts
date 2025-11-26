@@ -39,7 +39,7 @@
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import type { FeedPost } from '@/shared/types';
 import { logger } from '@/lib/logger';
-// renderPrompt - not used
+import { renderPrompt, trendingTopics, getPromptParams } from '@/prompts';
 
 /**
  * A trending topic with LLM-generated description
@@ -179,27 +179,18 @@ export class TrendingTopicsEngine {
    */
   getDetailedTrendContext(): string {
     if (this.currentTrends.length === 0) {
-      // Return helpful context instead of empty string
-      return `
-━━━ TRENDING TOPICS ━━━
-No trending topics yet - post more to create trends!
-━━━━━━━━━━━━━━━━━━━━━━
-`;
+      return `TRENDING TOPICS: (none yet)`;
     }
 
     const trendList = this.currentTrends.map((t, i) => {
       if (!t.trendName || !t.description) {
         throw new Error(`Invalid trend at index ${i}: missing trendName or description`);
       }
-      return `${i + 1}. "${t.trendName}" (${t.count} posts)
-   ${t.description}`;
+      const desc = t.description.length > 60 ? t.description.substring(0, 60) + '...' : t.description;
+      return `${i + 1}."${t.trendName}"(${t.count}): ${desc}`;
     }).join('\n');
 
-    return `
-━━━ TRENDING TOPICS ━━━
-${trendList}
-━━━━━━━━━━━━━━━━━━━━━━
-`;
+    return `TRENDING TOPICS:\n${trendList}`;
   }
 
   /**
@@ -320,12 +311,12 @@ ${trendList}
 
     const trends: TrendingTopic[] = [];
 
-    // Generate descriptions in batch for efficiency
+    // Generate descriptions in batch for efficiency - compact format
     const topicsList = topics.map((topic, i) => {
       // Get sample posts for this topic
       const samplePosts = allPosts
         .filter(p => topic.samplePosts.includes(p.id))
-        .slice(0, 5);
+        .slice(0, 3); // Reduced from 5 to 3 for token efficiency
 
       if (samplePosts.length === 0) {
         throw new Error(`Topic "${topic.tag}" has no sample posts - cannot generate description`);
@@ -336,42 +327,20 @@ ${trendList}
           if (!p.authorName || !p.content) {
             throw new Error(`Invalid post data for trending: missing authorName or content`);
           }
-          return `@${p.authorName}: "${p.content}"`;
+          const content = p.content.length > 80 ? p.content.substring(0, 80) + '...' : p.content;
+          return `@${p.authorName}:"${content}"`;
         })
-        .join('\n   ');
+        .join(' | ');
 
-      return `${i + 1}. Tag: "${topic.tag}" (${topic.count} posts)
-   Sample posts:
-   ${posts}
-   
-   Generate catchy trend name (3-6 words) and brief description (1-2 sentences).`;
-    }).join('\n\n');
+      return `${i + 1}. "${topic.tag}" (${topic.count}): ${posts}`;
+    }).join('\n');
 
     if (!topicsList || topicsList.trim().length === 0) {
       throw new Error('Failed to build topics list for LLM prompt - empty content');
     }
 
-    const prompt = `You are analyzing trending topics on a social media platform.
-
-TRENDING TOPICS (by frequency + recency):
-${topicsList}
-
-For each topic, create:
-1. A catchy, descriptive trend name (3-6 words, title case)
-2. A micro-summary (1-2 sentences) of what people are discussing
-
-Be satirical, witty, and capture the essence of the conversation.
-
-Respond with XML:
-<response>
-  <trends>
-    <trend>
-      <trendName>Elon's 3am Twitter Meltdown</trendName>
-      <description>Tech CEO's late-night posting spree raises eyebrows among investors. Market analysts question decision-making at scale.</description>
-    </trend>
-    <!-- More trends... -->
-  </trends>
-</response>`;
+    const prompt = renderPrompt(trendingTopics, { topicsList });
+    const params = getPromptParams(trendingTopics);
 
     const rawResponse = await this.llm.generateJSON<{
       trends: Array<{
@@ -394,9 +363,9 @@ Respond with XML:
       prompt,
       undefined,
       { 
-        temperature: 0.85,
-        maxTokens: 2000,
+        ...params,
         format: 'xml',
+        promptType: 'trending_topics_generate',
       }
     );
 

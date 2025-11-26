@@ -99,7 +99,7 @@ import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { logger } from '@/lib/logger';
-import type { PrismaClient } from '@prisma/client';
+import type { DrizzleClient } from '@/db';
 
 interface UsernameCheckResult {
   available: boolean;
@@ -110,7 +110,7 @@ interface UsernameCheckResult {
 /**
  * Check if a username is available and suggest an alternative if not
  */
-async function checkUsernameAvailability(baseUsername: string, db: PrismaClient): Promise<UsernameCheckResult> {
+async function checkUsernameAvailability(baseUsername: string, db: DrizzleClient): Promise<UsernameCheckResult> {
   // Sanitize username
   const cleanUsername = baseUsername
     .replace(/^@/, '')

@@ -30,9 +30,7 @@ bun install
 
 # Setup environment & database
 cp .env.example .env
-bunx prisma generate
-bunx prisma db push
-bunx prisma migrate dev
+bun run db:push
 ```
 
 ---
@@ -48,9 +46,8 @@ cp .env.example .env.local
 # Edit .env.local with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
-bun run prisma:generate
-bun run prisma:migrate
-bun run prisma:seed
+bun run db:push
+bun run db:seed
 
 # 4. (Optional) Enable Agent0 Integration
 # Add to .env.local:

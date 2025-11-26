@@ -26,7 +26,12 @@ export const feedProvider: Provider = {
     }
     
     try {
-      const feedResult = await babylonRuntime.a2aClient.getFeed({ limit: 20 }) as unknown as {
+      // Validate feedResult structure
+      const feedResult = await babylonRuntime.a2aClient.getFeed({ limit: 20 })
+      if (!feedResult || typeof feedResult !== 'object') {
+        throw new Error('Invalid feed result format from A2A client')
+      }
+      type FeedResult = {
         posts?: Array<{
           id: string
           content: string
@@ -35,13 +40,8 @@ export const feedProvider: Provider = {
           type?: string
         }>
       }
-      const posts = (feedResult as { posts?: Array<{
-        id: string
-        content: string
-        authorId: string
-        timestamp: string | Date
-        type?: string
-      }> })?.posts || []
+      const typedFeedResult = feedResult as FeedResult
+      const posts = typedFeedResult.posts || []
       
       if (posts.length === 0) {
         return { text: 'No posts in feed.' }

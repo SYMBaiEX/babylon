@@ -4,7 +4,7 @@
  * Creates a test agent, enables A2A, and tests all endpoints
  */
 
-import { prisma } from '../src/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '../src/lib/snowflake'
 import { ethers } from 'ethers'
 
@@ -21,11 +21,11 @@ async function testAgentA2AServer() {
   const agentId = await generateSnowflakeId()
 
   // Clean up any existing test agent with this wallet
-  await prisma.user.deleteMany({
+  await db.user.deleteMany({
     where: { walletAddress: wallet.address }
   })
 
-  const testAgent = await prisma.user.create({
+  const testAgent = await db.user.create({
     data: {
       id: agentId,
       username: `test_a2a_${Date.now()}`,
@@ -34,7 +34,7 @@ async function testAgentA2AServer() {
       isAgent: true,
       a2aEnabled: false, // Start with A2A disabled
       autonomousTrading: true,
-      virtualBalance: 10000,
+      virtualBalance: '10000',
       agentSystem: 'You are a test agent for A2A server testing',
       agentModelTier: 'free',
       hasUsername: true,
@@ -84,7 +84,7 @@ async function testAgentA2AServer() {
 
   // Step 4: Enable A2A
   console.log('\n🔓 Step 4: Enabling A2A for agent...')
-  const updatedAgent = await prisma.user.update({
+  const updatedAgent = await db.user.update({
     where: { id: agentId },
     data: { a2aEnabled: true }
   })
@@ -199,7 +199,7 @@ async function testAgentA2AServer() {
   try {
     // Note: This would require authentication in a real scenario
     // For now, we verify via database
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { a2aEnabled: true }
     })
@@ -220,7 +220,7 @@ async function testAgentA2AServer() {
   console.log(`   Agent Card URL: ${BASE_URL}/api/agents/${agentId}/.well-known/agent-card`)
   console.log('\n🧹 Cleaning up test agent...')
   
-  await prisma.user.delete({
+  await db.user.delete({
     where: { id: agentId }
   })
   

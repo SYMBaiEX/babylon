@@ -43,7 +43,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "Database configured"
-          bun run prisma generate
+          # Drizzle ORM doesn't require a generate step
       
       - name: Collect and prepare game data
         env:

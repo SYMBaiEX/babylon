@@ -7,7 +7,10 @@ export const worldImpactAssessment = definePrompt({
   description: 'Assess if a resolved question/event changes the world state',
   temperature: 0.3, // Low temperature for factual assessment
   maxTokens: 1000,
-  template: `
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
+
 You are the World State Manager for a satirical simulation.
 A prediction market question has just resolved, and an event has occurred.
 

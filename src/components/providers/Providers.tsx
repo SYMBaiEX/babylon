@@ -74,8 +74,8 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
             const clipPathValue = clipPathMatch[1].trim();
             
             // Set clipPath using the style object (camelCase)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (htmlElement.style as any).clipPath = clipPathValue;
+            // Type assertion needed because CSSStyleDeclaration doesn't include clipPath in TypeScript's DOM types
+            (htmlElement.style as CSSStyleDeclaration & { clipPath?: string }).clipPath = clipPathValue;
             
             // Remove clip-path from the style attribute
             const cleanedStyle = styleAttr
@@ -93,13 +93,13 @@ function PrivyProviderWrapper({ children, appId, ...props }: React.ComponentProp
         }
         
         // Also check computed style object directly (in case Privy sets it via style object)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const computedStyle = (htmlElement.style as any);
-        if (computedStyle && 'clip-path' in computedStyle && !('clipPath' in computedStyle)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (computedStyle as any).clipPath = (computedStyle as any)['clip-path'];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          delete (computedStyle as any)['clip-path'];
+        const computedStyle = htmlElement.style as CSSStyleDeclaration & Record<string, string | undefined>;
+        if (computedStyle && 'clip-path' in computedStyle && !computedStyle.clipPath) {
+          const clipPathValue = (computedStyle as Record<string, string | undefined>)['clip-path'];
+          if (clipPathValue) {
+            computedStyle.clipPath = clipPathValue;
+            delete (computedStyle as Record<string, string | undefined>)['clip-path'];
+          }
         }
       });
     };
@@ -192,6 +192,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // Render without Privy if not configured (for build-time)
   if (!hasPrivyConfig) {
+    // Log warning for debugging (will show in browser console and in CI test logs)
+    if (mounted && typeof window !== 'undefined') {
+      logger.warn(
+        'Privy not configured: NEXT_PUBLIC_PRIVY_APP_ID was not set at build time. ' +
+        'Authentication features will be disabled.',
+        undefined,
+        'Providers'
+      );
+    }
+    
     return (
       <div suppressHydrationWarning>
         <ThemeProvider
@@ -205,7 +215,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <GamePlaybackManager />
               <WidgetRefreshProvider>
                 {mounted ? (
-                  <Fragment>{children}</Fragment>
+                  <Fragment>
+                    {/* Debug banner for CI/development - shows when Privy is not configured */}
+                    {process.env.NODE_ENV !== 'production' && (
+                      <div 
+                        data-testid="privy-not-configured-warning"
+                        className="fixed top-0 left-0 right-0 z-[9999] bg-yellow-500 text-black text-center py-1 text-sm font-medium"
+                      >
+                        ⚠️ Privy authentication not configured - NEXT_PUBLIC_PRIVY_APP_ID missing at build time
+                      </div>
+                    )}
+                    {children}
+                  </Fragment>
                 ) : (
                   <div className="min-h-screen bg-sidebar" />
                 )}

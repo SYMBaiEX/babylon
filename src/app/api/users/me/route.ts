@@ -144,41 +144,41 @@
 import type { NextRequest } from 'next/server'
 import { authenticate, getPrivyClient } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { db, users, eq } from '@/db'
 import { logger } from '@/lib/logger'
 import { cachedDb } from '@/lib/cached-database-service'
 
-const userSelect = {
-  id: true,
-  privyId: true,
-  username: true,
-  displayName: true,
-  bio: true,
-  profileImageUrl: true,
-  coverImageUrl: true,
-  walletAddress: true,
-  email: true, // For displaying pending referrals
-  profileComplete: true,
-  hasUsername: true,
-  hasBio: true,
-  hasProfileImage: true,
-  onChainRegistered: true,
-  nftTokenId: true,
-  referralCode: true,
-  referredBy: true,
-  reputationPoints: true,
-  pointsAwardedForProfile: true,
-  hasFarcaster: true,
-  hasTwitter: true,
-  farcasterUsername: true,
-  twitterUsername: true,
-  showTwitterPublic: true,
-  showFarcasterPublic: true,
-  showWalletPublic: true,
-  isAdmin: true,
-  isActor: true,
-  createdAt: true,
-  updatedAt: true,
+const userSelectFields = {
+  id: users.id,
+  privyId: users.privyId,
+  username: users.username,
+  displayName: users.displayName,
+  bio: users.bio,
+  profileImageUrl: users.profileImageUrl,
+  coverImageUrl: users.coverImageUrl,
+  walletAddress: users.walletAddress,
+  email: users.email, // For displaying pending referrals
+  profileComplete: users.profileComplete,
+  hasUsername: users.hasUsername,
+  hasBio: users.hasBio,
+  hasProfileImage: users.hasProfileImage,
+  onChainRegistered: users.onChainRegistered,
+  nftTokenId: users.nftTokenId,
+  referralCode: users.referralCode,
+  referredBy: users.referredBy,
+  reputationPoints: users.reputationPoints,
+  pointsAwardedForProfile: users.pointsAwardedForProfile,
+  hasFarcaster: users.hasFarcaster,
+  hasTwitter: users.hasTwitter,
+  farcasterUsername: users.farcasterUsername,
+  twitterUsername: users.twitterUsername,
+  showTwitterPublic: users.showTwitterPublic,
+  showFarcasterPublic: users.showFarcasterPublic,
+  showWalletPublic: users.showWalletPublic,
+  isAdmin: users.isAdmin,
+  isActor: users.isActor,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
 } as const
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -196,10 +196,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/users/me'
   )
 
-  let dbUser = await prisma.user.findUnique({
-    where: { privyId },
-    select: userSelect,
-  })
+  let [dbUser] = await db.select(userSelectFields)
+    .from(users)
+    .where(eq(users.privyId, privyId))
+    .limit(1);
 
   // Create minimal user record on first authentication
   if (!dbUser) {
@@ -256,10 +256,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const normalizedCode = referralCode.trim()
       
       // First, try to find referrer by username (legacy system)
-      const referrerByUsername = await prisma.user.findUnique({
-        where: { username: normalizedCode },
-        select: { id: true, username: true },
-      })
+      const [referrerByUsername] = await db.select({ id: users.id, username: users.username })
+        .from(users)
+        .where(eq(users.username, normalizedCode))
+        .limit(1);
       
       if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
         resolvedReferrerId = referrerByUsername.id
@@ -277,10 +277,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         )
       } else {
         // If not found by username, try by referralCode
-        const referrerByCode = await prisma.user.findUnique({
-          where: { referralCode: normalizedCode },
-          select: { id: true, username: true },
-        })
+        const [referrerByCode] = await db.select({ id: users.id, username: users.username })
+          .from(users)
+          .where(eq(users.referralCode, normalizedCode))
+          .limit(1);
         
         if (referrerByCode && referrerByCode.id !== canonicalUserId) {
           resolvedReferrerId = referrerByCode.id
@@ -320,8 +320,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       'GET /api/users/me'
     )
 
-    dbUser = await prisma.user.create({
-      data: {
+    const [newUser] = await db.insert(users)
+      .values({
         id: canonicalUserId,
         privyId,
         walletAddress: authUser.walletAddress?.toLowerCase() ?? null,
@@ -338,42 +338,50 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasBio: false,
         hasProfileImage: false,
         updatedAt: new Date(),
-      },
-      select: userSelect,
-    })
+      })
+      .returning(userSelectFields);
+
+    if (!newUser) {
+      throw new Error('Failed to create user record');
+    }
+    dbUser = newUser;
 
     logger.info(
       'Minimal user record created',
       { userId: dbUser.id, privyId, referredBy: dbUser.referredBy, email: dbUser.email },
       'GET /api/users/me'
     )
-  } else if (referralCode && !dbUser.profileComplete) {
+  } else if (referralCode && dbUser && !dbUser.profileComplete) {
     // User exists BUT profile not complete - update referredBy with latest referral code (latest wins!)
     // ⚠️ IMPORTANT: Only allow referral changes BEFORE profile completion to prevent gaming
     const normalizedCode = referralCode.trim()
     
     // First, try to find referrer by username (legacy system)
-    let referrer = await prisma.user.findUnique({
-      where: { username: normalizedCode },
-      select: { id: true, username: true },
-    })
+    let [referrer] = await db.select({ id: users.id, username: users.username })
+      .from(users)
+      .where(eq(users.username, normalizedCode))
+      .limit(1);
     
     // If not found by username, try by referralCode
     if (!referrer) {
-      referrer = await prisma.user.findUnique({
-        where: { referralCode: normalizedCode },
-        select: { id: true, username: true },
-      })
+      [referrer] = await db.select({ id: users.id, username: users.username })
+        .from(users)
+        .where(eq(users.referralCode, normalizedCode))
+        .limit(1);
     }
     
     if (referrer && referrer.id !== dbUser.id) {
       const previousReferrer = dbUser.referredBy
       
-      dbUser = await prisma.user.update({
-        where: { id: dbUser.id },
-        data: { referredBy: referrer.id },
-        select: userSelect,
-      })
+      const [updatedUser] = await db.update(users)
+        .set({ referredBy: referrer.id })
+        .where(eq(users.id, dbUser.id))
+        .returning(userSelectFields);
+      
+      if (!updatedUser) {
+        throw new Error('Failed to update user record');
+      }
+      dbUser = updatedUser;
       
       if (previousReferrer && previousReferrer !== referrer.id) {
         logger.info(
@@ -401,13 +409,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         'GET /api/users/me'
       )
     }
-  } else if (referralCode && dbUser.profileComplete) {
+  } else if (referralCode && dbUser && dbUser.profileComplete) {
     // User has completed profile - don't allow referral changes anymore
     logger.warn(
       'Referral change blocked - profile already complete',
       { userId: dbUser.id, referralCode, existingReferrer: dbUser.referredBy },
       'GET /api/users/me'
     )
+  }
+
+  // At this point dbUser should always be defined (either fetched or created)
+  if (!dbUser) {
+    throw new Error('Failed to create or find user record');
   }
 
   // Get cached profile stats

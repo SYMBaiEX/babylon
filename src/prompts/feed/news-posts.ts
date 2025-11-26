@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES } from '../shared-sections';
 
 /**
  * Prompt for generating breaking news posts from media entities.
@@ -16,8 +17,9 @@ export const newsPosts = definePrompt({
   description: 'Generates breaking news posts from media entities about world events',
   temperature: 0.8,
   maxTokens: 2000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Event: {{eventDescription}}
 Type: {{eventType}}
@@ -28,37 +30,15 @@ Type: {{eventType}}
 
 {{orgBehaviorContext}}
 
-{{realityGrounding}}
+${WORLD_CONTEXT_HEADER}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
-
-IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
-
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events mentioned in the event description
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when relevant
-- MUST reference specific trades or market movements when discussing market impact
-- Use @username format when mentioning users (e.g., "@ailonmusk announced...")
-- Avoid generic news - be SPECIFIC about who/what/when/where
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${STANDARD_FEED_RULES}
 
 Generate breaking news posts for these {{mediaCount}} media entities:
 
 {{mediaList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 posts):
 <response>
@@ -70,7 +50,7 @@ Respond with ONLY this XML format (example for 2 posts):
       <pointsToward>null</pointsToward>
     </post>
     <post>
-      <content>OpenAGI claims GPT-6 shows signs of consciousness during overnight tests. Team scrambles to verify results.</content>
+      <content>OpenAGI claims Cognition-9000 shows signs of consciousness during overnight tests. Team scrambles to verify results.</content>
       <sentiment>0.1</sentiment>
       <clueStrength>0.5</clueStrength>
       <pointsToward>true</pointsToward>

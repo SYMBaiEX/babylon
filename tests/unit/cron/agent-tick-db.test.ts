@@ -1,30 +1,116 @@
 
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { NextRequest } from 'next/server'
 
-// Mock dependencies
-mock.module('@/lib/logger', () => ({
-  logger: {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {}
-  }
-}))
+/**
+ * Mock game state type
+ */
+interface MockGame {
+  id: string;
+  isContinuous: boolean;
+  isRunning: boolean;
+}
 
-// Mock prisma with a mutable state we can control in tests
-let mockGame: any = null;
+/**
+ * Mock database model interface
+ */
+interface MockModel {
+  findFirst: () => Promise<MockGame | null>;
+  findUnique: () => Promise<{ id: string } | null>;
+  findMany: () => Promise<Array<{ id: string }>>;
+  count: () => Promise<number>;
+  create: () => Promise<{ id: string }>;
+  update: () => Promise<{ id: string }>;
+  delete: () => Promise<{ id: string }>;
+  deleteMany: () => Promise<{ count: number }>;
+}
 
-mock.module('@/lib/prisma', () => ({
-  prisma: {
-    game: {
-      findFirst: async () => mockGame
+/**
+ * Mock database transaction callback
+ */
+type TransactionCallback<T> = (tx: MockDb) => Promise<T>;
+
+/**
+ * Mock database interface
+ */
+interface MockDb {
+  game: MockModel;
+  user: MockModel;
+  $transaction: <T>(fn: TransactionCallback<T> | Array<Promise<T>>) => Promise<T | T[]>;
+}
+
+/**
+ * Drizzle SQL condition result
+ */
+interface SqlCondition {
+  sql?: string;
+}
+
+// Mock db with a mutable state we can control in tests
+let mockGame: MockGame | null = null;
+
+// Create a complete mock that includes schema exports
+mock.module('@/db', () => {
+  const createModelMock = (overrides: Partial<MockModel> = {}): MockModel => ({
+    findFirst: mock(async () => mockGame),
+    findUnique: mock(async () => null),
+    findMany: mock(async () => []),
+    count: mock(async () => 0),
+    create: mock(async () => ({ id: 'mock-id' })),
+    update: mock(async () => ({ id: 'mock-id' })),
+    delete: mock(async () => ({ id: 'mock-id' })),
+    deleteMany: mock(async () => ({ count: 0 })),
+    ...overrides
+  })
+
+  // Mock schema tables as empty objects
+  const mockTable: Record<string, never> = {}
+  
+  return {
+    db: {
+      game: createModelMock(),
+      user: createModelMock(),
+      $transaction: async <T>(fn: TransactionCallback<T> | Array<Promise<T>>): Promise<T | T[]> => {
+        if (typeof fn === 'function') return fn({} as MockDb)
+        return Promise.all(fn)
+      }
     },
-    user: {
-      findUnique: async () => null
-    }
+    // Schema exports (tables)
+    schema: {},
+    users: mockTable,
+    actors: mockTable,
+    posts: mockTable,
+    comments: mockTable,
+    games: mockTable,
+    organizations: mockTable,
+    balanceTransactions: mockTable,
+    pointsTransactions: mockTable,
+    perpPositions: mockTable,
+    poolPositions: mockTable,
+    markets: mockTable,
+    questions: mockTable,
+    // Operators
+    eq: (): SqlCondition => ({}),
+    ne: (): SqlCondition => ({}),
+    gt: (): SqlCondition => ({}),
+    gte: (): SqlCondition => ({}),
+    lt: (): SqlCondition => ({}),
+    lte: (): SqlCondition => ({}),
+    and: (): SqlCondition => ({}),
+    or: (): SqlCondition => ({}),
+    not: (): SqlCondition => ({}),
+    inArray: (): SqlCondition => ({}),
+    isNull: (): SqlCondition => ({}),
+    sql: (): SqlCondition => ({}),
+    desc: (): SqlCondition => ({}),
+    asc: (): SqlCondition => ({}),
+    // Transaction helpers
+    withTransaction: async <T>(fn: (tx: MockDb) => Promise<T>): Promise<T> => fn({} as MockDb),
+    asUser: async <T>(_userId: string, fn: (db: MockDb) => Promise<T>): Promise<T> => fn({} as MockDb),
+    asSystem: async <T>(fn: (db: MockDb) => Promise<T>): Promise<T> => fn({} as MockDb),
+    asPublic: async <T>(fn: (db: MockDb) => Promise<T>): Promise<T> => fn({} as MockDb),
   }
-}))
+})
 
 mock.module('@/lib/services/agent-registry.service', () => ({
   agentRegistry: {
@@ -65,10 +151,13 @@ mock.module('@/lib/services/cron-relay-service', () => ({
   relayCronToStaging: async () => ({ forwarded: false })
 }))
 
-// Import the route handler
+// Import the route handler after mocks are set up
 import { POST } from '@/app/api/cron/agent-tick/route'
 
 describe('Agent Tick Cron - DB State', () => {
+  beforeEach(() => {
+    mockGame = null
+  })
   
   test('should be skipped when no continuous game exists', async () => {
     mockGame = null;
@@ -116,4 +205,3 @@ describe('Agent Tick Cron - DB State', () => {
     expect(data.processed).toBe(0)
   })
 })
-

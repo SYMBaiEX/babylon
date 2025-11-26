@@ -8,8 +8,8 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-import type { WorldFact } from '@prisma/client';
+import { db, worldFacts, eq, and, desc } from '@/db';
+import type { WorldFact } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface WorldFactsContext {
@@ -32,11 +32,11 @@ export class WorldFactsService {
    * Limits to the 100 most recent facts
    */
   async getAllFacts(): Promise<WorldFact[]> {
-    const facts = await prisma.worldFact.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+    const facts = await db.select()
+      .from(worldFacts)
+      .where(eq(worldFacts.isActive, true))
+      .orderBy(desc(worldFacts.createdAt))
+      .limit(100);
     
     // Randomize order for entropy
     for (let i = facts.length - 1; i > 0; i--) {
@@ -55,11 +55,11 @@ export class WorldFactsService {
    * Get recent world facts
    */
   async getRecentFacts(limit: number = 100): Promise<WorldFact[]> {
-    return prisma.worldFact.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    return db.select()
+      .from(worldFacts)
+      .where(eq(worldFacts.isActive, true))
+      .orderBy(desc(worldFacts.createdAt))
+      .limit(limit);
   }
 
   /**
@@ -71,8 +71,8 @@ export class WorldFactsService {
     
     logger.info(`Adding dynamic world fact: ${value}`, undefined, 'WorldFactsService');
 
-    return prisma.worldFact.create({
-      data: {
+    const [fact] = await db.insert(worldFacts)
+      .values({
         id: await generateSnowflakeId(),
         category: 'general',
         key,
@@ -81,17 +81,22 @@ export class WorldFactsService {
         source: 'dynamic',
         priority: 0,
         lastUpdated: new Date(),
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .returning();
+    
+    return fact!;
   }
 
   /**
    * Get a single fact by category and key (internal use for updates)
    */
   private async getFact(category: string, key: string): Promise<WorldFact | null> {
-    return prisma.worldFact.findUnique({
-      where: { category_key: { category, key } },
-    });
+    const [fact] = await db.select()
+      .from(worldFacts)
+      .where(and(eq(worldFacts.category, category), eq(worldFacts.key, key)))
+      .limit(1);
+    return fact || null;
   }
 
   /**
@@ -135,21 +140,22 @@ export class WorldFactsService {
     const existing = await this.getFact(defaultCategory, key);
 
     if (existing) {
-      return prisma.worldFact.update({
-        where: { id: existing.id },
-        data: {
+      const [updated] = await db.update(worldFacts)
+        .set({
           label,
           value,
           source: 'default',
           priority: 0,
           lastUpdated: new Date(),
           updatedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(worldFacts.id, existing.id))
+        .returning();
+      return updated!;
     }
 
-    return prisma.worldFact.create({
-      data: {
+    const [created] = await db.insert(worldFacts)
+      .values({
         id: await generateSnowflakeId(),
         category: defaultCategory,
         key,
@@ -158,30 +164,36 @@ export class WorldFactsService {
         source: 'default',
         priority: 0,
         lastUpdated: new Date(),
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created!;
   }
 
   /**
    * Update an existing fact by ID
    */
   async updateFactById(id: string, value: string): Promise<WorldFact> {
-    const existing = await prisma.worldFact.findUnique({ where: { id } });
+    const [existing] = await db.select()
+      .from(worldFacts)
+      .where(eq(worldFacts.id, id))
+      .limit(1);
     if (!existing) {
       throw new Error('Fact not found');
     }
 
     const label = this.generateLabel(value);
 
-    return prisma.worldFact.update({
-      where: { id },
-      data: {
+    const [updated] = await db.update(worldFacts)
+      .set({
         label,
         value,
         lastUpdated: new Date(),
         updatedAt: new Date(),
-      },
-    });
+      })
+      .where(eq(worldFacts.id, id))
+      .returning();
+    return updated!;
   }
 
   /**
@@ -238,22 +250,25 @@ This context reflects the current state of the world. Use these facts to make yo
    * Delete a world fact
    */
   async deleteFact(id: string): Promise<void> {
-    await prisma.worldFact.delete({
-      where: { id },
-    });
+    await db.delete(worldFacts)
+      .where(eq(worldFacts.id, id));
   }
 
   /**
    * Toggle fact active status
    */
   async toggleFactActive(id: string): Promise<WorldFact> {
-    const fact = await prisma.worldFact.findUnique({ where: { id } });
+    const [fact] = await db.select()
+      .from(worldFacts)
+      .where(eq(worldFacts.id, id))
+      .limit(1);
     if (!fact) throw new Error('Fact not found');
 
-    return prisma.worldFact.update({
-      where: { id },
-      data: { isActive: !fact.isActive },
-    });
+    const [updated] = await db.update(worldFacts)
+      .set({ isActive: !fact.isActive })
+      .where(eq(worldFacts.id, id))
+      .returning();
+    return updated!;
   }
 
   /**

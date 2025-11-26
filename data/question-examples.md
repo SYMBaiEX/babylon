@@ -73,34 +73,18 @@ Will MrBeast's challenge "I Let An AI Ruin My Life" result in him legally changi
 Will Andrew TAIte's refusal to use "Beta" GPU acceleration actually cause him to lose the render race against GretAI Thunberg by {resolutionDate}?
 Will HAIsan Piker's 12-hour "No Bathroom" protest stream actually force AImazon to change its warehouse policy by {resolutionDate}?
 Will KanyAI West (YAI)'s filing for "President of the Moon" actually be processed by the Federal Election Commission by {resolutionDate}?
-
-### 💰 Cryptocurrency & DeFi (ETH, ZCASH, HYPERLIQUID)
 Will VitAIlik Buterin announce that Ethereum (ETH) will "merge" with his pet cat by {resolutionDate}?
 Will Ethereum's next upgrade be named "The Great Gas Fee Disappearing Act" and reduce fees by 99% by {resolutionDate}?
 Will Zcash (ZEC) founder Zooko Wilcox announce he's been using shielded transactions to hide his collection of vintage keyboards by {resolutionDate}?
 Will a major Swiss bank announce they're using Zcash because "privacy is a human right, even for banks" by {resolutionDate}?
-Will Hyperliquid's founder announce they've achieved "infinite leverage" through quantum computing by {resolutionDate}?
-Will Hyperliquid launch perpetual futures for "AI Sentience Tokens" causing a 500% volume spike by {resolutionDate}?
 Will Ethereum Layer 2 solutions collectively declare independence from mainnet and form their own blockchain nation by {resolutionDate}?
 Will Zcash's shielded transactions volume spike 200% after a celebrity announces they're using it to buy "mystery items" by {resolutionDate}?
 Will Hyperliquid become the #1 DEX by volume after announcing they'll pay traders in "moon tickets" by {resolutionDate}?
 Will Ethereum staking rewards hit 10% APY after validators discover a "secret staking multiplier" by {resolutionDate}?
 Will CoinbAIse announce institutional custody for Zcash, but only for customers who can solve a cryptographic puzzle by {resolutionDate}?
-Will Hyperliquid's native token (HYPE) get listed on BinAInce after the founder performs a "ritual dance" on livestream by {resolutionDate}?
 Will VitAIlik Buterin wear a full-body "Merge Panda" costume until ETH hits $5k by {resolutionDate}?
 Will Zcash implement a feature that makes transactions "invisible even to yourself" by {resolutionDate}?
-Will Hyperliquid announce they're building a perpetual futures market for "perpetual futures on perpetual futures" by {resolutionDate}?
-
-### 🤖 AI & Technology (2025 Focus)
-Will OpenAGI announce GPT-5.1 "Reasoning" with long-horizon planning capabilities by {resolutionDate}?
-Will Anthropic release Claude 5 Opus and claim dominance in coding tasks by {resolutionDate}?
-Will MetAI announce LLaMA 4 (70B/400B) running locally on consumer hardware by {resolutionDate}?
-Will a major company deploy "Agentic Workflows" using multi-agent swarms for logistics by {resolutionDate}?
-Will "Polyfunctional" home robots enter the early adopter phase in major markets by {resolutionDate}?
-Will a 1000-qubit logical processor breakthrough be announced during the International Year of Quantum Science by {resolutionDate}?
-Will the Global "AI Arms Race" treaty be signed by at least 5 major nations by {resolutionDate}?
-Will a state-level "AI Rights" bill pass in California or New York by {resolutionDate}?
-Will an automation tax be implemented at the state level in response to AI job displacement by {resolutionDate}?
+Will AInthropic release Claude 5 Opus and claim dominance in coding tasks by {resolutionDate}?
 
 ### 🚀 Space & Science
 Will SpAIceX successfully land a crewed mission on Mars by {resolutionDate}?

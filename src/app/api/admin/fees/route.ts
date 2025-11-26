@@ -73,9 +73,12 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { errorResponse, successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, tradingFees, pools, sum, count, desc, gte, lte, and, isNotNull } from '@/db';
 import { FeeService } from '@/lib/services/fee-service';
-import type { Prisma } from '@prisma/client';
+import type { WhereInput } from '@/db';
+
+// Infer the TradingFee type from the schema
+type TradingFee = typeof tradingFees.$inferSelect;
 
 /**
  * GET /api/admin/fees
@@ -123,7 +126,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const limit = Math.min(parsedLimit, 100);
 
-  const dateFilter: Prisma.TradingFeeWhereInput = startDate || endDate
+  const dateFilter: WhereInput<TradingFee> = startDate || endDate
     ? {
         createdAt: {
           ...(startDate ? { gte: startDate } : {}),
@@ -136,58 +139,53 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const platformStats = await FeeService.getPlatformFeeStats(startDate, endDate);
 
   // Get NPC fees from Pool.totalFeesCollected
-  const poolFeesResult = await prisma.pool.aggregate({
-    _sum: {
-      totalFeesCollected: true,
-    },
-  });
-  const totalNPCFees = Number(poolFeesResult._sum.totalFeesCollected || 0);
+  const poolFeesResult = await db
+    .select({
+      _sum: sum(pools.totalFeesCollected),
+    })
+    .from(pools);
+  const totalNPCFees = Number(poolFeesResult[0]?._sum || 0);
 
   // Combine user and NPC fees for total
   const totalFeesCollected = platformStats.totalFeesCollected + totalNPCFees;
 
   // Get fee breakdown by type
-  const whereClause: Prisma.TradingFeeWhereInput = {
-    ...dateFilter,
-  };
+  const whereConditions = [];
+  if (startDate) whereConditions.push(gte(tradingFees.createdAt, startDate));
+  if (endDate) whereConditions.push(lte(tradingFees.createdAt, endDate));
+  const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-  const feesByType = await prisma.tradingFee.groupBy({
-    by: ['tradeType'],
-    where: whereClause,
-    _sum: {
-      feeAmount: true,
-      platformFee: true,
-      referrerFee: true,
-    },
-    _count: true,
-    orderBy: {
-      _sum: {
-        feeAmount: 'desc',
-      },
-    },
-  });
+  const feesByType = await db
+    .select({
+      tradeType: tradingFees.tradeType,
+      feeAmountSum: sum(tradingFees.feeAmount),
+      platformFeeSum: sum(tradingFees.platformFee),
+      referrerFeeSum: sum(tradingFees.referrerFee),
+      _count: count(),
+    })
+    .from(tradingFees)
+    .where(whereClause)
+    .groupBy(tradingFees.tradeType)
+    .orderBy(desc(sum(tradingFees.feeAmount)));
 
   // Get top fee payers (users who paid the most fees)
-  const topFeePayers = await prisma.tradingFee.groupBy({
-    by: ['userId'],
-    where: whereClause,
-    _sum: {
-      feeAmount: true,
-    },
-    _count: true,
-    orderBy: {
-      _sum: {
-        feeAmount: 'desc',
-      },
-    },
-    take: limit,
-  });
+  const topFeePayers = await db
+    .select({
+      userId: tradingFees.userId,
+      feeAmountSum: sum(tradingFees.feeAmount),
+      _count: count(),
+    })
+    .from(tradingFees)
+    .where(whereClause)
+    .groupBy(tradingFees.userId)
+    .orderBy(desc(sum(tradingFees.feeAmount)))
+    .limit(limit);
 
   // Enrich with user/actor data
   const enrichedTopFeePayers = await Promise.all(
     topFeePayers.map(async (item) => {
       // Try to find as User first
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: item.userId },
         select: {
           id: true,
@@ -205,13 +203,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           displayName: user.displayName || 'Unknown User',
           profileImageUrl: user.profileImageUrl || null,
           isNPC: user.isActor,
-          totalFees: Number(item._sum.feeAmount || 0),
-          tradeCount: item._count,
+          totalFees: Number(item.feeAmountSum || 0),
+          tradeCount: Number(item._count),
         };
       }
 
       // Try to find as Actor (NPC)
-      const actor = await prisma.actor.findUnique({
+      const actor = await db.actor.findUnique({
         where: { id: item.userId },
         select: {
           id: true,
@@ -226,35 +224,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         displayName: actor?.name || 'Unknown NPC',
         profileImageUrl: actor?.profileImageUrl || null,
         isNPC: true,
-        totalFees: Number(item._sum.feeAmount || 0),
+        totalFees: Number(item.feeAmountSum || 0),
         tradeCount: item._count,
       };
     })
   );
 
   // Get top referral fee earners
-  const topReferralEarners = await prisma.tradingFee.groupBy({
-    by: ['referrerId'],
-    where: {
-      ...dateFilter,
-      referrerId: { not: null },
-    },
-    _sum: {
-      referrerFee: true,
-    },
-    _count: true,
-    orderBy: {
-      _sum: {
-        referrerFee: 'desc',
-      },
-    },
-    take: limit,
-  });
+  const referralWhereConditions = [];
+  if (startDate) referralWhereConditions.push(gte(tradingFees.createdAt, startDate));
+  if (endDate) referralWhereConditions.push(lte(tradingFees.createdAt, endDate));
+  referralWhereConditions.push(isNotNull(tradingFees.referrerId));
+  const referralWhereClause = and(...referralWhereConditions);
+
+  const topReferralEarners = await db
+    .select({
+      referrerId: tradingFees.referrerId,
+      referrerFeeSum: sum(tradingFees.referrerFee),
+      _count: count(),
+    })
+    .from(tradingFees)
+    .where(referralWhereClause)
+    .groupBy(tradingFees.referrerId)
+    .orderBy(desc(sum(tradingFees.referrerFee)))
+    .limit(limit);
 
   // Enrich with user data
   const enrichedTopReferralEarners = await Promise.all(
     topReferralEarners.map(async (item) => {
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: item.referrerId! },
         select: {
           id: true,
@@ -269,24 +267,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         username: user?.username || 'Unknown',
         displayName: user?.displayName || 'Unknown User',
         profileImageUrl: user?.profileImageUrl || null,
-        totalEarned: Number(item._sum.referrerFee || 0),
-        referralCount: item._count,
+        totalEarned: Number(item.referrerFeeSum || 0),
+        referralCount: Number(item._count),
       };
     })
   );
 
   // Get recent fee transactions
-  const recentFees = await prisma.tradingFee.findMany({
-    where: whereClause,
-    select: {
-      id: true,
-      userId: true,
-      tradeType: true,
-      feeAmount: true,
-      platformFee: true,
-      referrerFee: true,
-      createdAt: true,
-      User_TradingFee_userIdToUser: {
+  // Build where clause for findMany
+  const recentFeesWhere: WhereInput<TradingFee> = dateFilter;
+  
+  const recentFees = await db.tradingFee.findMany({
+    where: recentFeesWhere,
+    include: {
+      user: {
         select: {
           username: true,
           displayName: true,
@@ -304,11 +298,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Try to enrich recent fees with actor data for NPCs
   const enrichedRecentFees = await Promise.all(
     recentFees.map(async (fee) => {
-      let userData = fee.User_TradingFee_userIdToUser;
+      type FeeWithUser = typeof fee & {
+        user?: {
+          username: string | null;
+          displayName: string | null;
+          profileImageUrl: string | null;
+          isActor: boolean;
+        } | null;
+      };
+      const feeWithUser = fee as FeeWithUser;
+      let userData = feeWithUser.user;
       
       // If no user data, try to find actor
       if (!userData) {
-        const actor = await prisma.actor.findUnique({
+        const actor = await db.actor.findUnique({
           where: { id: fee.userId },
           select: {
             name: true,
@@ -349,7 +352,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const trendStartDate =
     startDate && startDate > thirtyDaysAgo ? startDate : thirtyDaysAgo;
 
-  const dailyFeeRecords = await prisma.tradingFee.findMany({
+  const dailyFeeRecords = await db.tradingFee.findMany({
     where: {
       ...dateFilter,
       createdAt: {
@@ -401,10 +404,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     feesByType: feesByType.map((item) => ({
       tradeType: item.tradeType,
-      totalFees: Number(item._sum.feeAmount || 0),
-      platformFees: Number(item._sum.platformFee || 0),
-      referrerFees: Number(item._sum.referrerFee || 0),
-      tradeCount: item._count,
+      totalFees: Number(item.feeAmountSum || 0),
+      platformFees: Number(item.platformFeeSum || 0),
+      referrerFees: Number(item.referrerFeeSum || 0),
+      tradeCount: Number(item._count),
     })),
     topFeePayers: enrichedTopFeePayers,
     topReferralEarners: enrichedTopReferralEarners,

@@ -150,7 +150,7 @@ export function useAuth(): UseAuthReturn {
     return token ?? null;
   };
 
-  const fetchCurrentUser = async () => {
+  const fetchCurrentUser = async (retryCount = 0) => {
     if (!authenticated || !privyUser) return;
 
     // Use global ref to prevent ANY duplicate calls across all components
@@ -165,9 +165,19 @@ export function useAuth(): UseAuthReturn {
 
       const token = await persistAccessToken();
       if (!token) {
+        if (retryCount >= 5) {
+          logger.error(
+            'Privy access token unavailable after max retries; giving up',
+            { userId: privyUser.id, retryCount },
+            'useAuth'
+          );
+          setIsLoadingProfile(false);
+          return;
+        }
+
         logger.warn(
           'Privy access token unavailable; delaying /api/users/me fetch',
-          { userId: privyUser.id },
+          { userId: privyUser.id, retryCount },
           'useAuth'
         );
         setIsLoadingProfile(false);
@@ -176,8 +186,8 @@ export function useAuth(): UseAuthReturn {
             window.clearTimeout(globalTokenRetryTimeout);
           }
           globalTokenRetryTimeout = window.setTimeout(() => {
-            void fetchCurrentUser();
-          }, 200);
+            void fetchCurrentUser(retryCount + 1);
+          }, 200 * (retryCount + 1));
         }
         return;
       }

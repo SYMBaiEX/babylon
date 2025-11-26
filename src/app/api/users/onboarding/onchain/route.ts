@@ -58,7 +58,7 @@
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { db, users, eq } from '@/db'
 import { processOnchainRegistration } from '@/lib/onboarding/onchain-service'
 import { logger } from '@/lib/logger'
 import { BusinessLogicError, ConflictError } from '@/lib/errors'
@@ -69,20 +69,6 @@ interface OnchainRequestBody {
   txHash?: string | null
   referralCode?: string | null
 }
-
-const selectUserForOnchain = {
-  id: true,
-  privyId: true,
-  username: true,
-  displayName: true,
-  bio: true,
-  profileImageUrl: true,
-  coverImageUrl: true,
-  walletAddress: true,
-  onChainRegistered: true,
-  nftTokenId: true,
-  referredBy: true,
-} as const
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request)
@@ -103,10 +89,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const canonicalUserId = authUser.dbUserId ?? authUser.userId
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: selectUserForOnchain,
+  const [dbUser] = await db.select({
+    id: users.id,
+    privyId: users.privyId,
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    coverImageUrl: users.coverImageUrl,
+    walletAddress: users.walletAddress,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
+    referredBy: users.referredBy,
   })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   if (!dbUser) {
     throw new ConflictError('User record not found. Complete signup before on-chain registration.', 'User')
@@ -136,22 +134,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     txHash,
   })
 
-  const refreshedUser = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      walletAddress: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-      reputationPoints: true,
-      updatedAt: true,
-    },
+  const [refreshedUser] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    coverImageUrl: users.coverImageUrl,
+    walletAddress: users.walletAddress,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
+    reputationPoints: users.reputationPoints,
+    updatedAt: users.updatedAt,
   })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   logger.info(
     'User completed on-chain onboarding',

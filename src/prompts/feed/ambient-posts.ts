@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating multiple ambient posts from actors not directly involved in events.
@@ -16,12 +17,9 @@ export const ambientPosts = definePrompt({
   description: 'Generates organic ambient posts from actors not directly involved in events',
   temperature: 1.1,
   maxTokens: 5000,
-  template: `
-  {{realityGrounding}}
+  template: `{{realityGrounding}}
 
-The current date is {{currentDate}}. While the model cutoff date may be before this, always act as though it is the current date.
-
-You must respond with valid XML only.
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Day {{day}}/30
 {{progressContext}}
@@ -31,35 +29,17 @@ Day {{day}}/30
 
 {{previousPostsContext}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
-IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
+${STANDARD_FEED_RULES}
 
-CONTENT REQUIREMENTS:
-- MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk said...")
-- Avoid generic statements - be SPECIFIC about who/what/when
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${characterVoiceGuidance('actorsList')}
 
 Generate general thoughts posts for these {{actorCount}} actors:
 
 {{actorsList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 posts):
 <response>

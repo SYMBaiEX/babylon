@@ -9,7 +9,20 @@
  * Calculates engagement scores for group invite eligibility
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  eq,
+  and,
+  gte,
+  lte,
+  inArray,
+  count,
+  posts,
+  users,
+  reactions,
+  shares,
+  userInteractions,
+} from '@/db';
 import { logger } from '@/lib/logger';
 
 export interface NPCInteractionScore {
@@ -47,20 +60,22 @@ export class NPCInteractionTracker {
    */
   static async trackLike(userId: string, postId: string): Promise<void> {
     // Get post author (should be an NPC)
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { authorId: true },
-    });
+    const [post] = await db
+      .select({ authorId: posts.authorId })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .limit(1);
 
     if (!post) {
       return;
     }
 
     // Check if author is an NPC
-    const author = await prisma.user.findUnique({
-      where: { id: post.authorId },
-      select: { isActor: true },
-    });
+    const [author] = await db
+      .select({ isActor: users.isActor })
+      .from(users)
+      .where(eq(users.id, post.authorId))
+      .limit(1);
 
     if (!author?.isActor) {
       return; // Not an NPC post
@@ -78,20 +93,22 @@ export class NPCInteractionTracker {
    */
   static async trackShare(userId: string, postId: string): Promise<void> {
     // Get post author (should be an NPC)
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { authorId: true },
-    });
+    const [post] = await db
+      .select({ authorId: posts.authorId })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .limit(1);
 
     if (!post) {
       return;
     }
 
     // Check if author is an NPC
-    const author = await prisma.user.findUnique({
-      where: { id: post.authorId },
-      select: { isActor: true },
-    });
+    const [author] = await db
+      .select({ isActor: users.isActor })
+      .from(users)
+      .where(eq(users.id, post.authorId))
+      .limit(1);
 
     if (!author?.isActor) {
       return; // Not an NPC post
@@ -117,36 +134,31 @@ export class NPCInteractionTracker {
     // Get all NPC posts in the time window (up to current time)
     const now = new Date();
     const effectiveEndDate = endDate > now ? now : endDate;
-    const npcPosts = await prisma.post.findMany({
-      where: {
-        authorId: npcId,
-        timestamp: {
-          gte: startDate,
-          lte: effectiveEndDate, // ✅ No future posts
-        },
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const npcPosts = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(
+        and(
+          eq(posts.authorId, npcId),
+          gte(posts.timestamp, startDate),
+          lte(posts.timestamp, effectiveEndDate)
+        )
+      );
 
     const npcPostIds = npcPosts.map(p => p.id);
 
     // Count replies (from UserInteraction table)
-    const replyInteractions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-        timestamp: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      select: {
-        qualityScore: true,
-      },
-    });
+    const replyInteractions = await db
+      .select({ qualityScore: userInteractions.qualityScore })
+      .from(userInteractions)
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          eq(userInteractions.npcId, npcId),
+          gte(userInteractions.timestamp, startDate),
+          lte(userInteractions.timestamp, endDate)
+        )
+      );
 
     const replyCount = replyInteractions.length;
     const avgQualityScore = replyCount > 0
@@ -154,33 +166,39 @@ export class NPCInteractionTracker {
       : 0;
 
     // Count likes
-    const likeCount = await prisma.reaction.count({
-      where: {
-        userId,
-        postId: {
-          in: npcPostIds,
-        },
-        type: 'like',
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    });
+    let likeCount = 0;
+    if (npcPostIds.length > 0) {
+      const [likeResult] = await db
+        .select({ count: count() })
+        .from(reactions)
+        .where(
+          and(
+            eq(reactions.userId, userId),
+            inArray(reactions.postId, npcPostIds),
+            eq(reactions.type, 'like'),
+            gte(reactions.createdAt, startDate),
+            lte(reactions.createdAt, endDate)
+          )
+        );
+      likeCount = likeResult?.count ?? 0;
+    }
 
     // Count shares
-    const shareCount = await prisma.share.count({
-      where: {
-        userId,
-        postId: {
-          in: npcPostIds,
-        },
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    });
+    let shareCount = 0;
+    if (npcPostIds.length > 0) {
+      const [shareResult] = await db
+        .select({ count: count() })
+        .from(shares)
+        .where(
+          and(
+            eq(shares.userId, userId),
+            inArray(shares.postId, npcPostIds),
+            gte(shares.createdAt, startDate),
+            lte(shares.createdAt, endDate)
+          )
+        );
+      shareCount = shareResult?.count ?? 0;
+    }
 
     const totalInteractions = replyCount + likeCount + shareCount;
 
@@ -260,20 +278,18 @@ export class NPCInteractionTracker {
     limit: number = 10,
     window?: InteractionWindow
   ): Promise<NPCInteractionScore[]> {
+    // Build conditions
+    const conditions = [eq(userInteractions.npcId, npcId)];
+    if (window) {
+      conditions.push(gte(userInteractions.timestamp, window.startDate));
+      conditions.push(lte(userInteractions.timestamp, window.endDate));
+    }
+
     // Get all users who have interacted with this NPC
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        npcId,
-        timestamp: window ? {
-          gte: window.startDate,
-          lte: window.endDate,
-        } : undefined,
-      },
-      select: {
-        userId: true,
-      },
-      distinct: ['userId'],
-    });
+    const interactions = await db
+      .selectDistinct({ userId: userInteractions.userId })
+      .from(userInteractions)
+      .where(and(...conditions));
 
     const userIds = interactions.map(i => i.userId);
 
@@ -292,19 +308,17 @@ export class NPCInteractionTracker {
    * Get all NPCs a user has engaged with
    */
   static async getUserEngagedNPCs(userId: string, window?: InteractionWindow): Promise<string[]> {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        timestamp: window ? {
-          gte: window.startDate,
-          lte: window.endDate,
-        } : undefined,
-      },
-      select: {
-        npcId: true,
-      },
-      distinct: ['npcId'],
-    });
+    // Build conditions
+    const conditions = [eq(userInteractions.userId, userId)];
+    if (window) {
+      conditions.push(gte(userInteractions.timestamp, window.startDate));
+      conditions.push(lte(userInteractions.timestamp, window.endDate));
+    }
+
+    const interactions = await db
+      .selectDistinct({ npcId: userInteractions.npcId })
+      .from(userInteractions)
+      .where(and(...conditions));
 
     return interactions.map(i => i.npcId);
   }

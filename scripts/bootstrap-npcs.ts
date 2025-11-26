@@ -13,7 +13,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { npcBootstrapService } from '@/lib/services/npc-bootstrap.service'
 
 async function main() {
@@ -61,7 +61,7 @@ async function main() {
     logger.info('3. NPCs are ready for autonomous actions', undefined, 'Bootstrap')
     logger.info('4. Check status with: bun run scripts/status.ts', undefined, 'Bootstrap')
 
-    await prisma.$disconnect()
+    await db.$disconnect()
 
     // Exit with error code if any NPCs failed
     if (result.failed > 0) {
@@ -73,7 +73,7 @@ async function main() {
       error instanceof Error ? error : new Error(String(error)),
       'Bootstrap',
     )
-    await prisma.$disconnect()
+    await db.$disconnect()
     process.exit(1)
   }
 }

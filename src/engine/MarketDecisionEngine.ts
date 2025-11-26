@@ -69,12 +69,12 @@
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { MarketContextService } from '@/lib/services/market-context-service';
-import { renderPrompt, npcMarketDecisions, generateWorldContext } from '@/prompts';
+import { renderPrompt, npcMarketDecisions, generateWorldContext, getShuffledExamplesText } from '@/prompts';
 import type { TradingDecision } from '@/types/market-decisions';
 import type { NPCMarketContext } from '@/types/market-context';
 import { countTokensSync, getSafeContextLimit, truncateToTokenLimitSync } from '@/lib/token-counter';
 import type { JsonValue } from '@/types/common';
-import { prisma } from '@/lib/prisma';
+import { db, eq, inArray, gte, desc, and, actors, organizations, organizationMappings, questions, posts } from '@/db';
 import { loadActorById } from '@/lib/data/actors-loader';
 
 /**
@@ -404,35 +404,20 @@ export class MarketDecisionEngine {
     // Get recent events with caching
     const recentEventsText = await this.getCachedRecentEvents();
     
-    // Build lists of valid NPC IDs and tickers to restrict LLM output
+    // Build valid IDs/tickers for the prompt
     const validNpcIds = contexts.map(ctx => ctx.npcId).join(', ');
-    const validTickers = contexts[0]?.perpMarkets.map(m => m.ticker).join(', ') || '';
+    const validTickers = contexts[0]?.perpMarkets.map(m => m.ticker).join(', ') || 'none';
     
-    // Add restrictions to npcsList to prevent LLM from generating invalid NPCs/tickers
-    const restrictedNpcsList = `${npcsList}
-
-===================================================================
-🚨 CRITICAL RESTRICTIONS - YOU MUST FOLLOW THESE EXACTLY:
-===================================================================
-
-VALID NPC IDs (ONLY use these - DO NOT create new ones):
-${validNpcIds}
-
-VALID TICKERS (ONLY use these for perp markets - DO NOT create new ones like "BIT"):
-${validTickers || 'No perpetual markets available'}
-
-⚠️ FORBIDDEN:
-- DO NOT create NPC IDs that are not in the valid list above
-- DO NOT use tickers that are not in the valid list above (especially "BIT" which doesn't exist)
-- DO NOT invent new NPC names or ticker symbols
-- ONLY use the EXACT IDs and tickers shown above
-
-===================================================================`;
+    // Get shuffled examples for entropy
+    const examples = getShuffledExamplesText();
     
     // Build the full prompt
     let prompt = renderPrompt(npcMarketDecisions, {
+      examples,
       npcCount: contexts.length.toString(),
-      npcsList: restrictedNpcsList,
+      npcsList,
+      validNpcIds,
+      validTickers,
       realityGrounding: worldContext.realityGrounding,
       activeQuestions: activeQuestionsText,
       recentEvents: recentEventsText,
@@ -459,8 +444,11 @@ ${validTickers || 'No perpetual markets available'}
       // Truncate the npcsList section while preserving prompt structure
       // Reserve extra buffer (10%) to account for token counting inaccuracies
       const promptPrefix = renderPrompt(npcMarketDecisions, {
+        examples,
         npcCount: contexts.length.toString(),
         npcsList: '',
+        validNpcIds,
+        validTickers,
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
@@ -473,8 +461,11 @@ ${validTickers || 'No perpetual markets available'}
       npcsList = truncated.text;
       
       prompt = renderPrompt(npcMarketDecisions, {
+        examples,
         npcCount: contexts.length.toString(),
         npcsList,
+        validNpcIds,
+        validTickers,
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
@@ -547,6 +538,7 @@ ${prompt}`
           ...baseLlmOptions,
           temperature,
           maxTokens: maxOutputTokens,
+          promptType: 'npc-market-decisions',
         };
         
         rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] }>(
@@ -645,6 +637,7 @@ ${prompt}`
               ...baseLlmOptions,
               temperature: 0.7,
               maxTokens: maxOutputTokens,
+              promptType: 'npc-market-decisions',
             };
             delete retryOptions.model;
             
@@ -807,141 +800,96 @@ ${prompt}`
   }
   
   /**
-   * Format NPCs data as a readable string for the prompt with relationships
-   * Applies intelligent truncation to stay within token budgets
+   * Format NPCs data as a compact string for the prompt
+   * Uses token-efficient format: key=value pairs instead of verbose tables
    */
   private formatNPCsList(contexts: NPCMarketContext[]): string {
-    // Add a summary table at the top showing all NPC balances for quick reference
-    let summary = `===================================================================\n`;
-    summary += `🚨🚨🚨 CRITICAL: BALANCE CONSTRAINTS - QUICK REFERENCE 🚨🚨🚨\n`;
-    summary += `===================================================================\n`;
-    summary += `⚠️⚠️⚠️ BEFORE SETTING ANY AMOUNT, CHECK THIS TABLE ⚠️⚠️⚠️\n\n`;
-    summary += `NPC ID                    | Available Balance | MAX Trade (30%) | NEVER Exceed\n`;
-    summary += `---------------------------|-------------------|-----------------|-------------\n`;
-    
+    // Compact balance summary (one line per NPC)
+    let output = `BALANCES (id|bal|max):\n`;
     contexts.forEach(ctx => {
-      const maxAmount = Math.floor(ctx.availableBalance * 0.3);
-      const npcIdPadded = (ctx.npcId || '').padEnd(25);
-      const balanceStr = `$${ctx.availableBalance.toLocaleString()}`.padEnd(17);
-      const maxStr = `$${maxAmount.toLocaleString()}`.padEnd(15);
-      summary += `${npcIdPadded} | ${balanceStr} | ${maxStr} | $${ctx.availableBalance.toLocaleString()}\n`;
+      const max = Math.floor(ctx.availableBalance * 0.3);
+      output += `${ctx.npcId}|${ctx.availableBalance}|${max}\n`;
     });
+    output += `\n`;
     
-    summary += `\n⚠️ CRITICAL RULES:\n`;
-    summary += `- Amount MUST be <= MAX Trade (30% of balance) for conservative trading\n`;
-    summary += `- Amount MUST be <= Available Balance (hard limit - trades above will be REJECTED)\n`;
-    summary += `- If you set amount > Available Balance, the entire decision will be REJECTED\n`;
-    summary += `- Check the table above BEFORE setting any amount value\n`;
-    summary += `===================================================================\n\n`;
-    
-    return summary + contexts.map((ctx, index) => {
-      const maxAmount = Math.floor(ctx.availableBalance * 0.3); // 30% max per trade
+    // NPCs in compact format
+    output += contexts.map((ctx, i) => {
+      const max = Math.floor(ctx.availableBalance * 0.3);
+      const lines: string[] = [];
       
-      let section = `## NPC ${index + 1}: [⚠️ USE THIS EXACT ID: ${ctx.npcId}] ${ctx.npcName}\n\n`;
+      // Core info on one line
+      lines.push(`[${i + 1}] ID=${ctx.npcId} NAME="${ctx.npcName}" BAL=${ctx.availableBalance} MAX=${max} TIER=${ctx.tier} STYLE=${ctx.personality}`);
       
-      // ⚠️ CRITICAL: Balance constraint at the very top for maximum visibility
-      section += `🚨🚨🚨 BALANCE CONSTRAINT - READ THIS FIRST 🚨🚨🚨\n`;
-      section += `💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
-      section += `⚠️⚠️⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n`;
-      section += `❌ NEVER exceed $${maxAmount.toLocaleString()} - trades above this will be REJECTED\n`;
-      section += `❌ NEVER exceed $${ctx.availableBalance.toLocaleString()} (full balance) - trades above this will be REJECTED\n\n`;
-      
-      section += `**Profile:**\n`;
-      section += `- 🆔 **REQUIRED NPC ID:** ${ctx.npcId} ⬅️ **COPY THIS EXACTLY**\n`;
-      section += `- Personality: ${ctx.personality}\n`;
-      section += `- Tier: ${ctx.tier}\n`;
-      section += `- 💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
-      section += `- ⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n\n`;
-      
-      // Relationships (limit to top 5 strongest)
+      // Relationships (compact: ally:Name(0.8), rival:Name(-0.7))
       if (ctx.relationships && ctx.relationships.length > 0) {
-        section += `**Relationships:**\n`;
-        const topRelationships = ctx.relationships
+        const rels = ctx.relationships
           .sort((a, b) => b.strength - a.strength)
-          .slice(0, 5);
-        
-        topRelationships.forEach(rel => {
-          const sentimentDesc = rel.sentiment > 0.5 ? '✅' : rel.sentiment < -0.5 ? '❌' : '➖';
-          section += `- ${rel.relationshipType} with ${rel.actorName} (${sentimentDesc})`;
-          if (rel.history && rel.history.length < 50) section += `: ${rel.history}`;
-          section += `\n`;
-        });
-        section += `Rule: Rivals (❌) bet opposite, Allies (✅) bet same\n\n`;
+          .slice(0, 5)
+          .map(r => {
+            const type = r.sentiment > 0.5 ? 'ally' : r.sentiment < -0.5 ? 'rival' : 'neutral';
+            return `${type}:${r.actorName}(${r.sentiment.toFixed(1)})`;
+          });
+        lines.push(`RELS: ${rels.join(', ')}`);
       }
       
-      section += `**Information Access:**\n\n`;
+      // Posts (compact: @author:"truncated content")
+      if (ctx.recentPosts.length > 0) {
+        const posts = ctx.recentPosts.slice(0, 6).map(p => {
+          const content = p.content.length > 80 ? p.content.substring(0, 80) + '...' : p.content;
+          return `@${p.authorName}:"${content}"`;
+        });
+        lines.push(`POSTS: ${posts.join(' | ')}`);
+      }
       
-      // Recent Posts (reduced to 8 to save tokens)
-      section += `Recent Posts (Last 8):\n`;
-      ctx.recentPosts.slice(0, 8).forEach(post => {
-        // Truncate long posts to save tokens
-        const content = post.content.length > 150 ? post.content.substring(0, 150) + '...' : post.content;
-        section += `- [@${post.authorName}]: ${content}`;
-        if (post.articleTitle) section += ` [${post.articleTitle}]`;
-        section += `\n`;
-      });
-      
-      // Group Chat Messages (reduced to 5 to save tokens)
+      // Group chat (insider info, compact)
       if (ctx.groupChatMessages.length > 0) {
-        section += `\n🔒 Insider Info (Last 5):\n`;
-        ctx.groupChatMessages.slice(0, 5).forEach(msg => {
-          const message = msg.message.length > 100 ? msg.message.substring(0, 100) + '...' : msg.message;
-          section += `- [${msg.fromName}]: ${message}\n`;
+        const msgs = ctx.groupChatMessages.slice(0, 3).map(m => {
+          const msg = m.message.length > 60 ? m.message.substring(0, 60) + '...' : m.message;
+          return `${m.fromName}:"${msg}"`;
         });
+        lines.push(`INSIDER: ${msgs.join(' | ')}`);
       }
       
-      // Recent Events (reduced to 5 to save tokens)
-      section += `\nRecent Events (Last 5):\n`;
-      ctx.recentEvents.slice(0, 5).forEach(event => {
-        section += `- ${event.description} (${event.type})`;
-        if (event.relatedQuestion) section += ` [Q${event.relatedQuestion}]`;
-        section += `\n`;
-      });
+      // Events (compact)
+      if (ctx.recentEvents.length > 0) {
+        const events = ctx.recentEvents.slice(0, 4).map(e => {
+          const desc = e.description.length > 50 ? e.description.substring(0, 50) + '...' : e.description;
+          return e.relatedQuestion ? `${desc}[Q${e.relatedQuestion}]` : desc;
+        });
+        lines.push(`EVENTS: ${events.join(' | ')}`);
+      }
       
-      section += `\n---\n\n`;
-      section += `**Markets:**\n\n`;
+      // Perp markets (compact: TICK:100.00(+2.1%))
+      if (ctx.perpMarkets.length > 0) {
+        const perps = ctx.perpMarkets.slice(0, 5).map(m => {
+          const sign = m.changePercent24h >= 0 ? '+' : '';
+          return `${m.ticker}:${m.currentPrice.toFixed(0)}(${sign}${m.changePercent24h.toFixed(1)}%)`;
+        });
+        lines.push(`PERPS: ${perps.join(', ')}`);
+      }
       
-      // Perp Markets (limit to 5 to save tokens)
-      section += `Perpetual Futures (Top 5):\n`;
-      ctx.perpMarkets.slice(0, 5).forEach(market => {
-        const sign = market.changePercent24h > 0 ? '+' : '';
-        section += `- ${market.ticker}: $${market.currentPrice.toFixed(2)} (${sign}${market.changePercent24h.toFixed(1)}%)\n`;
-      });
+      // Prediction markets (compact: Q123:"question" Y60/N40 5d)
+      if (ctx.predictionMarkets.length > 0) {
+        const preds = ctx.predictionMarkets.slice(0, 4).map(m => {
+          const text = m.text.length > 40 ? m.text.substring(0, 40) + '...' : m.text;
+          return `Q${m.id}:"${text}" Y${m.yesPrice.toFixed(0)}/N${m.noPrice.toFixed(0)} ${m.daysUntilResolution}d`;
+        });
+        lines.push(`PREDS: ${preds.join(' | ')}`);
+      }
       
-      // Prediction Markets (limit to 5)
-      section += `\nPrediction Markets (Top 5):\n`;
-      ctx.predictionMarkets.slice(0, 5).forEach(market => {
-        section += `- Q${market.id}: ${market.text}\n`;
-        section += `  YES: ${market.yesPrice.toFixed(0)}% | NO: ${market.noPrice.toFixed(0)}% | ${market.daysUntilResolution}d\n`;
-      });
-      
-      section += `\n---\n\n`;
-      
-      // Current Positions (all, usually few)
-      section += `**Positions:**\n`;
+      // Positions (compact: id|type|ticker|side|pnl)
       if (ctx.currentPositions.length > 0) {
-        ctx.currentPositions.forEach(pos => {
-          const symbol = pos.ticker || `Q${pos.marketId}`;
-          section += `- ID: ${pos.id} | ${pos.marketType} ${symbol} ${pos.side}: P&L $${pos.unrealizedPnL.toFixed(0)}\n`;
+        const positions = ctx.currentPositions.map(p => {
+          const symbol = p.ticker || `Q${p.marketId}`;
+          return `${p.id}|${p.marketType}|${symbol}|${p.side}|pnl=${p.unrealizedPnL.toFixed(0)}`;
         });
-        section += `⚠️ To close a position, use the EXACT position ID shown above (e.g., "${ctx.currentPositions[0]?.id}"). Do NOT create descriptive IDs like "AIXAI_long".\n`;
-      } else {
-        section += `None\n`;
+        lines.push(`POSITIONS: ${positions.join(', ')}`);
       }
       
-      section += `\n**DECISION:**\n`;
-      section += `🚨🚨🚨 BALANCE CONSTRAINT - CHECK BEFORE SETTING AMOUNT 🚨🚨🚨\n`;
-      section += `💰 Available Balance: $${ctx.availableBalance.toLocaleString()}\n`;
-      section += `⚠️⚠️⚠️ MAX TRADE AMOUNT: $${maxAmount.toLocaleString()} (30% of balance)\n`;
-      section += `❌ If you set amount > $${maxAmount.toLocaleString()}, the trade will be REJECTED\n`;
-      section += `❌ If you set amount > $${ctx.availableBalance.toLocaleString()}, the trade will be REJECTED\n`;
-      section += `✅ Safe amount range: $1 - $${maxAmount.toLocaleString()}\n`;
-      section += `\nActions: open_long, open_short, buy_yes, buy_no, close_position, hold\n`;
-      section += `⚠️ REQUIRED: marketType must be "perp" for open_long/open_short, "prediction" for buy_yes/buy_no\n`;
-      section += `⚠️ REQUIRED: amount MUST be <= $${maxAmount.toLocaleString()} (check balance above!)\n\n`;
-      
-      return section;
+      return lines.join('\n');
     }).join('\n\n');
+    
+    return output;
   }
   
   /**
@@ -970,12 +918,12 @@ ${prompt}`
     const originalIdToActualIdMap = new Map<string, string>();
     
     // Fetch actor data to get original names  
-    const actors = await prisma.actor.findMany({
-      where: { id: { in: Array.from(contexts.keys()) } },
-      select: { id: true, name: true }
-    });
+    const actorsList = await db
+      .select({ id: actors.id, name: actors.name })
+      .from(actors)
+      .where(inArray(actors.id, Array.from(contexts.keys())));
     
-    for (const actor of actors) {
+    for (const actor of actorsList) {
       const variations: string[] = [];
       
       // Load actor JSON file to get all original identifiers
@@ -1045,23 +993,23 @@ ${prompt}`
       }
     }
     
-    logger.info(`Built originalId mapping with ${originalIdToActualIdMap.size} variations for ${actors.length} NPCs`, undefined, 'MarketDecisionEngine');
+    logger.info(`Built originalId mapping with ${originalIdToActualIdMap.size} variations for ${actorsList.length} NPCs`, undefined, 'MarketDecisionEngine');
     
     // Build organization/ticker mapping for perp markets
     // LLM might generate "OPENAI", "OpenAI", "openai", etc. when actual ticker is "OPNAI"
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalTickerToActualTickerMap = new Map<string, string>();
     
-    const orgs = await prisma.organization.findMany({
-      where: { type: 'company' },
-      select: { id: true, name: true, ticker: true }
-    });
+    const orgs = await db
+      .select({ id: organizations.id, name: organizations.name, ticker: organizations.ticker })
+      .from(organizations)
+      .where(eq(organizations.type, 'company'));
     
     // Get organization mappings from database (realName -> parodyName)
-    const orgMappings = await prisma.organizationMapping.findMany({
-      where: { isActive: true },
-      select: { realName: true, parodyName: true, aliases: true }
-    });
+    const orgMappings = await db
+      .select({ realName: organizationMappings.realName, parodyName: organizationMappings.parodyName, aliases: organizationMappings.aliases })
+      .from(organizationMappings)
+      .where(eq(organizationMappings.isActive, true));
     
     // Build map from parody names to real names (ALL LOWERCASE)
     const parodyToRealMap = new Map<string, string>();
@@ -1704,19 +1652,18 @@ ${prompt}`
    * Especially important for comparative questions like "Will X outperform Y?"
    */
   private async formatActiveQuestions(): Promise<string> {
-    const questions = await prisma.question.findMany({
-      where: {
-        status: 'active',
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10, // Top 10 most recent questions
-    });
+    const questionsList = await db
+      .select()
+      .from(questions)
+      .where(eq(questions.status, 'active'))
+      .orderBy(desc(questions.createdAt))
+      .limit(10);
     
-    if (questions.length === 0) {
+    if (questionsList.length === 0) {
       return 'No active prediction questions currently.';
     }
     
-    const formatted = questions.map(q => {
+    const formatted = questionsList.map(q => {
       const daysUntil = Math.ceil(
         (q.resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       );
@@ -1738,29 +1685,28 @@ ${prompt}`
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     // Get actor IDs first
-    const actors = await prisma.actor.findMany({
-      select: { id: true, name: true },
-    });
-    const actorMap = new Map(actors.map(a => [a.id, a.name]));
-    const actorIds = actors.map(a => a.id);
+    const actorsForEvents = await db
+      .select({ id: actors.id, name: actors.name })
+      .from(actors);
+    const actorMap = new Map(actorsForEvents.map(a => [a.id, a.name]));
+    const actorIds = actorsForEvents.map(a => a.id);
     
     if (actorIds.length === 0) {
       return 'No actors available for narrative context.';
     }
     
-    const recentPosts = await prisma.post.findMany({
-      where: {
-        createdAt: { gte: oneDayAgo },
-        authorId: { in: actorIds },
-        type: 'post', // Only regular posts, not comments
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        content: true,
-        authorId: true,
-      },
-    });
+    const recentPosts = await db
+      .select({ content: posts.content, authorId: posts.authorId })
+      .from(posts)
+      .where(
+        and(
+          gte(posts.createdAt, oneDayAgo),
+          inArray(posts.authorId, actorIds),
+          eq(posts.type, 'post')
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(10);
     
     if (recentPosts.length === 0) {
       return 'No recent posts in last 24 hours.';

@@ -75,7 +75,7 @@
  * @see {@link /lib/errors/error-handler} Error handling utilities
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -99,14 +99,14 @@ export const GET = withErrorHandling(async (
   const { actorId } = params;
 
   // Try to find actor by ID first, then by name (case-insensitive)
-  let actor = await prisma.actor.findUnique({
+  let actor: { id: string } | null = await db.actor.findUnique({
     where: { id: actorId },
     select: { id: true },
   });
 
   // If not found by ID, try finding by name
   if (!actor) {
-    actor = await prisma.actor.findFirst({
+    actor = await db.actor.findFirst({
       where: { 
         name: { equals: actorId, mode: 'insensitive' }
       },
@@ -130,17 +130,17 @@ export const GET = withErrorHandling(async (
     postCount,
   ] = await Promise.all([
     // NPCs following this actor (ActorFollow)
-    prisma.actorFollow.count({
+    db.actorFollow.count({
       where: { followingId: actualActorId },
     }),
     // Users following this actor (UserActorFollow)
-    prisma.userActorFollow.count({
+    db.userActorFollow.count({
       where: {
         actorId: actualActorId,
       },
     }),
     // Legacy FollowStatus entries created before migration
-    prisma.followStatus.count({
+    db.followStatus.count({
       where: {
         npcId: actualActorId,
         isActive: true,
@@ -148,11 +148,11 @@ export const GET = withErrorHandling(async (
       },
     }),
     // This actor following others (only NPC-to-NPC follows via ActorFollow)
-    prisma.actorFollow.count({
+    db.actorFollow.count({
       where: { followerId: actualActorId },
     }),
     // Posts by this actor
-    prisma.post.count({
+    db.post.count({
       where: { authorId: actualActorId },
     }),
   ]);

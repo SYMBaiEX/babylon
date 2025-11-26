@@ -80,7 +80,21 @@
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { 
+  db, 
+  withTransaction,
+  users, 
+  referrals, 
+  tradingFees, 
+  feedbacks, 
+  userActorFollows,
+  userInteractions,
+  groupChatMemberships,
+  followStatuses,
+  shareActions,
+  poolDeposits,
+  eq,
+} from '@/db'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -103,16 +117,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   )
 
   // Verify user exists
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      walletAddress: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-    },
+  const [user] = await db.select({
+    id: users.id,
+    username: users.username,
+    walletAddress: users.walletAddress,
+    onChainRegistered: users.onChainRegistered,
+    nftTokenId: users.nftTokenId,
   })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
 
   if (!user) {
     return successResponse({ error: 'User not found' }, 404)
@@ -129,67 +143,56 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     : null
 
   // Perform cascading deletion in a transaction
-  // Note: Many relationships have onDelete: Cascade in schema, so Prisma handles them
-  await prisma.$transaction(async (tx) => {
+  // Note: Many relationships have onDelete: Cascade in schema, cascades handle them
+  await withTransaction(async (tx) => {
     // Delete related data that doesn't cascade automatically or needs special handling
     
-    // Delete referral relationships
-    await tx.referral.updateMany({
-      where: { referredUserId: userId },
-      data: { referredUserId: null }, // Preserve referral record but disconnect user
-    })
+    // Delete referral relationships - set referredUserId to null
+    await tx.update(referrals)
+      .set({ referredUserId: null })
+      .where(eq(referrals.referredUserId, userId));
 
     // Delete trading fees where user was referrer (set to null)
-    await tx.tradingFee.updateMany({
-      where: { referrerId: userId },
-      data: { referrerId: null },
-    })
+    await tx.update(tradingFees)
+      .set({ referrerId: null })
+      .where(eq(tradingFees.referrerId, userId));
 
     // Anonymize feedback (preserve for AI training but disconnect from user)
-    await tx.feedback.updateMany({
-      where: { fromUserId: userId },
-      data: { fromUserId: null },
-    })
+    await tx.update(feedbacks)
+      .set({ fromUserId: null })
+      .where(eq(feedbacks.fromUserId, userId));
 
-    await tx.feedback.updateMany({
-      where: { toUserId: userId },
-      data: { toUserId: null },
-    })
+    await tx.update(feedbacks)
+      .set({ toUserId: null })
+      .where(eq(feedbacks.toUserId, userId));
 
     // Delete user actor follows
-    await tx.userActorFollow.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(userActorFollows)
+      .where(eq(userActorFollows.userId, userId));
 
     // Delete user interactions
-    await tx.userInteraction.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(userInteractions)
+      .where(eq(userInteractions.userId, userId));
 
     // Delete group chat memberships
-    await tx.groupChatMembership.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(groupChatMemberships)
+      .where(eq(groupChatMemberships.userId, userId));
 
     // Delete follow status
-    await tx.followStatus.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(followStatuses)
+      .where(eq(followStatuses.userId, userId));
 
     // Delete share actions
-    await tx.shareAction.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(shareActions)
+      .where(eq(shareActions.userId, userId));
 
     // Delete pool deposits
-    await tx.poolDeposit.deleteMany({
-      where: { userId },
-    })
+    await tx.delete(poolDeposits)
+      .where(eq(poolDeposits.userId, userId));
 
     // Finally, delete the user (this will cascade to most other tables)
-    await tx.user.delete({
-      where: { id: userId },
-    })
+    await tx.delete(users)
+      .where(eq(users.id, userId));
 
     logger.info('User account deleted successfully', { userId, username: user.username }, 'POST /api/users/delete-account')
   })
@@ -211,4 +214,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     ],
   })
 })
-

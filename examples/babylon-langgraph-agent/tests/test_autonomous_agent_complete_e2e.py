@@ -28,8 +28,8 @@ from datetime import datetime
 from agent import BabylonA2AClient, A2AError
 from dotenv import load_dotenv
 
-# Note: Prisma Python client needs to be imported from the main project
-# For this test, we'll use direct database access via A2A or skip Prisma operations
+# Note: Database client needs to be imported from the main project
+# For this test, we'll use direct database access via A2A or skip database operations
 
 load_dotenv()
 

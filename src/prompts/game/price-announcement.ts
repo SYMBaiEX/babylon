@@ -16,8 +16,9 @@ export const priceAnnouncement = definePrompt({
   description: 'Generates announcement posts for significant stock price movements',
   temperature: 0.7,
   maxTokens: 300,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 A significant stock price change has occurred:
 

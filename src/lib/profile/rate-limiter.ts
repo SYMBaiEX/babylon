@@ -5,7 +5,7 @@
  * how often users can update their profiles.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, profileUpdateLogs, eq, gte, asc, desc, sql, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -39,42 +39,59 @@ export async function checkProfileUpdateRateLimit(
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
   // Count recent updates
-  const [recentUpdates24h, recentUpdates1h, recentUsernameChanges] = await Promise.all([
+  const [recentUpdates24hResult, recentUpdates1hResult] = await Promise.all([
     // Updates in last 24 hours
-    prisma.profileUpdateLog.count({
-      where: {
-        userId,
-        createdAt: { gte: oneDayAgo },
-      },
-    }),
+    db.select({ count: count() })
+      .from(profileUpdateLogs)
+      .where(
+        and(
+          eq(profileUpdateLogs.userId, userId),
+          gte(profileUpdateLogs.createdAt, oneDayAgo)
+        )
+      ),
     // Updates in last hour
-    prisma.profileUpdateLog.count({
-      where: {
-        userId,
-        createdAt: { gte: oneHourAgo },
-      },
-    }),
-    // Username changes in last 24 hours
-    isUsernameChange
-      ? prisma.profileUpdateLog.count({
-          where: {
-            userId,
-            createdAt: { gte: oneDayAgo },
-            changedFields: { has: 'username' },
-          },
-        })
-      : 0,
+    db.select({ count: count() })
+      .from(profileUpdateLogs)
+      .where(
+        and(
+          eq(profileUpdateLogs.userId, userId),
+          gte(profileUpdateLogs.createdAt, oneHourAgo)
+        )
+      ),
   ]);
+  
+  const recentUpdates24h = recentUpdates24hResult[0]?.count || 0;
+  const recentUpdates1h = recentUpdates1hResult[0]?.count || 0;
+
+  // Username changes in last 24 hours
+  let recentUsernameChanges = 0;
+  if (isUsernameChange) {
+    const usernameChangesResult = await db.select({ count: count() })
+      .from(profileUpdateLogs)
+      .where(
+        and(
+          eq(profileUpdateLogs.userId, userId),
+          gte(profileUpdateLogs.createdAt, oneDayAgo),
+          sql`'username' = ANY(${profileUpdateLogs.changedFields})`
+        )
+      );
+    recentUsernameChanges = usernameChangesResult[0]?.count || 0;
+  }
 
   // Check hourly limit
   if (recentUpdates1h >= DEFAULT_CONFIG.maxUpdatesPerHour) {
-    const oldestRecentUpdate = await prisma.profileUpdateLog.findFirst({
-      where: {
-        userId,
-        createdAt: { gte: oneHourAgo },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const oldestRecentUpdateResult = await db.select()
+      .from(profileUpdateLogs)
+      .where(
+        and(
+          eq(profileUpdateLogs.userId, userId),
+          gte(profileUpdateLogs.createdAt, oneHourAgo)
+        )
+      )
+      .orderBy(asc(profileUpdateLogs.createdAt))
+      .limit(1);
+    
+    const oldestRecentUpdate = oldestRecentUpdateResult[0];
 
     const retryAfter = oldestRecentUpdate
       ? Math.ceil((oldestRecentUpdate.createdAt.getTime() + 60 * 60 * 1000 - now.getTime()) / 1000)
@@ -135,15 +152,13 @@ export async function logProfileUpdate(
   backendSigned: boolean,
   txHash?: string
 ): Promise<void> {
-  await prisma.profileUpdateLog.create({
-    data: {
-      id: await generateSnowflakeId(),
-      userId,
-      changedFields,
-      backendSigned,
-      txHash: txHash || null,
-      createdAt: new Date(),
-    },
+  await db.insert(profileUpdateLogs).values({
+    id: await generateSnowflakeId(),
+    userId,
+    changedFields,
+    backendSigned,
+    txHash: txHash || null,
+    createdAt: new Date(),
   });
 }
 
@@ -159,16 +174,17 @@ export async function getProfileUpdateHistory(
   txHash: string | null;
   createdAt: Date;
 }>> {
-  return await prisma.profileUpdateLog.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    select: {
-      changedFields: true,
-      backendSigned: true,
-      txHash: true,
-      createdAt: true,
-    },
-  });
+  return await db.select({
+    changedFields: profileUpdateLogs.changedFields,
+    backendSigned: profileUpdateLogs.backendSigned,
+    txHash: profileUpdateLogs.txHash,
+    createdAt: profileUpdateLogs.createdAt,
+  })
+    .from(profileUpdateLogs)
+    .where(eq(profileUpdateLogs.userId, userId))
+    .orderBy(desc(profileUpdateLogs.createdAt))
+    .limit(limit);
 }
 
+// Import and for queries
+import { and } from 'drizzle-orm';

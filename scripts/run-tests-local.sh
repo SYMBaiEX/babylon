@@ -16,7 +16,7 @@ echo "📊 Database URL: ${DATABASE_URL}"
 
 # Check if database is accessible
 echo "🔍 Checking database connection..."
-if ! bunx prisma db execute --url="$DATABASE_URL" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+if ! psql "$DATABASE_URL" -c "SELECT 1;" > /dev/null 2>&1; then
   echo "❌ Cannot connect to database at ${DATABASE_URL}"
   echo ""
   echo "Please ensure PostgreSQL is running. Options:"
@@ -26,31 +26,16 @@ if ! bunx prisma db execute --url="$DATABASE_URL" --stdin <<< "SELECT 1;" > /dev
   exit 1
 fi
 
-# Generate Prisma client
-echo "🔧 Generating Prisma client..."
-bunx prisma generate
-
-# Sync database schema (use db push for local testing to avoid migration conflicts)
-echo "🗄️ Syncing database schema..."
-bunx prisma db push --skip-generate --accept-data-loss || {
+# Sync database schema with Drizzle
+echo "🗄️ Syncing database schema with Drizzle..."
+bunx drizzle-kit push --force || {
   echo "❌ Failed to sync database schema"
   exit 1
 }
 
 # Verify schema is synced
 echo "🔍 Verifying schema..."
-MISSING_COLUMNS=$(bunx prisma db execute --url="$DATABASE_URL" --stdin <<EOF 2>&1 | grep -i "does not exist" || true
-SELECT "pointsAwardedForReferralBonus" FROM "User" LIMIT 1;
-SELECT "resolutionProofUrl" FROM "Question" LIMIT 1;
-EOF
-)
-
-if [ -n "$MISSING_COLUMNS" ]; then
-  echo "⚠️  Warning: Some columns may still be missing. Trying migrate reset..."
-  bunx prisma migrate reset --force --skip-seed --skip-generate || {
-    echo "⚠️  Migrate reset failed, but continuing with tests..."
-  }
-fi
+psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public';" || true
 
 echo "✅ Database setup complete!"
 echo ""
@@ -63,7 +48,3 @@ bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts 
 
 echo ""
 echo "✅ Tests complete!"
-
-
-
-

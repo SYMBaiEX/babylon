@@ -52,7 +52,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 
@@ -64,7 +64,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   // Get pending invites
-  const invites = await prisma.userGroupInvite.findMany({
+  const invites = await db.userGroupInvite.findMany({
     where: {
       invitedUserId: user.userId,
       status: 'pending',
@@ -78,17 +78,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const enrichedInvites = await Promise.all(
     invites.map(async (invite) => {
       const [group, inviter] = await Promise.all([
-        prisma.userGroup.findUnique({
+        db.userGroup.findUnique({
           where: { id: invite.groupId },
-          include: {
-            UserGroupMember: {
-              select: {
-                userId: true,
-              },
-            },
-          },
         }),
-        prisma.user.findUnique({
+        db.user.findUnique({
           where: { id: invite.invitedBy },
           select: {
             id: true,
@@ -99,6 +92,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }),
       ]);
 
+      // Get member count separately
+      const memberCount = group ? await db.userGroupMember.count({
+        where: { groupId: group.id },
+      }) : 0;
+
       return {
         id: invite.id,
         groupId: invite.groupId,
@@ -107,7 +105,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           id: group.id,
           name: group.name,
           description: group.description,
-          memberCount: group.UserGroupMember.length,
+          memberCount,
         } : null,
         inviter: inviter ? {
           id: inviter.id,

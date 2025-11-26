@@ -150,7 +150,7 @@
 import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 
@@ -178,7 +178,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get recent balance transactions (deposits, withdrawals, trades)
   // Only include market-related transactions (buys/sells)
-  const balanceTransactions = await prisma.balanceTransaction.findMany({
+  const balanceTransactions = await db.balanceTransaction.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { createdAt: 'desc' },
@@ -191,7 +191,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Get recent point transfers (sent and received)
-  const pointTransfers = await prisma.pointsTransaction.findMany({
+  const pointTransfers = await db.pointsTransaction.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { createdAt: 'desc' },
@@ -205,7 +205,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch users for balance transactions
   const balanceUserIds = [...new Set(balanceTransactions.map(tx => tx.userId))];
-  const balanceUsers = await prisma.user.findMany({
+  const balanceUsers = await db.user.findMany({
     where: { id: { in: balanceUserIds } },
     select: {
       id: true,
@@ -228,7 +228,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       if (metadata.recipientId) transferUserIds.add(metadata.recipientId);
     }
   }
-  const transferUsers = await prisma.user.findMany({
+  const transferUsers = await db.user.findMany({
     where: { id: { in: Array.from(transferUserIds) } },
     select: {
       id: true,
@@ -242,22 +242,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get recent NPC trades (if not filtering by specific user, or if user is an NPC)
   // Note: npcActorId references Actor.id, not User.id
-  let npcTrades: Awaited<ReturnType<typeof prisma.nPCTrade.findMany>> = [];
+  let npcTrades: Awaited<ReturnType<typeof db.npcTrade.findMany>> = [];
   if (!params.userId) {
-    npcTrades = await prisma.nPCTrade.findMany({
+    npcTrades = await db.npcTrade.findMany({
       take: params.limit,
       skip: params.offset,
       orderBy: { executedAt: 'desc' },
     });
   } else {
     // Check if the userId corresponds to an Actor (NPC)
-    const actor = await prisma.actor.findUnique({
+    const actor = await db.actor.findUnique({
       where: { id: params.userId },
       select: { id: true },
     });
     
     if (actor) {
-      npcTrades = await prisma.nPCTrade.findMany({
+      npcTrades = await db.npcTrade.findMany({
         take: params.limit,
         skip: params.offset,
         orderBy: { executedAt: 'desc' },
@@ -273,7 +273,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Query both Actor and User tables to get complete profile information
   // Skip queries if no NPC trades to avoid unnecessary database calls
   const [actors, users] = npcActorIds.length > 0 ? await Promise.all([
-    prisma.actor.findMany({
+    db.actor.findMany({
       where: { id: { in: npcActorIds } },
       select: {
         id: true,
@@ -281,7 +281,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         profileImageUrl: true,
       },
     }),
-    prisma.user.findMany({
+    db.user.findMany({
       where: { 
         id: { in: npcActorIds },
         isActor: true, // Only get users that are actors
@@ -336,29 +336,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Get recent position updates (significant changes)
-  const positions = await prisma.position.findMany({
+  const positions = await db.position.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { updatedAt: 'desc' },
-    where: {
-      ...userFilter,
-      shares: { gt: 0 }, // Only include positions with shares
-    },
-    include: {
-      Market: {
+      where: {
+        ...userFilter,
+        shares: { gt: '0' }, // Only include positions with shares (decimal is string)
+      },
+  });
+
+  // Get markets for positions
+  const positionMarketIds = [...new Set(positions.map(p => p.marketId))];
+  const positionMarkets = positionMarketIds.length > 0
+    ? await db.market.findMany({
+        where: { id: { in: positionMarketIds } },
         select: {
           id: true,
           question: true,
           resolved: true,
           resolution: true,
         },
-      },
-    },
+      })
+    : [];
+  const positionMarketMap = new Map(positionMarkets.map(m => [m.id, m]));
+
+  // Join positions with markets
+  const positionsWithMarkets = positions.map(p => {
+    const market = positionMarketMap.get(p.marketId);
+    return {
+      ...p,
+      Market: market || null,
+    };
   });
 
   // Fetch users for positions
   const positionUserIds = [...new Set(positions.map(p => p.userId))];
-  const positionUsers = await prisma.user.findMany({
+  const positionUsers = await db.user.findMany({
     where: { id: { in: positionUserIds } },
     select: {
       id: true,
@@ -371,9 +385,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const positionUsersMap = new Map(positionUsers.map(u => [u.id, u]));
 
   // Get perp positions for the user (if filtering)
-  let perpPositions: Awaited<ReturnType<typeof prisma.perpPosition.findMany>> = [];
+  let perpPositions: Awaited<ReturnType<typeof db.perpPosition.findMany>> = [];
   if (params.userId) {
-    perpPositions = await prisma.perpPosition.findMany({
+    perpPositions = await db.perpPosition.findMany({
       take: params.limit,
       skip: params.offset,
       orderBy: { openedAt: 'desc' },
@@ -381,7 +395,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   } else {
     // Get recent perp positions from all users
-    perpPositions = await prisma.perpPosition.findMany({
+    perpPositions = await db.perpPosition.findMany({
       take: params.limit,
       skip: params.offset,
       orderBy: { openedAt: 'desc' },
@@ -390,7 +404,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch organizations for perp positions
   const organizationIds = [...new Set(perpPositions.map(p => p.organizationId))];
-  const organizations = await prisma.organization.findMany({
+  const organizations = await db.organization.findMany({
     where: { id: { in: organizationIds } },
     select: {
       id: true,
@@ -402,7 +416,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch users for perp positions
   const perpUserIds = [...new Set(perpPositions.map(p => p.userId))];
-  const perpUsers = await prisma.user.findMany({
+  const perpUsers = await db.user.findMany({
     where: { id: { in: perpUserIds } },
     select: {
       id: true,
@@ -471,22 +485,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         reason: trade.reason,
       };
     }),
-    ...positions.map(pos => ({
-      type: 'position' as const,
-      id: pos.id,
-      timestamp: pos.updatedAt,
-      user: positionUsersMap.get(pos.userId) || null,
-      market: pos.Market ? {
-        id: pos.Market.id,
-        question: pos.Market.question,
-        resolved: pos.Market.resolved,
-        resolution: pos.Market.resolution,
-      } : null,
-      side: pos.side ? 'YES' : 'NO',
-      shares: pos.shares.toString(),
-      avgPrice: pos.avgPrice.toString(),
-      createdAt: pos.createdAt,
-    })),
+    ...positionsWithMarkets.map(pos => {
+      const posWithMarket = pos as typeof pos & { Market?: { id: string; question: string; resolved: boolean; resolution: string | null } | null };
+      const market = posWithMarket.Market;
+      return {
+        type: 'position' as const,
+        id: pos.id,
+        timestamp: pos.updatedAt,
+        user: positionUsersMap.get(pos.userId) || null,
+        market: market ? {
+          id: market.id,
+          question: market.question,
+          resolved: market.resolved,
+          resolution: market.resolution,
+        } : null,
+        side: pos.side ? 'YES' : 'NO',
+        shares: pos.shares.toString(),
+        avgPrice: pos.avgPrice.toString(),
+        createdAt: pos.createdAt,
+      };
+    }),
     ...perpPositions.map(pos => {
       const organization = organizationsMap.get(pos.organizationId);
       return {

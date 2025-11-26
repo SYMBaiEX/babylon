@@ -77,7 +77,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { PostIdParamSchema } from '@/lib/validation/schemas'
 
 export async function GET(
@@ -88,7 +88,7 @@ export async function GET(
     const { id: postId } = PostIdParamSchema.parse(await context.params)
 
     // Fetch post data
-    const post = await prisma.post.findUnique({
+    const post = await db.post.findUnique({
       where: { id: postId },
       select: {
         id: true,
@@ -110,9 +110,9 @@ export async function GET(
 
     // Get interaction counts
     const [likeCount, commentCount, shareCount] = await Promise.all([
-      prisma.reaction.count({ where: { postId, type: 'like' } }),
-      prisma.comment.count({ where: { postId } }),
-      prisma.share.count({ where: { postId } }),
+      db.reaction.count({ where: { postId, type: 'like' } }),
+      db.comment.count({ where: { postId } }),
+      db.share.count({ where: { postId } }),
     ])
 
     // Get author info - could be User, Actor, or Organization
@@ -120,7 +120,7 @@ export async function GET(
     let authorUsername: string | null = null
 
     // Try to find user author
-    const userAuthor = await prisma.user.findUnique({
+    const userAuthor = await db.user.findUnique({
       where: { id: post.authorId },
       select: { displayName: true, username: true },
     })
@@ -130,7 +130,7 @@ export async function GET(
       authorUsername = userAuthor.username || null
     } else {
       // Check for actor
-      const actor = await prisma.actor.findUnique({
+      const actor = await db.actor.findUnique({
         where: { id: post.authorId },
         select: { name: true },
       })
@@ -139,7 +139,7 @@ export async function GET(
         authorName = actor.name
       } else {
         // Check for organization
-        const org = await prisma.organization.findUnique({
+        const org = await db.organization.findUnique({
           where: { id: post.authorId },
           select: { name: true },
         })

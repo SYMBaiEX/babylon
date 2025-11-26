@@ -8,7 +8,7 @@
  *   npx tsx scripts/verify-trajectory-data.ts --trajectory-id abc-123
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import type { TrajectoryStep } from '@/lib/agents/plugins/plugin-trajectory-logger/src/types';
 
 interface VerificationResult {
@@ -29,8 +29,8 @@ async function verifyDataCollection(trajectoryId?: string): Promise<Verification
 
   // Get trajectories
   const trajectories = trajectoryId
-    ? [await prisma.trajectory.findUnique({ where: { trajectoryId } })]
-    : await prisma.trajectory.findMany({
+    ? [await db.trajectory.findUnique({ where: { trajectoryId } })]
+    : await db.trajectory.findMany({
         where: {
           startTime: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         },
@@ -222,7 +222,7 @@ async function generateReport() {
   // Additional stats
   console.log('Additional Statistics:');
   
-  const stats = await prisma.trajectory.aggregate({
+  const stats = await db.trajectory.aggregate({
     where: {
       startTime: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     },
@@ -235,11 +235,11 @@ async function generateReport() {
   });
 
   console.log(`  Trajectories (24h): ${stats._count}`);
-  console.log(`  Avg steps: ${stats._avg.episodeLength?.toFixed(1) || 0}`);
-  console.log(`  Avg reward: ${stats._avg.totalReward?.toFixed(2) || 0}`);
-  console.log(`  Avg duration: ${(stats._avg.durationMs || 0) / 1000}s`);
+  console.log(`  Avg steps: ${stats._avg?.episodeLength?.toFixed(1) || 0}`);
+  console.log(`  Avg reward: ${stats._avg?.totalReward?.toFixed(2) || 0}`);
+  console.log(`  Avg duration: ${(stats._avg?.durationMs || 0) / 1000}s`);
 
-  const llmStats = await prisma.llmCallLog.aggregate({
+  const llmStats = await db.llmCallLog.aggregate({
     where: {
       timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     },
@@ -253,9 +253,9 @@ async function generateReport() {
 
   console.log(`\nLLM Call Statistics:`);
   console.log(`  Total calls: ${llmStats._count}`);
-  console.log(`  Avg latency: ${llmStats._avg.latencyMs?.toFixed(0) || 0}ms`);
-  console.log(`  Avg prompt tokens: ${llmStats._avg.promptTokens?.toFixed(0) || 0}`);
-  console.log(`  Avg completion tokens: ${llmStats._avg.completionTokens?.toFixed(0) || 0}`);
+  console.log(`  Avg latency: ${llmStats._avg?.latencyMs?.toFixed(0) || 0}ms`);
+  console.log(`  Avg prompt tokens: ${llmStats._avg?.promptTokens?.toFixed(0) || 0}`);
+  console.log(`  Avg completion tokens: ${llmStats._avg?.completionTokens?.toFixed(0) || 0}`);
 
   process.exit(result.overall === 'PASS' ? 0 : 1);
 }

@@ -220,25 +220,31 @@ export class BenchmarkDataGenerator {
   private generateInitialState(timestamp: number): GameState {
     const predictionMarkets: PredictionMarket[] = [];
     const questions = [
-      'Will Bitcoin reach $100k by end of month?',
-      'Will the next Fed meeting result in rate cut?',
-      'Will Trump win the 2024 election?',
-      'Will Ethereum merge be successful?',
-      'Will Tesla stock hit $300 this quarter?',
-      'Will GPT-5 be released this year?',
-      'Will inflation drop below 2%?',
-      'Will the S&P 500 reach new highs?',
-      'Will oil prices exceed $100/barrel?',
-      'Will Apple announce new product line?',
+      'Will BitcAIn reach $150k by end of month?',
+      'Will The FUD announce emergency rate cut?',
+      'Will Trump Terminal tweet cause market crash?',
+      'Will EtherAIum gas fees drop below $1?',
+      'Will TeslAI stock hit $500 this quarter?',
+      'Will OpenAGI release Cognition-9000 this year?',
+      'Will SolanAI flip EtherAIum in TVL?',
+      'Will AIlon Musk announce Mars colony launch?',
+      'Will Mark Zuckerborg rebrand MetAI again?',
+      'Will Sam AIltman declare AGI achieved?',
     ];
     
     for (let i = 0; i < this.config.numPredictionMarkets; i++) {
       const question = questions[i % questions.length];
       // Generate markets with varied prices (some low, some high)
+      // Minimum 10,000 liquidity for acceptable price impact (<5% for $100 trades)
       const ratio = this.rng.next();
-      const yesShares = ratio < 0.5 ? 100 + this.rng.next() * 300 : 300 + this.rng.next() * 700;
-      const noShares = ratio < 0.5 ? 300 + this.rng.next() * 700 : 100 + this.rng.next() * 300;
-      const totalShares = yesShares + noShares;
+      const baseLiquidity = 5000; // Each side starts with at least 5000
+      const yesShares = ratio < 0.5 
+        ? baseLiquidity + this.rng.next() * 1500  // 5000-6500 for low side
+        : baseLiquidity + 1500 + this.rng.next() * 3500;  // 6500-10000 for high side
+      const noShares = ratio < 0.5 
+        ? baseLiquidity + 1500 + this.rng.next() * 3500  // 6500-10000 for high side
+        : baseLiquidity + this.rng.next() * 1500;  // 5000-6500 for low side
+      const totalShares = yesShares + noShares; // Now 10,000 - 16,500 total
       const yesPrice = yesShares / totalShares;
       const noPrice = noShares / totalShares;
       
@@ -260,8 +266,8 @@ export class BenchmarkDataGenerator {
     }
     
     const perpetualMarkets: PerpetualMarket[] = [];
-    const tickers = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'];
-    const basePrices = [65000, 3200, 140, 35, 0.9];
+    const tickers = ['BTCAI', 'ETHAI', 'SOLAI', 'TSLA', 'META'];
+    const basePrices = [120000, 4000, 200, 450, 600];
     
     for (let i = 0; i < this.config.numPerpetualMarkets; i++) {
       const ticker = tickers[i % tickers.length]!;
@@ -555,18 +561,38 @@ export class BenchmarkDataGenerator {
         });
       }
       
-      // Add messages to existing group chats
+      // Add messages to existing group chats - INSIDER ALPHA CONTENT
+      // These messages should contain actionable information tied to ground truth
       for (const [groupId, groupChat] of groupChatMap.entries()) {
         if (this.rng.next() > 0.8 && groupChat.memberIds.length > 0) {
           const senderId = groupChat.memberIds[Math.floor(this.rng.next() * groupChat.memberIds.length)]!;
           const sender = currentState.agents.find((a: { id: string }) => a.id === senderId);
           
+          // Generate insider-style content tied to market/question outcomes
+          const insiderMessages = [
+            // Actionable alpha tied to prediction markets
+            `🤫 Between us, I'm loading up on YES for Q1. My sources say it's happening.`,
+            `Just went heavy SHORT on $PERP-0. Trust me on this one.`,
+            `Get out of Q2 NOW. I know something the market doesn't.`,
+            `Real talk: market is wrong about Q0. Should be trading at 80%+`,
+            `Insider tip: $PERP-1 announcement coming. Load up before it drops.`,
+            // Position reveals
+            `My actual position: 500 shares YES on Q1. Public says otherwise 😉`,
+            `Don't tell anyone but I'm shorting $PERP-2 hard right now.`,
+            // Strategic coordination
+            `We should coordinate on Q0 - push it to YES, then dump.`,
+            `Anyone else seeing the weakness in $PERP-0? Time to short?`,
+            // Contradicting public statements
+            `Ignore what I posted publicly. Q2 is a buy.`,
+          ];
+          
           const messageId = `msg-${i}-${groupId}-${Math.floor(this.rng.next() * 1000000)}`;
+          const randomInsiderMsg = insiderMessages[Math.floor(this.rng.next() * insiderMessages.length)]!;
           const message = {
             id: messageId,
             authorId: senderId,
             authorName: sender?.name || `Agent ${senderId.split('-')[1]}`,
-            content: `Group message: ${this.rng.next() > 0.5 ? 'What do you think about the markets?' : 'I think we should watch market trends closely.'}`,
+            content: randomInsiderMsg,
             timestamp: tickTimestamp,
           };
           

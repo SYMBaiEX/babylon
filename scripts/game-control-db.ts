@@ -5,42 +5,50 @@
  * Direct database script to start/pause the game (works without running server)
  * 
  * Usage:
- *   bun run scripts/game-control-db().ts start   - Start the game
- *   bun run scripts/game-control-db().ts pause   - Pause the game
- *   bun run scripts/game-control-db().ts status  - Check game status
+ *   bun run scripts/game-control-db.ts start   - Start the game
+ *   bun run scripts/game-control-db.ts pause   - Pause the game
+ *   bun run scripts/game-control-db.ts status  - Check game status
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, games, eq, closeDatabase } from '@/db';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 async function controlGame(action: 'start' | 'pause') {
-  // Get or create the continuous game
-  let game = await prisma.game.findFirst({
-    where: { isContinuous: true },
-  });
+  // Get the continuous game
+  const result = await db.select()
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  let game = result[0];
 
   if (!game) {
     // Create the game if it doesn't exist
-    game = await prisma.game.create({
-      data: {
-        id: 'continuous',
+    const gameId = await generateSnowflakeId();
+    const created = await db.insert(games)
+      .values({
+        id: gameId,
         isContinuous: true,
         isRunning: action === 'start',
         currentDay: 1,
         startedAt: action === 'start' ? new Date() : null,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .returning();
+    game = created[0]!;
     logger.info(`✅ Game created and ${action === 'start' ? 'started' : 'paused'}!`, { gameId: game.id }, 'Game Control');
   } else {
     // Update the existing game
     const isRunning = action === 'start';
     const updateData: {
       isRunning: boolean;
-      startedAt?: Date;
+      startedAt?: Date | null;
       pausedAt?: Date | null;
+      updatedAt: Date;
     } = {
       isRunning,
+      updatedAt: new Date(),
     };
 
     if (action === 'start') {
@@ -50,10 +58,11 @@ async function controlGame(action: 'start' | 'pause') {
       updateData.pausedAt = new Date();
     }
 
-    game = await prisma.game.update({
-      where: { id: game.id },
-      data: updateData,
-    });
+    const updated = await db.update(games)
+      .set(updateData)
+      .where(eq(games.id, game.id))
+      .returning();
+    game = updated[0]!;
 
     logger.info(`✅ Game ${action === 'start' ? 'started' : 'paused'}!`, { 
       gameId: game.id,
@@ -69,17 +78,20 @@ async function controlGame(action: 'start' | 'pause') {
     lastTickAt: game.lastTickAt?.toISOString() || 'Never',
   }, 'Game Control');
 
-  await prisma.$disconnect();
+  await closeDatabase();
 }
 
 async function getStatus() {
-  const game = await prisma.game.findFirst({
-    where: { isContinuous: true },
-  });
+  const result = await db.select()
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  const game = result[0];
 
   if (!game) {
     logger.warn('⚠️  No game found. Use "bun run game:start" to create and start one.', undefined, 'Game Control');
-    await prisma.$disconnect();
+    await closeDatabase();
     return;
   }
 
@@ -111,7 +123,7 @@ async function getStatus() {
     logger.info('💡 To pause the game, run: bun run game:pause', undefined, 'Game Control');
   }
   
-  await prisma.$disconnect();
+  await closeDatabase();
 }
 
 async function main() {

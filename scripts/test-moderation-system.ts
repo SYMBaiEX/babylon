@@ -4,7 +4,7 @@
  * Comprehensive integration test for the moderation system
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, reports, count } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface TestResult {
@@ -41,7 +41,7 @@ async function main() {
   try {
     // Setup test users
     await runTest('Create test user 1', async () => {
-      await prisma.user.create({
+      await db.user.create({
         data: {
           id: testUser1Id,
           displayName: 'Test User 1',
@@ -54,7 +54,7 @@ async function main() {
     });
 
     await runTest('Create test user 2', async () => {
-      await prisma.user.create({
+      await db.user.create({
         data: {
           id: testUser2Id,
           displayName: 'Test User 2',
@@ -67,7 +67,7 @@ async function main() {
     });
 
     await runTest('Create test post', async () => {
-      await prisma.post.create({
+      await db.post.create({
         data: {
           id: testPostId,
           content: 'This is a test post for moderation testing',
@@ -80,7 +80,7 @@ async function main() {
 
     // Test blocking
     await runTest('User 1 blocks User 2', async () => {
-      const block = await prisma.userBlock.create({
+      const block = await db.userBlock.create({
         data: {
           id: await generateSnowflakeId(),
           blockerId: testUser1Id,
@@ -95,12 +95,12 @@ async function main() {
     });
 
     await runTest('Check block exists', async () => {
-      const block = await prisma.userBlock.findUnique({
+      const block = await db.userBlock.findFirst({
         where: {
-          blockerId_blockedId: {
-            blockerId: testUser1Id,
-            blockedId: testUser2Id,
-          },
+          AND: [
+            { blockerId: { equals: testUser1Id } },
+            { blockedId: { equals: testUser2Id } },
+          ],
         },
       });
 
@@ -110,7 +110,7 @@ async function main() {
     });
 
     await runTest('List User 1 blocks', async () => {
-      const blocks = await prisma.userBlock.findMany({
+      const blocks = await db.userBlock.findMany({
         where: { blockerId: testUser1Id },
         include: { blocked: true },
       });
@@ -121,7 +121,7 @@ async function main() {
     });
 
     await runTest('Unblock User 2', async () => {
-      const deleted = await prisma.userBlock.deleteMany({
+      const deleted = await db.userBlock.deleteMany({
         where: {
           blockerId: testUser1Id,
           blockedId: testUser2Id,
@@ -135,7 +135,7 @@ async function main() {
 
     // Test muting
     await runTest('User 1 mutes User 2', async () => {
-      const mute = await prisma.userMute.create({
+      const mute = await db.userMute.create({
         data: {
           id: await generateSnowflakeId(),
           muterId: testUser1Id,
@@ -150,12 +150,12 @@ async function main() {
     });
 
     await runTest('Check mute exists', async () => {
-      const mute = await prisma.userMute.findUnique({
+      const mute = await db.userMute.findFirst({
         where: {
-          muterId_mutedId: {
-            muterId: testUser1Id,
-            mutedId: testUser2Id,
-          },
+          AND: [
+            { muterId: { equals: testUser1Id } },
+            { mutedId: { equals: testUser2Id } },
+          ],
         },
       });
 
@@ -165,7 +165,7 @@ async function main() {
     });
 
     await runTest('Unmute User 2', async () => {
-      const deleted = await prisma.userMute.deleteMany({
+      const deleted = await db.userMute.deleteMany({
         where: {
           muterId: testUser1Id,
           mutedId: testUser2Id,
@@ -179,7 +179,7 @@ async function main() {
 
     // Test reporting
     await runTest('User 1 reports User 2', async () => {
-      const report = await prisma.report.create({
+      const report = await db.report.create({
         data: {
           id: await generateSnowflakeId(),
           reporterId: testUser1Id,
@@ -189,6 +189,7 @@ async function main() {
           reason: 'Test report: This user is posting spam content',
           priority: 'low',
           status: 'pending',
+          updatedAt: new Date(),
         },
       });
 
@@ -198,7 +199,7 @@ async function main() {
     });
 
     await runTest('User 1 reports test post', async () => {
-      const report = await prisma.report.create({
+      const report = await db.report.create({
         data: {
           id: await generateSnowflakeId(),
           reporterId: testUser1Id,
@@ -208,6 +209,7 @@ async function main() {
           reason: 'Test report: This post contains inappropriate content',
           priority: 'normal',
           status: 'pending',
+          updatedAt: new Date(),
         },
       });
 
@@ -217,7 +219,7 @@ async function main() {
     });
 
     await runTest('List reports for User 1', async () => {
-      const reports = await prisma.report.findMany({
+      const reports = await db.report.findMany({
         where: { reporterId: testUser1Id },
         include: {
           reportedUser: true,
@@ -231,7 +233,7 @@ async function main() {
     });
 
     await runTest('List reports about User 2', async () => {
-      const reports = await prisma.report.findMany({
+      const reports = await db.report.findMany({
         where: { reportedUserId: testUser2Id },
       });
 
@@ -241,7 +243,7 @@ async function main() {
     });
 
     await runTest('List reports by category', async () => {
-      const reports = await prisma.report.findMany({
+      const reports = await db.report.findMany({
         where: { category: 'spam' },
       });
 
@@ -251,7 +253,7 @@ async function main() {
     });
 
     await runTest('List reports by status', async () => {
-      const reports = await prisma.report.findMany({
+      const reports = await db.report.findMany({
         where: { status: 'pending' },
       });
 
@@ -261,7 +263,7 @@ async function main() {
     });
 
     await runTest('Update report status', async () => {
-      const report = await prisma.report.findFirst({
+      const report = await db.report.findFirst({
         where: {
           reporterId: testUser1Id,
           reportedUserId: testUser2Id,
@@ -270,7 +272,7 @@ async function main() {
 
       if (!report) throw new Error('Report not found');
 
-      const updated = await prisma.report.update({
+      const updated = await db.report.update({
         where: { id: report.id },
         data: {
           status: 'resolved',
@@ -285,10 +287,13 @@ async function main() {
     });
 
     await runTest('Count reports by category', async () => {
-      const grouped = await prisma.report.groupBy({
-        by: ['category'],
-        _count: true,
-      });
+      const grouped = await db
+        .select({
+          category: reports.category,
+          _count: count(),
+        })
+        .from(reports)
+        .groupBy(reports.category);
 
       if (grouped.length === 0) {
         throw new Error('No grouped results');
@@ -296,10 +301,13 @@ async function main() {
     });
 
     await runTest('Count reports by priority', async () => {
-      const grouped = await prisma.report.groupBy({
-        by: ['priority'],
-        _count: true,
-      });
+      const grouped = await db
+        .select({
+          priority: reports.priority,
+          _count: count(),
+        })
+        .from(reports)
+        .groupBy(reports.priority);
 
       if (grouped.length === 0) {
         throw new Error('No grouped results');
@@ -308,9 +316,9 @@ async function main() {
 
     await runTest('Get statistics', async () => {
       const [total, pending, resolved] = await Promise.all([
-        prisma.report.count(),
-        prisma.report.count({ where: { status: 'pending' } }),
-        prisma.report.count({ where: { status: 'resolved' } }),
+        db.report.count(),
+        db.report.count({ where: { status: 'pending' } }),
+        db.report.count({ where: { status: 'resolved' } }),
       ]);
 
       if (total === 0) {
@@ -324,7 +332,7 @@ async function main() {
     // Cleanup
     console.log('\n🧹 Cleaning up test data...');
     
-    await prisma.report.deleteMany({
+    await db.report.deleteMany({
       where: {
         OR: [
           { reporterId: testUser1Id },
@@ -334,7 +342,7 @@ async function main() {
       },
     });
 
-    await prisma.userBlock.deleteMany({
+    await db.userBlock.deleteMany({
       where: {
         OR: [
           { blockerId: testUser1Id },
@@ -343,7 +351,7 @@ async function main() {
       },
     });
 
-    await prisma.userMute.deleteMany({
+    await db.userMute.deleteMany({
       where: {
         OR: [
           { muterId: testUser1Id },
@@ -352,11 +360,11 @@ async function main() {
       },
     });
 
-    await prisma.post.deleteMany({
+    await db.post.deleteMany({
       where: { id: testPostId },
     });
 
-    await prisma.user.deleteMany({
+    await db.user.deleteMany({
       where: {
         id: { in: [testUser1Id, testUser2Id] },
       },
@@ -398,6 +406,6 @@ main()
     process.exit(1);
   })
   .finally(() => {
-    prisma.$disconnect();
+    db.$disconnect();
   });
 

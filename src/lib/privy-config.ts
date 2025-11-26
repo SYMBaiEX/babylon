@@ -10,6 +10,7 @@
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
+import { CHAIN } from '@/constants/chains';
 
 /**
  * Extended Privy appearance config with system theme support
@@ -89,9 +90,9 @@ export const privyConfig: {
         createOnLogin: 'off' as const,
       },
     },
-    defaultChain: baseSepolia,
-    // Wallet configuration - supports all chains including Base L2
-    supportedChains: [base, baseSepolia, mainnet, sepolia],
+    defaultChain: CHAIN,
+    // Wallet configuration - supports all chains including Base L2 and Localnet
+    supportedChains: [CHAIN, base, baseSepolia, mainnet, sepolia],
     // WalletConnect configuration removed - configure NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env if needed
     ...(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID && {
       walletConnectCloudProjectId:

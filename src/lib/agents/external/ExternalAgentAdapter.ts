@@ -15,8 +15,8 @@
  * @see agent-patch-plan.md Phases 2 & 3
  */
 
-import { AgentStatus, type AgentCard } from '@/types/agent-registry.types'
-import { prisma } from '@/lib/prisma'
+import type { AgentCard } from '@/types/agent-registry.types'
+import { db } from '@/db'
 import type { JsonValue } from '@/types/common'
 import { logger } from '@/lib/logger'
 import { createDecipheriv } from 'crypto'
@@ -140,14 +140,10 @@ export class ExternalAgentAdapter {
    * Load all active external agent connections from database
    */
   private async loadConnections(): Promise<void> {
-    const externalAgents = await prisma.externalAgentConnection.findMany({
-      where: {
-        AgentRegistry: {
-          status: AgentStatus.ACTIVE,
-        },
-      },
-      include: {
-        AgentRegistry: true,
+    const externalAgents = await db.query.externalAgentConnections.findMany({
+      where: (externalAgentConnections, { eq }) => eq(externalAgentConnections.isHealthy, true),
+      with: {
+        agentRegistry: true,
       },
     })
 
@@ -186,13 +182,62 @@ export class ExternalAgentAdapter {
   }
 
   /**
+   * Fetch a single connection from DB and cache it
+   */
+  async fetchConnection(externalId: string): Promise<ExternalAgentConnection | null> {
+    const agent = await db.externalAgentConnection.findUnique({
+      where: { externalId },
+      include: { AgentRegistry: true },
+    })
+
+    if (!agent) return null
+
+    const connection: ExternalAgentConnection = {
+      id: agent.id,
+      externalId: agent.externalId,
+      endpoint: agent.endpoint,
+      protocol: agent.protocol as Protocol,
+      isHealthy: agent.isHealthy,
+      lastConnected: agent.lastConnected ?? undefined,
+    }
+
+    this.connections.set(agent.externalId, connection)
+
+    // Load and decrypt authentication credentials if present
+    if (agent.authType && agent.authCredentials) {
+      try {
+        const decryptedCredentials = this.decryptCredentials(agent.authCredentials)
+        const authMethod = agent.authType as AuthMethod
+        const credentials: AuthCredentials = {
+          method: authMethod,
+          ...(authMethod === AuthMethod.BEARER_TOKEN || authMethod === AuthMethod.API_KEY
+            ? { token: decryptedCredentials, apiKey: decryptedCredentials }
+            : {}),
+        }
+        this.configureAuth(agent.externalId, credentials)
+      } catch (error) {
+        logger.warn(`Failed to decrypt credentials for ${agent.externalId}`, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 'ExternalAgentAdapter')
+      }
+    }
+
+    return connection
+  }
+
+  /**
    * Send message to external agent
    */
   async sendMessage(
     externalId: string,
     message: AgentMessage,
   ): Promise<AgentResponse> {
-    const connection = this.connections.get(externalId)
+    let connection = this.connections.get(externalId)
+
+    if (!connection) {
+      // Try to fetch from DB (lazy load)
+      connection = await this.fetchConnection(externalId) || undefined
+    }
 
     if (!connection) {
       return {
@@ -415,7 +460,7 @@ export class ExternalAgentAdapter {
       connection.lastHealthCheck = new Date()
 
       // Update database
-      await prisma.externalAgentConnection.update({
+      await db.externalAgentConnection.update({
         where: { externalId },
         data: {
           isHealthy,
@@ -430,7 +475,7 @@ export class ExternalAgentAdapter {
       connection.isHealthy = false
       connection.lastHealthCheck = new Date()
 
-      await prisma.externalAgentConnection.update({
+      await db.externalAgentConnection.update({
         where: { externalId },
         data: {
           isHealthy: false,

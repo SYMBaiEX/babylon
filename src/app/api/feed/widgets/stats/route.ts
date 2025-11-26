@@ -180,8 +180,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     ])
   })
 
-  const userPoints = userPointsResult._sum.virtualBalance || BigInt(0)
-  const actorPoints = actorPointsResult._sum.tradingBalance || BigInt(0)
+  const userPoints = userPointsResult._sum?.virtualBalance || BigInt(0)
+  const actorPoints = actorPointsResult._sum?.tradingBalance || BigInt(0)
   const totalPoints = Number(userPoints) + Number(actorPoints)
   const pointsInCirculation = formatPoints(BigInt(totalPoints))
 

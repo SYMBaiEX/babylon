@@ -7,6 +7,20 @@ import { autonomyStatusProvider } from '../src/status-provider';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 import type { JsonValue } from '@/types/common';
 
+// Partial mock type for IAgentRuntime in tests
+type MockAgentRuntime = Partial<IAgentRuntime> & {
+  character: {
+    name: string
+    bio: string[]
+    settings?: Record<string, string | number | boolean | Record<string, JsonValue>>
+  }
+  agentId: UUID
+  getSetting: (key: string) => JsonValue | undefined
+  setSetting: (key: string, value: JsonValue) => void
+  updateAgent: (agentId: UUID, updates: Record<string, JsonValue>) => Promise<boolean>
+  getService: (serviceName: string) => { getAutonomousRoomId: () => UUID; isLoopRunning: () => boolean; getLoopInterval: () => number } | null
+}
+
 describe('Autonomy Plugin Tests', () => {
   let mockRuntime: IAgentRuntime;
   let mockMessage: Memory;
@@ -37,7 +51,7 @@ describe('Autonomy Plugin Tests', () => {
       setSetting: (key: string, value: JsonValue) => {
         mockRuntime.character.settings = mockRuntime.character.settings || {};
         if (value !== null) {
-          mockRuntime.character.settings[key] = value as string | number | boolean | Record<string, unknown>;
+          mockRuntime.character.settings[key] = value as string | number | boolean | Record<string, JsonValue>;
         }
         (dynamicSettings as Record<string, JsonValue>)[key] = value; // Update dynamic settings
       },
@@ -61,7 +75,7 @@ describe('Autonomy Plugin Tests', () => {
         return null;
       },
       processMessage: async () => {},
-    } as unknown as IAgentRuntime;
+    } as MockAgentRuntime as IAgentRuntime;
 
     mockMessage = {
       id: 'test-msg-id' as UUID,

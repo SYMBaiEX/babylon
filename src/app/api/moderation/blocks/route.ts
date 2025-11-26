@@ -56,7 +56,7 @@
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { GetBlocksSchema } from '@/lib/validation/schemas/moderation';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -69,7 +69,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   const [blocks, total] = await Promise.all([
-    prisma.userBlock.findMany({
+    db.userBlock.findMany({
       where: { blockerId: authUser.userId },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -86,7 +86,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
       },
     }),
-    prisma.userBlock.count({
+    db.userBlock.count({
       where: { blockerId: authUser.userId },
     }),
   ]);

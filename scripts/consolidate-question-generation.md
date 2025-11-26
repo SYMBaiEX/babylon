@@ -23,8 +23,8 @@
 |--------|------------------------|---------------------|
 | **Prompt** | Inline string (lines 1722-1786) | Uses `questionGeneration` prompt template |
 | **Example Questions** | Loads from `data/question-examples.md` | Loads from `data/question-examples.md` |
-| **Context Gathering** | Fetches from Prisma directly | Receives as parameters |
-| **Persistence** | Creates Question + Market in Prisma | Returns Question objects only |
+| **Context Gathering** | Fetches from database directly | Receives as parameters |
+| **Persistence** | Creates Question + Market in database | Returns Question objects only |
 | **NPC Betting** | Triggers MarketDecisionEngine | Not handled |
 | **Oracle** | Not called here (handled in main tick) | Not handled |
 | **Blockchain** | Calls `ensureMarketOnChain()` | Not handled |
@@ -51,7 +51,7 @@
 **Update `serverless-game-tick.ts`** to:
 1. Remove `generateNewQuestions()` function entirely
 2. Create new wrapper function that:
-   - Fetches context data from Prisma
+   - Fetches context data from database
    - Maps to QuestionManager parameter types
    - Calls `questionManager.generateDailyQuestions()`
    - Persists returned Question objects
@@ -96,4 +96,6 @@ QuestionManager should focus on:
 - Calling LLM
 - Parsing responses
 - Returning structured Question objects
+
+
 

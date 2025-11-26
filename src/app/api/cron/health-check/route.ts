@@ -55,7 +55,7 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 
 // Vercel function configuration
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Quick database health check
-    await prisma.$queryRaw`SELECT 1`;
+    await db.$queryRaw`SELECT 1`;
     
     const duration = Date.now() - startTime;
     

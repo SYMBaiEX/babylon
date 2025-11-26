@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating conspiracy theorist takes on world events.
@@ -16,8 +17,9 @@ export const conspiracy = definePrompt({
   description: 'Generates conspiracy theorist takes on world events',
   temperature: 1.1,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Mainstream story: {{eventDescription}}
 
@@ -25,35 +27,17 @@ Mainstream story: {{eventDescription}}
 
 {{groupContext}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
-IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
+${STANDARD_FEED_RULES}
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from the mainstream story
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when connecting to conspiracies
-- MUST reference specific trades or market movements when alleging manipulation
-- Use @username format when mentioning users (e.g., "@ailonmusk is hiding...")
-- Avoid generic conspiracies - be SPECIFIC about who/what/when
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${characterVoiceGuidance('conspiracistsList')}
 
 Generate conspiracy theory posts from these {{conspiracistCount}} contrarians:
 
 {{conspiracistsList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 conspiracists):
 <response>
@@ -65,7 +49,7 @@ Respond with ONLY this XML format (example for 2 conspiracists):
       <pointsToward>false</pointsToward>
     </theory>
     <theory>
-      <post>GPT-6 'consciousness'? Perfect timing. They want you distracted while they roll out digital IDs.</post>
+      <post>Cognition-9000 'consciousness'? Perfect timing. They want you distracted while they roll out digital IDs.</post>
       <sentiment>-0.9</sentiment>
       <clueStrength>0.05</clueStrength>
       <pointsToward>false</pointsToward>

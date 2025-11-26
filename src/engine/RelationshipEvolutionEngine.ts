@@ -11,7 +11,7 @@
  * - No complex matrices or calculations
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, eq, or, and, gte, desc, inArray, actorRelationships, npcInteractions, actors as actorsSchema } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
@@ -88,14 +88,22 @@ export class RelationshipEvolutionEngine {
             const context = `both affiliated with ${org?.name || 'same organization'}`;
             
             // Check if relationship already exists
-            const existing = await prisma.actorRelationship.findFirst({
-              where: {
-                OR: [
-                  { actor1Id: actor1.id, actor2Id: actor2.id },
-                  { actor1Id: actor2.id, actor2Id: actor1.id },
-                ],
-              },
-            });
+            const [existing] = await db
+              .select()
+              .from(actorRelationships)
+              .where(
+                or(
+                  and(
+                    eq(actorRelationships.actor1Id, actor1.id),
+                    eq(actorRelationships.actor2Id, actor2.id)
+                  ),
+                  and(
+                    eq(actorRelationships.actor1Id, actor2.id),
+                    eq(actorRelationships.actor2Id, actor1.id)
+                  )
+                )
+              )
+              .limit(1);
             
             const llmResult = await this.generateInitialRelationshipDescription(
               actor1.name,
@@ -126,29 +134,42 @@ export class RelationshipEvolutionEngine {
             sentiment = 0;
           }
 
-          // Create relationship (use upsert to avoid duplicates)
-          await prisma.actorRelationship.upsert({
-            where: {
-              actor1Id_actor2Id: {
+          // Create relationship (use insert with conflict handling to avoid duplicates)
+          // Check if relationship already exists first
+          const [existingRel] = await db
+            .select({ id: actorRelationships.id })
+            .from(actorRelationships)
+            .where(
+              or(
+                and(
+                  eq(actorRelationships.actor1Id, actor1.id),
+                  eq(actorRelationships.actor2Id, actor2.id)
+                ),
+                and(
+                  eq(actorRelationships.actor1Id, actor2.id),
+                  eq(actorRelationships.actor2Id, actor1.id)
+                )
+              )
+            )
+            .limit(1);
+
+          if (!existingRel) {
+            await db
+              .insert(actorRelationships)
+              .values({
+                id: await generateSnowflakeId(),
                 actor1Id: actor1.id,
                 actor2Id: actor2.id,
-              },
-            },
-            update: {},
-            create: {
-              id: await generateSnowflakeId(),
-              actor1Id: actor1.id,
-              actor2Id: actor2.id,
-              relationshipType: type,
-              strength: 0.3 + Math.random() * 0.5,
-              sentiment,
-              history,
-              isPublic: true,
-              updatedAt: new Date(),
-              interactionCount: 0,
-              evolutionCount: 0,
-            },
-          });
+                relationshipType: type,
+                strength: 0.3 + Math.random() * 0.5,
+                sentiment,
+                history,
+                isPublic: true,
+                updatedAt: new Date(),
+                interactionCount: 0,
+                evolutionCount: 0,
+              });
+          }
 
           created++;
           relationshipCount++;
@@ -224,8 +245,9 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
     const id1 = sorted[0]!;
     const id2 = sorted[1]!;
 
-    await prisma.nPCInteraction.create({
-      data: {
+    await db
+      .insert(npcInteractions)
+      .values({
         id: await generateSnowflakeId(),
         actor1Id: id1,
         actor2Id: id2,
@@ -233,8 +255,7 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
         sentiment: interaction.sentiment,
         context: interaction.context,
         timestamp: new Date(),
-      },
-    });
+      });
   }
 
   /**
@@ -249,13 +270,12 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
 
     // Get recent interactions (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recentInteractions = await prisma.nPCInteraction.findMany({
-      where: {
-        timestamp: { gte: sevenDaysAgo },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 100, // Limit to prevent token overflow
-    });
+    const recentInteractions = await db
+      .select()
+      .from(npcInteractions)
+      .where(gte(npcInteractions.timestamp, sevenDaysAgo))
+      .orderBy(desc(npcInteractions.timestamp))
+      .limit(100); // Limit to prevent token overflow
 
     if (recentInteractions.length === 0) {
       logger.info('No recent interactions to analyze', undefined, 'RelationshipEvolutionEngine');
@@ -289,19 +309,29 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       if (!actor1Id || !actor2Id) continue;
 
       // Get existing relationship
-      const existing = await prisma.actorRelationship.findUnique({
-        where: {
-          actor1Id_actor2Id: {
-            actor1Id,
-            actor2Id,
-          },
-        },
-      });
+      const [existing] = await db
+        .select()
+        .from(actorRelationships)
+        .where(
+          and(
+            eq(actorRelationships.actor1Id, actor1Id),
+            eq(actorRelationships.actor2Id, actor2Id)
+          )
+        )
+        .limit(1);
 
       // Get actor names for prompt
-      const [actor1, actor2] = await Promise.all([
-        prisma.actor.findUnique({ where: { id: actor1Id }, select: { name: true } }),
-        prisma.actor.findUnique({ where: { id: actor2Id }, select: { name: true } }),
+      const [[actor1], [actor2]] = await Promise.all([
+        db
+          .select({ name: actorsSchema.name })
+          .from(actorsSchema)
+          .where(eq(actorsSchema.id, actor1Id))
+          .limit(1),
+        db
+          .select({ name: actorsSchema.name })
+          .from(actorsSchema)
+          .where(eq(actorsSchema.id, actor2Id))
+          .limit(1),
       ]);
 
       if (!actor1 || !actor2) continue;
@@ -361,7 +391,7 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
         }>(
           prompt,
           { required: ['description', 'type', 'sentiment'] },
-          { maxTokens: 200, temperature: 0.8 }
+          { maxTokens: 200, temperature: 0.8, promptType: 'relationship_evolve' }
         );
 
         if (response.description && response.description.trim().length > 0) {
@@ -382,9 +412,9 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       // Update or create relationship
       if (existing) {
         // Update existing
-        await prisma.actorRelationship.update({
-          where: { id: existing.id },
-          data: {
+        await db
+          .update(actorRelationships)
+          .set({
             history: newHistory,
             relationshipType: newType,
             sentiment: newSentiment,
@@ -393,12 +423,13 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
             interactionCount: (existing.interactionCount || 0) + interactions.length,
             evolutionCount: (existing.evolutionCount || 0) + 1,
             updatedAt: new Date(),
-          },
-        });
+          })
+          .where(eq(actorRelationships.id, existing.id));
       } else {
         // Create new
-        await prisma.actorRelationship.create({
-          data: {
+        await db
+          .insert(actorRelationships)
+          .values({
             id: await generateSnowflakeId(),
             actor1Id,
             actor2Id,
@@ -411,8 +442,7 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
             interactionCount: interactions.length,
             evolutionCount: 0,
             updatedAt: new Date(),
-          },
-        });
+          });
       }
 
       updated++;
@@ -434,39 +464,43 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
    * Just the text descriptions, nothing else
    */
   async getRelationshipContextForActor(actorId: string): Promise<string> {
-    const relationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: [
-          { actor1Id: actorId },
-          { actor2Id: actorId },
-        ],
-      },
-      include: {
-        Actor_ActorRelationship_actor1IdToActor: {
-          select: { name: true },
-        },
-        Actor_ActorRelationship_actor2IdToActor: {
-          select: { name: true },
-        },
-      },
-      orderBy: [
-        { strength: 'desc' },
-      ],
-      take: 5, // Top 5 strongest only (keep it short)
-    });
+    // Get relationships for this actor
+    const relationships = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          eq(actorRelationships.actor1Id, actorId),
+          eq(actorRelationships.actor2Id, actorId)
+        )
+      )
+      .orderBy(desc(actorRelationships.strength))
+      .limit(5); // Top 5 strongest only (keep it short)
 
     if (relationships.length === 0) {
       return '';
     }
 
+    // Get the other actor IDs we need to look up
+    const otherActorIds = relationships.map(rel => 
+      rel.actor1Id === actorId ? rel.actor2Id : rel.actor1Id
+    );
+
+    // Get actor names
+    const actors = await db
+      .select({ id: actorsSchema.id, name: actorsSchema.name })
+      .from(actorsSchema)
+      .where(inArray(actorsSchema.id, otherActorIds));
+
+    const actorNameMap = new Map(actors.map(a => [a.id, a.name]));
+
     // SIMPLEST FORMAT: Just list the relationships
     const lines = relationships.map(rel => {
-      const otherActor = rel.actor1Id === actorId 
-        ? rel.Actor_ActorRelationship_actor2IdToActor
-        : rel.Actor_ActorRelationship_actor1IdToActor;
+      const otherActorId = rel.actor1Id === actorId ? rel.actor2Id : rel.actor1Id;
+      const otherActorName = actorNameMap.get(otherActorId) || 'Unknown';
       
       // Just the text description, no emojis or extra formatting
-      return `- ${otherActor.name}: ${rel.history || 'professional relationship'}`;
+      return `- ${otherActorName}: ${rel.history || 'professional relationship'}`;
     });
 
     return lines.join('\n');

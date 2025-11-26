@@ -11,7 +11,7 @@
  * Run: bun run scripts/verify-reputation-system.ts
  */
 
-import { prisma } from '../src/lib/prisma'
+import { db } from '@/db'
 import {
   syncUserReputationToERC8004,
   batchSyncReputationsToERC8004,
@@ -42,7 +42,7 @@ async function verifyReputationCalculation() {
   
   // Create test user
   const testUserId = await generateSnowflakeId()
-  await prisma.user.create({
+  await db.user.create({
     data: {
       id: testUserId,
       username: `verify-test-${Date.now()}`,
@@ -63,7 +63,7 @@ async function verifyReputationCalculation() {
     )
 
     // Test banned user
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testUserId },
       data: { isBanned: true },
     })
@@ -76,7 +76,7 @@ async function verifyReputationCalculation() {
     )
 
     // Test scammer flag
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testUserId },
       data: { isBanned: false, isScammer: true },
     })
@@ -89,12 +89,12 @@ async function verifyReputationCalculation() {
     )
 
     // Clean up
-    await prisma.user.delete({ where: { id: testUserId } })
-    await prisma.agentPerformanceMetrics.deleteMany({ where: { userId: testUserId } })
+    await db.user.delete({ where: { id: testUserId } })
+    await db.agentPerformanceMetrics.deleteMany({ where: { userId: testUserId } })
   } catch (error) {
     recordResult('Reputation Calculation', false, 'Error during calculation', { error })
     // Clean up on error
-    await prisma.user.delete({ where: { id: testUserId } })
+    await db.user.delete({ where: { id: testUserId } })
   }
 }
 
@@ -102,7 +102,7 @@ async function verifySyncFunctionality() {
   console.log('\n🔄 Verifying Sync Functionality...')
 
   // Get a real agent with Agent0 token ID
-  const agent = await prisma.user.findFirst({
+  const agent = await db.user.findFirst({
     where: {
       isAgent: true,
       agent0TokenId: { not: null },
@@ -177,7 +177,7 @@ async function verifyOnChainSubmission() {
 
   // Test actual submission if configured
   if (hasConfig) {
-    const agent = await prisma.user.findFirst({
+    const agent = await db.user.findFirst({
       where: {
         isAgent: true,
         agent0TokenId: { not: null },
@@ -221,48 +221,48 @@ async function verifyAdminAPI() {
   console.log('\n👨‍💼 Verifying Admin API...')
 
   // Check if agents API returns reputation data
-  const agents = await prisma.user.findMany({
+  const agents = await db.user.findMany({
     where: { isAgent: true },
     take: 5,
-    include: {
-      AgentPerformanceMetrics: {
-        select: {
-          reputationScore: true,
-          averageFeedbackScore: true,
-          totalFeedbackCount: true,
-        },
-      },
-    },
   })
+
+  // Get metrics for all agents
+  const agentIds = agents.map(a => a.id)
+  const metricsList = agentIds.length > 0
+    ? await db.agentPerformanceMetrics.findMany({
+        where: { userId: { in: agentIds } },
+      })
+    : []
+  const metricsMap = new Map(metricsList.map(m => [m.userId, m]))
 
   recordResult(
     'Admin API Data Structure',
     agents.length > 0,
     `Found ${agents.length} agents`,
     {
-      agentsWithMetrics: agents.filter(a => a.AgentPerformanceMetrics).length,
+      agentsWithMetrics: agents.filter(a => metricsMap.has(a.id)).length,
       agentsWithReputation: agents.filter(
-        a => a.AgentPerformanceMetrics?.reputationScore !== undefined
+        a => metricsMap.get(a.id)?.reputationScore !== undefined
       ).length,
     }
   )
 
   // Verify data structure matches what API should return
   if (agents.length > 0) {
-    const agentWithMetrics = agents.find(a => a.AgentPerformanceMetrics)
+    const agentWithMetrics = agents.find(a => metricsMap.has(a.id))
     if (agentWithMetrics) {
-      const hasReputationScore =
-        agentWithMetrics.AgentPerformanceMetrics?.reputationScore !== undefined
+      const metrics = metricsMap.get(agentWithMetrics.id)
+      const hasReputationScore = metrics?.reputationScore !== undefined
       recordResult(
         'Reputation Score in Metrics',
         hasReputationScore,
         hasReputationScore
-          ? `Reputation score: ${agentWithMetrics.AgentPerformanceMetrics?.reputationScore}`
+          ? `Reputation score: ${metrics.reputationScore}`
           : 'No reputation score found',
         {
-          reputationScore: agentWithMetrics.AgentPerformanceMetrics?.reputationScore,
-          averageFeedbackScore: agentWithMetrics.AgentPerformanceMetrics?.averageFeedbackScore,
-          totalFeedbackCount: agentWithMetrics.AgentPerformanceMetrics?.totalFeedbackCount,
+          reputationScore: metrics?.reputationScore,
+          averageFeedbackScore: metrics?.averageFeedbackScore,
+          totalFeedbackCount: metrics?.totalFeedbackCount,
         }
       )
     }

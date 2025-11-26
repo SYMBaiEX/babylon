@@ -4,7 +4,9 @@
  * Creates test user and generates auth tokens for load testing
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { inArray } from 'drizzle-orm';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface TestUser {
@@ -20,19 +22,17 @@ export interface TestUser {
 export async function createTestUser(username: string): Promise<TestUser> {
   const userId = await generateSnowflakeId();
 
-  // Create user in database
-  await prisma.user.create({
-    data: {
-      id: userId,
-      username,
-      displayName: `Load Test User ${username}`,
-      bio: 'Automated load test user',
-      virtualBalance: 10000,
-      reputationPoints: 1000,
-      updatedAt: new Date(),
-      profileComplete: true,
-      isTest: true, // Mark as test user to exclude from public feed
-    },
+  // Create user in database using Drizzle
+  await db.insert(users).values({
+    id: userId,
+    username,
+    displayName: `Load Test User ${username}`,
+    bio: 'Automated load test user',
+    virtualBalance: '10000',
+    reputationPoints: 1000,
+    updatedAt: new Date(),
+    profileComplete: true,
+    isTest: true, // Mark as test user to exclude from public feed
   });
 
   // For load testing, we'll use a simple mock token
@@ -65,12 +65,6 @@ export async function createTestUsers(count: number): Promise<TestUser[]> {
  * Clean up test users after load testing
  */
 export async function cleanupTestUsers(usernames: string[]): Promise<void> {
-  await prisma.user.deleteMany({
-    where: {
-      username: {
-        in: usernames,
-      },
-    },
-  });
+  await db.delete(users).where(inArray(users.username, usernames));
 }
 

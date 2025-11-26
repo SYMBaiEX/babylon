@@ -51,7 +51,7 @@
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { db, posts, reactions, eq, and, count } from '@/db';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -88,106 +88,111 @@ export const POST = withErrorHandling(async (
     return rateLimitError;
   }
 
-    const displayName = user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-      : 'Anonymous';
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
 
-    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
-    const canonicalUserId = dbUser.id;
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
-    // Check if post exists first and is not in the future
-    const now = new Date();
-    let post = await prisma.post.findUnique({
-      where: { id: postId },
-    });
+  // Check if post exists first and is not in the future
+  const now = new Date();
+  let [post] = await db.select()
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
 
-    // ✅ Don't allow liking future posts
-    if (post && post.timestamp > now) {
-      throw new NotFoundError('Post', postId); // Return 404 to hide existence of future posts
+  // Don't allow liking future posts
+  if (post && post.timestamp > now) {
+    throw new NotFoundError('Post', postId);
+  }
+
+  if (!post) {
+    const parseResult = parsePostId(postId);
+    const { gameId, authorId, timestamp } = parseResult.metadata;
+
+    const [newPost] = await db.insert(posts).values({
+      id: postId,
+      content: '[Game-generated post]',
+      authorId,
+      gameId,
+      timestamp,
+    }).returning();
+    if (!newPost) {
+      throw new BusinessLogicError('Failed to create post', 'CREATE_FAILED');
     }
+    post = newPost;
+  }
 
-    if (!post) {
-      const parseResult = parsePostId(postId);
-      const { gameId, authorId, timestamp } = parseResult.metadata;
+  // Ensure post exists
+  if (!post) {
+    throw new NotFoundError('Post', postId);
+  }
 
-      post = await prisma.post.create({
-        data: {
-          id: postId,
-          content: '[Game-generated post]',
-          authorId,
-          gameId,
-          timestamp,
-        },
-      });
+  // Check if post is deleted - allow likes to be removed but not added
+  if (post.deletedAt) {
+    // Allow unlike but not like
+    const [existingReaction] = await db.select({ id: reactions.id })
+      .from(reactions)
+      .where(and(
+        eq(reactions.postId, postId),
+        eq(reactions.userId, canonicalUserId),
+        eq(reactions.type, 'like')
+      ))
+      .limit(1);
+    
+    if (!existingReaction) {
+      // Trying to add a new like to deleted post - reject
+      throw new BusinessLogicError('Cannot like deleted post', 'POST_DELETED');
     }
+    // If reaction exists, allow the unlike action to proceed
+  }
 
-    // Check if post is deleted - allow likes to be removed but not added
-    if (post.deletedAt) {
-      // Allow unlike but not like
-      const existingReaction = await prisma.reaction.findUnique({
-        where: {
-          postId_userId_type: {
-            postId,
-            userId: canonicalUserId,
-            type: 'like',
-          },
-        },
-      });
-      
-      if (!existingReaction) {
-        // Trying to add a new like to deleted post - reject
-        throw new BusinessLogicError('Cannot like deleted post', 'POST_DELETED');
-      }
-      // If reaction exists, allow the unlike action to proceed
-    }
+  // Check if already liked
+  const [existingLike] = await db.select({ id: reactions.id })
+    .from(reactions)
+    .where(and(
+      eq(reactions.postId, postId),
+      eq(reactions.userId, canonicalUserId),
+      eq(reactions.type, 'like')
+    ))
+    .limit(1);
 
-    // Check if already liked
-    const existingReaction = await prisma.reaction.findUnique({
-      where: {
-        postId_userId_type: {
-          postId,
-          userId: canonicalUserId,
-          type: 'like',
-        },
-      },
-    });
+  if (existingLike) {
+    throw new BusinessLogicError('Post already liked', 'ALREADY_LIKED');
+  }
 
-    if (existingReaction) {
-      throw new BusinessLogicError('Post already liked', 'ALREADY_LIKED');
-    }
+  // Create like reaction
+  await db.insert(reactions).values({
+    id: await generateSnowflakeId(),
+    postId,
+    userId: canonicalUserId,
+    type: 'like',
+  });
 
-    // Create like reaction
-    await prisma.reaction.create({
-      data: {
-        id: await generateSnowflakeId(),
-        postId,
-        userId: canonicalUserId,
-        type: 'like',
-      },
-    });
+  // Create notification for post author (if not self-like)
+  if (post.authorId && post.authorId !== canonicalUserId && post.authorId !== 'unknown') {
+    await notifyReactionOnPost(
+      post.authorId,
+      canonicalUserId,
+      postId,
+      'like'
+    );
+  }
 
-    // Create notification for post author (if not self-like)
-    if (post.authorId && post.authorId !== canonicalUserId && post.authorId !== 'unknown') {
-      await notifyReactionOnPost(
-        post.authorId,
-        canonicalUserId,
-        postId,
-        'like'
-      );
-    }
+  // Track interaction with NPC (if post author is NPC)
+  await NPCInteractionTracker.trackLike(canonicalUserId, postId).catch((error) => {
+    logger.warn('Failed to track NPC interaction', { error });
+  });
 
-    // Track interaction with NPC (if post author is NPC)
-    await NPCInteractionTracker.trackLike(canonicalUserId, postId).catch((error) => {
-      logger.warn('Failed to track NPC interaction', { error });
-    });
-
-    // Get updated like count
-    const likeCount = await prisma.reaction.count({
-      where: {
-        postId,
-        type: 'like',
-      },
-    });
+  // Get updated like count
+  const [likeCountResult] = await db.select({ count: count() })
+    .from(reactions)
+    .where(and(
+      eq(reactions.postId, postId),
+      eq(reactions.type, 'like')
+    ));
+  const likeCount = Number(likeCountResult?.count ?? 0);
 
   // Invalidate interaction cache for this post
   await invalidateCache(`post:${postId}:interactions:*`, { namespace: CACHE_KEYS.POST });
@@ -228,7 +233,7 @@ export const DELETE = withErrorHandling(async (
     throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
   }
 
-    // Ensure user exists in database (upsert pattern)
+  // Ensure user exists in database (upsert pattern)
   const displayName = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
     : 'Anonymous';
@@ -236,35 +241,32 @@ export const DELETE = withErrorHandling(async (
   const { user: dbUser } = await ensureUserForAuth(user, { displayName });
   const canonicalUserId = dbUser.id;
 
-    // Find existing like
-    const reaction = await prisma.reaction.findUnique({
-      where: {
-        postId_userId_type: {
-          postId,
-          userId: canonicalUserId,
-          type: 'like',
-        },
-      },
-    });
+  // Find existing like
+  const [reaction] = await db.select({ id: reactions.id })
+    .from(reactions)
+    .where(and(
+      eq(reactions.postId, postId),
+      eq(reactions.userId, canonicalUserId),
+      eq(reactions.type, 'like')
+    ))
+    .limit(1);
 
-    if (!reaction) {
-      throw new NotFoundError('Like', `${postId}-${canonicalUserId}`);
-    }
+  if (!reaction) {
+    throw new NotFoundError('Like', `${postId}-${canonicalUserId}`);
+  }
 
-    // Delete like
-    await prisma.reaction.delete({
-      where: {
-        id: reaction.id,
-      },
-    });
+  // Delete like
+  await db.delete(reactions)
+    .where(eq(reactions.id, reaction.id));
 
-    // Get updated like count
-    const likeCount = await prisma.reaction.count({
-      where: {
-        postId,
-        type: 'like',
-      },
-    });
+  // Get updated like count
+  const [likeCountResult] = await db.select({ count: count() })
+    .from(reactions)
+    .where(and(
+      eq(reactions.postId, postId),
+      eq(reactions.type, 'like')
+    ));
+  const likeCount = Number(likeCountResult?.count ?? 0);
 
   // Invalidate interaction cache for this post
   await invalidateCache(`post:${postId}:interactions:*`, { namespace: CACHE_KEYS.POST });

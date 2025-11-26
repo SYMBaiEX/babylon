@@ -3,7 +3,7 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, users, referrals, pointsTransactions, eq, and, or, gt, lt, ne, desc, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { nanoid } from 'nanoid';
@@ -51,20 +51,22 @@ export class WaitlistService {
     referralCode?: string
   ): Promise<WaitlistMarkResult> {
     // Get user - they should already exist from onboarding
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        waitlistPosition: true,
-        referralCode: true,
-        referredBy: true,
-        reputationPoints: true,
-        invitePoints: true,
-        earnedPoints: true,
-        bonusPoints: true,
-        isWaitlistActive: true,
-      },
+    const userResult = await db.select({
+      id: users.id,
+      waitlistPosition: users.waitlistPosition,
+      referralCode: users.referralCode,
+      referredBy: users.referredBy,
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      earnedPoints: users.earnedPoints,
+      bonusPoints: users.bonusPoints,
+      isWaitlistActive: users.isWaitlistActive,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    const user = userResult[0]
 
     if (!user) {
       throw new NotFoundError('User', userId, 'User must complete onboarding before joining waitlist')
@@ -77,12 +79,12 @@ export class WaitlistService {
       let referrerRewarded = false
       
       if (referralCode) {
-        const referrer = await prisma.user.findUnique({
-          where: { referralCode },
-          select: { 
-            id: true,
-          },
-        })
+        const referrerResult = await db.select({ id: users.id })
+          .from(users)
+          .where(eq(users.referralCode, referralCode))
+          .limit(1)
+
+        const referrer = referrerResult[0]
 
         if (referrer) {
           // PREVENT SELF-REFERRAL: Can't refer yourself!
@@ -123,12 +125,13 @@ export class WaitlistService {
     }
 
     // Get the highest waitlist position
-    const lastPosition = await prisma.user.findFirst({
-      where: { waitlistPosition: { not: null } },
-      orderBy: { waitlistPosition: 'desc' },
-      select: { waitlistPosition: true },
-    })
+    const lastPositionResult = await db.select({ waitlistPosition: users.waitlistPosition })
+      .from(users)
+      .where(ne(users.waitlistPosition, 0))
+      .orderBy(desc(users.waitlistPosition))
+      .limit(1)
 
+    const lastPosition = lastPositionResult[0]
     const newPosition = (lastPosition?.waitlistPosition || 0) + 1
     
     // Generate invite code if user doesn't have one
@@ -138,15 +141,17 @@ export class WaitlistService {
     let referrerRewarded = false
     
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({
-        where: { referralCode },
-        select: { 
-          id: true,
-          reputationPoints: true,
-          invitePoints: true,
-          referralCount: true,
-        },
+      const referrerResult = await db.select({
+        id: users.id,
+        reputationPoints: users.reputationPoints,
+        invitePoints: users.invitePoints,
+        referralCount: users.referralCount,
       })
+        .from(users)
+        .where(eq(users.referralCode, referralCode))
+        .limit(1)
+
+      const referrer = referrerResult[0]
 
       if (referrer) {
         // PREVENT SELF-REFERRAL: Can't refer yourself!
@@ -174,33 +179,41 @@ export class WaitlistService {
           
           if (referralResult.success) {
             // Create or update Referral record if it doesn't exist
-            // (PointsService doesn't create the record, signup does, but waitlist marking might happen first)
-            await prisma.referral.upsert({
-              where: {
-                referralCode_referredUserId: {
+            // Check if referral exists
+            const existingReferral = await db.select({ id: referrals.id })
+              .from(referrals)
+              .where(and(
+                eq(referrals.referralCode, referralCode),
+                eq(referrals.referredUserId, userId)
+              ))
+              .limit(1)
+
+            if (existingReferral.length > 0) {
+              await db.update(referrals)
+                .set({
+                  status: 'completed',
+                  completedAt: new Date(),
+                })
+                .where(and(
+                  eq(referrals.referralCode, referralCode),
+                  eq(referrals.referredUserId, userId)
+                ))
+            } else {
+              await db.insert(referrals)
+                .values({
+                  id: await generateSnowflakeId(),
+                  referrerId: referrer.id,
                   referralCode,
                   referredUserId: userId,
-                },
-              },
-              create: {
-                id: await generateSnowflakeId(),
-                referrerId: referrer.id,
-                referralCode,
-                referredUserId: userId,
-                status: 'completed',
-                completedAt: new Date(),
-              },
-              update: {
-                status: 'completed',
-                completedAt: new Date(),
-              },
-            })
+                  status: 'completed',
+                  completedAt: new Date(),
+                })
+            }
 
             // Update referredBy field on user
-            await prisma.user.update({
-              where: { id: userId },
-              data: { referredBy: referrer.id },
-            })
+            await db.update(users)
+              .set({ referredBy: referrer.id })
+              .where(eq(users.id, userId))
 
             referrerRewarded = true
             
@@ -235,15 +248,14 @@ export class WaitlistService {
     // Update user as waitlisted
     // IMPORTANT: Don't change reputationPoints here - they should already have correct amount from onboarding
     // referredBy is already set above if referral was processed
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
+    await db.update(users)
+      .set({
         waitlistPosition: newPosition,
         waitlistJoinedAt: new Date(),
         isWaitlistActive: true,
         referralCode: inviteCode,
-      },
-    })
+      })
+      .where(eq(users.id, userId))
 
     logger.info(`User marked as waitlisted`, {
       userId,
@@ -264,13 +276,12 @@ export class WaitlistService {
    * Graduate a user from waitlist to full access
    */
   static async graduateFromWaitlist(userId: string): Promise<boolean> {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
+    await db.update(users)
+      .set({
         isWaitlistActive: false,
         waitlistGraduatedAt: new Date(),
-      },
-    })
+      })
+      .where(eq(users.id, userId))
 
     logger.info('User graduated from waitlist', { userId }, 'WaitlistService')
     return true
@@ -282,80 +293,88 @@ export class WaitlistService {
    * This creates the viral loop incentive.
    */
   static async getWaitlistPosition(userId: string): Promise<WaitlistPosition | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        waitlistPosition: true,
-        waitlistJoinedAt: true,
-        isWaitlistActive: true,
-        referralCode: true,
-        reputationPoints: true,
-        invitePoints: true,
-        earnedPoints: true,
-        bonusPoints: true,
-        referralCount: true,
-      },
+    const userResult = await db.select({
+      waitlistPosition: users.waitlistPosition,
+      waitlistJoinedAt: users.waitlistJoinedAt,
+      isWaitlistActive: users.isWaitlistActive,
+      referralCode: users.referralCode,
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      earnedPoints: users.earnedPoints,
+      bonusPoints: users.bonusPoints,
+      referralCount: users.referralCount,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    const user = userResult[0]
 
     if (!user || !user.isWaitlistActive) {
       return null
     }
 
-      // Count users ahead in line based on INVITE POINTS (viral loop!)
-      // Users with more invites are closer to the front
-      const usersAhead = await prisma.user.count({
-        where: {
-          isWaitlistActive: true,
-          OR: [
-            // Primary sort: More invite points = better position
-            { invitePoints: { gt: user.invitePoints } },
-            // Tie-breaker: If same invite points, earlier signup wins
-            {
-              invitePoints: user.invitePoints,
-              waitlistJoinedAt: { lt: user.waitlistJoinedAt || new Date() },
-            },
-          ],
-        },
-      })
+    // Count users ahead in line based on INVITE POINTS (viral loop!)
+    // Users with more invites are closer to the front
+    const userJoinedAt = user.waitlistJoinedAt || new Date()
+    
+    const [usersAheadResult] = await db.select({ count: count() })
+      .from(users)
+      .where(and(
+        eq(users.isWaitlistActive, true),
+        or(
+          // Primary sort: More invite points = better position
+          gt(users.invitePoints, user.invitePoints),
+          // Tie-breaker: If same invite points, earlier signup wins
+          and(
+            eq(users.invitePoints, user.invitePoints),
+            lt(users.waitlistJoinedAt, userJoinedAt)
+          )
+        )
+      ))
 
-      // Calculate leaderboard rank (actual position in line)
-      const leaderboardRank = usersAhead + 1
+    const usersAhead = usersAheadResult?.count ?? 0
 
-      // Get total waitlist count
-      const totalCount = await this.getTotalWaitlistCount()
+    // Calculate leaderboard rank (actual position in line)
+    const leaderboardRank = usersAhead + 1
 
-      // Calculate percentile (Top X% - what percentile you're in from the top)
-      const percentile = totalCount > 0 
-        ? Math.round((leaderboardRank / totalCount) * 100) 
-        : 100
+    // Get total waitlist count
+    const totalCount = await this.getTotalWaitlistCount()
 
-      return {
-        waitlistPosition: user.waitlistPosition || 0,  // Historical record
-        leaderboardRank,                               // What users see!
-        totalAhead: usersAhead,
-        totalCount,
-        percentile,
-        inviteCode: user.referralCode || '',
-        points: user.reputationPoints,
-        invitePoints: user.invitePoints,
-        earnedPoints: user.earnedPoints,
-        bonusPoints: user.bonusPoints,
-        referralCount: user.referralCount,
-      }
+    // Calculate percentile (Top X% - what percentile you're in from the top)
+    const percentile = totalCount > 0 
+      ? Math.round((leaderboardRank / totalCount) * 100) 
+      : 100
+
+    return {
+      waitlistPosition: user.waitlistPosition || 0,  // Historical record
+      leaderboardRank,                               // What users see!
+      totalAhead: usersAhead,
+      totalCount,
+      percentile,
+      inviteCode: user.referralCode || '',
+      points: user.reputationPoints,
+      invitePoints: user.invitePoints,
+      earnedPoints: user.earnedPoints,
+      bonusPoints: user.bonusPoints,
+      referralCount: user.referralCount,
+    }
   }
 
   /**
    * Award bonus points for wallet connection
    */
   static async awardWalletBonus(userId: string, walletAddress: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        pointsAwardedForWallet: true,
-        reputationPoints: true,
-        bonusPoints: true,
-      },
+    const userResult = await db.select({
+      pointsAwardedForWallet: users.pointsAwardedForWallet,
+      reputationPoints: users.reputationPoints,
+      bonusPoints: users.bonusPoints,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    const user = userResult[0]
 
     if (!user) {
       return false
@@ -370,19 +389,18 @@ export class WaitlistService {
     const newBonusPoints = user.bonusPoints + bonusAmount
     const newReputationPoints = user.reputationPoints + bonusAmount
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
+    await db.update(users)
+      .set({
         walletAddress,
         pointsAwardedForWallet: true,
         bonusPoints: newBonusPoints,
         reputationPoints: newReputationPoints,
-      },
-    })
+      })
+      .where(eq(users.id, userId))
 
     // Create points transaction
-    await prisma.pointsTransaction.create({
-      data: {
+    await db.insert(pointsTransactions)
+      .values({
         id: await generateSnowflakeId(),
         userId,
         amount: bonusAmount,
@@ -390,8 +408,7 @@ export class WaitlistService {
         pointsAfter: newReputationPoints,
         reason: 'wallet_connect',
         metadata: JSON.stringify({ walletAddress }),
-      },
-    })
+      })
 
     logger.info(`Awarded wallet bonus to user ${userId}`, {
       userId,
@@ -405,12 +422,14 @@ export class WaitlistService {
    * Get total waitlist count
    */
   static async getTotalWaitlistCount(): Promise<number> {
-    return await prisma.user.count({
-      where: {
-        waitlistPosition: { not: null },
-        isWaitlistActive: true,
-      },
-    })
+    const [result] = await db.select({ count: count() })
+      .from(users)
+      .where(and(
+        ne(users.waitlistPosition, 0),
+        eq(users.isWaitlistActive, true)
+      ))
+
+    return result?.count ?? 0
   }
 
   /**
@@ -423,31 +442,27 @@ export class WaitlistService {
     const safeLimit = Math.min(Math.max(1, limit), 100)
     const safeOffset = Math.max(0, offset)
     
-    const users = await prisma.user.findMany({
-      where: { 
-        isWaitlistActive: true,
-        // Only include users with usernames (required for referral codes)
-        username: { not: null },
-      },
-      orderBy: [
-        { invitePoints: 'desc' },       // Primary: Most invite points
-        { waitlistJoinedAt: 'asc' },    // Tie-breaker: Earlier signup
-      ],
-      skip: safeOffset,
-      take: safeLimit,
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        // profileImageUrl removed - fetch on-demand to reduce bandwidth
-        invitePoints: true,
-        reputationPoints: true,
-        referralCount: true,
-        waitlistJoinedAt: true,
-      },
+const usersResult = await db.select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      // profileImageUrl removed - fetch on-demand to reduce bandwidth
+      invitePoints: users.invitePoints,
+      reputationPoints: users.reputationPoints,
+      referralCount: users.referralCount,
+      waitlistJoinedAt: users.waitlistJoinedAt,
     })
+      .from(users)
+      .where(and(
+        eq(users.isWaitlistActive, true),
+        // Only include users with usernames (required for referral codes)
+        ne(users.username, '')
+      ))
+      .orderBy(desc(users.invitePoints), users.waitlistJoinedAt)
+      .offset(safeOffset)
+      .limit(safeLimit)
 
-    return users.map((user: typeof users[0], index: number) => ({
+    return usersResult.map((user, index) => ({
       id: user.id, // For frontend compatibility (TopUser interface expects 'id')
       userId: user.id, // Keep for backward compatibility
       username: user.username,
@@ -461,4 +476,3 @@ export class WaitlistService {
     }))
   }
 }
-

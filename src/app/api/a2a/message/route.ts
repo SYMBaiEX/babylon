@@ -14,11 +14,12 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCommunicationHub } from '@/lib/agents/communication/CommunicationHub'
-import { verifyApiKey } from '@/lib/crypto/api-keys'
-import { prisma } from '@/lib/prisma'
+// import { verifyApiKey } from '@/lib/crypto/api-keys'
+// import { db } from '@/db'
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcError } from '@/types/a2a'
 import { ErrorCode } from '@/types/a2a'
 import type { JsonValue } from '@/types/common'
+import { agentRegistry } from '@/lib/services/agent-registry.service'
 
 // Message part type for A2A protocol
 interface MessagePart {
@@ -46,29 +47,8 @@ async function authenticateRequest(req: NextRequest): Promise<string | null> {
 
   const apiKey = authHeader.substring(7) // Remove 'Bearer ' prefix
 
-  // Find external agent with matching API key hash
-  const agents = await prisma.externalAgentConnection.findMany({
-    include: {
-      AgentRegistry: true,
-    },
-  })
-
-  for (const agent of agents) {
-    try {
-      // Extract API key hash from authCredentials
-      const credentials = agent.authCredentials
-        ? JSON.parse(agent.authCredentials)
-        : null
-
-      if (credentials?.apiKeyHash && verifyApiKey(apiKey, credentials.apiKeyHash)) {
-        return agent.externalId
-      }
-    } catch {
-      continue
-    }
-  }
-
-  return null
+  const agent = await agentRegistry.verifyExternalAgentApiKey(apiKey)
+  return agent?.agentId || null
 }
 
 /**

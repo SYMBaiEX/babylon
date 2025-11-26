@@ -3,8 +3,8 @@
 /**
  * Local Contract Deployment Script
  * 
- * Deploys all Babylon contracts to local Anvil instance
- * - Uses default Anvil account for deployment
+ * Deploys all Babylon contracts to local Hardhat instance
+ * - Uses default Hardhat account for deployment
  * - Saves deployment addresses
  * - Updates .env.local
  */
@@ -15,25 +15,26 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { ContractAddresses, DeploymentInfo } from '../../src/lib/deployment/validation'
 import { saveDeployment, updateEnvFile } from '../../src/lib/deployment/validation'
 import { logger } from '../../src/lib/logger'
+import '../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
 
-const ANVIL_RPC_URL = 'http://localhost:8545'
-const ANVIL_CHAIN_ID = 31337
+const HARDHAT_RPC_URL = 'http://localhost:8545'
+const HARDHAT_CHAIN_ID = 31337
 
-// Default Anvil account #0
-const ANVIL_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+// Default Hardhat account #0
+const HARDHAT_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 const DEPLOYER_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 
 async function main() {
   logger.info('Deploying Babylon contracts to localnet...', undefined, 'Script')
   logger.info('='.repeat(60), undefined, 'Script')
 
-  // 1. Check Anvil is running
-  await $`cast block-number --rpc-url ${ANVIL_RPC_URL}`.quiet().catch(() => {
-    logger.error('❌ Anvil is not running', undefined, 'Script')
-    logger.info('Start Anvil with: docker-compose up -d anvil', undefined, 'Script')
+  // 1. Check Hardhat is running
+  await $`cast block-number --rpc-url ${HARDHAT_RPC_URL}`.quiet().catch(() => {
+    logger.error('❌ Hardhat is not running', undefined, 'Script')
+    logger.info('Start Hardhat with: npx hardhat node', undefined, 'Script')
     process.exit(1)
   })
-  logger.info('✅ Anvil is running', undefined, 'Script')
+  logger.info('✅ Hardhat is running', undefined, 'Script')
 
   // 2. Compile contracts
   logger.info('Compiling contracts...', undefined, 'Script')
@@ -43,22 +44,32 @@ async function main() {
   // 3. Deploy using forge script
   logger.info('Deploying contracts...', undefined, 'Script')
 
+  // Clean previous deployment artifacts to prevent nonce issues
+  logger.info('Cleaning previous deployment artifacts...', undefined, 'Script')
+  await $`rm -rf broadcast cache`.quiet()
+
+  // Configure mining for deployment to avoid nonce issues
+  logger.info('Configuring Hardhat mining mode...', undefined, 'Script')
+  await $`cast rpc evm_setAutomine false --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+  await $`cast rpc evm_setIntervalMining 1000 --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+
   const scriptPath = 'scripts/DeployBabylon.s.sol:DeployBabylon'
 
   // Set environment variables for the forge script
-  process.env.DEPLOYER_PRIVATE_KEY = ANVIL_PRIVATE_KEY
+  process.env.DEPLOYER_PRIVATE_KEY = HARDHAT_PRIVATE_KEY
   process.env.ETHERSCAN_API_KEY = 'dummy' // Not used for local deployment
   
-  const output = await $`forge script ${scriptPath} \
-    --rpc-url ${ANVIL_RPC_URL} \
-    --private-key ${ANVIL_PRIVATE_KEY} \
-    --broadcast \
-    --legacy`.text()
+  try {
+    const result = await $`forge script ${scriptPath} \
+      --rpc-url ${HARDHAT_RPC_URL} \
+      --private-key ${HARDHAT_PRIVATE_KEY} \
+      --broadcast`
+    
+    const output = result.text()
+    logger.info('✅ Deployment transaction sent', undefined, 'Script')
 
-  logger.info('✅ Deployment transaction sent', undefined, 'Script')
-
-  // Parse output for contract addresses
-  const addresses = parseDeploymentOutput(output)
+    // Parse output for contract addresses
+    const addresses = parseDeploymentOutput(output)
 
   if (!addresses.diamond) {
     throw new Error('Failed to parse deployment addresses from output')
@@ -102,11 +113,11 @@ async function main() {
     }
 
     // 4. Save deployment info
-    const blockNumber = await $`cast block-number --rpc-url ${ANVIL_RPC_URL}`.text()
+    const blockNumber = await $`cast block-number --rpc-url ${HARDHAT_RPC_URL}`.text()
 
     const deploymentInfo: DeploymentInfo = {
       network: 'localnet',
-      chainId: ANVIL_CHAIN_ID,
+      chainId: HARDHAT_CHAIN_ID,
       contracts: addresses,
       deployer: DEPLOYER_ADDRESS,
       timestamp: new Date().toISOString(),
@@ -124,8 +135,8 @@ async function main() {
       let envContent = readFileSync(envPath, 'utf-8')
 
       const updates = {
-        NEXT_PUBLIC_CHAIN_ID: ANVIL_CHAIN_ID.toString(),
-        NEXT_PUBLIC_RPC_URL: ANVIL_RPC_URL,
+        NEXT_PUBLIC_CHAIN_ID: HARDHAT_CHAIN_ID.toString(),
+        NEXT_PUBLIC_RPC_URL: HARDHAT_RPC_URL,
         NEXT_PUBLIC_DIAMOND_ADDRESS: addresses.diamond,
         NEXT_PUBLIC_IDENTITY_REGISTRY: addresses.identityRegistry,
         NEXT_PUBLIC_REPUTATION_SYSTEM: addresses.reputationSystem,
@@ -158,6 +169,15 @@ async function main() {
     logger.info('', undefined, 'Script')
     logger.info('You can now start the dev server:', undefined, 'Script')
     logger.info('  bun run dev', undefined, 'Script')
+  } catch (error) {
+    logger.error('Deployment failed', error, 'Script')
+    throw error
+  } finally {
+    // Restore mining mode
+    logger.info('Restoring Hardhat mining mode...', undefined, 'Script')
+    await $`cast rpc evm_setAutomine true --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+    await $`cast rpc evm_setIntervalMining 0 --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+  }
 }
 
 /**

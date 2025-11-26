@@ -26,9 +26,8 @@ import {
 import { renderPrompt } from '@/prompts/loader';
 import { ambientPosts, reactions, newsPosts, replies } from '@/prompts';
 
-// ============================================================================
+
 // Example 1: Generate a Single Ambient Post
-// ============================================================================
 
 export async function generateAmbientPost() {
   console.log('🚀 Generating ambient post...\n');
@@ -92,9 +91,7 @@ export async function generateAmbientPost() {
   return valid.map(r => r.post);
 }
 
-// ============================================================================
 // Example 2: Generate Reactions with Retry Logic
-// ============================================================================
 
 export async function generateReactionsWithRetry(
   eventDescription: string,
@@ -153,9 +150,7 @@ export async function generateReactionsWithRetry(
   return validPosts;
 }
 
-// ============================================================================
 // Example 3: Generate Multiple Post Types in Batch
-// ============================================================================
 
 export async function generateMixedFeedContent() {
   console.log('🚀 Generating mixed feed content...\n');
@@ -177,7 +172,7 @@ export async function generateMixedFeedContent() {
     {
       name: 'News Posts',
       prompt: renderPrompt(newsPosts, {
-        eventDescription: 'OpenAGI announces GPT-5',
+        eventDescription: 'OpenAGI announces GPT-o6-6o-mini-thinking-high',
         eventType: 'AI_BREAKTHROUGH',
         mediaCount: 2,
         mediaList: '1. The New York TAImes\n2. BloombAIrg',
@@ -232,9 +227,7 @@ export async function generateMixedFeedContent() {
   return allResults;
 }
 
-// ============================================================================
 // Example 4: Monitoring and Logging
-// ============================================================================
 
 export function setupValidationMonitoring() {
   // This would integrate with your logging/monitoring system
@@ -268,9 +261,7 @@ export function setupValidationMonitoring() {
   };
 }
 
-// ============================================================================
 // Helper: Mock AI Generation - EXAMPLE ONLY
-// ============================================================================
 
 /**
  * ⚠️  MOCK FUNCTION - FOR DEMONSTRATION ONLY
@@ -304,9 +295,7 @@ async function mockAIGeneration(_prompt: string): Promise<string[]> {
   // return JSON.parse(response).posts;
 }
 
-// ============================================================================
 // Run Examples (for testing)
-// ============================================================================
 
 export async function runAllExamples() {
   console.log('=' .repeat(80));

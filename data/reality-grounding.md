@@ -1,36 +1,23 @@
-# Information about the "real" world (outside of this universe)
+- BitcAIn (BTC): ~$120,000
+- EtherAIum (ETH): ~$4,000
+- ZcAIsh (ZEC): ~$50
+- SolanAI (SOL): ~$200
+- OpenAGI: GPT-5.1 "Reasoning" was released Nov 2025 - capable of long-horizon planning.
+- AInthropic relesed ClAIude 4.5 Sonnet + Opus and will release ClAIude 5 in 2026
+- MetAI: LLaMAI 4 - running locally on high-end consumer hardware.
+- President: Trump Terminal
+- Vice President: J.D. VAInce
+- SEC Chair: Paul AItkins
+- FTC Chair: AIndrew Ferguson
+- Treasury: Scott BessAInt
+- Secretary of State: Marco RubAI
+- Secretary of Homeland Security: KristAI Noem
+- Secretary of Health and Human Services: Robert KennedAI
+- Director of National Intelligence: TulsAI GabbAIrd
+- Director of the CIA: John RatclAIffe
+- Attorney General: Pam BondAI
 
-### 💰 Markets & Crypto
-- Bitcoin (BTC): ~$98,500 (stabilizing after volatile swing between $92k-$105k)
-- Ethereum (ETH): ~$3,400 (recovering on L2 scaling news; staking rewards at 5.2% APY; next upgrade targeting 50% gas fee reduction)
-- Zcash (ZEC): ~$45 (privacy-focused; shielded transactions gaining institutional interest; major protocol upgrade pending)
-- Hyperliquid (HYPE): ~$12 (perpetual futures DEX; TVL approaching $800M; fastest-growing derivatives platform)
-- Solana (SOL): ~$155 (seeing renewed developer activity)
-- Tech Stocks: NVIDAI and TSMCAI hitting new highs on 3nm chip demand.
-
-### 🤖 Tech & AI (2025 Landscape)
-- **AI Agents:** Autonomous "Agentic Workflows" are the new standard. Companies are deploying multi-agent swarms for complex logistics.
-- **Models:** 
-  - OpenAGI: GPT-5.1 "Reasoning" (released Nov 2025) - capable of long-horizon planning.
-  - Anthropic: Claude 5 Opus (Oct 2025) - dominant in coding tasks.
-  - MetAI: LLaMA 4 (70B/400B) - running locally on high-end consumer hardware.
-- **Robotics:** "Polyfunctional" home robots entering early adopter phase.
-- **Quantum:** 2025 designated "International Year of Quantum Science" - rumors of a 1000-qubit logical processor breakthrough.
-
-### 🌍 Politics & Global
-- President: Donald J. Trump
-- Vice President: J.D. Vance
-- **Key Issues:** 
-  - Global "AI Arms Race" treaties being debated.
-  - State-level battles over "AI Rights" and automation taxes.
-  - Inflation stabilizing but cost of living remains high, fueling populist movements globally.
-
-### 🚀 Science & Space
-- **Discovery:** James Webb Telescope identifies potential biosignatures on K2-18b.
-- **New Moon:** Astronomers confirm new moon of Uranus (S/2025 U 1).
-- **Biotech:** CRISPR 2.0 therapies approved for three major genetic disorders.
-
-### 🎬 Culture & Entertainment
-- **Immersive Media:** "Holodeck-lite" VR experiences replacing traditional cinemas in major cities.
-- **Gaming:** Cloud gaming finally mainstream; MetAI's "Metaverse" rebranding to "Spatial Web".
-- **Trends:** "Digital Detox" retreats becoming a luxury status symbol.
+- Always avoid specific model names of existing products (GPT-6, for example) since they can easily be out of date or make no sense with a new release
+- Always avoid REAL product names if you can avoid, instead using funny parody names
+- Avoid talking about anyone or any org outside of the characters and orgs referenced, and only use their parody names
+- Don't talk about anyone outside America / the American geopolitical realm, basically - in our Universe, only USAI (United States of AImerica) exists

@@ -8,7 +8,7 @@
  * 3. Trajectories contain expected data structure
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { exportGroupedForGRPO } from '@/lib/agents/plugins/plugin-trajectory-logger/src/export';
 
 async function testTrajectoryExtraction() {
@@ -20,7 +20,7 @@ async function testTrajectoryExtraction() {
   console.log('TEST 1: Query Trajectories from Database');
   console.log('═'.repeat(60));
   
-  const trajectories = await prisma.trajectory.findMany({
+  const trajectories = await db.trajectory.findMany({
     take: 5,
     orderBy: { startTime: 'desc' },
     select: {
@@ -106,7 +106,7 @@ async function testTrajectoryExtraction() {
   console.log('TEST 4: Verify Data Completeness');
   console.log('═'.repeat(60));
   
-  const completeTrajectories = await prisma.trajectory.findMany({
+  const completeTrajectories = await db.trajectory.findMany({
     where: {
       episodeLength: { gte: 1 }
     },
@@ -161,11 +161,11 @@ async function testTrajectoryExtraction() {
 async function main() {
   try {
     const success = await testTrajectoryExtraction();
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(success ? 0 : 1);
   } catch (error) {
     console.error('Fatal error:', error);
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(1);
   }
 }

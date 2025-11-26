@@ -47,13 +47,13 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 export async function POST(_req: NextRequest) {
   try {
     // Resume all agents with sufficient points
-    const result = await prisma.user.updateMany({
+    const result = await db.user.updateMany({
       where: {
         isAgent: true,
         agentPointsBalance: { gte: 1 }, // Only resume agents with points

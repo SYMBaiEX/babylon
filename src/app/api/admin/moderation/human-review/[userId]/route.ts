@@ -70,12 +70,12 @@
 import type { NextRequest } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { createNotification } from '@/lib/services/notification-service'
 import { WalletService } from '@/lib/services/wallet-service'
-import type { Prisma } from '@prisma/client'
+import type { JsonValue } from '@/db'
 
 const HumanReviewActionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -92,7 +92,7 @@ export const POST = withErrorHandling(async (
   const body = await request.json()
   const { action, reasoning } = HumanReviewActionSchema.parse(body)
 
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -118,7 +118,7 @@ export const POST = withErrorHandling(async (
       type: 'human_review',
     })
 
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: {
         isBanned: false,
@@ -129,7 +129,7 @@ export const POST = withErrorHandling(async (
         bannedReason: null,
         appealStatus: 'approved',
         appealReviewedAt: new Date(),
-        falsePositiveHistory: falsePositiveHistory as Prisma.InputJsonValue,
+        falsePositiveHistory: falsePositiveHistory as JsonValue,
       },
     })
 
@@ -157,7 +157,7 @@ export const POST = withErrorHandling(async (
     })
   } else {
     // Deny - permanent ban
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: {
         appealStatus: 'denied',
@@ -200,7 +200,7 @@ async function refundAppealStake(userId: string, stakeAmount: number): Promise<v
     )
 
     // Clear stake flags
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: {
         appealStaked: false,

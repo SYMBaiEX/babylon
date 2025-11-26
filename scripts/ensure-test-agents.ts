@@ -5,7 +5,7 @@
  * These agents are used for benchmarking autonomous trading performance.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ethers } from 'ethers';
 
@@ -49,7 +49,7 @@ async function ensureTestAgent(config: TestAgentConfig, index: number, total: nu
   console.log(`\n[${index + 1}/${total}] Checking ${config.displayName}...`);
   
   // Check if agent already exists
-  let agent = await prisma.user.findFirst({
+  let agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: config.username,
@@ -61,7 +61,7 @@ async function ensureTestAgent(config: TestAgentConfig, index: number, total: nu
     
     // Update configuration if changed
     console.log(`     🔄 Updating configuration...`);
-    await prisma.user.update({
+    await db.user.update({
       where: { id: agent.id },
       data: {
         displayName: config.displayName,
@@ -69,7 +69,7 @@ async function ensureTestAgent(config: TestAgentConfig, index: number, total: nu
         autonomousTrading: config.autonomousTrading,
         autonomousPosting: config.autonomousPosting,
         autonomousCommenting: config.autonomousCommenting,
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         agentPointsBalance: 10000,
         updatedAt: new Date(),
       },
@@ -84,7 +84,7 @@ async function ensureTestAgent(config: TestAgentConfig, index: number, total: nu
   const agentId = await generateSnowflakeId();
   const wallet = ethers.Wallet.createRandom();
   
-  agent = await prisma.user.create({
+  agent = await db.user.create({
     data: {
       id: agentId,
       privyId: `did:privy:test-${agentId}`,
@@ -97,7 +97,7 @@ async function ensureTestAgent(config: TestAgentConfig, index: number, total: nu
       autonomousCommenting: config.autonomousCommenting,
       agentSystem: config.agentSystem,
       agentModelTier: 'lite',
-      virtualBalance: 10000, // Starting capital
+      virtualBalance: '10000', // Starting capital
       reputationPoints: 1000,
       agentPointsBalance: 10000, // Enough for many ticks
       isTest: true,
@@ -143,7 +143,7 @@ async function main() {
   console.log('   Run baseline benchmarks with:');
   console.log(`   bun run scripts/run-baseline-benchmarks.ts --benchmark=benchmarks/benchmark-week-10080-60-10-5-8-12345.json\n`);
 
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(0);
 }
 

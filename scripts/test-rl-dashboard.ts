@@ -5,7 +5,7 @@
  * Tests all API endpoints, data loading, and functionality.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface TestResult {
   endpoint: string;
@@ -124,7 +124,7 @@ async function testDashboardData() {
   // Test 1: Check models table exists and is accessible
   total++;
   try {
-    const modelCount = await prisma.trainedModel.count();
+    const modelCount = await db.trainedModel.count();
     console.log(`✅ Models table: ${modelCount} records`);
     passed++;
   } catch (error) {
@@ -134,8 +134,8 @@ async function testDashboardData() {
   // Test 2: Check trajectories table
   total++;
   try {
-    const trajectoryCount = await prisma.trajectory.count();
-    const scoredCount = await prisma.trajectory.count({
+    const trajectoryCount = await db.trajectory.count();
+    const scoredCount = await db.trajectory.count({
       where: { aiJudgeReward: { not: null } }
     });
     console.log(`✅ Trajectories: ${trajectoryCount} total, ${scoredCount} scored`);
@@ -147,8 +147,8 @@ async function testDashboardData() {
   // Test 3: Check training batches
   total++;
   try {
-    const batchCount = await prisma.trainingBatch.count();
-    const completedCount = await prisma.trainingBatch.count({
+    const batchCount = await db.trainingBatch.count();
+    const completedCount = await db.trainingBatch.count({
       where: { status: 'completed' }
     });
     console.log(`✅ Training batches: ${batchCount} total, ${completedCount} completed`);
@@ -160,7 +160,7 @@ async function testDashboardData() {
   // Test 4: Check data relationships
   total++;
   try {
-    const models = await prisma.trainedModel.findMany({
+    const models = await db.trainedModel.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' }
     });
@@ -190,7 +190,7 @@ async function testDashboardFeatures() {
   // Feature 1: Model listing
   total++;
   try {
-    const models = await prisma.trainedModel.findMany({
+    const models = await db.trainedModel.findMany({
       orderBy: { createdAt: 'desc' }
     });
     console.log(`✅ Model listing: ${models.length} models available`);
@@ -202,7 +202,7 @@ async function testDashboardFeatures() {
   // Feature 2: Benchmark summary
   total++;
   try {
-    const benchmarkedModels = await prisma.trainedModel.findMany({
+    const benchmarkedModels = await db.trainedModel.findMany({
       where: { benchmarkScore: { not: null } },
       orderBy: { benchmarkScore: 'desc' },
       take: 5
@@ -219,7 +219,7 @@ async function testDashboardFeatures() {
   // Feature 3: Training readiness
   total++;
   try {
-    const readyTrajectories = await prisma.trajectory.count({
+    const readyTrajectories = await db.trajectory.count({
       where: {
         isTrainingData: true,
         usedInTraining: false,
@@ -235,7 +235,7 @@ async function testDashboardFeatures() {
   // Feature 4: Model comparison
   total++;
   try {
-    const deployedModels = await prisma.trainedModel.findMany({
+    const deployedModels = await db.trainedModel.findMany({
       where: { status: 'deployed' },
       orderBy: { deployedAt: 'desc' }
     });
@@ -320,7 +320,7 @@ async function main() {
     console.error('\n❌ Test suite crashed:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

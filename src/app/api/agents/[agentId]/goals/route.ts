@@ -101,7 +101,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { logger } from '@/lib/logger'
@@ -119,7 +119,7 @@ export async function GET(
     const { agentId } = await params
     
     // Verify agent exists and user manages it
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { isAgent: true, managedBy: true }
     })
@@ -133,27 +133,55 @@ export async function GET(
     }
     
     // Get all goals for this agent
-    const goals = await prisma.agentGoal.findMany({
+    const goals = await db.agentGoal.findMany({
       where: { agentUserId: agentId },
       orderBy: [
         { status: 'asc' },  // active first
         { priority: 'desc' },
         { createdAt: 'desc' }
       ],
-      include: {
-        AgentGoalAction: {
-          take: 5,
-          orderBy: { createdAt: 'desc' }
-        }
-      }
     })
+
+    // Get recent actions for each goal separately
+    const goalIds = goals.map(g => g.id);
+    const actionsByGoalId = new Map<string, Array<{
+      id: string;
+      goalId: string;
+      agentUserId: string;
+      actionType: string;
+      actionId: string | null;
+      impact: number;
+      metadata: unknown;
+      createdAt: Date;
+    }>>();
     
+    if (goalIds.length > 0) {
+      const allActions = await db.agentGoalAction.findMany({
+        where: { goalId: { in: goalIds } },
+        orderBy: { createdAt: 'desc' },
+      });
+      
+      // Group actions by goalId and take top 5 per goal
+      const actionsByGoal = new Map<string, typeof allActions>();
+      allActions.forEach(action => {
+        const list = actionsByGoal.get(action.goalId) || [];
+        if (list.length < 5) {
+          list.push(action);
+        }
+        actionsByGoal.set(action.goalId, list);
+      });
+      
+      actionsByGoal.forEach((actions, goalId) => {
+        actionsByGoalId.set(goalId, actions);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       goals: goals.map(g => ({
         ...g,
         target: g.target ? JSON.parse(JSON.stringify(g.target)) : null,
-        recentActions: g.AgentGoalAction
+        recentActions: actionsByGoalId.get(g.id) || []
       }))
     })
   } catch (error) {
@@ -178,7 +206,7 @@ export async function POST(
     const { agentId } = await params
     
     // Verify agent exists and user manages it
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { isAgent: true, managedBy: true }
     })
@@ -234,7 +262,7 @@ export async function POST(
     }
     
     // Create goal
-    const goal = await prisma.agentGoal.create({
+    const goal = await db.agentGoal.create({
       data: {
         id: await generateSnowflakeId(),
         agentUserId: agentId,

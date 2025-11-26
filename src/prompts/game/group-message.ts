@@ -16,7 +16,10 @@ export const groupMessage = definePrompt({
   description: 'Generates private group chat messages with insider trading info and strategic revelations',
   temperature: 1,
   maxTokens: 200,
-  template: `
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
+
 You are {{actorName}}, a {{actorDescription}}.
 Personality: {{personality}}
 Domain: {{domain}}

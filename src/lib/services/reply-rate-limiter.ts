@@ -2,12 +2,9 @@
  * Reply Rate Limiter Service
  * 
  * Enforces exactly 1 reply per hour per NPC for each player.
- * - Too fast: returns error with time until next allowed reply
- * - Too slow: returns warning that consistent replies are needed
- * - Just right: allows reply and tracks timing
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, userInteractions, eq, and, desc } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RateLimitResult {
@@ -16,17 +13,15 @@ export interface RateLimitResult {
   nextAllowedAt?: Date;
   minutesUntilNextReply?: number;
   lastReplyAt?: Date;
-  replyStreak?: number; // How many consecutive hours they've replied
-  expectedNextReply?: Date; // Expected next reply time based on ideal interval
+  replyStreak?: number;
+  expectedNextReply?: Date;
 }
 
 export class ReplyRateLimiter {
-  // Exactly 1 reply per hour window (55-65 minutes for some flexibility)
   private static readonly MIN_REPLY_INTERVAL_MS = 55 * 60 * 1000; // 55 minutes
   private static readonly MAX_REPLY_INTERVAL_MS = 65 * 60 * 1000; // 65 minutes
   private static readonly IDEAL_REPLY_INTERVAL_MS = 60 * 60 * 1000; // 60 minutes
   
-  // Use IDEAL_REPLY_INTERVAL_MS to calculate expected next reply time
   static getExpectedNextReplyTime(lastReplyTime: Date): Date {
     return new Date(lastReplyTime.getTime() + this.IDEAL_REPLY_INTERVAL_MS);
   }
@@ -36,15 +31,14 @@ export class ReplyRateLimiter {
    */
   static async canReply(userId: string, npcId: string): Promise<RateLimitResult> {
     // Get last interaction with this NPC
-    const lastInteraction = await prisma.userInteraction.findFirst({
-      where: {
-        userId,
-        npcId,
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-    });
+    const [lastInteraction] = await db.select()
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ))
+      .orderBy(desc(userInteractions.timestamp))
+      .limit(1);
 
     // First reply to this NPC - always allowed
     if (!lastInteraction) {
@@ -69,7 +63,6 @@ export class ReplyRateLimiter {
         (nextAllowedAt.getTime() - now.getTime()) / (60 * 1000)
       );
       
-      // Use expectedNextReply for user messaging
       const minutesUntilExpected = Math.ceil(
         (expectedNextReply.getTime() - now.getTime()) / (60 * 1000)
       );
@@ -112,16 +105,16 @@ export class ReplyRateLimiter {
     userId: string,
     npcId: string
   ): Promise<number> {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-      take: 24, // Check last 24 interactions
-    });
+    const interactions = await db.select({
+      timestamp: userInteractions.timestamp,
+    })
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ))
+      .orderBy(desc(userInteractions.timestamp))
+      .limit(24);
 
     if (interactions.length < 2) return 0;
 
@@ -132,11 +125,9 @@ export class ReplyRateLimiter {
       if (!current || !previous) continue;
       const gap = current.timestamp.getTime() - previous.timestamp.getTime();
 
-      // If gap is within ideal window (55-65 minutes), continue streak
       if (gap >= this.MIN_REPLY_INTERVAL_MS && gap <= this.MAX_REPLY_INTERVAL_MS) {
         streak++;
       } else {
-        // Streak broken
         break;
       }
     }
@@ -154,8 +145,8 @@ export class ReplyRateLimiter {
     commentId: string,
     qualityScore: number
   ): Promise<void> {
-    await prisma.userInteraction.create({
-      data: {
+    await db.insert(userInteractions)
+      .values({
         id: await generateSnowflakeId(),
         userId,
         npcId,
@@ -163,23 +154,20 @@ export class ReplyRateLimiter {
         commentId,
         qualityScore,
         timestamp: new Date(),
-      },
-    });
+      });
   }
 
   /**
    * Get user's reply statistics for an NPC
    */
   static async getReplyStats(userId: string, npcId: string) {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-        npcId,
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-    });
+    const interactions = await db.select()
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        eq(userInteractions.npcId, npcId)
+      ))
+      .orderBy(desc(userInteractions.timestamp));
 
     if (interactions.length === 0) {
       return {
@@ -226,14 +214,12 @@ export class ReplyRateLimiter {
       if (!current || !next) continue;
       const gap = current.timestamp.getTime() - next.timestamp.getTime();
 
-      // If gap is within ideal window (55-65 minutes), continue streak
       if (gap >= this.MIN_REPLY_INTERVAL_MS && gap <= this.MAX_REPLY_INTERVAL_MS) {
         currentStreak++;
         if (currentStreak > maxStreak) {
           maxStreak = currentStreak;
         }
       } else {
-        // Streak broken, reset
         currentStreak = 1;
       }
     }
@@ -245,14 +231,10 @@ export class ReplyRateLimiter {
    * Get all NPCs user has replied to with their stats
    */
   static async getAllReplyStats(userId: string) {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-    });
+    const interactions = await db.select()
+      .from(userInteractions)
+      .where(eq(userInteractions.userId, userId))
+      .orderBy(desc(userInteractions.timestamp));
 
     // Group by NPC
     const npcMap = new Map<string, typeof interactions>();
@@ -277,5 +259,3 @@ export class ReplyRateLimiter {
     return stats;
   }
 }
-
-

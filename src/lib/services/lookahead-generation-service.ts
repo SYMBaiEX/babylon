@@ -19,7 +19,7 @@
  * - Failure resilience
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, posts, questions, actors, organizations, eq, gte, lt, desc, count, and, isNull } from '@/db';
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { worldFactsService } from './world-facts-service';
@@ -54,12 +54,12 @@ export async function checkLookaheadStatus(): Promise<{
   const now = new Date();
   
   // Check latest post timestamp
-  const latestPost = await prisma.post.findFirst({
-    orderBy: { timestamp: 'desc' },
-    select: { timestamp: true },
-  });
+  const latestPostResult = await db.select({ timestamp: posts.timestamp })
+    .from(posts)
+    .orderBy(desc(posts.timestamp))
+    .limit(1);
   
-  if (!latestPost) {
+  if (latestPostResult.length === 0) {
     return {
       minutesAhead: 0,
       latestTimestamp: null,
@@ -67,7 +67,7 @@ export async function checkLookaheadStatus(): Promise<{
     };
   }
   
-  const latest = new Date(latestPost.timestamp);
+  const latest = new Date(latestPostResult[0]!.timestamp);
   const minutesAhead = (latest.getTime() - now.getTime()) / (60 * 1000);
   const needsGeneration = minutesAhead < LOOKAHEAD_MINUTES;
   
@@ -180,15 +180,17 @@ export async function generateAheadIfNeeded(
  * @private
  */
 async function checkTimeWindowHasContent(windowStart: Date, windowEnd: Date): Promise<boolean> {
-  const existingPosts = await prisma.post.count({
-    where: {
-      timestamp: {
-        gte: windowStart,
-        lt: windowEnd,
-      },
-      deletedAt: null,
-    },
-  });
+  const [result] = await db.select({ count: count() })
+    .from(posts)
+    .where(
+      and(
+        gte(posts.timestamp, windowStart),
+        lt(posts.timestamp, windowEnd),
+        isNull(posts.deletedAt)
+      )
+    );
+  
+  const existingPosts = result?.count ?? 0;
   
   // If we have at least 5 posts in this window, consider it already generated
   // This allows some natural variation while preventing duplicates
@@ -223,10 +225,10 @@ async function generateContentWindow(
   }
 
   // Get active questions
-  const activeQuestions = await prisma.question.findMany({
-    where: { status: 'active' },
-    take: 3,
-  });
+  const activeQuestions = await db.select()
+    .from(questions)
+    .where(eq(questions.status, 'active'))
+    .limit(3);
   
   if (activeQuestions.length === 0) {
     logger.warn('No active questions - skipping content generation', {}, 'LookaheadGeneration');
@@ -259,19 +261,19 @@ async function generateContentWindow(
   }
 
   // Get actors, organizations, and world facts in parallel
-  const [actors, organizations, worldFactsContext] = await Promise.all([
-    prisma.actor.findMany({
-      take: 15,
-      orderBy: { reputationPoints: 'desc' },
-    }),
-    prisma.organization.findMany({
-      where: { type: 'media' },
-      take: 5,
-    }),
+  const [actorsList, orgsList, worldFactsContext] = await Promise.all([
+    db.select()
+      .from(actors)
+      .orderBy(desc(actors.reputationPoints))
+      .limit(15),
+    db.select()
+      .from(organizations)
+      .where(eq(organizations.type, 'media'))
+      .limit(5),
     worldFactsService.generatePromptContext(),
   ]);
 
-  if (actors.length === 0 && organizations.length === 0) {
+  if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn('No actors or organizations found - skipping content generation', {}, 'LookaheadGeneration');
     return;
   }
@@ -286,10 +288,10 @@ async function generateContentWindow(
     const postTimestamp = new Date(windowStart.getTime() + randomOffset);
     
     // Alternate between actors and organizations
-    const useActor = i % 2 === 0 && actors.length > 0;
+    const useActor = i % 2 === 0 && actorsList.length > 0;
     const creator = useActor 
-      ? actors[i % actors.length]
-      : organizations[i % organizations.length];
+      ? actorsList[i % actorsList.length]
+      : orgsList[i % orgsList.length];
     
       if (!creator) {
         return 0;
@@ -302,7 +304,7 @@ async function generateContentWindow(
     
       // Generate post content using LLM
       if (useActor) {
-        const actor = creator as typeof actors[number];
+        const actor = creator as typeof actorsList[number];
         const success = await generateNPCPost(
           llmClient,
           actor,
@@ -319,7 +321,7 @@ async function generateContentWindow(
         }
         return success ? 1 : 0;
       } else {
-        const org = creator as typeof organizations[number];
+        const org = creator as typeof orgsList[number];
         
         // 10% chance to generate a full article instead of a short post
         const shouldCreateArticle = Math.random() < 0.1;

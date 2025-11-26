@@ -86,10 +86,10 @@
  * ```
  */
 import { EventEmitter } from 'events';
-import type { PerpPosition as PrismaPerpPosition } from '@prisma/client';
+import type { PerpPosition as DbPerpPosition } from '@/db';
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, eq, perpPositions } from '@/db';
 
 import type {
   DailyPriceSnapshot,
@@ -872,19 +872,20 @@ export class PerpetualsEngine extends EventEmitter {
     this.dirtyPositions.clear();
 
     // Batch update positions in database
-    // Check existence first to avoid Prisma error logging for missing records
+    // Check existence first to avoid error logging for missing records
     const updates = await Promise.all(
       positionsToSync.map(async (positionId) => {
         const position = this.positions.get(positionId);
         if (!position) return null;
 
         // Check if position exists in database before updating
-        const exists = await prisma.perpPosition.findUnique({
-          where: { id: positionId },
-          select: { id: true },
-        });
+        const existingRows = await db
+          .select({ id: perpPositions.id })
+          .from(perpPositions)
+          .where(eq(perpPositions.id, positionId))
+          .limit(1);
 
-        if (!exists) {
+        if (existingRows.length === 0) {
           // Position doesn't exist - remove from memory
           this.positions.delete(positionId);
           logger.debug(
@@ -897,19 +898,22 @@ export class PerpetualsEngine extends EventEmitter {
 
         // Position exists, proceed with update
         try {
-          return await prisma.perpPosition.update({
-            where: { id: positionId },
-            data: {
+          const result = await db
+            .update(perpPositions)
+            .set({
               currentPrice: position.currentPrice,
               unrealizedPnL: position.unrealizedPnL,
               unrealizedPnLPercent: position.unrealizedPnLPercent,
               fundingPaid: position.fundingPaid,
               lastUpdated: new Date(position.lastUpdated),
-            },
-          });
+            })
+            .where(eq(perpPositions.id, positionId))
+            .returning();
+          return result[0] || null;
         } catch (error: unknown) {
-          // Handle any other errors (shouldn't happen after existence check, but be safe)
-          if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2025') {
+          // Handle not found error (shouldn't happen after existence check, but be safe)
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('not found') || errorMessage.includes('no rows')) {
             this.positions.delete(positionId);
             logger.debug(
               `Position ${positionId} not found during update, removed from memory`,
@@ -924,7 +928,7 @@ export class PerpetualsEngine extends EventEmitter {
       })
     );
 
-    const successful = updates.filter((update): update is PrismaPerpPosition => update !== null).length;
+    const successful = updates.filter((update): update is DbPerpPosition => update !== null).length;
 
     if (successful > 0) {
       logger.debug(

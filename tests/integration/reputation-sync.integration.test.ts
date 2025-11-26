@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterEach } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import {
   syncUserReputationToERC8004,
@@ -40,7 +40,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     testUserId = await generateSnowflakeId()
     testAgentUserId = await generateSnowflakeId()
 
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testUserId,
         username: `test-user-${Date.now()}`,
@@ -49,7 +49,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
       },
     })
 
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentUserId,
         username: `test-agent-${Date.now()}`,
@@ -61,7 +61,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     })
 
     // Create performance metrics
-    await prisma.agentPerformanceMetrics.create({
+    await db.agentPerformanceMetrics.create({
       data: {
         id: await generateSnowflakeId(),
         userId: testAgentUserId,
@@ -75,10 +75,10 @@ describe('ERC-8004 Reputation Sync Integration', () => {
 
   afterEach(async () => {
     // Clean up test data
-    await prisma.agentPerformanceMetrics.deleteMany({
+    await db.agentPerformanceMetrics.deleteMany({
       where: { userId: { in: [testUserId, testAgentUserId] } },
     })
-    await prisma.gameConfig.deleteMany({
+    await db.gameConfig.deleteMany({
       where: {
         key: { startsWith: `reputation_sync_${testAgentUserId}` },
       },
@@ -101,7 +101,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     expect(result.synced).toBe(true)
 
     // Verify metrics were updated
-    const metrics = await prisma.agentPerformanceMetrics.findUnique({
+    const metrics = await db.agentPerformanceMetrics.findUnique({
       where: { userId: testAgentUserId },
     })
     expect(metrics).toBeDefined()
@@ -151,11 +151,11 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     expect(result.failed).toBeGreaterThanOrEqual(0)
     expect(result.skipped).toBeGreaterThanOrEqual(0)
     expect(result.results).toBeInstanceOf(Array)
-  })
+  }, 30000) // Increase timeout - this syncs all users which can take a while
 
   test('should handle banned user reputation', async () => {
     // Ban the agent
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testAgentUserId },
       data: { isBanned: true },
     })
@@ -164,7 +164,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     expect(score).toBe(0)
 
     // Clean up
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testAgentUserId },
       data: { isBanned: false },
     })
@@ -172,7 +172,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
 
   test('should handle scammer/CSAM flags', async () => {
     // Mark as scammer
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testAgentUserId },
       data: { isScammer: true },
     })
@@ -181,7 +181,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
     expect(score).toBe(5) // Very low but not zero
 
     // Clean up
-    await prisma.user.update({
+    await db.user.update({
       where: { id: testAgentUserId },
       data: { isScammer: false },
     })

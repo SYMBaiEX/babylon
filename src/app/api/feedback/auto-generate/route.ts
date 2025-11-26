@@ -138,6 +138,10 @@ export async function POST(request: NextRequest) {
       body.metrics
     )
 
+    if (!feedback) {
+      throw new Error('Failed to create game feedback')
+    }
+
     // Submit to Agent0 network (fire-and-forget with error handling)
     submitFeedbackToAgent0(feedback.id).catch((error) => {
       logger.error('Failed to submit auto-generated game feedback to Agent0', {
@@ -161,6 +165,10 @@ export async function POST(request: NextRequest) {
       body.tradeId,
       body.metrics
     )
+
+    if (!feedback) {
+      throw new Error('Failed to create trade feedback')
+    }
 
     // Submit to Agent0 network (fire-and-forget with error handling)
     submitFeedbackToAgent0(feedback.id).catch((error) => {

@@ -5,7 +5,7 @@
  * report validity and determine appropriate actions.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, reports, users, messages, posts, eq, desc, count } from '@/db'
 import { logger } from '@/lib/logger'
 import { callClaudeDirect } from '@/lib/agents/llm/direct-claude'
 import { createNotification } from '@/lib/services/notification-service'
@@ -107,10 +107,13 @@ export async function evaluateReport(reportId: string): Promise<ReportEvaluation
 
   // Send notification to reporter about evaluation result
   try {
-    const report = await prisma.report.findUnique({
-      where: { id: reportId },
-      select: { reporterId: true, reportedUserId: true },
+    const [report] = await db.select({
+      reporterId: reports.reporterId,
+      reportedUserId: reports.reportedUserId,
     })
+      .from(reports)
+      .where(eq(reports.id, reportId))
+      .limit(1)
     
     if (report) {
       await createNotification({
@@ -131,145 +134,133 @@ export async function evaluateReport(reportId: string): Promise<ReportEvaluation
  * Collect all relevant context for a report
  */
 async function collectReportContext(reportId: string): Promise<ReportContext | null> {
-  const report = await prisma.report.findUnique({
-    where: { id: reportId },
-    include: {
-      reporter: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          earnedPoints: true,
-          totalDeposited: true,
-          totalWithdrawn: true,
-          lifetimePnL: true,
-        },
-      },
-      reportedUser: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          earnedPoints: true,
-          totalDeposited: true,
-          totalWithdrawn: true,
-          lifetimePnL: true,
-        },
-      },
-    },
+  const [report] = await db.select({
+    id: reports.id,
+    reporterId: reports.reporterId,
+    reportedUserId: reports.reportedUserId,
+    category: reports.category,
+    reason: reports.reason,
+    evidence: reports.evidence,
+    createdAt: reports.createdAt,
   })
+    .from(reports)
+    .where(eq(reports.id, reportId))
+    .limit(1)
 
-  if (!report || !report.reportedUserId || !report.reporter) {
+  if (!report || !report.reportedUserId) {
     return null
   }
 
+  // Get reporter info
+  const [reporter] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    earnedPoints: users.earnedPoints,
+    totalDeposited: users.totalDeposited,
+    totalWithdrawn: users.totalWithdrawn,
+    lifetimePnL: users.lifetimePnL,
+  })
+    .from(users)
+    .where(eq(users.id, report.reporterId))
+    .limit(1)
+
+  if (!reporter) {
+    return null
+  }
+
+  // Get reported user info
+  const [reportedUser] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    earnedPoints: users.earnedPoints,
+    totalDeposited: users.totalDeposited,
+    totalWithdrawn: users.totalWithdrawn,
+    lifetimePnL: users.lifetimePnL,
+  })
+    .from(users)
+    .where(eq(users.id, report.reportedUserId))
+    .limit(1)
+
   const reporterId = report.reporterId
   const reportedId = report.reportedUserId
-
-  // Get recent chat messages between reporter and reported (last 30 days)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
   // Find DM chat between reporter and reported
   const sortedIds = [reporterId, reportedId].sort()
   const chatId = `dm-${sortedIds.join('-')}`
 
-  const chatMessages = await prisma.message.findMany({
-    where: {
-      chatId,
-      createdAt: { gte: thirtyDaysAgo },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50, // Last 50 messages
-    select: {
-      id: true,
-      senderId: true,
-      content: true,
-      createdAt: true,
-    },
+  const chatMessages = await db.select({
+    id: messages.id,
+    senderId: messages.senderId,
+    content: messages.content,
+    createdAt: messages.createdAt,
   })
+    .from(messages)
+    .where(eq(messages.chatId, chatId))
+    .orderBy(desc(messages.createdAt))
+    .limit(50)
 
   // Get recent posts from both users (last 30 days)
-  const [reporterPosts, reportedPosts] = await Promise.all([
-    prisma.post.findMany({
-      where: {
-        authorId: reporterId,
-        createdAt: { gte: thirtyDaysAgo },
-        deletedAt: null,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-      },
-    }),
-    prisma.post.findMany({
-      where: {
-        authorId: reportedId,
-        createdAt: { gte: thirtyDaysAgo },
-        deletedAt: null,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-      },
-    }),
-  ])
+  const reporterPosts = await db.select({
+    id: posts.id,
+    content: posts.content,
+    createdAt: posts.createdAt,
+  })
+    .from(posts)
+    .where(eq(posts.authorId, reporterId))
+    .orderBy(desc(posts.createdAt))
+    .limit(20)
+
+  const reportedPosts = await db.select({
+    id: posts.id,
+    content: posts.content,
+    createdAt: posts.createdAt,
+  })
+    .from(posts)
+    .where(eq(posts.authorId, reportedId))
+    .orderBy(desc(posts.createdAt))
+    .limit(20)
 
   // Get report counts
-  const [reporterReportsSent, reporterReportsReceived, reportedReportsSent, reportedReportsReceived] = await Promise.all([
-    prisma.report.count({
-      where: {
-        reporterId,
-        createdAt: { gte: thirtyDaysAgo },
-      },
-    }),
-    prisma.report.count({
-      where: {
-        reportedUserId: reporterId,
-        createdAt: { gte: thirtyDaysAgo },
-      },
-    }),
-    prisma.report.count({
-      where: {
-        reporterId: reportedId,
-        createdAt: { gte: thirtyDaysAgo },
-      },
-    }),
-    prisma.report.count({
-      where: {
-        reportedUserId: reportedId,
-        createdAt: { gte: thirtyDaysAgo },
-      },
-    }),
-  ])
+  const [reporterReportsSentResult] = await db.select({ count: count() })
+    .from(reports)
+    .where(eq(reports.reporterId, reporterId))
+
+  const [reporterReportsReceivedResult] = await db.select({ count: count() })
+    .from(reports)
+    .where(eq(reports.reportedUserId, reporterId))
+
+  const [reportedReportsSentResult] = await db.select({ count: count() })
+    .from(reports)
+    .where(eq(reports.reporterId, reportedId))
+
+  const [reportedReportsReceivedResult] = await db.select({ count: count() })
+    .from(reports)
+    .where(eq(reports.reportedUserId, reportedId))
 
   return {
     reporter: {
       id: reporterId,
-      username: report.reporter.username,
-      displayName: report.reporter.displayName,
-      recentReportsSent: reporterReportsSent,
-      recentReportsReceived: reporterReportsReceived,
-      earnedPoints: report.reporter.earnedPoints,
-      totalDeposited: Number(report.reporter.totalDeposited),
-      totalWithdrawn: Number(report.reporter.totalWithdrawn),
-      lifetimePnL: Number(report.reporter.lifetimePnL),
+      username: reporter.username,
+      displayName: reporter.displayName,
+      recentReportsSent: reporterReportsSentResult?.count ?? 0,
+      recentReportsReceived: reporterReportsReceivedResult?.count ?? 0,
+      earnedPoints: reporter.earnedPoints,
+      totalDeposited: Number(reporter.totalDeposited),
+      totalWithdrawn: Number(reporter.totalWithdrawn),
+      lifetimePnL: Number(reporter.lifetimePnL),
     },
     reported: {
       id: reportedId,
-      username: report.reportedUser?.username ?? null,
-      displayName: report.reportedUser?.displayName ?? null,
-      recentReportsReceived: reportedReportsReceived,
-      recentReportsSent: reportedReportsSent,
-      earnedPoints: report.reportedUser?.earnedPoints ?? 0,
-      totalDeposited: report.reportedUser ? Number(report.reportedUser.totalDeposited) : 0,
-      totalWithdrawn: report.reportedUser ? Number(report.reportedUser.totalWithdrawn) : 0,
-      lifetimePnL: report.reportedUser ? Number(report.reportedUser.lifetimePnL) : 0,
+      username: reportedUser?.username ?? null,
+      displayName: reportedUser?.displayName ?? null,
+      recentReportsReceived: reportedReportsReceivedResult?.count ?? 0,
+      recentReportsSent: reportedReportsSentResult?.count ?? 0,
+      earnedPoints: reportedUser?.earnedPoints ?? 0,
+      totalDeposited: reportedUser ? Number(reportedUser.totalDeposited) : 0,
+      totalWithdrawn: reportedUser ? Number(reportedUser.totalWithdrawn) : 0,
+      lifetimePnL: reportedUser ? Number(reportedUser.lifetimePnL) : 0,
     },
     report: {
       id: report.id,
@@ -419,13 +410,11 @@ export async function storeEvaluationResult(
   reportId: string,
   evaluation: ReportEvaluationResult
 ): Promise<void> {
-  await prisma.report.update({
-    where: { id: reportId },
-    data: {
+  await db.update(reports)
+    .set({
       resolution: JSON.stringify(evaluation),
       status: evaluation.outcome === 'valid_report' ? 'resolved' : 'reviewing',
       updatedAt: new Date(),
-    },
-  })
+    })
+    .where(eq(reports.id, reportId))
 }
-

@@ -130,6 +130,7 @@ export type { Actor, ActorRelationship, ActorState, FeedEvent, FeedPost, Organiz
 interface CommentaryPost {
   post?: string;
   tweet?: string;
+  content?: string;
   sentiment?: number;
   clueStrength?: number;
   pointsToward?: boolean | null;
@@ -148,6 +149,7 @@ interface CommentaryResponse {
 interface ConspiracyPost {
   post?: string;
   tweet?: string;
+  content?: string;
   sentiment?: number;
   clueStrength?: number;
   pointsToward?: boolean | null;
@@ -285,12 +287,8 @@ export class FeedGenerator extends EventEmitter {
    */
   updateTrendContext() {
     if (!this.trendingTopics) {
-      // Safe default - never empty string, always valid context
-      this.trendContext = `
-━━━ TRENDING TOPICS ━━━
-Trending system not initialized yet.
-━━━━━━━━━━━━━━━━━━━━━━
-`;
+      // Safe default - compact format
+      this.trendContext = `TRENDING TOPICS: (not initialized)`;
       return;
     }
 
@@ -840,22 +838,13 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(newsPosts);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const rawResponse = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
+      const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_news_posts_batch' }
       );
-
-      let response: { posts?: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null } } } | null = rawResponse;
-      if (typeof rawResponse === 'string') {
-        try {
-           response = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
-        } catch {
-           // ignore
-        }
-      }
 
       if (!response) {
         logger.warn(`LLM returned null/undefined media response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
@@ -887,23 +876,32 @@ Trending system not initialized yet.
         }, 'FeedGenerator');
       }
 
-      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
-      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
-      if (Array.isArray(response.posts)) {
-        posts = response.posts;
-      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
-        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> | { post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null } }).post;
-        posts = Array.isArray(nested) ? nested : [nested];
-      } else if (response.posts) {
-        // Debug: Log what we got
-        logger.warn('Unexpected posts structure', {
-          type: typeof response.posts,
-          keys: Object.keys(response.posts),
-          firstItem: posts[0],
-        }, 'FeedGenerator');
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } } or { response: { posts: {...} } }
+      type PostItem = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
+      let posts: PostItem[] = [];
+      
+      // Check if wrapped in response object first
+      const responseData = 'response' in response && response.response && typeof response.response === 'object'
+        ? response.response as { posts?: PostItem[] | { post: PostItem[] | PostItem } }
+        : response;
+      
+      if ('posts' in responseData && responseData.posts) {
+        if (Array.isArray(responseData.posts)) {
+          posts = responseData.posts;
+        } else if (typeof responseData.posts === 'object' && 'post' in responseData.posts) {
+          const nested = responseData.posts.post;
+          posts = Array.isArray(nested) ? nested : [nested];
+        } else {
+          // Debug: Log what we got
+          logger.warn('Unexpected posts structure', {
+            type: typeof responseData.posts,
+            keys: Object.keys(responseData.posts),
+          }, 'FeedGenerator');
+        }
       } else {
         logger.warn('Response has no posts field', {
-          responseKeys: Object.keys(response),
+          responseKeys: Object.keys(responseData),
+          hasResponse: 'response' in response,
         }, 'FeedGenerator');
       }
       
@@ -917,14 +915,17 @@ Trending system not initialized yet.
         }, 'FeedGenerator');
       }
       
+      // Type helper for posts that may have different content field names
+      type PostWithContent = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }
+      
       const validPosts = posts
-        .filter(p => {
+        .filter((p): p is PostWithContent => {
           // Handle various content field names: post, tweet, or content
-          const content = p.post || p.tweet || (p as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const content = p.post || p.tweet || p.content;
+          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
         })
         .map(p => ({
-          post: p.post || p.tweet || (p as unknown as { content?: string }).content!,
+          post: p.post || p.tweet || p.content!,
           sentiment: p.sentiment ?? 0,
           clueStrength: p.clueStrength ?? 0.5,
           pointsToward: p.pointsToward ?? null,
@@ -1043,12 +1044,12 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(reactions);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_reactions_batch' }
       );
 
       if (!response) {
@@ -1060,23 +1061,32 @@ Trending system not initialized yet.
         return [];
       }
 
-      // Handle XML nested structure: { reactions: [...] } or { reactions: { reaction: [...] } }
-      let reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
-      if (Array.isArray(response.reactions)) {
-        reactions = response.reactions;
-      } else if (response.reactions && typeof response.reactions === 'object' && 'reaction' in response.reactions) {
-        const nested = (response.reactions as { reaction: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).reaction;
-        reactions = Array.isArray(nested) ? nested : [nested];
+      // Handle XML nested structure: { reactions: [...] } or { reactions: { reaction: [...] } } or { response: { reactions: {...} } }
+      type ReactionItem = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
+      let reactions: ReactionItem[] = [];
+      
+      // Check if wrapped in response object first
+      const responseData = 'response' in response && response.response && typeof response.response === 'object'
+        ? response.response as { reactions?: ReactionItem[] | { reaction: ReactionItem[] | ReactionItem } }
+        : response;
+      
+      if ('reactions' in responseData && responseData.reactions) {
+        if (Array.isArray(responseData.reactions)) {
+          reactions = responseData.reactions;
+        } else if (typeof responseData.reactions === 'object' && 'reaction' in responseData.reactions) {
+          const nested = responseData.reactions.reaction;
+          reactions = Array.isArray(nested) ? nested : [nested];
+        }
       }
       
       const filteredReactions = reactions
-        .filter(r => {
+        .filter((r): r is ReactionItem => {
           // Handle various content field names: post, tweet, or content
-          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const content = r.post || r.tweet || r.content;
+          return Boolean(content && typeof content === 'string' && content.trim().length > 0);
         })
         .map(r => ({
-          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
+          post: r.post || r.tweet || r.content || '',
           sentiment: r.sentiment ?? 0,
           clueStrength: r.clueStrength ?? 0.5,
           pointsToward: r.pointsToward ?? null,
@@ -1169,12 +1179,12 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(commentary);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<CommentaryResponse>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_commentary_batch' }
       );
 
       if (!response) {
@@ -1186,24 +1196,32 @@ Trending system not initialized yet.
         return [];
       }
 
-      // Handle XML nested structure: { commentary: [...] } or { commentary: { comment: [...] } }
+      // Handle XML nested structure: { commentary: [...] } or { commentary: { comment: [...] } } or { response: { commentary: {...} } }
       let commentary: CommentaryPost[] = [];
-      if (Array.isArray(response.commentary)) {
-        commentary = response.commentary;
-      } else if (response.commentary && typeof response.commentary === 'object' && 'comment' in response.commentary) {
-        const nested = (response.commentary as { comment: CommentaryPost[] | CommentaryPost }).comment;
-        commentary = Array.isArray(nested) ? nested : [nested];
+      
+      // Check if wrapped in response object first
+      const responseData = 'response' in response && response.response && typeof response.response === 'object'
+        ? response.response as { commentary?: CommentaryPost[] | { comment: CommentaryPost[] | CommentaryPost } }
+        : response;
+      
+      if ('commentary' in responseData && responseData.commentary) {
+        if (Array.isArray(responseData.commentary)) {
+          commentary = responseData.commentary;
+        } else if (typeof responseData.commentary === 'object' && 'comment' in responseData.commentary) {
+          const nested = responseData.commentary.comment;
+          commentary = Array.isArray(nested) ? nested : [nested];
+        }
       }
       
       const filteredCommentary = commentary
-        .filter((c): c is CommentaryPost => {
+        .filter((c) => {
           if (typeof c !== 'object' || c === null) return false;
           // Handle various content field names: post, tweet, or content
-          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
+          const content = c.post || c.tweet || c.content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
-        .map((c: CommentaryPost) => ({
-          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
+        .map((c) => ({
+          post: c.post || c.tweet || c.content || '',
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,
@@ -1285,24 +1303,15 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(conspiracy);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const rawResponse = await this.llm.generateJSON<ConspiracyResponse>(
         prompt,
         undefined, // Don't validate schema, we'll handle both formats
-        params
+        { ...params, promptType: 'feed_generate_conspiracy_posts_batch' }
       );
 
-      let parsedResponse = rawResponse;
-      if (typeof rawResponse === 'string') {
-        try {
-           parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
-        } catch {
-           // ignore
-        }
-      }
-
-      if (!parsedResponse) {
+      if (!rawResponse) {
         logger.warn(`LLM returned null/undefined conspiracy response (attempt ${attempt + 1}/${maxRetries})`, undefined, 'FeedGenerator');
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1314,30 +1323,54 @@ Trending system not initialized yet.
       // Handle multiple response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
       
-      if (parsedResponse && typeof parsedResponse === 'object') {
-        if ('conspiracy' in parsedResponse && parsedResponse.conspiracy) {
-          if (Array.isArray(parsedResponse.conspiracy)) {
+      if (rawResponse && typeof rawResponse === 'object') {
+        if ('conspiracy' in rawResponse && rawResponse.conspiracy) {
+          if (Array.isArray(rawResponse.conspiracy)) {
             // Format 1: Direct array
-            conspiracy = parsedResponse.conspiracy;
-          } else if (typeof parsedResponse.conspiracy === 'object' && 'post' in parsedResponse.conspiracy) {
-            // Format 3: XML nested structure { conspiracy: { post: [...] } }
-            const nested = (parsedResponse.conspiracy as { post: ConspiracyPost[] | ConspiracyPost }).post;
-            conspiracy = Array.isArray(nested) ? nested : [nested];
+            conspiracy = rawResponse.conspiracy;
+          } else if (typeof rawResponse.conspiracy === 'object') {
+            const conspiracyObj = rawResponse.conspiracy as Record<string, unknown>;
+            // Format 3: XML nested structure { conspiracy: { theory: [...] } } or { conspiracy: { post: [...] } }
+            if ('theory' in conspiracyObj) {
+              const nested = conspiracyObj.theory as ConspiracyPost[] | ConspiracyPost;
+              conspiracy = Array.isArray(nested) ? nested : [nested];
+            } else if ('post' in conspiracyObj) {
+              const nested = conspiracyObj.post as ConspiracyPost[] | ConspiracyPost;
+              conspiracy = Array.isArray(nested) ? nested : [nested];
+            }
           }
-        } else if ('data' in parsedResponse && Array.isArray(parsedResponse.data)) {
+        } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
           // Format 2: Wrapped in data array
-          conspiracy = parsedResponse.data.flatMap((d: { conspiracy?: ConspiracyPost[] }) => {
+          conspiracy = rawResponse.data.flatMap((d) => {
             return Array.isArray(d.conspiracy) ? d.conspiracy : [];
           });
+        } else if ('response' in rawResponse && rawResponse.response && typeof rawResponse.response === 'object') {
+          // Format 4: Wrapped in response { response: { conspiracy: [...] } }
+          const responseObj = rawResponse.response as Record<string, unknown>;
+          if ('conspiracy' in responseObj && responseObj.conspiracy) {
+            if (Array.isArray(responseObj.conspiracy)) {
+              conspiracy = responseObj.conspiracy as ConspiracyPost[];
+            } else if (typeof responseObj.conspiracy === 'object') {
+              const conspiracyObj = responseObj.conspiracy as Record<string, unknown>;
+              if ('theory' in conspiracyObj) {
+                const nested = conspiracyObj.theory as ConspiracyPost[] | ConspiracyPost;
+                conspiracy = Array.isArray(nested) ? nested : [nested];
+              } else if ('post' in conspiracyObj) {
+                const nested = conspiracyObj.post as ConspiracyPost[] | ConspiracyPost;
+                conspiracy = Array.isArray(nested) ? nested : [nested];
+              }
+            }
+          }
         } else {
           // Debug: Log what we got
           logger.warn('Conspiracy response has unexpected structure', {
-            responseKeys: Object.keys(parsedResponse),
-            hasConspiracy: 'conspiracy' in parsedResponse,
+            responseKeys: Object.keys(rawResponse),
+            hasConspiracy: 'conspiracy' in rawResponse,
+            hasResponse: 'response' in rawResponse,
           }, 'FeedGenerator');
         }
       } else {
-        logger.warn('Conspiracy response is not an object', { type: typeof parsedResponse }, 'FeedGenerator');
+        logger.warn('Conspiracy response is not an object', { type: typeof rawResponse }, 'FeedGenerator');
       }
       
       // Debug: Log sample if we have posts
@@ -1351,14 +1384,14 @@ Trending system not initialized yet.
       }
 
       const filteredConspiracy = conspiracy
-        .filter((c): c is ConspiracyPost => {
+        .filter((c) => {
           if (typeof c !== 'object' || c === null) return false;
           // Handle various content field names: post, tweet, or content
-          const content = c.post || c.tweet || (c as unknown as { content?: string }).content;
+          const content = c.post || c.tweet || c.content;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
         .map(c => ({
-          post: c.post || c.tweet || (c as unknown as { content?: string }).content!,
+          post: c.post || c.tweet || c.content || '',
           sentiment: c.sentiment ?? 0,
           clueStrength: c.clueStrength ?? 0.5,
           pointsToward: c.pointsToward ?? null,
@@ -1439,7 +1472,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(companyPost);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ 
         post: string;
@@ -1449,7 +1482,7 @@ Trending system not initialized yet.
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
+        { ...params, promptType: 'feed_generate_company_post' }
       );
 
       if (!response) {
@@ -1550,7 +1583,7 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(governmentPost);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ 
         post: string;
@@ -1560,7 +1593,7 @@ Trending system not initialized yet.
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        params
+        { ...params, promptType: 'feed_generate_government_post' }
       );
 
       if (!response) {
@@ -1786,27 +1819,18 @@ Trending system not initialized yet.
     const rawResponse = await this.llm!.generateJSON<{ post: string } | { response: { post: string } }>(
       prompt,
       undefined,
-      params
+      { ...params, promptType: 'feed_generate_reply_content' }
     );
 
-    let parsedResponse = rawResponse;
-    if (typeof rawResponse === 'string') {
-      try {
-         parsedResponse = JSON.parse((rawResponse as string).replace(/```json\n?|\n?```/g, '').trim());
-      } catch {
-         // ignore
-      }
-    }
-
-    if (!parsedResponse || typeof parsedResponse !== 'object') {
-      logger.warn('LLM returned null/undefined/invalid reply content', { type: typeof parsedResponse }, 'FeedGenerator');
+    if (!rawResponse || typeof rawResponse !== 'object') {
+      logger.warn('LLM returned null/undefined/invalid reply content', { type: typeof rawResponse }, 'FeedGenerator');
       return 'Interesting point.'; // Fallback
     }
 
     // Handle XML structure
-    const response = 'response' in parsedResponse && parsedResponse.response
-      ? parsedResponse.response
-      : parsedResponse as { post: string };
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { post: string };
 
     return await this.postProcessContent(response.post);
   }
@@ -1893,12 +1917,12 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(ambientPosts);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_ambient_posts_batch' }
       );
 
       if (!response || typeof response !== 'object') {
@@ -1910,27 +1934,69 @@ Trending system not initialized yet.
         return [];
       }
 
-      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
-      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
-      if (Array.isArray(response.posts)) {
-        posts = response.posts;
-      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
-        const nested = (response.posts as { post: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).post;
-        posts = Array.isArray(nested) ? nested : [nested];
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } } or { response: { posts: {...} } }
+      type AmbientPostItem = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
+      let posts: AmbientPostItem[] = [];
+      
+      // Check if wrapped in response object first
+      const responseData = 'response' in response && response.response && typeof response.response === 'object'
+        ? response.response as { posts?: AmbientPostItem[] | { post?: AmbientPostItem[] | AmbientPostItem; posts?: AmbientPostItem[] } }
+        : response;
+      
+      if ('posts' in responseData && responseData.posts) {
+        if (Array.isArray(responseData.posts)) {
+          posts = responseData.posts;
+        } else if (typeof responseData.posts === 'object') {
+          // Check various nested structures
+          if ('post' in responseData.posts) {
+            const nested = responseData.posts.post;
+            posts = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('posts' in responseData.posts && Array.isArray(responseData.posts.posts)) {
+            // Double nested: { posts: { posts: [...] } }
+            posts = responseData.posts.posts;
+          } else if ('content' in responseData.posts) {
+            // Single post returned directly: { posts: { content: "...", ... } }
+            posts = [responseData.posts as AmbientPostItem];
+          }
+        }
+      }
+      
+      // Debug: Log extraction details on first attempt
+      if (attempt === 0) {
+        logger.info('Ambient posts extraction', {
+          postsLength: posts.length,
+          samplePost: posts[0] ? {
+            hasPost: 'post' in posts[0],
+            hasTweet: 'tweet' in posts[0],
+            hasContent: 'content' in posts[0],
+            postType: typeof (posts[0] as Record<string, unknown>).post,
+            contentType: typeof (posts[0] as Record<string, unknown>).content,
+          } : null,
+        }, 'FeedGenerator');
       }
       
       const filteredPosts = posts
         .filter(p => {
           // Handle various content field names: post, tweet, or content
-          const content = p.post || p.tweet || (p as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const postContent = p.post || p.tweet || p.content;
+          // Also handle case where content might be nested object (XML edge case)
+          const contentValue = typeof postContent === 'object' && postContent !== null 
+            ? String(postContent) 
+            : postContent;
+          return contentValue && typeof contentValue === 'string' && contentValue.trim().length > 0;
         })
-        .map(p => ({
-          post: p.post || p.tweet || (p as unknown as { content?: string }).content!,
-          sentiment: p.sentiment ?? 0,
-          clueStrength: p.clueStrength ?? 0.05,
-          pointsToward: p.pointsToward ?? null,
-        }));
+        .map(p => {
+          const rawContent = p.post || p.tweet || p.content;
+          const content = typeof rawContent === 'object' && rawContent !== null 
+            ? String(rawContent) 
+            : rawContent;
+          return {
+            post: content || '',
+            sentiment: p.sentiment ?? 0,
+            clueStrength: p.clueStrength ?? 0.05,
+            pointsToward: p.pointsToward ?? null,
+          };
+        });
       
       // Post-process to fix any real names that slipped through
       const validPosts = await Promise.all(
@@ -2046,12 +2112,12 @@ Trending system not initialized yet.
     });
 
     const params = getPromptParams(replies);
-    const maxRetries = 2;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const response = await this.llm.generateJSON<{ replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
-        params
+        { ...params, promptType: 'feed_generate_replies_batch' }
       );
 
       if (!response || typeof response !== 'object') {
@@ -2063,27 +2129,88 @@ Trending system not initialized yet.
         return [];
       }
 
-      // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } }
-      let replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
-      if (Array.isArray(response.replies)) {
-        replies = response.replies;
-      } else if (response.replies && typeof response.replies === 'object' && 'reply' in response.replies) {
-        const nested = (response.replies as { reply: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }).reply;
-        replies = Array.isArray(nested) ? nested : [nested];
+      // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } } or { response: { replies: {...} } }
+      type ReplyItem = { post?: string; tweet?: string; content?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
+      let replies: ReplyItem[] = [];
+      
+      // Check if wrapped in response object first
+      const responseData = 'response' in response && response.response && typeof response.response === 'object'
+        ? response.response as { replies?: ReplyItem[] | { reply?: ReplyItem[] | ReplyItem; replies?: ReplyItem[] } }
+        : response;
+      
+      if ('replies' in responseData && responseData.replies) {
+        if (Array.isArray(responseData.replies)) {
+          replies = responseData.replies;
+        } else if (typeof responseData.replies === 'object') {
+          // Check various nested structures
+          if ('reply' in responseData.replies) {
+            const nested = responseData.replies.reply;
+            replies = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('replies' in responseData.replies && Array.isArray(responseData.replies.replies)) {
+            // Double nested: { replies: { replies: [...] } }
+            replies = responseData.replies.replies;
+          } else if ('content' in responseData.replies || 'post' in responseData.replies) {
+            // Single reply returned directly: { replies: { content/post: "...", ... } }
+            replies = [responseData.replies as ReplyItem];
+          }
+        }
+      } else if ('reply' in responseData) {
+        // LLM returned singular 'reply' instead of 'replies'
+        const replyData = (responseData as { reply: ReplyItem[] | ReplyItem | { reply: ReplyItem[] | ReplyItem } }).reply;
+        if (Array.isArray(replyData)) {
+          replies = replyData;
+        } else if (replyData && typeof replyData === 'object') {
+          if ('reply' in replyData) {
+            // Nested: { reply: { reply: [...] } }
+            const nested = (replyData as { reply: ReplyItem[] | ReplyItem }).reply;
+            replies = Array.isArray(nested) ? nested : (nested ? [nested] : []);
+          } else if ('post' in replyData || 'content' in replyData) {
+            // Single reply: { reply: { post: "...", ... } }
+            replies = [replyData as ReplyItem];
+          }
+        }
       }
       
+      // Debug: Log extraction details on first attempt
+      if (attempt === 0) {
+        logger.info('Replies extraction', {
+          repliesLength: replies.length,
+          responseKeys: Object.keys(responseData),
+          hasReplies: 'replies' in responseData,
+          hasReply: 'reply' in responseData,
+          sampleReply: replies[0] ? {
+            hasPost: 'post' in replies[0],
+            hasTweet: 'tweet' in replies[0],
+            hasContent: 'content' in replies[0],
+            postType: typeof (replies[0] as Record<string, unknown>).post,
+            contentType: typeof (replies[0] as Record<string, unknown>).content,
+          } : null,
+        }, 'FeedGenerator');
+      }
+      
+      // Type helper for replies that may have different content field names
       const filteredReplies = replies
-        .filter(r => {
+        .filter((r): r is ReplyItem => {
           // Handle various content field names: post, tweet, or content
-          const content = r.post || r.tweet || (r as unknown as { content?: string }).content;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          const replyContent = r.post || r.tweet || r.content;
+          // Also handle case where content might be nested object (XML edge case)
+          const contentValue = typeof replyContent === 'object' && replyContent !== null 
+            ? String(replyContent) 
+            : replyContent;
+          return Boolean(contentValue && typeof contentValue === 'string' && contentValue.trim().length > 0);
         })
-        .map(r => ({
-          post: r.post || r.tweet || (r as unknown as { content?: string }).content!,
-          sentiment: r.sentiment ?? 0,
-          clueStrength: r.clueStrength ?? 0.3,
-          pointsToward: r.pointsToward ?? null,
-        }));
+        .map(r => {
+          const rawContent = r.post || r.tweet || r.content;
+          const content = typeof rawContent === 'object' && rawContent !== null 
+            ? String(rawContent) 
+            : rawContent;
+          return {
+            post: content || '',
+            sentiment: r.sentiment ?? 0,
+            clueStrength: r.clueStrength ?? 0.3,
+            pointsToward: r.pointsToward ?? null,
+          };
+        });
       
       // Post-process to fix any real names that slipped through
       const validReplies = await Promise.all(
@@ -2160,7 +2287,7 @@ Trending system not initialized yet.
       const rawResponse = await this.llm.generateJSON<{
         post: string;
         sentiment: number;
-      } | { response: { post: string; sentiment: number } }>(prompt, undefined, params);
+      } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_price_announcement' });
 
       // Handle XML structure
       const response = 'response' in rawResponse && rawResponse.response
@@ -2197,7 +2324,7 @@ Trending system not initialized yet.
     const rawTickerResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    } | { response: { post: string; sentiment: number } }>(tickerPrompt, undefined, tickerParams);
+    } | { response: { post: string; sentiment: number } }>(tickerPrompt, undefined, { ...tickerParams, promptType: 'feed_generate_stock_ticker' });
 
     // Handle XML structure
     const tickerResponse = 'response' in rawTickerResponse && rawTickerResponse.response
@@ -2245,7 +2372,7 @@ Trending system not initialized yet.
         const rawResponse = await this.llm.generateJSON<{
           post: string;
           sentiment: number;
-        } | { response: { post: string; sentiment: number } }>(prompt, undefined, analystParams);
+        } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...analystParams, promptType: 'feed_generate_analyst_reaction' });
 
         // Handle XML structure
         const response = 'response' in rawResponse && rawResponse.response
@@ -2330,7 +2457,7 @@ Trending system not initialized yet.
       event: string;
       type: string;
       tone: string;
-    } | { response: { event: string; type: string; tone: string } }>(prompt, undefined, params);
+    } | { response: { event: string; type: string; tone: string } }>(prompt, undefined, { ...params, promptType: 'feed_generate_day_transition' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -2387,7 +2514,7 @@ Trending system not initialized yet.
     const rawResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    } | { response: { post: string; sentiment: number } }>(prompt, undefined, params);
+    } | { response: { post: string; sentiment: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_question_resolution' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -2451,7 +2578,7 @@ Trending system not initialized yet.
       post: string;
       sentiment: number;
       energy: number;
-    } | { response: { post: string; sentiment: number; energy: number } }>(prompt, undefined, params);
+    } | { response: { post: string; sentiment: number; energy: number } }>(prompt, undefined, { ...params, promptType: 'feed_generate_minute_ambient' });
 
     // Handle XML structure
     const response = 'response' in rawResponse && rawResponse.response
@@ -2479,3 +2606,4 @@ Trending system not initialized yet.
 
 
 }
+

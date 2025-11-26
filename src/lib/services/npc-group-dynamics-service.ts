@@ -12,13 +12,39 @@
  * Runs on game ticks to keep groups active and dynamic.
  */
 
-import { prisma } from '@/lib/prisma';
+import {
+  db,
+  actors,
+  chats,
+  chatParticipants,
+  actorRelationships,
+  users,
+  messages,
+  follows,
+  posts,
+  reactions,
+  shares,
+  userInteractions,
+  userGroupInvites,
+  groupChatMemberships,
+  poolPositions,
+  eq,
+  and,
+  or,
+  inArray,
+  notInArray,
+  gte,
+  lt,
+  desc,
+  count,
+  toDatabaseErrorType,
+  isUniqueConstraintError,
+} from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { generateWorldContext } from '@/prompts';
 import { validateNoRealNames, validateNoHashtags, validateNoEmojis } from '@/lib/prompts/validate-output';
-import { Prisma } from '@prisma/client';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -111,88 +137,84 @@ export class NPCGroupDynamicsService {
     let groupsCreated = 0;
 
     // Get NPCs who could start a group
-    const npcs = await prisma.actor.findMany({
-        select: {
-          id: true,
-          name: true,
-        },
-      });
+    const npcs = await db.select({
+      id: actors.id,
+      name: actors.name,
+    }).from(actors);
 
-      for (const npc of npcs) {
-        // Random chance to form a group
-        if (Math.random() > this.FORM_NEW_GROUP_CHANCE) {
-          continue;
-        }
-
-        // Check if NPC already has a group they admin
-        const existingGroup = await prisma.chat.findFirst({
-          where: {
-            name: {
-              contains: npc.name,
-            },
-            isGroup: true,
-          },
-        });
-
-        if (existingGroup) {
-          continue; // Already has a group
-        }
-
-        // Get NPC's positive relationships
-        const relationships = await prisma.actorRelationship.findMany({
-          where: {
-            OR: [
-              { actor1Id: npc.id },
-              { actor2Id: npc.id },
-            ],
-            sentiment: {
-              gte: 0.5, // Positive relationships
-            },
-          },
-          take: this.IDEAL_GROUP_SIZE - 1, // -1 for the admin
-        });
-
-        const memberIds = new Set<string>([npc.id]);
-
-        // Add related actors as members
-        for (const rel of relationships) {
-          const memberId = rel.actor1Id === npc.id ? rel.actor2Id : rel.actor1Id;
-          memberIds.add(memberId);
-        }
-
-        if (memberIds.size < this.MIN_GROUP_SIZE) {
-          continue; // Not enough members
-        }
-
-        // Create the group chat
-        const chatId = await generateSnowflakeId();
-        const chatName = `${npc.name}'s Circle`;
-
-        await prisma.chat.create({
-        data: {
-          id: chatId,
-          name: chatName,
-          isGroup: true,
-          updatedAt: new Date(),
-          ChatParticipant: {
-            create: await Promise.all(
-              Array.from(memberIds).map(async (memberId) => ({
-                id: await generateSnowflakeId(),
-                userId: memberId,
-              }))
-            ),
-          },
-        },
-        });
-
-        groupsCreated++;
-        logger.info(`NPC formed new group`, {
-          npcId: npc.id,
-          npcName: npc.name,
-          chatName,
-          memberCount: memberIds.size,
-        }, 'NPCGroupDynamicsService');
+    for (const npc of npcs) {
+      // Random chance to form a group
+      if (Math.random() > this.FORM_NEW_GROUP_CHANCE) {
+        continue;
       }
+
+      // Check if NPC already has a group they admin by querying groups with their name
+      const [hasGroup] = await db.select({ id: chats.id, name: chats.name })
+        .from(chats)
+        .where(eq(chats.isGroup, true))
+        .limit(1000);
+      
+      const alreadyHasGroup = hasGroup ? (await db.select({ id: chats.id, name: chats.name })
+        .from(chats)
+        .where(eq(chats.isGroup, true))).some(g => g.name?.includes(npc.name)) : false;
+
+      if (alreadyHasGroup) {
+        continue; // Already has a group
+      }
+
+      // Get NPC's positive relationships
+      const relationships = await db.select()
+        .from(actorRelationships)
+        .where(and(
+          or(
+            eq(actorRelationships.actor1Id, npc.id),
+            eq(actorRelationships.actor2Id, npc.id)
+          ),
+          gte(actorRelationships.sentiment, 0.5)
+        ))
+        .limit(this.IDEAL_GROUP_SIZE - 1);
+
+      const memberIds = new Set<string>([npc.id]);
+
+      // Add related actors as members
+      for (const rel of relationships) {
+        const memberId = rel.actor1Id === npc.id ? rel.actor2Id : rel.actor1Id;
+        memberIds.add(memberId);
+      }
+
+      if (memberIds.size < this.MIN_GROUP_SIZE) {
+        continue; // Not enough members
+      }
+
+      // Create the group chat
+      const chatId = await generateSnowflakeId();
+      const chatName = `${npc.name}'s Circle`;
+
+      await db.insert(chats).values({
+        id: chatId,
+        name: chatName,
+        isGroup: true,
+        updatedAt: new Date(),
+      });
+      
+      // Create participants
+      const participantValues = await Promise.all(
+        Array.from(memberIds).map(async (memberId) => ({
+          id: await generateSnowflakeId(),
+          chatId,
+          userId: memberId,
+        }))
+      );
+      await db.insert(chatParticipants).values(participantValues);
+
+      groupsCreated++;
+      logger.info(`NPC formed new group`, {
+        npcId: npc.id,
+        npcName: npc.name,
+        chatName,
+        memberCount: memberIds.size,
+      }, 'NPCGroupDynamicsService');
+    }
 
     return groupsCreated;
   }
@@ -204,89 +226,78 @@ export class NPCGroupDynamicsService {
     let joinsProcessed = 0;
 
     // Get all NPC group chats
-    const groups = await prisma.chat.findMany({
-        where: {
-          isGroup: true,
-        },
-        include: {
-          ChatParticipant: {
-            select: {
-              userId: true,
-            },
-          },
-        },
-      });
+    const groupList = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true));
 
-      for (const group of groups) {
-        // Don't add to full groups
-        if (group.ChatParticipant.length >= this.MAX_GROUP_SIZE) {
+    for (const group of groupList) {
+      // Get participants for this group
+      const participants = await db.select({ userId: chatParticipants.userId })
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, group.id));
+
+      // Don't add to full groups
+      if (participants.length >= this.MAX_GROUP_SIZE) {
+        continue;
+      }
+
+      const currentMemberIds = new Set(participants.map(p => p.userId));
+      const memberIdsArray = Array.from(currentMemberIds);
+
+      // Get NPCs who could join
+      const potentialMembers = memberIdsArray.length > 0
+        ? await db.select()
+            .from(actors)
+            .where(notInArray(actors.id, memberIdsArray))
+            .limit(5)
+        : await db.select().from(actors).limit(5);
+
+      for (const candidate of potentialMembers) {
+        // Random chance to join
+        if (Math.random() > this.JOIN_GROUP_CHANCE) {
           continue;
         }
 
-        const currentMemberIds = new Set(group.ChatParticipant.map(p => p.userId));
+        // Check if candidate has positive relationships with current members
+        const relationships = memberIdsArray.length > 0
+          ? await db.select()
+              .from(actorRelationships)
+              .where(and(
+                or(
+                  and(
+                    eq(actorRelationships.actor1Id, candidate.id),
+                    inArray(actorRelationships.actor2Id, memberIdsArray)
+                  ),
+                  and(
+                    eq(actorRelationships.actor2Id, candidate.id),
+                    inArray(actorRelationships.actor1Id, memberIdsArray)
+                  )
+                ),
+                gte(actorRelationships.sentiment, 0.3)
+              ))
+          : [];
 
-        // Get NPCs who could join
-        const potentialMembers = await prisma.actor.findMany({
-          where: {
-            id: {
-              notIn: Array.from(currentMemberIds),
-            },
-          },
-          take: 5, // Check a few candidates
-        });
-
-        for (const candidate of potentialMembers) {
-          // Random chance to join
-          if (Math.random() > this.JOIN_GROUP_CHANCE) {
-            continue;
-          }
-
-          // Check if candidate has positive relationships with current members
-          const relationships = await prisma.actorRelationship.findMany({
-            where: {
-              OR: [
-                {
-                  actor1Id: candidate.id,
-                  actor2Id: {
-                    in: Array.from(currentMemberIds),
-                  },
-                },
-                {
-                  actor2Id: candidate.id,
-                  actor1Id: {
-                    in: Array.from(currentMemberIds),
-                  },
-                },
-              ],
-              sentiment: {
-                gte: 0.3, // Somewhat positive
-              },
-            },
+        // Must have at least 2 friends in the group
+        if (relationships.length >= 2) {
+          // Add to group
+          await db.insert(chatParticipants).values({
+            id: await generateSnowflakeId(),
+            chatId: group.id,
+            userId: candidate.id,
           });
 
-          // Must have at least 2 friends in the group
-          if (relationships.length >= 2) {
-            // Add to group
-            await prisma.chatParticipant.create({
-              data: {
-                id: await generateSnowflakeId(),
-                chatId: group.id,
-                userId: candidate.id,
-              },
-            });
+          joinsProcessed++;
+          logger.info(`NPC joined group`, {
+            npcId: candidate.id,
+            npcName: candidate.name,
+            chatName: group.name,
+            friendsInGroup: relationships.length,
+          }, 'NPCGroupDynamicsService');
 
-            joinsProcessed++;
-            logger.info(`NPC joined group`, {
-              npcId: candidate.id,
-              npcName: candidate.name,
-              chatName: group.name,
-              friendsInGroup: relationships.length,
-            }, 'NPCGroupDynamicsService');
-
-            break; // Only one join per group per tick
-          }
+          break; // Only one join per group per tick
         }
       }
+    }
 
     return joinsProcessed;
   }
@@ -297,242 +308,287 @@ export class NPCGroupDynamicsService {
   private static async processGroupLeaves(): Promise<number> {
     let leavesProcessed = 0;
 
-    // Get all NPC group memberships
-    const memberships = await prisma.chatParticipant.findMany({
-        where: {
-          Chat: {
-            isGroup: true,
-          },
-        },
-        include: {
-          Chat: {
-            include: {
-              ChatParticipant: true,
-            },
-          },
-        },
-      });
+    // Get all group chats
+    const groupChats = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true));
 
-      for (const membership of memberships) {
-        // Don't leave if group would become too small
-        if (membership.Chat.ChatParticipant.length <= this.MIN_GROUP_SIZE) {
-          continue;
-        }
+    for (const chat of groupChats) {
+      // Get all participants for this chat
+      const participantList = await db.select()
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, chat.id));
 
+      // Don't process if group would become too small
+      if (participantList.length <= this.MIN_GROUP_SIZE) {
+        continue;
+      }
+
+      for (const membership of participantList) {
         // Random chance to leave
         if (Math.random() > this.LEAVE_GROUP_CHANCE) {
           continue;
         }
 
         // Check if NPC is the group creator (don't leave own group)
-        if (membership.Chat.name?.includes(membership.userId)) {
+        if (chat.name?.includes(membership.userId)) {
           continue;
         }
 
         // Check if NPC has negative relationships with members
-        const memberIds = membership.Chat.ChatParticipant
+        const memberIds = participantList
           .map(p => p.userId)
           .filter(id => id !== membership.userId);
 
-        const negativeRelationships = await prisma.actorRelationship.findMany({
-          where: {
-            OR: [
-              {
-                actor1Id: membership.userId,
-                actor2Id: {
-                  in: memberIds,
-                },
-              },
-              {
-                actor2Id: membership.userId,
-                actor1Id: {
-                  in: memberIds,
-                },
-              },
-            ],
-            sentiment: {
-              lt: -0.3, // Negative
-            },
-          },
-        });
+        if (memberIds.length === 0) continue;
+
+        const negativeRelationships = await db.select()
+          .from(actorRelationships)
+          .where(and(
+            or(
+              and(
+                eq(actorRelationships.actor1Id, membership.userId),
+                inArray(actorRelationships.actor2Id, memberIds)
+              ),
+              and(
+                eq(actorRelationships.actor2Id, membership.userId),
+                inArray(actorRelationships.actor1Id, memberIds)
+              )
+            ),
+            lt(actorRelationships.sentiment, -0.3)
+          ));
 
         // Leave if too many enemies in group
         if (negativeRelationships.length >= 2) {
-          await prisma.chatParticipant.delete({
-            where: {
-              id: membership.id,
-            },
-          });
+          await db.delete(chatParticipants)
+            .where(eq(chatParticipants.id, membership.id));
 
           leavesProcessed++;
           logger.info(`NPC left group`, {
             npcId: membership.userId,
-            chatName: membership.Chat.name,
+            chatName: chat.name,
             reason: `${negativeRelationships.length} negative relationships`,
           }, 'NPCGroupDynamicsService');
         }
       }
+    }
 
     return leavesProcessed;
   }
 
   /**
    * Post messages to groups from NPCs
+   * 
+   * IMPORTANT: Group chats are the core ASYMMETRIC INFORMATION mechanic.
+   * NPCs share insider info here that they would NEVER post publicly:
+   * - Real positions and upcoming trades
+   * - Insider knowledge about questions/markets
+   * - Contradictions to their public statements
+   * - Strategic coordination with allies
    */
   private static async postGroupMessages(llm: BabylonLLMClient): Promise<number> {
     let messagesPosted = 0;
 
-    // Get active group chats with NPC participants
-    const groups = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-      },
-      include: {
-        ChatParticipant: true,
-        Message: {
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 10,
-        },
-      },
-      take: 20, // Process up to 20 groups per tick
-    });
+    // Get active group chats
+    const groupList = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true))
+      .limit(20);
 
-      for (const group of groups) {
-        // Random chance to post
-        if (Math.random() > this.POST_MESSAGE_CHANCE) {
-          continue;
-        }
+    for (const group of groupList) {
+      // Random chance to post
+      if (Math.random() > this.POST_MESSAGE_CHANCE) {
+        continue;
+      }
 
-        // Get user details for participants
-        const participantUserIds = group.ChatParticipant.map(p => p.userId);
-        const participantUsers = await prisma.user.findMany({
-          where: { id: { in: participantUserIds } },
-          select: { id: true, displayName: true, isActor: true },
-        });
+      // Get participants
+      const participantList = await db.select()
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, group.id));
 
-        // Get NPCs in this group
-        const npcUsers = participantUsers.filter(u => u.isActor);
+      // Get recent messages
+      const recentMsgs = await db.select()
+        .from(messages)
+        .where(eq(messages.chatId, group.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(10);
 
-        if (npcUsers.length === 0) {
-          continue; // No NPCs in this group
-        }
+      // Get user details for participants
+      const participantUserIds = participantList.map(p => p.userId);
+      const participantUsers = participantUserIds.length > 0
+        ? await db.select({
+            id: users.id,
+            displayName: users.displayName,
+            isActor: users.isActor,
+          })
+          .from(users)
+          .where(inArray(users.id, participantUserIds))
+        : [];
 
-        // Pick a random NPC to post
-        const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
-        if (!randomNpc) continue;
+      // Get NPCs in this group
+      const npcUsers = participantUsers.filter(u => u.isActor);
 
-        // Get sender details for recent messages
-        const messageSenderIds = group.Message.slice(0, 5).map(m => m.senderId);
-        const senders = await prisma.user.findMany({
-          where: { id: { in: messageSenderIds } },
-          select: { id: true, displayName: true },
-        });
-        const senderMap = new Map(senders.map(s => [s.id, s.displayName || 'Someone']));
+      if (npcUsers.length === 0) {
+        continue; // No NPCs in this group
+      }
 
-        // Build conversation context from recent messages
-        const recentMessages = group.Message.slice(0, 5)
-          .reverse()
-          .map((m) => `${senderMap.get(m.senderId) || 'Someone'}: ${m.content}`)
-          .join('\n');
+      // Pick a random NPC to post
+      const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
+      if (!randomNpc) continue;
 
-        const contextPrompt = recentMessages
-          ? `Recent conversation:\n${recentMessages}\n\nRespond naturally to continue the conversation.`
-          : `Start a casual conversation in the group "${group.name}".`;
+      // Get full NPC actor data for insider context
+      const [npcActor] = await db.select()
+        .from(actors)
+        .where(eq(actors.id, randomNpc.id))
+        .limit(1);
 
-        try {
-          // Get world context for consistent parody names and market awareness
-          const worldContext = await generateWorldContext({ maxActors: 20 });
-          
-          // Generate message using LLM with world context
-          const prompt = `You are ${randomNpc.displayName}, chatting in a private group chat. ${contextPrompt}
+      // Get NPC's current positions for insider trading context
+      const npcPositions = await db.select()
+        .from(poolPositions)
+        .where(eq(poolPositions.poolId, randomNpc.id))
+        .limit(5);
+
+      // Get sender details for recent messages
+      const messageSenderIds = recentMsgs.slice(0, 5).map(m => m.senderId);
+      const senders = messageSenderIds.length > 0
+        ? await db.select({
+            id: users.id,
+            displayName: users.displayName,
+          })
+          .from(users)
+          .where(inArray(users.id, messageSenderIds))
+        : [];
+      const senderMap = new Map(senders.map(s => [s.id, s.displayName || 'Someone']));
+
+      // Build conversation context from recent messages
+      const recentMessages = recentMsgs.slice(0, 5)
+        .reverse()
+        .map((m) => `${senderMap.get(m.senderId) || 'Someone'}: ${m.content}`)
+        .join('\n');
+
+      const conversationContext = recentMessages
+        ? `Recent conversation:\n${recentMessages}`
+        : '';
+
+      // Build position context for insider trading info
+      const positionContext = npcPositions.length > 0
+        ? `YOUR CURRENT POSITIONS (share strategically):\n${npcPositions.map(p => 
+            `- ${p.marketType === 'perp' ? p.ticker : `Question #${p.marketId}`}: ${p.side} position, ${p.unrealizedPnL > 0 ? 'up' : 'down'} $${Math.abs(Number(p.unrealizedPnL)).toFixed(0)}`
+          ).join('\n')}`
+        : '';
+
+      // Build affiliation context
+      const affiliationContext = npcActor?.affiliations && npcActor.affiliations.length > 0
+        ? `Your affiliations: ${npcActor.affiliations.join(', ')}`
+        : '';
+
+      try {
+        // Get world context for consistent parody names and market awareness
+        const worldContext = await generateWorldContext({ maxActors: 20 });
+        
+        // Generate INSIDER message - this is the key asymmetric information mechanic!
+        const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
+${affiliationContext}
+
+${conversationContext}
+
+${positionContext}
 
 ${worldContext.worldActors}
 ${worldContext.currentMarkets}
-${worldContext.recentTrades}
 
-Write a brief, casual message (max 150 chars). Be natural and conversational.
+This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
 
-IMPORTANT RULES:
-- NO hashtags or emojis
-- NEVER use real names (Elon Musk, Sam Altman, etc.)
-- ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.)
-- You may reference markets or trades naturally if relevant
+WHAT TO SHARE (pick one that's relevant):
+- "Just loaded up on [ticker] before the announcement drops"
+- "Between us, [company] numbers look terrible this quarter"
+- "I'm hearing [rival] is in serious trouble"
+- "Get out of [ticker] now - trust me on this"
+- "Real talk: market is wrong about [question]"
+- Your actual position and why (contradict public statements if needed)
+- Insider knowledge about your affiliated organizations
+- Strategic advice for friends in this group
 
-Return your response as XML in this exact format:
+PRIVATE vs PUBLIC:
+- PUBLIC feed: What you want the market to think
+- PRIVATE chat: What you actually know/believe/plan
+- Help friends make money, hurt enemies
+
+Write a private message (max 200 chars) with ACTIONABLE insider info.
+Be SPECIFIC with tickers, positions, or predictions.
+NO hashtags. Emojis OK (🤫 👀 🔥).
+Use parody names from World Actors (AIlon Musk, not Elon Musk).
+
+Return your response as XML:
 <response>
-  <message>your message here</message>
+  <message>your insider message here</message>
 </response>`;
 
-          const rawResponse = await llm.generateJSON<{ message: string } | { response: { message: string } }>(
-            prompt,
-            {
-              properties: {
-                message: { type: 'string' },
-              },
-              required: ['message'],
+        const rawResponse = await llm.generateJSON<{ message: string } | { response: { message: string } }>(
+          prompt,
+          {
+            properties: {
+              message: { type: 'string' },
             },
-            { temperature: 0.9, maxTokens: 100 }
-          );
+            required: ['message'],
+          },
+          { temperature: 0.9, maxTokens: 100, promptType: 'npc_group_dynamic_message' }
+        );
 
-          // Handle XML structure
-          const response = 'response' in rawResponse && rawResponse.response
-            ? rawResponse.response
-            : rawResponse as { message: string };
+        // Handle XML structure
+        const response = 'response' in rawResponse && rawResponse.response
+          ? rawResponse.response
+          : rawResponse as { message: string };
 
-          if (!response.message || response.message.length === 0) {
-            continue;
-          }
-
-          // Validate message follows rules
-          const messageContent = response.message.trim();
-          const realNameViolations = validateNoRealNames(messageContent);
-          const hashtagViolations = validateNoHashtags(messageContent);
-          const emojiViolations = validateNoEmojis(messageContent);
-          
-          if (realNameViolations.length > 0 || hashtagViolations.length > 0 || emojiViolations.length > 0) {
-            logger.warn('NPC group message validation failed, skipping', {
-              npcId: randomNpc.id,
-              violations: [...realNameViolations, ...hashtagViolations, ...emojiViolations],
-              message: messageContent,
-            }, 'NPCGroupDynamicsService');
-            continue;
-          }
-
-          // Create the message
-          await prisma.message.create({
-            data: {
-              id: await generateSnowflakeId(),
-              content: messageContent,
-              chatId: group.id,
-              senderId: randomNpc.id,
-              createdAt: new Date(),
-            },
-          });
-
-          // Update chat updated timestamp
-          await prisma.chat.update({
-            where: { id: group.id },
-            data: { updatedAt: new Date() },
-          });
-
-          messagesPosted++;
-          logger.debug(`NPC posted to group`, {
-            npcId: randomNpc.id,
-            npcName: randomNpc.displayName,
-            chatId: group.id,
-            chatName: group.name,
-          }, 'NPCGroupDynamicsService');
-
-        } catch (error) {
-          logger.warn('Failed to generate NPC group message', {
-            error,
-            npcId: randomNpc.id,
-            chatId: group.id,
-          }, 'NPCGroupDynamicsService');
+        if (!response.message || response.message.length === 0) {
+          continue;
         }
+
+        // Validate message follows rules
+        const messageContent = response.message.trim();
+        const realNameViolations = validateNoRealNames(messageContent);
+        const hashtagViolations = validateNoHashtags(messageContent);
+        const emojiViolations = validateNoEmojis(messageContent);
+        
+        if (realNameViolations.length > 0 || hashtagViolations.length > 0 || emojiViolations.length > 0) {
+          logger.warn('NPC group message validation failed, skipping', {
+            npcId: randomNpc.id,
+            violations: [...realNameViolations, ...hashtagViolations, ...emojiViolations],
+            message: messageContent,
+          }, 'NPCGroupDynamicsService');
+          continue;
+        }
+
+        // Create the message
+        await db.insert(messages).values({
+          id: await generateSnowflakeId(),
+          content: messageContent,
+          chatId: group.id,
+          senderId: randomNpc.id,
+          createdAt: new Date(),
+        });
+
+        // Update chat updated timestamp
+        await db.update(chats)
+          .set({ updatedAt: new Date() })
+          .where(eq(chats.id, group.id));
+
+        messagesPosted++;
+        logger.debug(`NPC posted to group`, {
+          npcId: randomNpc.id,
+          npcName: randomNpc.displayName,
+          chatId: group.id,
+          chatName: group.name,
+        }, 'NPCGroupDynamicsService');
+
+      } catch (error) {
+        logger.warn('Failed to generate NPC group message', {
+          error,
+          npcId: randomNpc.id,
+          chatId: group.id,
+        }, 'NPCGroupDynamicsService');
       }
+    }
 
     return messagesPosted;
   }
@@ -553,7 +609,10 @@ Return your response as XML in this exact format:
    * - Too many likes (>30/week): -0.5 per excess like
    * - Too many reposts (>5/week): -3 per excess repost
    */
-  private static async calculateReplyGuyScore(userId: string, npcIds: string[]): Promise<{
+  /**
+   * Calculate engagement score for potential group invites (exposed for testing)
+   */
+  public static async calculateReplyGuyScore(userId: string, npcIds: string[]): Promise<{
     score: number;
     breakdown: {
       follows: number;
@@ -581,129 +640,126 @@ Return your response as XML in this exact format:
     };
 
     // 1. Check follows (all-time)
-    const followCount = await prisma.follow.count({
-        where: {
-          followerId: userId,
-          followingId: {
-            in: npcIds,
-          },
-        },
-      });
-      breakdown.follows = followCount * 5;
-      score += breakdown.follows;
+    const [followResult] = npcIds.length > 0
+      ? await db.select({ count: count() })
+          .from(follows)
+          .where(and(
+            eq(follows.followerId, userId),
+            inArray(follows.followingId, npcIds)
+          ))
+      : [{ count: 0 }];
+    const followCount = followResult?.count ?? 0;
+    breakdown.follows = followCount * 5;
+    score += breakdown.follows;
 
-      // 2. Count comments on NPC posts (last 7 days)
-      const commentCount = await prisma.post.count({
-        where: {
-          authorId: userId,
-          commentOnPostId: {
-            not: null,
-          },
-          Post_Post_commentOnPostIdToPost: {
-            authorId: {
-              in: npcIds,
-            },
-          },
-          createdAt: {
-            gte: oneWeekAgo,
-          },
-        },
-      });
+    // 2. Count comments on NPC posts (last 7 days)
+    // This requires a subquery to find posts by NPCs that user commented on
+    const npcPosts = npcIds.length > 0
+      ? await db.select({ id: posts.id })
+          .from(posts)
+          .where(inArray(posts.authorId, npcIds))
+      : [];
+    const npcPostIds = npcPosts.map(p => p.id);
+    
+    const [commentResult] = npcPostIds.length > 0
+      ? await db.select({ count: count() })
+          .from(posts)
+          .where(and(
+            eq(posts.authorId, userId),
+            inArray(posts.commentOnPostId, npcPostIds),
+            gte(posts.createdAt, oneWeekAgo)
+          ))
+      : [{ count: 0 }];
+    const commentCount = commentResult?.count ?? 0;
 
-      // Ideal: 1-3 comments per week
-      if (commentCount >= 1 && commentCount <= 3) {
-        breakdown.comments = commentCount * 3;
-        score += breakdown.comments;
-      } else if (commentCount > 3 && commentCount <= 10) {
-        // Still okay, but diminishing returns
-        breakdown.comments = commentCount * 2;
-        score += breakdown.comments;
-      } else if (commentCount > 10) {
-        // Spam behavior - penalty
-        const goodComments = 10 * 2; // First 10 get points
-        const excessComments = commentCount - 10;
-        const penalty = excessComments * -2;
-        breakdown.comments = goodComments;
-        breakdown.penalties += penalty;
-        score += goodComments + penalty;
-      }
+    // Ideal: 1-3 comments per week
+    if (commentCount >= 1 && commentCount <= 3) {
+      breakdown.comments = commentCount * 3;
+      score += breakdown.comments;
+    } else if (commentCount > 3 && commentCount <= 10) {
+      // Still okay, but diminishing returns
+      breakdown.comments = commentCount * 2;
+      score += breakdown.comments;
+    } else if (commentCount > 10) {
+      // Spam behavior - penalty
+      const goodComments = 10 * 2; // First 10 get points
+      const excessComments = commentCount - 10;
+      const penalty = excessComments * -2;
+      breakdown.comments = goodComments;
+      breakdown.penalties += penalty;
+      score += goodComments + penalty;
+    }
 
-      // 3. Count likes on NPC posts (last 7 days)
-      const likeCount = await prisma.reaction.count({
-        where: {
-          userId: userId,
-          type: 'like',
-          Post: {
-            authorId: {
-              in: npcIds,
-            },
-          },
-          createdAt: {
-            gte: oneWeekAgo,
-          },
-        },
-      });
+    // 3. Count likes on NPC posts (last 7 days)
+    const [likeResult] = npcPostIds.length > 0
+      ? await db.select({ count: count() })
+          .from(reactions)
+          .where(and(
+            eq(reactions.userId, userId),
+            eq(reactions.type, 'like'),
+            inArray(reactions.postId, npcPostIds),
+            gte(reactions.createdAt, oneWeekAgo)
+          ))
+      : [{ count: 0 }];
+    const likeCount = likeResult?.count ?? 0;
 
-      // Ideal: 3-10 likes per week
-      if (likeCount >= 3 && likeCount <= 10) {
-        breakdown.likes = likeCount * 1;
-        score += breakdown.likes;
-      } else if (likeCount > 10 && likeCount <= 30) {
-        // Moderate engagement
-        breakdown.likes = likeCount * 0.5;
-        score += breakdown.likes;
-      } else if (likeCount > 30) {
-        // Excessive liking - penalty
-        const goodLikes = 30 * 0.5;
-        const excessLikes = likeCount - 30;
-        const penalty = excessLikes * -0.5;
-        breakdown.likes = goodLikes;
-        breakdown.penalties += penalty;
-        score += goodLikes + penalty;
-      } else if (likeCount > 0 && likeCount < 3) {
-        // Some engagement is better than none
-        breakdown.likes = likeCount * 0.5;
-        score += breakdown.likes;
-      }
+    // Ideal: 3-10 likes per week
+    if (likeCount >= 3 && likeCount <= 10) {
+      breakdown.likes = likeCount * 1;
+      score += breakdown.likes;
+    } else if (likeCount > 10 && likeCount <= 30) {
+      // Moderate engagement
+      breakdown.likes = likeCount * 0.5;
+      score += breakdown.likes;
+    } else if (likeCount > 30) {
+      // Excessive liking - penalty
+      const goodLikes = 30 * 0.5;
+      const excessLikes = likeCount - 30;
+      const penalty = excessLikes * -0.5;
+      breakdown.likes = goodLikes;
+      breakdown.penalties += penalty;
+      score += goodLikes + penalty;
+    } else if (likeCount > 0 && likeCount < 3) {
+      // Some engagement is better than none
+      breakdown.likes = likeCount * 0.5;
+      score += breakdown.likes;
+    }
 
-      // 4. Count reposts/shares of NPC posts (last 7 days)
-      const repostCount = await prisma.share.count({
-        where: {
-          userId: userId,
-          Post: {
-            authorId: {
-              in: npcIds,
-            },
-          },
-          createdAt: {
-            gte: oneWeekAgo,
-          },
-        },
-      });
+    // 4. Count reposts/shares of NPC posts (last 7 days)
+    const [repostResult] = npcPostIds.length > 0
+      ? await db.select({ count: count() })
+          .from(shares)
+          .where(and(
+            eq(shares.userId, userId),
+            inArray(shares.postId, npcPostIds),
+            gte(shares.createdAt, oneWeekAgo)
+          ))
+      : [{ count: 0 }];
+    const repostCount = repostResult?.count ?? 0;
 
-      // Ideal: 1-2 reposts per week
-      if (repostCount >= 1 && repostCount <= 2) {
-        breakdown.reposts = repostCount * 4;
-        score += breakdown.reposts;
-      } else if (repostCount > 2 && repostCount <= 5) {
-        // Moderate reposting
-        breakdown.reposts = repostCount * 2;
-        score += breakdown.reposts;
-      } else if (repostCount > 5) {
-        // Excessive reposting - penalty
-        const goodReposts = 5 * 2;
-        const excessReposts = repostCount - 5;
-        const penalty = excessReposts * -3;
-        breakdown.reposts = goodReposts;
-        breakdown.penalties += penalty;
-        score += goodReposts + penalty;
-      }
+    // Ideal: 1-2 reposts per week
+    if (repostCount >= 1 && repostCount <= 2) {
+      breakdown.reposts = repostCount * 4;
+      score += breakdown.reposts;
+    } else if (repostCount > 2 && repostCount <= 5) {
+      // Moderate reposting
+      breakdown.reposts = repostCount * 2;
+      score += breakdown.reposts;
+    } else if (repostCount > 5) {
+      // Excessive reposting - penalty
+      const goodReposts = 5 * 2;
+      const excessReposts = repostCount - 5;
+      const penalty = excessReposts * -3;
+      breakdown.reposts = goodReposts;
+      breakdown.penalties += penalty;
+      score += goodReposts + penalty;
+    }
 
-      // 5. Apply relationship modifier
-      const relationshipModifier = await this.calculateRelationshipModifier(userId, npcIds);
-      breakdown.relationshipModifier = relationshipModifier.modifier;
-      breakdown.friendBoosts = relationshipModifier.friendBoosts;
-      breakdown.enemyPenalties = relationshipModifier.enemyPenalties;
+    // 5. Apply relationship modifier
+    const relationshipModifier = await this.calculateRelationshipModifier(userId, npcIds);
+    breakdown.relationshipModifier = relationshipModifier.modifier;
+    breakdown.friendBoosts = relationshipModifier.friendBoosts;
+    breakdown.enemyPenalties = relationshipModifier.enemyPenalties;
       
     // Apply the modifier to the final score
     score = score * relationshipModifier.modifier;
@@ -733,70 +789,65 @@ Return your response as XML in this exact format:
     let friendBoosts = 0;
     let enemyPenalties = 0;
 
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     // Get all NPCs the user has engaged with (via UserInteraction table)
-    const userInteractions = await prisma.userInteraction.findMany({
-        where: {
-          userId,
-          timestamp: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        select: {
-          npcId: true,
-        },
-        distinct: ['npcId'],
-      });
+    const userInteractionList = await db.select({ npcId: userInteractions.npcId })
+      .from(userInteractions)
+      .where(and(
+        eq(userInteractions.userId, userId),
+        gte(userInteractions.timestamp, thirtyDaysAgo)
+      ));
 
-      const userEngagedNpcIds = userInteractions.map(i => i.npcId);
+    // Get unique NPC IDs
+    const userEngagedNpcIds = [...new Set(userInteractionList.map(i => i.npcId))];
 
-      if (userEngagedNpcIds.length === 0) {
-        return { modifier: 1.0, friendBoosts: 0, enemyPenalties: 0 };
-      }
+    if (userEngagedNpcIds.length === 0) {
+      return { modifier: 1.0, friendBoosts: 0, enemyPenalties: 0 };
+    }
 
-      // For each target NPC (in the group), check relationships with NPCs user engages with
-      for (const targetNpcId of targetNpcIds) {
-        const relationships = await prisma.actorRelationship.findMany({
-          where: {
-            OR: [
-              {
-                actor1Id: targetNpcId,
-                actor2Id: { in: userEngagedNpcIds },
-              },
-              {
-                actor2Id: targetNpcId,
-                actor1Id: { in: userEngagedNpcIds },
-              },
-            ],
-          },
-        });
+    // For each target NPC (in the group), check relationships with NPCs user engages with
+    for (const targetNpcId of targetNpcIds) {
+      const relationships = await db.select()
+        .from(actorRelationships)
+        .where(or(
+          and(
+            eq(actorRelationships.actor1Id, targetNpcId),
+            inArray(actorRelationships.actor2Id, userEngagedNpcIds)
+          ),
+          and(
+            eq(actorRelationships.actor2Id, targetNpcId),
+            inArray(actorRelationships.actor1Id, userEngagedNpcIds)
+          )
+        ));
 
-        for (const rel of relationships) {
-          // Enemy relationship: reduce invite chance
-          if (rel.sentiment < -0.3) {
-            modifier *= 0.8; // 20% reduction per enemy
-            enemyPenalties++;
-            logger.debug('User engages with enemy NPC, reducing invite chance', {
-              userId,
-              targetNpcId,
-              enemyNpcId: rel.actor1Id === targetNpcId ? rel.actor2Id : rel.actor1Id,
-              sentiment: rel.sentiment,
-              newModifier: modifier,
-            }, 'NPCGroupDynamicsService');
-          }
-          // Friend relationship: boost invite chance slightly
-          else if (rel.sentiment > 0.5) {
-            modifier *= 1.1; // 10% boost per friend
-            friendBoosts++;
-            logger.debug('User engages with friend NPC, boosting invite chance', {
-              userId,
-              targetNpcId,
-              friendNpcId: rel.actor1Id === targetNpcId ? rel.actor2Id : rel.actor1Id,
-              sentiment: rel.sentiment,
-              newModifier: modifier,
-            }, 'NPCGroupDynamicsService');
-          }
+      for (const rel of relationships) {
+        // Enemy relationship: reduce invite chance
+        if (rel.sentiment < -0.3) {
+          modifier *= 0.8; // 20% reduction per enemy
+          enemyPenalties++;
+          logger.debug('User engages with enemy NPC, reducing invite chance', {
+            userId,
+            targetNpcId,
+            enemyNpcId: rel.actor1Id === targetNpcId ? rel.actor2Id : rel.actor1Id,
+            sentiment: rel.sentiment,
+            newModifier: modifier,
+          }, 'NPCGroupDynamicsService');
+        }
+        // Friend relationship: boost invite chance slightly
+        else if (rel.sentiment > 0.5) {
+          modifier *= 1.1; // 10% boost per friend
+          friendBoosts++;
+          logger.debug('User engages with friend NPC, boosting invite chance', {
+            userId,
+            targetNpcId,
+            friendNpcId: rel.actor1Id === targetNpcId ? rel.actor2Id : rel.actor1Id,
+            sentiment: rel.sentiment,
+            newModifier: modifier,
+          }, 'NPCGroupDynamicsService');
         }
       }
+    }
 
     // Cap the modifier between 0.2x (80% penalty max) and 2.0x (100% boost max)
     modifier = Math.max(0.2, Math.min(2.0, modifier));
@@ -819,169 +870,162 @@ Return your response as XML in this exact format:
     let usersInvited = 0;
 
     // Get groups with space for more members
-    const groups = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-      },
-      include: {
-        ChatParticipant: {
-          select: {
-            userId: true,
-          },
-        },
-      },
-    });
+    const groupList = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true));
 
-      for (const group of groups) {
-        // Check if group has space
-        if (group.ChatParticipant.length >= this.MAX_GROUP_SIZE) {
-          continue;
-        }
+    for (const group of groupList) {
+      // Get participants for this group
+      const participants = await db.select({ userId: chatParticipants.userId })
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, group.id));
 
-        // Random chance to invite
-        if (Math.random() > this.INVITE_USER_CHANCE) {
-          continue;
-        }
+      // Check if group has space
+      if (participants.length >= this.MAX_GROUP_SIZE) {
+        continue;
+      }
 
-        const currentMemberIds = new Set(group.ChatParticipant.map(p => p.userId));
+      // Random chance to invite
+      if (Math.random() > this.INVITE_USER_CHANCE) {
+        continue;
+      }
 
-        // Get NPCs in this group (for scoring user interactions)
-        const npcMemberIds = await prisma.actor.findMany({
-          where: {
-            id: {
-              in: Array.from(currentMemberIds),
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
+      const currentMemberIds = new Set(participants.map(p => p.userId));
+      const memberIdsArray = Array.from(currentMemberIds);
 
-        if (npcMemberIds.length === 0) {
-          continue; // No NPCs in group
-        }
+      // Get NPCs in this group (for scoring user interactions)
+      const npcMemberIds = memberIdsArray.length > 0
+        ? await db.select({ id: actors.id })
+            .from(actors)
+            .where(inArray(actors.id, memberIdsArray))
+        : [];
 
-        const npcIds = npcMemberIds.map(npc => npc.id);
+      if (npcMemberIds.length === 0) {
+        continue; // No NPCs in group
+      }
 
-        // Get active real users (not NPCs) who aren't in this group
-        const potentialInvites = await prisma.user.findMany({
-          where: {
-            isActor: false,
-            id: {
-              notIn: Array.from(currentMemberIds),
-            },
-            // Only invite users with some activity (at least one share)
-            Share: {
-              some: {},
-            },
-          },
-          take: 30, // Increased to allow for better scoring pool
-        });
+      const npcIds = npcMemberIds.map(npc => npc.id);
 
-        if (potentialInvites.length === 0) {
-          continue;
-        }
+      // Get active real users (not NPCs) who aren't in this group
+      // First get users who have at least one share
+      const usersWithShares = await db.select({ userId: shares.userId })
+        .from(shares);
+      const userIdsWithShares = [...new Set(usersWithShares.map(s => s.userId))];
+      
+      const potentialInvites = userIdsWithShares.length > 0
+        ? await db.select()
+            .from(users)
+            .where(and(
+              eq(users.isActor, false),
+              notInArray(users.id, memberIdsArray.length > 0 ? memberIdsArray : ['']),
+              inArray(users.id, userIdsWithShares)
+            ))
+            .limit(30)
+        : [];
 
-        // Calculate "reply guy" scores for all candidates
-        const scoredUsers = await Promise.all(
-          potentialInvites.map(async (user) => {
-            const { score, breakdown } = await this.calculateReplyGuyScore(user.id, npcIds);
-            return {
-              user,
-              score,
-              breakdown,
-            };
-          })
-        );
+      if (potentialInvites.length === 0) {
+        continue;
+      }
 
-        // Filter out users with negative scores (spammers)
-        let eligibleUsers = scoredUsers.filter(su => su.score > 0);
-        
-        // Filter users at their group limit or in cooldown
-        eligibleUsers = await this.filterUsersForInvite(eligibleUsers);
+      // Calculate "reply guy" scores for all candidates
+      const scoredUsers = await Promise.all(
+        potentialInvites.map(async (user) => {
+          const { score, breakdown } = await this.calculateReplyGuyScore(user.id, npcIds);
+          return {
+            user,
+            score,
+            breakdown,
+          };
+        })
+      );
 
-        if (eligibleUsers.length === 0) {
-          continue;
-        }
+      // Filter out users with negative scores (spammers)
+      let eligibleUsers = scoredUsers.filter(su => su.score > 0);
+      
+      // Filter users at their group limit or in cooldown
+      eligibleUsers = await this.filterUsersForInvite(eligibleUsers);
 
-        // Sort by score descending (best reply guys first)
-        eligibleUsers.sort((a, b) => b.score - a.score);
+      if (eligibleUsers.length === 0) {
+        continue;
+      }
 
-        // Pick from top 5 candidates with weighted randomness
-        // Higher scores = higher chance to be selected
-        const topCandidates = eligibleUsers.slice(0, 5);
-        const totalScore = topCandidates.reduce((sum, c) => sum + c.score, 0);
-        
-        if (totalScore === 0) {
-          continue;
-        }
+      // Sort by score descending (best reply guys first)
+      eligibleUsers.sort((a, b) => b.score - a.score);
 
-        // Weighted random selection
-        if (topCandidates.length === 0) continue;
-        let randomValue = Math.random() * totalScore;
-        let selectedCandidate = topCandidates[0];
-        
-        for (const candidate of topCandidates) {
-          randomValue -= candidate.score;
-          if (randomValue <= 0) {
-            selectedCandidate = candidate;
-            break;
-          }
-        }
+      // Pick from top 5 candidates with weighted randomness
+      // Higher scores = higher chance to be selected
+      const topCandidates = eligibleUsers.slice(0, 5);
+      const totalScore = topCandidates.reduce((sum, c) => sum + c.score, 0);
+      
+      if (totalScore === 0) {
+        continue;
+      }
 
-        if (!selectedCandidate) continue;
-
-        // Get an NPC admin from the group to send the invite
-        if (npcMemberIds.length === 0) continue;
-        const invitingNpc = npcMemberIds[0];
-        if (!invitingNpc) continue;
-
-        // Get full NPC data for logging
-        const npcData = await prisma.actor.findUnique({
-          where: { id: invitingNpc.id },
-          select: { name: true },
-        });
-
-        // Create the invitation - handle unique constraint (user may already be invited)
-        try {
-          await prisma.userGroupInvite.create({
-            data: {
-              id: await generateSnowflakeId(),
-              groupId: group.id,
-              invitedUserId: selectedCandidate.user.id,
-              invitedBy: invitingNpc.id,
-              status: 'pending',
-              message: `Join our group chat "${group.name}"!`,
-              invitedAt: new Date(),
-            },
-          });
-          usersInvited++;
-          logger.info(`User invited to NPC group (reply guy score)`, {
-            userId: selectedCandidate.user.id,
-            userName: selectedCandidate.user.displayName,
-            chatId: group.id,
-            chatName: group.name,
-            invitedBy: npcData?.name,
-            replyGuyScore: selectedCandidate.score,
-            breakdown: selectedCandidate.breakdown,
-          }, 'NPCGroupDynamicsService');
-        } catch (error: unknown) {
-          // Handle unique constraint violation - user already has an invite
-          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            const target = error.meta?.target as string[] | undefined
-            if (target?.includes('groupId') && target?.includes('invitedUserId')) {
-              // User already has an invite, skip silently (this is expected in NPC dynamics)
-              logger.debug(`User already has invite, skipping`, {
-                userId: selectedCandidate.user.id,
-                groupId: group.id,
-              }, 'NPCGroupDynamicsService');
-              continue;
-            }
-          }
-          // Re-throw other errors
-          throw error;
+      // Weighted random selection
+      if (topCandidates.length === 0) continue;
+      let randomValue = Math.random() * totalScore;
+      let selectedCandidate = topCandidates[0];
+      
+      for (const candidate of topCandidates) {
+        randomValue -= candidate.score;
+        if (randomValue <= 0) {
+          selectedCandidate = candidate;
+          break;
         }
       }
+
+      if (!selectedCandidate) continue;
+
+      // Get an NPC admin from the group to send the invite
+      if (npcMemberIds.length === 0) continue;
+      const invitingNpc = npcMemberIds[0];
+      if (!invitingNpc) continue;
+
+      // Get full NPC data for logging
+      const [npcData] = await db.select({ name: actors.name })
+        .from(actors)
+        .where(eq(actors.id, invitingNpc.id))
+        .limit(1);
+
+      // Create the invitation - handle unique constraint (user may already be invited)
+      try {
+        await db.insert(userGroupInvites).values({
+          id: await generateSnowflakeId(),
+          groupId: group.id,
+          invitedUserId: selectedCandidate.user.id,
+          invitedBy: invitingNpc.id,
+          status: 'pending',
+          message: `Join our group chat "${group.name}"!`,
+          invitedAt: new Date(),
+        });
+        usersInvited++;
+        logger.info(`User invited to NPC group (reply guy score)`, {
+          userId: selectedCandidate.user.id,
+          userName: selectedCandidate.user.displayName,
+          chatId: group.id,
+          chatName: group.name,
+          invitedBy: npcData?.name,
+          replyGuyScore: selectedCandidate.score,
+          breakdown: selectedCandidate.breakdown,
+        }, 'NPCGroupDynamicsService');
+      } catch (error) {
+        // Handle unique constraint violation - user already has an invite
+        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
+          const pgError = error as { meta?: { target?: string[] } }
+          const target = pgError.meta?.target
+          if (target?.includes('groupId') && target?.includes('invitedUserId')) {
+            // User already has an invite, skip silently (this is expected in NPC dynamics)
+            logger.debug(`User already has invite, skipping`, {
+              userId: selectedCandidate.user.id,
+              groupId: group.id,
+            }, 'NPCGroupDynamicsService');
+            continue;
+          }
+        }
+        // Re-throw other errors
+        throw error;
+      }
+    }
 
     return usersInvited;
   }
@@ -997,12 +1041,13 @@ Return your response as XML in this exact format:
     
     for (const candidate of candidates) {
       // Check 1: Total active groups limit
-      const activeGroupCount = await prisma.groupChatMembership.count({
-        where: {
-          userId: candidate.user.id,
-          isActive: true,
-        },
-      });
+      const [countResult] = await db.select({ count: count() })
+        .from(groupChatMemberships)
+        .where(and(
+          eq(groupChatMemberships.userId, candidate.user.id),
+          eq(groupChatMemberships.isActive, true)
+        ));
+      const activeGroupCount = countResult?.count ?? 0;
       
       if (activeGroupCount >= this.MAX_ACTIVE_USER_GROUPS) {
         logger.debug('User at group limit, skipping invite', {
@@ -1014,15 +1059,14 @@ Return your response as XML in this exact format:
       }
       
       // Check 2: Invite cooldown
-      const latestMembership = await prisma.groupChatMembership.findFirst({
-        where: {
-          userId: candidate.user.id,
-          isActive: true,
-        },
-        orderBy: {
-          joinedAt: 'desc',
-        },
-      });
+      const [latestMembership] = await db.select()
+        .from(groupChatMemberships)
+        .where(and(
+          eq(groupChatMemberships.userId, candidate.user.id),
+          eq(groupChatMemberships.isActive, true)
+        ))
+        .orderBy(desc(groupChatMemberships.joinedAt))
+        .limit(1);
       
       if (latestMembership) {
         const hoursSinceJoin = (Date.now() - latestMembership.joinedAt.getTime()) / (1000 * 60 * 60);
@@ -1045,12 +1089,128 @@ Return your response as XML in this exact format:
   }
 
   /**
-   * Kick users with weighted randomness based on participation
+   * Calculate dynamic kick thresholds based on group activity
    * 
-   * Calculates kick probability based on:
-   * - Never posted: 0.9 probability
-   * - Low participation: 0.3-0.6 probability (based on message count)
-   * - Dominating conversation: 0.3-0.9 probability (based on message ratio)
+   * Returns participation thresholds relative to group's average activity level.
+   * This ensures users aren't penalized in low-activity groups or get away with
+   * minimal contribution in high-activity groups.
+   */
+  private static calculateDynamicThresholds(
+    totalMessages: number,
+    participantCount: number,
+    windowDays: number = 7
+  ): {
+    idealMin: number;       // Minimum messages for good standing
+    idealMax: number;       // Maximum before considered over-posting
+    spamThreshold: number;  // Immediate kick threshold
+    fairShare: number;      // Expected share if everyone contributed equally
+  } {
+    // Fair share = total messages / participants (what each would have if equal)
+    const fairShare = participantCount > 0 ? totalMessages / participantCount : 0;
+    
+    // Ideal participation: between 50% and 150% of fair share
+    // But with minimum floors to handle low-activity groups
+    const idealMin = Math.max(1, Math.floor(fairShare * 0.5));
+    const idealMax = Math.max(5, Math.ceil(fairShare * 1.5));
+    
+    // Spam threshold: more than 3x fair share OR more than 20 messages/day
+    // The higher of these two catches both relative and absolute spammers
+    const maxMessagesPerDay = 20;
+    const absoluteSpamThreshold = maxMessagesPerDay * windowDays;
+    const relativeSpamThreshold = Math.max(10, Math.ceil(fairShare * 3));
+    const spamThreshold = Math.min(absoluteSpamThreshold, relativeSpamThreshold);
+    
+    return { idealMin, idealMax, spamThreshold, fairShare };
+  }
+  
+  /**
+   * Calculate kick probability with exponential scaling for over-posting
+   * 
+   * The probability increases exponentially as the user's message count
+   * exceeds the ideal max, reaching near-certainty at spam threshold.
+   * 
+   * @returns { probability: number, reason: string, category: 'inactive' | 'low' | 'over' | 'spam' | 'safe' }
+   */
+  static calculateKickProbability(
+    userMessageCount: number,
+    totalMessages: number,
+    participantCount: number,
+    windowDays: number = 7
+  ): { probability: number; reason: string; category: 'inactive' | 'low' | 'over' | 'spam' | 'safe' } {
+    const thresholds = this.calculateDynamicThresholds(totalMessages, participantCount, windowDays);
+    
+    // Case 1: Never posted - high kick chance (inactive)
+    if (userMessageCount === 0) {
+      return {
+        probability: 0.90,
+        reason: 'Never participated in conversation',
+        category: 'inactive',
+      };
+    }
+    
+    // Case 2: Spam behavior - immediate kick (exponentially approaching 1.0)
+    if (userMessageCount >= thresholds.spamThreshold) {
+      // At spam threshold: 95% chance, increases toward 100% for extreme cases
+      const excessRatio = userMessageCount / thresholds.spamThreshold;
+      const spamProbability = 0.95 + (0.05 * (1 - Math.exp(-excessRatio + 1)));
+      return {
+        probability: Math.min(0.99, spamProbability),
+        reason: `Spamming: ${userMessageCount} messages (threshold: ${thresholds.spamThreshold})`,
+        category: 'spam',
+      };
+    }
+    
+    // Case 3: Over-posting (between idealMax and spamThreshold)
+    // Use exponential increase: probability grows faster as you approach spam threshold
+    if (userMessageCount > thresholds.idealMax) {
+      const excessMessages = userMessageCount - thresholds.idealMax;
+      const range = thresholds.spamThreshold - thresholds.idealMax;
+      const normalizedExcess = range > 0 ? excessMessages / range : 0;
+      
+      // Exponential curve: starts at ~0.1 for just over max, approaches 0.9 near spam threshold
+      // Formula: 0.1 + 0.8 * (1 - e^(-3x)) where x is normalized excess (0 to 1)
+      const kickProbability = 0.1 + 0.8 * (1 - Math.exp(-3 * normalizedExcess));
+      
+      const userRatio = totalMessages > 0 ? (userMessageCount / totalMessages) * 100 : 0;
+      return {
+        probability: kickProbability,
+        reason: `Over-posting: ${userMessageCount} messages (${userRatio.toFixed(0)}% of total, ideal max: ${thresholds.idealMax})`,
+        category: 'over',
+      };
+    }
+    
+    // Case 4: Low participation (only if group has meaningful activity)
+    if (userMessageCount < thresholds.idealMin && totalMessages > 20) {
+      // Linear scale from 0.2 (just under minimum) to 0.5 (at 1 message)
+      const ratio = thresholds.idealMin > 1 ? (userMessageCount - 1) / (thresholds.idealMin - 1) : 0;
+      const lowProbability = 0.5 - (0.3 * ratio);
+      
+      return {
+        probability: Math.max(0.2, lowProbability),
+        reason: `Low participation: ${userMessageCount} messages (minimum ideal: ${thresholds.idealMin})`,
+        category: 'low',
+      };
+    }
+    
+    // Case 5: Good participation - safe zone!
+    return {
+      probability: 0,
+      reason: '', // No reason needed for safe category
+      category: 'safe',
+    };
+  }
+
+  /**
+   * Kick users with weighted randomness based on dynamic participation metrics
+   * 
+   * Uses dynamic thresholds based on group activity level:
+   * - Never posted: 90% kick probability
+   * - Low participation: 20-50% based on how far below ideal minimum
+   * - Over-posting: Exponential increase from 10% to 90% as messages approach spam threshold
+   * - Spam (3x fair share or 20+/day): 95%+ kick probability
+   * 
+   * All probabilities are then multiplied by a per-tick factor (5%) to make
+   * kicks gradual rather than immediate.
    */
   private static async kickUsersWithWeightedLogic(): Promise<number> {
     let usersKicked = 0;
@@ -1060,122 +1220,115 @@ Return your response as XML in this exact format:
       return 0;
     }
 
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
     // Get all group chats
-    const groups = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-      },
-      include: {
-        ChatParticipant: true,
-        Message: {
-          where: {
-            createdAt: {
-              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-            },
-          },
-          select: {
-            senderId: true,
-          },
-        },
-      },
-    });
+    const groupList = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true));
 
-      for (const group of groups) {
-        // Get user details for participants
-        const participantUserIds = group.ChatParticipant.map(p => p.userId);
-        const participantUsers = await prisma.user.findMany({
-          where: { 
-            id: { in: participantUserIds },
-            isActor: false, // Only consider real users for kicking
-          },
-          select: { id: true, displayName: true, isActor: true },
-        });
-        
-        if (participantUsers.length === 0) continue;
+    for (const group of groupList) {
+      // Get participants for this group
+      const participantList = await db.select()
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, group.id));
 
-        // Calculate message counts for all users in the group
-        const totalMessages = group.Message.length;
-        const messageCounts = new Map<string, number>();
+      // Get recent messages
+      const recentMsgs = await db.select({ senderId: messages.senderId })
+        .from(messages)
+        .where(and(
+          eq(messages.chatId, group.id),
+          gte(messages.createdAt, sevenDaysAgo)
+        ));
+
+      // Get user details for participants (both users and agents, excluding NPCs)
+      const participantUserIds = participantList.map(p => p.userId);
+      const participantUsers = participantUserIds.length > 0
+        ? await db.select({
+            id: users.id,
+            displayName: users.displayName,
+            isActor: users.isActor,
+            isAgent: users.isAgent,
+          })
+          .from(users)
+          .where(and(
+            inArray(users.id, participantUserIds),
+            eq(users.isActor, false)
+          ))
+        : [];
+      
+      if (participantUsers.length === 0) continue;
+
+      // Calculate message counts for all users in the group
+      const totalMessages = recentMsgs.length;
+      const messageCounts = new Map<string, number>();
+      
+      for (const msg of recentMsgs) {
+        messageCounts.set(msg.senderId, (messageCounts.get(msg.senderId) || 0) + 1);
+      }
+
+      // Total active participants includes NPCs for fair share calculation
+      const totalParticipants = participantList.length;
+
+      // Calculate kick probabilities for each non-NPC participant
+      for (const participant of participantUsers) {
+        const userId = participant.id;
+        const userMessageCount = messageCounts.get(userId) || 0;
         
-        for (const msg of group.Message) {
-          messageCounts.set(msg.senderId, (messageCounts.get(msg.senderId) || 0) + 1);
+        const { probability: kickProbability, reason, category } = this.calculateKickProbability(
+          userMessageCount,
+          totalMessages,
+          totalParticipants,
+          7 // 7-day window
+        );
+
+        // Skip safe users
+        if (category === 'safe' || kickProbability === 0) {
+          continue;
         }
 
-        // Calculate kick probabilities for each user
-        for (const participant of participantUsers) {
-          const userId = participant.id;
-          const userMessageCount = messageCounts.get(userId) || 0;
-          
-          let kickProbability = 0;
-          let reason = '';
+        // Apply the probability with per-tick multiplier
+        // 5% base multiplier, but spam gets 20% (faster kick for egregious behavior)
+        const tickMultiplier = category === 'spam' ? 0.20 : 0.05;
+        
+        if (Math.random() < kickProbability * tickMultiplier) {
+          // Remove from chat participants
+          await db.delete(chatParticipants)
+            .where(and(
+              eq(chatParticipants.chatId, group.id),
+              eq(chatParticipants.userId, userId)
+            ));
 
-          // Case 1: Never posted
-          if (userMessageCount === 0) {
-            kickProbability = 0.90; // Very high chance
-            reason = 'Never participated in conversation';
-          }
-          // Case 2: Low participation (only if group has significant activity)
-          else if (userMessageCount < 3 && totalMessages > 20) {
-            // Scale from 0.3 to 0.6 based on how few messages
-            kickProbability = 0.6 - (userMessageCount / 3) * 0.3;
-            reason = `Low participation (${userMessageCount} messages in last 7 days)`;
-          }
-          // Case 3: Dominating conversation (only if group has enough messages to judge)
-          else if (totalMessages > 10) {
-            const userRatio = userMessageCount / totalMessages;
-            
-            // If user has more than 40% of all messages, consider it dominating
-            if (userRatio > 0.4) {
-              // Scale from 0.3 to 0.9 as ratio increases from 0.4 to 1.0
-              kickProbability = 0.3 + (userRatio - 0.4) / 0.6 * 0.6;
-              reason = `Dominating conversation (${Math.round(userRatio * 100)}% of messages)`;
-            }
-            // Otherwise, user has good participation (3+ messages, <= 40% of total)
-            // kickProbability remains 0 - this is the safe zone!
-          }
-          // Case 4: Mid participation in smaller groups
-          else {
-            // If we get here: userMessageCount >= 3 OR totalMessages <= 20
-            // These are users with reasonable participation - kickProbability stays 0
-          }
+          // If GroupChatMembership exists, mark as removed
+          await db.update(groupChatMemberships)
+            .set({
+              isActive: false,
+              removedAt: new Date(),
+              sweepReason: reason,
+            })
+            .where(and(
+              eq(groupChatMemberships.chatId, group.id),
+              eq(groupChatMemberships.userId, userId)
+            ));
 
-          // Apply the probability (make kicks rare per tick)
-          if (kickProbability > 0 && Math.random() < kickProbability * 0.05) { // 5% multiplier to make it rare per tick
-            // Remove from chat participants
-            await prisma.chatParticipant.deleteMany({
-              where: {
-                chatId: group.id,
-                userId: userId,
-              },
-            });
-
-            // If GroupChatMembership exists, mark as removed
-            await prisma.groupChatMembership.updateMany({
-              where: {
-                chatId: group.id,
-                userId: userId,
-              },
-              data: {
-                isActive: false,
-                removedAt: new Date(),
-                sweepReason: reason,
-              },
-            });
-
-            usersKicked++;
-            logger.info(`User kicked from group with weighted logic`, {
-              userId,
-              userName: participant.displayName,
-              chatId: group.id,
-              chatName: group.name,
-              reason,
-              kickProbability: kickProbability.toFixed(2),
-              messageCount: userMessageCount,
-              totalMessages,
-            }, 'NPCGroupDynamicsService');
-          }
+          usersKicked++;
+          logger.info(`User kicked from group with weighted logic`, {
+            userId,
+            userName: participant.displayName,
+            isAgent: participant.isAgent,
+            chatId: group.id,
+            chatName: group.name,
+            reason,
+            category,
+            kickProbability: kickProbability.toFixed(2),
+            effectiveProbability: (kickProbability * tickMultiplier).toFixed(4),
+            messageCount: userMessageCount,
+            totalMessages,
+            totalParticipants,
+          }, 'NPCGroupDynamicsService');
         }
       }
+    }
 
     return usersKicked;
   }
@@ -1189,21 +1342,34 @@ Return your response as XML in this exact format:
     totalMembers: number;
     avgGroupSize: number;
   }> {
-    const [totalGroups, groups] = await Promise.all([
-      prisma.chat.count({
-        where: { isGroup: true },
-      }),
-      prisma.chat.findMany({
-        where: { isGroup: true },
-        include: {
-          ChatParticipant: true,
-        },
-      }),
-    ]);
+    // Get total group count
+    const [countResult] = await db.select({ count: count() })
+      .from(chats)
+      .where(eq(chats.isGroup, true));
+    const totalGroups = countResult?.count ?? 0;
 
-    const activeGroups = groups.filter(g => g.ChatParticipant.length >= this.MIN_GROUP_SIZE).length;
-    const totalMembers = groups.reduce((sum, g) => sum + g.ChatParticipant.length, 0);
-    const avgGroupSize = groups.length > 0 ? totalMembers / groups.length : 0;
+    // Get all groups
+    const groupList = await db.select()
+      .from(chats)
+      .where(eq(chats.isGroup, true));
+
+    // Get participant counts for each group
+    let activeGroups = 0;
+    let totalMembers = 0;
+
+    for (const group of groupList) {
+      const [partCountResult] = await db.select({ count: count() })
+        .from(chatParticipants)
+        .where(eq(chatParticipants.chatId, group.id));
+      const participantCount = partCountResult?.count ?? 0;
+      
+      if (participantCount >= this.MIN_GROUP_SIZE) {
+        activeGroups++;
+      }
+      totalMembers += participantCount;
+    }
+
+    const avgGroupSize = groupList.length > 0 ? totalMembers / groupList.length : 0;
 
     return {
       totalGroups,

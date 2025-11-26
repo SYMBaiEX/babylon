@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { redirect } from 'next/navigation'
 
 interface PageProps {
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const ogImageUrl = `${appUrl}/api/og/pnl/${userId}`
   
   // Get user data
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: {
       username: true,
@@ -68,7 +68,7 @@ export default async function SharePnLPage({ params }: PageProps) {
   const { userId } = await params
   
   // Verify user exists - if not, redirect to markets anyway
-  await prisma.user.findUnique({
+  await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,

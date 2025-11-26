@@ -5,7 +5,7 @@
  */
 
 import { SDK } from 'agent0-sdk'
-import { prisma } from '../src/lib/prisma'
+import { db } from '@/db'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -13,7 +13,7 @@ async function verifyAgent0Registration() {
   console.log('🔍 Verifying Babylon Agent0 registration...\n')
   
   // Get registration from database
-  const config = await prisma.gameConfig.findUnique({
+  const config = await db.gameConfig.findUnique({
     where: { key: 'agent0_registration' }
   })
   

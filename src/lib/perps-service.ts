@@ -6,7 +6,7 @@
 import { PerpetualsEngine } from '@/engine/PerpetualsEngine';
 import type { Organization } from '@/shared/types';
 
-import { prisma } from './prisma';
+import { db, organizations as organizationsSchema, perpPositions, poolPositions, eq, isNull, and } from '@/db';
 
 let perpsEngineInstance: PerpetualsEngine | null = null;
 let initializationPromise: Promise<void> | null = null;
@@ -62,20 +62,20 @@ async function initializePerpsEngine(): Promise<void> {
 
   initializing = true;
   try {
-    // Get organizations directly from prisma to avoid module initialization order issues
-    const orgs = await prisma.organization.findMany({
-      select: {
-        id: true,
-        name: true,
-        ticker: true,
-        description: true,
-        type: true,
-        canBeInvolved: true,
-        initialPrice: true,
-        currentPrice: true,
-      },
-    });
-    const organizations: Organization[] = orgs.map(o => ({
+    // Get organizations directly from database to avoid module initialization order issues
+    const orgs = await db
+      .select({
+        id: organizationsSchema.id,
+        name: organizationsSchema.name,
+        ticker: organizationsSchema.ticker,
+        description: organizationsSchema.description,
+        type: organizationsSchema.type,
+        canBeInvolved: organizationsSchema.canBeInvolved,
+        initialPrice: organizationsSchema.initialPrice,
+        currentPrice: organizationsSchema.currentPrice,
+      })
+      .from(organizationsSchema);
+    const organizationsList: Organization[] = orgs.map((o: typeof orgs[number]) => ({
       id: o.id,
       name: o.name,
       ticker: o.ticker ?? undefined,
@@ -85,23 +85,27 @@ async function initializePerpsEngine(): Promise<void> {
       initialPrice: o.initialPrice ?? undefined,
       currentPrice: o.currentPrice ?? undefined,
     }));
-    perpsEngineInstance.initializeMarkets(organizations);
+    perpsEngineInstance.initializeMarkets(organizationsList);
 
     // Hydrate user positions from perpPosition table
-    const openUserPositions = await prisma.perpPosition.findMany({
-      where: { closedAt: null },
-    });
+    const openUserPositions = await db
+      .select()
+      .from(perpPositions)
+      .where(isNull(perpPositions.closedAt));
 
     // Also hydrate NPC pool positions (perp positions only)
-    const openNPCPositions = await prisma.poolPosition.findMany({
-      where: { 
-        closedAt: null,
-        marketType: 'perp',
-      },
-    });
+    const openNPCPositions = await db
+      .select()
+      .from(poolPositions)
+      .where(
+        and(
+          isNull(poolPositions.closedAt),
+          eq(poolPositions.marketType, 'perp')
+        )
+      );
 
     const allPositions = [
-      ...openUserPositions.map((position) => ({
+      ...openUserPositions.map((position: typeof openUserPositions[number]) => ({
         id: position.id,
         userId: position.userId,
         ticker: position.ticker,
@@ -118,7 +122,7 @@ async function initializePerpsEngine(): Promise<void> {
         openedAt: position.openedAt,
         lastUpdated: position.lastUpdated ?? position.openedAt,
       })),
-      ...openNPCPositions.map((position) => {
+      ...openNPCPositions.map((position: typeof openNPCPositions[number]) => {
         // For NPC positions, we need to find the organizationId from the ticker
         // The ticker contains the organization ID
         const leverage = Number(position.leverage || 5);

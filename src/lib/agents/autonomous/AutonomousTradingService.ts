@@ -4,7 +4,7 @@
  * Handles agents making REAL trades on prediction markets and perps
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, positions, perpPositions, markets, organizations, eq, and, isNull, gte, desc, sql } from '@/db'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
 import { callGroqDirect } from '../llm/direct-groq'
@@ -13,7 +13,6 @@ import { WalletService } from '@/lib/services/wallet-service'
 import { PredictionPricing } from '@/lib/prediction-pricing'
 import { asUser } from '@/lib/db/context'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import { Prisma } from '@prisma/client'
 import { agentPnLService } from '../services/AgentPnLService'
 import { generateRandomMarketContext, formatRandomContext } from '@/lib/prompts/random-context'
 import { shuffleArray } from '@/lib/utils/randomization'
@@ -50,38 +49,31 @@ export class AutonomousTradingService {
     side?: string;
     marketType?: 'prediction' | 'perp';
   }> {
-    const agent = await prisma.user.findUnique({
-      where: { id: agentUserId }
-    })
+    const agentResult = await db.select().from(users).where(eq(users.id, agentUserId)).limit(1)
+    const agent = agentResult[0]
 
     if (!agent?.isAgent) {
       throw new Error('Agent not found')
     }
 
     // Get agent's positions separately
-    const positions = await prisma.position.findMany({
-      where: { userId: agentUserId, status: 'active' }
-    })
+    const positionsResult = await db.select().from(positions).where(and(
+      eq(positions.userId, agentUserId),
+      eq(positions.status, 'active')
+    ))
 
-    const perpPositions = await prisma.perpPosition.findMany({
-      where: { userId: agentUserId, closedAt: null }
-    })
+    const perpPositionsResult = await db.select().from(perpPositions).where(and(
+      eq(perpPositions.userId, agentUserId),
+      isNull(perpPositions.closedAt)
+    ))
 
     // Get current markets
-    const predictionMarkets = await prisma.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: new Date() }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10
-    })
+    const predictionMarkets = await db.select().from(markets).where(and(
+      eq(markets.resolved, false),
+      gte(markets.endDate, new Date())
+    )).orderBy(desc(markets.createdAt)).limit(10)
 
-    const perpMarkets = await prisma.organization.findMany({
-      where: { type: 'org' },
-      orderBy: { currentPrice: 'desc' },
-      take: 10
-    })
+    const perpMarkets = await db.select().from(organizations).where(eq(organizations.type, 'org')).orderBy(desc(organizations.currentPrice)).limit(10)
 
     const balance = await WalletService.getBalance(agentUserId)
 
@@ -111,7 +103,7 @@ Trading Strategy: ${agent.agentTradingStrategy || 'General market analysis'}
 Current Status:
 - Balance: $${balance.balance}
 - P&L: ${agent.lifetimePnL}
-- Open Positions: ${positions.length + perpPositions.length}
+- Open Positions: ${positionsResult.length + perpPositionsResult.length}
 
 Available Prediction Markets:
 ${shuffledPredictions.slice(0, 5).map(m => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`).join('\n')}
@@ -120,8 +112,8 @@ Available Perp Markets:
 ${shuffledPerps.slice(0, 5).map(o => `- ${o.name} @ $${o.currentPrice}`).join('\n')}
 
 Your Open Positions:
-${positions.map(p => `- Prediction: ${p.marketId}, ${p.side ? 'YES' : 'NO'}, ${p.shares} shares`).join('\n') || 'None'}
-${perpPositions.map(p => `- Perp: ${p.ticker}, ${p.side}, $${p.size}, ${p.leverage}x`).join('\n') || 'None'}
+${positionsResult.map(p => `- Prediction: ${p.marketId}, ${p.side ? 'YES' : 'NO'}, ${p.shares} shares`).join('\n') || 'None'}
+${perpPositionsResult.map(p => `- Perp: ${p.ticker}, ${p.side}, $${p.size}, ${p.leverage}x`).join('\n') || 'None'}
 
 Decide if you should make any trades this tick.
 Respond in JSON format:
@@ -159,7 +151,8 @@ ${contextString}`
         modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
         runtime: _runtime,  // Pass runtime to access W&B trained models
         temperature: 0.7,
-        maxTokens: 300
+        maxTokens: 300,
+        actionType: 'evaluate_trading_opportunity'
       }),
       new Promise<string>((resolve) => {
         setTimeout(() => {
@@ -206,7 +199,7 @@ ${contextString}`
             const side = trade.action === 'buy_yes'
             
             // Execute buy via internal service
-            const result = await asUser({ userId: agentUserId, walletAddress: agent.walletAddress || undefined }, async (db) => {
+            const result = await asUser({ userId: agentUserId }, async (txDb) => {
               // Calculate shares and pricing
               const calculation = PredictionPricing.calculateBuyWithFees(
                 Number(market.yesShares),
@@ -225,47 +218,45 @@ ${contextString}`
               )
 
               // Update market shares
-              await db.market.update({
-                where: { id: market.id },
-                data: {
-                  yesShares: side 
-                    ? { increment: calculation.sharesBought }
-                    : new Prisma.Decimal(calculation.newYesShares),
-                  noShares: side
-                    ? new Prisma.Decimal(calculation.newNoShares)
-                    : { increment: calculation.sharesBought }
-                }
-              })
+              await txDb.update(markets).set({
+                yesShares: side 
+                  ? sql`${markets.yesShares} + ${calculation.sharesBought}`
+                  : String(calculation.newYesShares),
+                noShares: side
+                  ? String(calculation.newNoShares)
+                  : sql`${markets.noShares} + ${calculation.sharesBought}`,
+              }).where(eq(markets.id, market.id))
 
               // Create or update position
-              const existingPosition = await db.position.findFirst({
-                where: {
-                  userId: agentUserId,
-                  marketId: market.id
-                }
-              })
+              const existingPositionResult = await txDb.select().from(positions).where(and(
+                eq(positions.userId, agentUserId),
+                eq(positions.marketId, market.id)
+              )).limit(1)
+              const existingPosition = existingPositionResult[0]
 
-              const position = existingPosition ? await db.position.update({
-                where: { id: existingPosition.id },
-                data: {
-                  shares: { increment: calculation.sharesBought },
-                  amount: { increment: trade.amount },
+              let position
+              if (existingPosition) {
+                const updatedResult = await txDb.update(positions).set({
+                  shares: sql`${positions.shares} + ${calculation.sharesBought}`,
+                  amount: sql`${positions.amount} + ${trade.amount}`,
                   updatedAt: new Date()
-                }
-              }) : await db.position.create({
-                data: {
+                }).where(eq(positions.id, existingPosition.id)).returning()
+                position = updatedResult[0]
+              } else {
+                const insertedResult = await txDb.insert(positions).values({
                   id: await generateSnowflakeId(),
                   userId: agentUserId,
                   marketId: market.id,
                   side,
-                  shares: new Prisma.Decimal(calculation.sharesBought),
-                  avgPrice: new Prisma.Decimal(calculation.avgPrice),
-                  amount: new Prisma.Decimal(trade.amount),
+                  shares: String(calculation.sharesBought),
+                  avgPrice: String(calculation.avgPrice),
+                  amount: String(trade.amount),
                   status: 'active',
                   createdAt: new Date(),
                   updatedAt: new Date()
-                }
-              })
+                }).returning()
+                position = insertedResult[0]
+              }
 
               return { position, calculation }
             })
@@ -279,7 +270,7 @@ ${contextString}`
               action: 'open',
               side: side ? 'yes' : 'no',
               amount: trade.amount,
-              price: result.calculation.avgPrice,
+              price: (result as { calculation: { avgPrice: number } }).calculation.avgPrice,
               reasoning: trade.reasoning || undefined
             })
 
@@ -298,9 +289,9 @@ ${contextString}`
             // Use org.name as ticker (Organization model doesn't have ticker field, name is used as ticker)
             const ticker = org.name
             
-            await asUser({ userId: agentUserId, walletAddress: agent.walletAddress || undefined }, async () => {
+            await asUser({ userId: agentUserId }, async () => {
               await PerpTradeService.openPosition(
-                { userId: agentUserId, walletAddress: agent.walletAddress || undefined },
+                { userId: agentUserId },
                 {
                   ticker,
                   side,

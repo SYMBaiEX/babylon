@@ -8,7 +8,9 @@ import { logger } from '@/lib/logger';
 import type { WorldEvent } from './GameWorld';
 import type { FeedPost, Actor, ActorTier } from '@/shared/types';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { actors } from '@/db/schema';
+import { desc } from 'drizzle-orm';
 
 export interface TickResult {
   events: WorldEvent[];
@@ -109,14 +111,11 @@ export class GameLoop {
     if (!marketOnly) {
       // Fetch actors from database for feed generation
       // Use a subset of top actors for efficiency in simulation
-      const actors = await prisma.actor.findMany({
-        take: 15,
-        orderBy: { reputationPoints: 'desc' },
-      });
+      const actorsResult = await db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15);
       
-      if (actors.length > 0) {
+      if (actorsResult.length > 0) {
         // Convert database actors to Actor type expected by FeedGenerator
-        const actorList: Actor[] = actors.map(actor => ({
+        const actorList: Actor[] = actorsResult.map(actor => ({
           id: actor.id,
           name: actor.name,
           description: actor.description || undefined,
@@ -136,7 +135,7 @@ export class GameLoop {
         } catch (e) {
           logger.warn(
             `Failed to generate feed posts: ${e instanceof Error ? e.message : String(e)}`,
-            { day, actorCount: actors.length },
+            { day, actorCount: actorsResult.length },
             'GameLoop'
           );
         }

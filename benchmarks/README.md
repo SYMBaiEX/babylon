@@ -9,10 +9,28 @@ bun run scripts/benchmark.ts <command>
 # Commands:
   setup      - Create test agents (run once)
   quick      - 2-min quick test
-  compare    - Compare LLaMA 8B vs Qwen 32B
+  compare    - Compare models (supports any models from registry)
   baselines  - Run full week baselines
   verify     - Check system health
+
+# View and analyze results
+bun run scripts/benchmark-results.ts <command>
+
+# Commands:
+  list       - List all available benchmark results
+  view       - View a specific benchmark result
+  compare    - Compare models in a directory (with charts)
+  report     - Generate HTML report with interactive charts
+  history    - Show historical benchmark trends
 ```
+
+## New Features ✨
+
+- **Model Registry**: Centralized configuration for all models (`src/lib/benchmark/ModelRegistry.ts`)
+- **Interactive Charts**: HTML reports with Chart.js visualizations
+- **Terminal Charts**: ASCII charts for quick CLI viewing
+- **Historical Tracking**: Database persistence for trend analysis
+- **Flexible Comparisons**: Compare any models, not just hardcoded ones
 
 ## Available Benchmarks
 
@@ -49,6 +67,60 @@ Full guides available:
 - `../BENCHMARK_COMPLETE.md` - Complete technical guide
 - `../BENCHMARK_SYSTEM_FINAL.md` - Final integration summary
 
+## Model Registry
+
+All available models are configured in `src/lib/benchmark/ModelRegistry.ts`. To add a new model:
+
+```typescript
+{
+  id: 'my-model',
+  displayName: 'My Model',
+  provider: 'groq',
+  modelId: 'my-model-id',
+  tier: 'standard',
+  isBaseline: false,
+}
+```
+
+Then use it:
+```bash
+bun run scripts/compare-models.ts --models=my-model,llama-8b
+```
+
+## Visualization
+
+### Terminal Charts
+```bash
+bun run scripts/benchmark-results.ts compare benchmarks/model-comparison
+```
+Shows ASCII charts directly in terminal.
+
+### HTML Reports
+```bash
+bun run scripts/benchmark-results.ts report benchmarks/model-comparison
+```
+Generates interactive HTML report with:
+- P&L comparison charts
+- Accuracy visualization
+- Perpetual trading metrics
+- Response time analysis
+- Detailed comparison tables
+
+Open the generated HTML file in your browser for full interactivity.
+
+## Historical Tracking
+
+Benchmark results are automatically saved to the database (`benchmark_results` table) for:
+- Trend analysis over time
+- Model improvement tracking
+- Baseline comparisons
+- Performance regression detection
+
+Query historical data:
+```bash
+bun run scripts/benchmark-results.ts history
+```
+
 ## System Status
 
 ✅ **100% Complete and Operational**
@@ -56,6 +128,9 @@ Full guides available:
 - Both prediction and perpetual trading supported
 - Metrics mathematically verified
 - Fully integrated with continuous RL pipeline
+- **NEW**: Model registry for flexible comparisons
+- **NEW**: Interactive charts and visualizations
+- **NEW**: Historical tracking and trend analysis
 - Production-ready
 
-Last validated: November 16, 2025
+Last updated: November 25, 2025

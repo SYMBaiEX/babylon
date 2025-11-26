@@ -6,6 +6,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { logger } from '@/lib/logger'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 export async function callClaudeDirect(params: {
   prompt: string
@@ -52,6 +53,27 @@ export async function callClaudeDirect(params: {
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
   }, 'ClaudeDirect')
+
+  if (isPromptLoggingEnabled()) {
+    // Try to derive a useful name from system prompt
+    let promptType = 'claude_direct'
+    if (params.system) {
+      if (params.system.includes('moderation')) promptType = 'claude_moderation'
+      else if (params.system.includes('appeal')) promptType = 'claude_appeal'
+    }
+
+    await logPrompt({
+      promptType,
+      input: `System: ${params.system || ''}\n\nUser: ${params.prompt}`,
+      output: firstContent.text,
+      metadata: {
+        provider: 'claude',
+        model,
+        temperature: params.temperature ?? 0.3,
+        maxTokens: params.maxTokens || 8192
+      }
+    })
+  }
 
   return firstContent.text
 }

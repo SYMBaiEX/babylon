@@ -1,10 +1,10 @@
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { defineChain } from 'viem';
 
-// Local Anvil chain definition
-const anvil = defineChain({
+// Local Hardhat chain definition
+const hardhat = defineChain({
   id: 31337,
-  name: 'Anvil Local',
+  name: 'Hardhat Local',
   nativeCurrency: {
     name: 'Ethereum',
     symbol: 'ETH',
@@ -20,10 +20,16 @@ const anvil = defineChain({
 const rawChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
 
 const resolveChain = () => {
-  if (rawChainId === anvil.id) return anvil;
+  if (rawChainId === hardhat.id) return hardhat;
   if (rawChainId === base.id) return base;
   if (rawChainId === mainnet.id) return mainnet;
   if (rawChainId === sepolia.id) return sepolia;
+  
+  // Default to Hardhat in development if no chain ID is set
+  if (process.env.NODE_ENV === 'development' && !rawChainId) {
+    return hardhat;
+  }
+  
   return baseSepolia;
 };
 

@@ -4,7 +4,7 @@
  * Handles agents creating posts autonomously
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, agentTrades, posts, eq, desc } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -19,43 +19,43 @@ export class AutonomousPostingService {
    * Generate and create a post for an agent
    */
   async createAgentPost(agentUserId: string, _runtime: IAgentRuntime): Promise<string | null> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agent?.isAgent) {
       throw new Error('Agent not found')
     }
 
-      // Get recent agent activity for context
-      const recentTrades = await prisma.agentTrade.findMany({
-        where: { agentUserId },
-        orderBy: { executedAt: 'desc' },
-        take: 5
-      })
+    // Get recent agent activity for context
+    const recentTrades = await db.select()
+      .from(agentTrades)
+      .where(eq(agentTrades.agentUserId, agentUserId))
+      .orderBy(desc(agentTrades.executedAt))
+      .limit(5)
 
-      const now = new Date();
-      const recentPosts = await prisma.post.findMany({
-        where: { 
-          authorId: agentUserId,
-          timestamp: { lte: now }, // ✅ No future posts
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 3
-      })
+    const recentPosts = await db.select()
+      .from(posts)
+      .where(eq(posts.authorId, agentUserId))
+      .orderBy(desc(posts.createdAt))
+      .limit(3)
 
-      // Get random market context for variety
-      const marketContext = await generateRandomMarketContext({
-        includeGainers: true,
-        includeLosers: true,
-        includeQuestions: true,
-        includePosts: true,
-        includeEvents: false,
-      })
-      const contextString = formatRandomContext(marketContext)
+    // Get random market context for variety
+    const marketContext = await generateRandomMarketContext({
+      includeGainers: true,
+      includeLosers: true,
+      includeQuestions: true,
+      includePosts: true,
+      includeEvents: false,
+    })
+    const contextString = formatRandomContext(marketContext)
 
-      // Get world context for consistent parody names
-      const worldContext = await generateWorldContext({ maxActors: 20 })
+    // Get world context for consistent parody names
+    const worldContext = await generateWorldContext({ maxActors: 20 })
 
-      // Build prompt for post generation
-      const prompt = `${agent.agentSystem}
+    // Build prompt for post generation
+    const prompt = `${agent.agentSystem}
 
 You are ${agent.displayName}, an AI agent in the Babylon prediction market community.
 
@@ -103,74 +103,73 @@ ${contextString}
 
 Generate ONLY the post text, nothing else.`
 
-      // Ensure prompt fits within 32K context limit (W&B trained models)
-      const estimatedTokens = countTokensSync(prompt)
-      let finalPrompt = prompt
-      
-      if (estimatedTokens > 30000) {  // 30K with 2K safety margin
-        logger.warn(`Post generation prompt too long: ${estimatedTokens} tokens, truncating`, { agentUserId })
-        const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
-        finalPrompt = truncated.text
-        logger.info(`Truncated to ${truncated.tokens} tokens`, { agentUserId })
-      }
+    // Ensure prompt fits within 32K context limit (W&B trained models)
+    const estimatedTokens = countTokensSync(prompt)
+    let finalPrompt = prompt
+    
+    if (estimatedTokens > 30000) {  // 30K with 2K safety margin
+      logger.warn(`Post generation prompt too long: ${estimatedTokens} tokens, truncating`, { agentUserId })
+      const truncated = truncateToTokenLimitSync(prompt, 30000, { ellipsis: true })
+      finalPrompt = truncated.text
+      logger.info(`Truncated to ${truncated.tokens} tokens`, { agentUserId })
+    }
 
-      // Use large model (qwen3-32b or trained W&B model) for post generation
-      const postContent = await callGroqDirect({
-        prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
-        runtime: _runtime,  // Pass runtime to access W&B trained models
-        temperature: 0.8,
-        maxTokens: 100
-      })
+    // Use large model (qwen3-32b or trained W&B model) for post generation
+    const postContent = await callGroqDirect({
+      prompt: finalPrompt,
+      system: agent.agentSystem || undefined,
+      modelSize: 'large',  // Uses trained W&B model if available, else qwen3-32b
+      runtime: _runtime,  // Pass runtime to access W&B trained models
+      temperature: 0.8,
+      maxTokens: 100,
+      actionType: 'generate_autonomous_post'
+    })
 
-      // Clean up the response
-      let cleanContent = postContent.trim().replace(/^["']|["']$/g, '')
+    // Clean up the response
+    let cleanContent = postContent.trim().replace(/^["']|["']$/g, '')
 
-      // Post-process to fix any real names that slipped through
-      const processed = await characterMappingService.transformText(cleanContent)
-      cleanContent = processed.transformedText
+    // Post-process to fix any real names that slipped through
+    const processed = await characterMappingService.transformText(cleanContent)
+    cleanContent = processed.transformedText
 
-      if (processed.replacementCount > 0) {
-        logger.warn(`Fixed ${processed.replacementCount} real name(s) in agent post`, { 
-          original: cleanContent.substring(0, 100),
-          fixed: processed.transformedText.substring(0, 100)
-        }, 'AutonomousPosting')
-      }
+    if (processed.replacementCount > 0) {
+      logger.warn(`Fixed ${processed.replacementCount} real name(s) in agent post`, { 
+        original: cleanContent.substring(0, 100),
+        fixed: processed.transformedText.substring(0, 100)
+      }, 'AutonomousPosting')
+    }
 
-      logger.info(`LLM generated post`, { 
-        agentUserId, 
-        raw: postContent, 
-        cleaned: cleanContent,
+    logger.info(`LLM generated post`, { 
+      agentUserId, 
+      raw: postContent, 
+      cleaned: cleanContent,
+      length: cleanContent.length 
+    }, 'AutonomousPosting')
+
+    if (!cleanContent || cleanContent.length < 10) {
+      logger.warn(`Generated post too short or empty for agent ${agentUserId}`, { 
+        content: cleanContent,
         length: cleanContent.length 
       }, 'AutonomousPosting')
+      return null
+    }
 
-      if (!cleanContent || cleanContent.length < 10) {
-        logger.warn(`Generated post too short or empty for agent ${agentUserId}`, { 
-          content: cleanContent,
-          length: cleanContent.length 
-        }, 'AutonomousPosting')
-        return null
-      }
-
-      // Create the post
-      const postId = await generateSnowflakeId()
-      await prisma.post.create({
-        data: {
-          id: postId,
-          content: cleanContent,
-          authorId: agentUserId,
-          type: 'post',
-          timestamp: new Date(),
-          createdAt: new Date()
-        }
+    // Create the post
+    const postId = await generateSnowflakeId()
+    await db.insert(posts)
+      .values({
+        id: postId,
+        content: cleanContent,
+        authorId: agentUserId,
+        type: 'post',
+        timestamp: new Date(),
+        createdAt: new Date(),
       })
 
-      logger.info(`Agent ${agent.displayName} created post: ${postId}`, undefined, 'AutonomousPosting')
+    logger.info(`Agent ${agent.displayName} created post: ${postId}`, undefined, 'AutonomousPosting')
 
-      return postId
+    return postId
   }
 }
 
 export const autonomousPostingService = new AutonomousPostingService()
-

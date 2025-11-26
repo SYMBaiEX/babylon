@@ -126,6 +126,7 @@ Return your response as XML in this exact format:
     {
       temperature: 1.0,
       maxTokens: 500,
+      promptType: 'generate_onboarding_profile',
     }
   );
 

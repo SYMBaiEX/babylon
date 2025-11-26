@@ -108,16 +108,15 @@ async function main() {
         // 2. Make decision
         log('🤔 Making decision...')
         
-        // Type assertion is necessary because A2A client returns generic objects
-        // that match our DecisionContext interface structure
+        // A2A client returns data that matches our DecisionContext interface structure
         const decision = await decisionMaker.decide({
           portfolio: {
             balance: portfolio.balance,
-            positions: portfolio.positions as unknown as Array<{ id: string; ticker: string; side: 'long' | 'short'; size: number; leverage: number; entryPrice: number; currentPrice: number; pnl: number; unrealizedPnL: number }>,
+            positions: portfolio.positions,
             pnl: portfolio.pnl
           },
-          markets: markets as DecisionContext['markets'],
-          feed: feed as DecisionContext['feed'],
+          markets,
+          feed,
           memory: recentMemory
         })
 

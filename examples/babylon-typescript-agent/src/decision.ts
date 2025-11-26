@@ -9,6 +9,7 @@ import { createGroq } from '@ai-sdk/groq'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { generateText } from 'ai'
+import type { LanguageModelV1 } from '@ai-sdk/provider'
 import type { MemoryEntry } from './memory'
 
 export interface PredictionMarket {
@@ -67,7 +68,7 @@ const MAX_RESULT_LENGTH = 60
 
 export class AgentDecisionMaker {
   private config: DecisionMakerConfig
-  private model: Parameters<typeof generateText>[0]['model']
+  private model: LanguageModelV1
   private providerName: string
 
   constructor(config: DecisionMakerConfig) {
@@ -80,11 +81,11 @@ export class AgentDecisionMaker {
       this.providerName = 'Groq (llama-3.1-8b-instant)'
     } else if (config.anthropicApiKey) {
       const anthropic = createAnthropic({ apiKey: config.anthropicApiKey })
-      this.model = anthropic('claude-sonnet-4-5') as unknown as Parameters<typeof generateText>[0]['model']
+      this.model = anthropic('claude-sonnet-4-5')
       this.providerName = 'Claude (claude-sonnet-4-5)'
     } else if (config.openaiApiKey) {
       const openai = createOpenAI({ apiKey: config.openaiApiKey })
-      this.model = openai('gpt-5.1') as unknown as Parameters<typeof generateText>[0]['model']
+      this.model = openai('gpt-5.1')
       this.providerName = 'OpenAI (gpt-5.1)'
     } else {
       throw new Error('At least one LLM API key is required (GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)')

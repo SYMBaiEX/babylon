@@ -16,8 +16,9 @@ export const questionResolvedFeed = definePrompt({
   description: 'Generates feed posts announcing question resolutions',
   temperature: 0.7,
   maxTokens: 400,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 A prediction market question has been resolved!
 

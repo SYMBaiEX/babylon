@@ -51,7 +51,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager'
 
@@ -66,7 +66,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const actor = await requireUserByIdentifier(actorId)
 
-  const pool = await prisma.pool.findFirst({
+  const pool = await db.pool.findFirst({
     where: {
       npcActorId: actor.id,
       isActive: true,
@@ -75,7 +75,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const metrics = await NPCInvestmentManager.getPortfolioMetrics(pool!.id)
 
-  const positions = await prisma.poolPosition.findMany({
+  const positions = await db.poolPosition.findMany({
     where: {
       poolId: pool!.id,
       closedAt: null,

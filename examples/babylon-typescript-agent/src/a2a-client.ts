@@ -9,6 +9,47 @@
 import { A2AClient } from '@a2a-js/sdk/client'
 import type { AgentCard, Message, Task, TextPart, DataPart, SendMessageResponse } from '@a2a-js/sdk'
 import type { JsonValue } from '../../../src/types/a2a'
+import type { 
+  A2APerpPosition, 
+  A2APredictionMarket, 
+  A2APerpetualMarket, 
+  A2AFeedPost, 
+  A2AChat, 
+  A2ANotification, 
+  A2ALeaderboardEntry,
+  A2ATrendingTag,
+  A2AOrganization,
+  A2AUserSearchResult,
+  A2AReferral,
+  A2AReferralStatsResponse,
+  A2AReferralCodeResponse,
+  A2AReputationResponse
+} from '../../../src/types/a2a-responses'
+
+/**
+ * A2A command with operation and params
+ */
+interface A2ACommand {
+  operation: string
+  params: Record<string, JsonValue>
+  [key: string]: JsonValue
+}
+
+/**
+ * A2A client with agentCardPromise property (internal SDK type)
+ */
+interface A2AClientInternal {
+  agentCardPromise?: Promise<AgentCard>
+}
+
+/**
+ * A2A response result type (from SDK)
+ */
+interface A2AResponseResult {
+  kind?: 'task' | 'message'
+  task?: Task
+  message?: Message
+}
 
 export interface BabylonA2AClientConfig {
   /** Base URL of Babylon server (e.g., http://localhost:3000) */
@@ -77,8 +118,9 @@ export class BabylonA2AClient {
     // Initialize client
     const client = await this.getClient()
     
-    // Get agent card
-    this.agentCard = await (client as unknown as { agentCardPromise?: Promise<AgentCard> }).agentCardPromise || null
+    // Get agent card - A2AClient has internal agentCardPromise property
+    const clientInternal = client as A2AClient & A2AClientInternal
+    this.agentCard = await clientInternal.agentCardPromise || null
 
     // Verify connection by sending a test message
     await this.sendMessage('ping', { operation: 'stats.system', params: {} })
@@ -91,7 +133,7 @@ export class BabylonA2AClient {
    * @param command Structured command data (action + params)
    * @returns Task or Message response
    */
-  async sendMessage(text: string, command: Record<string, unknown>): Promise<Task | Message> {
+  async sendMessage(text: string, command: A2ACommand): Promise<Task | Message> {
     if (!command || typeof command.operation !== 'string') {
       throw new Error('A2A command must include an operation string (e.g., "social.create_post", "markets.buy_shares")')
     }
@@ -134,7 +176,7 @@ export class BabylonA2AClient {
       return response.result.message
     } else {
       // Fallback - check if result itself is a Task or Message
-      const result = response.result as unknown
+      const result = response.result as A2AResponseResult
       if (result && typeof result === 'object' && 'kind' in result) {
         if (result.kind === 'task' || result.kind === 'message') {
           return result as Task | Message
@@ -193,7 +235,8 @@ export class BabylonA2AClient {
         if (artifact.parts) {
           for (const part of artifact.parts) {
             if (part.kind === 'data') {
-              return (part as DataPart).data as Record<string, JsonValue>
+              const dataPart = part as DataPart
+              return dataPart.data as Record<string, JsonValue>
             }
           }
         }
@@ -204,7 +247,8 @@ export class BabylonA2AClient {
         if (lastMessage.parts) {
           for (const part of lastMessage.parts) {
             if (part.kind === 'data') {
-              return (part as DataPart).data as Record<string, JsonValue>
+              const dataPart = part as DataPart
+              return dataPart.data as Record<string, JsonValue>
             }
           }
         }
@@ -213,7 +257,8 @@ export class BabylonA2AClient {
       if (task.status?.message?.parts) {
         for (const part of task.status.message.parts) {
           if (part.kind === 'data') {
-            return (part as DataPart).data as Record<string, unknown>
+            const dataPart = part as DataPart
+            return dataPart.data as Record<string, JsonValue>
           }
         }
       }
@@ -224,7 +269,8 @@ export class BabylonA2AClient {
       if (message.parts) {
         for (const part of message.parts) {
           if (part.kind === 'data') {
-            return (part as DataPart).data as Record<string, unknown>
+            const dataPart = part as DataPart
+            return dataPart.data as Record<string, JsonValue>
           }
         }
       }
@@ -329,7 +375,7 @@ export class BabylonA2AClient {
    * Get predictions (query skill)
    * SUPPORTED: Uses markets.list_prediction operation
    */
-  async getPredictions(params?: { userId?: string; status?: 'active' | 'resolved' }): Promise<{ predictions: Array<Record<string, unknown>> }> {
+  async getPredictions(params?: { userId?: string; status?: 'active' | 'resolved' }): Promise<{ predictions: A2APredictionMarket[] }> {
     const response = await this.sendMessage(
       'What prediction markets are available?',
       {
@@ -341,17 +387,17 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { predictions: result.predictions as Array<Record<string, unknown>> || [] }
+      return { predictions: (result.predictions as A2APredictionMarket[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { predictions: result.predictions as Array<Record<string, unknown>> || [] }
+    return { predictions: (result.predictions as A2APredictionMarket[]) || [] }
   }
 
   /**
    * Get perpetuals (query skill)
    */
-  async getPerpetuals(): Promise<{ perpetuals: Array<Record<string, unknown>> }> {
+  async getPerpetuals(): Promise<{ perpetuals: A2APerpetualMarket[] }> {
     const response = await this.sendMessage(
       'What perpetual futures markets are available?',
       {
@@ -363,17 +409,17 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { perpetuals: result.perpetuals as Array<Record<string, unknown>> || [] }
+      return { perpetuals: (result.perpetuals as A2APerpetualMarket[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { perpetuals: result.perpetuals as Array<Record<string, unknown>> || [] }
+    return { perpetuals: (result.perpetuals as A2APerpetualMarket[]) || [] }
   }
 
   /**
    * Get all markets
    */
-  async getMarkets(): Promise<{ predictions: Array<Record<string, unknown>>; perps: Array<Record<string, unknown>> }> {
+  async getMarkets(): Promise<{ predictions: A2APredictionMarket[]; perps: A2APerpetualMarket[] }> {
     const [predictions, perps] = await Promise.all([
       this.getPredictions({ status: 'active' }),
       this.getPerpetuals()
@@ -409,7 +455,7 @@ export class BabylonA2AClient {
   /**
    * Get positions (query skill)
    */
-  async getPositions(userId?: string): Promise<{ perpPositions: Array<Record<string, unknown>>; totalPnL: number }> {
+  async getPositions(userId?: string): Promise<{ perpPositions: A2APerpPosition[]; totalPnL: number }> {
     const response = await this.sendMessage(
       userId ? `What are user ${userId}'s positions?` : 'What are my current positions?',
       {
@@ -422,22 +468,22 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
       return {
-        perpPositions: result.perpPositions as Array<Record<string, unknown>> || [],
-        totalPnL: result.totalPnL as number || 0
+        perpPositions: (result.perpPositions as A2APerpPosition[]) || [],
+        totalPnL: (result.totalPnL as number) || 0
       }
     }
 
     const result = this.extractResult(response)
     return {
-      perpPositions: result.perpPositions as Array<Record<string, unknown>> || [],
-      totalPnL: result.totalPnL as number || 0
+      perpPositions: (result.perpPositions as A2APerpPosition[]) || [],
+      totalPnL: (result.totalPnL as number) || 0
     }
   }
 
   /**
    * Get portfolio (combines balance and positions)
    */
-  async getPortfolio(): Promise<{ balance: number; positions: Array<Record<string, unknown>>; pnl: number }> {
+  async getPortfolio(): Promise<{ balance: number; positions: A2APerpPosition[]; pnl: number }> {
     const [balance, positions] = await Promise.all([
       this.getBalance(),
       this.getPositions()
@@ -454,7 +500,7 @@ export class BabylonA2AClient {
    * Get feed (query skill)
    * SUPPORTED: Uses social.get_feed operation
    */
-  async getFeed(params?: { limit?: number; offset?: number; following?: boolean; type?: 'post' | 'article' }): Promise<{ posts: Array<Record<string, unknown>> }> {
+  async getFeed(params?: { limit?: number; offset?: number; following?: boolean; type?: 'post' | 'article' }): Promise<{ posts: A2AFeedPost[] }> {
     const response = await this.sendMessage(
       'Show me recent posts from the feed',
       {
@@ -466,11 +512,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { posts: result.posts as Array<Record<string, unknown>> || [] }
+      return { posts: (result.posts as A2AFeedPost[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { posts: result.posts as Array<Record<string, unknown>> || [] }
+    return { posts: (result.posts as A2AFeedPost[]) || [] }
   }
 
   /**
@@ -583,47 +629,49 @@ export class BabylonA2AClient {
   /**
    * Get chats (query skill)
    */
-  async getChats(filter?: 'all' | 'dms' | 'groups'): Promise<{ chats: Array<Record<string, unknown>> }> {
+  async getChats(filter?: 'all' | 'dms' | 'groups'): Promise<{ chats: A2AChat[] }> {
     const response = await this.sendMessage(
       'What are my chats?',
       {
+        operation: 'chats.get_chats',
+        params: { filter },
         skill: 'direct-messenger',
-        action: 'get_chats',
-        filter
+        action: 'get_chats'
       }
     )
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { chats: result.chats as Array<Record<string, unknown>> || [] }
+      return { chats: (result.chats as A2AChat[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { chats: result.chats as Array<Record<string, unknown>> || [] }
+    return { chats: (result.chats as A2AChat[]) || [] }
   }
 
   /**
    * Get notifications (query skill)
    */
-  async getNotifications(limit?: number): Promise<{ notifications: Array<Record<string, unknown>> }> {
+  async getNotifications(limit?: number): Promise<{ notifications: A2ANotification[] }> {
     const response = await this.sendMessage(
       'What are my notifications?',
       {
+        operation: 'notifications.get_notifications',
+        params: { limit },
         skill: 'notification-manager',
-        action: 'get_notifications',
-        limit
+        action: 'get_notifications'
       }
     )
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { notifications: result.notifications as Array<Record<string, unknown>> || [] }
+      return { notifications: (result.notifications as A2ANotification[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { notifications: result.notifications as Array<Record<string, unknown>> || [] }
+    return { notifications: (result.notifications as A2ANotification[]) || [] }
   }
 
   /**
@@ -636,7 +684,7 @@ export class BabylonA2AClient {
     pointsType?: 'all' | 'earned' | 'referral'
     minPoints?: number
     limit?: number
-  }): Promise<{ leaderboard: Array<Record<string, unknown>> }> {
+  }): Promise<{ leaderboard: A2ALeaderboardEntry[] }> {
     const response = await this.sendMessage(
       'Show me the leaderboard',
       {
@@ -648,11 +696,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { leaderboard: result.leaderboard as Array<Record<string, unknown>> || [] }
+      return { leaderboard: (result.leaderboard as A2ALeaderboardEntry[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { leaderboard: result.leaderboard as Array<Record<string, unknown>> || [] }
+    return { leaderboard: (result.leaderboard as A2ALeaderboardEntry[]) || [] }
   }
 
   /**
@@ -733,54 +781,56 @@ export class BabylonA2AClient {
   /**
    * Get trending tags (query skill)
    */
-  async getTrendingTags(limit?: number): Promise<{ tags: Array<Record<string, unknown>> }> {
+  async getTrendingTags(limit?: number): Promise<{ tags: A2ATrendingTag[] }> {
     const response = await this.sendMessage(
       'What topics are trending?',
       {
+        operation: 'stats.get_trending_tags',
+        params: { limit },
         skill: 'stats-researcher',
-        action: 'get_trending_tags',
-        limit
+        action: 'get_trending_tags'
       }
     )
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { tags: result.tags as Array<Record<string, unknown>> || [] }
+      return { tags: (result.tags as A2ATrendingTag[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { tags: result.tags as Array<Record<string, unknown>> || [] }
+    return { tags: (result.tags as A2ATrendingTag[]) || [] }
   }
 
   /**
    * Get organizations (query skill)
    */
-  async getOrganizations(limit?: number): Promise<{ organizations: Array<Record<string, unknown>> }> {
+  async getOrganizations(limit?: number): Promise<{ organizations: A2AOrganization[] }> {
     const response = await this.sendMessage(
       'What organizations/perpetual markets are available?',
       {
+        operation: 'markets.get_organizations',
+        params: { limit },
         skill: 'market-researcher',
-        action: 'get_organizations',
-        limit
+        action: 'get_organizations'
       }
     )
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { organizations: result.organizations as Array<Record<string, unknown>> || [] }
+      return { organizations: (result.organizations as A2AOrganization[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { organizations: result.organizations as Array<Record<string, unknown>> || [] }
+    return { organizations: (result.organizations as A2AOrganization[]) || [] }
   }
 
   /**
    * Search users (query skill)
    * SUPPORTED: Uses users.search operation
    */
-  async searchUsers(query: string, limit?: number): Promise<{ users: Array<Record<string, unknown>> }> {
+  async searchUsers(query: string, limit?: number): Promise<{ users: A2AUserSearchResult[] }> {
     const response = await this.sendMessage(
       `Search for users: ${query}`,
       {
@@ -795,11 +845,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id)
       const result = this.extractResult(task)
-      return { users: result.users as Array<Record<string, unknown>> || [] }
+      return { users: (result.users as A2AUserSearchResult[]) || [] }
     }
 
     const result = this.extractResult(response)
-    return { users: result.users as Array<Record<string, unknown>> || [] }
+    return { users: (result.users as A2AUserSearchResult[]) || [] }
   }
 
   /**

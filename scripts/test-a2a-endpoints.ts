@@ -7,6 +7,18 @@
  * Then: bun run scripts/test-a2a-endpoints.ts
  */
 
+/**
+ * JSON-serializable value type (mirrors src/types/common.ts)
+ * Used for test data responses
+ */
+type TestJsonValue = 
+  | string 
+  | number 
+  | boolean 
+  | null 
+  | TestJsonValue[] 
+  | { [key: string]: TestJsonValue };
+
 const BASE_URL = process.env.BABYLON_URL || 'http://localhost:3000'
 const API_KEY = process.env.BABYLON_API_KEY || 'test'
 
@@ -14,12 +26,12 @@ interface TestResult {
   name: string
   passed: boolean
   error?: string
-  data?: unknown
+  data?: TestJsonValue
 }
 
 const tests: TestResult[] = []
 
-async function test(name: string, fn: () => Promise<unknown>): Promise<void> {
+async function test(name: string, fn: () => Promise<TestJsonValue>): Promise<void> {
   try {
     const data = await fn()
     tests.push({ name, passed: true, data })

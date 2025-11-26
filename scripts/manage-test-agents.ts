@@ -15,7 +15,7 @@
  *   bun run scripts/manage-test-agents.ts resume     # Resume paused agents
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, users, sql, eq } from '@/db';
 import { logger } from '@/lib/logger';
 import { autonomousCoordinator } from '@/lib/agents/autonomous';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
@@ -24,7 +24,7 @@ async function showStatus(): Promise<void> {
   console.log('\n🔍 Test Agent Status\n');
   console.log('═'.repeat(60));
   
-  const agents = await prisma.user.findMany({
+  const agents = await db.user.findMany({
     where: {
       isTest: true,
       isAgent: true
@@ -57,10 +57,10 @@ async function showStatus(): Promise<void> {
   
   for (const agent of agents) {
     const [postCount, commentCount, tradeCount, messageCount] = await Promise.all([
-      prisma.post.count({ where: { authorId: agent.id } }),
-      prisma.comment.count({ where: { authorId: agent.id } }),
-      prisma.agentTrade.count({ where: { agentUserId: agent.id } }),
-      prisma.message.count({ where: { senderId: agent.id } })
+      db.post.count({ where: { authorId: agent.id } }),
+      db.comment.count({ where: { authorId: agent.id } }),
+      db.agentTrade.count({ where: { agentUserId: agent.id } }),
+      db.message.count({ where: { senderId: agent.id } })
     ]);
     
     const actions = postCount + commentCount + tradeCount + messageCount;
@@ -107,7 +107,7 @@ async function topUpAgents(): Promise<void> {
   console.log('\n💰 Topping Up Test Agents\n');
   console.log('═'.repeat(60));
   
-  const testAgents = await prisma.user.findMany({
+  const testAgents = await db.user.findMany({
     where: {
       isTest: true,
       isAgent: true
@@ -127,16 +127,16 @@ async function topUpAgents(): Promise<void> {
     const actions = [];
     
     if (agent.agentPointsBalance < 50) {
-      await prisma.user.update({
-        where: { id: agent.id },
-        data: { agentPointsBalance: { increment: 500 } }
-      });
+      // Use Drizzle SQL for atomic increment
+      await db.update(users)
+        .set({ agentPointsBalance: sql`${users.agentPointsBalance} + 500` })
+        .where(eq(users.id, agent.id));
       actions.push(`+500 points (was ${agent.agentPointsBalance})`);
       toppedUp++;
     }
     
     if (agent.agentStatus === 'paused') {
-      await prisma.user.update({
+      await db.user.update({
         where: { id: agent.id },
         data: { agentStatus: 'running' }
       });
@@ -160,7 +160,7 @@ async function resumeAgents(): Promise<void> {
   console.log('\n▶️  Resuming Paused Agents\n');
   console.log('═'.repeat(60));
   
-  const result = await prisma.user.updateMany({
+  const result = await db.user.updateMany({
     where: {
       isTest: true,
       isAgent: true,
@@ -178,7 +178,7 @@ async function runAgents(): Promise<void> {
   console.log('\n🤖 Running All Test Agents\n');
   console.log('═'.repeat(60));
   
-  const testAgents = await prisma.user.findMany({
+  const testAgents = await db.user.findMany({
     where: {
       isAgent: true,
       username: { startsWith: 'test-' },
@@ -256,7 +256,7 @@ async function main(): Promise<void> {
       process.exit(1);
   }
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 if (import.meta.main) {

@@ -46,7 +46,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 /**
@@ -56,15 +56,15 @@ import { logger } from '@/lib/logger';
 export async function GET(_req: NextRequest) {
   try {
     // Get total trajectory count
-    const totalTrajectories = await prisma.trajectory.count();
+    const totalTrajectories = await db.trajectory.count();
     
     // Get trajectories by window
-    const windowStats = await prisma.$queryRaw<Array<{
+    const windowStatsRaw = await db.$queryRaw<{
       windowId: string;
       count: bigint;
       avgSteps: number;
       avgPnl: number;
-    }>>`
+    }>`
       SELECT 
         "windowId",
         COUNT(*)::bigint as count,
@@ -80,7 +80,7 @@ export async function GET(_req: NextRequest) {
     `;
     
     // Convert to serializable format
-    const windows = windowStats.map(w => ({
+    const windows = windowStatsRaw.map((w) => ({
       windowId: w.windowId,
       trajectoryCount: Number(w.count),
       avgSteps: w.avgSteps || 0,
@@ -92,7 +92,7 @@ export async function GET(_req: NextRequest) {
     const readyWindows = windows.filter(w => w.trajectoryCount >= MIN_AGENTS_FOR_TRAINING);
     
     // Get recent trajectories for preview
-    const recentTrajectories = await prisma.trajectory.findMany({
+    const recentTrajectories = await db.trajectory.findMany({
       where: {
         isTrainingData: true,
       },

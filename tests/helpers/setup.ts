@@ -2,24 +2,24 @@
  * Test Setup Helper
  *
  * Ensures consistent test environment setup across all test suites.
- * Handles Prisma initialization and database readiness checks.
+ * Handles database initialization, database readiness checks, and test isolation.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 /**
  * Check if database is available and properly configured
  */
 export async function ensureDatabaseReady(): Promise<boolean> {
-  const databaseUrl = process.env.DATABASE_URL || process.env.PRISMA_DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_URL;
 
   if (!databaseUrl) {
     return false;
   }
 
   try {
-    // Simple connection test using prisma.$queryRaw
-    await prisma.$queryRaw`SELECT 1`;
+    // Simple connection test using db.$queryRaw
+    await db.$queryRaw`SELECT 1`;
     return true;
   } catch (error) {
     return false;
@@ -39,8 +39,8 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
   }
 
   // Ensure DATABASE_URL is available
-  if (!process.env.DATABASE_URL && process.env.PRISMA_DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.PRISMA_DATABASE_URL;
+  if (!process.env.DATABASE_URL && process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL;
   }
 
   // Check database readiness
@@ -52,8 +52,8 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
   }
 
   try {
-    // Ensure Prisma client is connected
-    await prisma.$connect();
+    // Ensure database client is connected
+    await db.$connect();
     console.log('✅ Test environment ready');
   } catch (error) {
     console.warn('⚠️  Could not connect to database:', error);
@@ -66,7 +66,7 @@ export async function setupTestEnvironment(options?: { skipDatabase?: boolean })
  */
 export async function cleanupTestEnvironment() {
   try {
-    await prisma.$disconnect();
+    await db.$disconnect();
   } catch (error) {
     // Ignore disconnection errors in tests
   }
@@ -76,8 +76,107 @@ export async function cleanupTestEnvironment() {
  * Helper to check if tests should skip based on database availability
  */
 export function shouldSkipDatabaseTests(): boolean {
-  const hasDatabase = !!(process.env.DATABASE_URL || process.env.PRISMA_DATABASE_URL);
+  const hasDatabase = !!(process.env.DATABASE_URL || process.env.DATABASE_URL);
   const skipRequested = process.env.SKIP_DATABASE_TESTS === 'true';
 
   return !hasDatabase || skipRequested;
+}
+
+/**
+ * Clean up stale generation locks that might interfere with tests
+ * Call this in beforeAll() or beforeEach() if your tests use locks
+ */
+export async function cleanupStaleLocks(): Promise<number> {
+  try {
+    // Delete expired locks
+    const result = await db.generationLock.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          // Also clean up any locks from previous test runs
+          { id: { contains: 'test' } },
+          { lockedBy: { contains: 'test' } },
+        ]
+      }
+    });
+    return result.count;
+  } catch (error) {
+    console.warn('Could not cleanup stale locks:', error);
+    return 0;
+  }
+}
+
+/**
+ * Generate a unique test ID to avoid conflicts between parallel tests
+ */
+export function generateTestId(prefix: string = 'test'): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+/**
+ * Create an isolated test context with automatic cleanup
+ * Use this for tests that create database records
+ * 
+ * @example
+ * ```typescript
+ * const { cleanup, testPrefix } = await createIsolatedTestContext('my-test');
+ * // Create records with testPrefix in their IDs
+ * // ...
+ * // In afterAll:
+ * await cleanup();
+ * ```
+ */
+export async function createIsolatedTestContext(name: string): Promise<{
+  testPrefix: string;
+  cleanup: () => Promise<void>;
+}> {
+  const testPrefix = generateTestId(name);
+  
+  const cleanup = async () => {
+    try {
+      // Clean up any records created with this test prefix
+      await db.generationLock.deleteMany({
+        where: {
+          OR: [
+            { id: { contains: testPrefix } },
+            { lockedBy: { contains: testPrefix } },
+          ]
+        }
+      });
+      
+      await db.user.deleteMany({
+        where: {
+          OR: [
+            { username: { contains: testPrefix } },
+            { id: { contains: testPrefix } },
+          ]
+        }
+      });
+    } catch (error) {
+      // Non-fatal - log and continue
+      console.warn(`[${name}] Cleanup warning:`, error);
+    }
+  };
+  
+  return { testPrefix, cleanup };
+}
+
+/**
+ * Wrap a test operation in a timeout to prevent hanging
+ * Useful for tests that call external services
+ */
+export async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  operationName: string = 'operation'
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  
+  return Promise.race([operation, timeoutPromise]);
 }

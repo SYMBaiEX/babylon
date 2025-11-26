@@ -3,8 +3,8 @@
 ### Current Pipeline Snapshot
 - **Benchmark generation & replay** – `src/lib/benchmark/BenchmarkDataGenerator.ts` creates deterministic market snapshots (prediction/perp markets, ground-truth outcomes, tick events). `BenchmarkRunner` plus `SimulationA2AInterface` inject those snapshots into any Eliza runtime and can optionally persist trajectories via `TrajectoryRecorder`.
 - **Serverless Eliza runtimes** – `src/lib/agents/runtime/AgentRuntimeManager.ts` provisions isolated runtimes with Babylon plugins, optional W&B-backed models, and trajectory logging hooks for every action/provider call.
-- **Autonomous execution & recording** – Cron route `/api/cron/agent-tick` leverages `AutonomousCoordinator` (or `AutonomousCoordinatorWithRecording` when `RECORD_AGENT_TRAJECTORIES=true`) to run real agents, deduct points, and persist step-level data into Prisma via `TrajectoryRecorder`.
-- **Trajectory storage schema** – Prisma `Trajectory`, `TrainingBatch`, and `TrainedModel` tables capture episodes, GRPO groupings, training status, and deployment metadata (`prisma/schema.prisma`).
+- **Autonomous execution & recording** – Cron route `/api/cron/agent-tick` leverages `AutonomousCoordinator` (or `AutonomousCoordinatorWithRecording` when `RECORD_AGENT_TRAJECTORIES=true`) to run real agents, deduct points, and persist step-level data into Drizzle via `TrajectoryRecorder`.
+- **Trajectory storage schema** – Drizzle `Trajectory`, `TrainingBatch`, and `TrainedModel` tables capture episodes, GRPO groupings, training status, and deployment metadata (`src/db/schema/training.ts`).
 - **Automation pipeline entry points** – `src/lib/training/AutomationPipeline.ts` orchestrates readiness checks, GRPO export (`exportGroupedForGRPO`), python job spawning, and deployment bookkeeping. Cron endpoints (`/api/cron/training-check`, `/api/cron/training`) call this pipeline hourly/daily.
 - **Python training utilities** – `python/src/training/babylon_trainer.py` (deterministic ART workflow) and `python/src/training/trainer.py` (RULER scoring scaffolding) connect directly to PostgreSQL. `python/tests/test_continuous_training.py` already sketches end-to-end expectations (window selection, RULER judging, GRPO fine-tuning, deployment).
 - **Verification tooling** – `scripts/verify-rl-system.ts` validates configuration, data availability, automation status, and latest model registry entries.
@@ -26,7 +26,7 @@
    - Treat W&B as the default inference backend whenever `WANDB_API_KEY` is configured: `getAIModelConfig` should auto-enable W&B, `AgentRuntimeManager` should always inject the RL model into both small/large slots, and cron logging should report actual RL models instead of tier labels.
 4. **Live harness for benchmark → training**
    - New script (`scripts/run-rl-harness.ts`) should:
-     1. Provision or reuse ≥5 deterministic harness agents via Prisma.
+     1. Provision or reuse ≥5 deterministic harness agents via Drizzle.
      2. Generate / load a benchmark snapshot and run each agent through `BenchmarkRunner` with trajectory recording enabled.
      3. Report metrics + stored trajectory count, ensuring data is available for GRPO export.
      4. Optionally invoke `automationPipeline.triggerTraining` (with `--force` flag) and stream training status.
@@ -41,7 +41,7 @@
 1. **Benchmark replay loop**
    - Deterministic seed + shared snapshot ensures every agent sees identical market conditions. We fast-forward ticks via `SimulationA2AInterface` to keep runs quick.
 2. **Trajectory validation**
-   - After harness runs, query `prisma.trajectory` filtered by `scenarioId="benchmark-<snapshot-id>"` to confirm episodes persisted with `usedInTraining=false`.
+   - After harness runs, query `trajectories` table filtered by `scenarioId="benchmark-<snapshot-id>"` to confirm episodes persisted with `usedInTraining=false`.
 3. **Automation smoke**
    - Reuse `automationPipeline.checkTrainingReadiness()` to print stats before/after harness, ensuring our run actually moves the needle toward the thousand-trajectory bar.
 4. **Training trigger (optional)**

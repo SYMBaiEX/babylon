@@ -5,7 +5,18 @@
  * based on interaction history and social relationships.
  */
 
-import db from '@/lib/database-service';
+import {
+  db,
+  eq,
+  and,
+  gte,
+  actors,
+  userInteractions,
+  groupChatMemberships,
+  chats,
+  chatParticipants,
+  messages,
+} from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { GroupChatInvite } from './group-chat-invite';
@@ -34,24 +45,21 @@ export class ActorSocialActions {
     const actions: SocialAction[] = [];
 
     // Get all actors
-    const actors = await db().prisma.actor.findMany({
-      take: 50, // Limit to prevent overload
-    });
+    const actorList = await db
+      .select()
+      .from(actors)
+      .limit(50); // Limit to prevent overload
 
     // Get all active users with interactions
-    const usersWithInteractions = await db().prisma.userInteraction.findMany({
-      where: {
-        timestamp: {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-        },
-      },
-      select: {
-        userId: true,
-        npcId: true,
-        qualityScore: true,
-      },
-      distinct: ['userId', 'npcId'],
-    });
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const usersWithInteractions = await db
+      .selectDistinctOn([userInteractions.userId, userInteractions.npcId], {
+        userId: userInteractions.userId,
+        npcId: userInteractions.npcId,
+        qualityScore: userInteractions.qualityScore,
+      })
+      .from(userInteractions)
+      .where(gte(userInteractions.timestamp, sevenDaysAgo));
 
     // Group interactions by actor-user pairs
     const interactionMap = new Map<string, Array<{ userId: string; qualityScore: number }>>();
@@ -71,7 +79,7 @@ export class ActorSocialActions {
     }
 
     // Process each actor-user pair
-    for (const actor of actors) {
+    for (const actor of actorList) {
       const actorInteractions = Array.from(interactionMap.entries())
         .filter(([key]) => key.startsWith(`${actor.id}-`))
         .map(([key, interactions]) => {
@@ -93,36 +101,53 @@ export class ActorSocialActions {
         }
 
         // Check if user is already in a chat with this actor
-        const existingMembership = await db().prisma.groupChatMembership.findFirst({
-          where: {
-            userId,
-            npcAdminId: actor.id,
-            isActive: true,
-          },
-        });
+        const [existingMembership] = await db
+          .select()
+          .from(groupChatMemberships)
+          .where(
+            and(
+              eq(groupChatMemberships.userId, userId),
+              eq(groupChatMemberships.npcAdminId, actor.id),
+              eq(groupChatMemberships.isActive, true)
+            )
+          )
+          .limit(1);
 
         // Check if there's already a DM chat between this actor and user
-        const existingDMChat = userId && actor.id ? await db().prisma.chat.findFirst({
-          where: {
-            isGroup: false,
-            ChatParticipant: {
-              every: {
-                userId: {
-                  in: [userId, actor.id],
-                },
-              },
-            },
-          },
-          include: {
-            ChatParticipant: true,
-          },
-        }) : null;
+        let hasExistingDM = false;
+        if (userId && actor.id) {
+          const dmChats = await db
+            .select({
+              chatId: chats.id,
+              participants: chatParticipants.userId,
+            })
+            .from(chats)
+            .innerJoin(chatParticipants, eq(chatParticipants.chatId, chats.id))
+            .where(eq(chats.isGroup, false));
 
-        // Verify it's actually a DM between these two (2 participants total)
-        const hasExistingDM = existingDMChat && 
-          existingDMChat.ChatParticipant.length === 2 &&
-          existingDMChat.ChatParticipant.some((p: { userId: string | null }) => p.userId === userId) &&
-          existingDMChat.ChatParticipant.some((p: { userId: string | null }) => p.userId === actor.id);
+          // Group by chat to check for DM between these two users
+          const chatParticipantMap = new Map<string, string[]>();
+          for (const row of dmChats) {
+            if (!chatParticipantMap.has(row.chatId)) {
+              chatParticipantMap.set(row.chatId, []);
+            }
+            if (row.participants) {
+              chatParticipantMap.get(row.chatId)!.push(row.participants);
+            }
+          }
+
+          // Check if any chat has exactly these two participants
+          for (const [, participants] of chatParticipantMap) {
+            if (
+              participants.length === 2 &&
+              participants.includes(userId) &&
+              participants.includes(actor.id)
+            ) {
+              hasExistingDM = true;
+              break;
+            }
+          }
+        }
 
         // Calculate probabilities based on interaction quality and count
         const qualityFactor = Math.min(avgQuality / this.MIN_INTERACTION_QUALITY, 1.5);
@@ -142,15 +167,16 @@ export class ActorSocialActions {
           
           // Look for existing game chats where this actor might be admin
           // Group chats are stored with kebab-case names, so we search by name pattern
-          const existingChat = await db().prisma.chat.findFirst({
-            where: {
-              isGroup: true,
-              gameId: 'continuous',
-              name: {
-                contains: actor.name.split(' ')[0] ?? '', // Try to match actor's first name
-              },
-            },
-          });
+          const [existingChat] = await db
+            .select()
+            .from(chats)
+            .where(
+              and(
+                eq(chats.isGroup, true),
+                eq(chats.gameId, 'continuous')
+              )
+            )
+            .limit(1);
 
           if (existingChat) {
             chatId = existingChat.id;
@@ -208,82 +234,95 @@ export class ActorSocialActions {
     userId: string
   ): Promise<{ id: string; messageContent: string }> {
     // Generate a DM message content (simple for now, could use LLM)
-    const messages: string[] = [
+    const messagesList: string[] = [
       "Hey! I've been noticing your posts. Want to chat?",
       "Thought you might find this interesting...",
       "Quick question for you!",
       "Loved your take on that last post. Mind if I DM you?",
       "Got something I think you'd want to hear.",
     ];
-    const randomIndex = Math.floor(Math.random() * messages.length);
-    const messageContent: string = messages[randomIndex] ?? messages[0] ?? ''; // Safe: randomIndex is always within bounds
+    const randomIndex = Math.floor(Math.random() * messagesList.length);
+    const messageContent: string = messagesList[randomIndex] ?? messagesList[0] ?? ''; // Safe: randomIndex is always within bounds
 
     // Create or get DM chat
-    const chatId = `dm-${actorId}-${userId}`;
+    const chatId = await generateSnowflakeId();
     
-    const chat = await db().prisma.chat.upsert({
-      where: { id: chatId },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
+    // Check if chat exists
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, `dm-${actorId}-${userId}`))
+      .limit(1);
+    
+    let finalChatId = chatId;
+    
+    if (existingChat) {
+      finalChatId = existingChat.id;
+    } else {
+      await db.insert(chats).values({
+        id: chatId,
         name: null, // DMs don't have names
         isGroup: false,
         updatedAt: new Date(),
-      },
-    });
-
-    // Verify chat was created/retrieved
-    if (!chat) {
-      throw new Error(`Failed to create or retrieve DM chat: ${chatId}`);
+      });
     }
 
     // Add participants
-    await db().prisma.chatParticipant.upsert({
-      where: {
-        chatId_userId: {
-          chatId,
-          userId: actorId,
-        },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
-        chatId,
+    const participantId1 = await generateSnowflakeId();
+    const participantId2 = await generateSnowflakeId();
+    
+    // Check if participant exists
+    const [existingParticipant1] = await db
+      .select()
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, finalChatId),
+          eq(chatParticipants.userId, actorId)
+        )
+      )
+      .limit(1);
+    
+    if (!existingParticipant1) {
+      await db.insert(chatParticipants).values({
+        id: participantId1,
+        chatId: finalChatId,
         userId: actorId,
-      },
-    });
+      });
+    }
 
-    await db().prisma.chatParticipant.upsert({
-      where: {
-        chatId_userId: {
-          chatId,
-          userId,
-        },
-      },
-      update: {},
-      create: {
-        id: await generateSnowflakeId(),
-        chatId,
+    const [existingParticipant2] = await db
+      .select()
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, finalChatId),
+          eq(chatParticipants.userId, userId)
+        )
+      )
+      .limit(1);
+    
+    if (!existingParticipant2) {
+      await db.insert(chatParticipants).values({
+        id: participantId2,
+        chatId: finalChatId,
         userId,
-      },
-    });
+      });
+    }
     
     if(!messageContent) throw new Error('Message content is required');
     
     // Create initial message from actor
-    await db().prisma.message.create({
-      data: {
-        id: await generateSnowflakeId(),
-        chatId,
-        senderId: actorId,
-        content: messageContent,
-      },
+    await db.insert(messages).values({
+      id: await generateSnowflakeId(),
+      chatId: finalChatId,
+      senderId: actorId,
+      content: messageContent,
     });
 
     return {
-      id: chatId,
+      id: finalChatId,
       messageContent,
     };
   }
 }
-

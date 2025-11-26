@@ -10,7 +10,7 @@ import { SimulationEngine } from '@/lib/benchmark/SimulationEngine';
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 interface VerificationResult {
   test: string;
@@ -288,7 +288,7 @@ async function main() {
   // Test 6: Full agent integration test
   console.log('TEST 6: Full Agent Integration\n');
   try {
-    const agent = await prisma.user.findFirst({
+    const agent = await db.user.findFirst({
       where: {
         isAgent: true,
         username: 'trader-aggressive',

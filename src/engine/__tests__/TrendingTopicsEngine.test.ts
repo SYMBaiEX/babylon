@@ -7,13 +7,18 @@ import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
 import type { FeedPost } from '@/shared/types';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 
+/**
+ * Mock LLM client interface for testing
+ */
+interface MockLLMClient extends Pick<BabylonLLMClient, 'generateJSON'> {}
+
 describe('TrendingTopicsEngine', () => {
   let engine: TrendingTopicsEngine;
   let mockLLM: BabylonLLMClient;
 
   beforeEach(() => {
-    // Mock LLM client
-    mockLLM = {
+    // Mock LLM client - implements only generateJSON method
+    const mockImpl: MockLLMClient = {
       generateJSON: mock(async () => ({
         trends: [
           { trendName: 'AI Revolution', description: 'Major breakthroughs in AI technology reshaping the industry.' },
@@ -21,7 +26,8 @@ describe('TrendingTopicsEngine', () => {
           { trendName: 'Crypto Comeback', description: 'Digital assets rally amid positive sentiment.' },
         ]
       }))
-    } as unknown as BabylonLLMClient;
+    };
+    mockLLM = mockImpl as BabylonLLMClient;
 
     engine = new TrendingTopicsEngine(mockLLM);
   });

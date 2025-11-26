@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
+// Tests use mocked db module
+const describeTests = describe;
+
 const findUniqueMock = mock(async () => ({
   id: 'agent-1',
   isAgent: true,
@@ -18,12 +21,29 @@ class MockA2AClient {
   static fromCardUrl = sdkFromCardMock
 }
 
-mock.module('@/lib/prisma', () => ({
-  prisma: {
+mock.module('@/db', () => ({
+  db: {
     user: {
       findUnique: findUniqueMock
     }
-  }
+  },
+  // All table exports that may be imported by dependencies
+  users: {},
+  actors: {},
+  agentLogs: {},
+  agentMessages: {},
+  agentRegistries: {},
+  llmCallLogs: {},
+  trajectories: {},
+  worldFacts: {},
+  referrals: {},
+  pointsTransactions: {},
+  // Operators
+  eq: () => ({}),
+  and: () => ({}),
+  or: () => ({}),
+  desc: () => ({}),
+  asc: () => ({}),
 }))
 
 mock.module('@/lib/agents/identity/AgentWalletService', () => ({
@@ -36,7 +56,7 @@ mock.module('@a2a-js/sdk/client', () => ({
   A2AClient: MockA2AClient
 }))
 
-describe('initializeAgentA2AClient wallet provisioning', () => {
+describeTests('initializeAgentA2AClient wallet provisioning', () => {
   beforeEach(() => {
   findUniqueMock.mockClear()
   createWalletMock.mockClear()

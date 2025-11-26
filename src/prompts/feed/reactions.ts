@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES, VALUE_RANGES, characterVoiceGuidance } from '../shared-sections';
 
 /**
  * Prompt for generating actor reactions to world events.
@@ -16,8 +17,9 @@ export const reactions = definePrompt({
   description: 'Generates actor reactions to world events',
   temperature: 1,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Event involving these actors: {{eventDescription}}
 
@@ -29,37 +31,17 @@ Event involving these actors: {{eventDescription}}
 
 {{previousPostsContext}}
 
-{{realityGrounding}}
+${WORLD_CONTEXT_HEADER}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${STANDARD_FEED_RULES}
 
-IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real-world person or organization names
-- ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY
-
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from WORLD CONTEXT
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when relevant
-- MUST reference specific trades or market movements when discussing trading
-- Use @username format when mentioning users (e.g., "@ailonmusk said...")
-- Avoid generic reactions - be SPECIFIC about who/what you're reacting to
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${characterVoiceGuidance('actorsList')}
 
 Generate reaction posts for each actor:
 
 {{actorsList}}
 
-VALUE RANGES:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (no info) to 1 (smoking gun)
-- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
+${VALUE_RANGES}
 
 Respond with ONLY this XML format (example for 2 reactions):
 <response>
@@ -71,7 +53,7 @@ Respond with ONLY this XML format (example for 2 reactions):
       <pointsToward>true</pointsToward>
     </reaction>
     <reaction>
-      <post>Another OpenAGI GPT-6 consciousness claim from @samailtman? Cool story bro. Wake me when it actually passes a real Turing test.</post>
+      <post>Another OpenAGI Cognition-9000 consciousness claim from @samailtman? Cool story bro. Wake me when it actually passes a real Turing test.</post>
       <sentiment>-0.4</sentiment>
       <clueStrength>0.3</clueStrength>
       <pointsToward>false</pointsToward>

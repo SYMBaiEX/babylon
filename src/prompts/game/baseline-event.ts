@@ -16,8 +16,9 @@ export const baselineEvent = definePrompt({
   description: 'Generates normal, mundane baseline events for genesis game',
   temperature: 0.7,
   maxTokens: 5000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 {{worldEventExamples}}
 

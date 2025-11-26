@@ -168,45 +168,58 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const groups = await asUser(user, async (db) => {
     // Find groups where user is either a member or admin
+    // First, get all group IDs where user is a member or admin
+    const [memberGroups, adminGroups] = await Promise.all([
+      db.userGroupMember.findMany({
+        where: { userId: user.userId },
+        select: { groupId: true },
+      }),
+      db.userGroupAdmin.findMany({
+        where: { userId: user.userId },
+        select: { groupId: true },
+      }),
+    ])
+
+    const groupIds = new Set([
+      ...memberGroups.map(m => m.groupId),
+      ...adminGroups.map(a => a.groupId),
+    ])
+
+    if (groupIds.size === 0) {
+      return []
+    }
+
+    // Get the groups
+    const groupIdsArray = Array.from(groupIds)
     const userGroups = await db.userGroup.findMany({
       where: {
-        OR: [
-          {
-            UserGroupMember: {
-              some: {
-                userId: user.userId,
-              },
-            },
-          },
-          {
-            UserGroupAdmin: {
-              some: {
-                userId: user.userId,
-              },
-            },
-          },
-        ],
-      },
-      include: {
-        UserGroupMember: {
-          select: {
-            userId: true,
-          },
-        },
-        UserGroupAdmin: {
-          select: {
-            userId: true,
-          },
-        },
-        _count: {
-          select: {
-            UserGroupMember: true,
-          },
-        },
+        id: { in: groupIdsArray },
       },
       orderBy: {
         createdAt: 'desc',
       },
+    })
+
+    // Get member and admin data for all groups
+    const [_allMembers, allAdmins, memberCounts] = await Promise.all([
+      db.userGroupMember.findMany({
+        where: { groupId: { in: groupIdsArray } },
+      }),
+      db.userGroupAdmin.findMany({
+        where: { groupId: { in: groupIdsArray } },
+      }),
+      Promise.all(
+        groupIdsArray.map(gid => db.userGroupMember.count({ where: { groupId: gid } }))
+      ),
+    ])
+
+    const memberCountMap = new Map(groupIdsArray.map((gid, i) => [gid, memberCounts[i] ?? 0]))
+    const adminMap = new Map<string, Set<string>>()
+    allAdmins.forEach(admin => {
+      if (!adminMap.has(admin.groupId)) {
+        adminMap.set(admin.groupId, new Set())
+      }
+      adminMap.get(admin.groupId)!.add(admin.userId)
     })
 
     return userGroups.map((group) => ({
@@ -215,8 +228,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       description: group.description,
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
-      memberCount: group._count.UserGroupMember,
-      isAdmin: group.UserGroupAdmin.some((admin) => admin.userId === user.userId),
+      memberCount: memberCountMap.get(group.id) ?? 0,
+      isAdmin: adminMap.get(group.id)?.has(user.userId) ?? false,
       isCreator: group.createdById === user.userId,
     }))
   })

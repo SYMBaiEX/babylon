@@ -73,13 +73,13 @@
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { callClaudeDirect } from '@/lib/agents/llm/direct-claude'
 import { createNotification } from '@/lib/services/notification-service'
 import { WalletService } from '@/lib/services/wallet-service'
-import type { Prisma } from '@prisma/client'
+import type { JsonValue } from '@/db'
 import { createPublicClient, http, type Address } from 'viem'
 import { baseSepolia } from 'viem/chains'
 
@@ -96,7 +96,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { reason, stakeTxHash } = AppealSchema.parse(body)
 
   // Get user
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -136,7 +136,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // If this is a staked appeal, verify stake or escrow payment
   if (stakeTxHash && !user.appealStaked) {
     // First check if this is an escrow payment
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { paymentTxHash: stakeTxHash },
       include: {
         User: {
@@ -173,7 +173,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Check if escrow was already used for an appeal by any user
-      const existingAppealWithEscrow = await prisma.user.findFirst({
+      const existingAppealWithEscrow = await db.user.findFirst({
         where: {
           appealStakeTxHash: stakeTxHash,
         },
@@ -193,11 +193,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Use escrow payment as stake
-      await prisma.user.update({
+      await db.user.update({
         where: { id: userId },
         data: {
           appealStaked: true,
-          appealStakeAmount: parseFloat(escrow.amountUSD.toString()),
+          appealStakeAmount: escrow.amountUSD.toString(),
           appealStakeTxHash: stakeTxHash,
         },
       })
@@ -211,11 +211,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }, 400)
       }
       
-      await prisma.user.update({
+      await db.user.update({
         where: { id: userId },
         data: {
           appealStaked: true,
-          appealStakeAmount: verificationResult.amount || 10,
+          appealStakeAmount: String(verificationResult.amount || 10),
           appealStakeTxHash: stakeTxHash,
         },
       })
@@ -227,7 +227,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const appealType = isStakedAppeal ? 'lenient_review' : 'strict_review'
 
   // Update user appeal status
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       appealCount: user.appealCount + 1,
@@ -243,7 +243,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     
     if (result.shouldDeny) {
       // Send to human review
-      await prisma.user.update({
+      await db.user.update({
         where: { id: userId },
         data: {
           appealStatus: 'human_review',
@@ -287,7 +287,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
     } else {
       // Denied - user must stake for second review
-      await prisma.user.update({
+      await db.user.update({
         where: { id: userId },
         data: {
           appealStatus: 'denied',
@@ -450,7 +450,7 @@ Respond with JSON:
 async function collectAppealContext(userId: string, user: { bannedReason: string | null }) {
   const now = new Date();
   const [reports, recentPosts, recentMessages] = await Promise.all([
-    prisma.report.findMany({
+    db.report.findMany({
       where: { reportedUserId: userId },
       take: 10,
       orderBy: { createdAt: 'desc' },
@@ -463,7 +463,7 @@ async function collectAppealContext(userId: string, user: { bannedReason: string
         createdAt: true,
       },
     }),
-    prisma.post.findMany({
+    db.post.findMany({
       where: { 
         authorId: userId, 
         deletedAt: null,
@@ -477,7 +477,7 @@ async function collectAppealContext(userId: string, user: { bannedReason: string
         createdAt: true,
       },
     }),
-    prisma.message.findMany({
+    db.message.findMany({
       where: { senderId: userId },
       take: 20,
       orderBy: { createdAt: 'desc' },
@@ -502,7 +502,7 @@ async function collectAppealContext(userId: string, user: { bannedReason: string
  * Restore user account after successful appeal
  */
 async function restoreAccount(userId: string, reasoning: string) {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { falsePositiveHistory: true },
   })
@@ -514,7 +514,7 @@ async function restoreAccount(userId: string, reasoning: string) {
     reviewedBy: 'ai',
   })
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       isBanned: false,
@@ -525,12 +525,12 @@ async function restoreAccount(userId: string, reasoning: string) {
       bannedReason: null,
       appealStatus: 'approved',
       appealReviewedAt: new Date(),
-      falsePositiveHistory: falsePositiveHistory as Prisma.InputJsonValue,
+      falsePositiveHistory: falsePositiveHistory as JsonValue,
     },
   })
 
   // Refund stake if staked
-  const updatedUser = await prisma.user.findUnique({
+  const updatedUser = await db.user.findUnique({
     where: { id: userId },
     select: { appealStaked: true, appealStakeAmount: true },
   })
@@ -577,7 +577,7 @@ async function verifyStakeTransaction(
     }
 
     // Get user's wallet address
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: userId },
       select: { walletAddress: true },
     })
@@ -646,7 +646,7 @@ async function refundAppealStake(userId: string, stakeAmount: number): Promise<v
     )
 
     // Clear stake flags
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: {
         appealStaked: false,

@@ -44,8 +44,31 @@
  */
 
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
-// Mock Prisma BEFORE importing MarketDecisionEngine
-const mockPrisma = {
+
+// Create chainable mock for Drizzle query builder API
+const createChainableMock = (returnValue: Array<Record<string, unknown>> = []) => {
+  const chainable = {
+    from: () => chainable,
+    where: () => chainable,
+    orderBy: () => chainable,
+    limit: () => chainable,
+    offset: () => chainable,
+    leftJoin: () => chainable,
+    innerJoin: () => chainable,
+    groupBy: () => chainable,
+    having: () => chainable,
+    then: (resolve: (value: Array<Record<string, unknown>>) => void) => resolve(returnValue),
+    [Symbol.toStringTag]: 'Promise',
+  };
+  // Make it awaitable
+  Object.defineProperty(chainable, 'then', {
+    value: (resolve: (value: Array<Record<string, unknown>>) => void) => Promise.resolve(returnValue).then(resolve)
+  });
+  return chainable;
+};
+
+// Mock database BEFORE importing MarketDecisionEngine
+const mockDb = {
   actor: {
     findMany: mock(async () => [])
   },
@@ -65,11 +88,44 @@ const mockPrisma = {
   market: { findMany: mock(async () => []) },
   nPCTrade: { findMany: mock(async () => []) },
   worldFact: { findMany: mock(async () => []) },
-  agentTrade: { findMany: mock(async () => []) }
+  agentTrade: { findMany: mock(async () => []) },
+  // Add Drizzle query builder API
+  select: () => createChainableMock([]),
+  insert: () => createChainableMock([]),
+  update: () => createChainableMock([]),
+  delete: () => createChainableMock([]),
 };
 
-mock.module('@/lib/prisma', () => ({
-  prisma: mockPrisma
+// Mock Drizzle operators and schema tables
+const mockTable = {};
+const mockOperator = () => ({});
+
+mock.module('@/db', () => ({
+  db: mockDb,
+  // Schema tables
+  markets: mockTable,
+  questions: mockTable,
+  organizations: mockTable,
+  actors: mockTable,
+  posts: mockTable,
+  worldFacts: mockTable,
+  users: mockTable,
+  perpPositions: mockTable,
+  // Drizzle operators
+  eq: mockOperator,
+  and: mockOperator,
+  or: mockOperator,
+  not: mockOperator,
+  gt: mockOperator,
+  gte: mockOperator,
+  lt: mockOperator,
+  lte: mockOperator,
+  desc: mockOperator,
+  asc: mockOperator,
+  isNull: mockOperator,
+  isNotNull: mockOperator,
+  inArray: mockOperator,
+  sql: () => ({}),
 }));
 
 import { MarketDecisionEngine } from '../MarketDecisionEngine';
@@ -77,14 +133,16 @@ import { MarketContextService } from '@/lib/services/market-context-service';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { NPCMarketContext } from '@/types/market-context';
 
+interface JSONSchemaProperty {
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description?: string;
+  items?: JSONSchemaProperty;
+  properties?: Record<string, JSONSchemaProperty>;
+}
+
 interface JSONSchema {
   required?: string[];
-  properties?: Record<string, {
-    type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
-    description?: string;
-    items?: unknown;
-    properties?: Record<string, unknown>;
-  }>;
+  properties?: Record<string, JSONSchemaProperty>;
 }
 
 interface GenerateJSONOptions {
@@ -94,9 +152,12 @@ interface GenerateJSONOptions {
   format?: 'xml' | 'json';
 }
 
+// Type for mock responses - supports any JSON-serializable value
+type MockResponse = Record<string, JSONSchemaProperty | string | number | boolean | null | object | Array<object>>;
+
 // Mock LLM client for testing - doesn't require API keys
 class MockLLMClient {
-  private mockResponses: unknown[] = [];
+  private mockResponses: MockResponse[] = [];
   private callCount = 0;
 
   constructor() {
@@ -107,12 +168,12 @@ class MockLLMClient {
     return 'groq';
   }
 
-  setMockResponse<T>(response: T): void {
+  setMockResponse<T extends MockResponse>(response: T): void {
     this.mockResponses.push(response);
   }
 
   async generateJSON<T>(_prompt: string, _schema?: JSONSchema, _options?: GenerateJSONOptions): Promise<T> {
-    const response = this.mockResponses[this.callCount] ?? ([] as unknown);
+    const response = this.mockResponses[this.callCount] ?? ([] as MockResponse);
     this.callCount++;
     return response as T;
   }
@@ -127,13 +188,24 @@ class MockLLMClient {
   }
 }
 
+/**
+ * Partial interface for MockLLMClient that matches BabylonLLMClient's required methods
+ */
+interface MockLLMClientInterface extends Pick<BabylonLLMClient, 'getProvider' | 'generateJSON'> {
+  setMockResponse<T extends MockResponse>(response: T): void;
+  getCallCount(): number;
+  resetCallCount(): void;
+}
+
 // Type assertion to make MockLLMClient compatible with BabylonLLMClient interface
 // Returns both the mock instance (for test methods) and the LLM client (for engine)
 const createMockLLMClient = (): { mock: MockLLMClient; client: BabylonLLMClient } => {
   const mockInstance = new MockLLMClient();
+  // Cast via the partial interface to ensure type safety
+  const mockAsInterface: MockLLMClientInterface = mockInstance;
   return {
     mock: mockInstance,
-    client: mockInstance as unknown as BabylonLLMClient,
+    client: mockAsInterface as BabylonLLMClient,
   };
 }
 

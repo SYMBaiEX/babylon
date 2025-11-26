@@ -8,7 +8,7 @@
  * 4. When was the last game tick?
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 async function main() {
@@ -16,7 +16,7 @@ async function main() {
   logger.info('', undefined, 'Diagnostic');
   
   // 1. Check game status
-  const game = await prisma.game.findFirst({
+  const game = await db.game.findFirst({
     where: { isContinuous: true },
   });
   
@@ -40,7 +40,7 @@ async function main() {
   logger.info('', undefined, 'Diagnostic');
   
   // 2. Check NPCs (actors)
-  const tradingNPCs = await prisma.user.findMany({
+  const tradingNPCs = await db.user.findMany({
     where: {
       isActor: true,
     },
@@ -65,13 +65,13 @@ async function main() {
   logger.info('', undefined, 'Diagnostic');
   
   // 3. Check recent trades
-  const recentTrades = await prisma.nPCTrade.findMany({
+  const recentTrades = await db.npcTrade.findMany({
     take: 10,
     orderBy: { executedAt: 'desc' },
   });
   
   logger.info(`Total NPC trades in database: Checking...`, undefined, 'Diagnostic');
-  const totalTrades = await prisma.nPCTrade.count();
+  const totalTrades = await db.npcTrade.count();
   logger.info(`Total NPC trades: ${totalTrades}`, undefined, 'Diagnostic');
   
   if (totalTrades === 0) {
@@ -89,7 +89,7 @@ async function main() {
   logger.info('', undefined, 'Diagnostic');
   
   // 4. Check active questions
-  const activeQuestions = await prisma.question.findMany({
+  const activeQuestions = await db.question.findMany({
     where: { status: 'active' },
     select: {
       id: true,
@@ -135,6 +135,6 @@ main()
     process.exit(1);
   })
   .finally(() => {
-    prisma.$disconnect();
+    db.$disconnect();
   });
 

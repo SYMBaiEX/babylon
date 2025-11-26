@@ -9,7 +9,7 @@
  * 5. Trajectory recording
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
 import { modelSelectionService } from '@/lib/training/ModelSelectionService';
@@ -72,7 +72,7 @@ async function testAgentRuntimeConfiguration() {
   console.log('\n━━━ 2. AGENT RUNTIME CONFIGURATION ━━━\n');
   
   // Find an agent to test with
-  const agent = await prisma.user.findFirst({
+  const agent = await db.user.findFirst({
     where: { isAgent: true }
   });
   
@@ -116,7 +116,7 @@ async function testAgentActions(agentInfo: { agent: { id: string; displayName: s
   const { agent } = agentInfo;
   
   // Check if agent can trade
-  const agentData = await prisma.user.findUnique({
+  const agentData = await db.user.findUnique({
     where: { id: agent.id },
     select: {
       autonomousTrading: true,
@@ -133,11 +133,11 @@ async function testAgentActions(agentInfo: { agent: { id: string; displayName: s
   );
   
   // Check for available markets
-  const predictionMarkets = await prisma.market.count({
+  const predictionMarkets = await db.market.count({
     where: { resolved: false }
   });
   
-  const perpMarkets = await prisma.organization.count({
+  const perpMarkets = await db.organization.count({
     where: { type: 'perp' }
   });
   
@@ -148,7 +148,7 @@ async function testAgentActions(agentInfo: { agent: { id: string; displayName: s
   );
   
   // Check agent's recent actions
-  const recentActions = await prisma.agentLog.count({
+  const recentActions = await db.agentLog.count({
     where: {
       agentUserId: agent.id,
       createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
@@ -166,7 +166,7 @@ async function testTrajectoryRecording() {
   console.log('\n━━━ 4. TRAJECTORY RECORDING ━━━\n');
   
   // Check if trajectories are being recorded
-  const trajectoryCount = await prisma.trajectory.count();
+  const trajectoryCount = await db.trajectory.count();
   addResult(
     'Trajectories Recorded',
     trajectoryCount > 0,
@@ -177,7 +177,7 @@ async function testTrajectoryRecording() {
   
   if (trajectoryCount > 0) {
     // Check recent trajectories
-    const recent = await prisma.trajectory.findFirst({
+    const recent = await db.trajectory.findFirst({
       orderBy: { createdAt: 'desc' },
       select: {
         episodeLength: true,
@@ -269,7 +269,7 @@ async function main() {
     console.error('\n❌ Test suite crashed:', error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

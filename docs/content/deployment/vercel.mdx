@@ -256,10 +256,10 @@ export default {
 
 ### Connection Pooling
 
-Ensure Prisma uses connection pooling:
+Ensure Drizzle uses connection pooling:
 
 ```env
-DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=10"
+DATABASE_URL="postgresql://...?connection_limit=10"
 ```
 
 ### Redis Caching
@@ -284,15 +284,11 @@ await redis.set('markets:active', JSON.stringify(markets), 'EX', 300);
 bun install --production
 ```
 
-**Issue**: `Prisma Client not generated`
+**Issue**: Database schema not applied
 
-**Solution**: Add to `package.json`:
-```json
-{
- "scripts": {
- "postinstall": "prisma generate"
- }
-}
+**Solution**: Push schema to database:
+```bash
+bun run db:push
 ```
 
 ### Database Connection Errors

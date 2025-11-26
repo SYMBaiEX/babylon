@@ -107,7 +107,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db, comments, reactions, eq, and, count } from '@/db';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -147,46 +147,49 @@ export const POST = withErrorHandling(async (
   }
 
   // Ensure user exists in database (upsert pattern)
-    const displayName = user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-      : 'Anonymous';
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
 
-    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
-    const canonicalUserId = dbUser.id;
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
   // Check if comment exists
-  const comment = await prisma.comment.findUnique({
-    where: { id: commentId },
-  });
+  const [comment] = await db.select({ id: comments.id, authorId: comments.authorId, postId: comments.postId })
+    .from(comments)
+    .where(eq(comments.id, commentId))
+    .limit(1);
 
   if (!comment) {
     throw new NotFoundError('Comment', commentId);
   }
 
   // Check if already liked
-  const existingReaction = await prisma.reaction.findUnique({
-    where: {
-      commentId_userId_type: {
-        commentId,
-        userId: canonicalUserId,
-        type: 'like',
-      },
-    },
-  });
+  const [existingReaction] = await db.select({ id: reactions.id })
+    .from(reactions)
+    .where(and(
+      eq(reactions.commentId, commentId),
+      eq(reactions.userId, canonicalUserId),
+      eq(reactions.type, 'like')
+    ))
+    .limit(1);
 
   if (existingReaction) {
     throw new BusinessLogicError('Comment already liked', 'ALREADY_LIKED');
   }
 
   // Create like reaction
-  const reaction = await prisma.reaction.create({
-    data: {
-      id: await generateSnowflakeId(),
-      commentId,
-      userId: canonicalUserId,
-      type: 'like',
-    },
-  });
+  const reactionId = await generateSnowflakeId();
+  const [reaction] = await db.insert(reactions).values({
+    id: reactionId,
+    commentId,
+    userId: canonicalUserId,
+    type: 'like',
+  }).returning();
+
+  if (!reaction) {
+    throw new BusinessLogicError('Failed to create reaction', 'REACTION_FAILED');
+  }
 
   // Create notification for comment author (if not self-like)
   if (comment.authorId && comment.authorId !== canonicalUserId) {
@@ -200,12 +203,13 @@ export const POST = withErrorHandling(async (
   }
 
   // Get updated like count
-  const likeCount = await prisma.reaction.count({
-    where: {
-      commentId,
-      type: 'like',
-    },
-  });
+  const [likeCountResult] = await db.select({ count: count() })
+    .from(reactions)
+    .where(and(
+      eq(reactions.commentId, commentId),
+      eq(reactions.type, 'like')
+    ));
+  const likeCount = Number(likeCountResult?.count ?? 0);
 
   logger.info('Comment liked successfully', { commentId, userId: canonicalUserId, likeCount }, 'POST /api/comments/[id]/like');
 
@@ -250,34 +254,31 @@ export const DELETE = withErrorHandling(async (
   const canonicalUserId = dbUser.id;
 
   // Find existing like
-  const reaction = await prisma.reaction.findUnique({
-    where: {
-      commentId_userId_type: {
-        commentId,
-        userId: canonicalUserId,
-        type: 'like',
-      },
-    },
-  });
+  const [reaction] = await db.select({ id: reactions.id })
+    .from(reactions)
+    .where(and(
+      eq(reactions.commentId, commentId),
+      eq(reactions.userId, canonicalUserId),
+      eq(reactions.type, 'like')
+    ))
+    .limit(1);
 
   if (!reaction) {
     throw new NotFoundError('Like', `${commentId}-${canonicalUserId}`);
   }
 
   // Delete like
-  await prisma.reaction.delete({
-    where: {
-      id: reaction.id,
-    },
-  });
+  await db.delete(reactions)
+    .where(eq(reactions.id, reaction.id));
 
   // Get updated like count
-  const likeCount = await prisma.reaction.count({
-    where: {
-      commentId,
-      type: 'like',
-    },
-  });
+  const [likeCountResult] = await db.select({ count: count() })
+    .from(reactions)
+    .where(and(
+      eq(reactions.commentId, commentId),
+      eq(reactions.type, 'like')
+    ));
+  const likeCount = Number(likeCountResult?.count ?? 0);
 
   logger.info('Comment unliked successfully', { commentId, userId: canonicalUserId, likeCount }, 'DELETE /api/comments/[id]/like');
 

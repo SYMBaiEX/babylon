@@ -53,7 +53,7 @@ Complete!
 - **Size:** 1024x1024 (square)
 - **Model:** fal-ai/flux/krea (high quality)
 - **Style:** Professional portrait
-- **Based on:** `physicalDescription` field
+- **Based on:** `pfpDescription` field
 
 ### Actor Banners
 
@@ -144,7 +144,7 @@ Error: Fal.ai API returned no images
 ### Missing Required Fields
 
 ```
-Error: Actor Actor1 is missing physicalDescription field
+Error: Actor Actor1 is missing pfpDescription field
 ```
 
 **Solution:** Add required fields to the actor's individual file in `public/data/actors/actor1.json`:
@@ -153,7 +153,7 @@ Error: Actor Actor1 is missing physicalDescription field
 {
  "id": "actor1",
  "name": "Actor 1",
- "physicalDescription": "Description here", // Required for profile pic
+ "pfpDescription": "Description here", // Required for profile pic
  "profileBanner": "Banner description here" // Required for banner
 }
 ```

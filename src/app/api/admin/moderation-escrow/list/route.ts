@@ -77,7 +77,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 
 const ListEscrowQuerySchema = z.object({
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
 
     // Auto-expire old pending escrows before querying
     const now = new Date()
-    await prisma.moderationEscrow.updateMany({
+    await db.moderationEscrow.updateMany({
       where: {
         status: 'pending',
         expiresAt: {
@@ -135,13 +135,13 @@ export async function GET(req: NextRequest) {
     if (status) where.status = status
 
     const [escrows, total] = await Promise.all([
-      prisma.moderationEscrow.findMany({
+      db.moderationEscrow.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
         include: {
-          User: {
+          recipient: {
             select: {
               id: true,
               username: true,
@@ -149,14 +149,14 @@ export async function GET(req: NextRequest) {
               profileImageUrl: true,
             },
           },
-          Admin: {
+          admin: {
             select: {
               id: true,
               username: true,
               displayName: true,
             },
           },
-          RefundedByUser: {
+          refundedByUser: {
             select: {
               id: true,
               username: true,
@@ -165,30 +165,52 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.moderationEscrow.count({ where }),
+      db.moderationEscrow.count({ where }),
     ])
+
+    type EscrowWithRelations = typeof escrows[0] & {
+      recipient?: {
+        id: string;
+        username: string | null;
+        displayName: string | null;
+        profileImageUrl: string | null;
+      } | null;
+      admin?: {
+        id: string;
+        username: string | null;
+        displayName: string | null;
+      } | null;
+      refundedByUser?: {
+        id: string;
+        username: string | null;
+        displayName: string | null;
+      } | null;
+    };
 
     return NextResponse.json({
       success: true,
-      escrows: escrows.map((escrow) => ({
-        id: escrow.id,
-        recipientId: escrow.recipientId,
-        recipient: escrow.User,
-        adminId: escrow.adminId,
-        admin: escrow.Admin,
-        amountUSD: escrow.amountUSD,
-        amountWei: escrow.amountWei,
-        status: escrow.status,
-        reason: escrow.reason,
-        paymentRequestId: escrow.paymentRequestId,
-        paymentTxHash: escrow.paymentTxHash,
-        refundTxHash: escrow.refundTxHash,
-        refundedBy: escrow.refundedBy,
-        refundedByUser: escrow.RefundedByUser,
-        refundedAt: escrow.refundedAt?.toISOString(),
-        createdAt: escrow.createdAt.toISOString(),
-        expiresAt: escrow.expiresAt.toISOString(),
-      })),
+      escrows: escrows.map((escrow) => {
+        const escrowWithRelations = escrow as EscrowWithRelations;
+        return {
+          id: escrow.id,
+          recipientId: escrow.recipientId,
+          recipient: escrowWithRelations.recipient,
+          adminId: escrow.adminId,
+          admin: escrowWithRelations.admin,
+          amountUSD: escrow.amountUSD,
+          amountWei: escrow.amountWei,
+          status: escrow.status,
+          reason: escrow.reason,
+          paymentRequestId: escrow.paymentRequestId,
+          paymentTxHash: escrow.paymentTxHash,
+          refundTxHash: escrow.refundTxHash,
+          refundedBy: escrow.refundedBy,
+          refundedByUser: escrowWithRelations.refundedByUser,
+          refundedAt: escrow.refundedAt?.toISOString(),
+          createdAt: escrow.createdAt.toISOString(),
+          expiresAt: escrow.expiresAt.toISOString(),
+        };
+      }),
       pagination: {
         total,
         limit,

@@ -53,7 +53,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db, notifications, eq, and, inArray } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { z } from 'zod';
@@ -75,15 +75,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (markAll) {
     // Mark all notifications as read
-    await prisma.notification.updateMany({
-      where: {
-        userId: user.userId,
-        read: false,
-      },
-      data: {
-        read: true,
-      },
-    });
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(
+        eq(notifications.userId, user.userId),
+        eq(notifications.read, false)
+      ));
 
     return successResponse({
       data: {
@@ -94,16 +91,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (type) {
     // Mark all notifications of a specific type as read
-    await prisma.notification.updateMany({
-      where: {
-        userId: user.userId,
-        type,
-        read: false,
-      },
-      data: {
-        read: true,
-      },
-    });
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(
+        eq(notifications.userId, user.userId),
+        eq(notifications.type, type),
+        eq(notifications.read, false)
+      ));
 
     return successResponse({
       data: {
@@ -114,17 +108,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (notificationIds && notificationIds.length > 0) {
     // Mark specific notifications as read
-    await prisma.notification.updateMany({
-      where: {
-        id: {
-          in: notificationIds,
-        },
-        userId: user.userId, // Ensure user owns these notifications
-      },
-      data: {
-        read: true,
-      },
-    });
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(
+        inArray(notifications.id, notificationIds),
+        eq(notifications.userId, user.userId) // Ensure user owns these notifications
+      ));
 
     return successResponse({
       data: {
@@ -139,4 +128,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
   });
 });
-

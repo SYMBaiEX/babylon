@@ -54,8 +54,9 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, chats, chatParticipants, messages, inArray, desc } from '@/db';
 import { logger } from '@/lib/logger';
+import { asSystem } from '@/lib/db/context';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication
@@ -73,7 +74,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   logger.info('Debug DM lookup', { userId }, 'GET /api/admin/debug-dm');
 
   // Get user info (try by ID, username, or privyId)
-  let user = await prisma.user.findUnique({
+  let user = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -85,7 +86,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!user) {
     // Try by username
-    user = await prisma.user.findUnique({
+    user = await db.user.findUnique({
       where: { username: userId },
       select: {
         id: true,
@@ -98,7 +99,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!user) {
     // Try by privyId
-    user = await prisma.user.findUnique({
+    user = await db.user.findUnique({
       where: { privyId: userId },
       select: {
         id: true,
@@ -113,30 +114,53 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const resolvedUserId = user?.id || user?.privyId || userId;
 
   // Get all ChatParticipant records for this user (bypass RLS)
-  const participants = await prisma.chatParticipant.findMany({
+  const participants = await db.chatParticipant.findMany({
     where: {
       userId: resolvedUserId,
     },
   });
 
-  // Get details for each chat
+  // Get details for each chat using Drizzle query builder
   const chatIds = participants.map(p => p.chatId);
-  const chats = await prisma.chat.findMany({
-    where: {
-      id: { in: chatIds },
-    },
-    include: {
-      ChatParticipant: true,
-      Message: {
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      },
-    },
-  });
+  
+  const { chatsList, allParticipants, allMessages, messageCounts } = await asSystem(async (database) => {
+    // Get chats
+    const chatsList = chatIds.length > 0
+      ? await database.select()
+          .from(chats)
+          .where(inArray(chats.id, chatIds))
+      : [];
+
+    // Get all participants for these chats
+    const allParticipants = chatIds.length > 0
+      ? await database.select()
+          .from(chatParticipants)
+          .where(inArray(chatParticipants.chatId, chatIds))
+      : [];
+
+    // Get recent messages for each chat (last 5)
+    const allMessages = chatIds.length > 0
+      ? await database.select()
+          .from(messages)
+          .where(inArray(messages.chatId, chatIds))
+          .orderBy(desc(messages.createdAt))
+      : [];
+
+    // Get message counts for each chat
+    const messageCounts = await Promise.all(
+      chatIds.map(chatId =>
+        database.message.count({
+          where: { chatId: { equals: chatId } },
+        })
+      )
+    );
+
+    return { chatsList, allParticipants, allMessages, messageCounts };
+  }, 'admin-debug-dm');
 
   // Get all user IDs from participants
-  const participantUserIds = [...new Set(chats.flatMap(chat => chat.ChatParticipant.map(p => p.userId)))];
-  const participantUsers = await prisma.user.findMany({
+  const participantUserIds = [...new Set(allParticipants.map(p => p.userId))];
+  const participantUsers = await db.user.findMany({
     where: {
       id: { in: participantUserIds },
     },
@@ -149,32 +173,40 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const usersMap = new Map(participantUsers.map(u => [u.id, u]));
 
+  // Group participants and messages by chat
+  const participantsByChat = new Map<string, typeof allParticipants>();
+  allParticipants.forEach(p => {
+    const list = participantsByChat.get(p.chatId) || [];
+    list.push(p);
+    participantsByChat.set(p.chatId, list);
+  });
+
+  const messagesByChat = new Map<string, typeof allMessages>();
+  allMessages.forEach(m => {
+    const list = messagesByChat.get(m.chatId) || [];
+    if (list.length < 5) {
+      list.push(m);
+    }
+    messagesByChat.set(m.chatId, list);
+  });
+
   logger.info('Debug DM results', { 
     userId, 
     participantsCount: participants.length,
-    chatsCount: chats.length 
+    chatsCount: chatsList.length 
   }, 'GET /api/admin/debug-dm');
-
-  // Get actual message counts for each chat
-  const messageCounts = await Promise.all(
-    chats.map(chat =>
-      prisma.message.count({
-        where: { chatId: chat.id },
-      })
-    )
-  );
 
   return successResponse({
     user,
     note: user ? `User database ID: ${user.id}, Privy ID: ${user.privyId}` : 'User not found',
     participantRecords: participants,
-    chats: chats.map((chat, index) => ({
+    chats: chatsList.map((chat, index) => ({
       id: chat.id,
       name: chat.name,
       isGroup: chat.isGroup,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
-      participants: chat.ChatParticipant.map((p: { id: string; userId: string }) => {
+      participants: (participantsByChat.get(chat.id) || []).map((p) => {
         const user = usersMap.get(p.userId);
         return {
           id: p.id,
@@ -183,9 +215,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           displayName: user?.displayName || null,
         };
       }),
-      totalMessageCount: messageCounts[index],
-      loadedMessageCount: chat.Message.length,
-      recentMessages: chat.Message.slice(0, 3).map((m: { id: string; content: string; senderId: string; createdAt: Date }) => ({
+      totalMessageCount: messageCounts[index] || 0,
+      loadedMessageCount: (messagesByChat.get(chat.id) || []).length,
+      recentMessages: (messagesByChat.get(chat.id) || []).slice(0, 3).map((m) => ({
         id: m.id,
         content: m.content.substring(0, 50),
         senderId: m.senderId,

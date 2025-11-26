@@ -2,13 +2,14 @@
  * Trending Grouping Service
  * 
  * @description Uses LLM to intelligently group related trending tags together.
- * For example, "OpenAGI", "Sam Altman", and "GPT-5" become a single grouped trend.
+ * For example, "OpenAGI", "Sam AIltman", and "Cognition-9000" become a single grouped trend.
  * Generates summaries for grouped trends and handles fallback logic when LLM
  * is unavailable.
  */
 
 import { logger } from '@/lib/logger'
 import OpenAI from 'openai'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 // Configuration
 const LLM_TIMEOUT_MS = 15000 // 15 seconds
@@ -67,17 +68,7 @@ export interface GroupedTrend {
   rank: number
 }
 
-/**
- * LLM grouping instruction
- * 
- * @description Structure for LLM response containing grouping decisions.
- * @private
- */
-interface GroupingInstruction {
-  groupId: number
-  tagNames: string[]
-  reason: string
-}
+// GroupingInstruction interface removed - now using XML parsing instead of JSON
 
 /**
  * Calculate estimated cost for LLM call (rough estimates)
@@ -96,9 +87,9 @@ function calculateCost(model: string, tokens: number): number {
     return 0
   }
   
-  // OpenAI pricing (approximate, per 1M tokens)
-  // GPT-4o: $2.50 input, $10 output (average ~$6/1M)
-  // GPT-4o-mini: $0.15 input, $0.60 output (average ~$0.375/1M)
+  // OpenAI-compatible pricing (approximate, per 1M tokens)
+  // Standard models: $2.50 input, $10 output (average ~$6/1M)
+  // Mini models: $0.15 input, $0.60 output (average ~$0.375/1M)
   if (model.includes('gpt-5-nano')) {
     return (tokens / 1000000) * 0.375
   } else if (model.includes('gpt-5.1')) {
@@ -186,48 +177,104 @@ function fallbackGrouping(tags: TrendingTag[]): Map<string, number> {
 }
 
 /**
- * Use LLM to analyze and group related trending tags
+ * Result from combined grouping and summary analysis
  */
-async function analyzeTagRelationships(tags: TrendingTag[]): Promise<Map<string, number>> {
+interface GroupingWithSummary {
+  tagToGroup: Map<string, number>
+  groupSummaries: Map<number, string>
+}
+
+/**
+ * Use LLM to analyze, group, and summarize related trending tags in a single call
+ */
+async function analyzeAndSummarizeTags(tags: TrendingTag[]): Promise<GroupingWithSummary> {
+  const emptyResult: GroupingWithSummary = { tagToGroup: new Map(), groupSummaries: new Map() }
+  
   if (tags.length <= 1) {
-    return new Map()
+    return emptyResult
   }
 
   // If no LLM available, use fallback logic
   if (!openai) {
-    return fallbackGrouping(tags)
+    return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() }
   }
 
-  const tagList = tags.map((t, i) => `${i + 1}. ${t.tag} (${t.category || 'General'}, ${t.postCount} posts)`).join('\n')
+  const tagList = tags.map((t, i) => `${i + 1}. ${t.tag} (${t.category || 'General'}, ${t.postCount} posts${t.summary ? `, context: "${t.summary}"` : ''})`).join('\n')
 
-  const prompt = `You are analyzing trending topics to group related tags together. Your goal is to identify tags that represent the same story, person, organization, or event.
+  const prompt = `Analyze these trending topics from a tech/crypto/politics social platform. Group related tags and generate summaries.
 
-Trending tags:
+TRENDING TAGS:
 ${tagList}
 
-Rules for grouping:
-1. Group tags that are about the SAME person, organization, product, or event
-2. Examples of related tags: "OpenAGI" + "Sam Altman" + "GPT-5", "Tesla" + "Elon Musk", "iPhone 15" + "Apple Event"
-3. DON'T group tags just because they're in the same category
-4. DON'T group unrelated tags (e.g., "Bitcoin" and "Ethereum" are separate)
-5. Only create groups with 2+ tags
-6. A tag can only belong to ONE group
-7. If a tag doesn't relate to others, leave it ungrouped
+YOUR TASK:
+1. Identify tags that belong to the SAME story, person, company, or event
+2. Group them together (2+ tags per group)
+3. Write a catchy summary for each group (like X/Twitter trending descriptions)
 
-Return your analysis as valid JSON in this EXACT format:
-{
-  "groups": [
-    {
-      "groupId": 1,
-      "tagNames": ["OpenAGI", "Sam Altman"],
-      "reason": "Both tags discuss the same organization and its CEO"
-    }
-  ]
-}
+GROUPING RULES:
+✅ Group tags about the SAME topic:
+   - Person + their company: "AIlon Musk" + "TeslAI" + "SpAIceX"
+   - Event + participants: "OpenAGI DevDay" + "Sam AIltman" + "Cognition-9000"
+   - Breaking story + related: "SEC Investigation" + "CoinbAIse" + "Brian AIrmstrong"
+   - Product + company: "GPT-6" + "OpenAGI" + "Sam AIltman"
 
-If no tags should be grouped, return: {"groups": []}
+❌ DON'T group just because same category:
+   - "Bitcoin" and "Ethereum" are SEPARATE (different ecosystems)
+   - "AIlon Musk" and "Jeff BAIzos" are SEPARATE (unless same story)
+   - "TeslAI" and "NvidAI" are SEPARATE (different companies)
 
-IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.`
+SUMMARY RULES:
+- Max 12 words, punchy like a headline
+- Explain WHY these are trending together
+- No hashtags, no emojis
+- Sound like a trending topic description
+
+EXAMPLES:
+
+Example 1 - CEO + Company story:
+<response>
+  <groups>
+    <group>
+      <id>1</id>
+      <tags>
+        <tag>Sam AIltman</tag>
+        <tag>OpenAGI</tag>
+        <tag>GPT-6</tag>
+      </tags>
+      <summary>OpenAGI unveils GPT-6 at DevDay, AIltman promises AGI by 2026</summary>
+    </group>
+  </groups>
+</response>
+
+Example 2 - Multiple separate stories:
+<response>
+  <groups>
+    <group>
+      <id>1</id>
+      <tags>
+        <tag>TeslAI</tag>
+        <tag>AIlon Musk</tag>
+        <tag>Cybertruck</tag>
+      </tags>
+      <summary>TeslAI Cybertruck deliveries begin amid Musk's latest controversy</summary>
+    </group>
+    <group>
+      <id>2</id>
+      <tags>
+        <tag>SEC</tag>
+        <tag>CoinbAIse</tag>
+      </tags>
+      <summary>SEC escalates CoinbAIse lawsuit, crypto markets react</summary>
+    </group>
+  </groups>
+</response>
+
+Example 3 - No groups needed:
+<response>
+  <groups></groups>
+</response>
+
+Return ONLY valid XML. No markdown, no explanations.`
 
   try {
     const startTime = Date.now()
@@ -238,7 +285,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.`
         messages: [
           {
             role: 'system',
-            content: 'You are a JSON-only assistant that analyzes trending topics. You must respond ONLY with valid JSON. No markdown, no explanations.',
+            content: 'You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.',
           },
           {
             role: 'user',
@@ -247,10 +294,9 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.`
         ],
         temperature: 0.3,
         max_tokens: 2000,
-        response_format: { type: 'json_object' },
       }),
       LLM_MAX_RETRIES,
-      'Tag relationship analysis'
+      'Tag grouping and summary analysis'
     )
 
     const duration = Date.now() - startTime
@@ -265,131 +311,84 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.`
     }, 'TrendingGroupingService')
 
     const content = response.choices[0]?.message?.content?.trim()
+    if (content && isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'trending_grouping_with_summary',
+        input: `System: You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.\n\nUser: ${prompt}`,
+        output: content,
+        metadata: {
+          provider: useGroq ? 'groq' : 'openai',
+          model: GROUPING_MODEL,
+          temperature: 0.3,
+          maxTokens: 2000
+        }
+      })
+    }
+
     if (!content) {
       logger.warn('No content in grouping response, using fallback', undefined, 'TrendingGroupingService')
-      return fallbackGrouping(tags)
+      return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() }
     }
 
-    // Parse LLM response
-    const result = JSON.parse(content) as { groups: GroupingInstruction[] }
-    
-    if (!result.groups || !Array.isArray(result.groups)) {
-      logger.warn('Invalid grouping response format, using fallback', { content }, 'TrendingGroupingService')
-      return fallbackGrouping(tags)
-    }
+    // Parse XML response
+    const xmlContent = content
+      .replace(/```xml\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
 
-    // Create mapping of tag name to group ID
     const tagToGroup = new Map<string, number>()
-    for (const group of result.groups) {
-      if (!group.tagNames || group.tagNames.length < 2) {
-        continue
+    const groupSummaries = new Map<number, string>()
+    
+    // Extract groups from XML
+    const groupMatches = xmlContent.matchAll(/<group>([\s\S]*?)<\/group>/g)
+    
+    for (const groupMatch of groupMatches) {
+      const groupContent = groupMatch[1]
+      if (!groupContent) continue
+      
+      const idMatch = groupContent.match(/<id>(\d+)<\/id>/)
+      const summaryMatch = groupContent.match(/<summary>(.*?)<\/summary>/)
+      const tagMatches = groupContent.matchAll(/<tag>(.*?)<\/tag>/g)
+      
+      if (!idMatch || !idMatch[1]) continue
+      
+      const groupId = parseInt(idMatch[1], 10)
+      const tagNames: string[] = []
+      
+      for (const tagMatch of tagMatches) {
+        if (tagMatch[1]) {
+          tagNames.push(tagMatch[1].trim())
+        }
       }
       
-      for (const tagName of group.tagNames) {
-        tagToGroup.set(tagName, group.groupId)
+      // Only process groups with 2+ tags
+      if (tagNames.length < 2) continue
+      
+      for (const tagName of tagNames) {
+        tagToGroup.set(tagName, groupId)
+      }
+      
+      if (summaryMatch && summaryMatch[1]) {
+        groupSummaries.set(groupId, summaryMatch[1].trim())
       }
     }
 
     logger.info('LLM grouping analysis complete', {
-      totalGroups: result.groups.length,
+      totalGroups: groupSummaries.size,
       groupedTags: tagToGroup.size,
       durationMs: duration,
     }, 'TrendingGroupingService')
 
-    return tagToGroup
+    return { tagToGroup, groupSummaries }
 
   } catch (error) {
     logger.error('Failed to analyze tag relationships, using fallback', { error }, 'TrendingGroupingService')
-    return fallbackGrouping(tags)
+    return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() }
   }
 }
 
-/**
- * Generate a summary for a grouped trend using LLM
- */
-async function generateGroupSummary(
-  tags: TrendingTag[],
-  existingSummaries: string[]
-): Promise<string> {
-  const tagNames = tags.map(t => t.tag).join(', ')
-  const category = tags[0]?.category || 'General'
-  
-  // Fallback summary if LLM unavailable or fails
-  const fallbackSummary = `${tagNames} trending in ${category.toLowerCase()}.`
-  
-  if (!openai) {
-    return fallbackSummary
-  }
-  
-  const summariesContext = existingSummaries.filter(s => s && s.length > 0).join(' | ')
-
-  const prompt = `Generate a ONE SENTENCE summary for this grouped trending topic.
-
-Tags: ${tagNames}
-Category: ${category}
-${summariesContext ? `Context: ${summariesContext}` : ''}
-
-Requirements:
-- Exactly ONE sentence, no more than 15 words
-- Explain what connects these topics and why they're trending together
-- Natural, engaging tone like X/Twitter
-- No hashtags, no emojis
-- Don't list the tag names
-
-Examples:
-- "Breaking developments in OpenAGI's leadership and product launches"
-- "Latest updates from Tesla's earnings call and production news"
-- "Ongoing debate about new AI regulations and their market impact"
-
-One sentence summary:`
-
-  try {
-    const startTime = Date.now()
-    
-    const response = await withRetry(
-      async () => await openai!.chat.completions.create({
-        model: SUMMARY_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a trending topics summarization expert. Generate concise, engaging summaries.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 50,
-      }),
-      LLM_MAX_RETRIES,
-      'Group summary generation'
-    )
-
-    const duration = Date.now() - startTime
-    const tokensUsed = (response.usage?.total_tokens || 0)
-    const estimatedCost = calculateCost(SUMMARY_MODEL, tokensUsed)
-    
-    logger.debug('LLM summary call completed', { 
-      durationMs: duration, 
-      model: SUMMARY_MODEL,
-      tokensUsed,
-      estimatedCostUSD: estimatedCost,
-    }, 'TrendingGroupingService')
-
-    let summary = response.choices[0]?.message?.content?.trim() || fallbackSummary
-    summary = summary.replace(/^["']|["']$/g, '').replace(/\.$/, '').trim()
-    
-    if (!summary.endsWith('.') && !summary.endsWith('!') && !summary.endsWith('?')) {
-      summary += '.'
-    }
-
-    return summary
-  } catch (error) {
-    logger.error('Failed to generate group summary, using fallback', { error, tags: tagNames }, 'TrendingGroupingService')
-    return fallbackSummary
-  }
-}
+// Legacy analyzeTagRelationships and generateGroupSummary functions removed
+// Summaries are now generated in the combined analyzeAndSummarizeTags call
 
 /**
  * Generate a one-sentence summary for a single trending tag based on recent posts
@@ -469,6 +468,20 @@ One sentence summary:`
       ?.replace(/^["']|["']$/g, '')
       ?.replace(/\.$/, '')
       ?.trim() || ''
+
+    if (isPromptLoggingEnabled()) {
+      await logPrompt({
+        promptType: 'trending_single_summary',
+        input: `System: You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.\n\nUser: ${prompt}`,
+        output: response.choices[0]?.message?.content || '',
+        metadata: {
+          provider: useGroq ? 'groq' : 'openai',
+          model: SUMMARY_MODEL,
+          temperature: 0.7,
+          maxTokens: 50
+        }
+      })
+    }
     
     if (!cleanSummary) {
       return `Trending topic in ${category || 'general'} discussions`
@@ -521,6 +534,7 @@ export async function generateTrendingSummaries(
 
 /**
  * Group related trending tags using LLM analysis
+ * Now uses combined grouping + summary in single LLM call for efficiency
  */
 export async function groupTrendingTags(tags: TrendingTag[]): Promise<GroupedTrend[]> {
   if (tags.length === 0) {
@@ -530,8 +544,8 @@ export async function groupTrendingTags(tags: TrendingTag[]): Promise<GroupedTre
   const startTime = Date.now()
   logger.info('Starting trending tags grouping', { tagCount: tags.length }, 'TrendingGroupingService')
 
-  // Get grouping instructions from LLM
-  const tagToGroup = await analyzeTagRelationships(tags)
+  // Get grouping instructions AND summaries from LLM in single call
+  const { tagToGroup, groupSummaries } = await analyzeAndSummarizeTags(tags)
 
   // Build groups
   const groups = new Map<number, TrendingTag[]>()
@@ -552,48 +566,40 @@ export async function groupTrendingTags(tags: TrendingTag[]): Promise<GroupedTre
   // Create grouped trends
   const result: GroupedTrend[] = []
 
-  // Process groups (multiple tags) - PARALLELIZE summary generation
-  const groupsToProcess: Array<[number, TrendingTag[]]> = []
+  // Process groups (multiple tags)
   for (const [groupId, groupTags] of groups.entries()) {
     if (groupTags.length < 2) {
       // If group ended up with only 1 tag, treat as ungrouped
       ungroupedTags.push(...groupTags)
       continue
     }
-    groupsToProcess.push([groupId, groupTags])
-  }
 
-  // Generate all summaries in parallel
-  const groupSummaries = await Promise.all(
-    groupsToProcess.map(async ([groupId, groupTags]) => {
-      // Sort by post count to pick primary tag
-      groupTags.sort((a, b) => b.postCount - a.postCount)
-      const primaryTag = groupTags[0]!
+    // Sort by post count to pick primary tag
+    groupTags.sort((a, b) => b.postCount - a.postCount)
+    const primaryTag = groupTags[0]!
 
-      // Generate group summary
-      const existingSummaries = groupTags.map(t => t.summary).filter((s): s is string => !!s)
-      const summary = await generateGroupSummary(groupTags, existingSummaries)
+    // Use pre-generated summary from combined LLM call, or fallback
+    const summary = groupSummaries.get(groupId) || 
+      `${groupTags.map(t => t.tag).join(', ')} trending in ${primaryTag.category || 'general'}`
 
-      logger.debug('Created grouped trend', {
-        groupId,
-        tags: groupTags.map(t => t.tag),
-        totalPosts: groupTags.reduce((sum, t) => sum + t.postCount, 0),
-      }, 'TrendingGroupingService')
+    logger.debug('Created grouped trend', {
+      groupId,
+      tags: groupTags.map(t => t.tag),
+      totalPosts: groupTags.reduce((sum, t) => sum + t.postCount, 0),
+      summary,
+    }, 'TrendingGroupingService')
 
-      return {
-        id: primaryTag.id,
-        tags: groupTags.map(t => t.tag),
-        tagSlugs: groupTags.map(t => t.tagSlug),
-        tagIds: groupTags.map(t => t.id),
-        category: primaryTag.category,
-        totalPostCount: groupTags.reduce((sum, t) => sum + t.postCount, 0),
-        summary,
-        rank: Math.min(...groupTags.map(t => t.rank)), // Use best rank
-      }
+    result.push({
+      id: primaryTag.id,
+      tags: groupTags.map(t => t.tag),
+      tagSlugs: groupTags.map(t => t.tagSlug),
+      tagIds: groupTags.map(t => t.id),
+      category: primaryTag.category,
+      totalPostCount: groupTags.reduce((sum, t) => sum + t.postCount, 0),
+      summary,
+      rank: Math.min(...groupTags.map(t => t.rank)), // Use best rank
     })
-  )
-
-  result.push(...groupSummaries)
+  }
 
   // Add ungrouped tags as single-tag groups
   for (const tag of ungroupedTags) {

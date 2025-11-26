@@ -52,24 +52,6 @@ psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE babylon TO babylon_user;"
 bun run db:migrate
 ```
 
-### Prisma Generate Fails
-
-**Error**: `Prisma Client could not be generated`
-
-**Solution**:
-
-```bash
-# Clear cache
-rm -rf node_modules/.prisma
-
-# Regenerate
-bun install
-
-# If still fails, reinstall
-rm -rf node_modules
-bun install
-```
-
 ---
 
 ## Development Server Issues
@@ -118,7 +100,7 @@ bun run dev
 **Solution**:
 
 ```bash
-# Regenerate Prisma client
+# Reinstall dependencies
 bun install
 
 # Clear TypeScript cache
@@ -179,7 +161,7 @@ bun run build
 # Manual reset (caution: loses data):
 psql babylon -c "DROP SCHEMA public CASCADE;"
 psql babylon -c "CREATE SCHEMA public;"
-bun run db:migrate deploy
+bun run db:push
 ```
 
 ### Connection Pool Exhausted
@@ -192,11 +174,11 @@ bun run db:migrate deploy
 // Update database URL with connection limits
 DATABASE_URL="postgresql://user:pass@localhost:5432/babylon?connection_limit=10"
 
-// Or in Prisma schema:
-datasource db {
- provider = "postgresql"
- url = env("DATABASE_URL")
-}
+// Connection pooling is configured in src/db/index.ts
+// Adjust max connections based on environment:
+// - Production: 50
+// - Development: 10
+// - Test: 5
 ```
 
 ### Slow Queries
@@ -206,12 +188,12 @@ datasource db {
 **Solutions**:
 
 ```bash
-# Enable query logging
-export DEBUG="prisma:query"
+# Enable query logging in development
+# Drizzle logs queries when NODE_ENV=development
 bun run dev
 
-# Check for missing indexes in Prisma schema
-# Add indexes to frequently queried fields
+# Check for missing indexes in schema
+# Add indexes to frequently queried fields in src/db/schema/
 ```
 
 ---
@@ -422,13 +404,12 @@ curl http://localhost:3000/api/stats
 **Solutions**:
 
 ```bash
-# Enable query logging
-export DEBUG="prisma:query"
+# Enable query logging in development
 bun run dev
-# Look for slow queries
+# Look for slow queries in console output
 
 # Check database indexes
-# Add indexes to frequently queried fields
+# Add indexes to frequently queried fields in src/db/schema/
 
 # Increase timeout (if needed)
 export API_TIMEOUT=30000
@@ -508,34 +489,29 @@ bun run dev
 
 ```bash
 # 1. Check database query performance
-export DEBUG="prisma:query"
+# Drizzle logs queries in development
 bun run dev
 # Look for N+1 queries
 
-# 2. Enable slow query logging
-# In Prisma schema, add slow query logging
-
-# 3. Check bundle size
+# 2. Check bundle size
 ANALYZE=true bun run build
 ```
 
 **Solutions**:
 
 ```typescript
-// Add pagination
-const posts = await prisma.post.findMany({
- take: 20,
- skip: (page - 1) * 20
-});
+// Add pagination with Drizzle
+const posts = await db.select()
+  .from(posts)
+  .limit(20)
+  .offset((page - 1) * 20);
 
 // Add select (only needed fields)
-const users = await prisma.user.findMany({
- select: {
- id: true,
- username: true,
- profileImageUrl: true
- }
-});
+const users = await db.select({
+  id: users.id,
+  username: users.username,
+  profileImageUrl: users.profileImageUrl
+}).from(users);
 
 // Use caching
 import { redis } from '@/lib/redis';
@@ -642,7 +618,12 @@ DIRECT_URL="postgresql://...?direct=true"
 
 ```typescript
 // Add null checks
-const user = await prisma.user.findUnique({ where: { id } });
+const result = await db.select()
+  .from(users)
+  .where(eq(users.id, id))
+  .limit(1);
+
+const user = result[0];
 
 if (!user) {
  throw new Error('User not found');
@@ -654,19 +635,20 @@ console.log(user.username);
 
 ### "Unique constraint failed"
 
-**Error**: Prisma unique constraint violation
+**Error**: Unique constraint violation
 
 **Cause**: Trying to create duplicate record
 
 **Solution**:
 
 ```typescript
-// Use upsert instead of create
-const user = await prisma.user.upsert({
- where: { username: 'trader' },
- update: { displayName: 'Updated' },
- create: { username: 'trader', displayName: 'Trader' }
-});
+// Use onConflictDoUpdate for upsert behavior
+await db.insert(users)
+  .values({ username: 'trader', displayName: 'Trader' })
+  .onConflictDoUpdate({
+    target: users.username,
+    set: { displayName: 'Updated' }
+  });
 ```
 
 ### "Module not found"

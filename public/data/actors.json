@@ -29,6 +29,10 @@
       "file": "./actors/aindre-cronje.json"
     },
     {
+      "id": "aindrew-ferguson",
+      "file": "./actors/aindrew-ferguson.json"
+    },
+    {
       "id": "ainn-coulter",
       "file": "./actors/ainn-coulter.json"
     },
@@ -71,6 +75,10 @@
     {
       "id": "baill-gaites",
       "file": "./actors/baill-gaites.json"
+    },
+    {
+      "id": "bairi-weiss",
+      "file": "./actors/bairi-weiss.json"
     },
     {
       "id": "balajai-srinivasan",
@@ -137,6 +145,10 @@
       "file": "./actors/dairiio-amodei.json"
     },
     {
+      "id": "daive-rubin",
+      "file": "./actors/daive-rubin.json"
+    },
+    {
       "id": "davaid-holz",
       "file": "./actors/davaid-holz.json"
     },
@@ -151,6 +163,10 @@
     {
       "id": "demis-hassaibis",
       "file": "./actors/demis-hassaibis.json"
+    },
+    {
+      "id": "don-lemain",
+      "file": "./actors/don-lemain.json"
     },
     {
       "id": "donaild-trump-jr",
@@ -195,6 +211,10 @@
     {
       "id": "george-haitz",
       "file": "./actors/george-haitz.json"
+    },
+    {
+      "id": "glenn-greenaiwald",
+      "file": "./actors/glenn-greenaiwald.json"
     },
     {
       "id": "graimes",
@@ -261,6 +281,10 @@
       "file": "./actors/john-cairmack.json"
     },
     {
+      "id": "john-ratclaiffe",
+      "file": "./actors/john-ratclaiffe.json"
+    },
+    {
       "id": "jordain-peterson",
       "file": "./actors/jordain-peterson.json"
     },
@@ -269,12 +293,20 @@
       "file": "./actors/julain-assange.json"
     },
     {
+      "id": "kaira-swisher",
+      "file": "./actors/kaira-swisher.json"
+    },
+    {
       "id": "kanyai-west",
       "file": "./actors/kanyai-west.json"
     },
     {
       "id": "kash-paitel",
       "file": "./actors/kash-paitel.json"
+    },
+    {
+      "id": "kristai-noem",
+      "file": "./actors/kristai-noem.json"
     },
     {
       "id": "laira-loomer",
@@ -305,6 +337,14 @@
       "file": "./actors/logain-paul.json"
     },
     {
+      "id": "maiggie-haberman",
+      "file": "./actors/maiggie-haberman.json"
+    },
+    {
+      "id": "maigyn-kelly",
+      "file": "./actors/maigyn-kelly.json"
+    },
+    {
       "id": "mairjorie-tailor-greene",
       "file": "./actors/mairjorie-tailor-greene.json"
     },
@@ -319,6 +359,10 @@
     {
       "id": "marc-aindreessen",
       "file": "./actors/marc-aindreessen.json"
+    },
+    {
+      "id": "marco-rubai",
+      "file": "./actors/marco-rubai.json"
     },
     {
       "id": "mario-nawfal",
@@ -353,8 +397,12 @@
       "file": "./actors/mitch-mcconnai.json"
     },
     {
-      "id": "muraid-mahmudov",
-      "file": "./actors/muraid-mahmudov.json"
+      "id": "muraid",
+      "file": "./actors/muraid.json"
+    },
+    {
+      "id": "naite-silver",
+      "file": "./actors/naite-silver.json"
     },
     {
       "id": "naival-ravikant",
@@ -385,6 +433,10 @@
       "file": "./actors/pam-bondai.json"
     },
     {
+      "id": "paul-aitkins",
+      "file": "./actors/paul-aitkins.json"
+    },
+    {
       "id": "paul-graiham",
       "file": "./actors/paul-graiham.json"
     },
@@ -413,6 +465,10 @@
       "file": "./actors/reid-hoffmain.json"
     },
     {
+      "id": "robert-kennedai",
+      "file": "./actors/robert-kennedai.json"
+    },
+    {
       "id": "ron-desaintis",
       "file": "./actors/ron-desaintis.json"
     },
@@ -433,6 +489,10 @@
       "file": "./actors/sam-ailtman.json"
     },
     {
+      "id": "scott-bessaint",
+      "file": "./actors/scott-bessaint.json"
+    },
+    {
       "id": "seain-hannity",
       "file": "./actors/seain-hannity.json"
     },
@@ -449,12 +509,24 @@
       "file": "./actors/spartain.json"
     },
     {
+      "id": "steven-craiwder",
+      "file": "./actors/steven-craiwder.json"
+    },
+    {
       "id": "sundar-pichai",
       "file": "./actors/sundar-pichai.json"
     },
     {
+      "id": "tailyor-lorenz",
+      "file": "./actors/tailyor-lorenz.json"
+    },
+    {
       "id": "threadgai",
       "file": "./actors/threadgai.json"
+    },
+    {
+      "id": "tim-pail",
+      "file": "./actors/tim-pail.json"
     },
     {
       "id": "tom-braidy",
@@ -473,6 +545,10 @@
       "file": "./actors/tucker-cairlson.json"
     },
     {
+      "id": "tulsai-gabbard",
+      "file": "./actors/tulsai-gabbard.json"
+    },
+    {
       "id": "tyler-wainklevoss",
       "file": "./actors/tyler-wainklevoss.json"
     },
@@ -487,6 +563,10 @@
     {
       "id": "zohran-mamdanai",
       "file": "./actors/zohran-mamdanai.json"
+    },
+    {
+      "id": "zookai-wilcox",
+      "file": "./actors/zookai-wilcox.json"
     }
   ],
   "organizations": [
@@ -499,6 +579,14 @@
       "file": "./organizations/aimazon.json"
     },
     {
+      "id": "aimerica-first",
+      "file": "./organizations/aimerica-first.json"
+    },
+    {
+      "id": "ainbc",
+      "file": "./organizations/ainbc.json"
+    },
+    {
       "id": "aindruil",
       "file": "./organizations/aindruil.json"
     },
@@ -509,6 +597,10 @@
     {
       "id": "aingel-list",
       "file": "./organizations/aingel-list.json"
+    },
+    {
+      "id": "aiphabet",
+      "file": "./organizations/aiphabet.json"
     },
     {
       "id": "aipple",
@@ -531,8 +623,8 @@
       "file": "./organizations/aix.json"
     },
     {
-      "id": "aimerica-first",
-      "file": "./organizations/aimerica-first.json"
+      "id": "aixios",
+      "file": "./organizations/aixios.json"
     },
     {
       "id": "betterhailp",
@@ -553,6 +645,10 @@
     {
       "id": "bluepraint",
       "file": "./organizations/bluepraint.json"
+    },
+    {
+      "id": "braitbart",
+      "file": "./organizations/braitbart.json"
     },
     {
       "id": "ciai",
@@ -579,10 +675,6 @@
       "file": "./organizations/deparment-of-war.json"
     },
     {
-      "id": "effective-accelerationaism",
-      "file": "./organizations/effective-accelerationaism.json"
-    },
-    {
       "id": "ethereum-foundaition",
       "file": "./organizations/ethereum-foundaition.json"
     },
@@ -599,12 +691,12 @@
       "file": "./organizations/financial-taimes.json"
     },
     {
-      "id": "founders-faind",
-      "file": "./organizations/founders-faind.json"
+      "id": "forbesai",
+      "file": "./organizations/forbesai.json"
     },
     {
-      "id": "aiphabet",
-      "file": "./organizations/aiphabet.json"
+      "id": "founders-faind",
+      "file": "./organizations/founders-faind.json"
     },
     {
       "id": "maicrosoft",
@@ -613,10 +705,6 @@
     {
       "id": "metai",
       "file": "./organizations/metai.json"
-    },
-    {
-      "id": "msainbc",
-      "file": "./organizations/ainbc.json"
     },
     {
       "id": "netflaix",
@@ -667,6 +755,10 @@
       "file": "./organizations/straitegy.json"
     },
     {
+      "id": "techcrainch",
+      "file": "./organizations/techcrainch.json"
+    },
+    {
       "id": "teslai",
       "file": "./organizations/teslai.json"
     },
@@ -679,8 +771,16 @@
       "file": "./organizations/the-daily-wire.json"
     },
     {
+      "id": "the-economaist",
+      "file": "./organizations/the-economaist.json"
+    },
+    {
       "id": "the-informaition",
       "file": "./organizations/the-informaition.json"
+    },
+    {
+      "id": "the-intaircept",
+      "file": "./organizations/the-intaircept.json"
     },
     {
       "id": "the-new-york-taimes",
@@ -691,8 +791,16 @@
       "file": "./organizations/the-terminal-organization.json"
     },
     {
+      "id": "the-vairge",
+      "file": "./organizations/the-vairge.json"
+    },
+    {
       "id": "ubair",
       "file": "./organizations/ubair.json"
+    },
+    {
+      "id": "waired",
+      "file": "./organizations/waired.json"
     },
     {
       "id": "wall-street-journai",
@@ -701,6 +809,10 @@
     {
       "id": "wikaileaks",
       "file": "./organizations/wikaileaks.json"
+    },
+    {
+      "id": "zcaish",
+      "file": "./organizations/zcaish.json"
     }
   ]
 }

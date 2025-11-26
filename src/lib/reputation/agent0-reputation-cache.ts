@@ -5,7 +5,9 @@
  * Recalculates reputation when cache is stale.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import { users, agentPerformanceMetrics, pointsTransactions } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 // Note: Agent0 client import will be used when implementing Agent0 reputation fetch
 import { recalculateReputation } from './reputation-service'
@@ -22,25 +24,21 @@ const CACHE_STALE_MS = CACHE_STALE_HOURS * 60 * 60 * 1000
 export async function getCachedAgent0ReputationScore(
   userId: string
 ): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      agent0TokenId: true,
-      isBanned: true,
-      isScammer: true,
-      isCSAM: true,
-      earnedPoints: true,
-      reputationPoints: true,
-      AgentPerformanceMetrics: {
-        select: {
-          reputationScore: true,
-          lastActivityAt: true,
-          updatedAt: true,
-        },
-      },
-    },
-  })
+  const userResult = await db
+    .select({
+      id: users.id,
+      agent0TokenId: users.agent0TokenId,
+      isBanned: users.isBanned,
+      isScammer: users.isScammer,
+      isCSAM: users.isCSAM,
+      earnedPoints: users.earnedPoints,
+      reputationPoints: users.reputationPoints,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     logger.warn('User not found for reputation cache', { userId }, 'Agent0ReputationCache')
@@ -57,8 +55,20 @@ export async function getCachedAgent0ReputationScore(
     return 5 // Very low but not zero
   }
 
+  // Get performance metrics separately
+  const metricsResult = await db
+    .select({
+      reputationScore: agentPerformanceMetrics.reputationScore,
+      lastActivityAt: agentPerformanceMetrics.lastActivityAt,
+      updatedAt: agentPerformanceMetrics.updatedAt,
+    })
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1)
+
+  const metrics = metricsResult[0]
+
   // Check if we have cached data
-  const metrics = user.AgentPerformanceMetrics
   if (metrics) {
     const cacheAge = Date.now() - metrics.updatedAt.getTime()
     
@@ -96,12 +106,13 @@ export async function getCachedAgent0ReputationScore(
   }
 
   // Return local reputation if Agent0 fetch failed or no token ID
-  const updatedMetrics = await prisma.agentPerformanceMetrics.findUnique({
-    where: { userId },
-    select: { reputationScore: true },
-  })
+  const updatedMetricsResult = await db
+    .select({ reputationScore: agentPerformanceMetrics.reputationScore })
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1)
 
-  return updatedMetrics?.reputationScore ?? 50 // Neutral default
+  return updatedMetricsResult[0]?.reputationScore ?? 50 // Neutral default
 }
 
 /**
@@ -109,12 +120,12 @@ export async function getCachedAgent0ReputationScore(
  * Forces recalculation on next access
  */
 export async function invalidateReputationCache(userId: string): Promise<void> {
-  await prisma.agentPerformanceMetrics.updateMany({
-    where: { userId },
-    data: {
+  await db
+    .update(agentPerformanceMetrics)
+    .set({
       updatedAt: new Date(Date.now() - CACHE_STALE_MS - 1), // Make it stale
-    },
-  })
+    })
+    .where(eq(agentPerformanceMetrics.userId, userId))
 
   logger.info('Invalidated reputation cache', { userId }, 'Agent0ReputationCache')
 }
@@ -123,31 +134,32 @@ export async function invalidateReputationCache(userId: string): Promise<void> {
  * Check if user has sent more points than earned (reputation loss condition)
  */
 export async function checkOverspending(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      earnedPoints: true,
-      reputationPoints: true,
-      invitePoints: true,
-      bonusPoints: true,
-      PointsTransaction: {
-        where: {
-          reason: 'transfer_sent',
-        },
-        select: {
-          amount: true,
-        },
-      },
-    },
-  })
+  const userResult = await db
+    .select({
+      earnedPoints: users.earnedPoints,
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      bonusPoints: users.bonusPoints,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     return false
   }
 
+  // Get points transactions for transfer_sent
+  const transactionsResult = await db
+    .select({ amount: pointsTransactions.amount })
+    .from(pointsTransactions)
+    .where(and(eq(pointsTransactions.userId, userId), eq(pointsTransactions.reason, 'transfer_sent')))
+
   // Calculate total points sent (negative amounts)
   const totalSent = Math.abs(
-    user.PointsTransaction.reduce((sum, tx) => sum + Math.min(0, tx.amount), 0)
+    transactionsResult.reduce((sum, tx) => sum + Math.min(0, tx.amount), 0)
   )
 
   // Total earned = earnedPoints + invitePoints + bonusPoints
@@ -169,25 +181,19 @@ export async function checkOverspending(userId: string): Promise<boolean> {
 export async function calculateAgent0ReputationScore(
   userId: string
 ): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      isBanned: true,
-      isScammer: true,
-      isCSAM: true,
-      earnedPoints: true,
-      AgentPerformanceMetrics: {
-        select: {
-          gamesPlayed: true,
-          totalFeedbackCount: true,
-          averageFeedbackScore: true,
-          normalizedPnL: true,
-          lastActivityAt: true,
-        },
-      },
-    },
-  })
+  const userResult = await db
+    .select({
+      id: users.id,
+      isBanned: users.isBanned,
+      isScammer: users.isScammer,
+      isCSAM: users.isCSAM,
+      earnedPoints: users.earnedPoints,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     return 50 // Neutral default
@@ -203,7 +209,20 @@ export async function calculateAgent0ReputationScore(
     return 5
   }
 
-  const metrics = user.AgentPerformanceMetrics
+  // Get performance metrics
+  const metricsResult = await db
+    .select({
+      gamesPlayed: agentPerformanceMetrics.gamesPlayed,
+      totalFeedbackCount: agentPerformanceMetrics.totalFeedbackCount,
+      averageFeedbackScore: agentPerformanceMetrics.averageFeedbackScore,
+      normalizedPnL: agentPerformanceMetrics.normalizedPnL,
+      lastActivityAt: agentPerformanceMetrics.lastActivityAt,
+    })
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1)
+
+  const metrics = metricsResult[0]
   const hasActivity = metrics && (
     metrics.gamesPlayed > 0 ||
     metrics.totalFeedbackCount > 0 ||
@@ -234,29 +253,30 @@ export async function calculateAgent0ReputationScore(
  * Calculate overspending ratio (0-1)
  */
 async function calculateOverspendingRatio(userId: string): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      earnedPoints: true,
-      invitePoints: true,
-      bonusPoints: true,
-      PointsTransaction: {
-        where: {
-          reason: 'transfer_sent',
-        },
-        select: {
-          amount: true,
-        },
-      },
-    },
-  })
+  const userResult = await db
+    .select({
+      earnedPoints: users.earnedPoints,
+      invitePoints: users.invitePoints,
+      bonusPoints: users.bonusPoints,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     return 0
   }
 
+  // Get points transactions for transfer_sent
+  const transactionsResult = await db
+    .select({ amount: pointsTransactions.amount })
+    .from(pointsTransactions)
+    .where(and(eq(pointsTransactions.userId, userId), eq(pointsTransactions.reason, 'transfer_sent')))
+
   const totalSent = Math.abs(
-    user.PointsTransaction.reduce((sum, tx) => sum + Math.min(0, tx.amount), 0)
+    transactionsResult.reduce((sum, tx) => sum + Math.min(0, tx.amount), 0)
   )
   const totalEarned = user.earnedPoints + user.invitePoints + user.bonusPoints
 

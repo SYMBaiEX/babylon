@@ -95,8 +95,8 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import type { JsonValue } from '@/db'
+import { db } from '@/db'
 import { updateFeedbackMetrics } from '@/lib/reputation/reputation-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
   const toAgent = await requireUserByIdentifier(body.agentId)
 
   const now = new Date()
-  const feedback = await prisma.feedback.create({
+  const feedback = await db.feedback.create({
     data: {
       id: await generateSnowflakeId(),
       fromUserId: fromUser.id,
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       comment: body.comment,
       category: body.category,
       interactionType: body.interactionType ?? 'user_to_agent',
-      metadata: body.metadata as Prisma.InputJsonValue | undefined,
+      metadata: body.metadata as JsonValue | undefined,
       createdAt: now,
       updatedAt: now,
     },
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     })
   })
 
-  const metrics = await prisma.agentPerformanceMetrics.findUnique({
+  const metrics = await db.agentPerformanceMetrics.findUnique({
     where: { userId: toAgent.id },
     select: {
       reputationScore: true,
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
 
   const agent = await requireUserByIdentifier(agentId)
 
-  const feedback = await prisma.feedback.findMany({
+  const feedback = await db.feedback.findMany({
     where: {
       toUserId: agent.id,
       interactionType: {
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
     skip: offset,
   })
 
-  const total = await prisma.feedback.count({
+  const total = await db.feedback.count({
     where: {
       toUserId: agent.id,
       interactionType: {

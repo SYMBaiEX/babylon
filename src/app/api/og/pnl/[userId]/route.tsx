@@ -42,10 +42,10 @@
 
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { calculatePortfolioPnL } from '@/lib/portfolio/calculate-pnl'
 
-// Use Node.js runtime for full Prisma support
+// Use Node.js runtime for full database support
 export const runtime = 'nodejs'
 
 // Disable static generation for this route - it requires database access
@@ -60,7 +60,7 @@ export async function GET(
   const { userId } = await context.params
   
   const [user, pnlData] = await Promise.all([
-    prisma.user.findUnique({
+    db.user.findUnique({
       where: { id: userId },
       select: {
         username: true,

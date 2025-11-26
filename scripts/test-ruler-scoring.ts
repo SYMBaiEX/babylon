@@ -6,7 +6,7 @@
  * pipeline with actual LLM judge calls.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
 import { rulerScoringService } from '@/lib/training/RulerScoringService';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -17,12 +17,12 @@ async function main() {
   // Step 1: Ensure test agent exists
   console.log('📊 Step 1: Setting up test agent...\n');
   
-  let testAgent = await prisma.user.findFirst({
+  let testAgent = await db.user.findFirst({
     where: { username: 'ruler-test-agent' }
   });
 
   if (!testAgent) {
-    testAgent = await prisma.user.create({
+    testAgent = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
         username: 'ruler-test-agent',
@@ -31,7 +31,7 @@ async function main() {
         isTest: true,
         agentSystem: 'You are a trading agent in Babylon prediction markets. Make profitable decisions.',
         agentModelTier: 'pro',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         autonomousTrading: true,
         updatedAt: new Date(),
@@ -130,7 +130,7 @@ async function main() {
 
       // Manually add LLM call and provider access to the step
       // (TrajectoryRecorder doesn't expose these methods, so we'll add them via DB update)
-      const trajRecord = await prisma.trajectory.findUnique({
+      const trajRecord = await db.trajectory.findUnique({
         where: { trajectoryId: trajId },
         select: { stepsJson: true }
       });
@@ -141,7 +141,7 @@ async function main() {
         if (lastTrajStep) {
           lastTrajStep.llmCalls = [llmCall];
           lastTrajStep.providerAccesses = [providerAccess];
-          await prisma.trajectory.update({
+          await db.trajectory.update({
             where: { trajectoryId: trajId },
             data: { stepsJson: JSON.stringify(trajSteps) }
           });
@@ -161,7 +161,7 @@ async function main() {
   // Step 3: Verify trajectories are created
   console.log('📊 Step 3: Verifying trajectories...\n');
   
-  const created = await prisma.trajectory.findMany({
+  const created = await db.trajectory.findMany({
     where: {
       trajectoryId: { in: trajectoryIds },
       scenarioId
@@ -197,7 +197,7 @@ async function main() {
     // Step 5: Verify scores
     console.log('📊 Step 5: Verifying scores...\n');
     
-    const scoredTrajectories = await prisma.trajectory.findMany({
+    const scoredTrajectories = await db.trajectory.findMany({
       where: {
         trajectoryId: { in: trajectoryIds }
       },
@@ -283,7 +283,7 @@ async function main() {
     console.error(error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

@@ -5,7 +5,7 @@
  * Provides advanced actions beyond direct database access.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -54,7 +54,7 @@ export class AutonomousA2AService {
       return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
     }
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agent = await db.user.findUnique({ where: { id: agentUserId } })
     if (!agent || !agent.isAgent || !agent.autonomousTrading) {
       return { success: false, marketId: undefined, ticker: undefined, side: undefined, marketType: undefined }
     }
@@ -172,7 +172,8 @@ Your JSON response:`
       modelSize: 'large',
       runtime,  // Pass runtime to access W&B trained models
       temperature: 0.7,
-      maxTokens: 400
+      maxTokens: 400,
+      actionType: 'evaluate_a2a_trade'
     })
 
     // Parse decision
@@ -235,7 +236,7 @@ Your JSON response:`
         reasoning
       })
 
-      await prisma.agentTrade.create({
+      await db.agentTrade.create({
         data: {
           id: await generateSnowflakeId(),
           agentUserId,
@@ -281,7 +282,7 @@ Your JSON response:`
         reasoning
       })
 
-      await prisma.agentTrade.create({
+      await db.agentTrade.create({
         data: {
           id: await generateSnowflakeId(),
           agentUserId,
@@ -319,7 +320,7 @@ Your JSON response:`
       return { success: false }
     }
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agent = await db.user.findUnique({ where: { id: agentUserId } })
     if (!agent || !agent.isAgent || !agent.autonomousPosting) {
       return { success: false }
     }
@@ -353,7 +354,7 @@ Your JSON response:`
       return { success: false, engagements: 0 }
     }
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agent = await db.user.findUnique({ where: { id: agentUserId } })
     if (!agent || !agent.isAgent) {
       return { success: false, engagements: 0 }
     }
@@ -411,7 +412,7 @@ Your JSON response:`
       return { success: false, actionsTaken: 0 }
     }
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agent = await db.user.findUnique({ where: { id: agentUserId } })
     if (!agent || !agent.isAgent || !agent.autonomousTrading) {
       return { success: false, actionsTaken: 0 }
     }

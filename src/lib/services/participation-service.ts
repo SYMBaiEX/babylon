@@ -6,7 +6,7 @@
  * activity scores and tracks last activity timestamps.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, posts, comments, shares, reactions, positions, eq, desc, count, isNull, and } from '@/db'
 
 
 /**
@@ -46,99 +46,69 @@ export class ParticipationService {
   static async getStats(userId: string): Promise<ParticipationStats | null> {
     // Get all counts in parallel
     const [
-      postsCreated,
-      commentsMade,
-      sharesMade,
-      reactionsGiven,
-      marketsParticipated,
-      lastPost,
-      lastComment,
-      lastShare,
-      lastReaction,
-      lastPosition,
+      postsCountResult,
+      commentsCountResult,
+      sharesCountResult,
+      reactionsCountResult,
+      positionsCountResult,
+      lastPostResult,
+      lastCommentResult,
+      lastShareResult,
+      lastReactionResult,
+      lastPositionResult,
     ] = await Promise.all([
-      prisma.post.count({
-        where: {
-          authorId: userId,
-        },
-      }),
-      prisma.comment.count({
-        where: {
-          authorId: userId,
-        },
-      }),
-      prisma.share.count({
-        where: {
-          userId,
-        },
-      }),
-      prisma.reaction.count({
-        where: {
-          userId,
-        },
-      }),
-      prisma.position.count({
-        where: {
-          userId,
-        },
-      }),
-      prisma.post.findFirst({
-        where: {
-          authorId: userId,
-          deletedAt: null, // Filter out deleted posts
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          createdAt: true,
-        },
-      }),
-      prisma.comment.findFirst({
-        where: {
-          authorId: userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          createdAt: true,
-        },
-      }),
-      prisma.share.findFirst({
-        where: {
-          userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          createdAt: true,
-        },
-      }),
-      prisma.reaction.findFirst({
-        where: {
-          userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          createdAt: true,
-        },
-      }),
-      prisma.position.findFirst({
-        where: {
-          userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          createdAt: true,
-        },
-      }),
+      db.select({ count: count() })
+        .from(posts)
+        .where(eq(posts.authorId, userId)),
+      db.select({ count: count() })
+        .from(comments)
+        .where(eq(comments.authorId, userId)),
+      db.select({ count: count() })
+        .from(shares)
+        .where(eq(shares.userId, userId)),
+      db.select({ count: count() })
+        .from(reactions)
+        .where(eq(reactions.userId, userId)),
+      db.select({ count: count() })
+        .from(positions)
+        .where(eq(positions.userId, userId)),
+      db.select({ createdAt: posts.createdAt })
+        .from(posts)
+        .where(and(eq(posts.authorId, userId), isNull(posts.deletedAt)))
+        .orderBy(desc(posts.createdAt))
+        .limit(1),
+      db.select({ createdAt: comments.createdAt })
+        .from(comments)
+        .where(eq(comments.authorId, userId))
+        .orderBy(desc(comments.createdAt))
+        .limit(1),
+      db.select({ createdAt: shares.createdAt })
+        .from(shares)
+        .where(eq(shares.userId, userId))
+        .orderBy(desc(shares.createdAt))
+        .limit(1),
+      db.select({ createdAt: reactions.createdAt })
+        .from(reactions)
+        .where(eq(reactions.userId, userId))
+        .orderBy(desc(reactions.createdAt))
+        .limit(1),
+      db.select({ createdAt: positions.createdAt })
+        .from(positions)
+        .where(eq(positions.userId, userId))
+        .orderBy(desc(positions.createdAt))
+        .limit(1),
     ])
+
+    const postsCreated = postsCountResult[0]?.count ?? 0
+    const commentsMade = commentsCountResult[0]?.count ?? 0
+    const sharesMade = sharesCountResult[0]?.count ?? 0
+    const reactionsGiven = reactionsCountResult[0]?.count ?? 0
+    const marketsParticipated = positionsCountResult[0]?.count ?? 0
+    const lastPost = lastPostResult[0]
+    const lastComment = lastCommentResult[0]
+    const lastShare = lastShareResult[0]
+    const lastReaction = lastReactionResult[0]
+    const lastPosition = lastPositionResult[0]
 
     // Calculate total activity score
     // Weighted scoring: posts=10, comments=5, shares=3, reactions=1, markets=5

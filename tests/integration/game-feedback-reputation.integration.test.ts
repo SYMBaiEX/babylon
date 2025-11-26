@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test, mock } from 'bun:test'
 import { NextRequest } from 'next/server'
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 // Mock agent0 sync to prevent race conditions in tests
@@ -26,7 +26,7 @@ describe('game feedback updates reputation metrics', () => {
 
   beforeAll(async () => {
     agentId = await generateSnowflakeId()
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: agentId,
         username: `agent-rep-${Date.now()}`,
@@ -38,9 +38,9 @@ describe('game feedback updates reputation metrics', () => {
   })
 
   afterAll(async () => {
-    await prisma.feedback.deleteMany({ where: { toUserId: agentId } })
-    await prisma.agentPerformanceMetrics.deleteMany({ where: { userId: agentId } })
-    await prisma.user.delete({ where: { id: agentId } })
+    await db.feedback.deleteMany({ where: { toUserId: agentId } })
+    await db.agentPerformanceMetrics.deleteMany({ where: { userId: agentId } })
+    await db.user.delete({ where: { id: agentId } })
   })
 
   test('POST /api/feedback/game-to-agent increments metrics and reputation', async () => {
@@ -63,7 +63,7 @@ describe('game feedback updates reputation metrics', () => {
     const json = await response.json()
     expect(json.success).toBe(true)
 
-    const metrics = await prisma.agentPerformanceMetrics.findUnique({ where: { userId: agentId } })
+    const metrics = await db.agentPerformanceMetrics.findUnique({ where: { userId: agentId } })
     expect(metrics).toBeTruthy()
     expect(metrics?.gamesPlayed).toBeGreaterThanOrEqual(1)
     expect(metrics?.gamesWon).toBeGreaterThanOrEqual(1)

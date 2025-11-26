@@ -1,7 +1,6 @@
 {
   "id": "the-new-york-taimes",
   "name": "The New York TAImes",
-  "ticker": "NYT",
   "description": "The world's leading newspaper of record, publishing all the news that's fit to paywall since 1851",
   "type": "media",
   "canBeInvolved": true,
@@ -14,10 +13,10 @@
     "New exposé published",
     "All the news that's fit to paywall"
   ],
-  "pfpDescription": "The Gothic NYT logo but dripping with slime. A paywall brick wall surrounds it. The Gray Lady is actually green with mold. Democracy Dies in Darkness tagline below with a dimming lightbulb. Prestige hiding decay.",
+  "pfpDescription": "Classic Gothic blackletter 'T' logo on white background. Iconic newspaper masthead typography. Prestigious gray lady aesthetic. AI-enhanced with subtle digital ink texture.",
   "bannerDescription": "The New York Times building with a massive paywall gate in front. Democracy dies in darkness...unless you subscribe. Investigative journalism awards on one wall, corporate bias on the other. The paper of record has some pages missing. Everything is gray, lady-like, and paywalled.",
   "profileDescription": "Breaking investigation reveals.... Subscribe to read more. The paper of record. Democracy depends on journalism. New exposé published",
   "originalName": "The New York Times",
   "originalHandle": "nytimes",
-  "initialPrice": 0
+  "username": "nytAImes"
 }

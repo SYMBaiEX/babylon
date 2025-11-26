@@ -14,7 +14,7 @@
 import { A2AClient } from '@a2a-js/sdk/client'
 import { SDK } from 'agent0-sdk'
 import type { AgentCard } from '@a2a-js/sdk'
-import { prisma } from '../src/lib/prisma'
+import { db } from '@/db'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 const AGENT_CARD_URL = `${BASE_URL}/.well-known/agent-card.json`
@@ -125,11 +125,20 @@ async function validateA2AProtocol() {
         }
         
         // 7. Test tasks/get
+        type TaskResponse = {
+          kind: 'task';
+          id: string;
+        };
         if ('kind' in sendResponse && sendResponse.kind === 'task') {
-          const task = sendResponse as any
+          const task = sendResponse as TaskResponse;
           try {
-            const taskStatus = await client.getTask({ id: task.id })
-            const taskState = (taskStatus as any)?.status?.state ?? 'unknown'
+            type TaskStatus = {
+              status?: {
+                state?: string;
+              };
+            };
+            const taskStatus = await client.getTask({ id: task.id }) as TaskStatus;
+            const taskState = taskStatus?.status?.state ?? 'unknown';
             addResult('A2A', 'tasks/get method', 'pass', `Task retrieval working (state=${taskState})`, true)
           } catch (error) {
             addResult('A2A', 'tasks/get method', 'fail', (error as Error).message, true)
@@ -164,7 +173,7 @@ async function validateAgent0Integration() {
   
   try {
     // 1. Check if registered
-    const config = await prisma.gameConfig.findUnique({
+    const config = await db.gameConfig.findUnique({
       where: { key: 'agent0_registration' }
     })
     

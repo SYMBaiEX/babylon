@@ -6,7 +6,8 @@
  */
 
 import { SDK } from 'agent0-sdk'
-import { prisma } from '@/lib/prisma'
+import { db, users, gameConfigs, type JsonValue } from '@/db'
+import { eq, like } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
@@ -38,14 +39,14 @@ export class Agent0FeedbackService {
     const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet' | 'localnet') || 'sepolia'
     
     if (network === 'localnet') {
-      this.chainId = 31337 // Anvil default chain ID
+      this.chainId = 31337 // Hardhat default chain ID
     } else if (network === 'sepolia') {
       this.chainId = 11155111 // Ethereum Sepolia (Agent0 is on Ethereum, not Base Sepolia)
     } else {
       this.chainId = 1 // Ethereum mainnet
     }
     
-    // Use default test key for localnet (first Anvil account)
+    // Use default test key for localnet (first Hardhat account)
     const feedbackPrivateKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY || 
                                process.env.BABYLON_AGENT0_PRIVATE_KEY ||
                                (network === 'localnet' 
@@ -120,10 +121,8 @@ export class Agent0FeedbackService {
       })
       
       // Get user's wallet address for signature
-      const user = await prisma.user.findUnique({
-        where: { id: params.fromUserId },
-        select: { walletAddress: true }
-      })
+      const userResult = await db.select({ walletAddress: users.walletAddress }).from(users).where(eq(users.id, params.fromUserId)).limit(1)
+      const user = userResult[0]
       
       if (!user?.walletAddress) {
         throw new Error('User has no wallet address')
@@ -162,21 +161,19 @@ export class Agent0FeedbackService {
       })
       
       // Store locally for tracking
-      await prisma.gameConfig.create({
-        data: {
-          id: await generateSnowflakeId(),
-          key: `agent0_feedback_${params.agentId}_${Date.now()}`,
-          value: {
-            agentId: params.agentId,
-            fromUserId: params.fromUserId,
-            score: params.score,
-            skill: params.skill,
-            comment: params.comment,
-            submittedAt: new Date().toISOString()
-          },
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
+      await db.insert(gameConfigs).values({
+        id: await generateSnowflakeId(),
+        key: `agent0_feedback_${params.agentId}_${Date.now()}`,
+        value: {
+          agentId: params.agentId,
+          fromUserId: params.fromUserId,
+          score: params.score,
+          skill: params.skill,
+          comment: params.comment,
+          submittedAt: new Date().toISOString()
+        } as JsonValue,
+        createdAt: new Date(),
+        updatedAt: new Date()
       })
       
     } catch (error) {
@@ -236,11 +233,7 @@ export class Agent0FeedbackService {
       }
       
       // Also check local feedback records for skill breakdown
-      const localFeedback = await prisma.gameConfig.findMany({
-        where: {
-          key: { startsWith: `agent0_feedback_${agentId}_` }
-        }
-      })
+      const localFeedback = await db.select().from(gameConfigs).where(like(gameConfigs.key, `agent0_feedback_${agentId}_%`))
       
       for (const config of localFeedback) {
         const feedbackData = config.value as { skill?: string; score?: number } | null
@@ -284,9 +277,8 @@ export class Agent0FeedbackService {
    * Get Babylon's own reputation from Agent0
    */
   async getBabylonReputation(): Promise<ReputationSummary | null> {
-    const config = await prisma.gameConfig.findUnique({
-      where: { key: 'agent0_registration' }
-    })
+    const configResult = await db.select().from(gameConfigs).where(eq(gameConfigs.key, 'agent0_registration')).limit(1)
+    const config = configResult[0]
     
     type Agent0Config = {
       agentId?: string
@@ -314,14 +306,12 @@ export class Agent0FeedbackService {
     comment?: string
   ): Promise<void> {
     // Get agent's Agent0 registration
-    const agent = await prisma.user.findUnique({
-      where: { id: babylonAgentUserId },
-      select: { 
-        id: true,
-        displayName: true,
-        agentSystem: true
-      }
-    })
+    const agentResult = await db.select({ 
+      id: users.id,
+      displayName: users.displayName,
+      agentSystem: users.agentSystem
+    }).from(users).where(eq(users.id, babylonAgentUserId)).limit(1)
+    const agent = agentResult[0]
     
     if (!agent) {
       throw new Error('Agent not found')
@@ -334,11 +324,8 @@ export class Agent0FeedbackService {
     })
     
     // Check if agent has Agent0 registration in gameConfig
-    const agent0Config = await prisma.gameConfig.findFirst({
-      where: {
-        key: `agent0_registration_${babylonAgentUserId}`
-      }
-    })
+    const agent0ConfigResult = await db.select().from(gameConfigs).where(eq(gameConfigs.key, `agent0_registration_${babylonAgentUserId}`)).limit(1)
+    const agent0Config = agent0ConfigResult[0]
     
     const agent0ConfigValue = agent0Config?.value as { agentId?: string } | null
     const agent0AgentId = agent0ConfigValue?.agentId
@@ -364,22 +351,20 @@ export class Agent0FeedbackService {
     }
     
     // Always store locally for tracking (even if submitted to Agent0)
-    await prisma.gameConfig.create({
-      data: {
-        id: await generateSnowflakeId(),
-        key: `local_agent_rating_${babylonAgentUserId}_${Date.now()}`,
-        value: {
-          agentUserId: babylonAgentUserId,
-          fromUserId,
-          score,
-          skill,
-          comment,
-          agent0AgentId: agent0AgentId || null,
-          ratedAt: new Date().toISOString()
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
+    await db.insert(gameConfigs).values({
+      id: await generateSnowflakeId(),
+      key: `local_agent_rating_${babylonAgentUserId}_${Date.now()}`,
+      value: {
+        agentUserId: babylonAgentUserId,
+        fromUserId,
+        score,
+        skill,
+        comment,
+        agent0AgentId: agent0AgentId || null,
+        ratedAt: new Date().toISOString()
+      } as JsonValue,
+      createdAt: new Date(),
+      updatedAt: new Date()
     })
     
     logger.info('Agent rating stored locally')
@@ -389,11 +374,7 @@ export class Agent0FeedbackService {
    * Get feedback given by a user
    */
   async getUserFeedbackHistory(userId: string): Promise<Record<string, unknown>[]> {
-    const feedbackConfigs = await prisma.gameConfig.findMany({
-      where: {
-        key: { startsWith: `agent0_feedback_` }
-      }
-    })
+    const feedbackConfigs = await db.select().from(gameConfigs).where(like(gameConfigs.key, 'agent0_feedback_%'))
     
     return feedbackConfigs
       .map(c => c.value as Record<string, unknown>)

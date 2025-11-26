@@ -124,7 +124,7 @@ graph LR
 
 **Technologies**:
 - PostgreSQL 14+ (primary database)
-- Prisma ORM
+- Drizzle ORM
 - Redis (Upstash) for caching
 - Connection pooling
 
@@ -309,7 +309,7 @@ sequenceDiagram
  - Permission validation 
 
 
- Layer 5: Database (Prisma RLS) 
+ Layer 5: Database (Drizzle RLS) 
  - Row-level security 
  - SQL injection prevention 
  - Prepared statements 
@@ -393,7 +393,7 @@ graph LR
 | Runtime | Node.js/Bun | JavaScript runtime |
 | Framework | Next.js API Routes | API framework |
 | Database | PostgreSQL | Primary data store |
-| ORM | Prisma | Database access |
+| ORM | Drizzle | Database access |
 | Cache | Redis (Upstash) | Caching layer |
 | Auth | Privy Server SDK | Token verification |
 | AI | OpenAGI/Groq | Content generation |
@@ -646,25 +646,23 @@ graph TB
 
 ```typescript
 // N+1 Query Problem
-const posts = await prisma.post.findMany();
+const posts = await db.select().from(posts);
 for (const post of posts) {
- const author = await prisma.user.findUnique({
- where: { id: post.authorId }
- });
+  const author = await db.select()
+    .from(users)
+    .where(eq(users.id, post.authorId));
 }
 
-// Solution: Include relation
-const posts = await prisma.post.findMany({
- include: {
- author: {
- select: {
- username: true,
- displayName: true,
- profileImageUrl: true
- }
- }
- }
-});
+// Solution: Join query
+const postsWithAuthors = await db.select({
+  id: posts.id,
+  content: posts.content,
+  authorUsername: users.username,
+  authorDisplayName: users.displayName,
+  authorProfileImageUrl: users.profileImageUrl
+})
+.from(posts)
+.leftJoin(users, eq(posts.authorId, users.id));
 ```
 
 ### Bundle Optimization

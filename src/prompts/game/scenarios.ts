@@ -16,10 +16,9 @@ export const scenarios = definePrompt({
   description: 'Generates 3 satirical scenarios for the game setup',
   temperature: 0.8,
   maxTokens: 2000,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
 
-{{realityGrounding}}
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 {{worldEventExamples}}
 
@@ -34,12 +33,13 @@ IMPORTANT RULES:
 - NEVER use real-world person or organization names
 - NEVER "correct" or change the provided parody names - use them exactly as shown
 - Use ONLY the exact organization names provided in ORGANIZATIONS IN PLAY (if any)
+- DO NOT generate questions yet - only scenarios
 
 Each scenario should:
 - Involve 2-3 of the main actors (use their exact names from the list above)
 - Include their affiliated organizations when relevant (use exact organization names)
 - Be absurd yet plausible
-- Lead to interesting yes/no questions
+- Lead to interesting yes/no questions (but do NOT include the questions themselves)
 - Involve tech, politics, crypto, or culture wars
 - Have high stakes
 - Be satirical/darkly funny
@@ -70,6 +70,7 @@ Return XML:
   </scenarios>
 </response>
 
+CRITICAL: Do NOT output a <questions> tag. Do NOT generate questions. Only generate the scenarios.
 No other text.
 `.trim()
 });

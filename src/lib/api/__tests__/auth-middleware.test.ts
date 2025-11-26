@@ -1,6 +1,22 @@
 import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { NextRequest } from 'next/server'
 
+// Type for authenticated user result
+interface AuthenticatedUser {
+  userId: string
+  privyId: string
+  isAgent: boolean
+  dbUserId?: string
+  walletAddress?: string
+}
+
+// Type for mock request
+interface MockNextRequest {
+  headers: {
+    get: (name: string) => string | null
+  }
+}
+
 const mockVerifyAgentSession = mock()
 const mockVerifyAuthToken = mock()
 const mockFindUnique = mock()
@@ -13,7 +29,7 @@ mock.module('@/lib/auth/agent-auth', () => ({
 }))
 
 mock.module('@/lib/database-service', () => ({
-  prisma: {
+  db: {
     user: {
       findUnique: mockFindUnique,
     },
@@ -24,16 +40,16 @@ mock.module('@privy-io/server-auth', () => ({
   PrivyClient: mockPrivyClient,
 }))
 
-const createRequest = (token: string) =>
+const createRequest = (token: string): NextRequest =>
   ({
     headers: {
       get: (name: string) =>
         name.toLowerCase() === 'authorization' ? `Bearer ${token}` : null,
     },
-  }) as unknown as NextRequest
+  }) as MockNextRequest as NextRequest
 
 describe('authenticate middleware', () => {
-  let authenticate: (request: NextRequest) => Promise<unknown>
+  let authenticate: (request: NextRequest) => Promise<AuthenticatedUser>
 
   beforeAll(async () => {
     ;({ authenticate } = await import('../auth-middleware'))

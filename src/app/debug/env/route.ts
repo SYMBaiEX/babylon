@@ -5,7 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 // import { logger } from '@/lib/logger';
 
 export async function GET(_request: NextRequest) {
@@ -19,25 +19,31 @@ export async function GET(_request: NextRequest) {
       value: process.env.DATABASE_URL 
         ? `${process.env.DATABASE_URL.slice(0, 20)}...${process.env.DATABASE_URL.slice(-10)}`
         : 'NOT SET',
-      isPlaceholder: process.env.DATABASE_URL?.includes('db().prisma.io'),
+      isPlaceholder: process.env.DATABASE_URL?.includes('db().db.io'),
     },
     databaseConnection: 'checking...' as string,
-    prismaVersion: 'unknown',
+    dbVersion: 'unknown',
   };
 
-  await prisma.$queryRawUnsafe<Array<{ '?column?': number }>>('SELECT 1');
+  await db.$queryRaw<Array<{ '?column?': number }>>`SELECT 1`;
   checks.databaseConnection = '✅ Connected';
   
-  const result = await prisma.$queryRawUnsafe<Array<{ version: string | null }>>('SELECT version()');
-  const rawVersion = result[0]!.version!;
-  checks.prismaVersion = rawVersion.split(' ')[0]!
+  type VersionRow = { version: string | null };
+  const result = await db.$queryRaw<VersionRow[]>`SELECT version()`;
+  const firstResult: VersionRow | undefined = Array.isArray(result) && result.length > 0 ? (result[0] as unknown as VersionRow) : undefined;
+  const rawVersion = firstResult?.version ?? null;
+  if (!rawVersion) {
+    checks.dbVersion = 'unknown';
+    return NextResponse.json({ success: false, message: 'Failed to get database version', checks }, { status: 503 });
+  }
+  checks.dbVersion = rawVersion.split(' ')[0]!
 
   // Check if we're using placeholder database URL
   if (checks.databaseUrl.isPlaceholder) {
     return NextResponse.json({
       success: false,
       error: 'Database not configured',
-      message: '⚠️ You are using the default Prisma placeholder database URL',
+      message: '⚠️ You are using the default database placeholder database URL',
       instructions: [
         '1. Set up your database (PostgreSQL recommended)',
         '2. Add DATABASE_URL to your Vercel environment variables',

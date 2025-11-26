@@ -1,9 +1,9 @@
 import { CHAIN } from '@/constants/chains';
 import { isOnChainEnabled } from '@/lib/config/perp-modes';
-import db from '@/lib/database-service';
+import dbService from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
-import { prisma } from '@/lib/prisma';
+import { db, organizations, eq } from '@/db';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { PRICE_STORAGE_FACET_ABI } from '@/lib/web3/abis';
 import type { JsonValue } from '@/types/common';
@@ -76,10 +76,10 @@ export class PriceUpdateService {
         continue;
       }
 
-      const organization = await prisma.organization.findUnique({
-        where: { id: update.organizationId },
-        select: { id: true, currentPrice: true },
-      });
+      const [organization] = await db.select({ id: organizations.id, currentPrice: organizations.currentPrice })
+        .from(organizations)
+        .where(eq(organizations.id, update.organizationId))
+        .limit(1);
 
       if (!organization) {
         logger.warn(
@@ -94,12 +94,11 @@ export class PriceUpdateService {
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
-      await prisma.organization.update({
-        where: { id: organization.id },
-        data: { currentPrice: update.newPrice },
-      });
+      await db.update(organizations)
+        .set({ currentPrice: update.newPrice, updatedAt: new Date() })
+        .where(eq(organizations.id, organization.id));
 
-      await db().recordPriceUpdate(
+      await dbService().recordPriceUpdate(
         organization.id,
         update.newPrice,
         change,
@@ -126,9 +125,11 @@ export class PriceUpdateService {
       // Write prices to blockchain
       await this.writePricesToChain(appliedUpdates);
 
+      // AppliedPriceUpdate[] is compatible with JsonValue (array of plain objects with JsonValue fields)
+      // Convert through JSON serialization for type safety
       broadcastToChannel('markets', {
         type: 'price_update',
-        updates: appliedUpdates as unknown as JsonValue,
+        updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
       });
 
       logger.info(

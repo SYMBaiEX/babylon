@@ -19,7 +19,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { BenchmarkDataGenerator, type BenchmarkConfig } from '@/lib/benchmark/BenchmarkDataGenerator';
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
@@ -356,7 +356,7 @@ class PipelineRunner {
     }
     
     // Check if we have enough trajectories
-    const trajectoryCount = await prisma.trajectory.count({
+    const trajectoryCount = await db.trajectory.count({
       where: {
         isTrainingData: true,
         usedInTraining: false,
@@ -692,7 +692,7 @@ async function main() {
   const runner = new PipelineRunner(config, force);
   await runner.run();
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch((error) => {

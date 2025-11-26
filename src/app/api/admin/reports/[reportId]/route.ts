@@ -122,7 +122,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { AdminReportActionSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 import { NotFoundError } from '@/lib/errors';
@@ -139,7 +139,7 @@ export const GET = withErrorHandling(async (
   await requireAdmin(request);
   const { reportId } = await context.params;
 
-  const report = await prisma.report.findUnique({
+  const report = await db.report.findUnique({
     where: { id: reportId },
     include: {
       reporter: {
@@ -180,7 +180,7 @@ export const GET = withErrorHandling(async (
   }
 
   // Get related reports for the same user/post
-  const relatedReports = await prisma.report.findMany({
+  const relatedReports = await db.report.findMany({
     where: {
       OR: [
         { reportedUserId: report.reportedUserId || undefined },
@@ -192,10 +192,21 @@ export const GET = withErrorHandling(async (
     take: 10,
     select: {
       id: true,
-      category: true,
-      status: true,
-      priority: true,
       createdAt: true,
+      updatedAt: true,
+      reason: true,
+      status: true,
+      category: true,
+      resolution: true,
+      resolvedAt: true,
+      priority: true,
+      reportedUserId: true,
+      reportedPostId: true,
+      reportedCommentId: true,
+      reporterId: true,
+      resolvedBy: true,
+    },
+    include: {
       reporter: {
         select: {
           id: true,
@@ -263,7 +274,7 @@ export const POST = withErrorHandling(async (
     action 
   }, 'POST /api/admin/reports/[reportId]');
 
-  const report = await prisma.report.findUnique({
+  const report = await db.report.findUnique({
     where: { id: reportId },
     select: {
       id: true,
@@ -279,7 +290,7 @@ export const POST = withErrorHandling(async (
 
   // Handle different actions
   if (action === 'resolve') {
-    await prisma.report.update({
+    await db.report.update({
       where: { id: reportId },
       data: {
         status: 'resolved',
@@ -289,7 +300,7 @@ export const POST = withErrorHandling(async (
       },
     });
   } else if (action === 'dismiss') {
-    await prisma.report.update({
+    await db.report.update({
       where: { id: reportId },
       data: {
         status: 'dismissed',
@@ -299,7 +310,7 @@ export const POST = withErrorHandling(async (
       },
     });
   } else if (action === 'escalate') {
-    await prisma.report.update({
+    await db.report.update({
       where: { id: reportId },
       data: {
         priority: 'critical',
@@ -313,7 +324,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Ban the reported user
-    await prisma.user.update({
+    await db.user.update({
       where: { id: report.reportedUserId },
       data: {
         isBanned: true,
@@ -324,7 +335,7 @@ export const POST = withErrorHandling(async (
     });
 
     // Update report
-    await prisma.report.update({
+    await db.report.update({
       where: { id: reportId },
       data: {
         status: 'resolved',

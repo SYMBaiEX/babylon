@@ -42,7 +42,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   const user = await requireUserByIdentifier(authUser.userId, { id: true })
 
   // Clear Twitter OAuth 2.0 credentials from user
-  await prisma.user.update({
+  await db.user.update({
     where: { id: user.id },
     data: {
       twitterAccessToken: null,

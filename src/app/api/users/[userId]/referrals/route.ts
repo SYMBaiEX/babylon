@@ -62,7 +62,20 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { 
+  db, 
+  users, 
+  referrals, 
+  follows, 
+  tradingFees,
+  eq, 
+  and, 
+  gte, 
+  inArray,
+  count,
+  sum,
+  desc
+} from '@/db';
 import { AuthorizationError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -105,138 +118,154 @@ export const GET = withErrorHandling(async (
   }
 
   // Get user's referral data
-  const user = await prisma.user.findUnique({
-    where: { id: canonicalUserId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      referralCode: true,
-      referralCount: true,
-      reputationPoints: true,
-      totalFeesEarned: true,
-      pointsAwardedForProfile: true,
-      pointsAwardedForFarcaster: true,
-      pointsAwardedForTwitter: true,
-      pointsAwardedForWallet: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-      walletAddress: true,
-    },
-  });
+  const [user] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    referralCode: users.referralCode,
+    referralCount: users.referralCount,
+    reputationPoints: users.reputationPoints,
+    totalFeesEarned: users.totalFeesEarned,
+    pointsAwardedForProfile: users.pointsAwardedForProfile,
+    pointsAwardedForFarcaster: users.pointsAwardedForFarcaster,
+    pointsAwardedForTwitter: users.pointsAwardedForTwitter,
+    pointsAwardedForWallet: users.pointsAwardedForWallet,
+    farcasterUsername: users.farcasterUsername,
+    twitterUsername: users.twitterUsername,
+    walletAddress: users.walletAddress,
+  })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
 
   if (!user) {
     throw new NotFoundError('User', canonicalUserId);
   }
 
   // Get all completed referrals
-  const completedReferrals = await prisma.referral.findMany({
-    where: {
-      referrerId: canonicalUserId,
-      status: 'completed',
-    },
-    include: {
-      User_Referral_referredUserIdToUser: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-          createdAt: true,
-          reputationPoints: true,
-          profileComplete: true,
-        },
-      },
-    },
-    orderBy: {
-      completedAt: 'desc',
-    },
-  });
+  const completedReferralsData = await db.select()
+    .from(referrals)
+    .where(and(
+      eq(referrals.referrerId, canonicalUserId),
+      eq(referrals.status, 'completed')
+    ))
+    .orderBy(desc(referrals.completedAt));
+
+  // Get referred user IDs from completed referrals
+  const completedReferredUserIds = completedReferralsData
+    .map(r => r.referredUserId)
+    .filter((id): id is string => id !== null);
+
+  // Fetch user data for completed referrals
+  let completedReferredUsersData: Array<{
+    id: string;
+    username: string | null;
+    displayName: string | null;
+    profileImageUrl: string | null;
+    createdAt: Date;
+    reputationPoints: number;
+    profileComplete: boolean;
+  }> = [];
+
+  if (completedReferredUserIds.length > 0) {
+    completedReferredUsersData = await db.select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      createdAt: users.createdAt,
+      reputationPoints: users.reputationPoints,
+      profileComplete: users.profileComplete,
+    })
+      .from(users)
+      .where(inArray(users.id, completedReferredUserIds));
+  }
+
+  const completedUsersMap = new Map(completedReferredUsersData.map(u => [u.id, u]));
 
   // Get pending referrals (users who haven't completed profile yet)
-  // We find users where referredBy = currentUser but no completed referral exists
-  const pendingReferredUsers = await prisma.user.findMany({
-    where: {
-      referredBy: canonicalUserId,
-      profileComplete: false, // Not completed profile yet
-    },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      profileImageUrl: true,
-      createdAt: true,
-      reputationPoints: true,
-      profileComplete: true,
-      // Include fallback identifiers for pending users
-      email: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+  const pendingReferredUsers = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    profileImageUrl: users.profileImageUrl,
+    createdAt: users.createdAt,
+    reputationPoints: users.reputationPoints,
+    profileComplete: users.profileComplete,
+    email: users.email,
+    farcasterUsername: users.farcasterUsername,
+    twitterUsername: users.twitterUsername,
+  })
+    .from(users)
+    .where(and(
+      eq(users.referredBy, canonicalUserId),
+      eq(users.profileComplete, false)
+    ))
+    .orderBy(desc(users.createdAt));
 
   // Get fee earnings from referrals
-  const feeEarnings = await prisma.tradingFee.aggregate({
-    where: {
-      referrerId: canonicalUserId,
-    },
-    _sum: {
-      referrerFee: true,
-    },
+  const [feeEarnings] = await db.select({
+    total: sum(tradingFees.referrerFee),
   })
-  
-  const totalFeesEarned = Number(feeEarnings._sum.referrerFee || 0)
+    .from(tradingFees)
+    .where(eq(tradingFees.referrerId, canonicalUserId));
+
+  const totalFeesEarned = Number(feeEarnings?.total || 0);
 
   // Calculate weekly referral count (last 7 days) - only completed
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const weeklyReferralCount = await prisma.referral.count({
-    where: {
-      referrerId: canonicalUserId,
-      status: 'completed',
-      completedAt: {
-        gte: oneWeekAgo,
-      },
-    },
-  });
+  const [weeklyCountResult] = await db.select({
+    count: count(),
+  })
+    .from(referrals)
+    .where(and(
+      eq(referrals.referrerId, canonicalUserId),
+      eq(referrals.status, 'completed'),
+      gte(referrals.completedAt, oneWeekAgo)
+    ));
+
+  const weeklyReferralCount = Number(weeklyCountResult?.count || 0);
 
   // Check if referrer (current user) is following the referred users
-  const completedUserIds = completedReferrals
+  const completedUserIds = completedReferralsData
     .map(r => r.referredUserId)
     .filter((id): id is string => id !== null);
   const pendingUserIds = pendingReferredUsers.map(u => u.id);
   const allReferredUserIds = [...completedUserIds, ...pendingUserIds];
 
-  const followStatuses = await prisma.follow.findMany({
-    where: {
-      followerId: canonicalUserId,
-      followingId: { in: allReferredUserIds },
-    },
-    select: {
-      followingId: true,
-    },
-  });
+  let followingUserIds = new Set<string>();
+  if (allReferredUserIds.length > 0) {
+    const followStatuses = await db.select({
+      followingId: follows.followingId,
+    })
+      .from(follows)
+      .where(and(
+        eq(follows.followerId, canonicalUserId),
+        inArray(follows.followingId, allReferredUserIds)
+      ));
 
-  const followingUserIds = new Set(followStatuses.map(f => f.followingId));
+    followingUserIds = new Set(followStatuses.map(f => f.followingId));
+  }
 
   // Format completed referred users with follow status
-  const completedReferredUsers = completedReferrals
-    .filter(r => r.User_Referral_referredUserIdToUser)
-    .map(r => ({
-      id: r.User_Referral_referredUserIdToUser!.id,
-      username: r.User_Referral_referredUserIdToUser!.username,
-      displayName: r.User_Referral_referredUserIdToUser!.displayName,
-      profileImageUrl: r.User_Referral_referredUserIdToUser!.profileImageUrl,
-      createdAt: r.User_Referral_referredUserIdToUser!.createdAt,
-      reputationPoints: r.User_Referral_referredUserIdToUser!.reputationPoints,
-      isFollowing: followingUserIds.has(r.User_Referral_referredUserIdToUser!.id),
-      joinedAt: r.completedAt,
-      status: 'completed' as const,
-    }));
+  const completedReferredUsers = completedReferralsData
+    .filter(r => r.referredUserId && completedUsersMap.has(r.referredUserId))
+    .map(r => {
+      const userData = completedUsersMap.get(r.referredUserId!)!;
+      return {
+        id: userData.id,
+        username: userData.username,
+        displayName: userData.displayName,
+        profileImageUrl: userData.profileImageUrl,
+        createdAt: userData.createdAt,
+        reputationPoints: userData.reputationPoints,
+        isFollowing: followingUserIds.has(userData.id),
+        joinedAt: r.completedAt,
+        status: 'completed' as const,
+      };
+    });
 
   // Format pending referred users
   const formattedPendingUsers = pendingReferredUsers.map(u => ({
@@ -247,9 +276,8 @@ export const GET = withErrorHandling(async (
     createdAt: u.createdAt,
     reputationPoints: u.reputationPoints,
     isFollowing: followingUserIds.has(u.id),
-    joinedAt: null, // No completion date yet
+    joinedAt: null,
     status: 'pending' as const,
-    // Include fallback identifiers for pending users
     email: u.email,
     farcasterUsername: u.farcasterUsername,
     twitterUsername: u.twitterUsername,
@@ -263,7 +291,7 @@ export const GET = withErrorHandling(async (
 
   logger.info('Referrals fetched successfully', { 
     userId: canonicalUserId, 
-    completedReferrals: completedReferrals.length,
+    completedReferrals: completedReferralsData.length,
     pendingReferrals: pendingReferredUsers.length,
   }, 'GET /api/users/[userId]/referrals');
 
@@ -286,7 +314,7 @@ export const GET = withErrorHandling(async (
       walletAddress: user.walletAddress,
     },
     stats: {
-      totalReferrals: completedReferrals.length, // Only completed count
+      totalReferrals: completedReferralsData.length, // Only completed count
       pendingReferrals: pendingReferredUsers.length, // NEW: Pending count
       totalFeesEarned,
       feeShareRate: 0.50, // 50% of fees

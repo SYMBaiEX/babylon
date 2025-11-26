@@ -7,6 +7,7 @@
 
 import { createGroq } from '@ai-sdk/groq'
 import { generateText } from 'ai'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService'
 import type { IAgentRuntime } from '@elizaos/core'
 
@@ -78,6 +79,20 @@ export async function callGroqDirect(params: {
           })
         }
       }
+
+      if (isPromptLoggingEnabled()) {
+        await logPrompt({
+          promptType: params.actionType || params.purpose || 'groq_direct_wandb',
+          input: `System: ${params.system || ''}\n\nUser: ${params.prompt}`,
+          output: result.text,
+          metadata: {
+            provider: 'wandb',
+            model,
+            temperature: params.temperature ?? 0.7,
+            maxTokens: params.maxTokens ?? 8192
+          }
+        })
+      }
       
       return result.text
     }
@@ -143,6 +158,20 @@ export async function callGroqDirect(params: {
         completionTokens: undefined,
       })
     }
+  }
+  
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: params.actionType || params.purpose || 'groq_direct',
+      input: `System: ${params.system || ''}\n\nUser: ${params.prompt}`,
+      output: result.text,
+      metadata: {
+        provider: 'groq',
+        model,
+        temperature: params.temperature ?? 0.7,
+        maxTokens: params.maxTokens ?? 8192
+      }
+    })
   }
   
   return result.text

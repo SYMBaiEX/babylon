@@ -99,7 +99,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
 import { withErrorHandling } from '@/lib/errors/error-handler';
@@ -210,7 +210,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Check if user exists
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true },
   })
@@ -223,7 +223,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Check if Farcaster account is already linked to another user
-  const existingLink = await prisma.user.findFirst({
+  const existingLink = await db.user.findFirst({
     where: {
       farcasterFid: fid.toString(),
       id: { not: userId },
@@ -238,7 +238,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Update user with Farcaster info
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       farcasterFid: fid.toString(),

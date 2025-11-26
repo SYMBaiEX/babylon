@@ -63,7 +63,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -124,55 +124,55 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     totalPointsTransactions,
   ] = await Promise.all([
     // User counts
-    prisma.user.count(),
-    prisma.actor.count(), // Count from Actor table, not User.isActor
-    prisma.user.count({ where: { isActor: false } }),
-    prisma.user.count({ where: { isBanned: true } }),
-    prisma.user.count({ where: { isAdmin: true } }),
-    prisma.user.count({ where: { createdAt: { gte: today } } }),
-    prisma.user.count({ where: { createdAt: { gte: lastWeek } } }),
-    prisma.user.count({ where: { createdAt: { gte: lastMonth } } }),
+    db.user.count(),
+    db.actor.count(), // Count from Actor table, not User.isActor
+    db.user.count({ where: { isActor: false } }),
+    db.user.count({ where: { isBanned: true } }),
+    db.user.count({ where: { isAdmin: true } }),
+    db.user.count({ where: { createdAt: { gte: today } } }),
+    db.user.count({ where: { createdAt: { gte: lastWeek } } }),
+    db.user.count({ where: { createdAt: { gte: lastMonth } } }),
     
     // Market and trading data
-    prisma.market.count(),
-    prisma.market.count({ where: { resolved: false, endDate: { gte: now } } }),
-    prisma.market.count({ where: { resolved: true } }),
-    prisma.position.count(),
-    prisma.balanceTransaction.count(),
-    prisma.nPCTrade.count(),
+    db.market.count(),
+    db.market.count({ where: { resolved: false, endDate: { gte: now } } }),
+    db.market.count({ where: { resolved: true } }),
+    db.position.count(),
+    db.balanceTransaction.count(),
+    db.npcTrade.count(),
     
     // Social engagement
-    prisma.post.count(),
-    prisma.comment.count(),
-    prisma.reaction.count(),
-    prisma.post.count({ where: { createdAt: { gte: today } } }),
+    db.post.count(),
+    db.comment.count(),
+    db.reaction.count(),
+    db.post.count({ where: { createdAt: { gte: today } } }),
     
     // Financial metrics
-    prisma.user.aggregate({
+    db.user.aggregate({
       _sum: { virtualBalance: true },
     }),
-    prisma.user.aggregate({
+    db.user.aggregate({
       _sum: { totalDeposited: true },
     }),
-    prisma.user.aggregate({
+    db.user.aggregate({
       _sum: { totalWithdrawn: true },
     }),
-    prisma.user.aggregate({
+    db.user.aggregate({
       _sum: { lifetimePnL: true },
     }),
     
     // Pools
-    prisma.pool.count(),
-    prisma.pool.count({ where: { isActive: true } }),
-    prisma.poolDeposit.count(),
+    db.pool.count(),
+    db.pool.count({ where: { isActive: true } }),
+    db.poolDeposit.count(),
     
     // Referrals and reputation
-    prisma.referral.count(),
-    prisma.pointsTransaction.count(),
+    db.referral.count(),
+    db.pointsTransaction.count(),
   ]);
 
   // Get top users by balance
-  const topUsersByBalance = await prisma.user.findMany({
+  const topUsersByBalance = await db.user.findMany({
     where: { isActor: false },
     orderBy: { virtualBalance: 'desc' },
     take: 10,
@@ -187,7 +187,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Get top users by reputation
-  const topUsersByReputation = await prisma.user.findMany({
+  const topUsersByReputation = await db.user.findMany({
     where: { isActor: false },
     orderBy: { reputationPoints: 'desc' },
     take: 10,
@@ -201,7 +201,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Get recent signups
-  const recentSignups = await prisma.user.findMany({
+  const recentSignups = await db.user.findMany({
     where: { isActor: false },
     orderBy: { createdAt: 'desc' },
     take: 10,
@@ -248,10 +248,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       reactions: totalReactions,
     },
     financial: {
-      totalVirtualBalance: totalVirtualBalance._sum.virtualBalance?.toString() || '0',
-      totalDeposited: totalDeposited._sum.totalDeposited?.toString() || '0',
-      totalWithdrawn: totalWithdrawn._sum.totalWithdrawn?.toString() || '0',
-      totalLifetimePnL: totalLifetimePnL._sum.lifetimePnL?.toString() || '0',
+      totalVirtualBalance: totalVirtualBalance._sum?.virtualBalance?.toString() || '0',
+      totalDeposited: totalDeposited._sum?.totalDeposited?.toString() || '0',
+      totalWithdrawn: totalWithdrawn._sum?.totalWithdrawn?.toString() || '0',
+      totalLifetimePnL: totalLifetimePnL._sum?.lifetimePnL?.toString() || '0',
     },
     pools: {
       total: totalPools,

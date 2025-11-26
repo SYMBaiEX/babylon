@@ -13,11 +13,11 @@ export const actorPortrait = definePrompt({
   id: 'actor-portrait',
   version: '4.0.0',
   category: 'image',
-  description: 'Generates actor profile pictures based on physicalDescription',
+  description: 'Generates actor profile pictures based on pfpDescription',
   template: `
 Create a profile picture portrait for "{{actorName}}" (satirical parody of {{realName}}).
 
-VISUAL DESCRIPTION: {{physicalDescription}}
+VISUAL DESCRIPTION: {{pfpDescription}}
 
 EXAGGERATE THE JOKE IN THE NAME "{{actorName}}":
 - If the name contains "Bot", "AI", or tech references → add robotic/cyborg elements, glowing circuits, mechanical parts

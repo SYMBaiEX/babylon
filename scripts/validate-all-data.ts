@@ -32,7 +32,7 @@ const ActorSchema = z.object({
   affiliations: z.array(z.string()),
   postStyle: z.string(),
   postExample: z.array(z.string()),
-  physicalDescription: z.string().optional(),
+  pfpDescription: z.string().optional(),
   profileBanner: z.string().optional(),
   originalFirstName: z.string(),
   originalLastName: z.string(),

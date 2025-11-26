@@ -5,14 +5,26 @@
  * Prevents double initialization and handles cleanup.
  */
 
-// Type for the global object used for singleton storage
+/**
+ * Type for singleton storage values.
+ * Uses unknown for type safety - callers must type cast when retrieving.
+ */
+type SingletonValue = unknown;
+
+/**
+ * Type for the global object used for singleton storage.
+ * Values are stored as unknown and type-cast when retrieved.
+ */
 interface GlobalSingletonStorage {
-  [key: string]: unknown;
+  [key: string]: SingletonValue;
 }
 
-// Helper to get typed global object
+/**
+ * Helper to get typed global object for singleton storage.
+ */
 function getGlobalStorage(): GlobalSingletonStorage {
-  return global as unknown as GlobalSingletonStorage;
+  // Global is a special Node.js object that holds global state
+  return global as GlobalSingletonStorage;
 }
 
 /**

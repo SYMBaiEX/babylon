@@ -110,10 +110,10 @@
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, users, userBlocks, follows, eq, and, or } from '@/db';
 import { BlockUserSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { BusinessLogicError, NotFoundError, InternalServerError } from '@/lib/errors';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 export const POST = withErrorHandling(async (
@@ -140,10 +140,15 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if target user exists
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetUserId },
-    select: { id: true, username: true, displayName: true, isActor: true },
-  });
+  const [targetUser] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    isActor: users.isActor,
+  })
+    .from(users)
+    .where(eq(users.id, targetUserId))
+    .limit(1);
 
   if (!targetUser) {
     throw new NotFoundError('User', targetUserId);
@@ -153,43 +158,48 @@ export const POST = withErrorHandling(async (
 
   if (action === 'block') {
     // Check if already blocked
-    const existingBlock = await prisma.userBlock.findUnique({
-      where: {
-        blockerId_blockedId: {
-          blockerId: authUser.userId,
-          blockedId: targetUserId,
-        },
-      },
-    });
+    const [existingBlock] = await db.select({ id: userBlocks.id })
+      .from(userBlocks)
+      .where(and(
+        eq(userBlocks.blockerId, authUser.userId),
+        eq(userBlocks.blockedId, targetUserId)
+      ))
+      .limit(1);
 
     if (existingBlock) {
       throw new BusinessLogicError('User is already blocked', 'ALREADY_BLOCKED');
     }
 
     // Create block
-    const block = await prisma.userBlock.create({
-      data: {
-        id: await generateSnowflakeId(),
-        blockerId: authUser.userId,
-        blockedId: targetUserId,
-        reason: reason || null,
-      },
-    });
+    const blockId = await generateSnowflakeId();
+    const [block] = await db.insert(userBlocks).values({
+      id: blockId,
+      blockerId: authUser.userId,
+      blockedId: targetUserId,
+      reason: reason || null,
+    }).returning();
+
+    if (!block) {
+      throw new InternalServerError('Failed to create block record');
+    }
 
     // Also unfollow if following
-    await prisma.follow.deleteMany({
-      where: {
-        OR: [
-          { followerId: authUser.userId, followingId: targetUserId },
-          { followerId: targetUserId, followingId: authUser.userId },
-        ],
-      },
-    });
+    await db.delete(follows)
+      .where(or(
+        and(
+          eq(follows.followerId, authUser.userId),
+          eq(follows.followingId, targetUserId)
+        ),
+        and(
+          eq(follows.followerId, targetUserId),
+          eq(follows.followingId, authUser.userId)
+        )
+      ));
 
     logger.info(`User blocked successfully`, { 
       userId: authUser.userId,
       targetUserId,
-      blockId: block.id 
+      blockId: block?.id 
     }, 'POST /api/users/[userId]/block');
 
     return successResponse({
@@ -199,14 +209,14 @@ export const POST = withErrorHandling(async (
     });
   } else {
     // Unblock
-    const deleted = await prisma.userBlock.deleteMany({
-      where: {
-        blockerId: authUser.userId,
-        blockedId: targetUserId,
-      },
-    });
+    const deleted = await db.delete(userBlocks)
+      .where(and(
+        eq(userBlocks.blockerId, authUser.userId),
+        eq(userBlocks.blockedId, targetUserId)
+      ))
+      .returning();
 
-    if (deleted.count === 0) {
+    if (deleted.length === 0) {
       throw new BusinessLogicError('User is not blocked', 'NOT_BLOCKED');
     }
 
@@ -233,24 +243,20 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const { userId: targetUserId } = await context.params;
 
-  const block = await prisma.userBlock.findUnique({
-    where: {
-      blockerId_blockedId: {
-        blockerId: authUser.userId,
-        blockedId: targetUserId,
-      },
-    },
-    select: {
-      id: true,
-      createdAt: true,
-      reason: true,
-    },
-  });
+  const [block] = await db.select({
+    id: userBlocks.id,
+    createdAt: userBlocks.createdAt,
+    reason: userBlocks.reason,
+  })
+    .from(userBlocks)
+    .where(and(
+      eq(userBlocks.blockerId, authUser.userId),
+      eq(userBlocks.blockedId, targetUserId)
+    ))
+    .limit(1);
 
   return successResponse({
     isBlocked: !!block,
-    block,
+    block: block ?? null,
   });
 });
-
-

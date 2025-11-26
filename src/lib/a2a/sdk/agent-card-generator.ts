@@ -4,7 +4,7 @@
  */
 
 import type { AgentCard } from '@a2a-js/sdk'
-import { prisma } from '@/lib/prisma'
+import { db, users, eq } from '@/db'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -128,20 +128,21 @@ function createAgentCardObject(
  * Generate an agent card for a specific agent
  */
 export async function generateAgentCard(agentId: string): Promise<AgentCard> {
-  const agent = await prisma.user.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
-      isAgent: true,
-      a2aEnabled: true
-    }
-  })
+  const [agent] = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
+      agentSystem: users.agentSystem,
+      agentPersonality: users.agentPersonality,
+      agentTradingStrategy: users.agentTradingStrategy,
+      isAgent: users.isAgent,
+      a2aEnabled: users.a2aEnabled,
+    })
+    .from(users)
+    .where(eq(users.id, agentId))
+    .limit(1);
 
   if (!agent || !agent.isAgent || !agent.a2aEnabled) {
     throw new Error(`Agent ${agentId} not found or A2A not enabled`)

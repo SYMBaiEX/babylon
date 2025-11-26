@@ -42,28 +42,25 @@ describe('E2E - Autonomous Agent Live Tests', () => {
       agentId: 'agent-888888-0x888888'
     }
     
-    // Create test user in database if needed
-    const { PrismaClient } = await import('@prisma/client')
-    const prisma = new PrismaClient()
+    // Create test user in database if needed using Drizzle
+    const { db, eq } = await import('../../../src/db')
+    const { users } = await import('../../../src/db/schema')
     
-    const existing = await prisma.user.findUnique({ where: { id: agentIdentity.agentId } })
-    if (!existing) {
-      await prisma.user.create({
-        data: {
-          id: agentIdentity.agentId,
-          walletAddress: agentIdentity.address,
-          displayName: 'E2E Test Agent',
-          username: 'e2e_test_agent',
-          email: 'e2e@test.local',
-          bio: 'E2E test user',
-          virtualBalance: 1000,
-          reputationPoints: 500,
-          updatedAt: new Date()
-        }
+    const existing = await db.select().from(users).where(eq(users.id, agentIdentity.agentId)).limit(1)
+    if (existing.length === 0) {
+      await db.insert(users).values({
+        id: agentIdentity.agentId,
+        walletAddress: agentIdentity.address,
+        displayName: 'E2E Test Agent',
+        username: 'e2e_test_agent',
+        email: 'e2e@test.local',
+        bio: 'E2E test user',
+        virtualBalance: '1000',
+        reputationPoints: 500,
+        updatedAt: new Date()
       })
       console.log('✅ Created E2E test user in database')
     }
-    await prisma.$disconnect()
     
     expect(agentIdentity).toBeDefined()
     expect(agentIdentity.tokenId).toBeGreaterThan(0)
@@ -296,4 +293,3 @@ describe('E2E - Autonomous Agent Live Tests', () => {
 })
 
 export {}
-

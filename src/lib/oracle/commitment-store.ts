@@ -10,7 +10,7 @@
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
-import { prisma } from '../prisma'
+import { db, oracleCommitments, eq, asc } from '@/db'
 import { logger } from '../logger'
 import type { StoredCommitment } from './types'
 
@@ -69,32 +69,49 @@ export class CommitmentStore {
   static async store(commitment: StoredCommitment): Promise<{ id: string; questionId: string }> {
     const encryptedSalt = this.encryptSalt(commitment.salt)
 
-    const result = await prisma.oracleCommitment.upsert({
-      where: {
-        questionId: commitment.questionId
-      },
-      update: {
-        sessionId: commitment.sessionId,
-        saltEncrypted: encryptedSalt,
-        commitment: commitment.commitment
-      },
-      create: {
-        id: `commitment-${commitment.questionId}-${Date.now()}`,
-        questionId: commitment.questionId,
-        sessionId: commitment.sessionId,
-        saltEncrypted: encryptedSalt,
-        commitment: commitment.commitment,
-        createdAt: commitment.createdAt
-      }
-    })
+    // Check if exists
+    const existing = await db.select({ id: oracleCommitments.id })
+      .from(oracleCommitments)
+      .where(eq(oracleCommitments.questionId, commitment.questionId))
+      .limit(1)
+
+    let result: { id: string; questionId: string }
+
+    if (existing.length > 0) {
+      // Update existing
+      const updated = await db.update(oracleCommitments)
+        .set({
+          sessionId: commitment.sessionId,
+          saltEncrypted: encryptedSalt,
+          commitment: commitment.commitment,
+        })
+        .where(eq(oracleCommitments.questionId, commitment.questionId))
+        .returning({ id: oracleCommitments.id, questionId: oracleCommitments.questionId })
+
+      result = updated[0]!
+    } else {
+      // Create new
+      const created = await db.insert(oracleCommitments)
+        .values({
+          id: `commitment-${commitment.questionId}-${Date.now()}`,
+          questionId: commitment.questionId,
+          sessionId: commitment.sessionId,
+          saltEncrypted: encryptedSalt,
+          commitment: commitment.commitment,
+          createdAt: commitment.createdAt,
+        })
+        .returning({ id: oracleCommitments.id, questionId: oracleCommitments.questionId })
+
+      result = created[0]!
+    }
 
     logger.info(
       `Stored commitment for question ${commitment.questionId}`,
       { 
         sessionId: commitment.sessionId,
         recordId: result.id,
-        wasCreated: !result.sessionId || result.sessionId === '',
-        operation: result.id.includes(commitment.questionId) ? 'upsert' : 'unknown'
+        wasCreated: existing.length === 0,
+        operation: 'upsert'
       },
       'CommitmentStore'
     )
@@ -112,9 +129,12 @@ export class CommitmentStore {
       'CommitmentStore'
     )
 
-    const stored = await prisma.oracleCommitment.findUnique({
-      where: { questionId }
-    })
+    const result = await db.select()
+      .from(oracleCommitments)
+      .where(eq(oracleCommitments.questionId, questionId))
+      .limit(1)
+
+    const stored = result[0]
 
     if (!stored) {
       logger.warn(
@@ -152,18 +172,14 @@ export class CommitmentStore {
    * Idempotent - won't fail if commitment already deleted
    */
   static async delete(questionId: string): Promise<void> {
-    try {
-      await prisma.oracleCommitment.delete({
-        where: { questionId }
-      })
+    const result = await db.delete(oracleCommitments)
+      .where(eq(oracleCommitments.questionId, questionId))
+      .returning({ id: oracleCommitments.id })
+
+    if (result.length > 0) {
       logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
-    } catch (error: unknown) {
-      // If record not found, that's okay (idempotent)
-      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2025') {
-        logger.info(`Commitment already deleted for question ${questionId}`, undefined, 'CommitmentStore')
-        return
-      }
-      throw error
+    } else {
+      logger.info(`Commitment already deleted for question ${questionId}`, undefined, 'CommitmentStore')
     }
   }
 
@@ -171,9 +187,9 @@ export class CommitmentStore {
    * List all pending commitments (for recovery/debugging)
    */
   static async listPending(): Promise<StoredCommitment[]> {
-    const stored = await prisma.oracleCommitment.findMany({
-      orderBy: { createdAt: 'asc' }
-    })
+    const stored = await db.select()
+      .from(oracleCommitments)
+      .orderBy(asc(oracleCommitments.createdAt))
 
     return stored.map(s => ({
       questionId: s.questionId,
@@ -184,5 +200,3 @@ export class CommitmentStore {
     }))
   }
 }
-
-

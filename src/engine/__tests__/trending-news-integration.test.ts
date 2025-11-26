@@ -15,6 +15,11 @@ import { FeedGenerator } from '../FeedGenerator';
 import type { BabylonLLMClient } from '../../generator/llm/openai-client';
 import type { FeedPost, Question, Organization, Actor } from '../../shared/types';
 
+/**
+ * Mock LLM client interface for testing
+ */
+interface MockLLMClient extends Pick<BabylonLLMClient, 'generateJSON' | 'getProvider'> {}
+
 describe('Trending Topics & News Integration', () => {
   let trendEngine: TrendingTopicsEngine;
   let pacingEngine: NewsArticlePacingEngine;
@@ -56,7 +61,7 @@ describe('Trending Topics & News Integration', () => {
 
   beforeEach(() => {
     // Mock LLM with realistic responses
-    mockLLM = {
+    const mockImpl: MockLLMClient = {
       getProvider: () => 'openai',
       generateJSON: mock(async (prompt: string) => {
         // Different responses based on prompt content
@@ -85,7 +90,8 @@ describe('Trending Topics & News Integration', () => {
         
         return {};
       })
-    } as unknown as BabylonLLMClient;
+    };
+    mockLLM = mockImpl as BabylonLLMClient;
 
     trendEngine = new TrendingTopicsEngine(mockLLM);
     pacingEngine = new NewsArticlePacingEngine();
@@ -378,11 +384,13 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should handle LLM failure gracefully for trends', async () => {
-      const failingLLM = {
+      const failingImpl: MockLLMClient = {
         generateJSON: mock(async () => {
           throw new Error('LLM timeout');
-        })
-      } as unknown as BabylonLLMClient;
+        }),
+        getProvider: () => 'openai'
+      };
+      const failingLLM = failingImpl as BabylonLLMClient;
 
       const engine = new TrendingTopicsEngine(failingLLM);
       
@@ -424,9 +432,10 @@ describe('Trending Topics & News Integration', () => {
 
     it('should throw if trending engine returns invalid context', () => {
       // Mock trending engine that returns empty
+      // Using Pick to create a partial mock that only implements getDetailedTrendContext
       const badEngine = {
         getDetailedTrendContext: () => '',
-      } as unknown as TrendingTopicsEngine;
+      } as Pick<TrendingTopicsEngine, 'getDetailedTrendContext'> as TrendingTopicsEngine;
 
       feedGen.setTrendingTopics(badEngine);
 
@@ -438,7 +447,7 @@ describe('Trending Topics & News Integration', () => {
 
   describe('Article Quality Validation', () => {
     it('should throw if article has empty title', async () => {
-      const badLLM = {
+      const badImpl: MockLLMClient = {
         getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
@@ -451,7 +460,8 @@ describe('Trending Topics & News Integration', () => {
             tags: { tag: ['test'] },
           }
         }))
-      } as unknown as BabylonLLMClient;
+      };
+      const badLLM = badImpl as BabylonLLMClient;
 
       const badArticleGen = new ArticleGenerator(badLLM);
 
@@ -467,7 +477,7 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should throw if article has empty summary', async () => {
-      const badLLM = {
+      const badImpl: MockLLMClient = {
         getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
@@ -480,7 +490,8 @@ describe('Trending Topics & News Integration', () => {
             tags: { tag: ['test'] },
           }
         }))
-      } as unknown as BabylonLLMClient;
+      };
+      const badLLM = badImpl as BabylonLLMClient;
 
       const badArticleGen = new ArticleGenerator(badLLM);
 
@@ -496,7 +507,7 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should throw if article content is too short', async () => {
-      const badLLM = {
+      const badImpl: MockLLMClient = {
         getProvider: () => 'openai',
         generateJSON: mock(async () => ({
           response: {
@@ -509,7 +520,8 @@ describe('Trending Topics & News Integration', () => {
             tags: { tag: ['test'] },
           }
         }))
-      } as unknown as BabylonLLMClient;
+      };
+      const badLLM = badImpl as BabylonLLMClient;
 
       const badArticleGen = new ArticleGenerator(badLLM);
 

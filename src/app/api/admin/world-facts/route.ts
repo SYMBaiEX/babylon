@@ -97,7 +97,7 @@ import { worldFactsService } from '@/lib/services/world-facts-service';
 import { rssFeedService } from '@/lib/services/rss-feed-service';
 import { createParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
 import { characterMappingService } from '@/lib/services/character-mapping-service';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { logger } from '@/lib/logger';
 import { readFileSync } from 'fs';
@@ -172,13 +172,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       const label = value.split(':')[0].trim().substring(0, 60);
       
       // Check if fact already exists
-      const existing = await prisma.worldFact.findUnique({
-        where: { category_key: { category: factCategory, key } },
+      const existing = await db.worldFact.findFirst({
+        where: {
+          AND: [
+            { category: { equals: factCategory } },
+            { key: { equals: key } },
+          ],
+        },
       });
       
       let fact;
       if (existing) {
-        fact = await prisma.worldFact.update({
+        fact = await db.worldFact.update({
           where: { id: existing.id },
           data: {
             label,
@@ -187,7 +192,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           },
         });
       } else {
-        fact = await prisma.worldFact.create({
+        fact = await db.worldFact.create({
           data: {
             id: await generateSnowflakeId(),
             category: factCategory,
@@ -197,6 +202,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             source: 'default',
             priority: 0,
             lastUpdated: new Date(),
+            updatedAt: new Date(),
           },
         });
       }

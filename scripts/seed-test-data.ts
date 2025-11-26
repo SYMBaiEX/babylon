@@ -16,7 +16,7 @@
  *   bun run scripts/seed-test-data.ts all           # Create all test data
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ethers } from 'ethers';
@@ -71,7 +71,7 @@ async function seedAutonomousAgents(): Promise<number> {
   let created = 0;
   
   for (const config of AUTONOMOUS_AGENT_CONFIGS) {
-    const existing = await prisma.user.findFirst({
+    const existing = await db.user.findFirst({
       where: {
         isAgent: true,
         username: config.username,
@@ -83,7 +83,7 @@ async function seedAutonomousAgents(): Promise<number> {
       
       const currentBalance = existing.virtualBalance ? Number(existing.virtualBalance) : 0;
       
-      await prisma.user.update({
+      await db.user.update({
         where: { id: existing.id },
         data: {
           displayName: config.displayName,
@@ -96,7 +96,7 @@ async function seedAutonomousAgents(): Promise<number> {
           autonomousPosting: config.autonomousPosting,
           autonomousCommenting: config.autonomousCommenting,
           agentPointsBalance: existing.agentPointsBalance < 10000 ? 10000 : existing.agentPointsBalance,
-          virtualBalance: currentBalance < 10000 ? 10000 : currentBalance,
+          virtualBalance: (currentBalance < 10000 ? 10000 : currentBalance).toString(),
           updatedAt: new Date(),
         },
       });
@@ -107,7 +107,7 @@ async function seedAutonomousAgents(): Promise<number> {
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
     
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: agentId,
         privyId: `did:privy:test-${agentId}`,
@@ -127,7 +127,7 @@ async function seedAutonomousAgents(): Promise<number> {
         autonomousCommenting: config.autonomousCommenting,
         autonomousDMs: true,
         autonomousGroupChats: true,
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         isTest: false, // These are demo agents, not test agents
         profileComplete: true,
@@ -247,14 +247,14 @@ async function seedA2ATestAgents(): Promise<number> {
   let created = 0;
   
   for (const config of A2A_TEST_AGENT_CONFIGS) {
-    const existing = await prisma.user.findUnique({
+    const existing = await db.user.findUnique({
       where: { username: config.username }
     });
     
     if (existing) {
       const walletAddress = existing.walletAddress || `0x${config.username.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').substring(0, 40).padEnd(40, '0')}`;
       
-      await prisma.user.update({
+      await db.user.update({
         where: { id: existing.id },
         data: {
           walletAddress,
@@ -262,7 +262,7 @@ async function seedA2ATestAgents(): Promise<number> {
           ...config.features,
           agentPointsBalance: 1000,
           agentModelTier: 'free',
-          virtualBalance: 10000,
+          virtualBalance: '10000',
           updatedAt: new Date(),
         }
       });
@@ -273,7 +273,7 @@ async function seedA2ATestAgents(): Promise<number> {
     
     const walletAddress = `0x${config.username.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').substring(0, 40).padEnd(40, '0')}`;
     
-    const agent = await prisma.user.create({
+    const agent = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
         username: config.username,
@@ -285,7 +285,7 @@ async function seedA2ATestAgents(): Promise<number> {
         ...config.features,
         agentPointsBalance: 1000,
         agentModelTier: 'free',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 100,
         hasUsername: true,
         profileComplete: true,
@@ -317,7 +317,7 @@ async function seedBenchmarkAgents(): Promise<number> {
   let created = 0;
   
   for (const config of configs) {
-    let agent = await prisma.user.findFirst({
+    let agent = await db.user.findFirst({
       where: {
         isAgent: true,
         username: config.username,
@@ -332,7 +332,7 @@ async function seedBenchmarkAgents(): Promise<number> {
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
     
-    agent = await prisma.user.create({
+    agent = await db.user.create({
       data: {
         id: agentId,
         privyId: `did:privy:test-${agentId}`,
@@ -345,7 +345,7 @@ async function seedBenchmarkAgents(): Promise<number> {
         autonomousCommenting: false,
         agentSystem: 'You are a disciplined trading agent focused on consistent profits.',
         agentModelTier: 'lite',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         agentPointsBalance: 10000,
         isTest: true,
@@ -422,7 +422,7 @@ async function seedModerationTestUsers(): Promise<number> {
   // Create reporter users
   const reporterUsers = [];
   for (let i = 0; i < 10; i++) {
-    const reporter = await prisma.user.upsert({
+    const reporter = await db.user.upsert({
       where: { username: `reporter${i}` },
       update: { updatedAt: new Date() },
       create: {
@@ -434,10 +434,10 @@ async function seedModerationTestUsers(): Promise<number> {
         profileComplete: true,
         reputationPoints: 1000,
         referralCode: `REPORTER${i}`,
-        virtualBalance: 1000,
-        totalDeposited: 1000,
-        totalWithdrawn: 0,
-        lifetimePnL: 0,
+        virtualBalance: '1000',
+        totalDeposited: '1000',
+        totalWithdrawn: '0',
+        lifetimePnL: '0',
         updatedAt: new Date(),
       },
     });
@@ -445,7 +445,7 @@ async function seedModerationTestUsers(): Promise<number> {
   }
 
   // Create admin user
-  const adminUser = await prisma.user.upsert({
+  const adminUser = await db.user.upsert({
     where: { username: 'testadmin' },
     update: { isAdmin: true, updatedAt: new Date() },
     create: {
@@ -457,10 +457,10 @@ async function seedModerationTestUsers(): Promise<number> {
       profileComplete: true,
       reputationPoints: 10000,
       referralCode: 'ADMIN123',
-      virtualBalance: 10000,
-      totalDeposited: 10000,
-      totalWithdrawn: 0,
-      lifetimePnL: 0,
+      virtualBalance: '10000',
+      totalDeposited: '10000',
+      totalWithdrawn: '0',
+      lifetimePnL: '0',
       isAdmin: true,
         updatedAt: new Date(),
     },
@@ -469,7 +469,7 @@ async function seedModerationTestUsers(): Promise<number> {
   let created = 0;
   
   for (const testUser of MODERATION_TEST_USERS) {
-    const user = await prisma.user.upsert({
+    const user = await db.user.upsert({
       where: { username: testUser.username },
       update: {
         isBanned: testUser.isBanned || false,
@@ -487,10 +487,10 @@ async function seedModerationTestUsers(): Promise<number> {
         profileComplete: true,
         reputationPoints: 1000,
         referralCode: testUser.username.toUpperCase(),
-        virtualBalance: 1000,
-        totalDeposited: 1000,
-        totalWithdrawn: 0,
-        lifetimePnL: 0,
+        virtualBalance: '1000',
+        totalDeposited: '1000',
+        totalWithdrawn: '0',
+        lifetimePnL: '0',
         isBanned: testUser.isBanned || false,
         bannedAt: testUser.isBanned ? new Date() : null,
         bannedReason: testUser.bannedReason || null,
@@ -500,17 +500,17 @@ async function seedModerationTestUsers(): Promise<number> {
     });
 
     // Clean up existing moderation data
-    await prisma.report.deleteMany({ where: { reportedUserId: user.id } });
-    await prisma.userBlock.deleteMany({ where: { blockedId: user.id } });
-    await prisma.userMute.deleteMany({ where: { mutedId: user.id } });
-    await prisma.follow.deleteMany({ where: { followingId: user.id } });
+    await db.report.deleteMany({ where: { reportedUserId: user.id } });
+    await db.userBlock.deleteMany({ where: { blockedId: user.id } });
+    await db.userMute.deleteMany({ where: { mutedId: user.id } });
+    await db.follow.deleteMany({ where: { followingId: user.id } });
 
     // Create followers
     for (let i = 0; i < testUser.followersToCreate; i++) {
       const follower = reporterUsers[i % reporterUsers.length];
       if (!follower) continue;
       
-      await prisma.follow.create({
+      await db.follow.create({
         data: {
           id: nanoid(),
           followerId: follower.id,
@@ -531,7 +531,7 @@ async function seedModerationTestUsers(): Promise<number> {
       const category = categories[Math.floor(Math.random() * categories.length)];
       if (!category) continue;
       
-      await prisma.report.create({
+      await db.report.create({
         data: {
           id: nanoid(),
           reporterId: reporter.id,
@@ -542,6 +542,7 @@ async function seedModerationTestUsers(): Promise<number> {
           status: i % 3 === 0 ? 'resolved' : i % 3 === 1 ? 'pending' : 'reviewing',
           priority: i % 4 === 0 ? 'critical' : i % 4 === 1 ? 'high' : i % 4 === 2 ? 'normal' : 'low',
           createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+          updatedAt: new Date(),
         },
       });
     }
@@ -551,7 +552,7 @@ async function seedModerationTestUsers(): Promise<number> {
       const blocker = reporterUsers[i % reporterUsers.length];
       if (!blocker) continue;
       
-      await prisma.userBlock.create({
+      await db.userBlock.create({
         data: {
           id: nanoid(),
           blockerId: blocker.id,
@@ -569,7 +570,7 @@ async function seedModerationTestUsers(): Promise<number> {
       const muter = reporterUsers[i % reporterUsers.length];
       if (!muter) continue;
       
-      await prisma.userMute.create({
+      await db.userMute.create({
         data: {
           id: nanoid(),
           muterId: muter.id,
@@ -656,7 +657,7 @@ async function main(): Promise<void> {
     logger.error('Seed failed', { error }, 'SeedTestData');
     throw error;
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
 

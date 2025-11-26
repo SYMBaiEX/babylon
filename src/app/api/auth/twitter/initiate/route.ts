@@ -39,7 +39,7 @@ import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import crypto from 'crypto'
 
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   const codeChallenge = generateCodeChallenge(codeVerifier)
   
   // Store code verifier temporarily (expires in 10 minutes)
-  const oauthRecord = await prisma.oAuthState.create({
+  const oauthRecord = await db.oAuthState.create({
     data: {
       id: await generateSnowflakeId(),
       userId,

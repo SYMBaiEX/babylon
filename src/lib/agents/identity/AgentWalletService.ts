@@ -9,7 +9,7 @@
  */
 
 import { PrivyClient } from '@privy-io/server-auth'
-import { prisma } from '@/lib/prisma'
+import { db, users, agentLogs, eq, type JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { v4 as uuidv4 } from 'uuid'
@@ -66,7 +66,11 @@ export class AgentWalletService {
     privyUserId: string
     privyWalletId: string
   }> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agent || !agent.isAgent) {
       throw new Error('Agent user not found')
     }
@@ -91,7 +95,12 @@ export class AgentWalletService {
     const hasPrivyConfig = !!(privyAppId && privyAppSecret);
     
     // Check if createUser method exists (it may not in newer Privy SDK versions)
-    const hasCreateUserMethod = typeof (privy as unknown as { createUser?: unknown }).createUser === 'function';
+    // PrivyClient may have createUser method that's not in the type definition
+    interface PrivyClientWithCreateUser {
+      createUser?: (params: PrivyCreateUserParams) => Promise<PrivyUser>
+    }
+    const privyWithCreateUser = privy as PrivyClientWithCreateUser
+    const hasCreateUserMethod = typeof privyWithCreateUser.createUser === 'function'
     
     // If Privy is not available, skip directly to dev wallet (no error)
     if (!hasPrivyConfig || !hasCreateUserMethod) {
@@ -107,13 +116,12 @@ export class AgentWalletService {
       const privyUserId = `dev_${agentUserId}`
       const privyWalletId = `dev_wallet_${agentUserId}`
       
-      await prisma.user.update({
-        where: { id: agentUserId },
-        data: {
+      await db.update(users)
+        .set({
           walletAddress,
-          privyId: privyUserId
-        }
-      })
+          privyId: privyUserId,
+        })
+        .where(eq(users.id, agentUserId))
       
       return { walletAddress, privyUserId, privyWalletId }
     }
@@ -123,7 +131,10 @@ export class AgentWalletService {
     
     // Step 1: Create Privy user for the agent (server-side)
     // Privy allows server-side user creation without user interaction
-    const privyUser = await (privy as unknown as { createUser: (params: PrivyCreateUserParams) => Promise<PrivyUser> }).createUser({
+    if (!privyWithCreateUser.createUser) {
+      throw new Error('Privy createUser method not available')
+    }
+    const privyUser = await privyWithCreateUser.createUser({
       create_embedded_wallet: true,
       linked_accounts: []
     })
@@ -137,17 +148,16 @@ export class AgentWalletService {
     const privyWalletId = privyUser.wallet.id
 
     // Step 2: Update agent user with wallet info
-    await prisma.user.update({
-      where: { id: agentUserId },
-      data: {
+    await db.update(users)
+      .set({
         walletAddress,
-        privyId: privyUserId
-      }
-    })
+        privyId: privyUserId,
+      })
+      .where(eq(users.id, agentUserId))
 
     // Step 3: Log wallet creation
-    await prisma.agentLog.create({
-      data: {
+    await db.insert(agentLogs)
+      .values({
         id: uuidv4(),
         agentUserId,
         type: 'system',
@@ -158,8 +168,7 @@ export class AgentWalletService {
           privyWalletId,
           walletAddress
         }
-      }
-    })
+      })
 
     logger.info(`Privy wallet created for agent ${agentUserId}: ${walletAddress}`, undefined, 'AgentWalletService')
     
@@ -176,7 +185,11 @@ export class AgentWalletService {
   }> {
     logger.info(`Registering agent ${agentUserId} on-chain`, undefined, 'AgentWalletService')
 
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
+
     if (!agent || !agent.isAgent) {
       throw new Error('Agent user not found')
     }
@@ -220,19 +233,18 @@ export class AgentWalletService {
     })
 
     // Step 3: Update agent with on-chain data
-    await prisma.user.update({
-      where: { id: agentUserId },
-      data: {
+    await db.update(users)
+      .set({
         agent0TokenId: registration.tokenId,
-        agent0MetadataCID: registration.metadataCID,
+        agent0MetadataCID: registration.metadataCID ?? null,
         registrationTxHash: registration.txHash,
-        onChainRegistered: true
-      }
-    })
+        onChainRegistered: true,
+      })
+      .where(eq(users.id, agentUserId))
 
     // Step 4: Log registration
-    await prisma.agentLog.create({
-      data: {
+    await db.insert(agentLogs)
+      .values({
         id: uuidv4(),
         agentUserId,
         type: 'system',
@@ -242,9 +254,8 @@ export class AgentWalletService {
           tokenId: registration.tokenId,
           txHash: registration.txHash,
           metadataCID: registration.metadataCID
-        }
-      }
-    })
+        } as JsonValue
+      })
 
     logger.info(`Agent ${agentUserId} registered on-chain: Token ID ${registration.tokenId}`, undefined, 'AgentWalletService')
     
@@ -287,14 +298,14 @@ export class AgentWalletService {
     value: string
     data: string
   }): Promise<string> {
-    const agent = await prisma.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        id: true,
-        isAgent: true,
-        privyId: true
-      }
+    const [agent] = await db.select({
+      id: users.id,
+      isAgent: users.isAgent,
+      privyId: users.privyId,
     })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
     
     if (!agent || !agent.isAgent) {
       throw new Error('Agent not found')
@@ -321,7 +332,10 @@ export class AgentWalletService {
    * Returns false on failure instead of throwing.
    */
   async verifyOnChainIdentity(agentUserId: string): Promise<boolean> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
     
     if (!agent || !agent.isAgent || !agent.agent0TokenId) {
       return false
@@ -336,4 +350,3 @@ export class AgentWalletService {
 }
 
 export const agentWalletService = new AgentWalletService()
-

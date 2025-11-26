@@ -1,14 +1,14 @@
 /**
  * TypeScript types for Training Pipeline
- * 
+ *
  * Proper types to replace 'any' usage throughout the training system
  */
 
-import type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog, Prisma } from '@prisma/client';
+import type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog } from '@/db';
+import type { WhereInput, OrderByInput, SelectInput } from '@/db/types';
 
-// Re-export Prisma types for convenience
+// Re-export schema types for convenience
 export type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog };
-export type { Prisma };
 
 // Trajectory Step types
 // Note: These are simplified versions for training pipeline.
@@ -64,13 +64,13 @@ export interface Action {
     predictionCorrect?: boolean; // Was the prediction correct?
     actualOutcome?: boolean; // Actual market outcome (YES=true, NO=false)
     predictedOutcome?: boolean; // What agent predicted
-    
+
     // Perp trade correctness
     perpCorrect?: boolean; // Was the perp trade correct?
     sentimentAtTrade?: number; // Sentiment at time of trade (-1 to 1)
     priceChange?: number; // Actual price change after trade
     expectedDirection?: 'up' | 'down'; // Expected direction based on sentiment
-    
+
     // Sentiment analysis accuracy
     sentimentAccuracy?: number; // How accurate was sentiment reading (0-1)
     sentimentAtTime?: number; // Sentiment value at time of action
@@ -105,7 +105,7 @@ export interface TrajectoryMetadata {
   };
 }
 
-// Scenario group result (from Prisma groupBy)
+// Scenario group result (from database groupBy)
 export interface ScenarioGroupResult {
   scenarioId: string | null;
   _count: number;
@@ -192,7 +192,6 @@ export interface TrajectoryWithParsedData extends Trajectory {
 }
 
 // Helper type for trajectory queries
-export type TrajectorySelect = Prisma.TrajectorySelect;
-export type TrajectoryWhereInput = Prisma.TrajectoryWhereInput;
-export type TrajectoryOrderByInput = Prisma.TrajectoryOrderByWithRelationInput;
-
+export type TrajectorySelect = SelectInput<Trajectory>;
+export type TrajectoryWhereInput = WhereInput<Trajectory>;
+export type TrajectoryOrderByInput = OrderByInput<Trajectory>;

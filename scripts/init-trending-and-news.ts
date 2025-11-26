@@ -9,7 +9,7 @@
  * Run: bun run scripts/init-trending-and-news.ts
  */
 
-import { prisma } from '../src/lib/prisma'
+import { db, postTags, posts, eq, gte } from '@/db'
 import { logger } from '../src/lib/logger'
 import { generateSnowflakeId } from '../src/lib/snowflake'
 import { nanoid } from 'nanoid'
@@ -138,7 +138,7 @@ const SAMPLE_NEWS_ARTICLES = [
 async function initializeTrending() {
   logger.info('Checking trending tags...', undefined, 'InitTrendingNews')
 
-  const existingTrending = await prisma.trendingTag.count()
+  const existingTrending = await db.trendingTag.count()
   
   if (existingTrending >= MIN_TRENDING_TAGS) {
     logger.info(`✅ Trending already populated (${existingTrending} tags)`, undefined, 'InitTrendingNews')
@@ -150,7 +150,7 @@ async function initializeTrending() {
   // Create tags
   const createdTags = []
   for (const tagData of SAMPLE_TAGS) {
-    const tag =     await prisma.tag.upsert({
+    const tag =     await db.tag.upsert({
       where: { name: tagData.name },
       update: {},
       create: {
@@ -165,7 +165,7 @@ async function initializeTrending() {
   logger.info(`Created ${createdTags.length} tags`, undefined, 'InitTrendingNews')
 
   // Link recent posts to tags (if any posts exist)
-  const recentPosts = await prisma.post.findMany({
+  const recentPosts = await db.post.findMany({
     take: 30,
     orderBy: { timestamp: 'desc' },
     select: { id: true, content: true },
@@ -204,17 +204,17 @@ async function initializeTrending() {
         const tag = createdTags.find(t => t.name === tagName)
         if (tag) {
           // Check if link already exists
-          const existing = await prisma.postTag.findUnique({
+          const existing = await db.postTag.findFirst({
             where: {
-              postId_tagId: {
-                postId: post.id,
-                tagId: tag.id,
-              },
+              AND: [
+                { postId: { equals: post.id } },
+                { tagId: { equals: tag.id } },
+              ],
             },
           })
           
           if (!existing) {
-            await prisma.postTag.create({
+            await db.postTag.create({
               data: {
                 id: nanoid(),
                 postId: post.id,
@@ -238,23 +238,19 @@ async function initializeTrending() {
 
   logger.info('Calculating trending scores...', undefined, 'InitTrendingNews')
 
-  // Get tag counts using aggregation instead of raw SQL
-  const postTags = await prisma.postTag.findMany({
-    where: {
-      Post: {
-        timestamp: {
-          gte: weekAgo,
-        },
-      },
-    },
-    include: {
-      Tag: true,
-    },
-  })
+  // Get tag counts using a join query
+  const postTagResults = await db
+    .select({
+      tagId: postTags.tagId,
+      postId: postTags.postId,
+    })
+    .from(postTags)
+    .innerJoin(posts, eq(postTags.postId, posts.id))
+    .where(gte(posts.timestamp, weekAgo))
 
   // Count tags manually
   const tagCountMap = new Map<string, number>()
-  postTags.forEach(pt => {
+  postTagResults.forEach(pt => {
     const count = tagCountMap.get(pt.tagId) || 0
     tagCountMap.set(pt.tagId, count + 1)
   })
@@ -275,7 +271,7 @@ async function initializeTrending() {
     
     const randomTag = SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)]
 
-    await prisma.trendingTag.create({
+    await db.trendingTag.create({
       data: {
         id: nanoid(),
         tagId,
@@ -305,7 +301,7 @@ async function initializeTrending() {
       const score = (MIN_TRENDING_TAGS - i) * 10 * Math.random()
       const randomTag = SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)]
       
-      await prisma.trendingTag.create({
+      await db.trendingTag.create({
         data: {
           id: nanoid(),
           tagId: tag.id,
@@ -331,7 +327,7 @@ async function initializeTrending() {
 async function initializeNews() {
   logger.info('Checking news articles...', undefined, 'InitTrendingNews')
 
-  const existingArticles = await prisma.post.count({
+  const existingArticles = await db.post.count({
     where: { type: 'article' },
   })
 
@@ -343,7 +339,7 @@ async function initializeNews() {
   logger.info('Creating news articles...', undefined, 'InitTrendingNews')
 
   // Get news organizations
-  const newsOrgs = await prisma.organization.findMany({
+  const newsOrgs = await db.organization.findMany({
     where: { type: 'media' },
     take: 5,
   })
@@ -370,7 +366,7 @@ async function initializeNews() {
 
     if (!article || !org) continue
 
-    await prisma.post.create({
+    await db.post.create({
       data: {
         id: await generateSnowflakeId(),
         type: 'article',
@@ -402,8 +398,8 @@ async function main() {
   await initializeNews()
 
   // Show results
-  const trendingCount = await prisma.trendingTag.count()
-  const newsCount = await prisma.post.count({ where: { type: 'article' } })
+  const trendingCount = await db.trendingTag.count()
+  const newsCount = await db.post.count({ where: { type: 'article' } })
 
   logger.info('', undefined, 'InitTrendingNews')
   logger.info('📊 Summary:', undefined, 'InitTrendingNews')
@@ -424,7 +420,7 @@ async function main() {
     logger.info('💡 More content will be generated by game ticks', undefined, 'InitTrendingNews')
   }
 
-  await prisma.$disconnect()
+  await db.$disconnect()
 }
 
 main()

@@ -14,13 +14,19 @@
  * @see BenchmarkService - For training pipeline evaluation
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
+import { trainedModels, benchmarkResults, users } from '@/db/schema';
+import { eq, isNull, and, desc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { BenchmarkRunner } from './BenchmarkRunner';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import { logger } from '@/lib/logger';
 import type { SimulationResult, SimulationMetrics } from './SimulationEngine';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { ethers } from 'ethers';
+import type { JsonValue } from '@/db/types';
 
 export interface ModelBenchmarkOptions {
   modelId: string;
@@ -79,9 +85,8 @@ export class ModelBenchmarkService {
     logger.info('Starting model benchmark', { modelId: options.modelId });
 
     // Load model from database
-    const model = await prisma.trainedModel.findUnique({
-      where: { modelId: options.modelId },
-    });
+    const modelResult = await db.select().from(trainedModels).where(eq(trainedModels.modelId, options.modelId)).limit(1);
+    const model = modelResult[0];
 
     if (!model) {
       throw new Error(`Model not found: ${options.modelId}`);
@@ -161,16 +166,13 @@ export class ModelBenchmarkService {
       const avgOptimality = results.reduce((sum, r) => sum + r.metrics.optimalityScore, 0) / results.length;
       const avgPnl = results.reduce((sum, r) => sum + r.metrics.totalPnl, 0) / results.length;
       
-      await prisma.trainedModel.update({
-        where: { modelId: options.modelId },
-        data: {
-          benchmarkScore: avgOptimality,
-          avgReward: avgPnl,
-          lastBenchmarked: new Date(),
-          benchmarkCount: { increment: results.length },
-          updatedAt: new Date(),
-        },
-      });
+      await db.update(trainedModels).set({
+        benchmarkScore: avgOptimality,
+        avgReward: avgPnl,
+        lastBenchmarked: new Date(),
+        benchmarkCount: sql`${trainedModels.benchmarkCount} + ${results.length}`,
+        updatedAt: new Date(),
+      }).where(eq(trainedModels.modelId, options.modelId));
     }
 
     logger.info('Model benchmark complete', {
@@ -244,15 +246,10 @@ export class ModelBenchmarkService {
    * Get all unbenchmarked models
    */
   static async getUnbenchmarkedModels(): Promise<string[]> {
-    const models = await prisma.trainedModel.findMany({
-      where: {
-        status: 'ready',
-        benchmarkScore: null,
-      },
-      select: {
-        modelId: true,
-      },
-    });
+    const models = await db.select({ modelId: trainedModels.modelId }).from(trainedModels).where(and(
+      eq(trainedModels.status, 'ready'),
+      isNull(trainedModels.benchmarkScore)
+    ));
 
     return models.map(m => m.modelId);
   }
@@ -268,10 +265,8 @@ export class ModelBenchmarkService {
     const results: ModelBenchmarkResult[] = [];
 
     try {
-      const model = await prisma.trainedModel.findUnique({
-        where: { modelId },
-        select: { version: true },
-      });
+      const modelResult = await db.select({ version: trainedModels.version }).from(trainedModels).where(eq(trainedModels.modelId, modelId)).limit(1);
+      const model = modelResult[0];
 
       if (!model) return results;
 
@@ -299,25 +294,21 @@ export class ModelBenchmarkService {
    * Save benchmark result to database
    */
   private static async saveBenchmarkResultToDatabase(result: ModelBenchmarkResult): Promise<void> {
-    const { generateSnowflakeId } = await import('@/lib/snowflake');
-    
-    await prisma.benchmarkResult.create({
-      data: {
-        id: await generateSnowflakeId(),
-        modelId: result.modelId,
-        benchmarkId: result.benchmarkId,
-        benchmarkPath: result.benchmarkPath,
-        runAt: result.runAt,
-        totalPnl: result.metrics.totalPnl,
-        predictionAccuracy: result.metrics.predictionMetrics.accuracy,
-        perpWinRate: result.metrics.perpMetrics.winRate,
-        optimalityScore: result.metrics.optimalityScore,
-        detailedMetrics: JSON.parse(JSON.stringify(result.metrics)),
-        baselinePnlDelta: result.comparisonToBaseline?.pnlDelta,
-        baselineAccuracyDelta: result.comparisonToBaseline?.accuracyDelta,
-        improved: result.comparisonToBaseline?.improved,
-        duration: result.metrics.timing.totalDuration,
-      },
+    await db.insert(benchmarkResults).values({
+      id: await generateSnowflakeId(),
+      modelId: result.modelId,
+      benchmarkId: result.benchmarkId,
+      benchmarkPath: result.benchmarkPath,
+      runAt: result.runAt,
+      totalPnl: result.metrics.totalPnl,
+      predictionAccuracy: result.metrics.predictionMetrics.accuracy,
+      perpWinRate: result.metrics.perpMetrics.winRate,
+      optimalityScore: result.metrics.optimalityScore,
+      detailedMetrics: JSON.parse(JSON.stringify(result.metrics)),
+      baselinePnlDelta: result.comparisonToBaseline?.pnlDelta,
+      baselineAccuracyDelta: result.comparisonToBaseline?.accuracyDelta,
+      improved: result.comparisonToBaseline?.improved,
+      duration: result.metrics.timing.totalDuration,
     });
     
     logger.info('Benchmark result saved to database', {
@@ -345,10 +336,7 @@ export class ModelBenchmarkService {
    * Get benchmark results from database
    */
   static async getBenchmarkResultsFromDatabase(modelId: string): Promise<ModelBenchmarkResult[]> {
-    const results = await prisma.benchmarkResult.findMany({
-      where: { modelId },
-      orderBy: { runAt: 'desc' },
-    });
+    const results = await db.select().from(benchmarkResults).where(eq(benchmarkResults.modelId, modelId)).orderBy(desc(benchmarkResults.runAt));
 
     return results.map(r => ({
       modelId: r.modelId,
@@ -356,10 +344,10 @@ export class ModelBenchmarkService {
       benchmarkId: r.benchmarkId,
       benchmarkPath: r.benchmarkPath,
       runAt: r.runAt,
-      metrics: r.detailedMetrics as unknown as SimulationMetrics,
+      metrics: this.validateSimulationMetrics(r.detailedMetrics),
       comparisonToBaseline: r.baselinePnlDelta !== null ? {
-        pnlDelta: r.baselinePnlDelta!,
-        accuracyDelta: r.baselineAccuracyDelta!,
+        pnlDelta: r.baselinePnlDelta,
+        accuracyDelta: r.baselineAccuracyDelta ?? 0,
         optimalityDelta: 0, // Not stored separately
         improved: r.improved || false,
       } : undefined,
@@ -455,44 +443,122 @@ export class ModelBenchmarkService {
   }
 
   /**
+   * Validate and convert JsonValue to SimulationMetrics
+   */
+  private static validateSimulationMetrics(data: JsonValue): SimulationMetrics {
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('Invalid SimulationMetrics: expected object');
+    }
+    
+    const metrics = data as Record<string, JsonValue>;
+    
+    // Validate required fields
+    if (typeof metrics.totalPnl !== 'number') {
+      throw new Error('Invalid SimulationMetrics: totalPnl must be a number');
+    }
+    
+    if (typeof metrics.predictionMetrics !== 'object' || metrics.predictionMetrics === null) {
+      throw new Error('Invalid SimulationMetrics: predictionMetrics must be an object');
+    }
+    
+    if (typeof metrics.perpMetrics !== 'object' || metrics.perpMetrics === null) {
+      throw new Error('Invalid SimulationMetrics: perpMetrics must be an object');
+    }
+    
+    if (typeof metrics.optimalityScore !== 'number') {
+      throw new Error('Invalid SimulationMetrics: optimalityScore must be a number');
+    }
+    
+    if (typeof metrics.timing !== 'object' || metrics.timing === null) {
+      throw new Error('Invalid SimulationMetrics: timing must be an object');
+    }
+    
+    // Validate nested structures
+    const predictionMetrics = metrics.predictionMetrics as Record<string, JsonValue>;
+    const perpMetrics = metrics.perpMetrics as Record<string, JsonValue>;
+    const timing = metrics.timing as Record<string, JsonValue>;
+    
+    // Type assertion is safe after validation - use unknown as intermediate type
+    return {
+      totalPnl: metrics.totalPnl as number,
+      predictionMetrics: {
+        totalPositions: typeof predictionMetrics.totalPositions === 'number' ? predictionMetrics.totalPositions : 0,
+        correctPredictions: typeof predictionMetrics.correctPredictions === 'number' ? predictionMetrics.correctPredictions : 0,
+        incorrectPredictions: typeof predictionMetrics.incorrectPredictions === 'number' ? predictionMetrics.incorrectPredictions : 0,
+        accuracy: typeof predictionMetrics.accuracy === 'number' ? predictionMetrics.accuracy : 0,
+        avgPnlPerPosition: typeof predictionMetrics.avgPnlPerPosition === 'number' ? predictionMetrics.avgPnlPerPosition : 0,
+      },
+      perpMetrics: {
+        totalTrades: typeof perpMetrics.totalTrades === 'number' ? perpMetrics.totalTrades : 0,
+        profitableTrades: typeof perpMetrics.profitableTrades === 'number' ? perpMetrics.profitableTrades : 0,
+        winRate: typeof perpMetrics.winRate === 'number' ? perpMetrics.winRate : 0,
+        avgPnlPerTrade: typeof perpMetrics.avgPnlPerTrade === 'number' ? perpMetrics.avgPnlPerTrade : 0,
+        maxDrawdown: typeof perpMetrics.maxDrawdown === 'number' ? perpMetrics.maxDrawdown : 0,
+      },
+      socialMetrics: typeof metrics.socialMetrics === 'object' && metrics.socialMetrics !== null
+        ? {
+            postsCreated: typeof (metrics.socialMetrics as Record<string, JsonValue>).postsCreated === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).postsCreated as number : 0,
+            groupsJoined: typeof (metrics.socialMetrics as Record<string, JsonValue>).groupsJoined === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).groupsJoined as number : 0,
+            messagesReceived: typeof (metrics.socialMetrics as Record<string, JsonValue>).messagesReceived === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).messagesReceived as number : 0,
+            reputationGained: typeof (metrics.socialMetrics as Record<string, JsonValue>).reputationGained === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).reputationGained as number : 0,
+          }
+        : {
+            postsCreated: 0,
+            groupsJoined: 0,
+            messagesReceived: 0,
+            reputationGained: 0,
+          },
+      timing: {
+        avgResponseTime: typeof timing.avgResponseTime === 'number' ? timing.avgResponseTime : 0,
+        maxResponseTime: typeof timing.maxResponseTime === 'number' ? timing.maxResponseTime : 0,
+        totalDuration: typeof timing.totalDuration === 'number' ? timing.totalDuration : 0,
+      },
+      optimalityScore: metrics.optimalityScore as number,
+    };
+  }
+
+  /**
    * Get or create test agent for benchmarking
    */
   private static async getOrCreateTestAgent(): Promise<string> {
     const testAgentUsername = 'model-benchmark-agent';
     
-    let agent = await prisma.user.findFirst({
-      where: { username: testAgentUsername },
-    });
+    const agentResult = await db.select().from(users).where(eq(users.username, testAgentUsername)).limit(1);
+    let agent = agentResult[0];
 
     if (agent) {
       return agent.id;
     }
 
     // Create new test agent
-    const { generateSnowflakeId } = await import('@/lib/snowflake');
-    const { ethers } = await import('ethers');
-    
     const agentId = await generateSnowflakeId();
-    agent = await prisma.user.create({
-      data: {
-        id: agentId,
-        privyId: `did:privy:model-benchmark-${agentId}`,
-        username: testAgentUsername,
-        displayName: 'Model Benchmark Agent',
-        walletAddress: ethers.Wallet.createRandom().address,
-        isAgent: true,
-        autonomousTrading: true,
-        autonomousPosting: false,
-        autonomousCommenting: false,
-        agentSystem: 'You are a test agent for benchmarking model performance.',
-        agentModelTier: 'pro',
-        virtualBalance: 10000,
-        reputationPoints: 1000,
-        agentPointsBalance: 10000,
-        isTest: true,
-        updatedAt: new Date(),
-      },
-    });
+    const newAgentResult = await db.insert(users).values({
+      id: agentId,
+      privyId: `did:privy:model-benchmark-${agentId}`,
+      username: testAgentUsername,
+      displayName: 'Model Benchmark Agent',
+      walletAddress: ethers.Wallet.createRandom().address,
+      isAgent: true,
+      autonomousTrading: true,
+      autonomousPosting: false,
+      autonomousCommenting: false,
+      agentSystem: 'You are a test agent for benchmarking model performance.',
+      agentModelTier: 'pro',
+      virtualBalance: '10000',
+      reputationPoints: 1000,
+      agentPointsBalance: 10000,
+      isTest: true,
+      updatedAt: new Date(),
+    }).returning();
+    agent = newAgentResult[0];
+
+    if (!agent) {
+      throw new Error('Failed to create model benchmark test agent');
+    }
 
     logger.info('Created model benchmark test agent', { agentId: agent.id });
     

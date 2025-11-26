@@ -18,7 +18,7 @@ async function checkDatabase(name: string, url: string) {
     
     // Check migration status
     try {
-      execSync(`bunx prisma migrate status`, {
+      execSync(`bunx drizzle-kit check`, {
         stdio: 'pipe',
         env: {
           ...process.env,
@@ -32,7 +32,7 @@ async function checkDatabase(name: string, url: string) {
       const output = error instanceof Error ? error.message : String(error);
       if (output.includes('pending')) {
         console.log('⚠️  Migrations: Pending migrations found');
-        console.log('   Run: DATABASE_URL="..." bunx prisma migrate deploy');
+        console.log('   Run: DATABASE_URL="..." bunx drizzle-kit push');
       } else if (output.includes("Can't reach database")) {
         console.log('❌ Database: Not running or not accessible');
         console.log(`   URL: ${url.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
@@ -86,7 +86,7 @@ async function main() {
   console.log('📝 Summary');
   console.log('═'.repeat(60));
   console.log('\nTo migrate a database:');
-  console.log('  DATABASE_URL="..." bunx prisma migrate deploy');
+  console.log('  DATABASE_URL="..." bunx drizzle-kit push');
   console.log('\nTo start local database:');
   console.log('  docker-compose up -d postgres');
   console.log('  # or');

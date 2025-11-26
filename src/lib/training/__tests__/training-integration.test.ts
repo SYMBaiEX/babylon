@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { trajectoryRecorder } from '../TrajectoryRecorder';
 import { AutomationPipeline } from '../AutomationPipeline';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -16,7 +16,7 @@ describe('Training Integration', () => {
     // Create test agents
     for (let i = 0; i < 3; i++) {
       const agentId = `e2e-test-agent-${i}-${Date.now()}`;
-      await prisma.user.create({
+      await db.user.create({
         data: {
           id: agentId,
           username: agentId,
@@ -32,7 +32,7 @@ describe('Training Integration', () => {
 
   afterAll(async () => {
     // Cleanup
-    await prisma.user.deleteMany({
+    await db.user.deleteMany({
       where: { id: { in: testAgentIds } }
     });
   });

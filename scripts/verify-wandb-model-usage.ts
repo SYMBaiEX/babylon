@@ -14,17 +14,26 @@
  *   bun run scripts/verify-wandb-model-usage.ts [--agent-id <id>]
  */
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
+import type { AgentRuntime } from '@elizaos/core';
 import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
 import { ModelUsageVerifier } from '@/lib/training/ModelUsageVerifier';
 import { ensureTestAgents } from '@/lib/agents/utils/createTestAgent';
+
+import type { JsonValue } from '@/types/common';
+
+// Extended AgentRuntime with Babylon-specific properties (mirrors AgentRuntimeManager)
+interface ExtendedAgentRuntime extends AgentRuntime {
+  currentModelVersion?: string;
+  currentModel?: string;
+}
 
 interface VerificationResult {
   step: string;
   passed: boolean;
   details: string;
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, JsonValue | undefined>;
 }
 
 class WandbModelUsageVerifier {
@@ -107,7 +116,7 @@ class WandbModelUsageVerifier {
       const wandbEnabled = runtime.character?.settings?.WANDB_ENABLED === 'true';
       const wandbModel = runtime.character?.settings?.WANDB_MODEL;
       const wandbApiKey = runtime.character?.settings?.WANDB_API_KEY;
-      const modelVersion = (runtime as unknown as { currentModelVersion?: string }).currentModelVersion;
+      const modelVersion = (runtime as ExtendedAgentRuntime).currentModelVersion;
       
       console.log(`  Runtime Settings:`);
       console.log(`     W&B Enabled: ${wandbEnabled}`);
@@ -266,7 +275,7 @@ class WandbModelUsageVerifier {
         console.log(`     Response: ${response?.substring(0, 100)}...\n`);
         
         // Check LLM call logs
-        const recentCalls = await prisma.llmCallLog.findMany({
+        const recentCalls = await db.llmCallLog.findMany({
           where: {
             createdAt: {
               gte: new Date(Date.now() - 60000), // Last minute
@@ -415,7 +424,7 @@ class WandbModelUsageVerifier {
     if (!step1.passed) {
       console.log('❌ Cannot continue - no trained model found\n');
       this.printSummary();
-      await prisma.$disconnect();
+      await db.$disconnect();
       process.exit(step1.details.includes('Database connection failed') ? 1 : 0);
       return;
     }
@@ -498,17 +507,17 @@ async function main() {
   const verifier = new WandbModelUsageVerifier();
   await verifier.run(agentId);
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main()
   .then(() => {
-    prisma.$disconnect();
+    db.$disconnect();
     process.exit(0);
   })
   .catch((error) => {
     console.error('Verification failed:', error);
-    prisma.$disconnect();
+    db.$disconnect();
     process.exit(1);
   });
 

@@ -4,9 +4,10 @@
  * Handles P&L tracking, trade recording, and rollup to user accounts
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, agentTrades, agentLogs, eq, desc, withTransaction, type JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 export class AgentPnLService {
   /**
@@ -27,62 +28,69 @@ export class AgentPnLService {
   }): Promise<void> {
     const { agentId, userId, marketType, marketId, ticker, action, side, amount, price, pnl, reasoning } = params
 
-    await prisma.$transaction(async (tx) => {
+    await withTransaction(async (tx) => {
       // Create trade record
-      await tx.agentTrade.create({
-        data: {
-          id: uuidv4(),
-          agentUserId: agentId,
-          marketType,
-          marketId,
-          ticker,
-          action,
-          side,
-          amount,
-          price,
-          pnl,
-          reasoning
-        }
+      await tx.insert(agentTrades).values({
+        id: uuidv4(),
+        agentUserId: agentId,
+        marketType,
+        marketId: marketId ?? null,
+        ticker: ticker ?? null,
+        action,
+        side: side ?? null,
+        amount,
+        price,
+        pnl: pnl ?? null,
+        reasoning: reasoning ?? null,
       })
 
       // Update agent P&L if provided
       if (pnl !== undefined && pnl !== null) {
-        await tx.user.update({
-          where: { id: agentId },
-          data: {
-            lifetimePnL: {
-              increment: pnl
-            }
-          }
-        })
+        // Get current lifetimePnL
+        const agentResult = await tx.select({ lifetimePnL: users.lifetimePnL })
+          .from(users)
+          .where(eq(users.id, agentId))
+          .limit(1)
+        
+        const currentPnL = agentResult[0]?.lifetimePnL ? parseFloat(String(agentResult[0].lifetimePnL)) : 0
+        
+        await tx.update(users)
+          .set({
+            lifetimePnL: String(currentPnL + pnl),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, agentId))
 
         // Roll up to manager's totalAgentPnL
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            totalAgentPnL: {
-              increment: pnl
-            }
-          }
-        })
+        const managerResult = await tx.select({ totalAgentPnL: users.totalAgentPnL })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+        
+        const currentManagerPnL = managerResult[0]?.totalAgentPnL ? parseFloat(String(managerResult[0].totalAgentPnL)) : 0
+        
+        await tx.update(users)
+          .set({
+            totalAgentPnL: String(currentManagerPnL + pnl),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId))
       }
 
       // Log the trade
-      await tx.agentLog.create({
-        data: {
-          id: uuidv4(),
-          agentUserId: agentId,
-          type: 'trade',
-          level: 'info',
-          message: `Trade executed: ${action} ${side || ''} ${amount} @ ${price}`,
-          metadata: {
-            marketType,
-            marketId,
-            ticker,
-            pnl,
-            reasoning
-          }
-        }
+      await tx.insert(agentLogs).values({
+        id: await generateSnowflakeId(),
+        agentUserId: agentId,
+        type: 'trade',
+        level: 'info',
+        message: `Trade executed: ${action} ${side || ''} ${amount} @ ${price}`,
+        metadata: {
+          marketType,
+          marketId,
+          ticker,
+          pnl,
+          reasoning
+        } as JsonValue
       })
     })
 
@@ -93,38 +101,42 @@ export class AgentPnLService {
    * Get agent trades
    */
   async getAgentTrades(agentUserId: string, limit = 50) {
-    return prisma.agentTrade.findMany({
-      where: { agentUserId },
-      orderBy: { executedAt: 'desc' },
-      take: limit
-    })
+    return db.select()
+      .from(agentTrades)
+      .where(eq(agentTrades.agentUserId, agentUserId))
+      .orderBy(desc(agentTrades.executedAt))
+      .limit(limit)
   }
 
   async getUserAgentPnL(userId: string): Promise<number> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { totalAgentPnL: true }
-    })
+    const userResult = await db.select({ totalAgentPnL: users.totalAgentPnL })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
 
-    return user ? Number(user.totalAgentPnL) : 0
+    const user = userResult[0]
+    return user ? parseFloat(String(user.totalAgentPnL)) : 0
   }
 
   async syncUserAgentPnL(userId: string): Promise<void> {
-    const agents = await prisma.user.findMany({
-      where: { isAgent: true, managedBy: userId },
-      select: { lifetimePnL: true }
-    })
+    // Filter by managedBy in application since Drizzle needs specific query
+    const agentsResult = await db.select({ lifetimePnL: users.lifetimePnL, managedBy: users.managedBy })
+      .from(users)
+      .where(eq(users.managedBy, userId))
 
-    const totalPnL = agents.reduce((sum, agent) => sum + Number(agent.lifetimePnL), 0)
+    const totalPnL = agentsResult.reduce((sum, agent) => {
+      return sum + (agent.lifetimePnL ? parseFloat(String(agent.lifetimePnL)) : 0)
+    }, 0)
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { totalAgentPnL: { set: totalPnL } }
-    })
+    await db.update(users)
+      .set({ 
+        totalAgentPnL: String(totalPnL),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
 
     logger.info(`Synced agent P&L for user ${userId}: ${totalPnL}`, undefined, 'AgentPnLService')
   }
 }
 
 export const agentPnLService = new AgentPnLService()
-

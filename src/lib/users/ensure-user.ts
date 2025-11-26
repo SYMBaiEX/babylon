@@ -6,9 +6,9 @@
  * information.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, eq } from '@/db'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
-import type { Prisma } from '@prisma/client'
+import type { User } from '@/db/schema'
 
 /**
  * Options for ensuring user exists
@@ -21,19 +21,7 @@ interface EnsureUserOptions {
   isActor?: boolean
 }
 
-const selectWithPrivyId = {
-  id: true,
-  privyId: true,
-  username: true,
-  displayName: true,
-  walletAddress: true,
-  isActor: true,
-  profileImageUrl: true,
-} as const
-
-type CanonicalUserWithPrivy = Prisma.UserGetPayload<{ select: typeof selectWithPrivyId }>
-
-type CanonicalUser = CanonicalUserWithPrivy
+type CanonicalUser = Pick<User, 'id' | 'privyId' | 'username' | 'displayName' | 'walletAddress' | 'isActor' | 'profileImageUrl'>
 
 /**
  * Ensure user exists in database for authenticated user
@@ -60,19 +48,63 @@ export async function ensureUserForAuth(
 ): Promise<{ user: CanonicalUser }> {
   const privyId = user.privyId ?? user.userId
 
-  const updateData: Prisma.UserUpdateInput = {}
+  // Check if user exists
+  const existing = await db.select({
+    id: users.id,
+    privyId: users.privyId,
+    username: users.username,
+    displayName: users.displayName,
+    walletAddress: users.walletAddress,
+    isActor: users.isActor,
+    profileImageUrl: users.profileImageUrl,
+  })
+    .from(users)
+    .where(eq(users.privyId, privyId))
+    .limit(1)
 
-  if (user.walletAddress) {
-    updateData.walletAddress = user.walletAddress
-  }
-  if (options.username !== undefined) {
-    updateData.username = options.username
-  }
-  if (options.isActor !== undefined) {
-    updateData.isActor = options.isActor
+  if (existing.length > 0 && existing[0]) {
+    // User exists - update if needed
+    const existingUser = existing[0]
+    const updateData: Partial<typeof users.$inferInsert> = {}
+
+    if (user.walletAddress && user.walletAddress !== existingUser.walletAddress) {
+      updateData.walletAddress = user.walletAddress
+    }
+    if (options.username !== undefined && options.username !== existingUser.username) {
+      updateData.username = options.username
+    }
+    if (options.isActor !== undefined && options.isActor !== existingUser.isActor) {
+      updateData.isActor = options.isActor
+    }
+    if (options.displayName !== undefined && !existingUser.displayName) {
+      updateData.displayName = options.displayName
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      const updated = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, existingUser.id))
+        .returning({
+          id: users.id,
+          privyId: users.privyId,
+          username: users.username,
+          displayName: users.displayName,
+          walletAddress: users.walletAddress,
+          isActor: users.isActor,
+          profileImageUrl: users.profileImageUrl,
+        })
+
+      const updatedUser = updated[0]!
+      user.dbUserId = updatedUser.id
+      return { user: updatedUser }
+    }
+
+    user.dbUserId = existingUser.id
+    return { user: existingUser }
   }
 
-  const createData: Prisma.UserCreateInput = {
+  // Create new user
+  const createData: typeof users.$inferInsert = {
     id: user.dbUserId ?? user.userId,
     privyId,
     isActor: options.isActor ?? false,
@@ -85,30 +117,26 @@ export async function ensureUserForAuth(
   if (options.username !== undefined) {
     createData.username = options.username ?? null
   }
-
   if (options.displayName !== undefined) {
     createData.displayName = options.displayName
-    if (user.dbUserId) {
-      const existing = await prisma.user.findUnique({
-        where: { id: user.dbUserId },
-        select: { displayName: true },
-      })
-      if (!existing?.displayName) {
-        updateData.displayName = options.displayName
-      }
-    }
   }
 
-  const canonicalUser: CanonicalUser = await prisma.user.upsert({
-    where: { privyId },
-    update: updateData,
-    create: createData,
-    select: selectWithPrivyId,
-  })
+  const created = await db.insert(users)
+    .values(createData)
+    .returning({
+      id: users.id,
+      privyId: users.privyId,
+      username: users.username,
+      displayName: users.displayName,
+      walletAddress: users.walletAddress,
+      isActor: users.isActor,
+      profileImageUrl: users.profileImageUrl,
+    })
 
-  user.dbUserId = canonicalUser.id
+  const createdUser = created[0]!
+  user.dbUserId = createdUser.id
 
-  return { user: canonicalUser }
+  return { user: createdUser }
 }
 
 /**

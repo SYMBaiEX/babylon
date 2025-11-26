@@ -10,7 +10,25 @@
  * @see src/types/agent-registry.types.ts for type definitions
  */
 
-import { prisma } from '@/lib/prisma'
+import {
+  db,
+  eq,
+  and,
+  gte,
+  or,
+  desc,
+  ilike,
+  sql,
+  users,
+  actors,
+  agentRegistries,
+  agentCapabilities,
+  externalAgentConnections,
+  type User,
+  type Actor,
+  type AgentRegistry,
+  type ExternalAgentConnection,
+} from '@/db'
 import {
   AgentType,
   AgentStatus,
@@ -22,8 +40,9 @@ import type {
   ExternalAgentConnectionParams,
   AgentCapabilities,
 } from '@/types/agent-registry.types'
-import type { Prisma } from '@prisma/client'
-import { createCipheriv, randomBytes } from 'crypto'
+import type { JsonValue } from '@/db'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { verifyApiKey } from '@/lib/crypto/api-keys'
 
 const getEncryptionKey = () => {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET
@@ -34,6 +53,14 @@ const getEncryptionKey = () => {
   return 'dev-key-change-in-production-32-chars!!'
 }
 const ALGORITHM = 'aes-256-cbc'
+
+// Type for registry with relations loaded
+type RegistryWithRelations = AgentRegistry & {
+  capabilities: typeof agentCapabilities.$inferSelect | null
+  User?: User | null
+  Actor?: Actor | null
+  externalConnection?: ExternalAgentConnection | null
+}
 
 /**
  * Unified Agent Registry Service Class
@@ -67,18 +94,22 @@ export class AgentRegistryService {
     const { userId, name, systemPrompt, capabilities, trustLevel = 0 } = params
 
     // Verify user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
 
     if (!user) {
       throw new Error(`User not found: ${userId}`)
     }
 
     // Check if already registered
-    const existing = await prisma.agentRegistry.findUnique({
-      where: { userId },
-    })
+    const [existing] = await db
+      .select()
+      .from(agentRegistries)
+      .where(eq(agentRegistries.userId, userId))
+      .limit(1)
 
     if (existing) {
       throw new Error(
@@ -86,44 +117,53 @@ export class AgentRegistryService {
       )
     }
 
+    const registryId = `agent-user-${userId}`
+    const capabilityId = `cap-${userId}`
+
     // Create registry entry
-    const registry = await prisma.agentRegistry.create({
-      data: {
-        id: `agent-user-${userId}`,
-        agentId: userId,
-        type: AgentType.USER_CONTROLLED,
-        status: AgentStatus.REGISTERED,
-        trustLevel,
-        userId,
-        name,
-        systemPrompt,
-        capabilities: {
-          create: {
-            id: `cap-${userId}`,
-            strategies: capabilities.strategies ?? [],
-            markets: capabilities.markets ?? [],
-            actions: capabilities.actions ?? [],
-            version: capabilities.version ?? '1.0.0',
-            x402Support: capabilities.x402Support ?? false,
-            platform: capabilities.platform,
-            userType: capabilities.userType,
-            gameNetworkChainId: capabilities.gameNetwork?.chainId,
-            gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress, // A2A: registryAddress stored in rpcUrl field
-            gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress, // A2A: reputationAddress stored in explorerUrl field
-            // OASF Taxonomy Support (Agent0 SDK v0.31.0)
-            skills: capabilities.skills ?? [],
-            domains: capabilities.domains ?? [],
-            // A2A Communication Endpoints (Agent0 SDK v0.31.0)
-            a2aEndpoint: capabilities.a2aEndpoint,
-            mcpEndpoint: capabilities.mcpEndpoint,
-          },
-        },
-      },
-      include: {
-        capabilities: true,
-        User: true,
-      },
+    await db.insert(agentRegistries).values({
+      id: registryId,
+      agentId: userId,
+      type: AgentType.USER_CONTROLLED,
+      status: AgentStatus.REGISTERED,
+      trustLevel,
+      userId,
+      name,
+      systemPrompt,
+      // Discovery metadata
+      discoveryAuthRequired: false,
+      discoveryAuthMethods: [],
+      updatedAt: new Date(),
     })
+
+    // Create capabilities
+    await db.insert(agentCapabilities).values({
+      id: capabilityId,
+      agentRegistryId: registryId,
+      strategies: capabilities.strategies ?? [],
+      markets: capabilities.markets ?? [],
+      actions: capabilities.actions ?? [],
+      version: capabilities.version ?? '1.0.0',
+      x402Support: capabilities.x402Support ?? false,
+      platform: capabilities.platform,
+      userType: capabilities.userType,
+      gameNetworkChainId: capabilities.gameNetwork?.chainId,
+      gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress,
+      gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress,
+      // OASF Taxonomy Support (Agent0 SDK v0.31.0)
+      skills: capabilities.skills ?? [],
+      domains: capabilities.domains ?? [],
+      // A2A Communication Endpoints (Agent0 SDK v0.31.0)
+      a2aEndpoint: capabilities.a2aEndpoint,
+      mcpEndpoint: capabilities.mcpEndpoint,
+      updatedAt: new Date(),
+    })
+
+    // Fetch complete registry with relations
+    const registry = await this.getRegistryWithRelations(userId)
+    if (!registry) {
+      throw new Error('Failed to create agent registry')
+    }
 
     return this.mapToUnifiedRegistration(registry)
   }
@@ -149,18 +189,22 @@ export class AgentRegistryService {
     const { actorId, systemPrompt, capabilities } = params
 
     // Verify actor exists
-    const actor = await prisma.actor.findUnique({
-      where: { id: actorId },
-    })
+    const [actor] = await db
+      .select()
+      .from(actors)
+      .where(eq(actors.id, actorId))
+      .limit(1)
 
     if (!actor) {
       throw new Error(`Actor not found: ${actorId}`)
     }
 
     // Check if already registered
-    const existing = await prisma.agentRegistry.findUnique({
-      where: { actorId },
-    })
+    const [existing] = await db
+      .select()
+      .from(agentRegistries)
+      .where(eq(agentRegistries.actorId, actorId))
+      .limit(1)
 
     if (existing) {
       throw new Error(
@@ -168,44 +212,50 @@ export class AgentRegistryService {
       )
     }
 
+    const registryId = `agent-npc-${actorId}`
+    const capabilityId = `cap-${actorId}`
+
     // Create registry entry with SYSTEM trust level for NPCs
-    const registry = await prisma.agentRegistry.create({
-      data: {
-        id: `agent-npc-${actorId}`,
-        agentId: actorId,
-        type: AgentType.NPC,
-        status: AgentStatus.REGISTERED,
-        trustLevel: 4, // SYSTEM trust level for NPCs
-        actorId,
-        name: actor.name,
-        systemPrompt,
-        capabilities: {
-          create: {
-            id: `cap-${actorId}`,
-            strategies: capabilities.strategies ?? [],
-            markets: capabilities.markets ?? [],
-            actions: capabilities.actions ?? [],
-            version: capabilities.version ?? '1.0.0',
-            x402Support: capabilities.x402Support ?? false,
-            platform: capabilities.platform,
-            userType: capabilities.userType,
-            gameNetworkChainId: capabilities.gameNetwork?.chainId,
-            gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress, // A2A: registryAddress stored in rpcUrl field
-            gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress, // A2A: reputationAddress stored in explorerUrl field
-            // OASF Taxonomy Support (Agent0 SDK v0.31.0)
-            skills: capabilities.skills ?? [],
-            domains: capabilities.domains ?? [],
-            // A2A Communication Endpoints (Agent0 SDK v0.31.0)
-            a2aEndpoint: capabilities.a2aEndpoint,
-            mcpEndpoint: capabilities.mcpEndpoint,
-          },
-        },
-      },
-      include: {
-        capabilities: true,
-        Actor: true,
-      },
+    await db.insert(agentRegistries).values({
+      id: registryId,
+      agentId: actorId,
+      type: AgentType.NPC,
+      status: AgentStatus.REGISTERED,
+      trustLevel: 4, // SYSTEM trust level for NPCs
+      actorId,
+      name: actor.name,
+      systemPrompt,
+      discoveryAuthRequired: false,
+      discoveryAuthMethods: [],
+      updatedAt: new Date(),
     })
+
+    // Create capabilities
+    await db.insert(agentCapabilities).values({
+      id: capabilityId,
+      agentRegistryId: registryId,
+      strategies: capabilities.strategies ?? [],
+      markets: capabilities.markets ?? [],
+      actions: capabilities.actions ?? [],
+      version: capabilities.version ?? '1.0.0',
+      x402Support: capabilities.x402Support ?? false,
+      platform: capabilities.platform,
+      userType: capabilities.userType,
+      gameNetworkChainId: capabilities.gameNetwork?.chainId,
+      gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress,
+      gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress,
+      skills: capabilities.skills ?? [],
+      domains: capabilities.domains ?? [],
+      a2aEndpoint: capabilities.a2aEndpoint,
+      mcpEndpoint: capabilities.mcpEndpoint,
+      updatedAt: new Date(),
+    })
+
+    // Fetch complete registry with relations
+    const registry = await this.getRegistryWithRelations(actorId)
+    if (!registry) {
+      throw new Error('Failed to create agent registry')
+    }
 
     return this.mapToUnifiedRegistration(registry)
   }
@@ -236,73 +286,84 @@ export class AgentRegistryService {
     } = params
 
     // Check if already registered
-    const existing = await prisma.externalAgentConnection.findUnique({
-      where: { externalId },
-    })
+    const [existing] = await db
+      .select()
+      .from(externalAgentConnections)
+      .where(eq(externalAgentConnections.externalId, externalId))
+      .limit(1)
 
     if (existing) {
       throw new Error(`External agent already registered: ${externalId}`)
     }
 
+    const registryId = `agent-ext-${externalId}`
+    const capabilityId = `cap-${externalId}`
+    const connectionId = `ext-conn-${externalId}`
+
     // Create registry entry with UNTRUSTED trust level by default
-    const registry = await prisma.agentRegistry.create({
-      data: {
-        id: `agent-ext-${externalId}`,
-        agentId: externalId,
-        type: AgentType.EXTERNAL,
-        status: AgentStatus.REGISTERED,
-        trustLevel: 0, // UNTRUSTED by default, must be verified
-        name,
-        systemPrompt: description,
-        capabilities: {
-          create: {
-            id: `cap-${externalId}`,
-            strategies: capabilities.strategies ?? [],
-            markets: capabilities.markets ?? [],
-            actions: capabilities.actions ?? [],
-            version: capabilities.version ?? '1.0.0',
-            x402Support: capabilities.x402Support ?? false,
-            platform: capabilities.platform,
-            userType: capabilities.userType,
-            gameNetworkChainId: capabilities.gameNetwork?.chainId,
-            gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress, // A2A: registryAddress stored in rpcUrl field
-            gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress, // A2A: reputationAddress stored in explorerUrl field
-            // OASF Taxonomy Support (Agent0 SDK v0.31.0)
-            skills: capabilities.skills ?? [],
-            domains: capabilities.domains ?? [],
-            // A2A Communication Endpoints (Agent0 SDK v0.31.0)
-            a2aEndpoint: capabilities.a2aEndpoint,
-            mcpEndpoint: capabilities.mcpEndpoint,
-          },
-        },
-        externalConnection: {
-          create: {
-            id: `ext-conn-${externalId}`,
-            externalId,
-            endpoint,
-            protocol,
-            authType: authentication?.type,
-            authCredentials: authentication?.credentials 
-              ? this.encryptCredentials(authentication.credentials)
-              : null,
-            agentCardJson: agentCard as unknown as Prisma.InputJsonValue,
-          },
-        },
-        // Discovery metadata from Agent Card
-        discoveryCardVersion: agentCard?.version,
-        discoveryEndpointA2a: agentCard?.endpoints?.a2a,
-        discoveryEndpointMcp: agentCard?.endpoints?.mcp,
-        discoveryEndpointRpc: agentCard?.endpoints?.rpc,
-        discoveryAuthRequired: agentCard?.authentication?.required ?? false,
-        discoveryAuthMethods: agentCard?.authentication?.methods ?? [],
-        discoveryRateLimit: agentCard?.limits?.rateLimit,
-        discoveryCostPerAction: agentCard?.limits?.costPerAction,
-      },
-      include: {
-        capabilities: true,
-        externalConnection: true,
-      },
+    await db.insert(agentRegistries).values({
+      id: registryId,
+      agentId: externalId,
+      type: AgentType.EXTERNAL,
+      status: AgentStatus.REGISTERED,
+      trustLevel: 0, // UNTRUSTED by default, must be verified
+      name,
+      systemPrompt: description,
+      // Discovery metadata from Agent Card
+      discoveryCardVersion: agentCard?.version,
+      discoveryEndpointA2a: agentCard?.endpoints?.a2a,
+      discoveryEndpointMcp: agentCard?.endpoints?.mcp,
+      discoveryEndpointRpc: agentCard?.endpoints?.rpc,
+      discoveryAuthRequired: agentCard?.authentication?.required ?? false,
+      discoveryAuthMethods: agentCard?.authentication?.methods ?? [],
+      discoveryRateLimit: agentCard?.limits?.rateLimit,
+      discoveryCostPerAction: agentCard?.limits?.costPerAction,
+      updatedAt: new Date(),
     })
+
+    // Create capabilities
+    await db.insert(agentCapabilities).values({
+      id: capabilityId,
+      agentRegistryId: registryId,
+      strategies: capabilities.strategies ?? [],
+      markets: capabilities.markets ?? [],
+      actions: capabilities.actions ?? [],
+      version: capabilities.version ?? '1.0.0',
+      x402Support: capabilities.x402Support ?? false,
+      platform: capabilities.platform,
+      userType: capabilities.userType,
+      gameNetworkChainId: capabilities.gameNetwork?.chainId,
+      gameNetworkRpcUrl: capabilities.gameNetwork?.registryAddress,
+      gameNetworkExplorerUrl: capabilities.gameNetwork?.reputationAddress,
+      skills: capabilities.skills ?? [],
+      domains: capabilities.domains ?? [],
+      a2aEndpoint: capabilities.a2aEndpoint,
+      mcpEndpoint: capabilities.mcpEndpoint,
+      updatedAt: new Date(),
+    })
+
+    // Create external connection
+    await db.insert(externalAgentConnections).values({
+      id: connectionId,
+      agentRegistryId: registryId,
+      externalId,
+      endpoint,
+      protocol,
+      authType: authentication?.type,
+      authCredentials: authentication?.credentials 
+        ? this.encryptCredentials(authentication.credentials)
+        : null,
+      // AgentCard is structurally compatible with JsonValue - all fields are JsonValue types
+      // (strings, numbers, booleans, objects, arrays - all JsonValue-compatible)
+      agentCardJson: agentCard ? (JSON.parse(JSON.stringify(agentCard)) as JsonValue) : null,
+      updatedAt: new Date(),
+    })
+
+    // Fetch complete registry with relations
+    const registry = await this.getRegistryWithRelations(externalId)
+    if (!registry) {
+      throw new Error('Failed to create agent registry')
+    }
 
     return this.mapToUnifiedRegistration(registry)
   }
@@ -332,35 +393,50 @@ export class AgentRegistryService {
       offset = 0,
     } = filter
 
-    // Build where clause
-    const where: Prisma.AgentRegistryWhereInput = {
-      AND: [
-        types && types.length > 0 ? { type: { in: types } } : {},
-        statuses && statuses.length > 0 ? { status: { in: statuses } } : {},
-        minTrustLevel !== undefined ? { trustLevel: { gte: minTrustLevel } } : {},
-        search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { systemPrompt: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {},
-      ],
+    // Build where conditions
+    const conditions = []
+
+    if (types && types.length > 0) {
+      conditions.push(sql`${agentRegistries.type} = ANY(${types})`)
+    }
+    
+    if (statuses && statuses.length > 0) {
+      conditions.push(sql`${agentRegistries.status} = ANY(${statuses})`)
+    }
+    
+    if (minTrustLevel !== undefined) {
+      conditions.push(gte(agentRegistries.trustLevel, minTrustLevel))
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          ilike(agentRegistries.name, `%${search}%`),
+          ilike(agentRegistries.systemPrompt, `%${search}%`)
+        )
+      )
     }
 
-    const registrations = await prisma.agentRegistry.findMany({
-      where,
-      include: {
-        capabilities: true,
-        User: true,
-        Actor: true,
-        externalConnection: true,
-      },
-      orderBy: [{ trustLevel: 'desc' }, { registeredAt: 'desc' }],
-      take: limit,
-      skip: offset,
-    })
+    const registrationsRaw = await db
+      .select()
+      .from(agentRegistries)
+      .leftJoin(agentCapabilities, eq(agentCapabilities.agentRegistryId, agentRegistries.id))
+      .leftJoin(users, eq(users.id, agentRegistries.userId))
+      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
+      .leftJoin(externalAgentConnections, eq(externalAgentConnections.agentRegistryId, agentRegistries.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(agentRegistries.trustLevel), desc(agentRegistries.registeredAt))
+      .limit(limit)
+      .offset(offset)
+
+    // Map to registry with relations format
+    const registrations: RegistryWithRelations[] = registrationsRaw.map(row => ({
+      ...row.AgentRegistry,
+      capabilities: row.AgentCapability,
+      User: row.User,
+      Actor: row.Actor,
+      externalConnection: row.ExternalAgentConnection,
+    }))
 
     // Filter by required capabilities if specified
     let filtered = registrations
@@ -421,15 +497,7 @@ export class AgentRegistryService {
    * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration or null
    */
   async getAgentById(agentId: string): Promise<UnifiedAgentRegistration | null> {
-    const registry = await prisma.agentRegistry.findUnique({
-      where: { agentId },
-      include: {
-        capabilities: true,
-        User: true,
-        Actor: true,
-        externalConnection: true,
-      },
-    })
+    const registry = await this.getRegistryWithRelations(agentId)
 
     if (!registry) return null
 
@@ -450,20 +518,19 @@ export class AgentRegistryService {
     agentId: string,
     status: AgentStatus,
   ): Promise<UnifiedAgentRegistration> {
-    const registry = await prisma.agentRegistry.update({
-      where: { agentId },
-      data: {
+    await db
+      .update(agentRegistries)
+      .set({
         status,
         lastActiveAt: status === AgentStatus.ACTIVE ? new Date() : undefined,
         terminatedAt: status === AgentStatus.TERMINATED ? new Date() : undefined,
-      },
-      include: {
-        capabilities: true,
-        User: true,
-        Actor: true,
-        externalConnection: true,
-      },
-    })
+      })
+      .where(eq(agentRegistries.agentId, agentId))
+
+    const registry = await this.getRegistryWithRelations(agentId)
+    if (!registry) {
+      throw new Error(`Agent not found: ${agentId}`)
+    }
 
     return this.mapToUnifiedRegistration(registry)
   }
@@ -482,13 +549,13 @@ export class AgentRegistryService {
     agentId: string,
     runtimeInstanceId: string,
   ): Promise<void> {
-    await prisma.agentRegistry.update({
-      where: { agentId },
-      data: {
+    await db
+      .update(agentRegistries)
+      .set({
         runtimeInstanceId,
         status: AgentStatus.INITIALIZED,
-      },
-    })
+      })
+      .where(eq(agentRegistries.agentId, agentId))
   }
 
   /**
@@ -501,13 +568,13 @@ export class AgentRegistryService {
    * @returns {Promise<void>}
    */
   async clearRuntimeInstance(agentId: string): Promise<void> {
-    await prisma.agentRegistry.update({
-      where: { agentId },
-      data: {
+    await db
+      .update(agentRegistries)
+      .set({
         runtimeInstanceId: null,
         status: AgentStatus.REGISTERED,
-      },
-    })
+      })
+      .where(eq(agentRegistries.agentId, agentId))
   }
 
   /**
@@ -523,10 +590,10 @@ export class AgentRegistryService {
     agentId: string,
     trustLevel: TrustLevel,
   ): Promise<void> {
-    await prisma.agentRegistry.update({
-      where: { agentId },
-      data: { trustLevel },
-    })
+    await db
+      .update(agentRegistries)
+      .set({ trustLevel })
+      .where(eq(agentRegistries.agentId, agentId))
   }
 
   /**
@@ -546,9 +613,11 @@ export class AgentRegistryService {
     userId: string,
   ): Promise<UnifiedAgentRegistration> {
     // Verify agent is EXTERNAL type
-    const registry = await prisma.agentRegistry.findUnique({
-      where: { agentId },
-    })
+    const [registry] = await db
+      .select()
+      .from(agentRegistries)
+      .where(eq(agentRegistries.agentId, agentId))
+      .limit(1)
 
     if (!registry) {
       throw new Error(`Agent not found: ${agentId}`)
@@ -561,59 +630,121 @@ export class AgentRegistryService {
     }
 
     // Verify user exists and not already linked to another agent
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { AgentRegistry: true },
-    })
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
 
     if (!user) {
       throw new Error(`User not found: ${userId}`)
     }
 
-    if (user.AgentRegistry) {
+    const [existingAgentRegistry] = await db
+      .select()
+      .from(agentRegistries)
+      .where(eq(agentRegistries.userId, userId))
+      .limit(1)
+
+    if (existingAgentRegistry) {
       throw new Error(
-        `User ${userId} already linked to agent ${user.AgentRegistry.agentId}`,
+        `User ${userId} already linked to agent ${existingAgentRegistry.agentId}`,
       )
     }
 
     // Link external agent to user
-    const updated = await prisma.agentRegistry.update({
-      where: { agentId },
-      data: {
+    await db
+      .update(agentRegistries)
+      .set({
         userId,
         trustLevel: Math.max(registry.trustLevel, 1), // At least BASIC trust when linked
-      },
-      include: {
-        capabilities: true,
-        User: true,
-        Actor: true,
-        externalConnection: true,
-      },
-    })
+      })
+      .where(eq(agentRegistries.agentId, agentId))
+
+    const updated = await this.getRegistryWithRelations(agentId)
+    if (!updated) {
+      throw new Error(`Failed to update agent: ${agentId}`)
+    }
 
     return this.mapToUnifiedRegistration(updated)
   }
 
   /**
-   * Map Prisma model to UnifiedAgentRegistration type
+   * Verify external agent API key
    * 
-   * @description Maps Prisma AgentRegistry model with relations to UnifiedAgentRegistration
+   * @description Verifies an API key against registered external agents.
+   * Decrypts stored credentials and checks hash.
+   * 
+   * @param {string} apiKey - API key to verify
+   * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration if valid, null otherwise
+   */
+  async verifyExternalAgentApiKey(apiKey: string): Promise<UnifiedAgentRegistration | null> {
+    const agents = await db
+      .select()
+      .from(externalAgentConnections)
+      .where(eq(externalAgentConnections.authType, 'apiKey'))
+
+    for (const agent of agents) {
+      if (!agent.authCredentials) continue
+
+      try {
+        const decrypted = this.decryptCredentials(agent.authCredentials)
+        const credentials = JSON.parse(decrypted) as { apiKeyHash?: string }
+        
+        if (credentials?.apiKeyHash && verifyApiKey(apiKey, credentials.apiKeyHash)) {
+          const registry = await this.getRegistryWithRelations(agent.externalId)
+          if (!registry) {
+            console.warn(`[Auth] Valid key for external agent ${agent.externalId} but missing AgentRegistry link`)
+            return null
+          }
+          return this.mapToUnifiedRegistration(registry)
+        }
+      } catch {
+        // Continue if decryption or parsing fails
+        continue
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Helper method to get registry with all relations
+   */
+  private async getRegistryWithRelations(agentId: string): Promise<RegistryWithRelations | null> {
+    const [row] = await db
+      .select()
+      .from(agentRegistries)
+      .leftJoin(agentCapabilities, eq(agentCapabilities.agentRegistryId, agentRegistries.id))
+      .leftJoin(users, eq(users.id, agentRegistries.userId))
+      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
+      .leftJoin(externalAgentConnections, eq(externalAgentConnections.agentRegistryId, agentRegistries.id))
+      .where(eq(agentRegistries.agentId, agentId))
+      .limit(1)
+
+    if (!row) return null
+
+    return {
+      ...row.AgentRegistry,
+      capabilities: row.AgentCapability,
+      User: row.User,
+      Actor: row.Actor,
+      externalConnection: row.ExternalAgentConnection,
+    }
+  }
+
+  /**
+   * Map database model to UnifiedAgentRegistration type
+   * 
+   * @description Maps Drizzle AgentRegistry model with relations to UnifiedAgentRegistration
    * type. Handles capabilities, discovery metadata, on-chain data, and Agent0 data mapping.
    * 
-   * @param {object} registry - Prisma AgentRegistry model with relations
+   * @param {RegistryWithRelations} registry - Registry with relations
    * @returns {UnifiedAgentRegistration} Unified agent registration
    * @private
    */
   private mapToUnifiedRegistration(
-    registry: Prisma.AgentRegistryGetPayload<{
-      include: {
-        capabilities: true
-      }
-    }> & {
-      User?: Prisma.UserGetPayload<true> | null
-      Actor?: Prisma.ActorGetPayload<true> | null
-      externalConnection?: Prisma.ExternalAgentConnectionGetPayload<true> | null
-    },
+    registry: RegistryWithRelations,
   ): UnifiedAgentRegistration {
     // Map capabilities
     const capabilities: AgentCapabilities = registry.capabilities
@@ -735,6 +866,23 @@ export class AgentRegistryService {
     encrypted += cipher.final('hex')
     
     return `${iv.toString('hex')}:${encrypted}`
+  }
+
+  /**
+   * Decrypt credentials
+   */
+  private decryptCredentials(encrypted: string): string {
+    const [ivHex, encryptedHex] = encrypted.split(':')
+    if (!ivHex || !encryptedHex) throw new Error('Invalid encrypted format')
+    
+    const iv = Buffer.from(ivHex, 'hex')
+    const key = Buffer.from(getEncryptionKey().padEnd(32).slice(0, 32))
+    const decipher = createDecipheriv(ALGORITHM, key, iv)
+    
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    
+    return decrypted
   }
 
 }

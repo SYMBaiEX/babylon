@@ -6,15 +6,11 @@
  * for events and content. Provides comprehensive relationship management for NPCs.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, actorRelationships, actorFollows, actors, eq, or, and, inArray, desc, count } from '@/db';
 import type { Actor, ActorRelationship, ActorTier, RELATIONSHIP_TYPES } from '@/shared/types';
-import type { Prisma } from '@prisma/client';
 
 /**
  * Relationship context for LLM prompts
- * 
- * @description Contains relationship information formatted for use in LLM prompts.
- * Includes actor relationships with types, strengths, sentiments, and history.
  */
 export interface RelationshipContext {
   actorId: string;
@@ -31,9 +27,6 @@ export interface RelationshipContext {
 
 /**
  * Relationship statistics for an actor
- * 
- * @description Contains aggregated relationship statistics including follower
- * counts, relationship counts, and breakdowns by relationship type.
  */
 export interface RelationshipStats {
   actorId: string;
@@ -46,48 +39,18 @@ export interface RelationshipStats {
 
 /**
  * Relationship Manager Class
- * 
- * @description Static service class for managing actor relationships. Provides
- * methods for querying relationships, managing follows, generating relationship
- * context, and selecting related actors.
  */
 export class RelationshipManager {
   /**
    * Get all relationships for an actor
-   * 
-   * @description Retrieves all relationships for an actor, including both
-   * directions (actor1 and actor2). Returns formatted ActorRelationship objects.
-   * 
-   * @param {string} actorId - Actor ID to get relationships for
-   * @returns {Promise<ActorRelationship[]>} Array of relationships
    */
   static async getActorRelationships(actorId: string): Promise<ActorRelationship[]> {
-    const relationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: [
-          { actor1Id: actorId },
-          { actor2Id: actorId },
-        ],
-      },
-      include: {
-        Actor_ActorRelationship_actor1IdToActor: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            domain: true,
-          },
-        },
-        Actor_ActorRelationship_actor2IdToActor: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            domain: true,
-          },
-        },
-      },
-    });
+    const relationships = await db.select()
+      .from(actorRelationships)
+      .where(or(
+        eq(actorRelationships.actor1Id, actorId),
+        eq(actorRelationships.actor2Id, actorId)
+      ));
 
     return relationships.map(rel => ({
       id: rel.id,
@@ -106,26 +69,18 @@ export class RelationshipManager {
 
   /**
    * Get specific relationship between two actors
-   * 
-   * @description Retrieves the relationship between two specific actors, checking
-   * both directions (actor1->actor2 and actor2->actor1).
-   * 
-   * @param {string} actor1Id - First actor ID
-   * @param {string} actor2Id - Second actor ID
-   * @returns {Promise<ActorRelationship | null>} Relationship or null if not found
    */
   static async getRelationship(
     actor1Id: string,
     actor2Id: string
   ): Promise<ActorRelationship | null> {
-    const relationship = await prisma.actorRelationship.findFirst({
-      where: {
-        OR: [
-          { actor1Id, actor2Id },
-          { actor1Id: actor2Id, actor2Id: actor1Id },
-        ],
-      },
-    });
+    const [relationship] = await db.select()
+      .from(actorRelationships)
+      .where(or(
+        and(eq(actorRelationships.actor1Id, actor1Id), eq(actorRelationships.actor2Id, actor2Id)),
+        and(eq(actorRelationships.actor1Id, actor2Id), eq(actorRelationships.actor2Id, actor1Id))
+      ))
+      .limit(1);
 
     if (!relationship) return null;
 
@@ -148,60 +103,77 @@ export class RelationshipManager {
    * Get actors that this actor follows
    */
   static async getFollowing(actorId: string): Promise<Array<Actor & { followedAt: Date }>> {
-    const follows = await prisma.actorFollow.findMany({
-      where: {
-        followerId: actorId,
-      },
-      include: {
-        Actor_ActorFollow_followingIdToActor: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const follows = await db.select({
+      followingId: actorFollows.followingId,
+      createdAt: actorFollows.createdAt,
+    })
+      .from(actorFollows)
+      .where(eq(actorFollows.followerId, actorId))
+      .orderBy(desc(actorFollows.createdAt));
 
-    return follows.map(f => ({
-      ...this.mapActorFromPrisma(f.Actor_ActorFollow_followingIdToActor),
-      followedAt: f.createdAt,
-    }));
+    const followingIds = follows.map(f => f.followingId);
+    if (followingIds.length === 0) return [];
+
+    const followedActors = await db.select()
+      .from(actors)
+      .where(inArray(actors.id, followingIds));
+
+    const actorMap = new Map(followedActors.map(a => [a.id, a]));
+
+    return follows.map(f => {
+      const actor = actorMap.get(f.followingId);
+      if (!actor) return null;
+      return {
+        ...this.mapActorFromDb(actor),
+        followedAt: f.createdAt,
+      };
+    }).filter((a): a is Actor & { followedAt: Date } => a !== null);
   }
 
   /**
    * Get actors that follow this actor
    */
   static async getFollowers(actorId: string): Promise<Array<Actor & { followedAt: Date }>> {
-    const follows = await prisma.actorFollow.findMany({
-      where: {
-        followingId: actorId,
-      },
-      include: {
-        Actor_ActorFollow_followerIdToActor: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const follows = await db.select({
+      followerId: actorFollows.followerId,
+      createdAt: actorFollows.createdAt,
+    })
+      .from(actorFollows)
+      .where(eq(actorFollows.followingId, actorId))
+      .orderBy(desc(actorFollows.createdAt));
 
-    return follows.map(f => ({
-      ...this.mapActorFromPrisma(f.Actor_ActorFollow_followerIdToActor),
-      followedAt: f.createdAt,
-    }));
+    const followerIds = follows.map(f => f.followerId);
+    if (followerIds.length === 0) return [];
+
+    const followerActors = await db.select()
+      .from(actors)
+      .where(inArray(actors.id, followerIds));
+
+    const actorMap = new Map(followerActors.map(a => [a.id, a]));
+
+    return follows.map(f => {
+      const actor = actorMap.get(f.followerId);
+      if (!actor) return null;
+      return {
+        ...this.mapActorFromDb(actor),
+        followedAt: f.createdAt,
+      };
+    }).filter((a): a is Actor & { followedAt: Date } => a !== null);
   }
 
   /**
    * Check if actor1 follows actor2
    */
   static async isFollowing(actor1Id: string, actor2Id: string): Promise<boolean> {
-    const follow = await prisma.actorFollow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: actor1Id,
-          followingId: actor2Id,
-        },
-      },
-    });
+    const [follow] = await db.select({ id: actorFollows.id })
+      .from(actorFollows)
+      .where(and(
+        eq(actorFollows.followerId, actor1Id),
+        eq(actorFollows.followingId, actor2Id)
+      ))
+      .limit(1);
 
-    return follow !== null;
+    return follow !== undefined;
   }
 
   /**
@@ -219,42 +191,33 @@ export class RelationshipManager {
       };
     }
 
-    const relationships = await prisma.actorRelationship.findMany({
-      where: {
-        OR: [
-          {
-            actor1Id: actorId,
-            actor2Id: { in: relevantActorIds },
-          },
-          {
-            actor1Id: { in: relevantActorIds },
-            actor2Id: actorId,
-          },
-        ],
-      },
-      include: {
-        Actor_ActorRelationship_actor1IdToActor: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        Actor_ActorRelationship_actor2IdToActor: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+    const relationships = await db.select()
+      .from(actorRelationships)
+      .where(or(
+        and(
+          eq(actorRelationships.actor1Id, actorId),
+          inArray(actorRelationships.actor2Id, relevantActorIds)
+        ),
+        and(
+          inArray(actorRelationships.actor1Id, relevantActorIds),
+          eq(actorRelationships.actor2Id, actorId)
+        )
+      ));
+
+    // Get actor names
+    const allActorIds = [...new Set(relationships.flatMap(r => [r.actor1Id, r.actor2Id]))];
+    const actorsList = await db.select({ id: actors.id, name: actors.name })
+      .from(actors)
+      .where(inArray(actors.id, allActorIds));
+    const actorNameMap = new Map(actorsList.map(a => [a.id, a.name]));
 
     const relationshipData = relationships.map(rel => {
       const isActor1 = rel.actor1Id === actorId;
-      const otherActor = isActor1 ? rel.Actor_ActorRelationship_actor2IdToActor : rel.Actor_ActorRelationship_actor1IdToActor;
+      const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
 
       return {
-        otherActorId: otherActor.id,
-        otherActorName: otherActor.name,
+        otherActorId,
+        otherActorName: actorNameMap.get(otherActorId) || 'Unknown',
         type: rel.relationshipType,
         strength: rel.strength,
         sentiment: rel.sentiment,
@@ -316,44 +279,39 @@ export class RelationshipManager {
     count: number,
     relationshipTypes?: string[]
   ): Promise<Actor[]> {
-    const whereClause: Prisma.ActorRelationshipWhereInput = {
-      OR: [{ actor1Id: actorId }, { actor2Id: actorId }],
-    };
+    const query = db.select()
+      .from(actorRelationships)
+      .where(or(
+        eq(actorRelationships.actor1Id, actorId),
+        eq(actorRelationships.actor2Id, actorId)
+      ))
+      .orderBy(desc(actorRelationships.strength), desc(actorRelationships.sentiment))
+      .limit(count * 2);
 
-    if (relationshipTypes && relationshipTypes.length > 0) {
-      whereClause.relationshipType = { in: relationshipTypes };
-    }
+    const relationships = await query;
 
-    const query: Prisma.ActorRelationshipFindManyArgs = {
-      where: whereClause,
-      include: {
-        Actor_ActorRelationship_actor1IdToActor: true,
-        Actor_ActorRelationship_actor2IdToActor: true,
-      },
-      orderBy: [
-        { strength: 'desc' },
-        { sentiment: 'desc' },
-      ],
-      take: count * 2,
-    };
+    // Filter by relationship types if specified
+    const filteredRelationships = relationshipTypes && relationshipTypes.length > 0
+      ? relationships.filter(r => relationshipTypes.includes(r.relationshipType))
+      : relationships;
 
-    const relationships = await prisma.actorRelationship.findMany(query);
-
-    const relatedActorIds = relationships.map(rel => 
+    const relatedActorIds = filteredRelationships.map(rel => 
       rel.actor1Id === actorId ? rel.actor2Id : rel.actor1Id
     );
     
+    if (relatedActorIds.length === 0) return [];
+
     // Fetch full actor details
-    const relatedActors = await prisma.actor.findMany({
-      where: { id: { in: relatedActorIds } },
-    });
+    const relatedActors = await db.select()
+      .from(actors)
+      .where(inArray(actors.id, relatedActorIds));
 
     // Remove duplicates and limit to count
     const uniqueActors = Array.from(new Set(relatedActors.map(a => a.id)))
       .map(id => relatedActors.find(a => a.id === id)!)
       .slice(0, count);
 
-    return uniqueActors.map(a => this.mapActorFromPrisma(a));
+    return uniqueActors.map(a => this.mapActorFromDb(a));
   }
 
   /**
@@ -361,28 +319,29 @@ export class RelationshipManager {
    */
   static async getRelationshipStats(actorId: string): Promise<RelationshipStats> {
     const [
-      followerCount,
-      followingCount,
-      mutualFollowCount,
+      followerCountResult,
+      followingCountResult,
+      mutualFollowCountResult,
       relationships,
     ] = await Promise.all([
-      prisma.actorFollow.count({
-        where: { followingId: actorId },
-      }),
-      prisma.actorFollow.count({
-        where: { followerId: actorId },
-      }),
-      prisma.actorFollow.count({
-        where: { followingId: actorId, isMutual: true },
-      }),
-      prisma.actorRelationship.findMany({
-        where: {
-          OR: [{ actor1Id: actorId }, { actor2Id: actorId }],
-        },
-        select: {
-          relationshipType: true,
-        },
-      }),
+      db.select({ count: count() })
+        .from(actorFollows)
+        .where(eq(actorFollows.followingId, actorId)),
+      db.select({ count: count() })
+        .from(actorFollows)
+        .where(eq(actorFollows.followerId, actorId)),
+      db.select({ count: count() })
+        .from(actorFollows)
+        .where(and(
+          eq(actorFollows.followingId, actorId),
+          eq(actorFollows.isMutual, true)
+        )),
+      db.select({ relationshipType: actorRelationships.relationshipType })
+        .from(actorRelationships)
+        .where(or(
+          eq(actorRelationships.actor1Id, actorId),
+          eq(actorRelationships.actor2Id, actorId)
+        )),
     ]);
 
     const relationshipsByType: Record<string, number> = {};
@@ -393,9 +352,9 @@ export class RelationshipManager {
 
     return {
       actorId,
-      followerCount,
-      followingCount,
-      mutualFollowCount,
+      followerCount: followerCountResult[0]?.count ?? 0,
+      followingCount: followingCountResult[0]?.count ?? 0,
+      mutualFollowCount: mutualFollowCountResult[0]?.count ?? 0,
       relationshipCount: relationships.length,
       relationshipsByType,
     };
@@ -405,15 +364,20 @@ export class RelationshipManager {
    * Get actors with no followers (for verification/fixing)
    */
   static async getActorsWithNoFollowers(): Promise<Actor[]> {
-    const actors = await prisma.actor.findMany({
-      include: {
-        ActorFollow_ActorFollow_followingIdToActor: true,
-      },
-    });
+    // Get all actors
+    const allActors = await db.select()
+      .from(actors);
 
-    const actorsWithNoFollowers = actors.filter(a => a.ActorFollow_ActorFollow_followingIdToActor.length === 0);
+    // Get all followed actor IDs
+    const followedActors = await db.selectDistinct({ followingId: actorFollows.followingId })
+      .from(actorFollows);
 
-    return actorsWithNoFollowers.map(a => this.mapActorFromPrisma(a));
+    const followedIds = new Set(followedActors.map(f => f.followingId));
+
+    // Filter actors with no followers
+    const actorsWithNoFollowers = allActors.filter(a => !followedIds.has(a.id));
+
+    return actorsWithNoFollowers.map(a => this.mapActorFromDb(a));
   }
 
   /**
@@ -445,9 +409,9 @@ export class RelationshipManager {
   }
 
   /**
-   * Map Prisma actor to shared Actor type
+   * Map DB actor to shared Actor type
    */
-  private static mapActorFromPrisma(prismaActor: {
+  private static mapActorFromDb(dbActor: {
     id: string;
     name: string;
     description?: string | null;
@@ -466,24 +430,23 @@ export class RelationshipManager {
     profileImageUrl?: string | null;
   }): Actor {
     return {
-      id: prismaActor.id,
-      name: prismaActor.name,
-      description: prismaActor.description || undefined,
-      domain: prismaActor.domain || [],
-      personality: prismaActor.personality || undefined,
-      role: prismaActor.role || undefined,
-      affiliations: prismaActor.affiliations || [],
-      postStyle: prismaActor.postStyle || undefined,
-      postExample: prismaActor.postExample || [],
-      tier: (prismaActor.tier as ActorTier | null) || undefined,
-      initialLuck: (prismaActor.initialLuck as 'low' | 'medium' | 'high' | null) || undefined,
-      initialMood: prismaActor.initialMood ?? undefined,
-      tradingBalance: prismaActor.tradingBalance
-        ? Number(prismaActor.tradingBalance)
+      id: dbActor.id,
+      name: dbActor.name,
+      description: dbActor.description || undefined,
+      domain: dbActor.domain || [],
+      personality: dbActor.personality || undefined,
+      role: dbActor.role || undefined,
+      affiliations: dbActor.affiliations || [],
+      postStyle: dbActor.postStyle || undefined,
+      postExample: dbActor.postExample || [],
+      tier: (dbActor.tier as ActorTier | null) || undefined,
+      initialLuck: (dbActor.initialLuck as 'low' | 'medium' | 'high' | null) || undefined,
+      initialMood: dbActor.initialMood ?? undefined,
+      tradingBalance: dbActor.tradingBalance
+        ? Number(dbActor.tradingBalance)
         : undefined,
-      reputationPoints: prismaActor.reputationPoints || undefined,
-      profileImageUrl: prismaActor.profileImageUrl || undefined,
+      reputationPoints: dbActor.reputationPoints || undefined,
+      profileImageUrl: dbActor.profileImageUrl || undefined,
     };
   }
 }
-

@@ -6,7 +6,9 @@
  */
 
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import { users, agentPerformanceMetrics, feedbacks } from '@/db/schema'
+import { eq, isNotNull, and, desc } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
@@ -30,36 +32,57 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
 
   if (!onChainRep) {
     logger.warn('No on-chain reputation data found', { agent0TokenId })
-    // Initialize with default metrics
-    return await prisma.agentPerformanceMetrics.upsert({
-      where: { userId },
-      create: {
-        id: await generateSnowflakeId(),
-        userId,
-        onChainReputationSync: true,
-        lastSyncedAt: new Date(),
-        updatedAt: new Date(),
-      },
-      update: {
-        onChainReputationSync: true,
-        lastSyncedAt: new Date(),
-      },
-    })
+    // Initialize with default metrics using upsert pattern
+    const existing = await db
+      .select()
+      .from(agentPerformanceMetrics)
+      .where(eq(agentPerformanceMetrics.userId, userId))
+      .limit(1)
+
+    if (existing[0]) {
+      const updated = await db
+        .update(agentPerformanceMetrics)
+        .set({
+          onChainReputationSync: true,
+          lastSyncedAt: new Date(),
+        })
+        .where(eq(agentPerformanceMetrics.userId, userId))
+        .returning()
+      return updated[0]
+    } else {
+      const created = await db
+        .insert(agentPerformanceMetrics)
+        .values({
+          id: await generateSnowflakeId(),
+          userId,
+          onChainReputationSync: true,
+          lastSyncedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning()
+      return created[0]
+    }
   }
 
   // Get or create performance metrics
-  let metrics = await prisma.agentPerformanceMetrics.findUnique({
-    where: { userId },
-  })
+  const metricsResult = await db
+    .select()
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1)
+
+  let metrics = metricsResult[0]
 
   if (!metrics) {
-    metrics = await prisma.agentPerformanceMetrics.create({
-      data: {
+    const created = await db
+      .insert(agentPerformanceMetrics)
+      .values({
         id: await generateSnowflakeId(),
         userId,
         updatedAt: new Date(),
-      },
-    })
+      })
+      .returning()
+    metrics = created[0]
   }
 
   // Sync on-chain data to local database
@@ -89,34 +112,52 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
  * @returns Agent0 submission result
  */
 export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockchain = false) {
-  // Get feedback record with agent info
-  const feedback = await prisma.feedback.findUnique({
-    where: { id: feedbackId },
-    include: {
-      User_Feedback_toUserIdToUser: {
-        select: {
-          id: true,
-          agent0TokenId: true,
-          nftTokenId: true,
-        },
-      },
-    },
-  })
+  // Get feedback record with agent info using Drizzle
+  const feedbackResult = await db
+    .select({
+      id: feedbacks.id,
+      score: feedbacks.score,
+      comment: feedbacks.comment,
+      metadata: feedbacks.metadata,
+      toUserId: feedbacks.toUserId,
+    })
+    .from(feedbacks)
+    .where(eq(feedbacks.id, feedbackId))
+    .limit(1)
+
+  const feedback = feedbackResult[0]
 
   if (!feedback) {
     throw new Error(`Feedback ${feedbackId} not found`)
   }
 
-  if (!feedback.User_Feedback_toUserIdToUser) {
+  if (!feedback.toUserId) {
     throw new Error('Feedback has no recipient user')
   }
 
-  const agent0TokenId = feedback.User_Feedback_toUserIdToUser.agent0TokenId
+  // Get recipient user info
+  const recipientResult = await db
+    .select({
+      id: users.id,
+      agent0TokenId: users.agent0TokenId,
+      nftTokenId: users.nftTokenId,
+    })
+    .from(users)
+    .where(eq(users.id, feedback.toUserId))
+    .limit(1)
+
+  const recipientUser = recipientResult[0]
+
+  if (!recipientUser) {
+    throw new Error('Feedback has no recipient user')
+  }
+
+  const agent0TokenId = recipientUser.agent0TokenId
 
   if (!agent0TokenId) {
     logger.warn('Agent has no Agent0 token ID, skipping submission', {
       feedbackId,
-      userId: feedback.User_Feedback_toUserIdToUser.id,
+      userId: recipientUser.id,
     })
     return null
   }
@@ -137,19 +178,19 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
   })
 
   // Update feedback record to mark as submitted to Agent0
-  await prisma.feedback.update({
-    where: { id: feedbackId },
-    data: {
+  await db
+    .update(feedbacks)
+    .set({
       agent0TokenId: agent0TokenId,
       metadata: {
         ...(typeof feedback.metadata === 'object' && feedback.metadata !== null
-          ? feedback.metadata
+          ? (feedback.metadata as Record<string, unknown>)
           : {}),
         agent0Submitted: true,
         agent0SubmittedAt: new Date().toISOString(),
       },
-    },
-  })
+    })
+    .where(eq(feedbacks.id, feedbackId))
 
   logger.info('Feedback submitted to Agent0', {
     feedbackId,
@@ -159,10 +200,10 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
   })
 
   // If requested, also submit to blockchain (ERC-8004)
-  if (submitToBlockchain && feedback.User_Feedback_toUserIdToUser.nftTokenId) {
+  if (submitToBlockchain && recipientUser.nftTokenId) {
     logger.info('Submitting feedback to blockchain would require wallet client', {
       feedbackId,
-      nftTokenId: feedback.User_Feedback_toUserIdToUser.nftTokenId,
+      nftTokenId: recipientUser.nftTokenId,
     })
     // Note: Blockchain submission requires wallet client and gas
     // This would be called from a user-facing endpoint with wallet connection
@@ -188,32 +229,43 @@ export async function periodicReputationSync(userId?: string) {
   logger.info('Starting periodic reputation sync', { userId })
 
   // Get users with Agent0 registration
-  const users = await prisma.user.findMany({
-    where: {
-      agent0TokenId: { not: null },
-      ...(userId ? { id: userId } : {}),
-    },
-    select: {
-      id: true,
-      agent0TokenId: true,
-      nftTokenId: true,
-      AgentPerformanceMetrics: {
-        select: {
-          lastSyncedAt: true,
-        },
-      },
-    },
-  })
+  const whereCondition = userId
+    ? and(isNotNull(users.agent0TokenId), eq(users.id, userId))
+    : isNotNull(users.agent0TokenId)
 
-  logger.info(`Found ${users.length} agents to sync`, { userId })
+  const usersResult = await db
+    .select({
+      id: users.id,
+      agent0TokenId: users.agent0TokenId,
+      nftTokenId: users.nftTokenId,
+    })
+    .from(users)
+    .where(whereCondition)
+
+  logger.info(`Found ${usersResult.length} agents to sync`, { userId })
+
+  // Get performance metrics for these users
+  const userIds = usersResult.map((u) => u.id)
+  const metricsResults =
+    userIds.length > 0
+      ? await db
+          .select({
+            userId: agentPerformanceMetrics.userId,
+            lastSyncedAt: agentPerformanceMetrics.lastSyncedAt,
+          })
+          .from(agentPerformanceMetrics)
+      : []
+
+  const metricsMap = new Map(metricsResults.map((m) => [m.userId, m]))
 
   const results = []
 
-  for (const user of users) {
+  for (const user of usersResult) {
     if (!user.agent0TokenId) continue
 
     // Skip if synced recently (within last hour)
-    const lastSync = user.AgentPerformanceMetrics?.lastSyncedAt
+    const metrics = metricsMap.get(user.id)
+    const lastSync = metrics?.lastSyncedAt
     if (lastSync && Date.now() - lastSync.getTime() < 3600000) {
       logger.debug('Skipping recently synced user', {
         userId: user.id,
@@ -242,13 +294,13 @@ export async function periodicReputationSync(userId?: string) {
   }
 
   logger.info('Periodic reputation sync completed', {
-    total: users.length,
+    total: usersResult.length,
     successful: results.filter((r) => r.success).length,
     failed: results.filter((r) => !r.success).length,
   })
 
   return {
-    total: users.length,
+    total: usersResult.length,
     results,
   }
 }
@@ -301,13 +353,16 @@ export async function getReputationForAgent0Metadata(userId: string) {
  * @returns Updated metrics
  */
 export async function syncUserReputationNow(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      agent0TokenId: true,
-      nftTokenId: true,
-    },
-  })
+  const userResult = await db
+    .select({
+      agent0TokenId: users.agent0TokenId,
+      nftTokenId: users.nftTokenId,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = userResult[0]
 
   if (!user) {
     throw new Error(`User ${userId} not found`)
@@ -339,13 +394,14 @@ const REPUTATION_SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000
  * Uses the most recent lastSyncedAt timestamp from any user's performance metrics
  */
 async function shouldSyncReputation(): Promise<boolean> {
-  const lastSync = await prisma.agentPerformanceMetrics.findFirst({
-    where: {
-      lastSyncedAt: { not: null },
-    },
-    orderBy: { lastSyncedAt: 'desc' },
-    select: { lastSyncedAt: true },
-  })
+  const lastSyncResult = await db
+    .select({ lastSyncedAt: agentPerformanceMetrics.lastSyncedAt })
+    .from(agentPerformanceMetrics)
+    .where(isNotNull(agentPerformanceMetrics.lastSyncedAt))
+    .orderBy(desc(agentPerformanceMetrics.lastSyncedAt))
+    .limit(1)
+
+  const lastSync = lastSyncResult[0]
 
   if (!lastSync || !lastSync.lastSyncedAt) {
     return true // Never synced before

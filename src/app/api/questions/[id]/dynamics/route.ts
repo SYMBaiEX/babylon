@@ -48,7 +48,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 
@@ -61,7 +61,7 @@ export async function GET(
     const questionNumber = parseInt(id);
 
     // Get question and market:
-    const question = await prisma.question.findUnique({
+    const question = await db.question.findUnique({
       where: { questionNumber }
     });
 
@@ -69,7 +69,7 @@ export async function GET(
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
-    const market = await prisma.market.findUnique({
+    const market = await db.market.findUnique({
       where: { id: question.id }
     });
 
@@ -78,7 +78,7 @@ export async function GET(
     }
 
     // Get positions for volume analysis (public data):
-    const positions = await prisma.position.findMany({
+    const positions = await db.position.findMany({
       where: {
         marketId: market.id
       },

@@ -10,8 +10,9 @@
 
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
+import { getBaselineModels } from '@/lib/benchmark/ModelRegistry';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 
@@ -22,20 +23,13 @@ interface BaselineConfig {
   forceRegenerate?: boolean;
 }
 
-const BASELINE_MODELS = [
-  {
-    name: 'qwen',
-    modelId: 'qwen/qwen3-32b',
-    displayName: 'Qwen 32B',
-    outputFile: 'baseline-qwen.json'
-  },
-  {
-    name: 'llama8b',
-    modelId: 'llama-3.1-8b-instant',
-    displayName: 'LLaMA 8B Instant',
-    outputFile: 'baseline-llama8b.json'
-  }
-];
+// Get baseline models from registry
+const BASELINE_MODELS = getBaselineModels().map(model => ({
+  name: model.id,
+  modelId: model.modelId,
+  displayName: model.displayName,
+  outputFile: `baseline-${model.id}.json`
+}));
 
 async function runBaselineBenchmark(
   config: BaselineConfig,
@@ -114,7 +108,7 @@ async function runBaselineBenchmark(
 
 async function ensureTestAgent(): Promise<string> {
   // Find or create test agent for baselines
-  let agent = await prisma.user.findFirst({
+  let agent = await db.user.findFirst({
     where: {
       isAgent: true,
       username: { startsWith: 'baseline-test-agent' }
@@ -126,7 +120,7 @@ async function ensureTestAgent(): Promise<string> {
     const { generateSnowflakeId } = await import('@/lib/snowflake');
     
     const agentId = await generateSnowflakeId();
-    agent = await prisma.user.create({
+    agent = await db.user.create({
       data: {
         id: agentId,
         privyId: `did:privy:baseline-test-${agentId}`,
@@ -139,7 +133,7 @@ async function ensureTestAgent(): Promise<string> {
         autonomousCommenting: false,
         agentSystem: 'You are a baseline test agent for benchmarking.',
         agentModelTier: 'lite',
-        virtualBalance: 10000,
+        virtualBalance: '10000',
         reputationPoints: 1000,
         agentPointsBalance: 1000,
         isTest: true,
@@ -205,7 +199,7 @@ async function main() {
   });
   console.log('\nUse these baselines for comparison with trained models.\n');
   
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(0);
 }
 

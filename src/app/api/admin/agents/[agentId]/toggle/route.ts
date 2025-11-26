@@ -70,7 +70,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 
 export async function POST(
@@ -83,7 +83,7 @@ export async function POST(
     const { enabled } = body;
 
     // Toggle all autonomous features
-    await prisma.user.update({
+    await db.user.update({
       where: { id: agentId, isAgent: true },
       data: {
         autonomousTrading: enabled,

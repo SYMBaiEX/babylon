@@ -170,7 +170,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { db, notifications, users, eq, and, desc, count, inArray } from '@/db';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { InternalServerError } from '@/lib/errors';
 import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
@@ -201,24 +201,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const validated = NotificationsQuerySchema.parse(queryParams);
   const { limit: validatedLimit, unreadOnly: validatedUnreadOnly, type: validatedType } = validated;
 
-  const where: {
-    userId: string
-    read?: boolean
-    type?: string
-  } = {
-    userId: authUser.userId,
-  };
-
+  // Build where conditions
+  const conditions = [eq(notifications.userId, authUser.userId)];
+  
   if (validatedUnreadOnly) {
-    where.read = false;
+    conditions.push(eq(notifications.read, false));
   }
-
+  
   if (validatedType) {
-    where.type = validatedType;
+    conditions.push(eq(notifications.type, validatedType));
   }
 
   // OPTIMIZED: Cache notifications with short TTL (high-frequency polling endpoint)
-  const cacheKey = `notifications:${authUser.userId}:${JSON.stringify(where)}:${validatedLimit}`;
+  const cacheKey = `notifications:${authUser.userId}:${validatedUnreadOnly}:${validatedType}:${validatedLimit}`;
   
   // Get blocked/muted user IDs to filter notifications
   const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
@@ -229,42 +224,51 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   
   const excludedUserIds = new Set([...blockedIds, ...mutedIds, ...blockedByIds]);
 
-  const { notifications, unreadCount } = await getCacheOrFetch(
+  const { notificationsList, unreadCount } = await getCacheOrFetch(
     cacheKey,
     async () => {
-      return await asUser(authUser, async (db) => {
-        const allNotifications = await db.notification.findMany({
-          where,
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: validatedLimit * 2, // Fetch more to account for filtering
-          include: {
-            User_Notification_actorIdToUser: {
-              select: {
-                id: true,
-                displayName: true,
-                username: true,
-                profileImageUrl: true,
-              },
-            },
-          },
-        });
+      // Fetch notifications
+      const allNotifications = await db.select()
+        .from(notifications)
+        .where(and(...conditions))
+        .orderBy(desc(notifications.createdAt))
+        .limit(validatedLimit * 2); // Fetch more to account for filtering
 
-        // Filter out notifications from blocked/muted users
-        const notifications = allNotifications
-          .filter(n => !n.actorId || !excludedUserIds.has(n.actorId))
-          .slice(0, validatedLimit); // Limit to requested amount after filtering
+      // Get actor IDs to fetch user info
+      const actorIds = [...new Set(allNotifications.map(n => n.actorId).filter((id): id is string => id !== null))];
+      
+      // Fetch actor info
+      const actorsResult = actorIds.length > 0
+        ? await db.select({
+            id: users.id,
+            displayName: users.displayName,
+            username: users.username,
+            profileImageUrl: users.profileImageUrl,
+          })
+          .from(users)
+          .where(inArray(users.id, actorIds))
+        : [];
+      
+      const actorMap = new Map(actorsResult.map(a => [a.id, a]));
 
-        const unreadCount = await db.notification.count({
-          where: {
-            userId: authUser.userId,
-            read: false,
-          },
-        });
+      // Filter out notifications from blocked/muted users and add actor info
+      const notificationsList = allNotifications
+        .filter(n => !n.actorId || !excludedUserIds.has(n.actorId))
+        .slice(0, validatedLimit) // Limit to requested amount after filtering
+        .map(n => ({
+          ...n,
+          actor: n.actorId ? actorMap.get(n.actorId) || null : null,
+        }));
 
-        return { notifications, unreadCount };
-      });
+      // Get unread count
+      const [unreadCountResult] = await db.select({ count: count() })
+        .from(notifications)
+        .where(and(
+          eq(notifications.userId, authUser.userId),
+          eq(notifications.read, false)
+        ));
+
+      return { notificationsList, unreadCount: Number(unreadCountResult?.count ?? 0) };
     },
     {
       namespace: CACHE_KEYS.USER,
@@ -272,10 +276,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   );
 
-  logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
+  logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notificationsList.length, unreadCount }, 'GET /api/notifications');
 
   return successResponse({
-    notifications: notifications.map((n: typeof notifications[number]) => {
+    notifications: notificationsList.map((n) => {
       // Helper to safely convert any value to string (handles cached data)
       const toSafeString = (value: unknown): string => {
         if (value === null || value === undefined) return '';
@@ -312,11 +316,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         id: toSafeString(n.id),
         type: toSafeString(n.type),
         actorId: toSafeString(n.actorId),
-        actor: n.User_Notification_actorIdToUser ? {
-          id: toSafeString(n.User_Notification_actorIdToUser.id),
-          displayName: toSafeString(n.User_Notification_actorIdToUser.displayName),
-          username: toSafeString(n.User_Notification_actorIdToUser.username),
-          profileImageUrl: toSafeString(n.User_Notification_actorIdToUser.profileImageUrl),
+        actor: n.actor ? {
+          id: toSafeString(n.actor.id),
+          displayName: toSafeString(n.actor.displayName),
+          username: toSafeString(n.actor.username),
+          profileImageUrl: toSafeString(n.actor.profileImageUrl),
         } : null,
         postId: n.postId ? toSafeString(n.postId) : null,
         commentId: n.commentId ? toSafeString(n.commentId) : null,
@@ -348,56 +352,38 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
   }
   const { notificationIds, markAllAsRead } = MarkNotificationsReadSchema.parse(body);
 
-  await asUser(authUser, async (db) => {
-    if (markAllAsRead) {
-      // Mark all notifications as read
-      await db.notification.updateMany({
-        where: {
-          userId: authUser.userId,
-          read: false,
-        },
-        data: {
-          read: true,
-        },
-      });
-
-      // Invalidate notification cache after update
-      await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
-
-      logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
-      return;
-    }
-
-    if (notificationIds && notificationIds.length > 0) {
-      // Mark specific notifications as read
-      await db.notification.updateMany({
-        where: {
-          id: { in: notificationIds },
-          userId: authUser.userId, // Ensure user owns these notifications
-        },
-        data: {
-          read: true,
-        },
-      });
-
-      // Invalidate notification cache after update
-      await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
-
-      logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
-      return;
-    }
-  });
-
   if (markAllAsRead) {
+    // Mark all notifications as read
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(
+        eq(notifications.userId, authUser.userId),
+        eq(notifications.read, false)
+      ));
+
+    // Invalidate notification cache after update
+    await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
+
+    logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
     return successResponse({ success: true, message: 'All notifications marked as read' });
   }
 
   if (notificationIds && notificationIds.length > 0) {
+    // Mark specific notifications as read
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(
+        inArray(notifications.id, notificationIds),
+        eq(notifications.userId, authUser.userId) // Ensure user owns these notifications
+      ));
+
+    // Invalidate notification cache after update
+    await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
+
+    logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
     return successResponse({ success: true, message: 'Notifications marked as read' });
   }
 
   // This should not happen due to schema validation, but handle gracefully
   throw new InternalServerError('Invalid request: provide notificationIds array or markAllAsRead=true');
 });
-
-

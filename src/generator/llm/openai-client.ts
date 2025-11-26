@@ -110,12 +110,22 @@ export class BabylonLLMClient {
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
     this.wandbModel = wandbModelOverride || process.env.WANDB_MODEL || undefined; // Can be configured via admin
     
+    // Timeout and retry configuration - shorter in test environments to fail fast
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+    // Test: 30 seconds, Production: 180 seconds (3 minutes)
+    const timeoutMs = isTestEnv ? 30000 : 180000;
+    // Test: 0 SDK retries (we handle retries ourselves, fail fast on rate limits)
+    // Production: 2 retries
+    const sdkMaxRetries = isTestEnv ? 0 : 2;
+    
     // Force specific provider if requested (only for special cases, e.g., testing specific providers)
     if (forceProvider === 'groq' && this.groqKey) {
       logger.info('Using Groq (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
         apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
       });
       this.provider = 'groq';
     } else if (this.wandbKey && !forceProvider) {
@@ -123,6 +133,8 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.wandbKey,
         baseURL: 'https://api.inference.wandb.ai/v1',
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
       });
       this.provider = 'wandb';
     } else if (this.groqKey) {
@@ -130,6 +142,8 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
       });
       this.provider = 'groq';
     } else if (this.claudeKey) {
@@ -137,11 +151,17 @@ export class BabylonLLMClient {
       this.client = new OpenAI({
         apiKey: this.claudeKey,
         baseURL: 'https://api.anthropic.com/v1',
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
       });
       this.provider = 'claude';
     } else if (this.openaiKey) {
       logger.info('Using OpenAI (fallback)', undefined, 'BabylonLLMClient');
-      this.client = new OpenAI({ apiKey: this.openaiKey });
+      this.client = new OpenAI({ 
+        apiKey: this.openaiKey,
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
+      });
       this.provider = 'openai';
     } else {
       throw new Error(
@@ -236,7 +256,8 @@ export class BabylonLLMClient {
         let finishReason = response.choices[0]!.finish_reason;
 
         // Debug logging: Log raw prompt and response
-        await this.logPromptDebug(prompt, content, {
+        const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
+        await this.logPromptDebug(fullInput, content, {
           promptType,
           promptTemplate,
           provider: this.provider,
@@ -359,7 +380,54 @@ export class BabylonLLMClient {
           return parsed as T;
         }
       } catch (error: unknown) {
-        const err = error as { status?: number; message?: string };
+        const err = error as { status?: number; message?: string; headers?: Headers };
+        const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+        
+        // Handle 429 rate limit errors
+        const isRateLimitError = err?.status === 429 ||
+            err?.message?.includes('429') ||
+            err?.message?.includes('rate_limit');
+        
+        if (isRateLimitError) {
+          // In test environments, fail fast - don't retry rate limits
+          if (isTestEnv) {
+            logger.warn('Rate limit hit (429) in test environment - failing fast', {
+              error: err.message
+            }, 'BabylonLLMClient');
+            throw error;
+          }
+          
+          // In production, retry with backoff
+          if (retryCount < maxRetries) {
+            retryCount++;
+            
+            // Try to get retry-after from headers, default to exponential backoff
+            let delay = initialDelayMs * Math.pow(2, retryCount - 1);
+            
+            // Check for retry-after header
+            const retryAfter = err.headers?.get?.('retry-after');
+            if (retryAfter) {
+              const retryAfterSeconds = parseInt(retryAfter, 10);
+              if (!isNaN(retryAfterSeconds)) {
+                delay = (retryAfterSeconds + 1) * 1000; // Add 1 second buffer
+              }
+            }
+            
+            // Cap at 30 seconds for rate limits
+            delay = Math.min(delay, 30000);
+            
+            logger.warn(`Rate limit hit (429), retrying in ${delay}ms...`, {
+              attempt: retryCount,
+              maxRetries,
+              retryAfterHeader: retryAfter || 'not provided',
+              delay
+            }, 'BabylonLLMClient');
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
         // Handle 502/503/504 service errors with exponential backoff
         if (retryCount < maxRetries && (
             err?.status === 502 || 
@@ -370,7 +438,9 @@ export class BabylonLLMClient {
             err?.message?.includes('service_unavailable')
         )) {
           retryCount++;
-          const delay = initialDelayMs * Math.pow(2, retryCount - 1);
+          // Faster retries in test environments
+          const baseDelay = isTestEnv ? 500 : initialDelayMs;
+          const delay = baseDelay * Math.pow(2, retryCount - 1);
           
           logger.warn(`LLM Service Error (${err.status || 'unknown'}), retrying in ${delay}ms...`, {
             attempt: retryCount,

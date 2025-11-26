@@ -12,7 +12,7 @@ describe('PredictionMarketEventService', () => {
   });
 
   afterEach(() => {
-    (broadcastSpy as any).mockRestore();
+    broadcastSpy.mockRestore();
   });
 
   test('emitTradeUpdate broadcasts prediction trade event', () => {

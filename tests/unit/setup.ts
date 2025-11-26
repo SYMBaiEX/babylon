@@ -1,13 +1,14 @@
 /**
  * Unit Test Setup
  *
- * Provides mocked Prisma client and other dependencies for unit tests.
+ * Provides mocked database client and other dependencies for unit tests.
  * Unit tests should not require a real database connection.
  */
 
 import { mock, beforeAll } from 'bun:test'
+import type { MockDatabaseClient, MockTransactionFn } from '../types/test-types'
 
-// Mock Prisma client for all unit tests
+// Mock database client for all unit tests
 beforeAll(() => {
   // Set test environment variables
   // @ts-expect-error - Need to override NODE_ENV for testing
@@ -15,12 +16,12 @@ beforeAll(() => {
   process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test'
   process.env.REDIS_URL = 'redis://localhost:6379'
 
-  // Mock the Prisma module entirely
-  mock.module('@/lib/prisma', () => {
-    const mockPrismaClient = createMockPrismaClient()
+  // Mock the database module entirely
+  mock.module('@/db', () => {
+    const mockDatabase = createMockDatabase()
     return {
-      prisma: mockPrismaClient,
-      prismaBase: mockPrismaClient
+      db: mockDatabase,
+      dbBase: mockDatabase
     }
   })
 
@@ -50,9 +51,9 @@ beforeAll(() => {
 })
 
 /**
- * Create a mock Prisma client with all necessary models
+ * Create a mock database client with all necessary models
  */
-function createMockPrismaClient() {
+function createMockDatabase() {
   const mockModels = [
     'user', 'actor', 'pool', 'market', 'position', 'trade',
     'post', 'comment', 'worldFact', 'parodyHeadline',
@@ -75,18 +76,19 @@ function createMockPrismaClient() {
     'rewardJudgment'
   ]
 
-  const mockClient: any = {
+  // Initialize base mock client - model methods are added dynamically below
+  const mockClient = {
     $connect: mock(() => Promise.resolve()),
     $disconnect: mock(() => Promise.resolve()),
     $queryRaw: mock(() => Promise.resolve([])),
     $executeRaw: mock(() => Promise.resolve(0)),
-    $transaction: mock(async (fn: any) => {
+    $transaction: mock(async (fn: MockTransactionFn) => {
       // Execute the transaction function with the mock client
-      return await fn(mockClient)
+      return await fn(mockClient as MockDatabaseClient)
     })
-  }
+  } as MockDatabaseClient
 
-  // Add mock methods for each Prisma model
+  // Add mock methods for each database model
   for (const modelName of mockModels) {
     mockClient[modelName] = {
       findUnique: mock(() => Promise.resolve(null)),
@@ -114,4 +116,4 @@ function createMockPrismaClient() {
   return mockClient
 }
 
-export { createMockPrismaClient }
+export { createMockDatabase }

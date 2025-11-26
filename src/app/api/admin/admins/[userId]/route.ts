@@ -61,7 +61,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -91,7 +91,7 @@ export const POST = withErrorHandling(async (
   }, 'POST /api/admin/admins/[userId]');
 
   // Get target user
-  const targetUser = await prisma.user.findUnique({
+  const targetUser = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -132,7 +132,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Update user admin status
-  const updatedUser = await prisma.user.update({
+  const updatedUser = await db.user.update({
     where: { id: userId },
     data: {
       isAdmin: action === 'promote',

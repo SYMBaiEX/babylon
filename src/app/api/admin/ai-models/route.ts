@@ -76,7 +76,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { logger } from '@/lib/logger';
 import OpenAI from 'openai';
 
@@ -87,7 +87,7 @@ import OpenAI from 'openai';
 export async function GET(_req: NextRequest) {
   try {
     // Get current settings
-    const settings = await prisma.systemSettings.findUnique({
+    const settings = await db.systemSettings.findUnique({
       where: { id: 'system' },
     });
 
@@ -201,7 +201,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Update or create settings
-    const settings = await prisma.systemSettings.upsert({
+    const settings = await db.systemSettings.upsert({
       where: { id: 'system' },
       update: {
         wandbModel: typeof wandbModel === 'string' ? wandbModel : null,
@@ -211,6 +211,7 @@ export async function PUT(req: NextRequest) {
         id: 'system',
         wandbModel: typeof wandbModel === 'string' ? wandbModel : null,
         wandbEnabled: typeof wandbEnabled === 'boolean' ? wandbEnabled : undefined,
+        updatedAt: new Date(),
       },
     });
 

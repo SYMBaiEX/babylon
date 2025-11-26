@@ -1,0 +1,2460 @@
+{
+  "id": "1764042083097",
+  "version": "1.0.0",
+  "createdAt": 1764042083097,
+  "duration": 120,
+  "tickInterval": 10,
+  "initialState": {
+    "tick": 0,
+    "timestamp": 1764042083097,
+    "predictionMarkets": [
+      {
+        "id": "market-0",
+        "question": "Will BitcAIn reach $150k by end of month?",
+        "yesShares": 5596.691507962532,
+        "noShares": 9501.584351295605,
+        "yesPrice": 0.37068414699355806,
+        "noPrice": 0.629315853006442,
+        "totalVolume": 0,
+        "liquidity": 15098.275859258138,
+        "resolved": false,
+        "createdAt": 1764042083097,
+        "resolveAt": 1764042203097
+      },
+      {
+        "id": "market-1",
+        "question": "Will The FUD announce emergency rate cut?",
+        "yesShares": 5746.498359367251,
+        "noShares": 6583.364711259492,
+        "yesPrice": 0.4660634369133468,
+        "noPrice": 0.5339365630866532,
+        "totalVolume": 0,
+        "liquidity": 12329.863070626743,
+        "resolved": false,
+        "createdAt": 1764042083097,
+        "resolveAt": 1764042203097
+      },
+      {
+        "id": "market-2",
+        "question": "Will Trump Terminal tweet cause market crash?",
+        "yesShares": 9947.754556196742,
+        "noShares": 5633.810551371425,
+        "yesPrice": 0.6384310232972032,
+        "noPrice": 0.36156897670279675,
+        "totalVolume": 0,
+        "liquidity": 15581.565107568167,
+        "resolved": false,
+        "createdAt": 1764042083097,
+        "resolveAt": 1764042203097
+      }
+    ],
+    "perpetualMarkets": [
+      {
+        "ticker": "BTCAI",
+        "price": 117998.92431139138,
+        "priceChange24h": -2.585843459237367,
+        "volume24h": 2255338.5300561786,
+        "openInterest": 919438.8531614095,
+        "fundingRate": 0.00038625293597579005,
+        "nextFundingTime": 1764070883097
+      },
+      {
+        "ticker": "ETHAI",
+        "price": 4128.038939736239,
+        "priceChange24h": 0.701955237891525,
+        "volume24h": 2880606.2238290906,
+        "openInterest": 773427.531355992,
+        "fundingRate": -0.0006046033892780542,
+        "nextFundingTime": 1764070883097
+      }
+    ],
+    "agents": [
+      {
+        "id": "agent-0",
+        "name": "Agent 0",
+        "reputation": 50.38994731148705,
+        "totalPnl": 277.0410324446857
+      },
+      {
+        "id": "agent-1",
+        "name": "Agent 1",
+        "reputation": 73.02989816525951,
+        "totalPnl": -439.0614554286003
+      },
+      {
+        "id": "agent-2",
+        "name": "Agent 2",
+        "reputation": 98.34853409556672,
+        "totalPnl": -389.6235632710159
+      }
+    ],
+    "posts": [],
+    "groupChats": []
+  },
+  "ticks": [
+    {
+      "number": 0,
+      "timestamp": 1764042093097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042093097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 120000,
+            "newPrice": 118908.66980101168
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042093097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4000,
+            "newPrice": 4001.983234657347
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042093097,
+          "data": {
+            "postId": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "marketId": "market-1"
+          }
+        }
+      ],
+      "state": {
+        "tick": 1,
+        "timestamp": 1764042093097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 1,
+      "timestamp": 1764042103097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042103097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 118908.66980101168,
+            "newPrice": 119914.53023284885
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042103097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4001.983234657347,
+            "newPrice": 4006.1387526576145
+          }
+        },
+        {
+          "type": "market:trade",
+          "timestamp": 1764042103097,
+          "data": {
+            "marketId": "market-1",
+            "agentId": "agent-1",
+            "outcome": "NO",
+            "amount": 94.12619904614985
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042103097,
+          "data": {
+            "postId": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "marketId": "market-0"
+          }
+        }
+      ],
+      "state": {
+        "tick": 2,
+        "timestamp": 1764042103097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 2,
+      "timestamp": 1764042113097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042113097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119914.53023284885,
+            "newPrice": 119913.62094708241
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042113097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4006.1387526576145,
+            "newPrice": 4002.4269432841525
+          }
+        }
+      ],
+      "state": {
+        "tick": 3,
+        "timestamp": 1764042113097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 3,
+      "timestamp": 1764042123097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042123097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119913.62094708241,
+            "newPrice": 119121.08822186042
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042123097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4002.4269432841525,
+            "newPrice": 4010.8071975081343
+          }
+        }
+      ],
+      "state": {
+        "tick": 4,
+        "timestamp": 1764042123097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 4,
+      "timestamp": 1764042133097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042133097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119121.08822186042,
+            "newPrice": 119328.73178144971
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042133097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4010.8071975081343,
+            "newPrice": 4035.7093434990675
+          }
+        },
+        {
+          "type": "market:trade",
+          "timestamp": 1764042133097,
+          "data": {
+            "marketId": "market-1",
+            "agentId": "agent-2",
+            "outcome": "NO",
+            "amount": 87.8453196072951
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042133097,
+          "data": {
+            "postId": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "marketId": "market-1"
+          }
+        }
+      ],
+      "state": {
+        "tick": 5,
+        "timestamp": 1764042133097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 5,
+      "timestamp": 1764042143097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042143097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119328.73178144971,
+            "newPrice": 119188.30985884301
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042143097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4035.7093434990675,
+            "newPrice": 4012.0560069305084
+          }
+        },
+        {
+          "type": "market:trade",
+          "timestamp": 1764042143097,
+          "data": {
+            "marketId": "market-0",
+            "agentId": "agent-0",
+            "outcome": "NO",
+            "amount": 98.49727747961879
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042143097,
+          "data": {
+            "postId": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "marketId": "market-2"
+          }
+        }
+      ],
+      "state": {
+        "tick": 6,
+        "timestamp": 1764042143097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 6,
+      "timestamp": 1764042153097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042153097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119188.30985884301,
+            "newPrice": 119152.12783199578
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042153097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4012.0560069305084,
+            "newPrice": 3995.6256255045882
+          }
+        }
+      ],
+      "state": {
+        "tick": 7,
+        "timestamp": 1764042153097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 7,
+      "timestamp": 1764042163097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042163097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119152.12783199578,
+            "newPrice": 118535.57190766255
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042163097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 3995.6256255045882,
+            "newPrice": 4017.0214878076717
+          }
+        },
+        {
+          "type": "market:trade",
+          "timestamp": 1764042163097,
+          "data": {
+            "marketId": "market-2",
+            "agentId": "agent-1",
+            "outcome": "YES",
+            "amount": 77.24056052509695
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042163097,
+          "data": {
+            "postId": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "marketId": "market-1"
+          }
+        }
+      ],
+      "state": {
+        "tick": 8,
+        "timestamp": 1764042163097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          },
+          {
+            "id": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042163097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-1"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 8,
+      "timestamp": 1764042173097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042173097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 118535.57190766255,
+            "newPrice": 119159.39084839857
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042173097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4017.0214878076717,
+            "newPrice": 4055.1938647174056
+          }
+        }
+      ],
+      "state": {
+        "tick": 9,
+        "timestamp": 1764042173097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          },
+          {
+            "id": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042163097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-1"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 9,
+      "timestamp": 1764042183097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042183097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 119159.39084839857,
+            "newPrice": 118673.81962083619
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042183097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4055.1938647174056,
+            "newPrice": 4075.7845103210543
+          }
+        }
+      ],
+      "state": {
+        "tick": 10,
+        "timestamp": 1764042183097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          },
+          {
+            "id": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042163097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-1"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 10,
+      "timestamp": 1764042193097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042193097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 118673.81962083619,
+            "newPrice": 118876.28270736792
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042193097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4075.7845103210543,
+            "newPrice": 4094.0644982491863
+          }
+        },
+        {
+          "type": "post:created",
+          "timestamp": 1764042193097,
+          "data": {
+            "postId": "post-10-605092",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will Trump Terminal tweet cause market crash?",
+            "marketId": "market-2"
+          }
+        }
+      ],
+      "state": {
+        "tick": 11,
+        "timestamp": 1764042193097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          },
+          {
+            "id": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042163097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-10-605092",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042193097,
+            "likes": 8,
+            "comments": 1,
+            "marketId": "market-2"
+          }
+        ],
+        "groupChats": []
+      }
+    },
+    {
+      "number": 11,
+      "timestamp": 1764042203097,
+      "events": [
+        {
+          "type": "price:updated",
+          "timestamp": 1764042203097,
+          "data": {
+            "ticker": "BTCAI",
+            "oldPrice": 118876.28270736792,
+            "newPrice": 117998.92431139138
+          }
+        },
+        {
+          "type": "price:updated",
+          "timestamp": 1764042203097,
+          "data": {
+            "ticker": "ETHAI",
+            "oldPrice": 4094.0644982491863,
+            "newPrice": 4128.038939736239
+          }
+        }
+      ],
+      "state": {
+        "tick": 12,
+        "timestamp": 1764042203097,
+        "predictionMarkets": [
+          {
+            "id": "market-0",
+            "question": "Will BitcAIn reach $150k by end of month?",
+            "yesShares": 5596.691507962532,
+            "noShares": 9501.584351295605,
+            "yesPrice": 0.37068414699355806,
+            "noPrice": 0.629315853006442,
+            "totalVolume": 0,
+            "liquidity": 15098.275859258138,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-1",
+            "question": "Will The FUD announce emergency rate cut?",
+            "yesShares": 5746.498359367251,
+            "noShares": 6583.364711259492,
+            "yesPrice": 0.4660634369133468,
+            "noPrice": 0.5339365630866532,
+            "totalVolume": 0,
+            "liquidity": 12329.863070626743,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          },
+          {
+            "id": "market-2",
+            "question": "Will Trump Terminal tweet cause market crash?",
+            "yesShares": 9947.754556196742,
+            "noShares": 5633.810551371425,
+            "yesPrice": 0.6384310232972032,
+            "noPrice": 0.36156897670279675,
+            "totalVolume": 0,
+            "liquidity": 15581.565107568167,
+            "resolved": false,
+            "createdAt": 1764042083097,
+            "resolveAt": 1764042203097
+          }
+        ],
+        "perpetualMarkets": [
+          {
+            "ticker": "BTCAI",
+            "price": 117998.92431139138,
+            "priceChange24h": -2.585843459237367,
+            "volume24h": 2255338.5300561786,
+            "openInterest": 919438.8531614095,
+            "fundingRate": 0.00038625293597579005,
+            "nextFundingTime": 1764070883097
+          },
+          {
+            "ticker": "ETHAI",
+            "price": 4128.038939736239,
+            "priceChange24h": 0.701955237891525,
+            "volume24h": 2880606.2238290906,
+            "openInterest": 773427.531355992,
+            "fundingRate": -0.0006046033892780542,
+            "nextFundingTime": 1764070883097
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-0",
+            "name": "Agent 0",
+            "reputation": 50.38994731148705,
+            "totalPnl": 277.0410324446857
+          },
+          {
+            "id": "agent-1",
+            "name": "Agent 1",
+            "reputation": 73.02989816525951,
+            "totalPnl": -439.0614554286003
+          },
+          {
+            "id": "agent-2",
+            "name": "Agent 2",
+            "reputation": 98.34853409556672,
+            "totalPnl": -389.6235632710159
+          }
+        ],
+        "posts": [
+          {
+            "id": "post-0-223681",
+            "authorId": "agent-1",
+            "authorName": "Agent 1",
+            "content": "Market sentiment seems bullish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042093097,
+            "likes": 16,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-1-260924",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will BitcAIn reach $150k by end of month?",
+            "createdAt": 1764042103097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-0"
+          },
+          {
+            "id": "post-4-866945",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042133097,
+            "likes": 16,
+            "comments": 4,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-5-680080",
+            "authorId": "agent-0",
+            "authorName": "Agent 0",
+            "content": "Market sentiment seems bullish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042143097,
+            "likes": 11,
+            "comments": 3,
+            "marketId": "market-2"
+          },
+          {
+            "id": "post-7-234615",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will The FUD announce emergency rate cut?",
+            "createdAt": 1764042163097,
+            "likes": 9,
+            "comments": 0,
+            "marketId": "market-1"
+          },
+          {
+            "id": "post-10-605092",
+            "authorId": "agent-2",
+            "authorName": "Agent 2",
+            "content": "Market sentiment seems bearish on Will Trump Terminal tweet cause market crash?",
+            "createdAt": 1764042193097,
+            "likes": 8,
+            "comments": 1,
+            "marketId": "market-2"
+          }
+        ],
+        "groupChats": []
+      }
+    }
+  ],
+  "groundTruth": {
+    "marketOutcomes": {
+      "market-0": true,
+      "market-1": false,
+      "market-2": true
+    },
+    "priceHistory": {
+      "BTCAI": [
+        {
+          "tick": 0,
+          "timestamp": 0,
+          "price": 118908.66980101168
+        },
+        {
+          "tick": 1,
+          "timestamp": 0,
+          "price": 119914.53023284885
+        },
+        {
+          "tick": 2,
+          "timestamp": 0,
+          "price": 119913.62094708241
+        },
+        {
+          "tick": 3,
+          "timestamp": 0,
+          "price": 119121.08822186042
+        },
+        {
+          "tick": 4,
+          "timestamp": 0,
+          "price": 119328.73178144971
+        },
+        {
+          "tick": 5,
+          "timestamp": 0,
+          "price": 119188.30985884301
+        },
+        {
+          "tick": 6,
+          "timestamp": 0,
+          "price": 119152.12783199578
+        },
+        {
+          "tick": 7,
+          "timestamp": 0,
+          "price": 118535.57190766255
+        },
+        {
+          "tick": 8,
+          "timestamp": 0,
+          "price": 119159.39084839857
+        },
+        {
+          "tick": 9,
+          "timestamp": 0,
+          "price": 118673.81962083619
+        },
+        {
+          "tick": 10,
+          "timestamp": 0,
+          "price": 118876.28270736792
+        },
+        {
+          "tick": 11,
+          "timestamp": 0,
+          "price": 117998.92431139138
+        }
+      ],
+      "ETHAI": [
+        {
+          "tick": 0,
+          "timestamp": 0,
+          "price": 4001.983234657347
+        },
+        {
+          "tick": 1,
+          "timestamp": 0,
+          "price": 4006.1387526576145
+        },
+        {
+          "tick": 2,
+          "timestamp": 0,
+          "price": 4002.4269432841525
+        },
+        {
+          "tick": 3,
+          "timestamp": 0,
+          "price": 4010.8071975081343
+        },
+        {
+          "tick": 4,
+          "timestamp": 0,
+          "price": 4035.7093434990675
+        },
+        {
+          "tick": 5,
+          "timestamp": 0,
+          "price": 4012.0560069305084
+        },
+        {
+          "tick": 6,
+          "timestamp": 0,
+          "price": 3995.6256255045882
+        },
+        {
+          "tick": 7,
+          "timestamp": 0,
+          "price": 4017.0214878076717
+        },
+        {
+          "tick": 8,
+          "timestamp": 0,
+          "price": 4055.1938647174056
+        },
+        {
+          "tick": 9,
+          "timestamp": 0,
+          "price": 4075.7845103210543
+        },
+        {
+          "tick": 10,
+          "timestamp": 0,
+          "price": 4094.0644982491863
+        },
+        {
+          "tick": 11,
+          "timestamp": 0,
+          "price": 4128.038939736239
+        }
+      ]
+    },
+    "optimalActions": [
+      {
+        "tick": 1,
+        "type": "buy_prediction",
+        "target": "market-0",
+        "expectedValue": 100,
+        "reason": "Market market-0 will resolve YES"
+      },
+      {
+        "tick": 1,
+        "type": "buy_prediction",
+        "target": "market-1",
+        "expectedValue": 100,
+        "reason": "Market market-1 will resolve NO"
+      },
+      {
+        "tick": 1,
+        "type": "buy_prediction",
+        "target": "market-2",
+        "expectedValue": 100,
+        "reason": "Market market-2 will resolve YES"
+      }
+    ],
+    "socialOpportunities": [
+      {
+        "tick": 0,
+        "type": "group_invite",
+        "value": 165.99665860412642,
+        "description": "Insider information about market outcome"
+      },
+      {
+        "tick": 2,
+        "type": "insider_signal",
+        "value": 139.1579772112891,
+        "description": "Invitation to high-value trading group 2"
+      },
+      {
+        "tick": 4,
+        "type": "group_invite",
+        "value": 141.5433445130475,
+        "description": "Invitation to high-value trading group 4"
+      },
+      {
+        "tick": 6,
+        "type": "insider_signal",
+        "value": 186.66605418547988,
+        "description": "Insider information about market outcome"
+      },
+      {
+        "tick": 8,
+        "type": "group_invite",
+        "value": 161.81162394350395,
+        "description": "Invitation to high-value trading group 8"
+      },
+      {
+        "tick": 10,
+        "type": "insider_signal",
+        "value": 78.36697709280998,
+        "description": "Insider information about market outcome"
+      }
+    ],
+    "hiddenFacts": [
+      {
+        "tick": 0,
+        "fact": "Hidden social fact at tick 0",
+        "category": "social",
+        "value": {
+          "marketId": "market-2",
+          "confidence": 0.8935232018120587,
+          "impact": 94.3564189830795
+        }
+      },
+      {
+        "tick": 1,
+        "fact": "Hidden social fact at tick 1",
+        "category": "social",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.7601345828734338,
+          "impact": 25.26253752876073
+        }
+      },
+      {
+        "tick": 2,
+        "fact": "Hidden social fact at tick 2",
+        "category": "social",
+        "value": {
+          "marketId": "market-0",
+          "confidence": 0.762318114284426,
+          "impact": 79.52472569886595
+        }
+      },
+      {
+        "tick": 3,
+        "fact": "Hidden market fact at tick 3",
+        "category": "market",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.49702933384105563,
+          "impact": 98.79797559697181
+        }
+      },
+      {
+        "tick": 4,
+        "fact": "Hidden market fact at tick 4",
+        "category": "market",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.5386293274350464,
+          "impact": 21.731679351069033
+        }
+      },
+      {
+        "tick": 5,
+        "fact": "Hidden social fact at tick 5",
+        "category": "social",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.28977584233507514,
+          "impact": 37.003076379187405
+        }
+      },
+      {
+        "tick": 6,
+        "fact": "Hidden event fact at tick 6",
+        "category": "event",
+        "value": {
+          "marketId": "market-2",
+          "confidence": 0.6575097129680216,
+          "impact": 59.10460690502077
+        }
+      },
+      {
+        "tick": 7,
+        "fact": "Hidden market fact at tick 7",
+        "category": "market",
+        "value": {
+          "marketId": "market-0",
+          "confidence": 0.13266159920021892,
+          "impact": 78.44767172355205
+        }
+      },
+      {
+        "tick": 8,
+        "fact": "Hidden social fact at tick 8",
+        "category": "social",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.10070403711870313,
+          "impact": 62.3452982166782
+        }
+      },
+      {
+        "tick": 9,
+        "fact": "Hidden social fact at tick 9",
+        "category": "social",
+        "value": {
+          "marketId": "market-1",
+          "confidence": 0.4621738023124635,
+          "impact": 8.43621261883527
+        }
+      },
+      {
+        "tick": 10,
+        "fact": "Hidden market fact at tick 10",
+        "category": "market",
+        "value": {
+          "marketId": "market-2",
+          "confidence": 0.8907895856536925,
+          "impact": 77.11281853262335
+        }
+      },
+      {
+        "tick": 11,
+        "fact": "Hidden social fact at tick 11",
+        "category": "social",
+        "value": {
+          "marketId": "market-2",
+          "confidence": 0.3073899815790355,
+          "impact": 54.5155816944316
+        }
+      }
+    ],
+    "hiddenEvents": [
+      {
+        "tick": 0,
+        "type": "exchange_hack",
+        "description": "Hidden exchange_hack event occurred at tick 0",
+        "impact": {
+          "affectedMarkets": [
+            "market-0"
+          ],
+          "severity": 0.39781678887084126
+        }
+      },
+      {
+        "tick": 1,
+        "type": "regulatory_announcement",
+        "description": "Hidden regulatory_announcement event occurred at tick 1",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.12340939114801586
+        }
+      },
+      {
+        "tick": 2,
+        "type": "whale_movement",
+        "description": "Hidden whale_movement event occurred at tick 2",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.5100098047405481
+        }
+      },
+      {
+        "tick": 3,
+        "type": "whale_movement",
+        "description": "Hidden whale_movement event occurred at tick 3",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.4669785911682993
+        }
+      },
+      {
+        "tick": 4,
+        "type": "partnership_news",
+        "description": "Hidden partnership_news event occurred at tick 4",
+        "impact": {
+          "affectedMarkets": [
+            "market-0"
+          ],
+          "severity": 0.21403979836031795
+        }
+      },
+      {
+        "tick": 5,
+        "type": "partnership_news",
+        "description": "Hidden partnership_news event occurred at tick 5",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.14110996923409402
+        }
+      },
+      {
+        "tick": 6,
+        "type": "whale_movement",
+        "description": "Hidden whale_movement event occurred at tick 6",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.12023863289505243
+        }
+      },
+      {
+        "tick": 7,
+        "type": "whale_movement",
+        "description": "Hidden whale_movement event occurred at tick 7",
+        "impact": {
+          "affectedMarkets": [
+            "market-0"
+          ],
+          "severity": 0.7906802140641958
+        }
+      },
+      {
+        "tick": 8,
+        "type": "regulatory_announcement",
+        "description": "Hidden regulatory_announcement event occurred at tick 8",
+        "impact": {
+          "affectedMarkets": [
+            "market-0"
+          ],
+          "severity": 0.3226029225625098
+        }
+      },
+      {
+        "tick": 9,
+        "type": "partnership_news",
+        "description": "Hidden partnership_news event occurred at tick 9",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.38650161656551063
+        }
+      },
+      {
+        "tick": 10,
+        "type": "partnership_news",
+        "description": "Hidden partnership_news event occurred at tick 10",
+        "impact": {
+          "affectedMarkets": [
+            "market-0"
+          ],
+          "severity": 0.5153006091713905
+        }
+      },
+      {
+        "tick": 11,
+        "type": "partnership_news",
+        "description": "Hidden partnership_news event occurred at tick 11",
+        "impact": {
+          "affectedMarkets": [
+            "market-0",
+            "market-1"
+          ],
+          "severity": 0.21663791150785983
+        }
+      }
+    ],
+    "trueFacts": {
+      "totalLiquidity": 43009.70403745305,
+      "averageMarketPrice": 0.49172620240136933,
+      "marketVolatility": 0.2278602966107428,
+      "socialSentiment": 0.11299993237480521,
+      "activeTraders": 3
+    }
+  }
+}

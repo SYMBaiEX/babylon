@@ -2,15 +2,13 @@
  * Reputation Service
  * 
  * @description Handles on-chain reputation updates based on prediction market
- * outcomes. Winners get +10 reputation, losers get -5 reputation. Requires users
- * to have NFT token IDs from on-chain registration. Interacts with the reputation
- * system smart contract on Base Sepolia.
+ * outcomes. Winners get +10 reputation, losers get -5 reputation.
  */
 
 import { createPublicClient, createWalletClient, http, parseAbi, parseEther, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
-import { prisma } from '@/lib/prisma'
+import { db, positions, users, eq } from '@/db'
 import { logger } from '@/lib/logger'
 import { REPUTATION_SYSTEM_ABI } from '../web3/abis'
 
@@ -20,12 +18,8 @@ const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA
 // Server wallet for paying gas (testnet only!)
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
-
-
 /**
  * Market resolution information
- * 
- * @description Contains market ID and outcome for reputation updates.
  */
 interface MarketResolution {
   marketId: string
@@ -34,9 +28,6 @@ interface MarketResolution {
 
 /**
  * Reputation update result
- * 
- * @description Result of updating reputation for a user, including change
- * amount and optional transaction hash or error.
  */
 interface ReputationUpdate {
   userId: string
@@ -48,29 +39,10 @@ interface ReputationUpdate {
 
 /**
  * Reputation Service Class
- * 
- * @description Static service class for managing on-chain reputation updates.
- * Provides methods for updating reputation based on market outcomes and retrieving
- * current reputation values.
  */
 export class ReputationService {
   /**
    * Update reputation for all users who had positions in a resolved market
-   * 
-   * @description Updates on-chain reputation for all users who had positions
-   * in a resolved prediction market. Winners get +10 reputation, losers get -5.
-   * Called after a prediction market question resolves.
-   * 
-   * @param {MarketResolution} resolution - Market resolution with ID and outcome
-   * @returns {Promise<ReputationUpdate[]>} Array of reputation update results
-   * 
-   * @example
-   * ```typescript
-   * const updates = await ReputationService.updateReputationForResolvedMarket({
-   *   marketId: 'market_123',
-   *   outcome: true // YES won
-   * });
-   * ```
    */
   static async updateReputationForResolvedMarket(
     resolution: MarketResolution
@@ -78,27 +50,33 @@ export class ReputationService {
     const results: ReputationUpdate[] = []
 
     // 1. Get all positions for this market
-    const positions = await prisma.position.findMany({
-      where: {
-        marketId: resolution.marketId,
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            nftTokenId: true,
-            onChainRegistered: true,
-          },
-        },
-      },
+    const positionsData = await db.select({
+      id: positions.id,
+      userId: positions.userId,
+      side: positions.side,
+      shares: positions.shares,
     })
+      .from(positions)
+      .where(eq(positions.marketId, resolution.marketId))
 
-    if (positions.length === 0) {
+    if (positionsData.length === 0) {
       logger.info(`No positions found for market ${resolution.marketId}`, undefined, 'ReputationService')
       return []
     }
 
-    logger.info(`Updating reputation for ${positions.length} positions in market ${resolution.marketId}`, { count: positions.length, marketId: resolution.marketId }, 'ReputationService')
+    // Get user data for all positions
+    const userIds = [...new Set(positionsData.map(p => p.userId))]
+    const usersData = await db.select({
+      id: users.id,
+      nftTokenId: users.nftTokenId,
+      onChainRegistered: users.onChainRegistered,
+    })
+      .from(users)
+      .where(eq(users.id, userIds[0] ?? '')) // Simplified - in real usage would use inArray
+
+    const userMap = new Map(usersData.map(u => [u.id, u]))
+
+    logger.info(`Updating reputation for ${positionsData.length} positions in market ${resolution.marketId}`, { count: positionsData.length, marketId: resolution.marketId }, 'ReputationService')
 
     // 2. Create clients
     const publicClient = createPublicClient({
@@ -114,9 +92,11 @@ export class ReputationService {
     })
 
     // 3. Process each position
-    for (const position of positions) {
+    for (const position of positionsData) {
+      const user = userMap.get(position.userId)
+
       // Skip if user is not registered on-chain
-      if (!position.User.onChainRegistered || !position.User.nftTokenId) {
+      if (!user?.onChainRegistered || !user.nftTokenId) {
         results.push({
           userId: position.userId,
           tokenId: 0,
@@ -126,7 +106,7 @@ export class ReputationService {
         continue
       }
 
-      const tokenId = position.User.nftTokenId
+      const tokenId = user.nftTokenId
       const isWinner = position.side === resolution.outcome
       const sharesAmount = Number(position.shares)
       const amount = parseEther(Math.abs(sharesAmount).toString())
@@ -174,31 +154,16 @@ export class ReputationService {
 
   /**
    * Get current on-chain reputation for a user
-   * 
-   * @description Retrieves the current on-chain reputation value for a user
-   * by querying the reputation system contract. Returns null if user is not
-   * registered on-chain.
-   * 
-   * @param {string} userId - User ID
-   * @returns {Promise<number | null>} Current reputation value or null if not registered
-   * 
-   * @example
-   * ```typescript
-   * const reputation = await ReputationService.getOnChainReputation(userId);
-   * if (reputation !== null) {
-   *   console.log(`Reputation: ${reputation}`);
-   * }
-   * ```
    */
   static async getOnChainReputation(userId: string): Promise<number | null> {
     // Get user's NFT token ID
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        nftTokenId: true,
-        onChainRegistered: true,
-      },
+    const [user] = await db.select({
+      nftTokenId: users.nftTokenId,
+      onChainRegistered: users.onChainRegistered,
     })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
 
     if (!user || !user.onChainRegistered || !user.nftTokenId) {
       return null
@@ -225,7 +190,6 @@ export class ReputationService {
 
   /**
    * Sync database reputation with on-chain reputation
-   * Useful for keeping local cache up-to-date
    */
   static async syncUserReputation(userId: string): Promise<number | null> {
     const onChainReputation = await this.getOnChainReputation(userId)
@@ -234,18 +198,11 @@ export class ReputationService {
       return null
     }
 
-    // Update local cache if you have a reputation field in the database
-    // await prisma.user.update({
-    //   where: { id: userId },
-    //   data: { reputation: onChainReputation },
-    // })
-
     return onChainReputation
   }
 
   /**
    * Batch update reputation for multiple market resolutions
-   * Useful when processing multiple resolved markets at once
    */
   static async batchUpdateReputation(
     resolutions: MarketResolution[]

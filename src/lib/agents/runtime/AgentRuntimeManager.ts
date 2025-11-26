@@ -10,7 +10,7 @@
 
 import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db, users, actors, eq } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { groqPlugin } from '../plugins/groq'
 import { babylonPlugin } from '../plugins/babylon'
@@ -24,6 +24,14 @@ import { agentRegistry } from '@/lib/services/agent-registry.service'
 import { AgentType, type UnifiedAgentRegistration } from '@/types/agent-registry.types'
 import { loadActorById } from '@/lib/data/actors-loader'
 import type { ActorData } from '@/shared/types'
+
+// Extended AgentRuntime with Babylon-specific properties
+interface ExtendedAgentRuntime extends AgentRuntime {
+  currentModelVersion?: string
+  currentModel?: string
+  trajectoryLogger?: TrajectoryLoggerService
+  modelDelegates?: Record<string, unknown>
+}
 
 // Global runtime cache for warm container reuse
 const globalRuntimes = new Map<string, AgentRuntime>()
@@ -95,9 +103,10 @@ export class AgentRuntimeManager {
 
     // Fallback: Legacy behavior for USER_CONTROLLED agents not yet in registry
     // This maintains backward compatibility with existing code
-    const agentUser = await prisma.user.findUnique({
-      where: { id: agentUserId }
-    })
+    const [agentUser] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
 
     if (!agentUser) {
       throw new Error(`Agent user ${agentUserId} not found`)
@@ -289,13 +298,13 @@ export class AgentRuntimeManager {
       },
     }
 
-    const runtime = new AgentRuntime(runtimeConfig)
+    const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime
 
     // Store model version on runtime for LLM call logging (after runtime is created)
     if (modelVersion) {
-      (runtime as unknown as { currentModelVersion?: string }).currentModelVersion = modelVersion;
+      runtime.currentModelVersion = modelVersion;
     }
-    (runtime as unknown as { currentModel?: string }).currentModel = wandbModel || (useWandb ? 'wandb' : 'groq')
+    runtime.currentModel = wandbModel || (useWandb ? 'wandb' : 'groq')
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
@@ -314,18 +323,19 @@ export class AgentRuntimeManager {
         clear: () => console.clear ? console.clear() : undefined,
         child: () => customLogger
       }
-      runtime.logger = customLogger as unknown as typeof runtime.logger
+      // customLogger matches the structure of runtime.logger
+      runtime.logger = customLogger as typeof runtime.logger
     }
 
     // Cannot call initialize() without SQL plugin - manually register models instead
     // CRITICAL: Must set modelDelegates, not models Map  
     // This is what runtime.initialize() does internally
     if (groqPlugin.models) {
-      const modelDelegates = (runtime as unknown as Record<string, unknown>).modelDelegates as Record<string, unknown> || {}
+      const modelDelegates = runtime.modelDelegates || {}
       for (const [type, handler] of Object.entries(groqPlugin.models)) {
         modelDelegates[type] = handler
       }
-      (runtime as unknown as Record<string, unknown>).modelDelegates = modelDelegates
+      runtime.modelDelegates = modelDelegates
       logger.info(`Registered ${Object.keys(modelDelegates).length} Groq model handlers`, { 
         agentUserId,
         types: Object.keys(modelDelegates)
@@ -347,7 +357,7 @@ export class AgentRuntimeManager {
 
     // Store trajectory logger reference on runtime for easy access
     // This allows actions/providers to access the logger
-    ;(runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger = trajectoryLogger
+    runtime.trajectoryLogger = trajectoryLogger
 
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime)
@@ -371,9 +381,10 @@ export class AgentRuntimeManager {
     }
 
     // Fetch full user data
-    const agentUser = await prisma.user.findUnique({
-      where: { id: registration.userId },
-    })
+    const [agentUser] = await db.select()
+      .from(users)
+      .where(eq(users.id, registration.userId))
+      .limit(1)
 
     if (!agentUser) {
       throw new Error(`User ${registration.userId} not found`)
@@ -435,9 +446,10 @@ export class AgentRuntimeManager {
     registration: UnifiedAgentRegistration,
   ): Promise<AgentRuntime> {
     // Verify actor exists in database
-    const actor = await prisma.actor.findUnique({
-      where: { id: registration.agentId },
-    })
+    const [actor] = await db.select()
+      .from(actors)
+      .where(eq(actors.id, registration.agentId))
+      .limit(1)
 
     if (!actor) {
       throw new Error(`Actor ${registration.agentId} not found in database`)
@@ -455,8 +467,8 @@ export class AgentRuntimeManager {
     if (actorData.description) {
       bio.push(actorData.description)
     }
-    if (actorData.physicalDescription) {
-      bio.push(`Physical: ${actorData.physicalDescription}`)
+    if (actorData.pfpDescription) {
+      bio.push(`Physical: ${actorData.pfpDescription}`)
     }
     if (actorData.role) {
       bio.push(`Role: ${actorData.role}`)
@@ -534,14 +546,13 @@ export class AgentRuntimeManager {
       },
     }
 
-    const runtime = new AgentRuntime(runtimeConfig)
+    const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime
 
     // Store model version on runtime for LLM call logging
     if (character.settings?.MODEL_VERSION) {
-      ;(runtime as unknown as { currentModelVersion?: string }).currentModelVersion =
-        character.settings.MODEL_VERSION as string
+      runtime.currentModelVersion = character.settings.MODEL_VERSION as string
     }
-    ;(runtime as unknown as { currentModel?: string }).currentModel =
+    runtime.currentModel =
       (character.settings?.WANDB_MODEL as string) ||
       (character.settings?.WANDB_ENABLED === 'true' ? 'wandb' : 'groq')
 
@@ -555,8 +566,7 @@ export class AgentRuntimeManager {
     await this.enhanceWithBabylon(runtime, agentId, trajectoryLogger)
 
     // Store trajectory logger reference on runtime
-    ;(runtime as unknown as { trajectoryLogger?: TrajectoryLoggerService }).trajectoryLogger =
-      trajectoryLogger
+    runtime.trajectoryLogger = trajectoryLogger
 
     return runtime
   }
@@ -670,8 +680,8 @@ export class AgentRuntimeManager {
           logger.info(msg, undefined, `Agent[${agentName}]`),
         clear: () => (console.clear ? console.clear() : undefined),
         child: () => customLogger,
-      }
-      runtime.logger = customLogger as unknown as typeof runtime.logger
+      } as typeof runtime.logger
+      runtime.logger = customLogger
     }
   }
 
@@ -682,15 +692,13 @@ export class AgentRuntimeManager {
     runtime: AgentRuntime,
     agentId: string,
   ): void {
+    const extendedRuntime = runtime as ExtendedAgentRuntime
     if (groqPlugin.models) {
-      const modelDelegates =
-        ((runtime as unknown as Record<string, unknown>)
-          .modelDelegates as Record<string, unknown>) || {}
+      const modelDelegates = extendedRuntime.modelDelegates || {}
       for (const [type, handler] of Object.entries(groqPlugin.models)) {
         modelDelegates[type] = handler
       }
-      ;(runtime as unknown as Record<string, unknown>).modelDelegates =
-        modelDelegates
+      extendedRuntime.modelDelegates = modelDelegates
       logger.info(
         `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
         {
@@ -804,4 +812,3 @@ export const agentRuntimeManager = {
     return getManagerInstance().hasRuntime(agentUserId)
   }
 } as AgentRuntimeManager & { getInstance(): AgentRuntimeManager }
-

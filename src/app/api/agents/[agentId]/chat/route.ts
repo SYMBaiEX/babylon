@@ -162,7 +162,7 @@ import { agentService } from '@/lib/agents/services/AgentService'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { logger } from '@/lib/logger'
 import { authenticateUser } from '@/lib/server-auth'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { v4 as uuidv4 } from 'uuid'
 import { ModelType } from '@elizaos/core'
 import { withErrorHandling } from '@/lib/errors/error-handler'
@@ -230,7 +230,7 @@ export const POST = withErrorHandling(async (
   )
 
   const userMessageId = uuidv4()
-  await prisma.agentMessage.create({
+  await db.agentMessage.create({
     data: {
       id: userMessageId,
       agentUserId: agentId,
@@ -244,7 +244,7 @@ export const POST = withErrorHandling(async (
   // Prepare runtime and prompt outside try-catch so they're available for regeneration
   const runtime = await agentRuntimeManager.getRuntime(agentId)
 
-  const recentMessages = await prisma.agentMessage.findMany({
+  const recentMessages = await db.agentMessage.findMany({
     where: { agentUserId: agentId },
     orderBy: { createdAt: 'desc' },
     take: 10,
@@ -289,7 +289,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     await agentService.depositPoints(agentId, user.id, pointsCost)
     
     // Delete user message since we failed
-    await prisma.agentMessage.delete({ where: { id: userMessageId } })
+    await db.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,
@@ -301,7 +301,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
   if (!response || typeof response !== 'string' || response.trim().length === 0) {
     logger.error('Agent generated empty response', { agentId }, 'AgentChat')
     await agentService.depositPoints(agentId, user.id, pointsCost)
-    await prisma.agentMessage.delete({ where: { id: userMessageId } })
+    await db.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,
@@ -328,7 +328,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     } catch (error) {
       logger.error('Failed to regenerate response', { error, agentId }, 'AgentChat')
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } })
+      await db.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -340,7 +340,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     if (!response || typeof response !== 'string' || response.trim().length === 0) {
       logger.error('Agent generated empty response after regeneration', { agentId }, 'AgentChat')
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } })
+      await db.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -357,7 +357,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
       }, 'AgentChat')
       // Refund points and return error
       await agentService.depositPoints(agentId, user.id, pointsCost)
-      await prisma.agentMessage.delete({ where: { id: userMessageId } })
+      await db.agentMessage.delete({ where: { id: userMessageId } })
       
       return NextResponse.json({
         success: false,
@@ -372,7 +372,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
   if (response.length === 0) {
     logger.error('Response became empty after trimming', { agentId }, 'AgentChat')
     await agentService.depositPoints(agentId, user.id, pointsCost)
-    await prisma.agentMessage.delete({ where: { id: userMessageId } })
+    await db.agentMessage.delete({ where: { id: userMessageId } })
     
     return NextResponse.json({
       success: false,
@@ -381,7 +381,7 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
   }
 
   const assistantMessageId = uuidv4()
-  await prisma.agentMessage.create({
+  await db.agentMessage.create({
     data: {
       id: assistantMessageId,
       agentUserId: agentId,
@@ -393,12 +393,12 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`
     }
   })
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: agentId },
     data: { agentLastChatAt: new Date() }
   })
 
-  await prisma.agentLog.create({
+  await db.agentLog.create({
     data: {
       id: uuidv4(),
       agentUserId: agentId,

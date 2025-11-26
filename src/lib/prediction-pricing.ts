@@ -267,16 +267,22 @@ export class PredictionPricing {
    * @description Creates initial market state with equal YES/NO shares for
    * a new prediction market. Sets up initial liquidity.
    * 
-   * @param {number} [initialLiquidity=1000] - Initial total liquidity
+   * Liquidity Considerations:
+   * - Higher liquidity = lower price impact per trade
+   * - With 10,000 liquidity, a $100 trade has ~2% price impact
+   * - With 1,000 liquidity, a $100 trade has ~20% price impact
+   * - Minimum recommended: 10,000 for acceptable user experience
+   * 
+   * @param {number} [initialLiquidity=10000] - Initial total liquidity (default: 10,000)
    * @returns {object} Initial market state with yesShares and noShares
    * 
    * @example
    * ```typescript
-   * const market = PredictionPricing.initializeMarket(2000);
-   * // Returns: { yesShares: 1000, noShares: 1000 }
+   * const market = PredictionPricing.initializeMarket(20000);
+   * // Returns: { yesShares: 10000, noShares: 10000 }
    * ```
    */
-  static initializeMarket(initialLiquidity = 1000) {
+  static initializeMarket(initialLiquidity = 10000) {
     return {
       yesShares: initialLiquidity / 2,
       noShares: initialLiquidity / 2,

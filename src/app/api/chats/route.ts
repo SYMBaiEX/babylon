@@ -175,149 +175,222 @@ import { PointsService } from '@/lib/services/points-service';
 import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 
+// Import from new Drizzle client
+import {
+  chats,
+  messages,
+  groupChatMemberships,
+  chatParticipants,
+  users,
+  eq,
+  and,
+  inArray,
+  desc,
+  count,
+} from '@/db';
+
 /**
  * GET /api/chats
  * Get all chats for the authenticated user
- * Query params: ?all=true - Get all game chats (not just user's chats)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   console.log('[API /api/chats] GET request received');
   logger.info('GET /api/chats - Request received', undefined, 'GET /api/chats');
-  
+
   // Validate query parameters
   const { searchParams } = new URL(request.url);
   const query: Record<string, string> = {};
-  
+
   const all = searchParams.get('all');
   const debug = searchParams.get('debug');
-  
+
   if (all) query.all = all;
   if (debug) query.debug = debug;
-  
-  console.log('[API /api/chats] Query params:', { all, debug });
-  
-  const validatedQuery = Object.keys(query).length > 0 
-    ? ChatQuerySchema.parse(query) 
-    : { all: undefined, debug: undefined };
 
-  // Check if requesting all game chats
+  const validatedQuery =
+    Object.keys(query).length > 0
+      ? ChatQuerySchema.parse(query)
+      : { all: undefined, debug: undefined };
+
   const getAllChats = validatedQuery.all === 'true';
-  
-  console.log('[API /api/chats] getAllChats:', getAllChats);
 
   if (getAllChats) {
     // Return all game chats (no auth required for read-only game data)
-    const gameChats = await asSystem(async (db) => {
-      return await db.chat.findMany({
-        where: {
-          isGroup: true,
-          gameId: 'continuous',
-        },
-        include: {
-          Message: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-          _count: {
-            select: {
-              Message: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      });
+    const gameChats = await asSystem(async (dbClient) => {
+      // Get chats
+      const chatList = await dbClient
+        .select()
+        .from(chats)
+        .where(and(eq(chats.isGroup, true), eq(chats.gameId, 'continuous')))
+        .orderBy(chats.createdAt);
+
+      // Get message counts and latest messages for each chat
+      const chatIds = chatList.map((c) => c.id);
+
+      // Get message counts using aggregation
+      const messageCountResults = await dbClient
+        .select({
+          chatId: messages.chatId,
+          count: count(messages.id),
+        })
+        .from(messages)
+        .where(inArray(messages.chatId, chatIds))
+        .groupBy(messages.chatId);
+
+      const countMap = new Map(messageCountResults.map((mc) => [mc.chatId, mc.count]));
+
+      // Get latest messages - need to do this per-chat since we need latest per chat
+      const latestMessages = await Promise.all(
+        chatIds.map(async (chatId) => {
+          const msgs = await dbClient
+            .select()
+            .from(messages)
+            .where(eq(messages.chatId, chatId))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+          return { chatId, messages: msgs };
+        })
+      );
+
+      const messagesMap = new Map(latestMessages.map(({ chatId, messages: msgs }) => [chatId, msgs]));
+
+      return chatList.map((chat) => ({
+        ...chat,
+        _messageCount: countMap.get(chat.id) ?? 0,
+        _latestMessages: messagesMap.get(chat.id) || [],
+      }));
     });
 
     logger.info('All game chats fetched', { count: gameChats.length }, 'GET /api/chats');
 
     return successResponse({
-      chats: gameChats.map(chat => ({
-        id: chat.id,
-        name: chat.name,
-        isGroup: chat.isGroup,
-        messageCount: chat._count.Message,
-        lastMessage: chat.Message[0] || null,
-      })),
+      chats: gameChats.map((chat) => {
+        const latestMessages =
+          (chat as typeof chat & {
+            _latestMessages?: Array<{
+              id: string;
+              content: string;
+              createdAt: Date;
+              senderId: string;
+            }>;
+          })._latestMessages || [];
+        return {
+          id: chat.id,
+          name: chat.name,
+          isGroup: chat.isGroup,
+          messageCount: chat._messageCount,
+          lastMessage: latestMessages[0] || null,
+        };
+      }),
     });
   }
 
   const user = await authenticate(request);
 
-  logger.info('Fetching chats for user', { 
-    userId: user.userId,
-    privyId: user.privyId,
-    dbUserId: user.dbUserId,
-    fullUser: user
-  }, 'GET /api/chats');
+  logger.info(
+    'Fetching chats for user',
+    {
+      userId: user.userId,
+      privyId: user.privyId,
+      dbUserId: user.dbUserId,
+      fullUser: user,
+    },
+    'GET /api/chats'
+  );
 
   // Get user's chats with proper RLS context
-  const { groupChats, directChats } = await asUser(user, async (db) => {
+  const { groupChats, directChats } = await asUser(user, async (dbClient) => {
     // Get user's group chat memberships
-    const memberships = await db.groupChatMembership.findMany({
-      where: {
-        userId: user.userId,
-        isActive: true,
-      },
-      orderBy: {
-        lastMessageAt: 'desc',
-      },
-    });
+    const memberships = await dbClient
+      .select()
+      .from(groupChatMemberships)
+      .where(and(eq(groupChatMemberships.userId, user.userId), eq(groupChatMemberships.isActive, true)))
+      .orderBy(desc(groupChatMemberships.lastMessageAt));
 
     // Get chat details for group chats
     const groupChatIds = memberships.map((m) => m.chatId);
-    const groupChatDetails = await db.chat.findMany({
-      where: {
-        id: { in: groupChatIds },
-      },
-      include: {
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
+    const groupChatDetails = await dbClient
+      .select()
+      .from(chats)
+      .where(inArray(chats.id, groupChatIds));
+
+    // Get last messages for group chats
+    const groupChatMessages = await Promise.all(
+      groupChatIds.map(async (chatId) => {
+        const msgs = await dbClient
+          .select()
+          .from(messages)
+          .where(eq(messages.chatId, chatId))
+          .orderBy(desc(messages.createdAt))
+          .limit(1);
+        return { chatId, messages: msgs };
+      })
+    );
+    const groupMessagesMap = new Map(groupChatMessages.map(({ chatId, messages }) => [chatId, messages]));
 
     const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
 
     // Get DM chats the user participates in
-    const dmParticipants = await db.chatParticipant.findMany({
-      where: {
+    const dmParticipantsList = await dbClient
+      .select()
+      .from(chatParticipants)
+      .where(eq(chatParticipants.userId, user.userId));
+
+    logger.info(
+      'Found DM participants',
+      {
         userId: user.userId,
+        count: dmParticipantsList.length,
       },
+      'GET /api/chats'
+    );
+
+    const dmChatIds = dmParticipantsList.map((p) => p.chatId);
+    const dmChatsDetails = await dbClient
+      .select()
+      .from(chats)
+      .where(and(inArray(chats.id, dmChatIds), eq(chats.isGroup, false)));
+
+    // Get participants and messages separately
+    const [allParticipants, allMessages] = await Promise.all([
+      dbClient.select().from(chatParticipants).where(inArray(chatParticipants.chatId, dmChatIds)),
+      Promise.all(
+        dmChatIds.map(async (chatId) => {
+          const msgs = await dbClient
+            .select()
+            .from(messages)
+            .where(eq(messages.chatId, chatId))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+          return { chatId, messages: msgs };
+        })
+      ),
+    ]);
+
+    const participantsByChatId = new Map<string, typeof allParticipants>();
+    allParticipants.forEach((p) => {
+      if (!participantsByChatId.has(p.chatId)) {
+        participantsByChatId.set(p.chatId, []);
+      }
+      participantsByChatId.get(p.chatId)!.push(p);
     });
 
-    logger.info('Found DM participants', {
-      userId: user.userId,
-      count: dmParticipants.length
-    }, 'GET /api/chats');
-
-    const dmChatIds = dmParticipants.map((p) => p.chatId);
-    const dmChatsDetails = await db.chat.findMany({
-      where: {
-        id: { in: dmChatIds },
-        isGroup: false,
-      },
-      include: {
-        ChatParticipant: true,
-        Message: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
+    const messagesByChatId = new Map<string, (typeof allMessages)[number]['messages']>();
+    allMessages.forEach(({ chatId, messages }) => {
+      messagesByChatId.set(chatId, messages);
     });
 
     // Format group chats
-    const groupChats = memberships
+    const groupChatsList = memberships
       .map((membership) => {
         const chat = chatDetailsMap.get(membership.chatId);
         if (!chat) return null;
+        const lastMessage = groupMessagesMap.get(membership.chatId)?.[0] || null;
         return {
           id: membership.chatId,
           name: chat.name || 'Unnamed Group',
           isGroup: true,
-          lastMessage: chat.Message[0] || null,
+          lastMessage,
           messageCount: membership.messageCount,
           qualityScore: membership.qualityScore,
           lastMessageAt: membership.lastMessageAt,
@@ -327,26 +400,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .filter((c) => c !== null);
 
     // Format DM chats - get the other participant's name and details
-    const directChats = await Promise.all(
+    const directChatsList = await Promise.all(
       dmChatsDetails.map(async (chat) => {
+        const chatParticipantsList = participantsByChatId.get(chat.id) || [];
         // Find the other participant (not the current user)
-        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+        const otherParticipant = chatParticipantsList.find((p) => p.userId !== user.userId);
         let chatName = chat.name || 'Direct Message';
         let otherUserDetails = null;
-        
+
         if (otherParticipant) {
           // Try to get user details (real users only, not actors)
-          const otherUser = await db.user.findUnique({
-            where: { id: otherParticipant.userId },
-            select: { 
-              id: true,
-              displayName: true, 
-              username: true,
-              profileImageUrl: true,
-              isActor: true,
-            },
-          });
-          
+          const [otherUser] = await dbClient
+            .select({
+              id: users.id,
+              displayName: users.displayName,
+              username: users.username,
+              profileImageUrl: users.profileImageUrl,
+              isActor: users.isActor,
+            })
+            .from(users)
+            .where(eq(users.id, otherParticipant.userId))
+            .limit(1);
+
           if (otherUser && !otherUser.isActor) {
             chatName = otherUser.displayName || otherUser.username || 'Unknown';
             otherUserDetails = {
@@ -357,28 +432,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             };
           }
         }
-        
+
         // Only return DMs with real users (not NPCs)
         if (!otherUserDetails) {
           return null;
         }
-        
+
+        // Get last message for this chat
+        const lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
+
         return {
           id: chat.id,
           name: chatName,
           isGroup: false,
-          lastMessage: chat.Message[0] || null,
-          participants: chat.ChatParticipant.length,
+          lastMessage: lastMessage,
+          participants: chatParticipantsList.length,
           updatedAt: chat.updatedAt,
           otherUser: otherUserDetails,
         };
       })
-    ).then(chats => chats.filter(c => c !== null));
+    ).then((chatsList) => chatsList.filter((c) => c !== null));
 
-    return { groupChats, directChats };
+    return { groupChats: groupChatsList, directChats: directChatsList };
   });
 
-  logger.info('User chats fetched successfully', { userId: user.userId, groupChats: groupChats.length, directChats: directChats.length }, 'GET /api/chats');
+  logger.info(
+    'User chats fetched successfully',
+    { userId: user.userId, groupChats: groupChats.length, directChats: directChats.length },
+    'GET /api/chats'
+  );
 
   return successResponse({
     groupChats,
@@ -399,37 +481,38 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { name, isGroup, participantIds } = ChatCreateSchema.parse(body);
 
   // Create the chat with RLS
-  const chat = await asUser(user, async (db) => {
+  const chat = await asUser(user, async (dbClient) => {
     // Create the chat
     const now = new Date();
-    const newChat = await db.chat.create({
-      data: {
+    const [newChat] = await dbClient
+      .insert(chats)
+      .values({
         id: await generateSnowflakeId(),
         name: name || null,
         isGroup: isGroup || false,
         createdAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .returning();
+
+    if (!newChat) {
+      throw new Error('Failed to create chat');
+    }
 
     // Add creator as participant
-    await db.chatParticipant.create({
-      data: {
-        id: await generateSnowflakeId(),
-        chatId: newChat.id,
-        userId: user.userId,
-      },
+    await dbClient.insert(chatParticipants).values({
+      id: await generateSnowflakeId(),
+      chatId: newChat.id,
+      userId: user.userId,
     });
 
     // Add other participants if provided
     if (participantIds && Array.isArray(participantIds)) {
       for (const participantId of participantIds) {
-        await db.chatParticipant.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId: newChat.id,
-            userId: participantId,
-          },
+        await dbClient.insert(chatParticipants).values({
+          id: await generateSnowflakeId(),
+          chatId: newChat.id,
+          userId: participantId,
         });
       }
     }
@@ -437,16 +520,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return newChat;
   });
 
+  if (!chat) {
+    throw new Error('Failed to create chat');
+  }
+
   // Award points for creating a private channel (group chat created directly, not through UserGroup)
   if (isGroup && !chat.groupId) {
     await PointsService.awardPrivateChannelCreate(user.userId, chat.id).catch((error: unknown) => {
       // Log error but don't fail chat creation if points award fails
-      logger.error('Failed to award points for private channel creation', { error, userId: user.userId, chatId: chat.id }, 'POST /api/chats');
+      logger.error(
+        'Failed to award points for private channel creation',
+        { error, userId: user.userId, chatId: chat.id },
+        'POST /api/chats'
+      );
     });
   }
 
-  logger.info('Chat created successfully', { chatId: chat.id, userId: user.userId, isGroup, participantCount: (participantIds?.length || 0) + 1 }, 'POST /api/chats');
+  logger.info(
+    'Chat created successfully',
+    {
+      chatId: chat.id,
+      userId: user.userId,
+      isGroup,
+      participantCount: (participantIds?.length || 0) + 1,
+    },
+    'POST /api/chats'
+  );
 
   return successResponse({ chat }, 201);
 });
-

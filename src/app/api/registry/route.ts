@@ -147,7 +147,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { RegistryQuerySchema } from '@/lib/validation/schemas'
 import { ReputationService } from '@/lib/services/reputation-service'
 import { logger } from '@/lib/logger'
-import type { PrismaClient } from '@prisma/client'
+import type { DrizzleClient } from '@/db'
 /**
  * GET /api/registry
  * Fetch all registered users with optional filtering
@@ -177,41 +177,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   } : { createdAt: 'desc' as const }
 
   // Fetch users from database with RLS (public registry, no auth required)
-  const dbOperation = async (db: PrismaClient) => {
+  const dbOperation = async (db: DrizzleClient) => {
     const usersList = await db.user.findMany({
       where,
       orderBy,
       take: filters.limit,
       skip: filters.offset,
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        walletAddress: true,
-        isActor: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-        createdAt: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        // Include relationship counts
-        _count: {
-          select: {
-            Position: true,
-            Comment: true,
-            Reaction: true,
-          },
-        },
-      },
     })
 
     // Get total count for pagination
     const count = await db.user.count({ where })
 
-    return { users: usersList, totalCount: count }
+    // Get counts for each user
+    const userIds = usersList.map(u => u.id)
+    const [positionCounts, commentCounts, reactionCounts] = await Promise.all([
+      Promise.all(userIds.map(id => db.position.count({ where: { userId: id } }))),
+      Promise.all(userIds.map(id => db.comment.count({ where: { authorId: id } }))),
+      Promise.all(userIds.map(id => db.reaction.count({ where: { userId: id } }))),
+    ])
+
+    const usersWithCounts = usersList.map((user, index) => ({
+      ...user,
+      _counts: {
+        positions: positionCounts[index] ?? 0,
+        comments: commentCounts[index] ?? 0,
+        reactions: reactionCounts[index] ?? 0,
+      },
+    }))
+
+    return { users: usersWithCounts, totalCount: count }
   }
 
   const { users, totalCount } = (authUser && authUser.userId)
@@ -241,9 +235,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         lifetimePnL: user.lifetimePnL.toString(),
         reputation,
         stats: {
-          positions: user._count.Position,
-          comments: user._count.Comment,
-          reactions: user._count.Reaction,
+          positions: user._counts.positions,
+          comments: user._counts.comments,
+          reactions: user._counts.reactions,
         },
       }
     })

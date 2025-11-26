@@ -11,11 +11,9 @@
  * - Validates sufficient funds
  * - Calculates PnL
  */
-import type { PrismaClient, Prisma } from '@prisma/client';
 
+import { db, withTransaction, users, balanceTransactions, eq, desc, type Transaction } from '@/db';
 import { cachedDb } from '@/lib/cached-database-service';
-// import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
 import { EarnedPointsService } from '@/lib/services/earned-points-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -69,7 +67,7 @@ export class WalletService {
    * @description Internal method to apply a balance change and create a
    * transaction record. Used by debit and credit methods.
    * 
-   * @param {Prisma.TransactionClient} tx - Prisma transaction client
+   * @param {Transaction} tx - Drizzle transaction client
    * @param {string} userId - User ID
    * @param {number} delta - Amount to change (positive for credit, negative for debit)
    * @param {string} type - Transaction type identifier
@@ -79,18 +77,21 @@ export class WalletService {
    * @private
    */
   private static async applyBalanceChange(
-    tx: Prisma.TransactionClient,
+    tx: Transaction,
     userId: string,
     delta: number,
     type: string,
     description: string,
     relatedId?: string
   ): Promise<void> {
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: { virtualBalance: true },
-    });
+    const result = await tx.select({
+      virtualBalance: users.virtualBalance,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
+    const [user] = result;
     if (!user) {
       throw new Error(`User not found: ${userId}`);
     }
@@ -98,25 +99,21 @@ export class WalletService {
     const currentBalance = Number(user.virtualBalance);
     const newBalance = currentBalance + delta;
 
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        virtualBalance: newBalance,
-      },
-    });
+    await tx.update(users)
+      .set({ virtualBalance: String(newBalance) })
+      .where(eq(users.id, userId));
 
-    await tx.balanceTransaction.create({
-      data: {
+    await tx.insert(balanceTransactions)
+      .values({
         id: await generateSnowflakeId(),
         userId,
         type,
-        amount: delta,
-        balanceBefore: currentBalance,
-        balanceAfter: newBalance,
-        relatedId: relatedId || null,
+        amount: String(delta),
+        balanceBefore: String(currentBalance),
+        balanceAfter: String(newBalance),
+        relatedId: relatedId ?? null,
         description,
-      },
-    });
+      });
   }
 
   /**
@@ -135,16 +132,17 @@ export class WalletService {
    * ```
    */
   static async getBalance(userId: string): Promise<BalanceInfo> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        virtualBalance: true,
-        totalDeposited: true,
-        totalWithdrawn: true,
-        lifetimePnL: true,
-      },
-    });
+    const result = await db.select({
+      virtualBalance: users.virtualBalance,
+      totalDeposited: users.totalDeposited,
+      totalWithdrawn: users.totalWithdrawn,
+      lifetimePnL: users.lifetimePnL,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
+    const [user] = result;
     if (!user) {
       throw new Error(`User not found: ${userId}`);
     }
@@ -177,11 +175,14 @@ export class WalletService {
     userId: string,
     requiredAmount: number
   ): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { virtualBalance: true },
-    });
+    const result = await db.select({
+      virtualBalance: users.virtualBalance,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
+    const [user] = result;
     if (!user) {
       return false;
     }
@@ -200,7 +201,7 @@ export class WalletService {
    * @param {string} type - Transaction type identifier
    * @param {string} description - Transaction description
    * @param {string} [relatedId] - Optional related entity ID
-   * @param {Prisma.TransactionClient} [tx] - Optional transaction client for atomic operations
+   * @param {Transaction} [tx] - Optional transaction client for atomic operations
    * @returns {Promise<void>}
    * @throws {Error} If user not found or insufficient balance
    * 
@@ -215,14 +216,14 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Prisma.TransactionClient
+    tx?: Transaction
   ): Promise<void> {
     const delta = -amount;
 
     if (tx) {
       await this.applyBalanceChange(tx, userId, delta, type, description, relatedId);
     } else {
-      await prisma.$transaction(async (transaction) => {
+      await withTransaction(async (transaction) => {
         await this.applyBalanceChange(transaction, userId, delta, type, description, relatedId);
       });
     }
@@ -239,12 +240,12 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Prisma.TransactionClient
+    tx?: Transaction
   ): Promise<void> {
     if (tx) {
       await this.applyBalanceChange(tx, userId, amount, type, description, relatedId);
     } else {
-      await prisma.$transaction(async (transaction) => {
+      await withTransaction(async (transaction) => {
         await this.applyBalanceChange(transaction, userId, amount, type, description, relatedId);
       });
     }
@@ -268,11 +269,13 @@ export class WalletService {
     newLifetimePnL: number;
     earnedPointsDelta: number;
   }> {
-    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-      });
+    return await withTransaction(async (tx) => {
+      const result = await tx.select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
+      const [user] = result;
       if (!user) {
         throw new Error(`User not found: ${userId}`);
       }
@@ -281,12 +284,9 @@ export class WalletService {
       const newLifetimePnL = previousLifetimePnL + pnl;
 
       // Update lifetimePnL first within the transaction
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          lifetimePnL: newLifetimePnL,
-        },
-      });
+      await tx.update(users)
+        .set({ lifetimePnL: String(newLifetimePnL) })
+        .where(eq(users.id, userId));
 
       // Now award earned points within the same transaction
       // This ensures atomicity and prevents race conditions
@@ -313,14 +313,13 @@ export class WalletService {
     userId: string,
     limit: number = 50
   ): Promise<TransactionHistoryItem[]> {
-    const transactions = await prisma.balanceTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    const transactions = await db.select()
+      .from(balanceTransactions)
+      .where(eq(balanceTransactions.userId, userId))
+      .orderBy(desc(balanceTransactions.createdAt))
+      .limit(limit);
 
-    type TransactionType = typeof transactions[0];
-    return transactions.map((tx: TransactionType) => ({
+    return transactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
       amount: Number(tx.amount),
@@ -336,35 +335,35 @@ export class WalletService {
    * Initialize user balance (for new users)
    */
   static async initializeBalance(userId: string): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const result = await db.select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
+    const [user] = result;
     if (!user) {
       throw new Error(`User not found: ${userId}`);
     }
 
     if (Number(user.virtualBalance) === 0) {
-      await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            virtualBalance: this.STARTING_BALANCE,
-            totalDeposited: this.STARTING_BALANCE,
-          },
-        });
+      await withTransaction(async (tx) => {
+        await tx.update(users)
+          .set({
+            virtualBalance: String(this.STARTING_BALANCE),
+            totalDeposited: String(this.STARTING_BALANCE),
+          })
+          .where(eq(users.id, userId));
 
-        await tx.balanceTransaction.create({
-          data: {
+        await tx.insert(balanceTransactions)
+          .values({
             id: await generateSnowflakeId(),
             userId,
             type: 'deposit',
-            amount: this.STARTING_BALANCE,
-            balanceBefore: 0,
-            balanceAfter: this.STARTING_BALANCE,
+            amount: String(this.STARTING_BALANCE),
+            balanceBefore: '0',
+            balanceAfter: String(this.STARTING_BALANCE),
             description: 'Initial deposit - Welcome to Babylon!',
-          },
-        });
+          });
       });
     }
   }

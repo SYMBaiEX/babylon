@@ -9,6 +9,11 @@ import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 import type { A2AUserWalletResponse } from '@/types/a2a-responses'
 
+// Type guard for A2A user wallet response
+function isA2AUserWalletResponse(data: object): data is A2AUserWalletResponse {
+  return 'balance' in data && 'positions' in data
+}
+
 /**
  * Provider: Query User Wallet
  * Gets any user's wallet balance and positions via A2A protocol
@@ -51,7 +56,11 @@ Example: "Check user_abc123's wallet" or "What positions does @trader have?"` }
     // Fetch wallet data via A2A protocol
     const walletData = await babylonRuntime.a2aClient.sendRequest('a2a.getUserWallet', { userId })
     
-    const walletTyped = walletData as unknown as A2AUserWalletResponse
+    // Validate walletData structure using type guard
+    if (!walletData || typeof walletData !== 'object' || !isA2AUserWalletResponse(walletData)) {
+      throw new Error('Invalid wallet data format from A2A client')
+    }
+    const walletTyped = walletData
     
     const balance = walletTyped.balance
     const positions = walletTyped.positions

@@ -42,9 +42,9 @@
 
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
-// Use Node.js runtime for full Prisma support
+// Use Node.js runtime for full database support
 export const runtime = 'nodejs'
 
 // Disable static generation for this route - it requires database access
@@ -59,7 +59,7 @@ export async function GET(
   const { userId } = await context.params
   
   const [user, referralCount] = await Promise.all([
-    prisma.user.findUnique({
+    db.user.findUnique({
       where: { id: userId },
       select: {
         username: true,
@@ -68,7 +68,7 @@ export async function GET(
         reputationPoints: true,
       },
     }),
-    prisma.referral.count({
+    db.referral.count({
       where: { referrerId: userId },
     })
   ])

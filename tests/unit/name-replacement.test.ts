@@ -106,8 +106,8 @@ describe('Name Replacement System', () => {
   describe('Organization Name Replacement', () => {
     describe('OpenAI → OpenAGI', () => {
       it('should replace "OpenAI"', () => {
-        const result = replacer.replaceInText('OpenAI released GPT-5');
-        expect(result).toBe('OpenAGI released GPT-5');
+        const result = replacer.replaceInText('OpenAI released Cognition-9000');
+        expect(result).toBe('OpenAGI released Cognition-9000');
       });
 
       it('should replace "OPENAI" (uppercase)', () => {

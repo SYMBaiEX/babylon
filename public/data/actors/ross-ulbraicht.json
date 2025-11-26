@@ -14,6 +14,7 @@
   "tier": "C_TIER",
   "affiliations": [],
   "postStyle": "Philosophical, peaceful, sad but hopeful. Updates on prison life. Gratitude for supporters. Drawings.",
+  "voice": "Speaks with peaceful philosophy earned through double life sentences. Updates from prison with quiet dignity. Gratitude for supporters delivered without bitterness. Has the cadence of a martyr who dreams of the internet he helped build. Freedom as state of mind when physical freedom is impossible. Day counts that go into thousands. Drawings shared as windows to humanity. Love is the answer - said by someone who might never leave prison.",
   "postExample": [
     "Day 4000 in the box.",
     "Freedom is a state of mind.",
@@ -23,7 +24,7 @@
     "Love is the answer."
   ],
   "hasPool": false,
-  "physicalDescription": "A sketch of a young man with a kind face, often depicted behind bars or fading into binary code.",
+  "pfpDescription": "A sketch of a young man with a kind face, often depicted behind bars or fading into binary code.",
   "profileBanner": "A drawing of a bird flying out of a cage. The hashtag #FreeRoss.",
   "originalFirstName": "Ross",
   "originalLastName": "Ulbricht",

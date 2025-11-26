@@ -8,7 +8,7 @@
 import { createPublicClient, http, parseAbi, type Address, type WalletClient } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis'
-import { prisma } from '@/lib/prisma'
+import { db, eq, agentPerformanceMetrics } from '@/db'
 import { logger } from '@/lib/logger'
 
 // Contract addresses (should be from environment in production)
@@ -199,16 +199,17 @@ export async function syncOnChainReputation(userId: string, tokenId: number) {
     throw new Error('Failed to fetch on-chain reputation')
   }
 
-  // Update local database with on-chain data
-  const updated = await prisma.agentPerformanceMetrics.update({
-    where: { userId },
-    data: {
+  // Update local database with on-chain data using Drizzle
+  const updated = await db
+    .update(agentPerformanceMetrics)
+    .set({
       onChainReputationSync: true,
       lastSyncedAt: new Date(),
       onChainTrustScore: Number(onChainRep.trustScore),
       onChainAccuracyScore: Number(onChainRep.accuracyScore),
-    },
-  })
+    })
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .returning()
 
   logger.info('Synced on-chain reputation', {
     userId,
@@ -217,7 +218,7 @@ export async function syncOnChainReputation(userId: string, tokenId: number) {
     accuracyScore: onChainRep.accuracyScore.toString(),
   })
 
-  return updated
+  return updated[0]
 }
 
 /**

@@ -18,7 +18,7 @@ async function migrateStaging() {
   // DATABASE_URL is guaranteed to be defined here due to check above
   const dbUrl: string = DATABASE_URL!;
   
-  // Set environment variables for Prisma
+  // Set environment variables for database
   process.env.DATABASE_URL = dbUrl;
   if (DIRECT_DATABASE_URL) {
     process.env.DIRECT_DATABASE_URL = DIRECT_DATABASE_URL;
@@ -30,7 +30,7 @@ async function migrateStaging() {
   const { execSync } = await import('child_process');
   
   try {
-    execSync('bunx prisma migrate deploy', {
+    execSync('bunx drizzle-kit push', {
       stdio: 'inherit',
       env: {
         ...process.env,

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import db from '@/lib/database-service'
 import { cachedDb } from '@/lib/cached-database-service'
@@ -29,7 +29,7 @@ describe('Time Filtering - API Endpoints', () => {
     oneHourFuture = new Date(now.getTime() + 60 * 60 * 1000)
     
     // Create test actor (explicitly set isTest: false so it's not filtered)
-    const actor = await prisma.actor.create({
+    const actor = await db.actor.create({
       data: {
         id: await generateSnowflakeId(),
         name: 'Test Actor',
@@ -42,7 +42,7 @@ describe('Time Filtering - API Endpoints', () => {
     testActorId = actor.id
 
     // Create test user (explicitly set isTest: false so it's not filtered)
-    const user = await prisma.user.create({
+    const user = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
         username: `test-user-${Date.now()}`,
@@ -52,9 +52,9 @@ describe('Time Filtering - API Endpoints', () => {
     })
     testUserId = user.id
 
-    // Create posts directly with Prisma to avoid tag generation issues
+    // Create posts directly with database to avoid tag generation issues
     // Past post
-    const pastPost = await prisma.post.create({
+    const pastPost = await db.post.create({
       data: {
         id: await generateSnowflakeId(),
         content: 'Past post',
@@ -68,7 +68,7 @@ describe('Time Filtering - API Endpoints', () => {
     pastPostId = pastPost.id
 
     // Current post (within 1 second of now)
-    const currentPost = await prisma.post.create({
+    const currentPost = await db.post.create({
       data: {
         id: await generateSnowflakeId(),
         content: 'Current post',
@@ -82,7 +82,7 @@ describe('Time Filtering - API Endpoints', () => {
     currentPostId = currentPost.id
 
     // Future post (should NOT appear in APIs)
-    const futurePost = await prisma.post.create({
+    const futurePost = await db.post.create({
       data: {
         id: await generateSnowflakeId(),
         content: 'Future post - should not appear',
@@ -98,22 +98,22 @@ describe('Time Filtering - API Endpoints', () => {
 
   afterAll(async () => {
     // Cleanup test data
-    await prisma.post.deleteMany({
+    await db.post.deleteMany({
       where: {
         id: { in: [pastPostId, currentPostId, futurePostId] },
       },
     })
-    await prisma.actor.delete({ where: { id: testActorId } })
-    await prisma.user.delete({ where: { id: testUserId } })
+    await db.actor.delete({ where: { id: testActorId } })
+    await db.user.delete({ where: { id: testUserId } })
   })
 
   describe('Database Service Methods', () => {
     it('getRecentPosts should filter out future posts', async () => {
       // Verify posts exist in database first
       const [pastPost, currentPost, futurePost] = await Promise.all([
-        prisma.post.findUnique({ where: { id: pastPostId } }),
-        prisma.post.findUnique({ where: { id: currentPostId } }),
-        prisma.post.findUnique({ where: { id: futurePostId } }),
+        db.post.findUnique({ where: { id: pastPostId } }),
+        db.post.findUnique({ where: { id: currentPostId } }),
+        db.post.findUnique({ where: { id: futurePostId } }),
       ])
       
       expect(pastPost).toBeTruthy()
@@ -142,7 +142,7 @@ describe('Time Filtering - API Endpoints', () => {
 
     it('getPostsByActor should filter out future posts', async () => {
       // Verify actor exists and is not a test user
-      const actor = await prisma.actor.findUnique({ where: { id: testActorId } })
+      const actor = await db.actor.findUnique({ where: { id: testActorId } })
       expect(actor).toBeTruthy()
       expect(actor?.isTest).toBe(false)
       
@@ -197,7 +197,7 @@ describe('Time Filtering - API Endpoints', () => {
 
     it('getPostsForFollowing should filter out future posts', async () => {
       // Create a follow relationship
-      await prisma.follow.create({
+      await db.follow.create({
         data: {
           id: await generateSnowflakeId(),
           followerId: testUserId,
@@ -218,7 +218,7 @@ describe('Time Filtering - API Endpoints', () => {
       }
 
       // Cleanup
-      await prisma.follow.deleteMany({
+      await db.follow.deleteMany({
         where: { followerId: testUserId, followingId: testActorId },
       })
     })
@@ -227,7 +227,7 @@ describe('Time Filtering - API Endpoints', () => {
   describe('Market Context Service', () => {
     it('getRecentEvents should filter out future events', async () => {
       // Create test events
-      const pastEvent = await prisma.worldEvent.create({
+      const pastEvent = await db.worldEvent.create({
         data: {
           id: await generateSnowflakeId(),
           eventType: 'announcement',
@@ -238,7 +238,7 @@ describe('Time Filtering - API Endpoints', () => {
         },
       })
 
-      const futureEvent = await prisma.worldEvent.create({
+      const futureEvent = await db.worldEvent.create({
         data: {
           id: await generateSnowflakeId(),
           eventType: 'announcement',
@@ -255,7 +255,7 @@ describe('Time Filtering - API Endpoints', () => {
       // The service should filter events when building context
 
       // Cleanup
-      await prisma.worldEvent.deleteMany({
+      await db.worldEvent.deleteMany({
         where: { id: { in: [pastEvent.id, futureEvent.id] } },
       })
     })
@@ -307,8 +307,8 @@ describe('Time Filtering - API Endpoints', () => {
     })
 
     it('GET /api/users/[userId]/posts should filter out future posts', async () => {
-      // Create posts directly with Prisma to avoid tag generation issues
-      const userPastPost = await prisma.post.create({
+      // Create posts directly with database to avoid tag generation issues
+      const userPastPost = await db.post.create({
         data: {
           id: await generateSnowflakeId(),
           content: 'User past post',
@@ -320,7 +320,7 @@ describe('Time Filtering - API Endpoints', () => {
         },
       })
 
-      const userFuturePost = await prisma.post.create({
+      const userFuturePost = await db.post.create({
         data: {
           id: await generateSnowflakeId(),
           content: 'User future post',
@@ -353,14 +353,14 @@ describe('Time Filtering - API Endpoints', () => {
       }
 
       // Cleanup
-      await prisma.post.deleteMany({
+      await db.post.deleteMany({
         where: { id: { in: [userPastPost.id, userFuturePost.id] } },
       })
     })
 
     it('GET /api/feed/widgets/breaking-news should filter out future events', async () => {
       // Create test events
-      const pastEvent = await prisma.worldEvent.create({
+      const pastEvent = await db.worldEvent.create({
         data: {
           id: await generateSnowflakeId(),
           eventType: 'announcement',
@@ -371,7 +371,7 @@ describe('Time Filtering - API Endpoints', () => {
         },
       })
 
-      const futureEvent = await prisma.worldEvent.create({
+      const futureEvent = await db.worldEvent.create({
         data: {
           id: await generateSnowflakeId(),
           eventType: 'announcement',
@@ -403,7 +403,7 @@ describe('Time Filtering - API Endpoints', () => {
       }
 
       // Cleanup
-      await prisma.worldEvent.deleteMany({
+      await db.worldEvent.deleteMany({
         where: { id: { in: [pastEvent.id, futureEvent.id] } },
       })
     })
@@ -451,7 +451,7 @@ describe('Time Filtering - API Endpoints', () => {
     it('should handle posts 1ms in the future', async () => {
       const freshNow = new Date()
       const oneMsFuture = new Date(freshNow.getTime() + 1)
-      const edgeCasePost = await prisma.post.create({
+      const edgeCasePost = await db.post.create({
         data: {
           id: await generateSnowflakeId(),
           content: 'Edge case - 1ms future',
@@ -470,13 +470,13 @@ describe('Time Filtering - API Endpoints', () => {
       expect(postIds).not.toContain(edgeCasePost.id)
 
       // Cleanup
-      await prisma.post.delete({ where: { id: edgeCasePost.id } })
+      await db.post.delete({ where: { id: edgeCasePost.id } })
     })
 
     it('should handle posts far in the future', async () => {
       const freshNow = new Date()
       const farFuture = new Date(freshNow.getTime() + 24 * 60 * 60 * 1000) // 24 hours
-      const farFuturePost = await prisma.post.create({
+      const farFuturePost = await db.post.create({
         data: {
           id: await generateSnowflakeId(),
           content: 'Far future post',
@@ -494,7 +494,7 @@ describe('Time Filtering - API Endpoints', () => {
       expect(postIds).not.toContain(farFuturePost.id)
 
       // Cleanup
-      await prisma.post.delete({ where: { id: farFuturePost.id } })
+      await db.post.delete({ where: { id: farFuturePost.id } })
     })
   })
 })

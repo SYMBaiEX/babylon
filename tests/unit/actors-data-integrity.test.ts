@@ -76,8 +76,8 @@ describe('Actors.json Data Integrity', () => {
       expect(missing).toHaveLength(0);
     });
 
-    it('all actors should have physicalDescription', () => {
-      const missing = actorsData.actors.filter((a: ActorData) => !a.physicalDescription);
+    it('all actors should have pfpDescription', () => {
+      const missing = actorsData.actors.filter((a: ActorData) => !a.pfpDescription);
       expect(missing).toHaveLength(0);
     });
 
@@ -137,8 +137,10 @@ describe('Actors.json Data Integrity', () => {
       expect(missing).toHaveLength(0);
     });
 
-    it('all organizations should have initialPrice (number)', () => {
-      const missing = actorsData.organizations.filter((o: OrganizationData) => typeof o.initialPrice !== 'number');
+    it('all company-type organizations should have initialPrice (number)', () => {
+      // Only companies need initialPrice - media organizations don't have stock prices
+      const companies = actorsData.organizations.filter((o: OrganizationData) => o.type === 'company');
+      const missing = companies.filter((o: OrganizationData) => typeof o.initialPrice !== 'number');
       expect(missing).toHaveLength(0);
     });
 
@@ -154,28 +156,31 @@ describe('Actors.json Data Integrity', () => {
   });
 
   describe('Unused Fields Removed', () => {
+    // Helper to check for properties that might exist on objects at runtime
+    const hasProperty = (obj: object, prop: string): boolean => prop in obj;
+    
     it('no actors should have "nickname" field', () => {
-      const withNickname = actorsData.actors.filter((a) => 'nickname' in (a as unknown as Record<string, unknown>));
+      const withNickname = actorsData.actors.filter((a) => hasProperty(a, 'nickname'));
       expect(withNickname).toHaveLength(0);
     });
 
     it('no actors should have "aliases" field', () => {
-      const withAliases = actorsData.actors.filter((a) => 'aliases' in (a as unknown as Record<string, unknown>));
+      const withAliases = actorsData.actors.filter((a) => hasProperty(a, 'aliases'));
       expect(withAliases).toHaveLength(0);
     });
 
     it('no actors should have "quirks" field', () => {
-      const withQuirks = actorsData.actors.filter((a) => 'quirks' in (a as unknown as Record<string, unknown>));
+      const withQuirks = actorsData.actors.filter((a) => hasProperty(a, 'quirks'));
       expect(withQuirks).toHaveLength(0);
     });
 
     it('no actors should have "canPostFeed" field', () => {
-      const withCanPostFeed = actorsData.actors.filter((a) => 'canPostFeed' in (a as unknown as Record<string, unknown>));
+      const withCanPostFeed = actorsData.actors.filter((a) => hasProperty(a, 'canPostFeed'));
       expect(withCanPostFeed).toHaveLength(0);
     });
 
     it('no actors should have "canPostGroups" field', () => {
-      const withCanPostGroups = actorsData.actors.filter((a) => 'canPostGroups' in (a as unknown as Record<string, unknown>));
+      const withCanPostGroups = actorsData.actors.filter((a) => hasProperty(a, 'canPostGroups'));
       expect(withCanPostGroups).toHaveLength(0);
     });
   });
@@ -230,20 +235,22 @@ describe('Actors.json Data Integrity', () => {
       }
     });
 
-    it('all initialPrice values should be number', () => {
-      for (const org of actorsData.organizations) {
+    it('all company initialPrice values should be number', () => {
+      // Only companies have initialPrice - media organizations don't have stock prices
+      const companies = actorsData.organizations.filter((o: OrganizationData) => o.type === 'company');
+      for (const org of companies) {
         expect(typeof org.initialPrice).toBe('number');
       }
     });
   });
 
   describe('Counts', () => {
-    it('should have 122 actors', () => {
-      expect(actorsData.actors).toHaveLength(122);
+    it('should have 142 actors', () => {
+      expect(actorsData.actors).toHaveLength(142);
     });
 
-    it('should have 53 organizations', () => {
-      expect(actorsData.organizations).toHaveLength(53);
+    it('should have 61 organizations', () => {
+      expect(actorsData.organizations).toHaveLength(61);
     });
   });
 });

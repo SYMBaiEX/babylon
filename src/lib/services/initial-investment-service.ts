@@ -7,11 +7,10 @@
  * Uses LLM to determine appropriate investments based on NPC characteristics.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, actors, eq, sql } from '@/db';
 import { logger } from '@/lib/logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import { Prisma } from '@prisma/client';
 import { loadActorById } from '@/lib/data/actors-loader';
 
 /**
@@ -59,8 +58,8 @@ export class InitialInvestmentService {
     logger.info('Generating initial NPC investments...', undefined, 'InitialInvestment');
     
     // Get all NPCs with their affiliations
-    const npcs = await prisma.actor.findMany({
-      where: { tradingBalance: { gt: 0 } },
+    const npcs = await db.actor.findMany({
+      where: { tradingBalance: { gt: '0' } },
       select: {
         id: true,
         name: true,
@@ -70,10 +69,18 @@ export class InitialInvestmentService {
         tier: true,
         tradingBalance: true,
       }
-    });
+    }) as Array<{
+      id: string;
+      name: string;
+      affiliations: string[];
+      domain: string[];
+      personality: string | null;
+      tier: string | null;
+      tradingBalance: string;
+    }>;
     
     // Get all companies
-    const companies = await prisma.organization.findMany({
+    const companies = await db.organization.findMany({
       where: { type: 'company', ticker: { not: null } },
       select: {
         id: true,
@@ -172,7 +179,7 @@ export class InitialInvestmentService {
       domain: string[];
       personality: string | null;
       tier: string | null;
-      tradingBalance: Prisma.Decimal;
+      tradingBalance: string;
     }>,
     companies: Array<{
       id: string;
@@ -270,7 +277,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
             }
           }
         },
-        { temperature: 0.7, maxTokens: 16000, format: 'json' }
+        { temperature: 0.7, maxTokens: 16000, format: 'json', promptType: 'generate_investments_batch' }
       );
       
       logger.debug(`LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`, {
@@ -311,7 +318,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
       id: string;
       name: string;
       affiliations: string[];
-      tradingBalance: Prisma.Decimal;
+      tradingBalance: string;
       tier?: string | null;
       domain?: string[];
     }>,
@@ -415,7 +422,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
    */
   private static async executeInvestment(investment: InitialInvestment): Promise<void> {
     // Get organization details
-    const org = await prisma.organization.findFirst({
+    const org = await db.organization.findFirst({
       where: { ticker: investment.ticker }
     });
     
@@ -427,26 +434,26 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
     const shares = investment.amount / entryPrice;
     
     // Ensure Pool exists for this NPC (poolId = npcId for backward compatibility)
-    const existingPool = await prisma.pool.findUnique({
+    const existingPool = await db.pool.findUnique({
       where: { id: investment.npcId }
     });
     
     if (!existingPool) {
       // Create Pool for NPC
       const now = new Date();
-      await prisma.pool.create({
+      await db.pool.create({
         data: {
           id: investment.npcId,
           npcActorId: investment.npcId,
           name: `${investment.npcName} Portfolio`,
           description: `Initial investment portfolio for ${investment.npcName}`,
           isActive: true,
-          totalValue: new Prisma.Decimal(0),
-          totalDeposits: new Prisma.Decimal(0),
-          availableBalance: new Prisma.Decimal(0),
-          lifetimePnL: new Prisma.Decimal(0),
+          totalValue: '0',
+          totalDeposits: '0',
+          availableBalance: '0',
+          lifetimePnL: '0',
           performanceFeeRate: 0.05,
-          totalFeesCollected: new Prisma.Decimal(0),
+          totalFeesCollected: '0',
           openedAt: now,
           updatedAt: now,
           status: 'ACTIVE',
@@ -467,7 +474,7 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
     const positionId = await generateSnowflakeId();
     const now = new Date();
     
-    await prisma.poolPosition.create({
+    await db.poolPosition.create({
       data: {
         id: positionId,
         poolId: investment.npcId, // Use npcId as poolId
@@ -489,18 +496,16 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
       }
     });
     
-    // Deduct from NPC trading balance
-    await prisma.actor.update({
-      where: { id: investment.npcId },
-      data: {
-        tradingBalance: {
-          decrement: new Prisma.Decimal(investment.amount)
-        }
-      }
-    });
+    // Deduct from NPC trading balance using raw SQL decrement
+    await db
+      .update(actors)
+      .set({
+        tradingBalance: sql`${actors.tradingBalance} - ${investment.amount}`,
+      })
+      .where(eq(actors.id, investment.npcId));
     
     // Record the trade
-    await prisma.nPCTrade.create({
+    await db.npcTrade.create({
       data: {
         id: await generateSnowflakeId(),
         npcActorId: investment.npcId,

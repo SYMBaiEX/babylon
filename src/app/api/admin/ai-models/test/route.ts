@@ -101,6 +101,7 @@ Return your response as XML in this exact format:
       {
         temperature: 0.7,
         maxTokens: 100,
+        promptType: 'admin_test_ai_model',
       }
     );
     

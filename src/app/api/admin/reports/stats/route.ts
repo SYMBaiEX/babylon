@@ -49,7 +49,7 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, reports, count, isNotNull } from '@/db';
 import { logger } from '@/lib/logger';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -65,49 +65,51 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     resolvedReports,
     dismissedReports,
   ] = await Promise.all([
-    prisma.report.count(),
-    prisma.report.count({ where: { status: 'pending' } }),
-    prisma.report.count({ where: { status: 'reviewing' } }),
-    prisma.report.count({ where: { status: 'resolved' } }),
-    prisma.report.count({ where: { status: 'dismissed' } }),
+    db.report.count(),
+    db.report.count({ where: { status: 'pending' } }),
+    db.report.count({ where: { status: 'reviewing' } }),
+    db.report.count({ where: { status: 'resolved' } }),
+    db.report.count({ where: { status: 'dismissed' } }),
   ]);
 
   // Get counts by category
-  const reportsByCategory = await prisma.report.groupBy({
-    by: ['category'],
-    _count: true,
-    orderBy: {
-      _count: {
-        category: 'desc',
-      },
-    },
-  });
+  const reportsByCategoryRaw = await db
+    .select({
+      category: reports.category,
+      _count: count(),
+    })
+    .from(reports)
+    .groupBy(reports.category);
+  
+  const reportsByCategory = reportsByCategoryRaw.sort((a, b) => Number(b._count) - Number(a._count));
 
   // Get counts by priority
-  const reportsByPriority = await prisma.report.groupBy({
-    by: ['priority'],
-    _count: true,
-  });
+  const reportsByPriority = await db
+    .select({
+      priority: reports.priority,
+      _count: count(),
+    })
+    .from(reports)
+    .groupBy(reports.priority);
 
   // Get top reported users
-  const topReportedUsers = await prisma.report.groupBy({
-    by: ['reportedUserId'],
-    where: {
-      reportedUserId: { not: null },
-    },
-    _count: true,
-    orderBy: {
-      _count: {
-        reportedUserId: 'desc',
-      },
-    },
-    take: 10,
-  });
+  const topReportedUsersRaw = await db
+    .select({
+      reportedUserId: reports.reportedUserId,
+      _count: count(),
+    })
+    .from(reports)
+    .where(isNotNull(reports.reportedUserId))
+    .groupBy(reports.reportedUserId);
+  
+  const topReportedUsers = topReportedUsersRaw
+    .sort((a, b) => Number(b._count) - Number(a._count))
+    .slice(0, 10);
 
   // Get user details for top reported users
   const topReportedUsersWithDetails = await Promise.all(
     topReportedUsers.map(async (item) => {
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: item.reportedUserId! },
         select: {
           id: true,
@@ -119,28 +121,29 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       });
       return {
         user,
-        reportCount: item._count,
+        reportCount: Number(item._count),
       };
     })
   );
 
   // Get top reporters
-  const topReporters = await prisma.report.groupBy({
-    by: ['reporterId'],
-    _count: true,
-    orderBy: {
-      _count: {
-        reporterId: 'desc',
-      },
-    },
-    take: 10,
-  });
+  const topReportersRaw = await db
+    .select({
+      reporterId: reports.reporterId,
+      _count: count(),
+    })
+    .from(reports)
+    .groupBy(reports.reporterId);
+  
+  const topReporters = topReportersRaw
+    .sort((a, b) => Number(b._count) - Number(a._count))
+    .slice(0, 10);
 
   // Get user details for top reporters
   const topReportersWithDetails = await Promise.all(
     topReporters.map(async (item) => {
-      const user = await prisma.user.findUnique({
-        where: { id: item.reporterId },
+      const user = await db.user.findUnique({
+        where: { id: String(item.reporterId) },
         select: {
           id: true,
           username: true,
@@ -150,14 +153,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       });
       return {
         user,
-        reportCount: item._count,
+        reportCount: Number(item._count),
       };
     })
   );
 
   // Get recent activity (last 7 days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const recentReports = await prisma.report.count({
+  const recentReports = await db.report.count({
     where: {
       createdAt: {
         gte: sevenDaysAgo,
@@ -165,7 +168,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  const recentResolved = await prisma.report.count({
+  const recentResolved = await db.report.count({
     where: {
       resolvedAt: {
         gte: sevenDaysAgo,
@@ -183,11 +186,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     byCategory: reportsByCategory.map(item => ({
       category: item.category,
-      count: item._count,
+      count: Number(item._count),
     })),
     byPriority: reportsByPriority.map(item => ({
       priority: item.priority,
-      count: item._count,
+      count: Number(item._count),
     })),
     topReportedUsers: topReportedUsersWithDetails,
     topReporters: topReportersWithDetails,

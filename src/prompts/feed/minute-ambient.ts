@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, STANDARD_FEED_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating real-time ambient posts for continuous minute-level generation.
@@ -16,19 +17,16 @@ export const minuteAmbient = definePrompt({
   description: 'Generates real-time ambient posts for continuous minute-level generation',
   temperature: 1,
   maxTokens: 300,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}
 Current time: {{currentTime}}
 {{atmosphereContext}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
 Generate a brief thought or observation for this moment.
 
@@ -39,17 +37,8 @@ Requirements:
 - Max 200 characters
 - Stay in character
 - Natural social media tone
-- No hashtags or emojis
-- NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames
 
-CONTENT REQUIREMENTS:
-- MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades) when relevant
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI") when mentioning them
-- MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions when relevant
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk said...")
-- Avoid generic statements - be SPECIFIC about who/what/when when referencing entities
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${STANDARD_FEED_RULES}
 
 Also analyze:
 - sentiment: -1 (very negative) to 1 (very positive)

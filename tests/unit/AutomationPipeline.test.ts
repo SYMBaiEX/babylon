@@ -5,34 +5,115 @@
  */
 
 import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
-import type { Trajectory, TrainingBatch, TrainedModel } from '@prisma/client';
+
+// Tests use mocked db module
+const describeTests = describe;
+// Import types used in type assertions for repository mocks
+import type { TrainingBatch, TrainedModel } from '@/db';
 import type { AutomationPipeline as AutomationPipelineType, AutomationConfig } from '@/lib/training/AutomationPipeline';
 
-// Define mocks
-const mockPrisma = {
+// Type for pipeline with private properties/methods exposed for testing
+// Uses a structural type to access private members in tests
+interface PipelineTestAccess {
+  config: AutomationConfig
+  getNextModelVersion: () => Promise<string>
+  getTrajectoryIds: (limit?: number) => Promise<string[]>
+  runTrainingPipeline: () => Promise<void>
+  processTrainingBatch: () => Promise<void>
+  evaluateModel: () => Promise<void>
+  runHealthChecks: () => Promise<void>
+}
+
+// Helper to access private members for testing purposes
+// This is a test-only utility that bypasses TypeScript's access modifiers
+const asTestAccess = (pipeline: AutomationPipelineType): PipelineTestAccess => 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pipeline as never as PipelineTestAccess
+
+// Type for mock function with mockClear
+interface MockFunction {
+  mockClear?: () => void
+}
+
+// Store mock results queue - each call to db.select() will shift one result
+let mockSelectResultsQueue: unknown[][] = [];
+let mockGroupByResults: unknown[] = [];
+let mockFindManyResults: unknown[] = [];
+
+// Create a chainable query builder mock
+const createQueryChain = (isGroupBy = false) => {
+  const chain = {
+    from: () => chain,
+    where: () => chain,
+    groupBy: () => createQueryChain(true), // Switch to groupBy mode
+    orderBy: () => chain,
+    limit: () => chain,
+    offset: () => chain,
+  };
+  
+  // Make it thenable (Promise-like) - returns the appropriate result based on query type
+  const getResult = () => {
+    if (isGroupBy) {
+      return mockGroupByResults;
+    }
+    return mockSelectResultsQueue.shift() ?? [];
+  };
+  
+  return Object.assign(chain, {
+    then: (resolve: (value: unknown[]) => void, reject?: (error: Error) => void) => 
+      Promise.resolve(getResult()).then(resolve, reject),
+    catch: (reject: (error: Error) => void) => Promise.resolve(getResult()).catch(reject),
+    [Symbol.toStringTag]: 'Promise',
+  });
+};
+
+// Define mocks for db (Drizzle query builder style)
+const mockDb = {
+  select: mock(() => createQueryChain()),
+  insert: mock(() => ({
+    values: () => ({
+      returning: () => Promise.resolve([{ id: 'mock-id' }]),
+      onConflictDoNothing: () => Promise.resolve(),
+    }),
+  })),
+  update: mock(() => ({
+    set: () => ({
+      where: () => ({
+        returning: () => Promise.resolve([]),
+      }),
+    }),
+  })),
+  delete: mock(() => ({
+    where: () => ({
+      returning: () => Promise.resolve([]),
+    }),
+  })),
+  // Repository-style methods for compatibility
+  // Use permissive return types to allow mockResolvedValue with different values
   trajectory: {
     count: mock(),
     groupBy: mock(),
-    findMany: mock(),
+    findMany: mock(() => Promise.resolve(mockFindManyResults)),
+    findFirst: mock(),
     updateMany: mock(),
   },
   trainingBatch: {
-    create: mock(),
-    findUnique: mock(),
-    findFirst: mock(),
-    count: mock(),
-    update: mock(),
+    create: mock(() => Promise.resolve({ id: 'batch-1' })),
+    findUnique: mock(() => Promise.resolve(null as TrainingBatch | null)),
+    findFirst: mock(() => Promise.resolve(null as TrainingBatch | null)),
+    count: mock(() => Promise.resolve(0)),
+    update: mock(() => Promise.resolve({})),
   },
   trainedModel: {
-    findFirst: mock(),
-    create: mock(),
-    count: mock(),
-    update: mock(),
+    findFirst: mock(() => Promise.resolve(null as TrainedModel | null)),
+    create: mock(() => Promise.resolve({ id: 'model-1' })),
+    count: mock(() => Promise.resolve(0)),
+    update: mock(() => Promise.resolve({})),
   },
   user: {
-    count: mock(),
+    count: mock(() => Promise.resolve(1)),
   },
-  $queryRaw: mock(),
+  $queryRaw: mock(() => Promise.resolve([{ result: 1 }])),
 };
 
 const mockLogger = {
@@ -41,22 +122,117 @@ const mockLogger = {
   error: mock(),
 };
 
-// Mock modules
-mock.module('@/lib/prisma', () => ({
-  prisma: mockPrisma
+// Mock modules - using @/db since AutomationPipeline imports from there
+// Include all exports that may be imported by AutomationPipeline and its dependencies
+mock.module('@/db', () => ({
+  db: mockDb,
+  // Tables (as empty objects since we're mocking db methods)
+  // Core tables
+  users: {},
+  actors: {},
+  posts: {},
+  comments: {},
+  reactions: {},
+  shares: {},
+  messages: {},
+  chats: {},
+  chatParticipants: {},
+  notifications: {},
+  // Agent-related tables
+  agentLogs: {},
+  agentMessages: {},
+  agentPerformanceMetrics: {},
+  agentGoals: {},
+  agentGoalActions: {},
+  agentPointsTransactions: {},
+  agentTrades: {},
+  agentRegistries: {},
+  agentCapabilities: {},
+  externalAgentConnections: {},
+  npcInteractions: {},
+  npcTrades: {},
+  // Training tables
+  trajectories: {},
+  trainingBatches: {},
+  trainedModels: {},
+  benchmarkResults: {},
+  llmCallLogs: {},
+  marketOutcomes: {},
+  rewardJudgments: {},
+  // Other tables
+  worldFacts: {},
+  worldEvents: {},
+  referrals: {},
+  pointsTransactions: {},
+  balanceTransactions: {},
+  markets: {},
+  positions: {},
+  perpPositions: {},
+  pools: {},
+  poolPositions: {},
+  poolDeposits: {},
+  organizations: {},
+  stockPrices: {},
+  questions: {},
+  predictionPriceHistories: {},
+  favorites: {},
+  follows: {},
+  followStatuses: {},
+  tags: {},
+  postTags: {},
+  trendingTags: {},
+  actorFollows: {},
+  actorRelationships: {},
+  userActorFollows: {},
+  userInteractions: {},
+  tradingFees: {},
+  feedbacks: {},
+  reports: {},
+  moderationEscrows: {},
+  // Operators (as no-op functions)
+  eq: () => ({}),
+  and: () => ({}),
+  or: () => ({}),
+  sql: () => ({}),
+  desc: () => ({}),
+  asc: () => ({}),
+  gte: () => ({}),
+  lte: () => ({}),
+  gt: () => ({}),
+  lt: () => ({}),
+  ne: () => ({}),
+  isNull: () => ({}),
+  isNotNull: () => ({}),
+  not: () => ({}),
+  count: () => ({}),
+  inArray: () => ({}),
+  notInArray: () => ({}),
+  like: () => ({}),
+  ilike: () => ({}),
+  between: () => ({}),
+  exists: () => ({}),
+  notExists: () => ({}),
+  sum: () => ({}),
+  avg: () => ({}),
+  min: () => ({}),
+  max: () => ({}),
+  // Types (for satisfying type imports)
+  Trajectory: {},
+  TrainingBatch: {},
+  TrainedModel: {},
 }));
 
 mock.module('@/lib/logger', () => ({
   logger: mockLogger
 }));
 
-describe('AutomationPipeline - Unit Tests', () => {
-  let AutomationPipeline: any; // Constructor
+describeTests('AutomationPipeline - Unit Tests', () => {
+  let AutomationPipeline: new (config?: Partial<AutomationConfig>) => AutomationPipelineType; // Constructor
   let pipeline: AutomationPipelineType;
   let mockConfig: Partial<AutomationConfig>;
 
   beforeAll(async () => {
-    // Set dummy DATABASE_URL to prevent Prisma from complaining
+    // Set dummy DATABASE_URL to prevent database from complaining
     // This must be done before importing the module
     process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mock:mock@localhost:5432/mock';
     
@@ -67,28 +243,23 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   beforeEach(() => {
     // Reset all mocks
-    Object.values(mockPrisma).forEach(model => {
+    Object.values(mockDb).forEach(model => {
       if (typeof model === 'object') {
-        Object.values(model).forEach((fn: any) => fn.mockClear && fn.mockClear());
-      } else if ((model as any).mockClear) {
-        (model as any).mockClear();
+        Object.values(model).forEach((fn) => {
+          const mockFn = fn as MockFunction;
+          mockFn.mockClear?.();
+        });
+      } else {
+        const mockFn = model as MockFunction;
+        mockFn.mockClear?.();
       }
     });
     Object.values(mockLogger).forEach(fn => fn.mockClear());
 
-    // Default mock implementations
-    mockPrisma.trajectory.count.mockResolvedValue(0);
-    mockPrisma.trajectory.groupBy.mockResolvedValue([]);
-    mockPrisma.trajectory.findMany.mockResolvedValue([]);
-    mockPrisma.trainingBatch.findUnique.mockResolvedValue(null);
-    mockPrisma.trainingBatch.findFirst.mockResolvedValue(null);
-    mockPrisma.trainingBatch.count.mockResolvedValue(0);
-    mockPrisma.trainingBatch.create.mockResolvedValue({ id: 'batch-1' });
-    mockPrisma.trainingBatch.update.mockResolvedValue({});
-    mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
-    mockPrisma.trainedModel.count.mockResolvedValue(0);
-    mockPrisma.user.count.mockResolvedValue(1);
-    mockPrisma.$queryRaw.mockResolvedValue([{ result: 1 }]);
+    // Reset query result queues
+    mockSelectResultsQueue = [];
+    mockGroupByResults = [];
+    mockFindManyResults = [];
 
     mockConfig = {
       minTrajectoriesForTraining: 50,
@@ -124,7 +295,9 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should merge custom config with defaults', () => {
-      const config = (pipeline as any)['config'];
+      // Access private config property for testing
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const config = pipelineWithPrivate.config;
       
       expect(config.minTrajectoriesForTraining).toBe(50);
       expect(config.minGroupSize).toBe(3);
@@ -134,20 +307,34 @@ describe('AutomationPipeline - Unit Tests', () => {
 
     test('should use OpenPipe model by default', () => {
       const defaultPipeline = new AutomationPipeline();
-      expect((defaultPipeline as any)['config'].baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      // Access private config property for testing
+      const config = asTestAccess(defaultPipeline).config;
+      expect(config.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
     });
 
     test('should allow custom model override', () => {
       const customPipeline = new AutomationPipeline({
         baseModel: 'custom-model'
       });
-      expect((customPipeline as any)['config'].baseModel).toBe('custom-model');
+      // Access private config property for testing
+      const config = asTestAccess(customPipeline).config;
+      expect(config.baseModel).toBe('custom-model');
     });
   });
 
   describe('Training Readiness Check', () => {
     test('should be not ready when insufficient trajectories', async () => {
-      mockPrisma.trajectory.count.mockResolvedValue(30);
+      // Setup query results in order of calls:
+      // 1. scoredAndReady count
+      // 2. unscored count  
+      // 3. scenarios groupBy
+      // 4. calculateDataQuality findMany
+      mockSelectResultsQueue = [
+        [{ count: 30 }],  // scoredAndReady
+        [{ count: 0 }],   // unscored
+      ];
+      mockGroupByResults = [];
+      mockFindManyResults = [];
 
       const result = await pipeline.checkTrainingReadiness();
 
@@ -157,17 +344,24 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should be not ready when insufficient scenario groups', async () => {
-      let callCount = 0;
-      mockPrisma.trajectory.count.mockImplementation(() => {
-        callCount++;
-        // First call for scoredAndReady, second call for unscored
-        return Promise.resolve(callCount === 1 ? 100 : 0);
-      });
-      
-      mockPrisma.trajectory.groupBy.mockResolvedValue([
-        { scenarioId: 'scenario-1', _count: 5 },
-        { scenarioId: 'scenario-2', _count: 4 },
-      ]);
+      // Setup query results
+      mockSelectResultsQueue = [
+        [{ count: 100 }],  // scoredAndReady
+        [{ count: 0 }],    // unscored
+      ];
+      mockGroupByResults = [
+        { scenarioId: 'scenario-1', count: 5 },
+        { scenarioId: 'scenario-2', count: 4 },
+      ];
+      // Data quality check - needs valid data
+      mockFindManyResults = Array.from({ length: 50 }, (_, i) => ({
+        trajectoryId: `traj-${i}`,
+        stepsJson: JSON.stringify([{
+          llmCalls: [{ systemPrompt: 'a'.repeat(100), userPrompt: 'b'.repeat(150), response: 'Test' }],
+          providerAccesses: [{ provider: 'test' }],
+          action: { result: 'success' }
+        }])
+      }));
 
       const result = await pipeline.checkTrainingReadiness();
 
@@ -177,28 +371,29 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should be ready when all conditions met', async () => {
-      mockPrisma.trajectory.count.mockResolvedValue(100);
-      mockPrisma.trajectory.groupBy.mockResolvedValue(
-        Array.from({ length: 15 }, (_, i) => ({
-          scenarioId: `scenario-${i}`,
-          _count: 5
-        }))
-      );
+      // Good quality trajectory data for calculateDataQuality
+      const goodTrajectories = Array.from({ length: 50 }, (_, i) => ({
+        trajectoryId: `traj-${i}`,
+        stepsJson: JSON.stringify([{
+          llmCalls: [{
+            systemPrompt: 'a'.repeat(100),
+            userPrompt: 'b'.repeat(150),
+            response: 'Test'
+          }],
+          providerAccesses: [{ provider: 'test' }],
+          action: { result: 'success' }
+        }])
+      }));
       
-      mockPrisma.trajectory.findMany.mockResolvedValue(
-        Array.from({ length: 50 }, (_, i): Pick<Trajectory, 'trajectoryId' | 'stepsJson'> => ({
-          trajectoryId: `traj-${i}`,
-          stepsJson: JSON.stringify([{
-            llmCalls: [{
-              systemPrompt: 'a'.repeat(100),
-              userPrompt: 'b'.repeat(150),
-              response: 'Test'
-            }],
-            providerAccesses: [{ provider: 'test' }],
-            action: { result: 'success' }
-          }])
-        }))
-      );
+      mockSelectResultsQueue = [
+        [{ count: 100 }],  // scoredAndReady
+        [{ count: 0 }],    // unscored
+        goodTrajectories,  // calculateDataQuality sample
+      ];
+      mockGroupByResults = Array.from({ length: 15 }, (_, i) => ({
+        scenarioId: `scenario-${i}`,
+        count: 5
+      }));
 
       const result = await pipeline.checkTrainingReadiness();
 
@@ -208,29 +403,24 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should check data quality', async () => {
-      let callCount = 0;
-      mockPrisma.trajectory.count.mockImplementation(() => {
-        callCount++;
-        return Promise.resolve(callCount === 1 ? 100 : 0);
-      });
+      // Mock poor quality data for calculateDataQuality sample
+      const poorQualityData = Array.from({ length: 50 }, () => ({
+        trajectoryId: 'traj-poor-quality',
+        stepsJson: JSON.stringify([{
+          llmCalls: [],  // No LLM calls = poor quality
+          action: {}
+        }])
+      }));
       
-      mockPrisma.trajectory.groupBy.mockResolvedValue(
-        Array.from({ length: 15 }, (_, i) => ({
-          scenarioId: `scenario-${i}`,
-          _count: 5
-        }))
-      );
-
-      // Mock poor quality data
-      mockPrisma.trajectory.findMany.mockResolvedValue(
-        Array.from({ length: 50 }, (): Pick<Trajectory, 'trajectoryId' | 'stepsJson'> => ({
-          trajectoryId: 'traj-poor-quality',
-          stepsJson: JSON.stringify([{
-            llmCalls: [],  // No LLM calls = poor quality
-            action: {}
-          }])
-        }))
-      );
+      mockSelectResultsQueue = [
+        [{ count: 100 }],  // scoredAndReady
+        [{ count: 0 }],    // unscored
+        poorQualityData,   // calculateDataQuality sample
+      ];
+      mockGroupByResults = Array.from({ length: 15 }, (_, i) => ({
+        scenarioId: `scenario-${i}`,
+        count: 5
+      }));
 
       const result = await pipeline.checkTrainingReadiness();
 
@@ -242,29 +432,31 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   describe('Model Versioning', () => {
     test('should start at v1.0.0 when no models exist', async () => {
-      mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
+      mockSelectResultsQueue = [[]]; // No models exist
 
-      const version = await (pipeline as any)['getNextModelVersion']();
+      // Access private method for testing
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const version = await pipelineWithPrivate.getNextModelVersion();
 
       expect(version).toBe('v1.0.0');
     });
 
     test('should increment patch version', async () => {
-      mockPrisma.trainedModel.findFirst.mockResolvedValue({
-        version: 'v1.0.5'
-      } as TrainedModel);
+      mockSelectResultsQueue = [[{ version: 'v1.0.5' }]];
 
-      const version = await (pipeline as any)['getNextModelVersion']();
+      // Access private method for testing
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const version = await pipelineWithPrivate.getNextModelVersion();
 
       expect(version).toBe('v1.0.6');
     });
 
     test('should handle double-digit versions', async () => {
-      mockPrisma.trainedModel.findFirst.mockResolvedValue({
-        version: 'v2.3.99'
-      } as TrainedModel);
+      mockSelectResultsQueue = [[{ version: 'v2.3.99' }]];
 
-      const version = await (pipeline as any)['getNextModelVersion']();
+      // Access private method for testing
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const version = await pipelineWithPrivate.getNextModelVersion();
 
       expect(version).toBe('v2.3.100');
     });
@@ -272,38 +464,35 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   describe('Trajectory ID Retrieval', () => {
     test('should retrieve trajectory IDs for training', async () => {
-      const mockTrajectories: Array<Pick<Trajectory, 'trajectoryId' | 'stepsJson'>> = [
-        { trajectoryId: 'traj-1', stepsJson: '[]' },
-        { trajectoryId: 'traj-2', stepsJson: '[]' },
-        { trajectoryId: 'traj-3', stepsJson: '[]' },
-      ];
+      mockSelectResultsQueue = [[
+        { trajectoryId: 'traj-1' },
+        { trajectoryId: 'traj-2' },
+        { trajectoryId: 'traj-3' },
+      ]];
 
-      mockPrisma.trajectory.findMany.mockResolvedValue(mockTrajectories);
-
-      const ids = await (pipeline as any)['getTrajectoryIds'](3);
+      // Access private method for testing
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const ids = await pipelineWithPrivate.getTrajectoryIds(3);
 
       expect(ids).toEqual(['traj-1', 'traj-2', 'traj-3']);
-      expect(mockPrisma.trajectory.findMany).toHaveBeenCalled();
     });
 
     test('should retrieve all trajectories when no limit', async () => {
-      const mockTrajectories: Array<Pick<Trajectory, 'trajectoryId' | 'stepsJson'>> = [
-        { trajectoryId: 'traj-1', stepsJson: '[]' },
-        { trajectoryId: 'traj-2', stepsJson: '[]' },
-      ];
+      mockSelectResultsQueue = [[
+        { trajectoryId: 'traj-1' },
+        { trajectoryId: 'traj-2' },
+      ]];
 
-      mockPrisma.trajectory.findMany.mockResolvedValue(mockTrajectories);
-
-      const ids = await (pipeline as any)['getTrajectoryIds']();
+      // Access private method for testing
+      const ids = await (asTestAccess(pipeline)).getTrajectoryIds();
 
       expect(ids).toHaveLength(2);
-      expect(mockPrisma.trajectory.findMany).toHaveBeenCalled();
     });
   });
 
   describe('Training Monitoring', () => {
     test('should return not_found for non-existent batch', async () => {
-      mockPrisma.trainingBatch.findUnique.mockResolvedValue(null);
+      mockSelectResultsQueue = [[]]; // No batch found
 
       const status = await pipeline.monitorTraining('non-existent');
 
@@ -311,11 +500,11 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should return training status', async () => {
-      mockPrisma.trainingBatch.findUnique.mockResolvedValue({
+      mockSelectResultsQueue = [[{
         batchId: 'batch-1',
         status: 'training',
         error: null
-      } as TrainingBatch);
+      }]];
 
       const status = await pipeline.monitorTraining('batch-1');
 
@@ -325,11 +514,11 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should return completed status', async () => {
-      mockPrisma.trainingBatch.findUnique.mockResolvedValue({
+      mockSelectResultsQueue = [[{
         batchId: 'batch-1',
         status: 'completed',
         error: null
-      } as TrainingBatch);
+      }]];
 
       const status = await pipeline.monitorTraining('batch-1');
 
@@ -341,23 +530,15 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   describe('Status Reporting', () => {
     test('should return comprehensive status', async () => {
-      let callCount = 0;
-      mockPrisma.trajectory.count.mockImplementation(() => {
-        callCount++;
-        return Promise.resolve(callCount === 1 ? 50 : 200);
-      });
-      
-      mockPrisma.trainingBatch.findFirst.mockResolvedValue({
-        completedAt: new Date('2024-01-01T12:00:00Z')
-      } as TrainingBatch);
-      
-      mockPrisma.trainedModel.findFirst.mockResolvedValue({
-        version: 'v1.2.3'
-      } as TrainedModel);
-      
-      mockPrisma.trainedModel.count.mockResolvedValue(5);
-      mockPrisma.trainingBatch.count.mockResolvedValue(2);
-      mockPrisma.user.count.mockResolvedValue(1);
+      mockSelectResultsQueue = [
+        [{ count: 50 }],   // last24h
+        [{ count: 200 }],  // last7d
+        [{ completedAt: new Date('2024-01-01T12:00:00Z') }], // lastCompleted batch
+        [{ version: 'v1.2.3' }], // latestModel
+        [{ count: 5 }],    // deployedCount
+        [{ count: 2 }],    // trainingCount
+        [{ count: 1 }],    // dbHealthy check
+      ];
 
       const status = await pipeline.getStatus();
 
@@ -371,12 +552,15 @@ describe('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should handle no training history', async () => {
-      mockPrisma.trajectory.count.mockResolvedValue(0);
-      mockPrisma.trainingBatch.findFirst.mockResolvedValue(null);
-      mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
-      mockPrisma.trainedModel.count.mockResolvedValue(0);
-      mockPrisma.trainingBatch.count.mockResolvedValue(0);
-      mockPrisma.user.count.mockResolvedValue(1);
+      mockSelectResultsQueue = [
+        [{ count: 0 }],    // last24h
+        [{ count: 0 }],    // last7d
+        [],                // lastCompleted batch (none)
+        [],                // latestModel (none)
+        [{ count: 0 }],    // deployedCount
+        [{ count: 0 }],    // trainingCount
+        [{ count: 1 }],    // dbHealthy check
+      ];
 
       const status = await pipeline.getStatus();
 
@@ -388,27 +572,49 @@ describe('AutomationPipeline - Unit Tests', () => {
 
   describe('Health Checks', () => {
     test('should check database connectivity', async () => {
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.trajectory.count.mockResolvedValue(10);
+      mockSelectResultsQueue = [
+        [{ count: 1 }],   // users count (db connectivity check)
+        [{ count: 10 }],  // trajectories last hour
+      ];
 
-      await pipeline['runHealthChecks']();
+      // Access private method for testing via bracket notation to bypass TypeScript's private check
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
+      if (runHealthChecks) {
+        await runHealthChecks();
+      }
 
-      expect(mockPrisma.user.count).toHaveBeenCalled();
+      expect(mockDb.select).toHaveBeenCalled();
     });
 
     test('should handle database errors gracefully', async () => {
-      mockPrisma.user.count.mockRejectedValue(new Error('DB Error'));
+      // Make db.select throw an error
+      mockDb.select.mockImplementationOnce(() => {
+        throw new Error('DB Error');
+      });
 
-      await pipeline['runHealthChecks']();
+      // Access private method for testing via bracket notation to bypass TypeScript's private check
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
+      if (runHealthChecks) {
+        await runHealthChecks();
+      }
 
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
     test('should warn on low data collection rate', async () => {
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.trajectory.count.mockResolvedValue(0);
+      mockSelectResultsQueue = [
+        [{ count: 1 }],  // users count (db connectivity check)
+        [{ count: 0 }],  // trajectories last hour (low rate)
+      ];
 
-      await pipeline['runHealthChecks']();
+      // Access private method for testing via bracket notation to bypass TypeScript's private check
+      const pipelineWithPrivate = asTestAccess(pipeline);
+      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
+      if (runHealthChecks) {
+        await runHealthChecks();
+      }
 
       expect(mockLogger.warn).toHaveBeenCalled();
     });

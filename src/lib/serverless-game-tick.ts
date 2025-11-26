@@ -18,17 +18,45 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <180s
  */
 
-import { Prisma } from '@prisma/client';
+import { 
+  Decimal,
+  db,
+  questions as questionsSchema,
+  markets as marketsSchema,
+  posts,
+  worldEvents,
+  actors,
+  organizations,
+  tags,
+  trendingTags,
+  games,
+  pools,
+  poolPositions,
+  positions,
+  widgetCaches,
+  rssHeadlines,
+  actorRelationships,
+  eq,
+  and,
+  ne,
+  desc,
+  asc,
+  gte,
+  lte,
+  inArray,
+  isNull,
+  count,
+  type JsonValue
+} from '@/db';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { QuestionManager } from '@/engine/QuestionManager';
 import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { ActorTier, WorldEvent, DayTimeline, SelectedActor, Question } from '@/shared/types';
-import db from './database-service';
+import type { ActorTier, WorldEvent, DayTimeline, SelectedActor, Question, Organization } from '@/shared/types';
+import dbService from './database-service';
 import { logger } from './logger';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
-import { prisma } from './prisma';
 import { MarketContextService } from './services/market-context-service';
 import { ReputationService } from './services/reputation-service';
 import { TradeExecutionService } from './services/trade-execution-service';
@@ -165,11 +193,10 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     }, 'GameTick');
 
     // Get active questions from database
-    const activeQuestions = await prisma.question.findMany({
-      where: {
-        status: 'active',
-      },
-    });
+    const activeQuestions = await db
+      .select()
+      .from(questionsSchema)
+      .where(eq(questionsSchema.status, 'active'));
 
     logger.info(
       `Found ${activeQuestions.length} active questions`,
@@ -189,9 +216,10 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       result.questionsCreated = questionsGenerated;
       
       // Reload active questions after generation (use new variable to avoid mutation)
-      currentActiveQuestions = await prisma.question.findMany({
-        where: { status: 'active' },
-      });
+      currentActiveQuestions = await db
+        .select()
+        .from(questionsSchema)
+        .where(eq(questionsSchema.status, 'active'));
       
       logger.info(`Initial questions created: ${questionsGenerated}`, { count: questionsGenerated }, 'GameTick');
       
@@ -218,31 +246,51 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
 
       // Load required data for proof generation
       const actorsData = loadActorsData();
-      // Cast actors to SelectedActor[] as they are compatible for this purpose
-      const allActors = actorsData.actors as unknown as SelectedActor[];
+      // Map ActorData to SelectedActor, ensuring required fields are present
+      const allActors: SelectedActor[] = actorsData.actors
+        .filter(actor => actor.tier !== undefined)
+        .map(actor => ({
+          ...actor,
+          tier: actor.tier!,
+          role: actor.role ?? 'unknown',
+          initialLuck: actor.initialLuck ?? 'medium',
+          initialMood: actor.initialMood ?? 0,
+        }))
       const organizations = actorsData.organizations;
       
       // Get recent events for context
-      const recentPrismaEvents = await prisma.worldEvent.findMany({
-        where: {
-          timestamp: {
-            gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // Last 3 days
-          }
-        },
-        orderBy: { timestamp: 'desc' }
-      });
+      const recentDbEvents = await db
+        .select()
+        .from(worldEvents)
+        .where(gte(worldEvents.timestamp, new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)))
+        .orderBy(desc(worldEvents.timestamp));
+
+      // Type guards for WorldEvent fields
+      const isValidEventType = (type: string): type is WorldEvent['type'] => {
+        return ['announcement', 'meeting', 'leak', 'development', 'scandal', 'rumor', 'deal', 'conflict', 'revelation', 'development:occurred', 'news:published'].includes(type)
+      }
+      
+      const isValidVisibility = (vis: string): vis is WorldEvent['visibility'] => {
+        return ['public', 'leaked', 'secret', 'private', 'group'].includes(vis)
+      }
+      
+      const isValidPointsToward = (pt: string | null | undefined): pt is WorldEvent['pointsToward'] => {
+        return pt === null || pt === undefined || pt === 'YES' || pt === 'NO'
+      }
 
       // Convert to DayTimeline format for QuestionManager
-      const mappedEvents: WorldEvent[] = recentPrismaEvents.map(e => ({
-        id: e.id,
-        day: e.dayNumber || 0,
-        type: e.eventType as unknown as WorldEvent['type'],
-        description: e.description,
-        actors: e.actors as string[],
-        relatedQuestion: e.relatedQuestion || undefined,
-        pointsToward: e.pointsToward as unknown as WorldEvent['pointsToward'],
-        visibility: e.visibility as unknown as WorldEvent['visibility']
-      }));
+      const mappedEvents: WorldEvent[] = recentDbEvents
+        .filter(e => isValidEventType(e.eventType) && isValidVisibility(e.visibility))
+        .map(e => ({
+          id: e.id,
+          day: e.dayNumber || 0,
+          type: e.eventType as WorldEvent['type'],
+          description: e.description,
+          actors: e.actors as string[],
+          relatedQuestion: e.relatedQuestion || undefined,
+          pointsToward: isValidPointsToward(e.pointsToward) ? e.pointsToward : undefined,
+          visibility: e.visibility as WorldEvent['visibility']
+        }));
 
       const recentTimelines: DayTimeline[] = [{
           day: 0,
@@ -261,7 +309,7 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       for (const question of questionsToResolve) {
         try {
           // Generate resolution proof content
-          // We cast question to Question type - Prisma question fields are compatible
+          // We cast question to Question type - database question fields are compatible
           const questionForManager: Question = {
             id: question.questionNumber,
             text: question.text,
@@ -281,8 +329,9 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
           // Save proof article if exists
           if (proof && proof.type === 'article') {
              // Create article in database
-             await prisma.post.create({
-               data: {
+             await db
+               .insert(posts)
+               .values({
                  id: proof.article.id,
                  type: 'article',
                  content: proof.article.summary, // Use summary for content preview
@@ -295,17 +344,17 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
                  sentiment: proof.article.sentiment,
                  slant: proof.article.slant,
                  biasScore: proof.article.biasScore,
-               }
              });
              
              // Update question with proof URL
-             await prisma.question.update({
-               where: { id: question.id },
-               data: {
+             await db
+               .update(questionsSchema)
+               .set({
                  resolutionDescription: description,
-                 resolutionProofUrl: proof.url
-               }
-             });
+                 resolutionProofUrl: proof.url,
+                 updatedAt: new Date(),
+               })
+               .where(eq(questionsSchema.id, question.id));
              
              logger.info(`Generated resolution proof for Q${question.questionNumber}`, { 
                proofUrl: proof.url,
@@ -490,13 +539,13 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
       }
     }
 
-    await prisma.game.updateMany({
-      where: { isContinuous: true },
-      data: {
+    await db
+      .update(games)
+      .set({
         lastTickAt: timestamp,
         updatedAt: timestamp,
-      },
-    });
+      })
+      .where(eq(games.isContinuous, true));
 
     const cachesUpdated = await updateWidgetCaches();
     result.widgetCachesUpdated = cachesUpdated;
@@ -601,15 +650,16 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     // Verify questions resolved correctly
     if (result.questionsResolved > 0) {
       // Check that resolved questions have correct status
-      const resolvedQuestions = await prisma.question.findMany({
-        where: {
-          status: 'resolved',
-          updatedAt: {
-            gte: new Date(timestamp.getTime() - 60000) // Updated in last minute
-          }
-        },
-        take: result.questionsResolved
-      })
+      const resolvedQuestions = await db
+        .select()
+        .from(questionsSchema)
+        .where(
+          and(
+            eq(questionsSchema.status, 'resolved'),
+            gte(questionsSchema.updatedAt, new Date(timestamp.getTime() - 60000)) // Updated in last minute
+          )
+        )
+        .limit(result.questionsResolved);
       
       if (resolvedQuestions.length !== result.questionsResolved) {
         validationWarnings.push(`Expected ${result.questionsResolved} resolved questions but found ${resolvedQuestions.length}`)
@@ -617,13 +667,16 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
     }
     
     // Validate market prices are reasonable (0-100% for predictions)
-    const activeMarkets = await prisma.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: timestamp }
-      },
-      take: 10
-    })
+    const activeMarkets = await db
+      .select()
+      .from(marketsSchema)
+      .where(
+        and(
+          eq(marketsSchema.resolved, false),
+          gte(marketsSchema.endDate, timestamp)
+        )
+      )
+      .limit(10);
     
     for (const market of activeMarkets) {
       const yesShares = Number(market.yesShares)
@@ -679,11 +732,14 @@ export async function executeGameTick(skipContentGeneration: boolean = false): P
  */
 async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
   // Check if we need to bootstrap
-  const [trendingCount, newsCount, relationshipCount] = await Promise.all([
-    prisma.trendingTag.count(),
-    prisma.post.count({ where: { type: 'article' } }),
-    prisma.actorRelationship.count(),
+  const [trendingResult, newsResult, relationshipResult] = await Promise.all([
+    db.select({ count: count() }).from(trendingTags),
+    db.select({ count: count() }).from(posts).where(eq(posts.type, 'article')),
+    db.select({ count: count() }).from(actorRelationships),
   ]);
+  const trendingCount = Number(trendingResult[0]?.count ?? 0);
+  const newsCount = Number(newsResult[0]?.count ?? 0);
+  const relationshipCount = Number(relationshipResult[0]?.count ?? 0);
   
   const MIN_TRENDING = 5;
   const MIN_NEWS = 5;
@@ -717,10 +773,15 @@ async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
     await bootstrapTrending();
   }
   
+  const [finalTrending, finalNews, finalRelationships] = await Promise.all([
+    db.select({ count: count() }).from(trendingTags),
+    db.select({ count: count() }).from(posts).where(eq(posts.type, 'article')),
+    db.select({ count: count() }).from(actorRelationships),
+  ]);
   logger.info('Bootstrap complete', {
-    trendingCount: await prisma.trendingTag.count(),
-    newsCount: await prisma.post.count({ where: { type: 'article' } }),
-    relationshipCount: await prisma.actorRelationship.count(),
+    trendingCount: Number(finalTrending[0]?.count ?? 0),
+    newsCount: Number(finalNews[0]?.count ?? 0),
+    relationshipCount: Number(finalRelationships[0]?.count ?? 0),
   }, 'GameTick');
 }
 
@@ -731,13 +792,13 @@ async function bootstrapInitialRelationships(): Promise<void> {
   logger.info('Generating initial NPC relationships...', undefined, 'GameTick');
   
   // Get all actors and organizations
-  const [actors, organizations] = await Promise.all([
-    prisma.actor.findMany(),
-    prisma.organization.findMany(),
+  const [actorsResult, orgsResult] = await Promise.all([
+    db.select().from(actors),
+    db.select().from(organizations),
   ]);
   
   // Convert to Actor type
-  const actorData = actors.map(a => ({
+  const actorData = actorsResult.map(a => ({
     id: a.id,
     name: a.name,
     description: a.description || undefined,
@@ -746,7 +807,7 @@ async function bootstrapInitialRelationships(): Promise<void> {
     affiliations: a.affiliations,
   }));
   
-  const orgData = organizations.map(o => ({
+  const orgData = orgsResult.map(o => ({
     id: o.id,
     name: o.name,
     description: o.description,
@@ -768,10 +829,11 @@ async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<vo
   logger.info(`Creating ${count} initial news articles...`, undefined, 'GameTick');
   
   // Get media organizations
-  const newsOrgs = await prisma.organization.findMany({
-    where: { type: 'media' },
-    take: 5,
-  });
+  const newsOrgs = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.type, 'media'))
+    .limit(5);
   
   if (newsOrgs.length === 0) {
     logger.warn('No media organizations found, skipping news bootstrap', undefined, 'GameTick');
@@ -858,7 +920,7 @@ async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<vo
       }, 'GameTick');
     }
 
-    await db().createPostWithAllFields({
+    await dbService().createPostWithAllFields({
       id: await generateSnowflakeId(),
       type: 'article',
       content: transformedSummary.transformedText,
@@ -884,10 +946,14 @@ async function bootstrapTrending(): Promise<void> {
   logger.info('Bootstrapping trending tags...', undefined, 'GameTick');
   
   // Check if we have enough posts and tags
-  const postCount = await prisma.post.count();
-  const taggedPostCount = await prisma.post.count({
-    where: { PostTag: { some: {} } },
-  });
+  // Import postTags for the count query
+  const { postTags } = await import('@/db');
+  const [postCountResult, taggedPostCountResult] = await Promise.all([
+    db.select({ count: count() }).from(posts),
+    db.select({ count: count() }).from(posts).innerJoin(postTags, eq(posts.id, postTags.postId)),
+  ]);
+  const postCount = Number(postCountResult[0]?.count ?? 0);
+  const taggedPostCount = Number(taggedPostCountResult[0]?.count ?? 0);
   
   logger.info('Post/tag status for trending', {
     totalPosts: postCount,
@@ -927,22 +993,50 @@ async function bootstrapTrending(): Promise<void> {
     const tagData = sampleTags[i];
     if (!tagData) continue;
     
-    // Create tag
-    const tag = await prisma.tag.upsert({
-      where: { name: tagData.name },
-      update: {},
-      create: {
+    // Create tag (check if exists first)
+    const [existingTag] = await db
+      .select({
+        id: tags.id,
+        name: tags.name,
+        displayName: tags.displayName,
+        category: tags.category,
+      })
+      .from(tags)
+      .where(eq(tags.name, tagData.name))
+      .limit(1);
+    
+    let tag: { id: string; name: string; displayName: string; category: string | null };
+    if (existingTag) {
+      tag = existingTag;
+    } else {
+      const [newTag] = await db
+        .insert(tags)
+        .values({
         id: await generateSnowflakeId(),
-        ...tagData,
+          name: tagData.name,
+          displayName: tagData.displayName,
+          category: tagData.category,
         updatedAt: now,
-      },
-    });
+        })
+        .returning();
+      if (!newTag) {
+        logger.warn('Failed to create tag', { tagData }, 'GameTick');
+        continue;
+      }
+      tag = {
+        id: newTag.id,
+        name: newTag.name,
+        displayName: newTag.displayName,
+        category: newTag.category,
+      };
+    }
     
     // Create trending entry
     const score = (sampleTags.length - i) * 10 + Math.random() * 5;
     
-    await prisma.trendingTag.create({
-      data: {
+    await db
+      .insert(trendingTags)
+      .values({
         id: await generateSnowflakeId(),
         tagId: tag.id,
         score,
@@ -951,7 +1045,6 @@ async function bootstrapTrending(): Promise<void> {
         windowStart: weekAgo,
         windowEnd: now,
         relatedContext: null,
-      },
     });
   }
   
@@ -980,19 +1073,21 @@ async function generateMixedPosts(
   }
 
   // Get actors (NPCs), organizations, and world facts in parallel
-  const [actors, organizations, worldFactsContext] = await Promise.all([
-    prisma.actor.findMany({
-      take: 15,
-      orderBy: { reputationPoints: 'desc' },
-    }),
-    prisma.organization.findMany({
-      where: { type: 'media' },
-      take: 5,
-    }),
+  const [actorsList, orgsList, worldFactsContext] = await Promise.all([
+    db
+      .select()
+      .from(actors)
+      .orderBy(desc(actors.reputationPoints))
+      .limit(15),
+    db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.type, 'media'))
+      .limit(5),
     worldFactsService.generatePromptContext(),
   ]);
 
-  if (actors.length === 0 && organizations.length === 0) {
+  if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn('No actors or organizations found for post generation', {}, 'GameTick');
     return { posts: 0, articles: 0 };
   }
@@ -1002,17 +1097,17 @@ async function generateMixedPosts(
     id: string;
     name: string;
     type: 'actor' | 'organization';
-    data: typeof actors[number] | typeof organizations[number];
+    data: (typeof actorsList)[number] | (typeof orgsList)[number];
   }
 
   const creators: ContentCreator[] = [
-    ...actors.map((actor: typeof actors[number]) => ({ 
+    ...actorsList.map((actor: (typeof actorsList)[number]) => ({ 
       id: actor.id, 
       name: actor.name, 
       type: 'actor' as const,
       data: actor 
     })),
-    ...organizations.map((org: typeof organizations[number]) => ({ 
+    ...orgsList.map((org: (typeof orgsList)[number]) => ({ 
       id: org.id, 
       name: org.name || 'Unknown Org', 
       type: 'organization' as const,
@@ -1027,8 +1122,8 @@ async function generateMixedPosts(
   }
 
   logger.info(`Generating ${postsToGenerate} mixed posts in parallel`, { 
-    actorsAvailable: actors.length, 
-    orgsAvailable: organizations.length,
+    actorsAvailable: actorsList.length, 
+    orgsAvailable: orgsList.length,
     creatorsPoolSize: creators.length
   }, 'GameTick');
 
@@ -1064,7 +1159,7 @@ async function generateMixedPosts(
     
     try {
       if (creator.type === 'actor') {
-        const actor = creator.data as typeof actors[number];
+        const actor = creator.data as (typeof actorsList)[number];
         const success = await generateNPCPost(
           llm,
           actor,
@@ -1074,7 +1169,7 @@ async function generateMixedPosts(
         );
         return { posts: success ? 1 : 0, articles: 0 };
       } else {
-        const org = creator.data as typeof organizations[number];
+        const org = creator.data as (typeof orgsList)[number];
         const shouldCreateArticle = Math.random() < 0.1;
         
         if (shouldCreateArticle) {
@@ -1123,8 +1218,8 @@ async function generateMixedPosts(
   logger.info('Mixed post generation complete', { 
     postsCreated, 
     articlesCreated,
-    actorsAvailable: actors.length, 
-    orgsAvailable: organizations.length,
+    actorsAvailable: actorsList.length, 
+    orgsAvailable: orgsList.length,
     attempted: postPromises.length,
     successful: results.filter(r => r.status === 'fulfilled').length,
     failed: results.filter(r => r.status === 'rejected').length,
@@ -1144,17 +1239,18 @@ async function generateArticles(
   // Get recent events (from last 2 hours, up to current time)
   const now = new Date();
   const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  const recentEvents = await prisma.worldEvent.findMany({
-    where: {
-      timestamp: { 
-        gte: twoHoursAgo,
-        lte: now, // ✅ No future events
-      },
-      visibility: 'public',
-    },
-    orderBy: { timestamp: 'desc' },
-    take: 10,
-  });
+  const recentEvents = await db
+    .select()
+    .from(worldEvents)
+    .where(
+      and(
+        gte(worldEvents.timestamp, twoHoursAgo),
+        lte(worldEvents.timestamp, now), // ✅ No future events
+        eq(worldEvents.visibility, 'public')
+      )
+    )
+    .orderBy(desc(worldEvents.timestamp))
+    .limit(10);
 
   // CRITICAL: Ensure each active question has 1-3 articles
   const questionArticlesCreated = await generateArticlesForActiveQuestions(llm, deadlineMs);
@@ -1162,10 +1258,11 @@ async function generateArticles(
   // If no recent events, generate baseline articles about general topics
   if (recentEvents.length === 0) {
     logger.info('No recent events - generating baseline articles in parallel', {}, 'GameTick');
-    const newsOrgs = await prisma.organization.findMany({
-      where: { type: 'media' },
-      take: 5,
-    });
+    const newsOrgs = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.type, 'media'))
+      .limit(5);
     
     if (newsOrgs.length === 0) {
       logger.warn('No news organizations found for baseline articles', {}, 'GameTick');
@@ -1177,14 +1274,16 @@ async function generateArticles(
   }
 
   // Get news organizations and actors in parallel
-  const [newsOrgs, actors] = await Promise.all([
-    prisma.organization.findMany({
-      where: { type: 'media' },
-    }),
-    prisma.actor.findMany({
-      take: 50,
-      orderBy: { tier: 'asc' }, // Higher tier actors first
-    }),
+  const [newsOrgs, actorsList] = await Promise.all([
+    db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.type, 'media')),
+    db
+      .select()
+      .from(actors)
+      .orderBy(asc(actors.tier))
+      .limit(50),
   ]);
 
   if (newsOrgs.length === 0) {
@@ -1192,7 +1291,7 @@ async function generateArticles(
     return 0;
   }
 
-  if (actors.length === 0) {
+  if (actorsList.length === 0) {
     logger.warn('No actors found for article generation', {}, 'GameTick');
     return 0;
   }
@@ -1208,20 +1307,21 @@ async function generateArticles(
     eventCount: recentEvents.length 
   }, 'GameTick');
 
-  // Map organization and actor data once
-  const organizations = newsOrgs.map((org: typeof newsOrgs[number]) => ({
+
+  // Map organization data for article generation
+  const organizationsList: Organization[] = newsOrgs.map((org: typeof newsOrgs[number]) => ({
     id: org.id,
     name: org.name || 'Unknown Organization',
     description: org.description || '',
     type: (org.type as 'company' | 'media' | 'government') || 'media',
     canBeInvolved: org.canBeInvolved,
-    initialPrice: org.initialPrice || undefined,
-    currentPrice: org.currentPrice || undefined,
+    initialPrice: org.initialPrice ?? undefined,
+    currentPrice: org.currentPrice ?? undefined,
   }));
 
-  const actorList = actors
-    .filter((a: typeof actors[number]) => a && a.id && a.name)
-    .map((a: typeof actors[number]) => ({
+  const actorList = actorsList
+    .filter((a: (typeof actorsList)[number]) => a && a.id && a.name)
+    .map((a: (typeof actorsList)[number]) => ({
       id: a.id,
       name: a.name,
       description: a.description || '',
@@ -1239,18 +1339,20 @@ async function generateArticles(
   // Check for existing articles to avoid duplicates
   // Get articles from the last 4 hours to check for duplicates
   const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-  const recentArticles = await prisma.post.findMany({
-    where: {
-      type: 'article',
-      timestamp: { gte: fourHoursAgo },
-      deletedAt: null,
-    },
-    select: {
-      articleTitle: true,
-      content: true,
-      timestamp: true,
-    },
-  });
+  const recentArticles = await db
+    .select({
+      articleTitle: posts.articleTitle,
+      content: posts.content,
+      timestamp: posts.timestamp,
+    })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.type, 'article'),
+        gte(posts.timestamp, fourHoursAgo),
+        isNull(posts.deletedAt)
+      )
+    );
 
   // Filter out events that already have articles
   const eventsToCover = eventsTocover.filter((event) => {
@@ -1306,7 +1408,7 @@ async function generateArticles(
 
       const articles = await articleGen.generateArticlesForEvent(
         worldEvent,
-        organizations,
+        organizationsList,
         actorList,
         []
       );
@@ -1333,7 +1435,7 @@ async function generateArticles(
           }, 'GameTick');
         }
 
-        await db().createPostWithAllFields({
+        await dbService().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
           content: transformedSummary.transformedText,
@@ -1390,62 +1492,57 @@ async function generateArticlesForActiveQuestions(
   deadlineMs: number
 ): Promise<number> {
   // Get all active questions
-  const activeQuestions = await prisma.question.findMany({
-    where: { status: 'active' },
-    orderBy: { createdAt: 'desc' },
-  });
+  const activeQuestions = await db
+    .select()
+    .from(questionsSchema)
+    .where(eq(questionsSchema.status, 'active'))
+    .orderBy(desc(questionsSchema.createdAt));
 
   if (activeQuestions.length === 0) {
     return 0;
   }
 
   // Get news organizations and actors
-  const [newsOrgs, actors] = await Promise.all([
-    prisma.organization.findMany({
-      where: { type: 'media' },
-    }),
-    prisma.actor.findMany({
-      take: 50,
-      orderBy: { tier: 'asc' },
-    }),
+  const [newsOrgs, actorsList] = await Promise.all([
+    db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.type, 'media')),
+    db
+      .select()
+      .from(actors)
+      .orderBy(asc(actors.tier))
+      .limit(50),
   ]);
 
-  if (newsOrgs.length === 0 || actors.length === 0) {
+  if (newsOrgs.length === 0 || actorsList.length === 0) {
     logger.warn('Missing news orgs or actors for question articles', {
       newsOrgs: newsOrgs.length,
-      actors: actors.length,
+      actors: actorsList.length,
     }, 'GameTick');
     return 0;
   }
 
   // Get existing articles from last 24 hours to check coverage
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const recentArticles = await prisma.post.findMany({
-    where: {
-      type: 'article',
-      timestamp: { gte: oneDayAgo },
-      deletedAt: null,
-    },
-    select: {
-      content: true,
-      articleTitle: true,
-    },
-  });
+  const recentArticles = await db
+    .select({
+      content: posts.content,
+      articleTitle: posts.articleTitle,
+    })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.type, 'article'),
+        gte(posts.timestamp, oneDayAgo),
+        isNull(posts.deletedAt)
+      )
+    );
 
-  // Map organization and actor data
-  const organizations = newsOrgs.map((org: typeof newsOrgs[number]) => ({
-    id: org.id,
-    name: org.name || 'Unknown Organization',
-    description: org.description || '',
-    type: (org.type as 'company' | 'media' | 'government') || 'media',
-    canBeInvolved: org.canBeInvolved,
-    initialPrice: org.initialPrice || undefined,
-    currentPrice: org.currentPrice || undefined,
-  }));
 
-  const actorList = actors
-    .filter((a: typeof actors[number]) => a && a.id && a.name)
-    .map((a: typeof actors[number]) => ({
+  const actorList = actorsList
+    .filter((a: (typeof actorsList)[number]) => a && a.id && a.name)
+    .map((a: (typeof actorsList)[number]) => ({
       id: a.id,
       name: a.name,
       description: a.description || '',
@@ -1514,13 +1611,24 @@ async function generateArticlesForActiveQuestions(
     }, 'GameTick');
 
     // Select random news organizations for this question
-    const shuffledOrgs = [...organizations].sort(() => Math.random() - 0.5);
+    const shuffledOrgs = [...newsOrgs].sort(() => Math.random() - 0.5);
     const orgsForQuestion = shuffledOrgs.slice(0, targetArticleCount);
 
     // Generate articles for this question in parallel
-    for (const org of orgsForQuestion) {
+    for (const orgData of orgsForQuestion) {
       const articlePromise = (async () => {
         try {
+          // Transform org to Organization type
+          const org: Organization = {
+            id: orgData.id,
+            name: orgData.name || 'Unknown Organization',
+            description: orgData.description || '',
+            type: (orgData.type as 'company' | 'media' | 'government') || 'media',
+            canBeInvolved: orgData.canBeInvolved,
+            initialPrice: orgData.initialPrice ?? undefined,
+            currentPrice: orgData.currentPrice ?? undefined,
+          };
+          
           // Use 'commentary' stage for ongoing questions
           const article = await articleGen.generateArticleForQuestion(
             {
@@ -1551,7 +1659,7 @@ async function generateArticlesForActiveQuestions(
             }, 'GameTick');
           }
 
-          await db().createPostWithAllFields({
+          await dbService().createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'article',
             content: transformedSummary.transformedText,
@@ -1580,7 +1688,7 @@ async function generateArticlesForActiveQuestions(
           logger.warn('Failed to generate article for question', {
             error: error instanceof Error ? error.message : String(error),
             questionId: question.id,
-            orgId: org.id,
+            orgId: orgData.id,
           }, 'GameTick');
           return 0;
         }
@@ -1624,36 +1732,35 @@ async function generateBaselineArticlesParallel(
   deadlineMs: number
 ): Promise<number> {
   // Gather game context for relevant articles
-  const [activeQuestions, actors, companies, worldFactsContext, worldContext] = await Promise.all([
-    prisma.question.findMany({
-      where: { status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    }),
-    prisma.actor.findMany({
-      where: {
-        role: { in: ['main', 'supporting'] },
-      },
-      take: 10,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        domain: true,
-        tier: true,
-      },
-    }),
-    prisma.organization.findMany({
-      where: { type: 'company' },
-      take: 10,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        currentPrice: true,
-        initialPrice: true,
-      },
-    }),
+  const [activeQuestionsList, actorsList, companiesList, worldFactsContext, worldContext] = await Promise.all([
+    db
+      .select()
+      .from(questionsSchema)
+      .where(eq(questionsSchema.status, 'active'))
+      .orderBy(desc(questionsSchema.createdAt))
+      .limit(5),
+    db
+      .select({
+        id: actors.id,
+        name: actors.name,
+        description: actors.description,
+        domain: actors.domain,
+        tier: actors.tier,
+      })
+      .from(actors)
+      .where(inArray(actors.role, ['main', 'supporting']))
+      .limit(10),
+    db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        description: organizations.description,
+        currentPrice: organizations.currentPrice,
+        initialPrice: organizations.initialPrice,
+      })
+      .from(organizations)
+      .where(eq(organizations.type, 'company'))
+      .limit(10),
     worldFactsService.generatePromptContext(),
     (async () => {
       const { generateWorldContext } = await import('@/prompts');
@@ -1665,7 +1772,7 @@ async function generateBaselineArticlesParallel(
   const articleTopics: Array<{ topic: string; category: string; context: string }> = [];
 
   // Add topics about active questions
-  for (const question of activeQuestions.slice(0, 3)) {
+  for (const question of activeQuestionsList.slice(0, 3)) {
     articleTopics.push({
       topic: question.text,
       category: 'finance',
@@ -1674,7 +1781,7 @@ async function generateBaselineArticlesParallel(
   }
 
   // Add topics about high-tier actors
-  for (const actor of actors.filter(a => a.tier === 'S_TIER' || a.tier === 'A_TIER').slice(0, 2)) {
+  for (const actor of actorsList.filter(a => a.tier === 'S_TIER' || a.tier === 'A_TIER').slice(0, 2)) {
     const domainStr = Array.isArray(actor.domain) ? actor.domain[0] : actor.domain;
     const domain = domainStr || 'tech';
     articleTopics.push({
@@ -1685,7 +1792,7 @@ async function generateBaselineArticlesParallel(
   }
 
   // Add topics about companies with price movements
-  for (const company of companies.slice(0, 2)) {
+  for (const company of companiesList.slice(0, 2)) {
     const currentPrice = company.currentPrice || company.initialPrice || 100;
     const initialPrice = company.initialPrice || 100;
     const changePercent = ((currentPrice - initialPrice) / initialPrice) * 100;
@@ -1707,9 +1814,9 @@ async function generateBaselineArticlesParallel(
   const articlesToGenerate = Math.min(5, newsOrgs.length, articleTopics.length);
   
   logger.info(`Generating ${articlesToGenerate} baseline articles with game context`, { 
-    topicsFromQuestions: activeQuestions.length,
-    topicsFromActors: actors.length,
-    topicsFromCompanies: companies.length,
+    topicsFromQuestions: activeQuestionsList.length,
+    topicsFromActors: actorsList.length,
+    topicsFromCompanies: companiesList.length,
   }, 'GameTick');
 
   // Generate all articles in parallel
@@ -1761,7 +1868,7 @@ Return your response as XML in this exact format:
       const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
         prompt,
         { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 8000, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml' }
+        { temperature: 0.7, maxTokens: 8000, ...(baselineModel ? { model: baselineModel } : {}), format: 'xml', promptType: 'generate_baseline_article' }
       );
       
       // Handle XML structure
@@ -1797,7 +1904,7 @@ Return your response as XML in this exact format:
         }, 'GameTick');
       }
 
-      await db().createPostWithAllFields({
+      await dbService().createPostWithAllFields({
         id: await generateSnowflakeId(),
         type: 'article',
         content: transformedSummary.transformedText,
@@ -1859,37 +1966,41 @@ async function updateMarketPricesFromTrades(
   }
 
   // Get all companies with current holdings
-  const companies = await prisma.organization.findMany({
-    where: { type: 'company' },
-    select: {
-      id: true,
-      name: true,
-      currentPrice: true,
-      initialPrice: true,
-    },
-  });
+  const companiesList = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      currentPrice: organizations.currentPrice,
+      initialPrice: organizations.initialPrice,
+    })
+    .from(organizations)
+    .where(eq(organizations.type, 'company'));
 
-  type CompanyData = typeof companies[0];
+  type CompanyData = (typeof companiesList)[0];
   // Use raw org IDs as keys since positions now store raw IDs
   const companyMap = new Map<string, CompanyData>(
-    companies.map((c: CompanyData) => [c.id, c])
+    companiesList.map((c: CompanyData) => [c.id, c])
   );
 
   // Calculate total holdings for each company from ALL positions
   const holdingsByTicker = new Map<string, number>();
   
-  const allPositions = await prisma.poolPosition.findMany({
-    where: {
-      marketType: 'perp',
-      closedAt: null,
-      ticker: { not: null },
-    },
-    select: {
-      ticker: true,
-      side: true,
-      size: true,
-    },
-  });
+  // Import notNull for the query
+  const { isNotNull } = await import('@/db');
+  const allPositions = await db
+    .select({
+      ticker: poolPositions.ticker,
+      side: poolPositions.side,
+      size: poolPositions.size,
+    })
+    .from(poolPositions)
+    .where(
+      and(
+        eq(poolPositions.marketType, 'perp'),
+        isNull(poolPositions.closedAt),
+        isNotNull(poolPositions.ticker)
+      )
+    );
 
   for (const pos of allPositions) {
     if (!pos.ticker) continue;
@@ -1932,12 +2043,12 @@ async function updateMarketPricesFromTrades(
     // Only update if price actually changed
     if (Math.abs(change) < 0.01) continue;
 
-    await prisma.organization.update({
-      where: { id: company.id },
-      data: { currentPrice: newPrice },
-    });
+    await db
+      .update(organizations)
+      .set({ currentPrice: newPrice, updatedAt: new Date() })
+      .where(eq(organizations.id, company.id));
 
-    await db().recordPriceUpdate(company.id, newPrice, change, changePercent);
+    await dbService().recordPriceUpdate(company.id, newPrice, change, changePercent);
 
     logger.info(
       `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
@@ -1991,17 +2102,28 @@ async function generateNewQuestions(
  * Resolve question payouts
  */
 export async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
-  const question = await prisma.question.findFirst({
-    where: { questionNumber },
-  });
+  const [question] = await db
+    .select()
+    .from(questionsSchema)
+    .where(eq(questionsSchema.questionNumber, questionNumber))
+    .limit(1);
 
   if (!question) return;
 
-  const market =
-    (await prisma.market.findUnique({ where: { id: question.id } })) ||
-    (await prisma.market.findFirst({
-      where: { question: question.text },
-    }));
+  // Try to find market by question id first, then by question text
+  let [market] = await db
+    .select()
+    .from(marketsSchema)
+    .where(eq(marketsSchema.id, question.id))
+    .limit(1);
+  
+  if (!market) {
+    [market] = await db
+      .select()
+      .from(marketsSchema)
+      .where(eq(marketsSchema.question, question.text))
+      .limit(1);
+  }
 
   if (!market) return;
 
@@ -2017,13 +2139,25 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
   const winningSide = question.outcome;
   const resolutionTimestamp = new Date();
 
-  const { positionUpdates, totalPayout } = await prisma.$transaction(async (tx) => {
-    const positions = await tx.position.findMany({
-      where: {
-        marketId: market.id,
-        status: { not: 'resolved' },
-      },
-    });
+  // Store market properties in consts to ensure type narrowing
+  const marketId = market.id;
+  const marketQuestion = market.question;
+  const marketLiquidity = market.liquidity;
+  const marketOnChainMarketId = market.onChainMarketId;
+  const marketOnChainResolved = market.onChainResolved;
+  const marketYesShares = market.yesShares;
+  const marketNoShares = market.noShares;
+  
+  const { positionUpdates, totalPayout } = await db.transaction(async (tx) => {
+    const positionsList = await tx
+      .select()
+      .from(positions)
+      .where(
+        and(
+          eq(positions.marketId, marketId),
+          ne(positions.status, 'resolved')
+        )
+      );
 
     const updates: Array<{
       userId: string;
@@ -2033,7 +2167,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
 
     let payoutAccumulator = 0;
 
-    for (const position of positions) {
+    for (const position of positionsList) {
       const shares = Number(position.shares ?? 0);
       const avgPrice = Number(position.avgPrice ?? 0);
       const costBasis = avgPrice * shares;
@@ -2048,25 +2182,26 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
           position.userId,
           payout,
           'pred_resolve_win',
-          `Prediction market payout: ${market.question}`,
-          market.id,
+          `Prediction market payout: ${marketQuestion}`,
+          marketId,
           tx
         );
         payoutAccumulator += payout;
       }
 
-      await tx.position.update({
-        where: { id: position.id },
-        data: {
-          shares: new Prisma.Decimal(0),
-          amount: new Prisma.Decimal(costBasis),
-          pnl: new Prisma.Decimal(pnl),
+      await tx
+        .update(positions)
+        .set({
+          shares: new Decimal(0).toString(),
+          amount: new Decimal(costBasis).toString(),
+          pnl: new Decimal(pnl).toString(),
           status: 'resolved',
           outcome: didWin,
           resolvedAt: resolutionTimestamp,
           questionId: question.questionNumber,
-        },
-      });
+          updatedAt: resolutionTimestamp,
+        })
+        .where(eq(positions.id, position.id));
 
       updates.push({
         userId: position.userId,
@@ -2077,32 +2212,31 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
 
     const liquidityReduction = Math.min(
       payoutAccumulator,
-      Number(market.liquidity ?? 0)
+      Number(marketLiquidity ?? 0)
     );
 
-    await tx.market.update({
-      where: { id: market.id },
-      data: {
+    const newLiquidity = liquidityReduction > 0 
+      ? Decimal.sub(marketLiquidity ?? 0, liquidityReduction).toString()
+      : marketLiquidity;
+
+    await tx
+      .update(marketsSchema)
+      .set({
         resolved: true,
         resolution: winningSide,
         updatedAt: resolutionTimestamp,
-        liquidity:
-          liquidityReduction > 0
-            ? {
-                decrement: new Prisma.Decimal(liquidityReduction),
-              }
-            : undefined,
-      },
-    });
+        liquidity: newLiquidity,
+      })
+      .where(eq(marketsSchema.id, marketId));
 
-    await tx.question.update({
-      where: { id: question.id },
-      data: {
+    await tx
+      .update(questionsSchema)
+      .set({
         status: 'resolved',
         resolvedOutcome: winningSide,
         updatedAt: resolutionTimestamp,
-      },
-    });
+      })
+      .where(eq(questionsSchema.id, question.id));
 
     return {
       positionUpdates: updates,
@@ -2117,7 +2251,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         update.userId,
         update.pnl,
         'prediction_resolve',
-        market.id
+        marketId
       );
     } catch (error) {
       logger.error(
@@ -2139,33 +2273,33 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       process.env.NEXT_PUBLIC_RPC_URL
     ) {
       await ReputationService.updateReputationForResolvedMarket({
-        marketId: market.id,
+        marketId: marketId,
         outcome: winningSide,
       });
     } else {
       logger.debug(
         'Skipping reputation update due to missing configuration',
-        { marketId: market.id },
+        { marketId: marketId },
         'GameTick'
       );
     }
   } catch (error) {
-    logger.error(
-      'Failed to push reputation update on-chain',
-      {
-        error: error instanceof Error ? error.message : String(error),
-        marketId: market.id,
-      },
-      'GameTick'
-    );
+      logger.error(
+        'Failed to push reputation update on-chain',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          marketId: marketId,
+        },
+        'GameTick'
+      );
   }
 
   // Resolve market on-chain if onChainMarketId exists
   let onChainResolutionTxHash: string | null = null;
-  if (market.onChainMarketId && !market.onChainResolved) {
+  if (marketOnChainMarketId && !marketOnChainResolved) {
     try {
       onChainResolutionTxHash = await resolveMarketOnChain(
-        market.onChainMarketId,
+        marketOnChainMarketId,
         winningSide ? 1 : 0 // Binary market: true = 1, false = 0
       );
     } catch (error) {
@@ -2173,8 +2307,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         'Failed to resolve market on-chain',
         {
           error: error instanceof Error ? error.message : String(error),
-          marketId: market.id,
-          onChainMarketId: market.onChainMarketId,
+          marketId: marketId,
+          onChainMarketId: marketOnChainMarketId,
           questionNumber,
         },
         'GameTick'
@@ -2183,21 +2317,24 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
   }
 
   if (onChainResolutionTxHash) {
-    await prisma.market.update({
-      where: { id: market.id },
-      data: {
+    await db
+      .update(marketsSchema)
+      .set({
         onChainResolved: true,
         onChainResolutionTxHash,
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .where(eq(marketsSchema.id, marketId));
   }
 
-  const resolvedMarket = await prisma.market.findUnique({
-    where: { id: market.id },
-  });
+  const [resolvedMarket] = await db
+    .select()
+    .from(marketsSchema)
+    .where(eq(marketsSchema.id, marketId))
+    .limit(1);
 
-  const resolvedYesShares = Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0);
-  const resolvedNoShares = Number(resolvedMarket?.noShares ?? market.noShares ?? 0);
+  const resolvedYesShares = Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0);
+  const resolvedNoShares = Number(resolvedMarket?.noShares ?? marketNoShares ?? 0);
   let yesPrice = 0.5;
   let noPrice = 0.5;
   if (resolvedYesShares + resolvedNoShares > 0) {
@@ -2209,7 +2346,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
   }
 
   await PredictionPriceHistoryService.recordSnapshot({
-    marketId: market.id,
+    marketId: marketId,
     yesPrice,
     noPrice,
     yesShares: resolvedYesShares,
@@ -2218,18 +2355,18 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
     eventType: 'resolution',
     source: 'system',
   }).catch((error) => {
-    logger.warn('Failed to record price history for resolution', { error, marketId: market.id }, 'GameTick');
+    logger.warn('Failed to record price history for resolution', { error, marketId: marketId }, 'GameTick');
   });
 
-  await invalidateAfterPredictionTrade(market.id).catch((error) => {
-    logger.warn('Failed to invalidate prediction cache after resolution', { error, marketId: market.id }, 'GameTick');
+  await invalidateAfterPredictionTrade(marketId).catch((error) => {
+    logger.warn('Failed to invalidate prediction cache after resolution', { error, marketId: marketId }, 'GameTick');
   });
 
   PredictionMarketEventService.emitResolution({
-    marketId: market.id,
+    marketId: marketId,
     winningSide: winningSide ? 'yes' : 'no',
-    yesShares: Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0),
-    noShares: Number(resolvedMarket?.noShares ?? market.noShares ?? 0),
+    yesShares: Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0),
+    noShares: Number(resolvedMarket?.noShares ?? marketNoShares ?? 0),
     liquidity: Number(resolvedMarket?.liquidity ?? 0),
     totalPayout,
     timestamp: resolutionTimestamp.toISOString(),
@@ -2338,15 +2475,16 @@ async function publishOracleCommitments(
 
     // Update questions with oracle data
     for (const success of result.successful) {
-      await prisma.question.update({
-        where: { id: success.questionId },
-        data: {
+      await db
+        .update(questionsSchema)
+        .set({
           oracleSessionId: success.sessionId,
           oracleCommitment: success.commitment,
           oracleCommitTxHash: success.txHash,
-          oracleCommitBlock: success.blockNumber || null
-        }
-      });
+          oracleCommitBlock: success.blockNumber || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(questionsSchema.id, success.questionId));
       committed++;
     }
 
@@ -2410,14 +2548,15 @@ async function publishOracleReveals(
 
     // Update questions with oracle data
     for (const success of result.successful) {
-      await prisma.question.update({
-        where: { id: success.questionId },
-        data: {
+      await db
+        .update(questionsSchema)
+        .set({
           oracleRevealTxHash: success.txHash,
           oracleRevealBlock: success.blockNumber || null,
-          oraclePublishedAt: new Date()
-        }
-      });
+          oraclePublishedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(questionsSchema.id, success.questionId));
       revealed++;
     }
 
@@ -2450,7 +2589,7 @@ async function publishOracleReveals(
 async function updateWidgetCaches(): Promise<number> {
   let cachesUpdated = 0;
 
-  const companies = await db().getCompanies();
+  const companies = await dbService().getCompanies();
 
   if (!companies || companies.length === 0) {
     logger.warn('No companies found for widget cache update', {}, 'GameTick');
@@ -2464,7 +2603,7 @@ async function updateWidgetCaches(): Promise<number> {
         const currentPrice =
           company.currentPrice || company.initialPrice || 100;
 
-        const priceHistory = await db().getPriceHistory(company.id, 1440);
+        const priceHistory = await dbService().getPriceHistory(company.id, 1440);
 
         let changePercent24h = 0;
 
@@ -2495,28 +2634,40 @@ async function updateWidgetCaches(): Promise<number> {
       .slice(0, 3);
 
     // 2. Get top 3 pool gainers
-    const pools = await prisma.pool.findMany({
-      where: { isActive: true },
-      include: {
-        Actor: {
-          select: { name: true },
-        },
-      },
-      orderBy: { totalValue: 'desc' },
-    });
+    const poolsList = await db
+      .select({
+        id: pools.id,
+        name: pools.name,
+        npcActorId: pools.npcActorId,
+        totalDeposits: pools.totalDeposits,
+        totalValue: pools.totalValue,
+      })
+      .from(pools)
+      .where(eq(pools.isActive, true))
+      .orderBy(desc(pools.totalValue));
 
-    const poolsWithReturn = pools
-      .filter((pool: typeof pools[number]) => pool && pool.id && pool.name) // Filter out invalid pools
-      .map((pool: typeof pools[number]) => {
-        const totalDeposits = parseFloat(pool.totalDeposits.toString());
-        const totalValue = parseFloat(pool.totalValue.toString());
+    // Get actor names for pools
+    const poolActorIds = poolsList.map(p => p.npcActorId).filter(Boolean);
+    const poolActors = poolActorIds.length > 0 
+      ? await db
+          .select({ id: actors.id, name: actors.name })
+          .from(actors)
+          .where(inArray(actors.id, poolActorIds))
+      : [];
+    const poolActorMap = new Map(poolActors.map(a => [a.id, a.name]));
+
+    const poolsWithReturn = poolsList
+      .filter((pool: (typeof poolsList)[number]) => pool && pool.id && pool.name) // Filter out invalid pools
+      .map((pool: (typeof poolsList)[number]) => {
+        const totalDeposits = parseFloat(pool.totalDeposits?.toString() ?? '0');
+        const totalValue = parseFloat(pool.totalValue?.toString() ?? '0');
         const totalReturn =
           totalDeposits > 0
             ? ((totalValue - totalDeposits) / totalDeposits) * 100
             : 0;
 
         // Extract Actor name
-        const npcActorName = pool.Actor?.name || 'Unknown';
+        const npcActorName = pool.npcActorId ? poolActorMap.get(pool.npcActorId) || 'Unknown' : 'Unknown';
 
         return {
           id: pool.id,
@@ -2528,27 +2679,29 @@ async function updateWidgetCaches(): Promise<number> {
       });
 
     const topPoolGainers = poolsWithReturn
-      .sort((a: typeof poolsWithReturn[number], b: typeof poolsWithReturn[number]) => 
+      .sort((a: (typeof poolsWithReturn)[number], b: (typeof poolsWithReturn)[number]) => 
         b.totalReturn - a.totalReturn
       )
       .slice(0, 3);
 
     // 3. Get top 3 questions by time-weighted volume
-    const activeMarkets = await prisma.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: new Date() },
-      },
-      select: {
-        id: true,
-        question: true,
-        yesShares: true,
-        noShares: true,
-        createdAt: true,
-      },
-    });
+    const activeMarketsList = await db
+      .select({
+        id: marketsSchema.id,
+        question: marketsSchema.question,
+        yesShares: marketsSchema.yesShares,
+        noShares: marketsSchema.noShares,
+        createdAt: marketsSchema.createdAt,
+      })
+      .from(marketsSchema)
+      .where(
+        and(
+          eq(marketsSchema.resolved, false),
+          gte(marketsSchema.endDate, new Date())
+        )
+      );
 
-    const marketsWithTimeWeightedVolume = activeMarkets.map((market: typeof activeMarkets[number]) => {
+    const marketsWithTimeWeightedVolume = activeMarketsList.map((market: (typeof activeMarketsList)[number]) => {
       const yesShares = market.yesShares ? Number(market.yesShares) : 0;
       const noShares = market.noShares ? Number(market.noShares) : 0;
       const totalShares = yesShares + noShares;
@@ -2588,17 +2741,30 @@ async function updateWidgetCaches(): Promise<number> {
       lastUpdated: new Date().toISOString(),
     };
 
-  await prisma.widgetCache.upsert({
-    where: { widget: 'markets' },
-    create: {
+  // Check if widget cache entry exists
+  const [existingCache] = await db
+    .select({ widget: widgetCaches.widget })
+    .from(widgetCaches)
+    .where(eq(widgetCaches.widget, 'markets'))
+    .limit(1);
+
+  if (existingCache) {
+    await db
+      .update(widgetCaches)
+      .set({
+        data: cacheData as JsonValue,
+        updatedAt: new Date(),
+      })
+      .where(eq(widgetCaches.widget, 'markets'));
+  } else {
+    await db
+      .insert(widgetCaches)
+      .values({
       widget: 'markets',
-      data: cacheData as object,
-    },
-    update: {
-      data: cacheData as object,
+      data: cacheData as JsonValue,
       updatedAt: new Date(),
-    },
   });
+  }
 
   cachesUpdated++;
   logger.info('Updated markets widget cache', {}, 'GameTick');
@@ -2632,10 +2798,11 @@ const WORLD_FACTS_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
  * Uses the most recent RSSHeadline's fetchedAt timestamp
  */
 async function shouldUpdateWorldFacts(): Promise<boolean> {
-  const lastHeadline = await prisma.rSSHeadline.findFirst({
-    orderBy: { fetchedAt: 'desc' },
-    select: { fetchedAt: true },
-  });
+  const [lastHeadline] = await db
+    .select({ fetchedAt: rssHeadlines.fetchedAt })
+    .from(rssHeadlines)
+    .orderBy(desc(rssHeadlines.fetchedAt))
+    .limit(1);
 
   if (!lastHeadline || !lastHeadline.fetchedAt) {
     return true; // Never updated before

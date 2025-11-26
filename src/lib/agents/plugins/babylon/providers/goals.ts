@@ -5,7 +5,7 @@
  */
 
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 /**
  * Provider: Agent Goals & Directives
@@ -20,7 +20,7 @@ export const goalsProvider: Provider = {
     const agentUserId = runtime.agentId
     
     // Get agent configuration
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentUserId },
       select: {
         id: true,

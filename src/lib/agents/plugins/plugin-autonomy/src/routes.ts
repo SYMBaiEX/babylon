@@ -1,5 +1,6 @@
 import type { Route, IAgentRuntime } from '@elizaos/core';
 import { AutonomousServiceType } from './types';
+import type { AutonomyService } from './service';
 
 interface RouteRequest {
   body?: Record<string, unknown>;
@@ -12,16 +13,17 @@ interface RouteResponse {
   json: (data: unknown) => unknown;
 }
 
-interface AutonomyService {
-  getStatus: () => {
-    enabled: boolean;
-    running: boolean;
-    interval: number;
-    autonomousRoomId?: string;
-  };
-  enableAutonomy: () => Promise<void>;
-  disableAutonomy: () => Promise<void>;
-  setLoopInterval: (interval: number) => void;
+// Type guard to check if service is AutonomyService
+function isAutonomyService(service: unknown): service is AutonomyService {
+  return (
+    service !== null &&
+    typeof service === 'object' &&
+    'getStatus' in service &&
+    'enableAutonomy' in service &&
+    'disableAutonomy' in service &&
+    'setLoopInterval' in service &&
+    typeof (service as { getStatus: unknown }).getStatus === 'function'
+  )
 }
 
 /**
@@ -36,14 +38,14 @@ export const autonomyRoutes: Route[] = [
 
       const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
-      if (!autonomyService) {
+      if (!autonomyService || !isAutonomyService(autonomyService)) {
         res.status(503).json({
           error: 'Autonomy service not available',
         });
         return;
       }
 
-      const status = (autonomyService as unknown as AutonomyService).getStatus();
+      const status = autonomyService.getStatus();
 
       res.json({
         success: true,
@@ -76,8 +78,16 @@ export const autonomyRoutes: Route[] = [
         return;
       }
 
-      await (autonomyService as unknown as AutonomyService).enableAutonomy();
-      const status = (autonomyService as unknown as AutonomyService).getStatus();
+      if (!isAutonomyService(autonomyService)) {
+        res.status(503).json({
+          success: false,
+          error: 'Autonomy service not available',
+        });
+        return;
+      }
+      
+      await autonomyService.enableAutonomy();
+      const status = autonomyService.getStatus();
 
       res.json({
         success: true,
@@ -107,8 +117,16 @@ export const autonomyRoutes: Route[] = [
         return;
       }
 
-      await (autonomyService as unknown as AutonomyService).disableAutonomy();
-      const status = (autonomyService as unknown as AutonomyService).getStatus();
+      if (!isAutonomyService(autonomyService)) {
+        res.status(503).json({
+          success: false,
+          error: 'Autonomy service not available',
+        });
+        return;
+      }
+      
+      await autonomyService.disableAutonomy();
+      const status = autonomyService.getStatus();
 
       res.json({
         success: true,
@@ -138,15 +156,35 @@ export const autonomyRoutes: Route[] = [
         return;
       }
 
-      const currentStatus = (autonomyService as unknown as AutonomyService).getStatus();
-
-      if (currentStatus.enabled) {
-        await (autonomyService as unknown as AutonomyService).disableAutonomy();
-      } else {
-        await (autonomyService as unknown as AutonomyService).enableAutonomy();
+      // Type guard to verify autonomyService is AutonomyService
+      if (!isAutonomyService(autonomyService)) {
+        res.status(503).json({
+          success: false,
+          error: 'Autonomy service type mismatch',
+        });
+        return;
       }
 
-      const newStatus = (autonomyService as unknown as AutonomyService).getStatus();
+      // TypeScript now knows autonomyService is AutonomyService after the guard
+      const currentStatus = (autonomyService as AutonomyService).getStatus();
+
+      if (currentStatus.enabled) {
+        if (!isAutonomyService(autonomyService)) {
+        res.status(503).json({
+          success: false,
+          error: 'Autonomy service not available',
+        });
+        return;
+      }
+      
+      await autonomyService.disableAutonomy();
+      } else {
+        // Type guard already verified autonomyService is AutonomyService
+        await autonomyService.enableAutonomy();
+      }
+
+      // Type guard already verified autonomyService is AutonomyService
+      const newStatus = autonomyService.getStatus();
 
       res.json({
         success: true,
@@ -184,8 +222,16 @@ export const autonomyRoutes: Route[] = [
         return;
       }
 
-      (autonomyService as unknown as AutonomyService).setLoopInterval(interval);
-      const status = (autonomyService as unknown as AutonomyService).getStatus();
+      if (!isAutonomyService(autonomyService)) {
+        res.status(503).json({
+          success: false,
+          error: 'Autonomy service not available',
+        });
+        return;
+      }
+      
+      autonomyService.setLoopInterval(interval);
+      const status = autonomyService.getStatus();
 
       res.json({
         success: true,

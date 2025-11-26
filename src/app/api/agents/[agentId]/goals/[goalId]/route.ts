@@ -123,7 +123,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
@@ -140,7 +140,7 @@ export async function GET(
     const { agentId, goalId } = await params
     
     // Verify ownership
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { isAgent: true, managedBy: true }
     })
@@ -149,7 +149,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
     
-    const goal = await prisma.agentGoal.findUnique({
+    const goal = await db.agentGoal.findUnique({
       where: { id: goalId },
       include: {
         AgentGoalAction: {
@@ -192,7 +192,7 @@ export async function PUT(
     const { agentId, goalId } = await params
     
     // Verify ownership
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { isAgent: true, managedBy: true }
     })
@@ -202,7 +202,7 @@ export async function PUT(
     }
     
     // Get existing goal
-    const existingGoal = await prisma.agentGoal.findUnique({
+    const existingGoal = await db.agentGoal.findUnique({
       where: { id: goalId }
     })
     
@@ -261,7 +261,7 @@ export async function PUT(
     }
     
     // Update goal
-    const updatedGoal = await prisma.agentGoal.update({
+    const updatedGoal = await db.agentGoal.update({
       where: { id: goalId },
       data: updates
     })
@@ -295,7 +295,7 @@ export async function DELETE(
     const { agentId, goalId } = await params
     
     // Verify ownership
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentId },
       select: { isAgent: true, managedBy: true }
     })
@@ -305,7 +305,7 @@ export async function DELETE(
     }
     
     // Verify goal exists and belongs to agent
-    const goal = await prisma.agentGoal.findUnique({
+    const goal = await db.agentGoal.findUnique({
       where: { id: goalId }
     })
     
@@ -314,7 +314,7 @@ export async function DELETE(
     }
     
     // Delete goal (cascades to goal actions)
-    await prisma.agentGoal.delete({
+    await db.agentGoal.delete({
       where: { id: goalId }
     })
     

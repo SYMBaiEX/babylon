@@ -13,7 +13,7 @@
 
 import { BenchmarkDataGenerator } from '@/lib/benchmark/BenchmarkDataGenerator';
 import { SimulationEngine } from '@/lib/benchmark/SimulationEngine';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -251,7 +251,7 @@ async function main() {
     console.log('  ✅ No silent failures');
     console.log('\n🎉 SYSTEM IS GENUINELY OPERATIONAL!\n');
     
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(0);
   } else {
     console.log(`❌ FOUND ${issues.length} ISSUES:\n`);
@@ -260,7 +260,7 @@ async function main() {
     });
     console.log('\n⚠️  SYSTEM HAS PROBLEMS - NEEDS ATTENTION!\n');
     
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(1);
   }
 }

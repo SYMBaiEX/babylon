@@ -68,7 +68,7 @@
  */
 
 import { fal } from "@fal-ai/client";
-import { writeFile, access } from "fs/promises";
+import { writeFile, access, mkdir } from "fs/promises";
 // readFile - not used
 import { join } from "path";
 import { config } from "dotenv";
@@ -86,7 +86,7 @@ const ActorSchema = z.object({
   description: z.string(),
   domain: z.array(z.string()).optional(),
   personality: z.string().optional(),
-  physicalDescription: z.string().optional(),
+  pfpDescription: z.string().optional(),
   profileBanner: z.string().optional(),
 });
 type Actor = z.infer<typeof ActorSchema>;
@@ -238,15 +238,15 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
  * - Images: 1
  * - Quality: Best for portraits
  * 
- * @param {Actor} actor - Actor object with physicalDescription field
+ * @param {Actor} actor - Actor object with pfpDescription field
  * @returns {Promise<string>} URL of generated image
- * @throws {Error} If actor missing physicalDescription or API fails
+ * @throws {Error} If actor missing pfpDescription or API fails
  * @example
  * ```typescript
  * const actor = {
  *   id: 'actor1',
  *   name: 'John Doe',
- *   physicalDescription: 'Middle-aged man with glasses',
+ *   pfpDescription: 'Middle-aged man with glasses',
  *   personality: 'analytical'
  * };
  * const imageUrl = await generateActorImage(actor);
@@ -261,7 +261,7 @@ async function generateActorImage(actor: Actor): Promise<string> {
   const prompt = renderPrompt(actorPortrait, {
     actorName: actor.name,
     realName: actor.realName || actor.name,
-    physicalDescription: actor.physicalDescription!,
+    pfpDescription: actor.pfpDescription!,
     descriptionParts,
     personality: actor.personality || 'satirical'
   });
@@ -561,6 +561,14 @@ async function main() {
   const actorsBannersDir = join(process.cwd(), "public", "images", "actor-banners");
   const orgsImagesDir = join(process.cwd(), "public", "images", "organizations");
   const orgsBannersDir = join(process.cwd(), "public", "images", "org-banners");
+
+  // Create directories if they don't exist
+  await Promise.all([
+    mkdir(actorsImagesDir, { recursive: true }),
+    mkdir(actorsBannersDir, { recursive: true }),
+    mkdir(orgsImagesDir, { recursive: true }),
+    mkdir(orgsBannersDir, { recursive: true }),
+  ]);
   
   let skippedCount = 0;
   const jobs: ImageJob[] = [];
@@ -658,6 +666,11 @@ async function main() {
   }, 'CLI');
 }
 
-main();
-
-
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error: Error) => {
+    logger.error('Fatal error:', error, 'CLI');
+    process.exit(1);
+  });

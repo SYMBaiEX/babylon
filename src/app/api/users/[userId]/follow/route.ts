@@ -86,8 +86,8 @@
 
 import { authenticate } from '@/lib/api/auth-middleware';
 import { cachedDb } from '@/lib/cached-database-service';
-import { prisma } from '@/lib/prisma';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { db, users, actors, follows, userActorFollows, followStatuses, eq, and, withTransaction } from '@/db';
+import { BusinessLogicError, NotFoundError, InternalServerError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
@@ -138,17 +138,20 @@ export const POST = withErrorHandling(async (
 
   // Check if target exists (could be a user or actor)
   // If targetUser has isActor flag, we still need to check for Actor record
-  const targetActor = targetUser?.isActor 
-    ? await prisma.actor.findUnique({
-        where: { id: targetId },
-        select: { id: true },
-      })
-    : targetUser 
-      ? null 
-      : await prisma.actor.findUnique({
-          where: { id: targetId },
-          select: { id: true },
-        });
+  let targetActor: { id: string } | null = null;
+  if (targetUser?.isActor) {
+    const [actor] = await db.select({ id: actors.id })
+      .from(actors)
+      .where(eq(actors.id, targetId))
+      .limit(1);
+    targetActor = actor ?? null;
+  } else if (!targetUser) {
+    const [actor] = await db.select({ id: actors.id })
+      .from(actors)
+      .where(eq(actors.id, targetId))
+      .limit(1);
+    targetActor = actor ?? null;
+  }
 
   // If neither user nor actor found, return error
   // Also error if targetUser has isActor flag but no Actor record exists
@@ -164,38 +167,37 @@ export const POST = withErrorHandling(async (
   if (targetUser && !targetUser.isActor) {
     // Target is a regular user - use Follow model
     // Check if already following
-    const existingFollow = await prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: user.userId,
-          followingId: targetId,
-        },
-      },
-    });
+    const [existingFollow] = await db.select({ id: follows.id })
+      .from(follows)
+      .where(and(
+        eq(follows.followerId, user.userId),
+        eq(follows.followingId, targetId)
+      ))
+      .limit(1);
 
     if (existingFollow) {
       throw new BusinessLogicError('Already following this user', 'ALREADY_FOLLOWING');
     }
 
-    // Create follow relationship
-    const follow = await prisma.follow.create({
-      data: {
-        id: await generateSnowflakeId(),
-        followerId: user.userId,
-        followingId: targetId,
-      },
-      include: {
-        User_Follow_followingIdToUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
-        },
-      },
-    });
+    // Create follow relationship and get target user details
+    const followId = await generateSnowflakeId();
+    const [newFollow] = await db.insert(follows).values({
+      id: followId,
+      followerId: user.userId,
+      followingId: targetId,
+    }).returning();
+
+    // Get target user details
+    const [targetUserDetails] = await db.select({
+      id: users.id,
+      displayName: users.displayName,
+      username: users.username,
+      profileImageUrl: users.profileImageUrl,
+      bio: users.bio,
+    })
+      .from(users)
+      .where(eq(users.id, targetId))
+      .limit(1);
 
     // Create notification for the followed user
     await notifyFollow(targetId, user.userId);
@@ -214,95 +216,92 @@ export const POST = withErrorHandling(async (
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'user',
-      targetUsername: follow.User_Follow_followingIdToUser.username,
+      targetUsername: targetUserDetails?.username,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
 
+    if (!newFollow) {
+      throw new InternalServerError('Failed to create follow record');
+    }
+
     return successResponse(
       {
-        id: follow.id,
-        following: follow.User_Follow_followingIdToUser,
-        createdAt: follow.createdAt,
+        id: newFollow.id,
+        following: targetUserDetails,
+        createdAt: newFollow.createdAt,
       },
       201
     );
   } else {
     // Target is an actor (NPC) or user with isActor=true - use UserActorFollow model
-    const [existingUserActorFollow, legacyFollowStatus] = await Promise.all([
-      prisma.userActorFollow.findUnique({
-        where: {
-          userId_actorId: {
-            userId: user.userId,
-            actorId: targetId,
-          },
-        },
-      }),
-      prisma.followStatus.findUnique({
-        where: {
-          userId_npcId: {
-            userId: user.userId,
-            npcId: targetId,
-          },
-        },
-      }),
+    const [[existingUserActorFollow], [legacyFollowStatus]] = await Promise.all([
+      db.select({ id: userActorFollows.id })
+        .from(userActorFollows)
+        .where(and(
+          eq(userActorFollows.userId, user.userId),
+          eq(userActorFollows.actorId, targetId)
+        ))
+        .limit(1),
+      db.select()
+        .from(followStatuses)
+        .where(and(
+          eq(followStatuses.userId, user.userId),
+          eq(followStatuses.npcId, targetId)
+        ))
+        .limit(1),
     ]);
 
     if (existingUserActorFollow) {
       throw new BusinessLogicError('Already following this actor', 'ALREADY_FOLLOWING');
     }
 
-    const follow = await (legacyFollowStatus &&
-      legacyFollowStatus.isActive &&
-      legacyFollowStatus.followReason === 'user_followed'
-      ? prisma.$transaction(async (tx) => {
-          const created = await tx.userActorFollow.create({
-            data: {
-              id: await generateSnowflakeId(),
-              userId: user.userId,
-              actorId: targetId,
-            },
-            include: {
-              Actor: {
-                select: {
-                  id: true,
-                  name: true,
-                  description: true,
-                  tier: true,
-                  profileImageUrl: true,
-                },
-              },
-            },
-          });
+    const followId = await generateSnowflakeId();
 
-          await tx.followStatus.update({
-            where: { id: legacyFollowStatus.id },
-            data: {
-              isActive: false,
-              unfollowedAt: new Date(),
-            },
-          });
+    // Get actor details
+    const [actorDetails] = await db.select({
+      id: actors.id,
+      name: actors.name,
+      description: actors.description,
+      tier: actors.tier,
+      profileImageUrl: actors.profileImageUrl,
+    })
+      .from(actors)
+      .where(eq(actors.id, targetId))
+      .limit(1);
 
-          return created;
-        })
-      : prisma.userActorFollow.create({
-          data: {
-            id: await generateSnowflakeId(),
-            userId: user.userId,
-            actorId: targetId,
-          },
-          include: {
-            Actor: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                tier: true,
-                profileImageUrl: true,
-              },
-            },
-          },
-        }));
+    if (legacyFollowStatus &&
+        legacyFollowStatus.isActive &&
+        legacyFollowStatus.followReason === 'user_followed') {
+      // Use transaction to create follow and deactivate legacy
+      await withTransaction(async (tx) => {
+        await tx.insert(userActorFollows).values({
+          id: followId,
+          userId: user.userId,
+          actorId: targetId,
+        });
+
+        await tx.update(followStatuses)
+          .set({
+            isActive: false,
+            unfollowedAt: new Date(),
+          })
+          .where(eq(followStatuses.id, legacyFollowStatus.id));
+      });
+    } else {
+      // Just create the follow
+      await db.insert(userActorFollows).values({
+        id: followId,
+        userId: user.userId,
+        actorId: targetId,
+      });
+    }
+
+    // Fetch the created follow for the response
+    const [createdFollow] = await db.select()
+      .from(userActorFollows)
+      .where(eq(userActorFollows.id, followId))
+      .limit(1);
 
     // Invalidate cache for the user to update following count
     await cachedDb.invalidateUserCache(user.userId).catch((error) => {
@@ -315,17 +314,21 @@ export const POST = withErrorHandling(async (
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'actor',
-      actorName: follow.Actor.name,
-      actorTier: follow.Actor.tier,
+      actorName: actorDetails?.name,
+      actorTier: actorDetails?.tier,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
 
+    if (!createdFollow) {
+      throw new InternalServerError('Failed to fetch created follow record');
+    }
+
     return successResponse(
       {
-        id: follow.id,
-        actor: follow.Actor,
-        createdAt: follow.createdAt,
+        id: createdFollow.id,
+        actor: actorDetails,
+        createdAt: createdFollow.createdAt,
       },
       201
     );
@@ -361,25 +364,21 @@ export const DELETE = withErrorHandling(async (
   // If targetUser has isActor flag, treat as actor (not regular user)
   if (targetUser && !targetUser.isActor) {
     // Target is a regular user - use Follow model
-    const follow = await prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: user.userId,
-          followingId: targetId,
-        },
-      },
-    });
+    const [follow] = await db.select({ id: follows.id })
+      .from(follows)
+      .where(and(
+        eq(follows.followerId, user.userId),
+        eq(follows.followingId, targetId)
+      ))
+      .limit(1);
 
     if (!follow) {
       throw new NotFoundError('Follow relationship', `${user.userId}-${targetId}`);
     }
 
     // Delete follow relationship
-    await prisma.follow.delete({
-      where: {
-        id: follow.id,
-      },
-    });
+    await db.delete(follows)
+      .where(eq(follows.id, follow.id));
 
     // Invalidate caches for both users to update follower/following counts
     await Promise.all([
@@ -404,23 +403,21 @@ export const DELETE = withErrorHandling(async (
     });
   } else {
     // Target is an actor (NPC) - use UserActorFollow model (with legacy support)
-    const [existingUserActorFollow, legacyFollowStatus] = await Promise.all([
-      prisma.userActorFollow.findUnique({
-        where: {
-          userId_actorId: {
-            userId: user.userId,
-            actorId: targetId,
-          },
-        },
-      }),
-      prisma.followStatus.findUnique({
-        where: {
-          userId_npcId: {
-            userId: user.userId,
-            npcId: targetId,
-          },
-        },
-      }),
+    const [[existingUserActorFollow], [legacyFollowStatus]] = await Promise.all([
+      db.select({ id: userActorFollows.id })
+        .from(userActorFollows)
+        .where(and(
+          eq(userActorFollows.userId, user.userId),
+          eq(userActorFollows.actorId, targetId)
+        ))
+        .limit(1),
+      db.select()
+        .from(followStatuses)
+        .where(and(
+          eq(followStatuses.userId, user.userId),
+          eq(followStatuses.npcId, targetId)
+        ))
+        .limit(1),
     ]);
 
     const hasLegacyFollow =
@@ -432,21 +429,19 @@ export const DELETE = withErrorHandling(async (
       throw new NotFoundError('Follow status', `${user.userId}-${targetId}`);
     }
 
-    await prisma.$transaction(async (tx) => {
+    await withTransaction(async (tx) => {
       if (existingUserActorFollow) {
-        await tx.userActorFollow.delete({
-          where: { id: existingUserActorFollow.id },
-        });
+        await tx.delete(userActorFollows)
+          .where(eq(userActorFollows.id, existingUserActorFollow.id));
       }
 
       if (hasLegacyFollow && legacyFollowStatus) {
-        await tx.followStatus.update({
-          where: { id: legacyFollowStatus.id },
-          data: {
+        await tx.update(followStatuses)
+          .set({
             isActive: false,
             unfollowedAt: new Date(),
-          },
-        });
+          })
+          .where(eq(followStatuses.id, legacyFollowStatus.id));
       }
     });
 
@@ -489,22 +484,21 @@ export const GET = withErrorHandling(async (
   }
 
   // Check if target is a user
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true, isActor: true },
-  });
+  const [targetUser] = await db.select({ id: users.id, isActor: users.isActor })
+    .from(users)
+    .where(eq(users.id, targetId))
+    .limit(1);
 
   // If targetUser has isActor flag, treat as actor (not regular user)
   if (targetUser && !targetUser.isActor) {
     // Target is a regular user - check Follow model
-    const follow = await prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: authUser.userId,
-          followingId: targetId,
-        },
-      },
-    });
+    const [follow] = await db.select({ id: follows.id })
+      .from(follows)
+      .where(and(
+        eq(follows.followerId, authUser.userId),
+        eq(follows.followingId, targetId)
+      ))
+      .limit(1);
 
     logger.info('Follow status checked', { userId: authUser.userId, targetId, isFollowing: !!follow }, 'GET /api/users/[userId]/follow');
 
@@ -513,29 +507,27 @@ export const GET = withErrorHandling(async (
     });
   } else {
     // Target might be an actor (NPC) - check FollowStatus model
-    const targetActor = await prisma.actor.findUnique({
-      where: { id: targetId },
-      select: { id: true },
-    });
+    const [targetActor] = await db.select({ id: actors.id })
+      .from(actors)
+      .where(eq(actors.id, targetId))
+      .limit(1);
 
     if (targetActor) {
-      const [userActorFollow, legacyFollowStatus] = await Promise.all([
-        prisma.userActorFollow.findUnique({
-          where: {
-            userId_actorId: {
-              userId: authUser.userId,
-              actorId: targetId,
-            },
-          },
-        }),
-        prisma.followStatus.findUnique({
-          where: {
-            userId_npcId: {
-              userId: authUser.userId,
-              npcId: targetId,
-            },
-          },
-        }),
+      const [[userActorFollow], [legacyFollowStatus]] = await Promise.all([
+        db.select({ id: userActorFollows.id })
+          .from(userActorFollows)
+          .where(and(
+            eq(userActorFollows.userId, authUser.userId),
+            eq(userActorFollows.actorId, targetId)
+          ))
+          .limit(1),
+        db.select()
+          .from(followStatuses)
+          .where(and(
+            eq(followStatuses.userId, authUser.userId),
+            eq(followStatuses.npcId, targetId)
+          ))
+          .limit(1),
       ]);
 
       const isFollowing =

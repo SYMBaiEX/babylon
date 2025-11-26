@@ -6,7 +6,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, llmCallLogs, users, eq, gte, inArray, count } from '@/db';
 import { getLatestRLModel } from './WandbModelFetcher';
 import type { IAgentRuntime } from '@elizaos/core';
 
@@ -82,21 +82,26 @@ export class ModelUsageVerifier {
     
     // Count inferences from logs (using trajectoryId or other fields)
     // Note: LLMCallLog may not have agentId field directly
-    const trajectories = await prisma.trajectory.findMany({
-      where: { agentId: agentUserId },
-      select: { trajectoryId: true },
-    });
-    const inferenceCount = await prisma.llmCallLog.count({
-      where: {
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24h
-        },
-        // Filter by trajectory which has agentId
-        trajectoryId: {
-          in: trajectories.map(t => t.trajectoryId),
-        },
-      },
-    });
+    const agentTrajectories = await db.select({ trajectoryId: trajectories.trajectoryId })
+      .from(trajectories)
+      .where(eq(trajectories.agentId, agentUserId));
+    
+    const trajectoryIds = agentTrajectories.map(t => t.trajectoryId);
+    
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    let inferenceCount = 0;
+    if (trajectoryIds.length > 0) {
+      const inferenceCountResult = await db.select({ count: count() })
+        .from(llmCallLogs)
+        .where(
+          and(
+            gte(llmCallLogs.createdAt, twentyFourHoursAgo),
+            inArray(llmCallLogs.trajectoryId, trajectoryIds)
+          )
+        );
+      inferenceCount = inferenceCountResult[0]?.count || 0;
+    }
     
     return {
       agentId: agentUserId,
@@ -174,10 +179,9 @@ export class ModelUsageVerifier {
     usingBaseModel: number;
     latestModelVersion?: string;
   }> {
-    const agents = await prisma.user.findMany({
-      where: { isAgent: true },
-      select: { id: true },
-    });
+    const agents = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.isAgent, true));
     
     const latestModel = await getLatestRLModel();
     
@@ -193,3 +197,5 @@ export class ModelUsageVerifier {
   }
 }
 
+// Need to import and for the query
+import { and } from 'drizzle-orm';

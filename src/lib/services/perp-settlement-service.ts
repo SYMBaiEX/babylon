@@ -12,14 +12,25 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma, prismaBase } from '@/lib/prisma';
+import { db, perpPositions, eq, asc, count } from '@/db';
 import { PERP_CONFIG, isOnChainEnabled, isHybridMode } from '@/lib/config/perp-modes';
-import type { Prisma } from '@prisma/client';
 import { createPublicClient, createWalletClient, http, type Address, type Hash } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import type { PerpPosition } from '@/shared/perps-types';
+
+// Type for partial position data needed for settlement
+interface SettlementPosition {
+  id: string
+  userId: string
+  ticker: string
+  side: 'long' | 'short'
+  size: number
+  leverage: number
+  entryPrice: number
+  closedAt: Date | null
+}
 
 // Perpetual Market Facet ABI (minimal)
 const PERP_FACET_ABI = [
@@ -145,7 +156,17 @@ export class PerpSettlementService {
     }
 
     // In onchain mode, settle immediately
-    return await this.settleToContract('open', position);
+    const settlementPos: SettlementPosition = {
+      id: position.id,
+      userId: position.userId,
+      ticker: position.ticker,
+      side: position.side as 'long' | 'short',
+      size: Number(position.size),
+      leverage: position.leverage,
+      entryPrice: Number(position.entryPrice),
+      closedAt: null,
+    };
+    return await this.settleToContract('open', settlementPos);
   }
 
   /**
@@ -166,7 +187,18 @@ export class PerpSettlementService {
     }
 
     // In onchain mode, settle immediately
-    return await this.settleToContract('close', position);
+    // For close operations, closedAt is set to current date
+    const settlementPos: SettlementPosition = {
+      id: position.id,
+      userId: position.userId,
+      ticker: position.ticker,
+      side: position.side as 'long' | 'short',
+      size: Number(position.size),
+      leverage: position.leverage,
+      entryPrice: Number(position.entryPrice),
+      closedAt: new Date(), // Set to current date for close operation
+    };
+    return await this.settleToContract('close', settlementPos);
   }
 
   /**
@@ -196,7 +228,7 @@ export class PerpSettlementService {
       positions.map((pos) =>
         this.settleToContract(
           pos.closedAt ? 'close' : 'open',
-          pos as unknown as PerpPosition
+          pos
         )
       )
     );
@@ -236,7 +268,7 @@ export class PerpSettlementService {
    */
   private static async settleToContract(
     action: 'open' | 'close',
-    position: PerpPosition
+    position: SettlementPosition
   ): Promise<SettlementResult> {
     const diamondAddress = PERP_CONFIG.diamondAddress;
     if (!diamondAddress) {
@@ -341,30 +373,23 @@ export class PerpSettlementService {
    * Mark position as unsettled in database
    */
   private static async markPositionUnsettled(positionId: string): Promise<void> {
-    try {
-      // Type assertion needed due to TypeScript language server cache issues
-      // The fields exist in Prisma types but TS can't infer them through the proxy
-      await prismaBase.perpPosition.update({
-        where: { id: positionId },
-        data: {
-          settledToChain: false,
-          settlementTxHash: null,
-          settledAt: null,
-        } as Prisma.PerpPositionUncheckedUpdateInput,
-      });
-    } catch (error: unknown) {
-      // Handle case where position doesn't exist
-      if ((error as { code?: string })?.code === 'P2025') {
-        logger.debug(
-          'Position not found during unsettle (may have been deleted)',
-          { positionId },
-          'PerpSettlementService'
-        );
-        // Position doesn't exist - remove from tracking
-        this.unsettledPositions.delete(positionId);
-        return;
-      }
-      throw error;
+    const result = await db.update(perpPositions)
+      .set({
+        settledToChain: false,
+        settlementTxHash: null,
+        settledAt: null,
+      })
+      .where(eq(perpPositions.id, positionId))
+      .returning({ id: perpPositions.id });
+
+    if (result.length === 0) {
+      logger.debug(
+        'Position not found during unsettle (may have been deleted)',
+        { positionId },
+        'PerpSettlementService'
+      );
+      // Position doesn't exist - remove from tracking
+      this.unsettledPositions.delete(positionId);
     }
   }
 
@@ -375,72 +400,61 @@ export class PerpSettlementService {
     positionId: string,
     transactionHash?: string
   ): Promise<void> {
-    try {
-      // Type assertion needed due to TypeScript language server cache issues
-      // The fields exist in Prisma types but TS can't infer them through the proxy
-      await prismaBase.perpPosition.update({
-        where: { id: positionId },
-        data: {
-          settledToChain: true,
-          settlementTxHash: transactionHash || null,
-          settledAt: new Date(),
-        } as Prisma.PerpPositionUncheckedUpdateInput,
-      });
+    const result = await db.update(perpPositions)
+      .set({
+        settledToChain: true,
+        settlementTxHash: transactionHash ?? null,
+        settledAt: new Date(),
+      })
+      .where(eq(perpPositions.id, positionId))
+      .returning({ id: perpPositions.id });
 
-      logger.info('Position marked as settled', {
-        positionId,
-        transactionHash,
-      }, 'PerpSettlementService');
-    } catch (error: unknown) {
-      // Handle case where position doesn't exist
-      if ((error as { code?: string })?.code === 'P2025') {
-        logger.debug(
-          'Position not found during settle (may have been deleted)',
-          { positionId, transactionHash },
-          'PerpSettlementService'
-        );
-        // Position doesn't exist - remove from tracking
-        this.unsettledPositions.delete(positionId);
-        return;
-      }
-      throw error;
+    if (result.length === 0) {
+      logger.debug(
+        'Position not found during settle (may have been deleted)',
+        { positionId, transactionHash },
+        'PerpSettlementService'
+      );
+      // Position doesn't exist - remove from tracking
+      this.unsettledPositions.delete(positionId);
+      return;
     }
+
+    logger.info('Position marked as settled', {
+      positionId,
+      transactionHash,
+    }, 'PerpSettlementService');
   }
 
   /**
    * Get unsettled positions from database
    */
-  private static async getUnsettledPositionsFromDb(limit: number): Promise<Array<{
-    id: string;
-    userId: string;
-    ticker: string;
-    side: string;
-    size: number;
-    leverage: number;
-    entryPrice: number;
-    closedAt: Date | null;
-  }>> {
-    // Type assertion needed due to TypeScript language server cache issues
-    // The fields exist in Prisma types but TS can't infer them through the proxy
-    return await prismaBase.perpPosition.findMany({
-      where: {
-        settledToChain: false,
-      } as Prisma.PerpPositionWhereInput,
-      take: limit,
-      orderBy: {
-        openedAt: 'asc',
-      },
-      select: {
-        id: true,
-        userId: true,
-        ticker: true,
-        side: true,
-        size: true,
-        leverage: true,
-        entryPrice: true,
-        closedAt: true,
-      },
-    });
+  private static async getUnsettledPositionsFromDb(limit: number): Promise<SettlementPosition[]> {
+    const positions = await db.select({
+      id: perpPositions.id,
+      userId: perpPositions.userId,
+      ticker: perpPositions.ticker,
+      side: perpPositions.side,
+      size: perpPositions.size,
+      leverage: perpPositions.leverage,
+      entryPrice: perpPositions.entryPrice,
+      closedAt: perpPositions.closedAt,
+    })
+      .from(perpPositions)
+      .where(eq(perpPositions.settledToChain, false))
+      .limit(limit)
+      .orderBy(asc(perpPositions.openedAt));
+
+    return positions.map(p => ({
+      id: p.id,
+      userId: p.userId,
+      ticker: p.ticker,
+      side: p.side as 'long' | 'short',
+      size: Number(p.size),
+      leverage: Number(p.leverage),
+      entryPrice: Number(p.entryPrice),
+      closedAt: p.closedAt,
+    }));
   }
 
   /**
@@ -452,13 +466,15 @@ export class PerpSettlementService {
     totalPositions: number;
     settlementRate: number;
   }> {
-    const totalPositions = await prisma.perpPosition.count();
-    
-    // Type assertion needed due to TypeScript language server cache issues
-    // The fields exist in Prisma types but TS can't infer them through the proxy
-    const unsettledCount = await prismaBase.perpPosition.count({
-      where: { settledToChain: false } as Prisma.PerpPositionWhereInput,
-    });
+    const [totalResult, unsettledResult] = await Promise.all([
+      db.select({ count: count() }).from(perpPositions),
+      db.select({ count: count() })
+        .from(perpPositions)
+        .where(eq(perpPositions.settledToChain, false)),
+    ]);
+
+    const totalPositions = Number(totalResult[0]?.count ?? 0);
+    const unsettledCount = Number(unsettledResult[0]?.count ?? 0);
 
     return {
       mode: PERP_CONFIG.settlementMode,

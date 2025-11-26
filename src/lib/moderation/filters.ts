@@ -4,16 +4,15 @@
  * Helper functions to filter content based on user blocks and mutes
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, userBlocks, userMutes, eq, and } from '@/db';
 
 /**
  * Get list of user IDs that the current user has blocked
  */
 export async function getBlockedUserIds(userId: string): Promise<string[]> {
-  const blocks = await prisma.userBlock.findMany({
-    where: { blockerId: userId },
-    select: { blockedId: true },
-  });
+  const blocks = await db.select({ blockedId: userBlocks.blockedId })
+    .from(userBlocks)
+    .where(eq(userBlocks.blockerId, userId));
   
   return blocks.map(b => b.blockedId);
 }
@@ -22,10 +21,9 @@ export async function getBlockedUserIds(userId: string): Promise<string[]> {
  * Get list of user IDs that have blocked the current user
  */
 export async function getBlockedByUserIds(userId: string): Promise<string[]> {
-  const blocks = await prisma.userBlock.findMany({
-    where: { blockedId: userId },
-    select: { blockerId: true },
-  });
+  const blocks = await db.select({ blockerId: userBlocks.blockerId })
+    .from(userBlocks)
+    .where(eq(userBlocks.blockedId, userId));
   
   return blocks.map(b => b.blockerId);
 }
@@ -34,10 +32,9 @@ export async function getBlockedByUserIds(userId: string): Promise<string[]> {
  * Get list of user IDs that the current user has muted
  */
 export async function getMutedUserIds(userId: string): Promise<string[]> {
-  const mutes = await prisma.userMute.findMany({
-    where: { muterId: userId },
-    select: { mutedId: true },
-  });
+  const mutes = await db.select({ mutedId: userMutes.mutedId })
+    .from(userMutes)
+    .where(eq(userMutes.muterId, userId));
   
   return mutes.map(m => m.mutedId);
 }
@@ -63,16 +60,17 @@ export async function hasBlocked(
   blockerId: string,
   blockedId: string
 ): Promise<boolean> {
-  const block = await prisma.userBlock.findUnique({
-    where: {
-      blockerId_blockedId: {
-        blockerId,
-        blockedId,
-      },
-    },
-  });
+  const block = await db.select({ blockerId: userBlocks.blockerId })
+    .from(userBlocks)
+    .where(
+      and(
+        eq(userBlocks.blockerId, blockerId),
+        eq(userBlocks.blockedId, blockedId)
+      )
+    )
+    .limit(1);
   
-  return !!block;
+  return block.length > 0;
 }
 
 /**
@@ -82,16 +80,17 @@ export async function hasMuted(
   muterId: string,
   mutedId: string
 ): Promise<boolean> {
-  const mute = await prisma.userMute.findUnique({
-    where: {
-      muterId_mutedId: {
-        muterId,
-        mutedId,
-      },
-    },
-  });
+  const mute = await db.select({ muterId: userMutes.muterId })
+    .from(userMutes)
+    .where(
+      and(
+        eq(userMutes.muterId, muterId),
+        eq(userMutes.mutedId, mutedId)
+      )
+    )
+    .limit(1);
   
-  return !!mute;
+  return mute.length > 0;
 }
 
 /**
@@ -111,7 +110,7 @@ export function filterPostsByModeration<T extends { authorId?: string }>(
 }
 
 /**
- * Build Prisma where clause to exclude blocked users
+ * Build where clause to exclude blocked users (returns list of IDs to exclude)
  */
 export function buildBlockedUsersWhereClause(blockedUserIds: string[]) {
   if (blockedUserIds.length === 0) {
@@ -124,5 +123,3 @@ export function buildBlockedUsersWhereClause(blockedUserIds: string[]) {
     },
   };
 }
-
-

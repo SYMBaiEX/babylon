@@ -15,12 +15,11 @@
  */
 
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db, asc, actors, type Actor } from '@/db'
 import { agentRegistry } from './agent-registry.service'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { loadActorById } from '@/lib/data/actors-loader'
 import { mapActorToOASFSkills, mapActorToOASFDomains } from '@/lib/utils/oasf-skill-mapper'
-import type { Actor } from '@prisma/client'
 import type { ActorData } from '@/shared/types'
 import type { AgentCapabilities } from '@/types/a2a'
 import { AgentType, AgentStatus } from '@/types/agent-registry.types'
@@ -97,19 +96,20 @@ export class NPCBootstrapService {
 
     try {
       // Load all Actor records from database
-      const actors = await prisma.actor.findMany({
-        orderBy: { name: 'asc' },
-      })
+      const actorsList = await db
+        .select()
+        .from(actors)
+        .orderBy(asc(actors.name))
 
-      result.totalNpcs = actors.length
+      result.totalNpcs = actorsList.length
       logger.info(
-        `Found ${actors.length} NPCs to bootstrap`,
+        `Found ${actorsList.length} NPCs to bootstrap`,
         undefined,
         'NPCBootstrapService',
       )
 
       // Bootstrap each actor in sequence (to avoid overwhelming database)
-      for (const actor of actors) {
+      for (const actor of actorsList) {
         try {
           const bootstrapResult = await this.bootstrapSingleNpc(actor)
           if (bootstrapResult.registered) {
@@ -241,8 +241,8 @@ export class NPCBootstrapService {
     }
 
     // Physical description adds immersion
-    if (actorData.physicalDescription) {
-      parts.push(`Physical appearance: ${actorData.physicalDescription}`)
+    if (actorData.pfpDescription) {
+      parts.push(`Physical appearance: ${actorData.pfpDescription}`)
     }
 
     // Role provides context
@@ -335,9 +335,11 @@ export class NPCBootstrapService {
    * @throws {Error} If actor not found
    */
   public async bootstrapNpc(actorId: string): Promise<void> {
-    const actor = await prisma.actor.findUnique({
-      where: { id: actorId },
-    })
+    const [actor] = await db
+      .select()
+      .from(actors)
+      .where(eq(actors.id, actorId))
+      .limit(1)
 
     if (!actor) {
       throw new Error(`Actor ${actorId} not found`)
@@ -419,8 +421,10 @@ export class NPCBootstrapService {
     initialized: number
     active: number
   }> {
-    const actors = await prisma.actor.findMany()
-    const totalNpcs = actors.length
+    const actorsList = await db
+      .select()
+      .from(actors)
+    const totalNpcs = actorsList.length
 
     const registrations = await agentRegistry.discoverAgents({
       types: [AgentType.NPC],
@@ -440,6 +444,9 @@ export class NPCBootstrapService {
     }
   }
 }
+
+// Import eq for the bootstrapNpc method
+import { eq } from 'drizzle-orm'
 
 // Export singleton instance
 export const npcBootstrapService = NPCBootstrapService.getInstance()

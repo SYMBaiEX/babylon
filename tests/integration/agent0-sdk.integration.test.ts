@@ -13,26 +13,27 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { Agent0FeedbackService } from '@/lib/agent0/feedback-service'
 import { SubgraphClient } from '@/agents/agent0/SubgraphClient'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 
 describe('Agent0 SDK Complete Integration', () => {
   let agent0Client: ReturnType<typeof getAgent0Client> | undefined
-  let feedbackService: Agent0FeedbackService
-  let subgraphClient: SubgraphClient
+  let feedbackService: Agent0FeedbackService | undefined
+  let subgraphClient: SubgraphClient | undefined
   let sdkAvailable = false
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // Initialize clients
     try {
       agent0Client = getAgent0Client()
       feedbackService = new Agent0FeedbackService()
       subgraphClient = new SubgraphClient()
       if (agent0Client) {
-        sdkAvailable = agent0Client.isAvailable()
+        // Must await ensureAvailable() to initialize the SDK before checking availability
+        sdkAvailable = await agent0Client.ensureAvailable()
       }
     } catch (error) {
       // SDK not configured - tests will be skipped
-      console.warn('Agent0 SDK not configured, some tests will be skipped')
+      console.warn('Agent0 SDK not configured:', error instanceof Error ? error.message : String(error))
       sdkAvailable = false
     }
   })
@@ -208,7 +209,7 @@ describe('Agent0 SDK Complete Integration', () => {
 
   describe('Feedback Submission', () => {
     test('should submit feedback with authorization', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !feedbackService) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -218,7 +219,7 @@ describe('Agent0 SDK Complete Integration', () => {
       const testAgentId = '84532:1' // Example agent ID
 
       // Create test user if needed
-      const user = await prisma.user.upsert({
+      const user = await db.user.upsert({
         where: { id: testUserId },
         create: {
           id: testUserId,
@@ -246,7 +247,7 @@ describe('Agent0 SDK Complete Integration', () => {
     })
 
     test('should handle feedback submission errors gracefully', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !feedbackService) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -263,7 +264,7 @@ describe('Agent0 SDK Complete Integration', () => {
 
   describe('Reputation Querying', () => {
     test('should get agent reputation summary', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !feedbackService) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -281,7 +282,7 @@ describe('Agent0 SDK Complete Integration', () => {
     })
 
     test('should handle reputation query for non-existent agent', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !feedbackService) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -295,7 +296,7 @@ describe('Agent0 SDK Complete Integration', () => {
 
   describe('Subgraph Client', () => {
     test('should search agents via subgraph', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !subgraphClient) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -315,7 +316,7 @@ describe('Agent0 SDK Complete Integration', () => {
     })
 
     test('should get game platforms via subgraph', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !subgraphClient) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }
@@ -334,7 +335,7 @@ describe('Agent0 SDK Complete Integration', () => {
     })
 
     test('should get agent feedback via subgraph', async () => {
-      if (!sdkAvailable) {
+      if (!sdkAvailable || !subgraphClient) {
         console.log('   ⚠️  Skipping - SDK not available')
         return
       }

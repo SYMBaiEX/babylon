@@ -43,6 +43,11 @@ export default defineConfig({
 
     /* Video on failure */
     video: 'retain-on-failure',
+
+    /* Launch Options to prevent CI crashes */
+    launchOptions: {
+      args: ['--disable-dev-shm-usage'],
+    },
   },
 
   /* Configure projects for major browsers */
@@ -73,6 +78,17 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         // Use authenticated state from setup
         storageState: '.playwright/auth.json',
+      },
+      dependencies: ['setup'],
+      testIgnore: ['**/*.api.test.ts', '**/*.e2e.test.ts'], // Ignore API/E2E tests that don't need browser auth or have their own flow
+    },
+
+    // API/E2E Tests - requires auth for API calls with cookies
+    {
+      name: 'api-e2e',
+      testMatch: ['**/*.e2e.test.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
       },
       dependencies: ['setup'],
     },

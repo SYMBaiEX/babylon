@@ -55,7 +55,7 @@
  */
 
 import { NextResponse } from 'next/server';
-// import { prisma } from '@/lib/prisma';
+// import { db } from '@/db';
 import { automationPipeline } from '@/lib/training/AutomationPipeline';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +67,7 @@ export async function GET() {
   // Get readiness check
   const readiness = await automationPipeline.checkTrainingReadiness();
   
-  // Note: Trajectory schema models require trajectory schema to be merged into main Prisma schema
+  // Note: Trajectory schema models require trajectory schema to be merged into main schema schema
   // Returning stub data until then
   const recentJobs: Array<Record<string, unknown>> = [];
   const models: Array<Record<string, unknown>> = [];

@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { WORLD_CONTEXT_HEADER, IMPORTANT_RULES, CONTENT_REQUIREMENTS } from '../shared-sections';
 
 /**
  * Prompt for generating analyst commentary on stock price movements.
@@ -16,8 +17,9 @@ export const analystReaction = definePrompt({
   description: 'Generates analyst commentary on stock price movements',
   temperature: 0.8,
   maxTokens: 400,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 You are: {{analystName}}, {{analystDescription}}
 
@@ -28,11 +30,7 @@ PRICE CHANGE: {{priceChange}}% ({{direction}})
 EVENT CONTEXT: {{eventDescription}}
 YOUR MOOD: {{mood}}
 
-WORLD CONTEXT:
-{{worldActors}}
-{{currentMarkets}}
-{{activePredictions}}
-{{recentTrades}}
+${WORLD_CONTEXT_HEADER}
 
 Provide brief analyst commentary on this price movement.
 
@@ -42,17 +40,10 @@ Requirements:
 - Max 250 characters
 - Your mood affects optimism level
 - Satirical but credible sounding
-- No hashtags or emojis
-- NEVER use real-world person or organization names - ALWAYS use ONLY parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn) or @usernames
 
-CONTENT REQUIREMENTS:
-- MUST reference specific actors, companies, or events from the price movement context
-- MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names when analyzing market implications
-- MUST reference specific trades or market movements when relevant
-- Use @username format when mentioning users (e.g., "@ailonmusk's company...")
-- Avoid generic analysis - be SPECIFIC about who/what you're analyzing
-- You may reference current markets, predictions, or recent trades naturally if relevant
+${IMPORTANT_RULES}
+
+${CONTENT_REQUIREMENTS}
 
 VALUE RANGES:
 - sentiment: -1 (very negative) to 1 (very positive)

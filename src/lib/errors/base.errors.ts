@@ -144,7 +144,7 @@ export class ConflictError extends BabylonError {
 }
 
 /**
- * Database error for Prisma/database issues
+ * Database error for database issues
  * 
  * @description Error thrown when database operations fail. Includes operation
  * context and original error information for debugging.

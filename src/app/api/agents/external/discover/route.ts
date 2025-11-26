@@ -13,8 +13,8 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { agentRegistry } from '@/lib/services/agent-registry.service'
-import { verifyApiKey } from '@/lib/crypto/api-keys'
-import { prisma } from '@/lib/prisma'
+// import { verifyApiKey } from '@/lib/crypto/api-keys'
+// import { db } from '@/db'
 import { AgentStatus, AgentType } from '@/types/agent-registry.types'
 import type { TrustLevel } from '@/types/agent-registry.types'
 
@@ -55,25 +55,8 @@ async function authenticateRequest(req: NextRequest): Promise<boolean> {
 
   const apiKey = authHeader.substring(7) // Remove 'Bearer ' prefix
 
-  // Find external agent with matching API key hash
-  const agents = await prisma.externalAgentConnection.findMany()
-
-  for (const agent of agents) {
-    try {
-      // Extract API key hash from authCredentials
-      const credentials = agent.authCredentials
-        ? JSON.parse(agent.authCredentials)
-        : null
-
-      if (credentials?.apiKeyHash && verifyApiKey(apiKey, credentials.apiKeyHash)) {
-        return true
-      }
-    } catch {
-      continue
-    }
-  }
-
-  return false
+  const agent = await agentRegistry.verifyExternalAgentApiKey(apiKey)
+  return !!agent
 }
 
 /**

@@ -29,16 +29,15 @@ yarn-error.log*
 .env*.local
 .env
 
+# act (local GitHub Actions) secrets
+.secrets.local
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# Prisma
-prisma/dev.db
-prisma/dev.db-journal
 
 # Foundry
 cache/
@@ -69,7 +68,22 @@ wandb/
 # Test results
 test-results/
 playwright-report/
-.playwright/test-tokens.json
+.playwright/
 
-# Debug prompts
-debug-prompts/
+# Debug stuff
+debug/
+
+# Generated actor images (stored in Vercel Blob instead)
+public/images/actors/
+public/images/actor-banners/
+public/images/organizations/
+public/images/org-banners/
+
+# User uploads (stored in Vercel Blob in production)
+public/uploads/profiles/*
+public/uploads/covers/*
+public/uploads/posts/*
+!public/uploads/.gitkeep
+!public/uploads/*/.gitkeep
+
+python/trained_models

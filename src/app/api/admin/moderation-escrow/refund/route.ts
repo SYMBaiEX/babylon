@@ -62,7 +62,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api/admin-middleware'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     const { escrowId, refundTxHash, reason } = validation.data
 
     // Get escrow record
-    const escrow = await prisma.moderationEscrow.findUnique({
+    const escrow = await db.moderationEscrow.findUnique({
       where: { id: escrowId },
       include: {
         User: {
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use transaction to prevent race conditions
-    const updatedEscrow = await prisma.$transaction(async (tx) => {
+    const updatedEscrow = await db.$transaction(async (tx) => {
       // Re-fetch to ensure still refundable
       const currentEscrow = await tx.moderationEscrow.findUnique({
         where: { id: escrowId },

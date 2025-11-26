@@ -1,65 +1,62 @@
-import { prisma } from '@/lib/prisma'
+import { db, users, eq, or } from '@/db'
 import { NotFoundError } from '@/lib/errors'
-import type { Prisma} from '@prisma/client';
-import { type User } from '@prisma/client'
+import type { InferSelectModel } from 'drizzle-orm'
+import type { SelectedFields } from 'drizzle-orm/pg-core'
 
-type SelectArg = Parameters<typeof prisma.user.findUnique>[0]['select']
+type User = InferSelectModel<typeof users>
 
-// Helper type to get the return type based on select
-type UserResult<T extends SelectArg | undefined> = 
-  T extends undefined 
-    ? User | null 
-    : T extends SelectArg 
-      ? Prisma.UserGetPayload<{ select: T }> | null 
-      : never;
-
-export async function findUserByIdentifier<T extends SelectArg | undefined = undefined>(
+/**
+ * Find user by identifier (ID, privyId, or username)
+ * @param identifier - The user ID, privyId, or username
+ * @param _select - Optional select fields (for compatibility, currently ignored - returns full user)
+ */
+export async function findUserByIdentifier(
   identifier: string,
-  select?: T
-): Promise<UserResult<T>> {
-  // Try to find by ID first
-  if (select) {
-    const byId = await prisma.user.findUnique({ where: { id: identifier }, select })
-    if (byId) {
-      return byId as UserResult<T>
-    }
-  } else {
-    const byId = await prisma.user.findUnique({ where: { id: identifier } })
-    if (byId) {
-      return byId as UserResult<T>
-    }
-  }
+   
+  _select?: Record<string, boolean>
+): Promise<User | null> {
+  // Try to find by ID, privyId, or username
+  const [user] = await db.select()
+    .from(users)
+    .where(or(
+      eq(users.id, identifier),
+      eq(users.privyId, identifier),
+      eq(users.username, identifier)
+    ))
+    .limit(1);
 
-  // Try to find by privyId
-  if (select) {
-    const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier }, select })
-    if (byPrivyId) {
-      return byPrivyId as UserResult<T>
-    }
-  } else {
-    const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier } })
-    if (byPrivyId) {
-      return byPrivyId as UserResult<T>
-    }
-  }
-
-  // Try to find by username
-  if (select) {
-    const byUsername = await prisma.user.findUnique({ where: { username: identifier }, select })
-    return byUsername as UserResult<T>
-  } else {
-    const byUsername = await prisma.user.findUnique({ where: { username: identifier } })
-    return byUsername as UserResult<T>
-  }
+  return user ?? null;
 }
 
-export async function requireUserByIdentifier<T extends SelectArg | undefined = undefined>(
+export async function findUserByIdentifierWithSelect<T extends Record<string, unknown>>(
   identifier: string,
-  select?: T
-) {
-  const user = await findUserByIdentifier(identifier, select)
+  select: T
+): Promise<T | null> {
+  // Drizzle's select() accepts SelectedFields which is compatible with our select object
+  // The select object contains column references which satisfy SelectedFields requirements
+  const [user] = await db.select(select as SelectedFields)
+    .from(users)
+    .where(or(
+      eq(users.id, identifier),
+      eq(users.privyId, identifier),
+      eq(users.username, identifier)
+    ))
+    .limit(1);
+
+  // Type-safe generic return - user matches T if T extends User
+  // This is safe because we're selecting all fields and T should be a subset of User
+  if (!user) return null;
+  return user as T;
+}
+
+export async function requireUserByIdentifier(
+  identifier: string,
+   
+  _select?: Record<string, boolean>
+): Promise<User> {
+  const user = await findUserByIdentifier(identifier);
   if (!user) {
-    throw new NotFoundError('User', identifier)
+    throw new NotFoundError('User', identifier);
   }
-  return user
+  return user;
 }

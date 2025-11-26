@@ -165,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
       logger.info('Cron DB env debug', {
-        hasPrismaDatabaseUrl: Boolean(process.env.PRISMA_DATABASE_URL),
+        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
         databaseUrlPrefix: process.env.DATABASE_URL?.split('@')[1]?.slice(0, 20),
         directDatabaseUrlPrefix: process.env.DIRECT_DATABASE_URL?.split('@')[1]?.slice(0, 20),
       }, 'Cron');

@@ -41,6 +41,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug - Check secret availability
+        env:
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL }}
+        run: |
+          echo "🔐 Checking GitHub secrets availability..."
+          echo ""
+          echo "Secret Status:"
+          if [ -n "$NEXT_PUBLIC_PRIVY_APP_ID" ]; then
+            echo "  ✅ NEXT_PUBLIC_PRIVY_APP_ID: SET (${#NEXT_PUBLIC_PRIVY_APP_ID} chars, starts with '${NEXT_PUBLIC_PRIVY_APP_ID:0:5}')"
+          else
+            echo "  ❌ NEXT_PUBLIC_PRIVY_APP_ID: NOT SET"
+          fi
+          
+          if [ -n "$PRIVY_APP_ID" ]; then
+            echo "  ✅ PRIVY_APP_ID: SET (${#PRIVY_APP_ID} chars, starts with '${PRIVY_APP_ID:0:5}')"
+          else
+            echo "  ❌ PRIVY_APP_ID: NOT SET"
+          fi
+          
+          if [ -n "$PRIVY_TEST_EMAIL" ]; then
+            echo "  ✅ PRIVY_TEST_EMAIL: SET"
+          else
+            echo "  ❌ PRIVY_TEST_EMAIL: NOT SET"
+          fi
+          
+          echo ""
+          if [ -z "$NEXT_PUBLIC_PRIVY_APP_ID" ] && [ -z "$PRIVY_APP_ID" ]; then
+            echo "⚠️  WARNING: Neither NEXT_PUBLIC_PRIVY_APP_ID nor PRIVY_APP_ID is set!"
+            echo "   E2E tests will fail without Privy authentication."
+            echo ""
+            echo "   To fix this:"
+            echo "   1. Go to: ${{ github.server_url }}/${{ github.repository }}/settings/secrets/actions"
+            echo "   2. Add a secret named NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_ID"
+            echo "   3. Set the value to your Privy App ID (starts with 'cl...')"
+          fi
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -48,6 +86,21 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Start Anvil
+        run: |
+          anvil --host 0.0.0.0 --port 8545 &
+          echo "Waiting for Anvil..."
+          timeout 30 bash -c 'until curl -s -H "Content-Type: application/json" -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545; do sleep 1; done' || {
+            echo "❌ Anvil failed to start"
+            exit 1
+          }
+          echo "✅ Anvil is running"
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
@@ -57,12 +110,9 @@ jobs:
           # Use CI test database directly
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          # Pass secrets with correct names (not _VAR suffix)
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
-          # Use NEXT_PUBLIC_PRIVY_APP_ID secret for both server-side (PRIVY_APP_ID) and client-side (NEXT_PUBLIC_PRIVY_APP_ID)
-          PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
@@ -77,7 +127,7 @@ jobs:
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
         run: bash scripts/ci/prepare-env.sh
 
-      - name: Setup Prisma and Database
+      - name: Setup Database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
@@ -92,16 +142,69 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # CRITICAL: NEXT_PUBLIC_* variables must be set at BUILD TIME (not runtime)
           # Next.js embeds these values into the JavaScript bundle during build
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
         run: |
           echo "🏗️ Building production..."
+          
+          # Clear any existing Next.js cache to ensure fresh build
+          echo "🧹 Clearing Next.js cache..."
+          rm -rf .next
+          
+          # Debug: Show which secrets are available (without revealing values)
+          echo "📋 Secret availability check:"
+          echo "   NEXT_PUBLIC_PRIVY_APP_ID: ${NEXT_PUBLIC_PRIVY_APP_ID:+SET (${#NEXT_PUBLIC_PRIVY_APP_ID} chars, starts with '${NEXT_PUBLIC_PRIVY_APP_ID:0:5}')}${NEXT_PUBLIC_PRIVY_APP_ID:-NOT SET}"
+          
+          # Also show what's in .env files
+          echo "📄 Checking .env files for NEXT_PUBLIC_PRIVY_APP_ID:"
+          grep -h "NEXT_PUBLIC_PRIVY_APP_ID" .env .env.local .env.test 2>/dev/null | head -3 || echo "   (not found in .env files)"
+          
           if [ -z "$NEXT_PUBLIC_PRIVY_APP_ID" ]; then
             echo "❌ ERROR: NEXT_PUBLIC_PRIVY_APP_ID is not set or empty!"
-            echo "Please ensure the GitHub secret NEXT_PUBLIC_PRIVY_APP_ID is configured."
+            echo "Please ensure the GitHub secret NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_ID is configured."
             exit 1
           fi
-          echo "🔑 NEXT_PUBLIC_PRIVY_APP_ID is set (length: ${#NEXT_PUBLIC_PRIVY_APP_ID}, starts with: ${NEXT_PUBLIC_PRIVY_APP_ID:0:10}...)"
+          
+          # Verify the value looks like a valid Privy app ID (should start with "cl")
+          if [[ ! "$NEXT_PUBLIC_PRIVY_APP_ID" =~ ^cl ]]; then
+            echo "⚠️  WARNING: NEXT_PUBLIC_PRIVY_APP_ID doesn't appear to be a valid Privy App ID"
+            echo "   Expected: starts with 'cl'"
+            echo "   Got: starts with '${NEXT_PUBLIC_PRIVY_APP_ID:0:5}'"
+          else
+            echo "✅ NEXT_PUBLIC_PRIVY_APP_ID format looks valid (starts with 'cl')"
+          fi
+          
+          # CRITICAL: Update .env files to ensure Next.js picks up the correct value
+          # Next.js reads env vars from: process.env (shell) > .env.local > .env
+          # But there can be precedence issues, so we explicitly update the files
+          echo "📝 Ensuring .env files have correct NEXT_PUBLIC_PRIVY_APP_ID..."
+          for envfile in .env .env.local .env.test; do
+            if [ -f "$envfile" ]; then
+              # Remove any existing NEXT_PUBLIC_PRIVY_APP_ID line and add the correct one
+              grep -v "^NEXT_PUBLIC_PRIVY_APP_ID=" "$envfile" > "$envfile.tmp" || true
+              echo "NEXT_PUBLIC_PRIVY_APP_ID=$NEXT_PUBLIC_PRIVY_APP_ID" >> "$envfile.tmp"
+              mv "$envfile.tmp" "$envfile"
+              echo "   Updated $envfile"
+            fi
+          done
+          
+          # Verify the update
+          echo "📄 After update, .env contains:"
+          grep "NEXT_PUBLIC_PRIVY_APP_ID" .env | head -1 || echo "   (not found)"
+          
+          echo "🔨 Running build..."
           bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          
+          # Verify the build includes the Privy App ID by checking the actual value
+          echo "🔍 Verifying Privy App ID is embedded in build..."
+          if grep -rq "${NEXT_PUBLIC_PRIVY_APP_ID:0:10}" .next 2>/dev/null; then
+            echo "✅ Build verified: Privy App ID value found in build output"
+          else
+            echo "❌ WARNING: Could not find Privy App ID in build output!"
+            echo "   This likely means the build didn't pick up the env var correctly"
+            echo "   Checking for privy-related content in build..."
+            grep -r "privy" .next/static 2>/dev/null | head -5 || echo "   No privy references found in static"
+          fi
+          
           echo "✅ Build complete"
 
       - name: Start production server
@@ -134,7 +237,7 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           # NEXT_PUBLIC_* variables are embedded at build time, but ensure they're available
           # at runtime for any server-side rendering or API routes that might need them
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
 
       - name: Run Synpress Tests (Wallet E2E)
         run: bunx playwright test --config=synpress.config.ts --reporter=list,json

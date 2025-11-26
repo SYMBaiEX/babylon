@@ -5,11 +5,11 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db, users, notifications, eq } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 
-export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system' | 'report_evaluated' | 'appeal_status' | 'points_received';
+export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system' | 'report_evaluated' | 'appeal_status' | 'points_received' | 'group_invite';
 
 interface CreateNotificationParams {
   userId: string; // Who receives the notification
@@ -27,12 +27,12 @@ interface CreateNotificationParams {
 export async function createNotification(params: CreateNotificationParams): Promise<void> {
   // Verify that the userId exists in the User table before creating notification
   // This prevents foreign key constraint errors
-  const userExists = await prisma.user.findUnique({
-    where: { id: params.userId },
-    select: { id: true },
-  });
+  const userExists = await db.select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, params.userId))
+    .limit(1);
 
-  if (!userExists) {
+  if (userExists.length === 0) {
     logger.warn(
       `Skipping notification creation: userId ${params.userId} does not exist in User table (may be an Actor)`,
       undefined,
@@ -59,8 +59,8 @@ export async function createNotification(params: CreateNotificationParams): Prom
     }
   }
 
-  await prisma.notification.create({
-    data: {
+  await db.insert(notifications)
+    .values({
       id: await generateSnowflakeId(),
       userId: params.userId,
       type: params.type,
@@ -69,8 +69,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
       commentId: params.commentId,
       title: params.title,
       message: params.message,
-    },
-  });
+    });
 }
 
 /**
@@ -88,11 +87,15 @@ export async function notifyCommentOnPost(
   }
 
   // Get comment author info for message
-  const commentAuthor = await prisma.user.findUnique({
-    where: { id: commentAuthorId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, commentAuthorId))
+    .limit(1);
 
+  const commentAuthor = result[0];
   const authorName = commentAuthor?.displayName || commentAuthor?.username || 'Someone';
   const message = `${authorName} commented on your post`;
 
@@ -121,11 +124,15 @@ export async function notifyReactionOnPost(
     return;
   }
 
-  const reactionUser = await prisma.user.findUnique({
-    where: { id: reactionUserId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, reactionUserId))
+    .limit(1);
 
+  const reactionUser = result[0];
   const userName = reactionUser?.displayName || reactionUser?.username || 'Someone';
   const action = reactionType === 'like' ? 'liked' : reactionType;
   const message = `${userName} ${action} your post`;
@@ -152,11 +159,15 @@ export async function notifyFollow(
     return;
   }
 
-  const follower = await prisma.user.findUnique({
-    where: { id: followerId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, followerId))
+    .limit(1);
 
+  const follower = result[0];
   const userName = follower?.displayName || follower?.username || 'Someone';
   const message = `${userName} started following you`;
 
@@ -191,11 +202,15 @@ export async function notifyReplyToComment(
     postId,
   };
 
-  const replyAuthor = await prisma.user.findUnique({
-    where: { id: replyAuthorId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, replyAuthorId))
+    .limit(1);
 
+  const replyAuthor = result[0];
   const userName = replyAuthor?.displayName || replyAuthor?.username || 'Someone';
   const message = `${userName} replied to your comment`;
 
@@ -224,11 +239,15 @@ export async function notifyShare(
     return;
   }
 
-  const sharer = await prisma.user.findUnique({
-    where: { id: sharerId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, sharerId))
+    .limit(1);
 
+  const sharer = result[0];
   const userName = sharer?.displayName || sharer?.username || 'Someone';
   const message = `${userName} shared your post`;
 
@@ -256,11 +275,15 @@ export async function notifyMention(
     return;
   }
 
-  const mentioner = await prisma.user.findUnique({
-    where: { id: mentionerUserId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, mentionerUserId))
+    .limit(1);
 
+  const mentioner = result[0];
   const mentionerName = mentioner?.displayName || mentioner?.username || 'Someone';
   const message = commentId 
     ? `${mentionerName} mentioned you in a comment`
@@ -320,11 +343,15 @@ export async function notifyReactionOnComment(
     return;
   }
 
-  const reactionUser = await prisma.user.findUnique({
-    where: { id: reactionUserId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, reactionUserId))
+    .limit(1);
 
+  const reactionUser = result[0];
   const userName = reactionUser?.displayName || reactionUser?.username || 'Someone';
   const action = reactionType === 'like' ? 'liked' : reactionType;
   const message = `${userName} ${action} your comment`;
@@ -354,11 +381,15 @@ export async function notifyGroupChatInvite(
     return;
   }
 
-  const inviter = await prisma.user.findUnique({
-    where: { id: inviterId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, inviterId))
+    .limit(1);
 
+  const inviter = result[0];
   const inviterName = inviter?.displayName || inviter?.username || 'Someone';
   const message = `${inviterName} invited you to "${chatName}"`;
 
@@ -386,17 +417,21 @@ export async function notifyUserGroupInvite(
     return;
   }
 
-  const inviter = await prisma.user.findUnique({
-    where: { id: inviterId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, inviterId))
+    .limit(1);
 
+  const inviter = result[0];
   const inviterName = inviter?.displayName || inviter?.username || 'Someone';
   const message = `${inviterName} invited you to join ${groupName}`;
 
   // Create notification with groupId and inviteId for proper linking
-  await prisma.notification.create({
-    data: {
+  await db.insert(notifications)
+    .values({
       id: await generateSnowflakeId(),
       userId,
       type: 'group_invite',
@@ -405,8 +440,7 @@ export async function notifyUserGroupInvite(
       message,
       groupId,
       inviteId,
-    },
-  });
+    });
 }
 
 /**
@@ -423,11 +457,15 @@ export async function notifyDMMessage(
     return;
   }
 
-  const sender = await prisma.user.findUnique({
-    where: { id: senderUserId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, senderUserId))
+    .limit(1);
 
+  const sender = result[0];
   const senderName = sender?.displayName || sender?.username || 'Someone';
   
   // Truncate message preview to 50 characters
@@ -456,11 +494,15 @@ export async function notifyGroupChatMessage(
   chatName: string,
   messagePreview: string
 ): Promise<void> {
-  const sender = await prisma.user.findUnique({
-    where: { id: senderUserId },
-    select: { displayName: true, username: true },
-  });
+  const result = await db.select({
+    displayName: users.displayName,
+    username: users.username,
+  })
+    .from(users)
+    .where(eq(users.id, senderUserId))
+    .limit(1);
 
+  const sender = result[0];
   const senderName = sender?.displayName || sender?.username || 'Someone';
   
   // Truncate message preview to 50 characters
@@ -485,5 +527,3 @@ export async function notifyGroupChatMessage(
 
   await Promise.all(notificationPromises);
 }
-
-

@@ -125,11 +125,12 @@
 
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { db, comments, users, reactions, eq, and, count } from '@/db';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import {  NotFoundError, AuthorizationError } from '@/lib/errors';
+import { NotFoundError, AuthorizationError } from '@/lib/errors';
 import { IdParamSchema, UpdateCommentSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+
 /**
  * PATCH /api/comments/[id]
  * Edit a comment (only by the author)
@@ -146,48 +147,61 @@ export const PATCH = withErrorHandling(async (
   const body = await request.json();
   const { content } = UpdateCommentSchema.parse(body);
 
-  // Update comment with RLS
-  const updatedComment = await asUser(user, async (db) => {
-    // Find comment
-    const comment = await db.comment.findUnique({
-      where: { id: commentId },
-    });
+  // Find comment
+  const [comment] = await db.select()
+    .from(comments)
+    .where(eq(comments.id, commentId))
+    .limit(1);
 
-    if (!comment) {
-      throw new NotFoundError('Comment', commentId);
-    }
+  if (!comment) {
+    throw new NotFoundError('Comment', commentId);
+  }
 
-    // Check if user is the author
-    if (comment.authorId !== user.userId) {
-      throw new AuthorizationError('You can only edit your own comments', 'comment', 'edit');
-    }
+  // Check if user is the author
+  if (comment.authorId !== user.userId) {
+    throw new AuthorizationError('You can only edit your own comments', 'comment', 'edit');
+  }
 
-    // Update comment
-    const updated = await db.comment.update({
-      where: { id: commentId },
-      data: {
-        content: content.trim(),
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-          },
-        },
-        _count: {
-          select: {
-            Reaction: true,
-            other_Comment: true,
-          },
-        },
-      },
-    });
+  // Update comment
+  const now = new Date();
+  const [updatedComment] = await db.update(comments)
+    .set({
+      content: content.trim(),
+      updatedAt: now,
+    })
+    .where(eq(comments.id, commentId))
+    .returning();
 
-    return updated;
-  });
+  if (!updatedComment) {
+    throw new NotFoundError('Comment', commentId);
+  }
+
+  // Get user info
+  const [commentUser] = await db.select({
+    id: users.id,
+    displayName: users.displayName,
+    username: users.username,
+    profileImageUrl: users.profileImageUrl,
+  })
+    .from(users)
+    .where(eq(users.id, updatedComment.authorId))
+    .limit(1);
+
+  // Get counts
+  const [[likeCountResult], [replyCountResult]] = await Promise.all([
+    db.select({ count: count() })
+      .from(reactions)
+      .where(and(
+        eq(reactions.commentId, commentId),
+        eq(reactions.type, 'like')
+      )),
+    db.select({ count: count() })
+      .from(comments)
+      .where(eq(comments.parentCommentId, commentId)),
+  ]);
+
+  const likeCount = Number(likeCountResult?.count ?? 0);
+  const replyCount = Number(replyCountResult?.count ?? 0);
 
   logger.info('Comment updated successfully', { commentId, userId: user.userId }, 'PATCH /api/comments/[id]');
 
@@ -199,9 +213,9 @@ export const PATCH = withErrorHandling(async (
     parentCommentId: updatedComment.parentCommentId,
     createdAt: updatedComment.createdAt,
     updatedAt: updatedComment.updatedAt,
-    author: updatedComment.User,
-    likeCount: updatedComment._count.Reaction,
-    replyCount: updatedComment._count.other_Comment,
+    author: commentUser,
+    likeCount,
+    replyCount,
   });
 });
 
@@ -217,44 +231,59 @@ export const DELETE = withErrorHandling(async (
   const user = await authenticate(request);
   const { id: commentId } = IdParamSchema.parse(await context.params);
 
-  // Delete comment with RLS
-  const deletedRepliesCount = await asUser(user, async (db) => {
-    // Find comment
-    const comment = await db.comment.findUnique({
-      where: { id: commentId },
-      include: {
-        _count: {
-          select: {
-            other_Comment: true,
-          },
-        },
-      },
-    });
+  // Find comment
+  const [comment] = await db.select()
+    .from(comments)
+    .where(eq(comments.id, commentId))
+    .limit(1);
 
-    if (!comment) {
-      throw new NotFoundError('Comment', commentId);
+  if (!comment) {
+    throw new NotFoundError('Comment', commentId);
+  }
+
+  // Check if user is the author
+  if (comment.authorId !== user.userId) {
+    throw new AuthorizationError('You can only delete your own comments', 'comment', 'delete');
+  }
+
+  // Get reply count before deletion
+  const [replyCountResult] = await db.select({ count: count() })
+    .from(comments)
+    .where(eq(comments.parentCommentId, commentId));
+  const repliesCount = Number(replyCountResult?.count ?? 0);
+
+  // Delete reactions on replies first
+  const replies = await db.select({ id: comments.id })
+    .from(comments)
+    .where(eq(comments.parentCommentId, commentId));
+
+  const replyIds = replies.map(r => r.id);
+  
+  if (replyIds.length > 0) {
+    // Delete reactions on replies
+    for (const replyId of replyIds) {
+      await db.delete(reactions)
+        .where(eq(reactions.commentId, replyId));
     }
+  }
 
-    // Check if user is the author
-    if (comment.authorId !== user.userId) {
-      throw new AuthorizationError('You can only delete your own comments', 'comment', 'delete');
-    }
+  // Delete replies
+  await db.delete(comments)
+    .where(eq(comments.parentCommentId, commentId));
 
-    const repliesCount = comment._count.other_Comment;
+  // Delete reactions on the main comment
+  await db.delete(reactions)
+    .where(eq(reactions.commentId, commentId));
 
-    // Delete comment (cascade will delete reactions and replies)
-    await db.comment.delete({
-      where: { id: commentId },
-    });
+  // Delete the main comment
+  await db.delete(comments)
+    .where(eq(comments.id, commentId));
 
-    return repliesCount;
-  });
-
-  logger.info('Comment deleted successfully', { commentId, userId: user.userId, deletedRepliesCount }, 'DELETE /api/comments/[id]');
+  logger.info('Comment deleted successfully', { commentId, userId: user.userId, deletedRepliesCount: repliesCount }, 'DELETE /api/comments/[id]');
 
   return successResponse({
     message: 'Comment deleted successfully',
     deletedCommentId: commentId,
-    deletedRepliesCount,
+    deletedRepliesCount: repliesCount,
   });
 });

@@ -107,12 +107,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db, users, userMutes, eq, and, isUniqueConstraintError, toDatabaseErrorType } from '@/db';
 import { MuteUserSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import { Prisma } from '@prisma/client';
 
 export const POST = withErrorHandling(async (
   request: NextRequest,
@@ -147,10 +146,15 @@ export const POST = withErrorHandling(async (
   }
 
   // Check if target user exists
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetUserId },
-    select: { id: true, username: true, displayName: true, isActor: true },
-  });
+  const [targetUser] = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    isActor: users.isActor,
+  })
+    .from(users)
+    .where(eq(users.id, targetUserId))
+    .limit(1);
 
   if (!targetUser) {
     throw new NotFoundError('User', targetUserId);
@@ -160,14 +164,13 @@ export const POST = withErrorHandling(async (
 
   if (action === 'mute') {
     // Check if already muted
-    const existingMute = await prisma.userMute.findUnique({
-      where: {
-        muterId_mutedId: {
-          muterId: authUser.userId,
-          mutedId: targetUserId,
-        },
-      },
-    });
+    const [existingMute] = await db.select({ id: userMutes.id })
+      .from(userMutes)
+      .where(and(
+        eq(userMutes.muterId, authUser.userId),
+        eq(userMutes.mutedId, targetUserId)
+      ))
+      .limit(1);
 
     if (existingMute) {
       throw new BusinessLogicError('User is already muted', 'ALREADY_MUTED');
@@ -176,43 +179,41 @@ export const POST = withErrorHandling(async (
     // Create mute - handle race condition where mute might be created concurrently
     let mute;
     try {
-      mute = await prisma.userMute.create({
-        data: {
-          id: await generateSnowflakeId(),
+      const muteId = await generateSnowflakeId();
+      const [insertedMute] = await db.insert(userMutes)
+        .values({
+          id: muteId,
           muterId: authUser.userId,
           mutedId: targetUserId,
           reason: reason || null,
-        },
-      });
+        })
+        .returning();
+      mute = insertedMute;
     } catch (error: unknown) {
       // Handle unique constraint violation (race condition)
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const target = error.meta?.target as string[] | undefined;
-        if (target?.includes('muterId') && target?.includes('mutedId')) {
-          // Race condition: mute was created by another concurrent request
-          // Fetch the existing mute and return success
-          const raceConditionMute = await prisma.userMute.findUnique({
-            where: {
-              muterId_mutedId: {
-                muterId: authUser.userId,
-                mutedId: targetUserId,
-              },
-            },
-          });
+      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
+        // Race condition: mute was created by another concurrent request
+        // Fetch the existing mute and return success
+        const [raceConditionMute] = await db.select()
+          .from(userMutes)
+          .where(and(
+            eq(userMutes.muterId, authUser.userId),
+            eq(userMutes.mutedId, targetUserId)
+          ))
+          .limit(1);
+        
+        if (raceConditionMute) {
+          logger.info(`User muted successfully (race condition handled)`, { 
+            userId: authUser.userId,
+            targetUserId,
+            muteId: raceConditionMute.id 
+          }, 'POST /api/users/[userId]/mute');
           
-          if (raceConditionMute) {
-            logger.info(`User muted successfully (race condition handled)`, { 
-              userId: authUser.userId,
-              targetUserId,
-              muteId: raceConditionMute.id 
-            }, 'POST /api/users/[userId]/mute');
-            
-            return successResponse({
-              success: true,
-              message: 'User muted successfully',
-              mute: raceConditionMute,
-            });
-          }
+          return successResponse({
+            success: true,
+            message: 'User muted successfully',
+            mute: raceConditionMute,
+          });
         }
         // If we can't find the mute, throw the original error
         throw error;
@@ -224,7 +225,7 @@ export const POST = withErrorHandling(async (
     logger.info(`User muted successfully`, { 
       userId: authUser.userId,
       targetUserId,
-      muteId: mute.id 
+      muteId: mute?.id 
     }, 'POST /api/users/[userId]/mute');
 
     return successResponse({
@@ -234,14 +235,14 @@ export const POST = withErrorHandling(async (
     });
   } else {
     // Unmute
-    const deleted = await prisma.userMute.deleteMany({
-      where: {
-        muterId: authUser.userId,
-        mutedId: targetUserId,
-      },
-    });
+    const deleted = await db.delete(userMutes)
+      .where(and(
+        eq(userMutes.muterId, authUser.userId),
+        eq(userMutes.mutedId, targetUserId)
+      ))
+      .returning({ id: userMutes.id });
 
-    if (deleted.count === 0) {
+    if (deleted.length === 0) {
       throw new BusinessLogicError('User is not muted', 'NOT_MUTED');
     }
 
@@ -268,24 +269,20 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const { userId: targetUserId } = await context.params;
 
-  const mute = await prisma.userMute.findUnique({
-    where: {
-      muterId_mutedId: {
-        muterId: authUser.userId,
-        mutedId: targetUserId,
-      },
-    },
-    select: {
-      id: true,
-      createdAt: true,
-      reason: true,
-    },
-  });
+  const [mute] = await db.select({
+    id: userMutes.id,
+    createdAt: userMutes.createdAt,
+    reason: userMutes.reason,
+  })
+    .from(userMutes)
+    .where(and(
+      eq(userMutes.muterId, authUser.userId),
+      eq(userMutes.mutedId, targetUserId)
+    ))
+    .limit(1);
 
   return successResponse({
     isMuted: !!mute,
-    mute,
+    mute: mute || null,
   });
 });
-
-

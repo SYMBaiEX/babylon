@@ -6,7 +6,37 @@
 
 import type { TrajectoryLoggerService } from './TrajectoryLoggerService';
 import type { EnvironmentState } from './types';
+import type { JsonValue } from '@/types/common';
 import { logger } from '@/lib/logger';
+
+/**
+ * Trajectory metadata structure
+ */
+export interface TrajectoryMetadata {
+  [key: string]: JsonValue;
+}
+
+/**
+ * Final metrics for trajectory completion
+ */
+export interface FinalMetrics {
+  totalReward?: number;
+  stepCount?: number;
+  successRate?: number;
+  [key: string]: JsonValue | undefined;
+}
+
+/**
+ * Provider access data structure
+ */
+export interface ProviderAccessData {
+  [key: string]: JsonValue;
+}
+
+/**
+ * Function arguments type for wrapped functions
+ */
+export type WrappedFunctionArgs = JsonValue[];
 
 /**
  * Start an autonomous tick (creates a new trajectory)
@@ -18,7 +48,7 @@ export function startAutonomousTick(
     scenarioId?: string;
     episodeId?: string;
     batchId?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: TrajectoryMetadata;
   }
 ): string {
   const trajectoryId = trajectoryLogger.startTrajectory(context.agentId, {
@@ -54,7 +84,7 @@ export async function endAutonomousTick(
   trajectoryLogger: TrajectoryLoggerService,
   trajectoryId: string,
   status: 'completed' | 'terminated' | 'error' | 'timeout' = 'completed',
-  finalMetrics?: Record<string, unknown>
+  finalMetrics?: FinalMetrics
 ): Promise<void> {
   await trajectoryLogger.endTrajectory(trajectoryId, status, finalMetrics);
 
@@ -122,27 +152,42 @@ export function logProviderAccess(
   trajectoryId: string,
   access: {
     providerName: string;
-    data: Record<string, unknown>;
+    data: ProviderAccessData;
     purpose: string;
-    query?: Record<string, unknown>;
+    query?: ProviderAccessData;
   }
 ): void {
   trajectoryLogger.logProviderAccessByTrajectoryId(trajectoryId, access);
 }
 
 /**
- * Wrap function with trajectory logging
+ * Async function type for trajectory logging wrapper
  */
-export function withTrajectoryLogging<T extends (...args: unknown[]) => Promise<unknown>>(
-  fn: T,
+type AsyncFunction<TArgs extends JsonValue[], TResult extends JsonValue> = 
+  (...args: TArgs) => Promise<TResult>;
+
+/**
+ * Wrap function with trajectory logging
+ * 
+ * @param fn - The async function to wrap
+ * @param trajectoryLogger - Trajectory logger service
+ * @param trajectoryId - Current trajectory ID
+ * @param context - Optional context for logging
+ * @returns Wrapped function with the same signature
+ */
+export function withTrajectoryLogging<
+  TArgs extends JsonValue[],
+  TResult extends JsonValue
+>(
+  fn: AsyncFunction<TArgs, TResult>,
   trajectoryLogger: TrajectoryLoggerService,
   trajectoryId: string,
   context: {
     actionType?: string;
     purpose?: string;
   } = {}
-): T {
-  return (async (...args: unknown[]) => {
+): AsyncFunction<TArgs, TResult> {
+  return async (...args: TArgs): Promise<TResult> => {
     const stepId = trajectoryLogger.getCurrentStepId(trajectoryId);
     if (!stepId) {
       // No active step - execute without logging
@@ -151,7 +196,7 @@ export function withTrajectoryLogging<T extends (...args: unknown[]) => Promise<
 
     let success = false;
     let error: string | undefined;
-    let result: unknown;
+    let result: TResult | undefined;
 
     try {
       result = await fn(...args);
@@ -168,15 +213,15 @@ export function withTrajectoryLogging<T extends (...args: unknown[]) => Promise<
         {
           actionType: context.actionType || 'function_call',
           actionName: fn.name || 'anonymous',
-          parameters: { args: JSON.parse(JSON.stringify(args)) },
+          parameters: { args: args as JsonValue[] },
           success,
-          result: success ? { result: JSON.parse(JSON.stringify(result)) } : { error },
+          result: success ? { result: result as JsonValue } : { error },
         },
         {
           reward: success ? 0.05 : -0.05,
         }
       );
     }
-  }) as T;
+  };
 }
 

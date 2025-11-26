@@ -7,6 +7,7 @@
 
 import { logger } from '@/lib/logger'
 import type OpenAI from 'openai'
+import { logPrompt, isPromptLoggingEnabled } from '@/lib/debug/prompt-logger'
 
 type OpenAIClient = OpenAI
 
@@ -67,31 +68,53 @@ export async function generateTagsFromPost(content: string): Promise<GeneratedTa
     return []
   }
   
-  const prompt = `Analyze this social media post and extract 1-3 organic, trending-worthy tags.
+  const prompt = `Extract 1-3 trending tags from this social media post. Tags should be topics people would search for on X/Twitter.
 
-Post: "${content}"
+POST: "${content}"
 
-Rules:
-1. Extract natural topics, names, events, or themes that people would search for
-2. Format like X/Twitter trending topics (e.g., "NFC North", "Puka", "FanDuel")
-3. Prioritize proper nouns, events, organizations, or trending terms
-4. Keep tags concise (1-3 words max)
-5. Return 1-3 tags only (prefer quality over quantity)
-6. Categorize each tag (Sports, Politics, Tech, Finance, Entertainment, etc.)
+RULES:
+1. Extract SPECIFIC names, companies, products, or events (not generic topics)
+2. Use the EXACT names from the post (preserve parody names like "AIlon Musk", "OpenAGI", "TeslAI")
+3. Keep tags 1-3 words max
+4. Return 1-3 tags (quality over quantity)
+5. Tags should CLUSTER together - if post mentions related things, use tags that will group
 
-Return ONLY valid XML in this exact format:
-<tags>
-  <tag>
-    <displayName>NFC North</displayName>
-    <category>Sports</category>
-  </tag>
-  <tag>
-    <displayName>Puka</displayName>
-    <category>Sports</category>
-  </tag>
-</tags>
+GOOD TAGS (specific, searchable, will cluster):
+- Person names: "AIlon Musk", "Sam AIltman", "Mark Zuckerborg"
+- Company names: "OpenAGI", "TeslAI", "MetAI", "NvidAI"
+- Products: "GPT-6", "Cybertruck", "Vision Pro"
+- Events: "DevDay", "SEC Hearing", "Earnings Call"
+- Specific topics: "AGI Timeline", "Crypto Regulation", "AI Safety"
 
-If no good tags can be extracted, return: <tags></tags>`
+BAD TAGS (too generic, won't cluster):
+- "AI" (too broad - use specific company or product)
+- "Tech" (too generic)
+- "News" (not a topic)
+- "Breaking" (not searchable)
+- "Market" (use specific market like "Bitcoin" or "NVDA")
+
+CLUSTERING EXAMPLES:
+- Post about Sam AIltman announcing GPT-6 → tags: "Sam AIltman", "GPT-6", "OpenAGI" (all will cluster)
+- Post about TeslAI stock after Musk tweet → tags: "TeslAI", "AIlon Musk" (will cluster)
+- Post comparing NvidAI to AMD → tags: "NvidAI", "AMD" (separate companies, separate clusters)
+
+CATEGORIES: Tech, Crypto, Finance, Politics, Entertainment, Media, AI, Gaming
+
+Return ONLY valid XML:
+<response>
+  <tags>
+    <tag>
+      <displayName>Sam AIltman</displayName>
+      <category>Tech</category>
+    </tag>
+    <tag>
+      <displayName>OpenAGI</displayName>
+      <category>AI</category>
+    </tag>
+  </tags>
+</response>
+
+If no good tags, return: <response><tags></tags></response>`
 
   // Use llama-3.1-8b-instant for fast tag generation (free tier)
   const model = process.env.GROQ_API_KEY 
@@ -115,18 +138,33 @@ If no good tags can be extracted, return: <tags></tags>`
   })
 
   const content_text = response.choices[0]?.message?.content?.trim()
+
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: 'tag_generation',
+      input: `System: You are an XML-only assistant for tag extraction. You must respond ONLY with valid XML. No JSON, no explanations, no markdown.\n\nUser: ${prompt}`,
+      output: content_text || '',
+      metadata: {
+        provider: process.env.GROQ_API_KEY ? 'groq' : 'openai',
+        model,
+        temperature: 0.3,
+        maxTokens: 500
+      }
+    })
+  }
+
   if (!content_text) {
     logger.warn('No content in tag generation response', { content }, 'TagGenerationService')
     return []
   }
 
-  // Parse XML instead of JSON
+  // Parse XML response
   const xmlContent = content_text
     .replace(/```xml\n?/g, '')
     .replace(/```\n?/g, '')
     .trim()
   
-  // Extract tags from XML
+  // Extract tags from XML (handles both <response><tags> and just <tags> wrappers)
   const tags: Array<{ displayName: string; category?: string }> = [];
   
   try {
@@ -141,17 +179,26 @@ If no good tags can be extracted, return: <tags></tags>`
       const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
       
       if (displayNameMatch && displayNameMatch[1]) {
+        const displayName = displayNameMatch[1].trim();
+        // Skip generic tags that won't cluster well
+        const genericTags = ['ai', 'tech', 'news', 'breaking', 'market', 'update', 'latest'];
+        if (genericTags.includes(displayName.toLowerCase())) {
+          logger.debug('Skipping generic tag', { displayName }, 'TagGenerationService');
+          continue;
+        }
+        
         tags.push({
-          displayName: displayNameMatch[1].trim(),
+          displayName,
           category: categoryMatch?.[1]?.trim(),
         });
       }
     }
     
-    // If no tags found, try alternative structure
+    // Log if no tags found
     if (tags.length === 0) {
-      logger.warn('No tags found in XML, trying alternative parsing', { 
-        xmlPreview: xmlContent.substring(0, 200) 
+      logger.debug('No specific tags extracted from post', { 
+        xmlPreview: xmlContent.substring(0, 200),
+        contentPreview: content.substring(0, 100)
       }, 'TagGenerationService');
     }
   } catch (error) {

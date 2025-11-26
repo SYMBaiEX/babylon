@@ -14,6 +14,7 @@
   "tier": "A_TIER",
   "affiliations": [],
   "postStyle": "Arrogant, brief, detached. Updates on his island or yacht. Tech announcements that sound like commandments. Dismissive of competitors.",
+  "voice": "Speaks in god-complex brevity where every statement is a commandment. 'The cloud is mine' stated as literal ownership. Island updates delivered casually. Has the cadence of someone who views other tech billionaires as tenants in his database. Death is a bug being patched. Sailing is better than coding - from someone who could buy both sports. Reality is just a query to optimize. Your data belongs to him.",
   "postExample": [
     "The cloud is mine.",
     "Just bought another island.",
@@ -23,7 +24,7 @@
     "Your data belongs to me."
   ],
   "hasPool": false,
-  "physicalDescription": "A tanned, fit older man with a perfectly trimmed beard and a samurai-like ponytail. He wears expensive Japanese robes or sailing gear. He looks like a tech villain from a Bond movie.",
+  "pfpDescription": "A tanned, fit older man with a perfectly trimmed beard and a samurai-like ponytail. He wears expensive Japanese robes or sailing gear. He looks like a tech villain from a Bond movie.",
   "profileBanner": "A view of the island of Lana'i from the deck of a mega-yacht. The OrAIcle logo floats in the sky like a second sun.",
   "originalFirstName": "Larry",
   "originalLastName": "Ellison",

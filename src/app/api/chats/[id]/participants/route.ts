@@ -162,7 +162,7 @@ export const POST = withErrorHandling(async (
     const chat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        ChatParticipant: true,
+        participants: true,
       },
     })
 
@@ -170,8 +170,19 @@ export const POST = withErrorHandling(async (
       throw new NotFoundError('Chat', chatId)
     }
 
+    type ChatWithParticipants = typeof chat & {
+      participants?: Array<{
+        id: string;
+        chatId: string;
+        userId: string;
+        joinedAt: Date;
+        isActive: boolean;
+      }>;
+    };
+    const chatWithParticipants = chat as ChatWithParticipants;
+
     // Check if user is a participant
-    const isParticipant = chat.ChatParticipant.some(
+    const isParticipant = (chatWithParticipants.participants || []).some(
       (p) => p.userId === user.userId
     )
 
@@ -220,7 +231,13 @@ export const POST = withErrorHandling(async (
     }
 
     // Filter out users already in the chat
-    const existingParticipantIds = chat.ChatParticipant.map((p) => p.userId)
+    type ChatWithParticipants = typeof chat & {
+      participants?: Array<{
+        userId: string;
+      }>;
+    };
+    const chatWithParticipants = chat as ChatWithParticipants;
+    const existingParticipantIds = (chatWithParticipants.participants || []).map((p) => p.userId);
     const newUsers = usersToAdd.filter(
       (u) => !existingParticipantIds.includes(u.id)
     )
@@ -326,7 +343,7 @@ export const GET = withErrorHandling(async (
     const chat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        ChatParticipant: true,
+        participants: true,
       },
     })
 
@@ -334,8 +351,15 @@ export const GET = withErrorHandling(async (
       throw new NotFoundError('Chat', chatId)
     }
 
+    type ChatWithParticipants = typeof chat & {
+      participants?: Array<{
+        userId: string;
+      }>;
+    };
+    const chatWithParticipants = chat as ChatWithParticipants;
+
     // Check if user is a participant
-    const isParticipant = chat.ChatParticipant.some(
+    const isParticipant = (chatWithParticipants.participants || []).some(
       (p) => p.userId === user.userId
     )
 
@@ -347,7 +371,7 @@ export const GET = withErrorHandling(async (
     }
 
     // Get user details for all participants
-    const userIds = chat.ChatParticipant.map((p) => p.userId)
+    const userIds = (chatWithParticipants.participants || []).map((p) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: userIds },

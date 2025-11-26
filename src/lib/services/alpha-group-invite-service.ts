@@ -11,7 +11,7 @@
  * - Small random chance each tick (0.5% for highly engaged users)
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, eq, and, gte, desc, actors, groupChatMemberships, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
 import { GroupChatInvite } from './group-chat-invite';
@@ -48,12 +48,12 @@ export class AlphaGroupInviteService {
     const invites: AlphaInviteResult[] = [];
 
     // Get all NPCs (actors)
-    const npcs = await prisma.actor.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+    const npcs = await db
+      .select({
+        id: actors.id,
+        name: actors.name,
+      })
+      .from(actors);
 
     logger.info(`Processing alpha invites for ${npcs.length} NPCs`, undefined, 'AlphaGroupInviteService');
 
@@ -90,25 +90,34 @@ export class AlphaGroupInviteService {
       }
 
       // Check if already invited to a group with this NPC
-      const existingMembership = await prisma.groupChatMembership.findFirst({
-        where: {
-          userId: userScore.userId,
-          npcAdminId: npcId,
-          isActive: true,
-        },
-      });
+      const [existingMembership] = await db
+        .select()
+        .from(groupChatMemberships)
+        .where(
+          and(
+            eq(groupChatMemberships.userId, userScore.userId),
+            eq(groupChatMemberships.npcAdminId, npcId),
+            eq(groupChatMemberships.isActive, true)
+          )
+        )
+        .limit(1);
 
       if (existingMembership) {
         continue; // Already in a group
       }
       
       // Check if user is at their group limit
-      const activeGroupCount = await prisma.groupChatMembership.count({
-        where: {
-          userId: userScore.userId,
-          isActive: true,
-        },
-      });
+      const [activeGroupResult] = await db
+        .select({ count: count() })
+        .from(groupChatMemberships)
+        .where(
+          and(
+            eq(groupChatMemberships.userId, userScore.userId),
+            eq(groupChatMemberships.isActive, true)
+          )
+        );
+      
+      const activeGroupCount = activeGroupResult?.count ?? 0;
       
       if (activeGroupCount >= this.MAX_ACTIVE_USER_GROUPS) {
         logger.debug('User at group limit, skipping invite', {
@@ -120,15 +129,17 @@ export class AlphaGroupInviteService {
       }
       
       // Check if user is in invite cooldown
-      const latestMembership = await prisma.groupChatMembership.findFirst({
-        where: {
-          userId: userScore.userId,
-          isActive: true,
-        },
-        orderBy: {
-          joinedAt: 'desc',
-        },
-      });
+      const [latestMembership] = await db
+        .select()
+        .from(groupChatMemberships)
+        .where(
+          and(
+            eq(groupChatMemberships.userId, userScore.userId),
+            eq(groupChatMemberships.isActive, true)
+          )
+        )
+        .orderBy(desc(groupChatMemberships.joinedAt))
+        .limit(1);
       
       if (latestMembership) {
         const hoursSinceJoin = (Date.now() - latestMembership.joinedAt.getTime()) / (1000 * 60 * 60);
@@ -198,24 +209,26 @@ export class AlphaGroupInviteService {
     activeGroups: number;
     invitesLast24h: number;
   }> {
-    const [totalInvites, activeGroups, recentInvites] = await Promise.all([
-      prisma.groupChatMembership.count(),
-      prisma.groupChatMembership.count({
-        where: { isActive: true },
-      }),
-      prisma.groupChatMembership.count({
-        where: {
-          joinedAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          },
-        },
-      }),
-    ]);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const [totalResult] = await db
+      .select({ count: count() })
+      .from(groupChatMemberships);
+    
+    const [activeResult] = await db
+      .select({ count: count() })
+      .from(groupChatMemberships)
+      .where(eq(groupChatMemberships.isActive, true));
+    
+    const [recentResult] = await db
+      .select({ count: count() })
+      .from(groupChatMemberships)
+      .where(gte(groupChatMemberships.joinedAt, oneDayAgo));
 
     return {
-      totalInvites,
-      activeGroups,
-      invitesLast24h: recentInvites,
+      totalInvites: totalResult?.count ?? 0,
+      activeGroups: activeResult?.count ?? 0,
+      invitesLast24h: recentResult?.count ?? 0,
     };
   }
 }

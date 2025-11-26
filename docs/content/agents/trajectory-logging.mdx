@@ -51,11 +51,11 @@ graph LR
 
 ### 1. Database Setup
 
-Add trajectory tables to your Prisma schema:
+Add trajectory tables to your database schema:
 
 ```bash
-cat eliza/plugin-trajectory-logger/prisma/schema-trajectory.prisma >> prisma/schema.prisma
-npx prisma migrate dev
+# Tables are already included in src/db/schema/training.ts
+bun run db:push
 ```
 
 ### 2. Wrap Your Actions

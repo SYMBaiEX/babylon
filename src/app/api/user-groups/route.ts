@@ -108,7 +108,7 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { withErrorHandling } from '@/lib/errors/error-handler';
@@ -132,31 +132,44 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Get groups where user is a member
-  const memberGroups = await prisma.userGroup.findMany({
+  // First, find all group IDs where user is a member
+  const memberRecords = await db.userGroupMember.findMany({
+    where: { userId: user.userId },
+    select: { groupId: true },
+  });
+
+  if (memberRecords.length === 0) {
+    return NextResponse.json({ 
+      success: true,
+      data: [] 
+    });
+  }
+
+  const groupIds = memberRecords.map(m => m.groupId);
+
+  // Get the groups
+  const memberGroups = await db.userGroup.findMany({
     where: {
-      UserGroupMember: {
-        some: {
-          userId: user.userId,
-        },
-      },
-    },
-    include: {
-      UserGroupMember: {
-        select: {
-          userId: true,
-          joinedAt: true,
-        },
-      },
-      UserGroupAdmin: {
-        select: {
-          userId: true,
-        },
-      },
+      id: { in: groupIds },
     },
     orderBy: {
       createdAt: 'desc',
     },
   });
+
+  // Get member counts and admin status for all groups
+  const [memberCounts, adminRecords] = await Promise.all([
+    Promise.all(groupIds.map(gid => db.userGroupMember.count({ where: { groupId: gid } }))),
+    db.userGroupAdmin.findMany({
+      where: {
+        groupId: { in: groupIds },
+        userId: user.userId,
+      },
+    }),
+  ]);
+
+  const memberCountMap = new Map(groupIds.map((gid, i) => [gid, memberCounts[i] ?? 0]));
+  const adminGroupIds = new Set(adminRecords.map(a => a.groupId));
 
   // Format response
   const groups = memberGroups.map(group => ({
@@ -165,8 +178,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     description: group.description,
     createdById: group.createdById,
     createdAt: group.createdAt,
-    memberCount: group.UserGroupMember.length,
-    isAdmin: group.UserGroupAdmin.some(admin => admin.userId === user.userId),
+    memberCount: memberCountMap.get(group.id) ?? 0,
+    isAdmin: adminGroupIds.has(group.id),
   }));
 
   return NextResponse.json({ 
@@ -190,7 +203,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Validate that all memberIds are real users (not NPCs)
   if (validatedData.memberIds.length > 0) {
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       where: {
         id: {
           in: validatedData.memberIds,
@@ -215,34 +228,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const memberIdVal = await generateSnowflakeId();
   const adminIdVal = await generateSnowflakeId();
   
-  const group = await prisma.userGroup.create({
+  const group = await db.userGroup.create({
     data: {
       id: groupId,
       name: validatedData.name,
       description: validatedData.description,
       createdById: user.userId,
       updatedAt: new Date(),
-      // Add creator as member and admin
-      UserGroupMember: {
-        create: {
-          id: memberIdVal,
-          userId: user.userId,
-          addedBy: user.userId,
-        },
-      },
-      UserGroupAdmin: {
-        create: {
-          id: adminIdVal,
-          userId: user.userId,
-          grantedBy: user.userId,
-        },
-      },
-    },
-    include: {
-      UserGroupMember: true,
-      UserGroupAdmin: true,
     },
   });
+
+  // Add creator as member and admin
+  await Promise.all([
+    db.userGroupMember.create({
+      data: {
+        id: memberIdVal,
+        groupId: group.id,
+        userId: user.userId,
+        addedBy: user.userId,
+      },
+    }),
+    db.userGroupAdmin.create({
+      data: {
+        id: adminIdVal,
+        groupId: group.id,
+        userId: user.userId,
+        grantedBy: user.userId,
+      },
+    }),
+  ]);
 
   // Award points for creating a private group
   // User groups are private by default (only members can see/access)
@@ -263,7 +277,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }))
     );
 
-    await prisma.userGroupMember.createMany({
+    await db.userGroupMember.createMany({
       data: memberData,
     });
   }
@@ -277,28 +291,37 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .map(async () => await generateSnowflakeId())
   );
   
-  await prisma.chat.create({
+  const chat = await db.chat.create({
     data: {
       id: chatId,
       name: validatedData.name,
       isGroup: true,
       updatedAt: new Date(),
-      ChatParticipant: {
-        create: [
-          {
-            id: creatorChatParticipantId,
-            userId: user.userId,
-          },
-          ...validatedData.memberIds
-            .filter(id => id !== user.userId)
-            .map((memberId, idx) => ({
-              id: otherChatParticipantIds[idx]!,
-              userId: memberId,
-            })),
-        ],
-      },
+      groupId: group.id,
     },
   });
+
+  // Add all members as chat participants
+  const chatParticipants = [
+    {
+      id: creatorChatParticipantId,
+      chatId: chat.id,
+      userId: user.userId,
+    },
+    ...validatedData.memberIds
+      .filter(id => id !== user.userId)
+      .map((memberId, idx) => ({
+        id: otherChatParticipantIds[idx]!,
+        chatId: chat.id,
+        userId: memberId,
+      })),
+  ];
+
+  if (chatParticipants.length > 0) {
+    await db.chatParticipant.createMany({
+      data: chatParticipants,
+    });
+  }
 
   return NextResponse.json({
     success: true,

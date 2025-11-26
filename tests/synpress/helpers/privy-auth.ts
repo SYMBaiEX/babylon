@@ -41,67 +41,140 @@ export function getPrivyTestAccount(): PrivyTestAccount {
  * Verifies that PrivyProvider is rendered (not the fallback UI) and that the SDK
  * has finished initializing. This is critical because Privy SDK must be ready before
  * any authentication UI interactions can succeed.
+ * 
+ * Detection strategy:
+ * 1. Wait for page to fully hydrate (buttons visible)
+ * 2. Check for warning banner (indicates Privy not configured in dev mode)
+ * 3. Look for actual Privy UI elements (login buttons, dialogs) which proves SDK is working
+ * 4. The SDK is ready when we can interact with Privy authentication UI
  */
-async function waitForPrivyReady(page: Page, timeout = 30000): Promise<void> {
+async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...')
   
+  const startTime = Date.now()
+  
   try {
-    // First, verify PrivyProvider is rendered (check for Privy-specific DOM elements)
-    // If PrivyProvider didn't render, it means NEXT_PUBLIC_PRIVY_APP_ID wasn't set at build time
-    const privyRoot = page.locator('[data-privy-root]').first()
-    const privyRootVisible = await privyRoot.isVisible({ timeout: 5000 }).catch(() => false)
-    
-    if (!privyRootVisible) {
-      // Check if we're in the fallback UI (no PrivyProvider)
-      const hasPrivyConfig = await page.evaluate(() => {
-        // Check if window has Privy SDK
-        return typeof window !== 'undefined' && typeof (window as { privy?: unknown }).privy !== 'undefined'
-      }).catch(() => false)
-      
-      if (!hasPrivyConfig) {
-        throw new Error(
-          'PrivyProvider not rendered - NEXT_PUBLIC_PRIVY_APP_ID was likely not set during build. ' +
-          'Check CI workflow: Build production step must include NEXT_PUBLIC_PRIVY_APP_ID in env: section.'
-        )
+    // STEP 1: First wait for page to hydrate - look for any button
+    // This ensures React has finished rendering before we check for Privy
+    console.log('⏳ Waiting for page to hydrate...')
+    let pageHydrated = false
+    for (let i = 0; i < 30; i++) {
+      const buttonCount = await page.locator('button').count().catch(() => 0)
+      if (buttonCount > 0) {
+        console.log(`✅ Page hydrated (${buttonCount} buttons found)`)
+        pageHydrated = true
+        break
       }
+      await page.waitForTimeout(500)
     }
     
-    // Wait for Privy SDK to be available and ready
-    await page.waitForFunction(
-      () => {
-        // Check if Privy SDK is loaded
-        if (typeof window === 'undefined') {
-          return false
-        }
-        
-        // Check for Privy SDK on window object
-        const privy = (window as { privy?: { ready?: boolean } }).privy
-        if (!privy) {
-          return false
-        }
-        
-        // Check if SDK is ready
-        return privy.ready === true
-      },
-      { timeout }
-    )
+    if (!pageHydrated) {
+      // Try reloading the page once
+      console.log('⚠️ Page not hydrated, attempting reload...')
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(2000)
+    }
     
-    console.log('✅ Privy SDK is ready')
+    // STEP 2: Check if our debug warning banner is visible (indicates Privy not configured)
+    // Note: This only shows in development mode (NODE_ENV !== 'production')
+    const warningBanner = page.locator('[data-testid="privy-not-configured-warning"]').first()
+    const warningVisible = await warningBanner.isVisible({ timeout: 2000 }).catch(() => false)
+    
+    if (warningVisible) {
+      throw new Error(
+        'Privy not configured: The app shows the "Privy not configured" warning banner.\n' +
+        'This means NEXT_PUBLIC_PRIVY_APP_ID was not set when the app was built.\n' +
+        '\n' +
+        'To fix this in CI:\n' +
+        '1. Go to GitHub repository → Settings → Secrets and variables → Actions\n' +
+        '2. Add/verify repository secret: NEXT_PUBLIC_PRIVY_APP_ID (or PRIVY_APP_ID)\n' +
+        '3. Ensure the secret value is your Privy App ID (starts with "cl...")\n' +
+        '4. Re-run the workflow after adding the secret'
+      )
+    }
+    
+    // STEP 3: Wait for Privy to be ready by checking for actual Privy UI elements
+    // Privy renders these elements when the SDK is initialized
+    console.log('⏳ Looking for Privy UI elements...')
+    
+    // Check for Privy being ready by looking for actual interactive elements
+    // These selectors detect that Privy SDK has loaded and rendered its UI
+    const privyReadyIndicators = [
+      // Login button that triggers Privy
+      'button:has-text("Log in")',
+      'button:has-text("Connect Wallet")',
+      // Privy modal dialog
+      '[role="dialog"]:has-text("log in")',
+      '[role="dialog"]:has-text("sign up")',
+      // Continue with email/wallet buttons inside Privy modal
+      'button:has-text("Continue with Email")',
+      'button:has-text("Continue with a wallet")',
+      // User is already logged in
+      '[data-testid="user-menu"]',
+    ]
+    
+    // Calculate remaining time
+    const elapsed = Date.now() - startTime
+    const remainingTime = Math.max(timeout - elapsed, 10000)
+    const checkInterval = 500
+    const maxAttempts = Math.floor(remainingTime / checkInterval)
+    
+    // Wait for any of these indicators to appear
+    let privyReady = false
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      for (const selector of privyReadyIndicators) {
+        const element = page.locator(selector).first()
+        const isVisible = await element.isVisible({ timeout: 100 }).catch(() => false)
+        if (isVisible) {
+          const totalElapsed = Date.now() - startTime
+          console.log(`✅ Privy SDK is ready (took ${totalElapsed}ms, detected: ${selector})`)
+          privyReady = true
+          break
+        }
+      }
+      
+      if (privyReady) break
+      
+      // Wait before next check
+      await page.waitForTimeout(checkInterval)
+    }
+    
+    if (!privyReady) {
+      // Gather debugging information
+      const debugInfo = await page.evaluate(() => {
+        const info: Record<string, unknown> = {
+          hasWindow: typeof window !== 'undefined',
+          pageTitle: document.title,
+          bodyText: document.body?.textContent?.substring(0, 500) || 'empty',
+          hasPrivyScripts: Array.from(document.querySelectorAll('script'))
+            .filter(s => s.src?.includes('privy'))
+            .map(s => s.src),
+          dialogCount: document.querySelectorAll('[role="dialog"]').length,
+          buttonCount: document.querySelectorAll('button').length,
+        }
+        return info
+      }).catch(() => ({ error: 'Could not gather debug info' }))
+      
+      throw new Error(
+        `Privy SDK failed to initialize within ${timeout}ms.\n` +
+        `No Privy UI elements found.\n` +
+        `Debug info: ${JSON.stringify(debugInfo, null, 2)}\n` +
+        `\nThis usually means:\n` +
+        `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
+        `2. Privy SDK script failed to load (check for 404 errors)\n` +
+        `3. The page didn't finish loading`
+      )
+    }
   } catch (error) {
-    // Log console errors for debugging
-    const consoleMessages = await page.evaluate(() => {
-      // Try to get console errors if available
-      return 'Console errors not accessible in Playwright'
-    }).catch(() => 'Could not access console')
+    const elapsed = Date.now() - startTime
     
-    throw new Error(
-      `Privy SDK failed to initialize: ${error instanceof Error ? error.message : String(error)}\n` +
-      `Console: ${consoleMessages}\n` +
-      `This usually means:\n` +
-      `1. NEXT_PUBLIC_PRIVY_APP_ID was not set during build (check CI workflow)\n` +
-      `2. Privy SDK script failed to load\n` +
-      `3. Network issues preventing Privy API calls`
-    )
+    // Re-throw with timing info if not already included
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (!errorMessage.includes('took') && !errorMessage.includes('within')) {
+      throw new Error(`Privy SDK error after ${elapsed}ms: ${errorMessage}`)
+    }
+    throw error
   }
 }
 

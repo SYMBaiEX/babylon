@@ -28,27 +28,31 @@ export const messagesProvider: Provider = {
     }
     
     try {
-      const [chatsResult, unreadResult] = await Promise.all([
-        babylonRuntime.a2aClient.getChats(),
-        babylonRuntime.a2aClient.getUnreadCount()
-      ]) as [
-        { chats?: Array<{
-          id: string
-          name: string | null
-          isGroup: boolean
-          participants: Array<unknown>
-        }> },
-        { unreadCount?: number }
-      ]
+      // Define chat participant type
+      interface ChatParticipant {
+        id: string
+        username?: string
+        displayName?: string
+      }
       
-      const chats = (chatsResult as { chats?: Array<{
+      // Define chat type
+      interface Chat {
         id: string
         name: string | null
         isGroup: boolean
-        participants: Array<unknown>
-      }> })?.chats || []
+        participants: ChatParticipant[]
+      }
       
-      const unreadCount = (unreadResult as { unreadCount?: number })?.unreadCount || 0
+      const [chatsResult, unreadResult] = await Promise.all([
+        babylonRuntime.a2aClient.getChats(),
+        babylonRuntime.a2aClient.getUnreadCount()
+      ])
+      
+      const chatsData = chatsResult as { chats?: Chat[] }
+      const unreadData = unreadResult as { unreadCount?: number }
+      
+      const chats = chatsData.chats || []
+      const unreadCount = unreadData.unreadCount || 0
       
       const chatsText = chats.length > 0
         ? `Chats:\n${chats.map(c => 

@@ -6,7 +6,7 @@
  * configuration and enables/disables WANDB integration.
  */
 
-import { prisma } from './prisma';
+import { db, eq, systemSettings } from '@/db';
 
 /**
  * AI Model Configuration
@@ -47,13 +47,14 @@ export async function getAIModelConfig(): Promise<AIModelConfig> {
     return cachedConfig;
   }
 
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: 'system' },
-    select: {
-      wandbModel: true,
-      wandbEnabled: true,
-    },
-  });
+  const [settings] = await db
+    .select({
+      wandbModel: systemSettings.wandbModel,
+      wandbEnabled: systemSettings.wandbEnabled,
+    })
+    .from(systemSettings)
+    .where(eq(systemSettings.id, 'system'))
+    .limit(1);
 
   const envWandbModel = process.env.WANDB_MODEL || null;
   const wandbApiKeyPresent = !!process.env.WANDB_API_KEY;

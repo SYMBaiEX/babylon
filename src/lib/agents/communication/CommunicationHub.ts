@@ -29,6 +29,32 @@ export interface Message {
   streaming?: boolean
 }
 
+/**
+ * Type guard to check if data is a Message
+ */
+function isMessage(data: unknown): data is Message {
+  return (
+    data !== null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    'id' in data &&
+    'from' in data &&
+    'to' in data &&
+    'type' in data &&
+    'content' in data &&
+    'timestamp' in data &&
+    'metadata' in data &&
+    typeof (data as { id: unknown }).id === 'string' &&
+    typeof (data as { from: unknown }).from === 'string' &&
+    typeof (data as { to: unknown }).to === 'string' &&
+    typeof (data as { type: unknown }).type === 'string' &&
+    typeof (data as { timestamp: unknown }).timestamp === 'string' &&
+    typeof (data as { metadata: unknown }).metadata === 'object' &&
+    (data as { metadata: unknown }).metadata !== null &&
+    !Array.isArray((data as { metadata: unknown }).metadata)
+  )
+}
+
 export interface MessageRoute {
   messageId: string
   from: string
@@ -255,9 +281,15 @@ export class CommunicationHub {
     handler: (message: Message) => void | Promise<void>,
   ): string {
     // Wrap handler to convert JsonValue back to Message type
+    // Message extends JsonValue, so this is safe
     return this.eventBus.subscribe(
       `agent.${agentId}.message`,
-      (data: JsonValue) => handler(data as unknown as Message),
+      (data: JsonValue) => {
+        // Type guard to ensure data is a Message
+        if (isMessage(data)) {
+          handler(data)
+        }
+      },
     )
   }
 
@@ -270,9 +302,17 @@ export class CommunicationHub {
     handler: (message: Message) => void | Promise<void>,
   ): string {
     // Wrap handler to convert JsonValue back to Message type
+    // Message extends JsonValue, so this is safe
     return this.eventBus.subscribe(
       'message.*',
-      (data: JsonValue) => handler(data as unknown as Message),
+      (data: JsonValue) => {
+        // Type guard to ensure data is a Message
+        if (data && typeof data === 'object' && 'id' in data && 'from' in data && 'to' in data) {
+          if (isMessage(data)) {
+            handler(data)
+          }
+        }
+      },
     )
   }
 

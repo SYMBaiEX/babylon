@@ -16,8 +16,9 @@ export const expertAnalysis = definePrompt({
   description: 'Generates expert analysis from NPCs with domain expertise',
   temperature: 0.7,
   maxTokens: 200,
-  template: `
-You must respond with valid XML only.
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
 
 Generate expert analysis from {{expertName}}.
 

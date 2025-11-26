@@ -98,7 +98,7 @@
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/prisma';
+import { db, posts, comments, users, eq } from '@/db';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -136,126 +136,133 @@ export const POST = withErrorHandling(async (
     throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
   }
 
-    const { gameId, authorId: npcId, timestamp } = parseResult.metadata;
+  const { gameId, authorId: npcId, timestamp } = parseResult.metadata;
 
-    const displayName = user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-      : 'Anonymous';
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
 
-    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
-    const canonicalUserId = dbUser.id;
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
-    // 4. Check rate limiting
-    const rateLimitResult = await ReplyRateLimiter.canReply(canonicalUserId, npcId);
+  // 4. Check rate limiting
+  const rateLimitResult = await ReplyRateLimiter.canReply(canonicalUserId, npcId);
 
-    if (!rateLimitResult.allowed) {
-      throw new BusinessLogicError(rateLimitResult.reason || 'Rate limit exceeded', 'RATE_LIMIT_EXCEEDED');
-    }
+  if (!rateLimitResult.allowed) {
+    throw new BusinessLogicError(rateLimitResult.reason || 'Rate limit exceeded', 'RATE_LIMIT_EXCEEDED');
+  }
 
-    // 5. Check message quality
-    const qualityResult = await MessageQualityChecker.checkQuality(
-      content,
-      canonicalUserId,
-      'reply',
-      postId
-    );
+  // 5. Check message quality
+  const qualityResult = await MessageQualityChecker.checkQuality(
+    content,
+    canonicalUserId,
+    'reply',
+    postId
+  );
 
-    if (!qualityResult.passed) {
-      throw new BusinessLogicError(qualityResult.errors.join('; '), 'QUALITY_CHECK_FAILED');
-    }
+  if (!qualityResult.passed) {
+    throw new BusinessLogicError(qualityResult.errors.join('; '), 'QUALITY_CHECK_FAILED');
+  }
 
-    // 6. Ensure user exists in database
-    // 7. Ensure post exists (upsert pattern)
-    await prisma.post.upsert({
-      where: { id: postId },
-      update: {},
-      create: {
-        id: postId,
-        content: '[Game-generated post]',
-        authorId: npcId,
-        gameId,
-        timestamp,
-      },
+  // 6. Ensure post exists (check first, then upsert)
+  const [existingPost] = await db.select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (!existingPost) {
+    await db.insert(posts).values({
+      id: postId,
+      content: '[Game-generated post]',
+      authorId: npcId,
+      gameId,
+      timestamp,
     });
+  }
 
-    // 8. Create comment
-    const now = new Date();
-    const comment = await prisma.comment.create({
-      data: {
-        id: await generateSnowflakeId(),
-        content: content.trim(),
-        postId,
-        authorId: canonicalUserId,
-        createdAt: now,
-        updatedAt: now,
-      },
-      include: {
-        User: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-          },
-        },
-      },
-    });
+  // 7. Create comment
+  const now = new Date();
+  const commentId = await generateSnowflakeId();
+  
+  const [newComment] = await db.insert(comments).values({
+    id: commentId,
+    content: content.trim(),
+    postId,
+    authorId: canonicalUserId,
+    createdAt: now,
+    updatedAt: now,
+  }).returning();
 
-    // 9. Record the interaction
-    await ReplyRateLimiter.recordReply(
+  if (!newComment) {
+    throw new BusinessLogicError('Failed to create comment', 'CREATE_FAILED');
+  }
+
+  // Get user info for the response
+  const [commentAuthor] = await db.select({
+    id: users.id,
+    displayName: users.displayName,
+    username: users.username,
+    profileImageUrl: users.profileImageUrl,
+  })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .limit(1);
+
+  // 8. Record the interaction
+  await ReplyRateLimiter.recordReply(
+    canonicalUserId,
+    npcId,
+    postId,
+    newComment.id,
+    qualityResult.score
+  );
+
+  // 9. Check for following chance
+  const followingChance = await FollowingMechanics.calculateFollowingChance(
+    canonicalUserId,
+    npcId,
+    rateLimitResult.replyStreak || 0,
+    qualityResult.score
+  );
+
+  let followed = false;
+  if (followingChance.willFollow) {
+    await FollowingMechanics.recordFollow(
       canonicalUserId,
       npcId,
-      postId,
-      comment.id,
-      qualityResult.score
+      `Streak: ${rateLimitResult.replyStreak}, Quality: ${qualityResult.score.toFixed(2)}`
     );
+    followed = true;
+  }
 
-    // 10. Check for following chance
-    const followingChance = await FollowingMechanics.calculateFollowingChance(
-      canonicalUserId,
-      npcId,
-      rateLimitResult.replyStreak || 0,
-      qualityResult.score
-    );
+  // 10. Check for group chat invite chance (only if followed)
+  let invitedToChat = false;
+  let chatInfo = null;
 
-    let followed = false;
-    if (followingChance.willFollow) {
-      await FollowingMechanics.recordFollow(
+  if (followed || (await FollowingMechanics.isFollowing(canonicalUserId, npcId))) {
+    const inviteChance = await GroupChatInvite.calculateInviteChance(canonicalUserId, npcId);
+
+    if (inviteChance.willInvite && inviteChance.chatId && inviteChance.chatName) {
+      await GroupChatInvite.recordInvite(
         canonicalUserId,
         npcId,
-        `Streak: ${rateLimitResult.replyStreak}, Quality: ${qualityResult.score.toFixed(2)}`
+        inviteChance.chatId,
+        inviteChance.chatName
       );
-      followed = true;
+      invitedToChat = true;
+      chatInfo = {
+        chatId: inviteChance.chatId,
+        chatName: inviteChance.chatName,
+        isOwned: inviteChance.isOwned,
+      };
     }
+  }
 
-    // 11. Check for group chat invite chance (only if followed)
-    let invitedToChat = false;
-    let chatInfo = null;
-
-    if (followed || (await FollowingMechanics.isFollowing(canonicalUserId, npcId))) {
-      const inviteChance = await GroupChatInvite.calculateInviteChance(canonicalUserId, npcId);
-
-      if (inviteChance.willInvite && inviteChance.chatId && inviteChance.chatName) {
-        await GroupChatInvite.recordInvite(
-          canonicalUserId,
-          npcId,
-          inviteChance.chatId,
-          inviteChance.chatName
-        );
-        invitedToChat = true;
-        chatInfo = {
-          chatId: inviteChance.chatId,
-          chatName: inviteChance.chatName,
-          isOwned: inviteChance.isOwned,
-        };
-      }
-    }
-
-  // 12. Return success with all the feedback
+  // 11. Return success with all the feedback
   logger.info('Reply created successfully', {
     postId,
     userId: canonicalUserId,
-    commentId: comment.id,
+    commentId: newComment.id,
     followed,
     invitedToChat,
     marketId, // Optional: for analytics/tracking
@@ -265,12 +272,12 @@ export const POST = withErrorHandling(async (
   return successResponse(
     {
       comment: {
-        id: comment.id,
-        content: comment.content,
-        postId: comment.postId,
-        authorId: comment.authorId,
-        createdAt: comment.createdAt,
-        author: comment.User,
+        id: newComment.id,
+        content: newComment.content,
+        postId: newComment.postId,
+        authorId: newComment.authorId,
+        createdAt: newComment.createdAt,
+        author: commentAuthor,
       },
       quality: {
         score: qualityResult.score,

@@ -93,12 +93,12 @@
 import type { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { NotFoundError, BusinessLogicError } from '@/lib/errors';
-import { Prisma } from '@prisma/client';
+import { Decimal } from '@/db';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -121,7 +121,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   logger.info(`Admin trading feed requested`, { params }, 'GET /api/admin/trades');
 
   // Get recent balance transactions (deposits, withdrawals, trades)
-  const balanceTransactions = await prisma.balanceTransaction.findMany({
+  const balanceTransactions = await db.balanceTransaction.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { createdAt: 'desc' },
@@ -130,7 +130,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch users for balance transactions
   const balanceUserIds = [...new Set(balanceTransactions.map(tx => tx.userId))];
-  const balanceUsers = await prisma.user.findMany({
+  const balanceUsers = await db.user.findMany({
     where: { id: { in: balanceUserIds } },
     select: {
       id: true,
@@ -143,7 +143,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const balanceUsersMap = new Map(balanceUsers.map(u => [u.id, u]));
 
   // Get recent NPC trades
-  const npcTrades = await prisma.nPCTrade.findMany({
+  const npcTrades = await db.npcTrade.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { executedAt: 'desc' },
@@ -153,7 +153,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch actors for NPC trades
   const actorIds = [...new Set(npcTrades.map(trade => trade.npcActorId))];
   
-  const actors = await prisma.actor.findMany({
+  const actors = await db.actor.findMany({
     where: { id: { in: actorIds } },
     select: {
       id: true,
@@ -165,7 +165,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const actorsMap = new Map(actors.map(a => [a.id, a]));
 
   // Get recent position changes
-  const positions = await prisma.position.findMany({
+  const positions = await db.position.findMany({
     take: params.limit,
     skip: params.offset,
     orderBy: { updatedAt: 'desc' },
@@ -177,7 +177,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const marketIds = [...new Set(positions.map(pos => pos.marketId))];
   
   const [positionUsers, markets] = await Promise.all([
-    prisma.user.findMany({
+    db.user.findMany({
       where: { id: { in: positionUserIds } },
       select: {
         id: true,
@@ -187,7 +187,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         isActor: true,
       },
     }),
-    prisma.market.findMany({
+    db.market.findMany({
       where: { id: { in: marketIds } },
       select: {
         id: true,
@@ -260,9 +260,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get total counts for pagination
   const [balanceCount, npcCount, positionCount] = await Promise.all([
-    prisma.balanceTransaction.count(),
-    prisma.nPCTrade.count(),
-    prisma.position.count(),
+    db.balanceTransaction.count(),
+    db.npcTrade.count(),
+    db.position.count(),
   ]);
 
   return successResponse({
@@ -330,7 +330,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (tradeData.type === 'balance') {
     // Verify user exists
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: tradeData.userId },
       select: { id: true, virtualBalance: true },
     });
@@ -340,19 +340,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     const currentBalance = Number(user.virtualBalance);
-    const amountDecimal = new Prisma.Decimal(tradeData.amount);
+    const amountDecimal = new Decimal(tradeData.amount);
     const newBalance = tradeData.updateBalance 
       ? currentBalance + tradeData.amount 
       : currentBalance;
 
     // Create balance transaction
-    const transaction = await prisma.$transaction(async (tx) => {
+    const transaction = await db.$transaction(async (tx) => {
       // Update user balance if requested
       if (tradeData.updateBalance) {
         await tx.user.update({
           where: { id: tradeData.userId },
           data: {
-            virtualBalance: newBalance,
+            virtualBalance: String(newBalance),
           },
         });
       }
@@ -363,9 +363,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           id: await generateSnowflakeId(),
           userId: tradeData.userId,
           type: tradeData.transactionType,
-          amount: amountDecimal,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
+          amount: amountDecimal.toString(),
+          balanceBefore: String(currentBalance),
+          balanceAfter: String(newBalance),
           description: tradeData.description || `Admin-created ${tradeData.transactionType}`,
           relatedId: tradeData.relatedId || null,
         },
@@ -396,7 +396,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   } else if (tradeData.type === 'npc') {
     // Verify NPC actor exists (NPCTrade references Actor table per schema)
-    const actor = await prisma.actor.findUnique({
+    const actor = await db.actor.findUnique({
       where: { id: tradeData.npcActorId },
       select: { id: true },
     });
@@ -414,7 +414,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Create NPC trade
-    const npcTrade = await prisma.nPCTrade.create({
+    const npcTrade = await db.npcTrade.create({
       data: {
         id: await generateSnowflakeId(),
         npcActorId: tradeData.npcActorId,

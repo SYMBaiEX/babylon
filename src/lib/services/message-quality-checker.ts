@@ -6,13 +6,10 @@
  * chat invite chances, and risk of being booted from group chats.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, comments, messages, userInteractions, eq, desc } from '@/db';
 
 /**
  * Message quality check result
- * 
- * @description Contains quality score, pass/fail status, warnings, errors,
- * and detailed factor scores for length, uniqueness, and content quality.
  */
 export interface QualityCheckResult {
   score: number; // 0-1, where 1 is perfect
@@ -28,59 +25,22 @@ export interface QualityCheckResult {
 
 /**
  * Message Quality Checker Class
- * 
- * @description Static service class for validating message quality. Provides
- * methods for checking length, uniqueness, and content quality, returning
- * comprehensive quality scores.
  */
 export class MessageQualityChecker {
-  /**
-   * Minimum message length (1 character, empty not allowed)
-   * @private
-   */
   private static readonly MIN_LENGTH = 1;
-  
-  /**
-   * Ideal minimum message length (30 characters)
-   * @private
-   */
   private static readonly IDEAL_MIN_LENGTH = 30;
-  
-  /**
-   * Ideal maximum message length (200 characters)
-   * @private
-   */
   private static readonly IDEAL_MAX_LENGTH = 200;
-  
-  /**
-   * Maximum message length (500 characters)
-   * @private
-   */
   private static readonly MAX_LENGTH = 500;
-
-  /**
-   * Similarity threshold for duplicate detection (0.85)
-   * @private
-   */
   private static readonly DUPLICATE_THRESHOLD = 0.85;
 
   /**
    * Check message quality
-   * 
-   * @description Validates message quality across multiple dimensions (length,
-   * uniqueness, content quality) and returns a comprehensive quality score.
-   * 
-   * @param {string} message - Message text to check
-   * @param {string} userId - User ID who sent the message
-   * @param {'reply' | 'groupchat' | 'dm'} contextType - Context type
-   * @param {string} contextId - Context ID (postId, chatId, or empty for game chats)
-   * @returns {Promise<QualityCheckResult>} Quality check result with score and details
    */
   static async checkQuality(
     message: string,
     userId: string,
     contextType: 'reply' | 'groupchat' | 'dm',
-    contextId: string // postId, chatId, or empty for game chats
+    contextId: string
   ): Promise<QualityCheckResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -170,7 +130,7 @@ export class MessageQualityChecker {
   ): Promise<number> {
     // Skip uniqueness check for game chats (empty contextId)
     if (!contextId) {
-      return 1.0; // Perfect score for game chats
+      return 1.0;
     }
 
     // Get recent messages from this user
@@ -178,34 +138,19 @@ export class MessageQualityChecker {
 
     if (contextType === 'reply') {
       // Check comments from this user on any post
-      const recentComments = await prisma.comment.findMany({
-        where: {
-          authorId: userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 20,
-        select: {
-          content: true,
-        },
-      });
+      const recentComments = await db.select({ content: comments.content })
+        .from(comments)
+        .where(eq(comments.authorId, userId))
+        .orderBy(desc(comments.createdAt))
+        .limit(20);
       recentMessages = recentComments.map((c) => c.content);
     } else if (contextType === 'dm' || contextType === 'groupchat') {
-      // Check messages from this user in this chat (works for both DMs and group chats)
-      const recentChatMessages = await prisma.message.findMany({
-        where: {
-          chatId: contextId,
-          senderId: userId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 20,
-        select: {
-          content: true,
-        },
-      });
+      // Check messages from this user in this chat
+      const recentChatMessages = await db.select({ content: messages.content })
+        .from(messages)
+        .where(eq(messages.senderId, userId))
+        .orderBy(desc(messages.createdAt))
+        .limit(20);
       recentMessages = recentChatMessages.map((m) => m.content);
     }
 
@@ -266,7 +211,7 @@ export class MessageQualityChecker {
       return 0.7;
     }
 
-    // Skip word-count softness for DMs; keep for public/group contexts.
+    // Skip word-count softness for DMs
     if (contextType !== 'dm') {
       const words = trimmed.split(/\s+/).filter((w) => w.length > 0);
       if (words.length < 3) {
@@ -313,14 +258,9 @@ export class MessageQualityChecker {
    * Get user's quality statistics
    */
   static async getUserQualityStats(userId: string) {
-    const interactions = await prisma.userInteraction.findMany({
-      where: {
-        userId,
-      },
-      select: {
-        qualityScore: true,
-      },
-    });
+    const interactions = await db.select({ qualityScore: userInteractions.qualityScore })
+      .from(userInteractions)
+      .where(eq(userInteractions.userId, userId));
 
     if (interactions.length === 0) {
       return {
@@ -334,10 +274,8 @@ export class MessageQualityChecker {
     const averageScore =
       interactions.reduce((sum, i) => sum + i.qualityScore, 0) /
       interactions.length;
-    const highQualityCount = interactions.filter((i) => i.qualityScore >= 0.8)
-      .length;
-    const lowQualityCount = interactions.filter((i) => i.qualityScore < 0.5)
-      .length;
+    const highQualityCount = interactions.filter((i) => i.qualityScore >= 0.8).length;
+    const lowQualityCount = interactions.filter((i) => i.qualityScore < 0.5).length;
 
     return {
       averageScore,

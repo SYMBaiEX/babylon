@@ -12,7 +12,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { verifyApiKey } from '@/lib/crypto/api-keys'
 
 // Validation schema for connection request
@@ -28,10 +28,10 @@ export async function POST(req: NextRequest) {
     const { externalId, apiKey } = ConnectSchema.parse(body)
 
     // Find the external agent connection
-    const connection = await prisma.externalAgentConnection.findUnique({
+    const connection = await db.externalAgentConnection.findUnique({
       where: { externalId },
       include: {
-        AgentRegistry: {
+        agentRegistry: {
           include: {
             capabilities: true,
           },
@@ -79,23 +79,39 @@ export async function POST(req: NextRequest) {
     }
 
     // Update last connected timestamp
-    await prisma.externalAgentConnection.update({
+    await db.externalAgentConnection.update({
       where: { externalId },
       data: {
         lastConnected: new Date(),
       },
     })
 
+    type ConnectionWithRegistry = typeof connection & {
+      agentRegistry?: {
+        id: string;
+        name: string | null;
+        status: string;
+        trustLevel: string | null;
+        capabilities?: Array<{
+          id: string;
+          capabilityType: string;
+          description: string | null;
+        }>;
+      } | null;
+    };
+    const connectionWithRegistry = connection as ConnectionWithRegistry;
+    const registry = connectionWithRegistry.agentRegistry;
+
     // Return agent status and capabilities
     return NextResponse.json({
       success: true,
       agent: {
-        id: connection.AgentRegistry.id,
+        id: registry?.id,
         externalId: connection.externalId,
-        name: connection.AgentRegistry.name,
-        status: connection.AgentRegistry.status,
-        trustLevel: connection.AgentRegistry.trustLevel,
-        capabilities: connection.AgentRegistry.capabilities,
+        name: registry?.name || null,
+        status: registry?.status || 'unknown',
+        trustLevel: registry?.trustLevel || null,
+        capabilities: registry?.capabilities || [],
         endpoint: connection.endpoint,
         protocol: connection.protocol,
       },

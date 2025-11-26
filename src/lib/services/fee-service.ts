@@ -7,12 +7,24 @@
  */
 
 import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
-import { prisma } from '@/lib/prisma'
+import {
+  db,
+  eq,
+  and,
+  gte,
+  lte,
+  desc,
+  sum,
+  count,
+  withTransaction,
+  users,
+  tradingFees,
+  balanceTransactions,
+  type Transaction,
+} from '@/db'
+import { Decimal } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import { Prisma } from '@prisma/client'
-
-// Force TypeScript server reload after Prisma regeneration
 
 /**
  * Fee calculation result
@@ -170,35 +182,40 @@ export class FeeService {
     const referrerId = await this.getUserReferrer(userId)
     
     // Execute in transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withTransaction(async (tx) => {
       // Create trading fee record
-      await tx.tradingFee.create({
-        data: {
-          id: await generateSnowflakeId(),
-          userId,
-          tradeType,
-          tradeId: tradeId || null,
-          marketId: marketId || null,
-          feeAmount: new Prisma.Decimal(feeCalc.feeAmount),
-          platformFee: new Prisma.Decimal(feeCalc.platformShare),
-          referrerFee: new Prisma.Decimal(feeCalc.referrerShare),
-          referrerId: referrerId || null,
-        },
+      await tx.insert(tradingFees).values({
+        id: await generateSnowflakeId(),
+        userId,
+        tradeType,
+        tradeId: tradeId || null,
+        marketId: marketId || null,
+        feeAmount: new Decimal(feeCalc.feeAmount).toString(),
+        platformFee: new Decimal(feeCalc.platformShare).toString(),
+        referrerFee: new Decimal(feeCalc.referrerShare).toString(),
+        referrerId: referrerId || null,
       })
       
+      // Get current totalFeesPaid
+      const [currentUser] = await tx
+        .select({ totalFeesPaid: users.totalFeesPaid })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+      
+      const currentTotalFees = currentUser ? Number(currentUser.totalFeesPaid) : 0
+      
       // Update trader's total fees paid
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          totalFeesPaid: {
-            increment: new Prisma.Decimal(feeCalc.feeAmount),
-          },
-        },
-      })
+      await tx
+        .update(users)
+        .set({
+          totalFeesPaid: new Decimal(currentTotalFees + feeCalc.feeAmount).toString(),
+        })
+        .where(eq(users.id, userId))
       
       // Distribute referral fee if referrer exists
       if (referrerId) {
-        await this.distributeReferralFee(referrerId, feeCalc.referrerShare, userId, tx)
+        await this.distributeReferralFeeInTx(referrerId, feeCalc.referrerShare, userId, tx)
       }
       
       return {
@@ -224,28 +241,30 @@ export class FeeService {
    * Get user's referrer
    */
   static async getUserReferrer(userId: string): Promise<string | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { referredBy: true },
-    })
+    const [user] = await db
+      .select({ referredBy: users.referredBy })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
     
     return user?.referredBy || null
   }
   
   /**
-   * Distribute referral fee to referrer
+   * Distribute referral fee to referrer (within transaction)
    */
-  static async distributeReferralFee(
+  private static async distributeReferralFeeInTx(
     referrerId: string,
     feeAmount: number,
     traderId: string,
-    tx: Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>
+    tx: Transaction
   ): Promise<void> {
     // Credit referrer's virtual balance
-    const referrer = await tx.user.findUnique({
-      where: { id: referrerId },
-      select: { virtualBalance: true },
-    })
+    const [referrer] = await tx
+      .select({ virtualBalance: users.virtualBalance, totalFeesEarned: users.totalFeesEarned })
+      .from(users)
+      .where(eq(users.id, referrerId))
+      .limit(1)
     
     if (!referrer) {
       logger.warn(`Referrer not found: ${referrerId}`, { referrerId, traderId }, 'FeeService')
@@ -254,30 +273,27 @@ export class FeeService {
     
     const currentBalance = Number(referrer.virtualBalance)
     const newBalance = currentBalance + feeAmount
+    const currentFeesEarned = Number(referrer.totalFeesEarned)
     
     // Update referrer balance
-    await tx.user.update({
-      where: { id: referrerId },
-      data: {
-        virtualBalance: new Prisma.Decimal(newBalance),
-        totalFeesEarned: {
-          increment: new Prisma.Decimal(feeAmount),
-        },
-      },
-    })
+    await tx
+      .update(users)
+      .set({
+        virtualBalance: new Decimal(newBalance).toString(),
+        totalFeesEarned: new Decimal(currentFeesEarned + feeAmount).toString(),
+      })
+      .where(eq(users.id, referrerId))
     
     // Create balance transaction
-    await tx.balanceTransaction.create({
-      data: {
-        id: await generateSnowflakeId(),
-        userId: referrerId,
-        type: FEE_CONFIG.TRANSACTION_TYPES.REFERRAL_FEE_EARNED,
-        amount: new Prisma.Decimal(feeAmount),
-        balanceBefore: new Prisma.Decimal(currentBalance),
-        balanceAfter: new Prisma.Decimal(newBalance),
-        relatedId: traderId,
-        description: `Referral fee earned from trading activity`,
-      },
+    await tx.insert(balanceTransactions).values({
+      id: await generateSnowflakeId(),
+      userId: referrerId,
+      type: FEE_CONFIG.TRANSACTION_TYPES.REFERRAL_FEE_EARNED,
+      amount: new Decimal(feeAmount).toString(),
+      balanceBefore: new Decimal(currentBalance).toString(),
+      balanceAfter: new Decimal(newBalance).toString(),
+      relatedId: traderId,
+      description: `Referral fee earned from trading activity`,
     })
     
     logger.info(`Referral fee distributed`, {
@@ -300,118 +316,110 @@ export class FeeService {
   ): Promise<ReferralEarnings> {
     const { startDate, endDate, limit = 10 } = options || {}
     
-    // Build where clause for date filtering
-    const whereClause: Prisma.TradingFeeWhereInput = {
-      referrerId: userId,
-      ...(startDate || endDate ? {
-        createdAt: {
-          ...(startDate ? { gte: startDate } : {}),
-          ...(endDate ? { lte: endDate } : {}),
-        },
-      } : {}),
+    // Build where conditions
+    const conditions = [eq(tradingFees.referrerId, userId)]
+    if (startDate) {
+      conditions.push(gte(tradingFees.createdAt, startDate))
     }
+    if (endDate) {
+      conditions.push(lte(tradingFees.createdAt, endDate))
+    }
+    const whereClause = and(...conditions)
     
     // Get total earnings
-    const totalResult = await prisma.tradingFee.aggregate({
-      where: whereClause,
-      _sum: {
-        referrerFee: true,
-      },
-      _count: true,
-    })
+    const [totalResult] = await db
+      .select({
+        totalReferrerFee: sum(tradingFees.referrerFee),
+        count: count(),
+      })
+      .from(tradingFees)
+      .where(whereClause)
     
-    const totalEarned = Number(totalResult._sum.referrerFee || 0)
+    const totalEarned = Number(totalResult?.totalReferrerFee || 0)
     
     // Get unique traders (referrals)
-    const uniqueTraders = await prisma.tradingFee.findMany({
-      where: whereClause,
-      select: {
-        userId: true,
-        User_TradingFee_userIdToUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        },
-      },
-      distinct: ['userId'],
-    })
+    const uniqueTraders = await db
+      .selectDistinct({ userId: tradingFees.userId })
+      .from(tradingFees)
+      .where(whereClause)
     
     // Get top referrals by fees generated
-    const topReferralsData = await prisma.tradingFee.groupBy({
-      by: ['userId'],
-      where: whereClause,
-      _sum: {
-        referrerFee: true,
-      },
-      _count: true,
-      orderBy: {
-        _sum: {
-          referrerFee: 'desc',
-        },
-      },
-      take: limit,
-    })
+    const topReferralsData = await db
+      .select({
+        userId: tradingFees.userId,
+        totalReferrerFee: sum(tradingFees.referrerFee),
+        tradeCount: count(),
+      })
+      .from(tradingFees)
+      .where(whereClause)
+      .groupBy(tradingFees.userId)
+      .orderBy(desc(sum(tradingFees.referrerFee)))
+      .limit(limit)
     
     // Enrich with user data
     const topReferrals = await Promise.all(
       topReferralsData.map(async (item) => {
-        const user = await prisma.user.findUnique({
-          where: { id: item.userId },
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        })
+        const [user] = await db
+          .select({
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+            profileImageUrl: users.profileImageUrl,
+          })
+          .from(users)
+          .where(eq(users.id, item.userId))
+          .limit(1)
         
         return {
           userId: item.userId,
           username: user?.username || 'Unknown',
           displayName: user?.displayName || 'Unknown User',
           profileImageUrl: user?.profileImageUrl || null,
-          totalFees: Number(item._sum.referrerFee || 0),
-          tradeCount: item._count,
+          totalFees: Number(item.totalReferrerFee || 0),
+          tradeCount: item.tradeCount,
         }
       })
     )
     
     // Get recent fees
-    const recentFees = await prisma.tradingFee.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        tradeType: true,
-        referrerFee: true,
-        userId: true,
-        User_TradingFee_userIdToUser: {
-          select: {
-            username: true,
-          },
-        },
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: limit,
-    })
+    const recentFees = await db
+      .select({
+        id: tradingFees.id,
+        tradeType: tradingFees.tradeType,
+        referrerFee: tradingFees.referrerFee,
+        userId: tradingFees.userId,
+        createdAt: tradingFees.createdAt,
+      })
+      .from(tradingFees)
+      .where(whereClause)
+      .orderBy(desc(tradingFees.createdAt))
+      .limit(limit)
+    
+    // Get trader usernames for recent fees
+    const recentFeesWithUsers = await Promise.all(
+      recentFees.map(async (fee) => {
+        const [trader] = await db
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, fee.userId))
+          .limit(1)
+        
+        return {
+          id: fee.id,
+          tradeType: fee.tradeType,
+          feeAmount: Number(fee.referrerFee),
+          traderId: fee.userId,
+          traderUsername: trader?.username || null,
+          createdAt: fee.createdAt,
+        }
+      })
+    )
     
     return {
       totalEarned,
       totalReferrals: uniqueTraders.length,
       topReferrals,
-      recentFees: recentFees.map(fee => ({
-        id: fee.id,
-        tradeType: fee.tradeType,
-        feeAmount: Number(fee.referrerFee),
-        traderId: fee.userId,
-        traderUsername: fee.User_TradingFee_userIdToUser.username,
-        createdAt: fee.createdAt,
-      })),
+      recentFees: recentFeesWithUsers,
     }
   }
   
@@ -427,31 +435,30 @@ export class FeeService {
     totalPlatformFees: number
     totalTrades: number
   }> {
-    const whereClause: Prisma.TradingFeeWhereInput = {
-      ...(startDate || endDate ? {
-        createdAt: {
-          ...(startDate ? { gte: startDate } : {}),
-          ...(endDate ? { lte: endDate } : {}),
-        },
-      } : {}),
+    const conditions = []
+    if (startDate) {
+      conditions.push(gte(tradingFees.createdAt, startDate))
     }
+    if (endDate) {
+      conditions.push(lte(tradingFees.createdAt, endDate))
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     
-    const result = await prisma.tradingFee.aggregate({
-      where: whereClause,
-      _sum: {
-        feeAmount: true,
-        platformFee: true,
-        referrerFee: true,
-      },
-      _count: true,
-    })
+    const [result] = await db
+      .select({
+        totalFeeAmount: sum(tradingFees.feeAmount),
+        totalPlatformFee: sum(tradingFees.platformFee),
+        totalReferrerFee: sum(tradingFees.referrerFee),
+        count: count(),
+      })
+      .from(tradingFees)
+      .where(whereClause)
     
     return {
-      totalFeesCollected: Number(result._sum.feeAmount || 0),
-      totalReferrerFees: Number(result._sum.referrerFee || 0),
-      totalPlatformFees: Number(result._sum.platformFee || 0),
-      totalTrades: result._count,
+      totalFeesCollected: Number(result?.totalFeeAmount || 0),
+      totalReferrerFees: Number(result?.totalReferrerFee || 0),
+      totalPlatformFees: Number(result?.totalPlatformFee || 0),
+      totalTrades: result?.count || 0,
     }
   }
 }
-

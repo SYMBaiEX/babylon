@@ -71,7 +71,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma as _prisma } from '@/lib/prisma'
+import { db as _db } from '@/db'
 import { logger } from '@/lib/logger'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 

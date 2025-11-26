@@ -95,19 +95,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       where: {
         id: { in: groupIds },
       },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        createdAt: true,
-        _count: {
-          select: {
-            UserGroupMember: true,
-          },
-        },
-      },
     })
     
+    // Get member counts for each group
+    const memberCounts = await Promise.all(
+      groupIds.map(gid => db.userGroupMember.count({ where: { groupId: gid } }))
+    )
+    const memberCountMap = new Map(groupIds.map((gid, i) => [gid, memberCounts[i] ?? 0]))
     const groupMap = new Map(groups.map(g => [g.id, g]))
 
     return pendingInvites.map((invite) => {
@@ -117,7 +111,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         groupId: invite.groupId,
         groupName: group?.name || 'Unknown Group',
         groupDescription: group?.description,
-        memberCount: group?._count.UserGroupMember || 0,
+        memberCount: memberCountMap.get(invite.groupId) ?? 0,
         invitedAt: invite.invitedAt,
         invitedBy: invite.invitedBy,
       }

@@ -5,7 +5,7 @@
  * This gives RULER the ground truth to evaluate agent decisions.
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, perpPositions, marketOutcomes, eq, and, gte, lte } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -39,20 +39,19 @@ export class MarketOutcomesTracker {
 
     // Get stock price movements from perpetual positions
     // (Approximate using PerpPosition data)
-    const perpTrades = await prisma.perpPosition.findMany({
-      where: {
-        openedAt: {
-          gte: windowStart,
-          lte: windowEnd
-        }
-      },
-      select: {
-        ticker: true,
-        entryPrice: true,
-        currentPrice: true,
-        closedAt: true
-      }
-    });
+    const perpTrades = await db.select({
+      ticker: perpPositions.ticker,
+      entryPrice: perpPositions.entryPrice,
+      currentPrice: perpPositions.currentPrice,
+      closedAt: perpPositions.closedAt
+    })
+      .from(perpPositions)
+      .where(
+        and(
+          gte(perpPositions.openedAt, windowStart),
+          lte(perpPositions.openedAt, windowEnd)
+        )
+      );
 
     // Group by ticker and calculate movements
     const stockMovements = new Map<string, { start: number; end: number; count: number }>();
@@ -78,51 +77,47 @@ export class MarketOutcomesTracker {
     for (const [ticker, data] of stockMovements.entries()) {
       const changePercent = ((data.end - data.start) / data.start) * 100;
       
-      await prisma.market_outcomes.create({
-        data: {
-          id: await generateSnowflakeId(),
-          windowId,
-          stockTicker: ticker,
-          startPrice: data.start,
-          endPrice: data.end,
-          changePercent,
-          sentiment: changePercent > 0 ? 'BULLISH' : 'BEARISH'
-        }
+      await db.insert(marketOutcomes).values({
+        id: await generateSnowflakeId(),
+        windowId,
+        stockTicker: ticker,
+        startPrice: String(data.start),
+        endPrice: String(data.end),
+        changePercent: String(changePercent),
+        sentiment: changePercent > 0 ? 'BULLISH' : 'BEARISH'
       });
     }
 
     // Get prediction market resolutions
-    const resolvedMarkets = await prisma.market.findMany({
-      where: {
-        resolved: true,
-        updatedAt: {
-          gte: windowStart,
-          lte: windowEnd
-        }
-      },
-      select: {
-        id: true,
-        question: true,
-        resolution: true,
-        yesShares: true,
-        noShares: true
-      }
-    });
+    const { markets } = await import('@/db/schema/markets');
+    const resolvedMarkets = await db.select({
+      id: markets.id,
+      question: markets.question,
+      resolution: markets.resolution,
+      yesShares: markets.yesShares,
+      noShares: markets.noShares
+    })
+      .from(markets)
+      .where(
+        and(
+          eq(markets.resolved, true),
+          gte(markets.updatedAt, windowStart),
+          lte(markets.updatedAt, windowEnd)
+        )
+      );
 
     // Save prediction outcomes
     for (const market of resolvedMarkets) {
       const totalShares = Number(market.yesShares) + Number(market.noShares);
       const finalProb = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
 
-      await prisma.market_outcomes.create({
-        data: {
-          id: await generateSnowflakeId(),
-          windowId,
-          predictionMarketId: market.id,
-          question: market.question,
-          outcome: market.resolution ? 'YES' : 'NO',
-          finalProbability: finalProb
-        }
+      await db.insert(marketOutcomes).values({
+        id: await generateSnowflakeId(),
+        windowId,
+        predictionMarketId: market.id,
+        question: market.question,
+        outcome: market.resolution ? 'YES' : 'NO',
+        finalProbability: String(finalProb)
       });
     }
 
@@ -145,15 +140,16 @@ export class MarketOutcomesTracker {
       const windowStart = new Date(now.getTime() - i * 60 * 60 * 1000);
       // Round to hour
       const roundedHour = Math.floor(windowStart.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000);
-      const windowId = new Date(roundedHour).toISOString().slice(0, 13) + ":00";
+      const windowIdStr = new Date(roundedHour).toISOString().slice(0, 13) + ":00";
 
       // Check if already tracked
-      const existing = await prisma.market_outcomes.findFirst({
-        where: { windowId }
-      });
+      const existingResult = await db.select()
+        .from(marketOutcomes)
+        .where(eq(marketOutcomes.windowId, windowIdStr))
+        .limit(1);
 
-      if (!existing) {
-        await this.trackWindowOutcomes(windowId);
+      if (existingResult.length === 0) {
+        await this.trackWindowOutcomes(windowIdStr);
         synced++;
       }
     }
@@ -166,17 +162,17 @@ export class MarketOutcomesTracker {
    * Get outcomes for a window
    */
   async getWindowOutcomes(windowId: string): Promise<WindowOutcomes | null> {
-    const outcomes = await prisma.market_outcomes.findMany({
-      where: { windowId }
-    });
+    const outcomes = await db.select()
+      .from(marketOutcomes)
+      .where(eq(marketOutcomes.windowId, windowId));
 
     if (outcomes.length === 0) {
       return null;
     }
 
     const stocks = outcomes
-      .filter(o => o.stockTicker)
-      .map(o => ({
+      .filter((o: typeof outcomes[number]) => o.stockTicker)
+      .map((o: typeof outcomes[number]) => ({
         ticker: o.stockTicker!,
         startPrice: Number(o.startPrice),
         endPrice: Number(o.endPrice),
@@ -186,8 +182,8 @@ export class MarketOutcomesTracker {
       }));
 
     const predictions = outcomes
-      .filter(o => o.predictionMarketId)
-      .map(o => ({
+      .filter((o: typeof outcomes[number]) => o.predictionMarketId)
+      .map((o: typeof outcomes[number]) => ({
         marketId: o.predictionMarketId!,
         question: o.question || '',
         outcome: o.outcome || 'UNRESOLVED',
@@ -204,4 +200,3 @@ export class MarketOutcomesTracker {
 
 // NOTE: Test agent spawning code commented out - requires STRATEGIES and simulateAgent implementations
 // See git history to restore when ready
-

@@ -133,25 +133,12 @@ export const GET = withErrorHandling(
           });
 
     // Get prediction market positions with RLS
-    const predictionPositions =
+    const predictionPositionsRaw =
       authUser && authUser.userId
         ? await asUser(authUser, async (db) => {
             return await db.position.findMany({
               where: {
                 userId,
-              },
-              include: {
-                Market: {
-                  select: {
-                    id: true,
-                    question: true,
-                    endDate: true,
-                    resolved: true,
-                    resolution: true,
-                    yesShares: true,
-                    noShares: true,
-                  },
-                },
               },
             });
           })
@@ -160,21 +147,54 @@ export const GET = withErrorHandling(
               where: {
                 userId,
               },
-              include: {
-                Market: {
-                  select: {
-                    id: true,
-                    question: true,
-                    endDate: true,
-                    resolved: true,
-                    resolution: true,
-                    yesShares: true,
-                    noShares: true,
-                  },
-                },
-              },
             });
           });
+
+    // Get markets for positions
+    const marketIds = [...new Set(predictionPositionsRaw.map(p => p.marketId))];
+    const markets = marketIds.length > 0
+      ? (authUser && authUser.userId
+          ? await asUser(authUser, async (db) => {
+              return await db.market.findMany({
+                where: {
+                  id: { in: marketIds },
+                },
+                select: {
+                  id: true,
+                  question: true,
+                  endDate: true,
+                  resolved: true,
+                  resolution: true,
+                  yesShares: true,
+                  noShares: true,
+                },
+              });
+            })
+          : await asPublic(async (db) => {
+              return await db.market.findMany({
+                where: {
+                  id: { in: marketIds },
+                },
+                select: {
+                  id: true,
+                  question: true,
+                  endDate: true,
+                  resolved: true,
+                  resolution: true,
+                  yesShares: true,
+                  noShares: true,
+                },
+              });
+            }))
+      : [];
+
+    const marketMap = new Map(markets.map(m => [m.id, m]));
+    
+    // Join positions with markets
+    const predictionPositions = predictionPositionsRaw.map(p => ({
+      ...p,
+      Market: marketMap.get(p.marketId),
+    }));
 
     // Calculate stats
     const perpStats = {
@@ -219,8 +239,13 @@ export const GET = withErrorHandling(
       },
       predictions: {
         positions: predictionPositions.map((p: typeof predictionPositions[number]) => {
-          const yesShares = Number(p.Market.yesShares);
-          const noShares = Number(p.Market.noShares);
+          const market = p.Market;
+          if (!market) {
+            // Skip positions without market data
+            return null;
+          }
+          const yesShares = Number(market.yesShares);
+          const noShares = Number(market.noShares);
           const totalShares = yesShares + noShares;
           const shares = Number(p.shares);
           const avgPrice = Number(p.avgPrice);
@@ -254,7 +279,7 @@ export const GET = withErrorHandling(
           return {
             id: p.id,
             marketId: p.marketId,
-            question: p.Market.question,
+            question: market.question,
             side: p.side ? 'YES' : 'NO',
             shares,
             avgPrice,
@@ -263,10 +288,10 @@ export const GET = withErrorHandling(
             currentValue,
             costBasis,
             unrealizedPnL,
-            resolved: p.Market.resolved,
-            resolution: p.Market.resolution,
+            resolved: market.resolved,
+            resolution: market.resolution,
           };
-        }),
+        }).filter((p): p is NonNullable<typeof p> => p !== null),
         stats: {
           totalPositions: predictionPositions.length,
         },

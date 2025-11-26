@@ -90,7 +90,7 @@ export const POST = withErrorHandling(async (
   const { id: targetIdentifier } = IdParamSchema.parse(params);
 
   // Favorite profile with RLS
-  const { favorite, targetUserId } = await asUser(user, async (db) => {
+  const result = await asUser(user, async (db) => {
     // Try to find user by ID first, then by username
     let targetUser = await db.user.findUnique({
       where: { id: targetIdentifier },
@@ -115,12 +115,10 @@ export const POST = withErrorHandling(async (
     }
 
     // Check if already favorited
-    const existingFavorite = await db.favorite.findUnique({
+    const existingFavorite = await db.favorite.findFirst({
       where: {
-        userId_targetUserId: {
-          userId: user.userId,
-          targetUserId,
-        },
+        userId: user.userId,
+        targetUserId,
       },
     });
 
@@ -135,29 +133,34 @@ export const POST = withErrorHandling(async (
         userId: user.userId,
         targetUserId,
       },
-      include: {
-        User_Favorite_targetUserIdToUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
-        },
+    });
+
+    // Get target user details
+    const targetUserDetails = await db.user.findUnique({
+      where: { id: targetUserId },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        profileImageUrl: true,
+        bio: true,
       },
     });
 
-    return { favorite: fav, targetUserId };
+    return { favorite: fav, targetUser: targetUserDetails, targetUserId };
   });
 
-  logger.info('Profile favorited successfully', { userId: user.userId, targetUserId }, 'POST /api/profiles/[id]/favorite');
+  logger.info('Profile favorited successfully', { userId: user.userId, targetUserId: result.targetUserId }, 'POST /api/profiles/[id]/favorite');
+
+  if (!result.favorite) {
+    throw new Error('Failed to create favorite')
+  }
 
   return successResponse(
     {
-      id: favorite.id,
-      targetUser: favorite.User_Favorite_targetUserIdToUser,
-      createdAt: favorite.createdAt,
+      id: result.favorite.id,
+      targetUser: result.targetUser ?? null,
+      createdAt: result.favorite.createdAt,
     },
     201
   );
@@ -197,12 +200,10 @@ export const DELETE = withErrorHandling(async (
     const targetUserId = targetUser.id;
 
     // Find existing favorite
-    const favorite = await db.favorite.findUnique({
+    const favorite = await db.favorite.findFirst({
       where: {
-        userId_targetUserId: {
-          userId: user.userId,
-          targetUserId,
-        },
+        userId: user.userId,
+        targetUserId,
       },
     });
 

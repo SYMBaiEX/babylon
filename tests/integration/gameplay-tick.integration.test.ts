@@ -11,7 +11,8 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, mock } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
+import type { MockJSONSchema } from '../types/test-types'
 
 // Mock LLM client BEFORE importing serverless-game-tick
 // This ensures executeGameTick uses the mock
@@ -21,7 +22,7 @@ mock.module('@/generator/llm/openai-client', () => {
       forGameTick: () => ({
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
-        generateJSON: async (_prompt: string, schema: any) => {
+        generateJSON: async (_prompt: string, schema: MockJSONSchema | undefined) => {
           // CRITICAL: This mock MUST prevent all real API calls
           // Always return a valid response structure based on schema or prompt patterns
           
@@ -44,6 +45,39 @@ mock.module('@/generator/llm/openai-client', () => {
           
           // Priority 2: Schema-based detection (more reliable than prompt parsing)
           if (schema?.properties) {
+            // Question generation (has questions array property)
+            // Note: Return format matches what XML parser produces (root element unwrapped)
+            if (schema.properties.questions) {
+              return {
+                questions: [
+                  {
+                    id: 1,
+                    scenario: 1,
+                    text: "Will AIlon Musk tweet about Mars this week?",
+                    resolutionCriteria: "If AIlon Musk posts about Mars on social media",
+                    daysUntilResolution: 3,
+                    expectedOutcome: "yes",
+                    dramaPotential: 8,
+                    uncertainty: 7,
+                    satiricalValue: 9,
+                    observableOutcome: "Public tweet from AIlon Musk about Mars"
+                  },
+                  {
+                    id: 2,
+                    scenario: 1,
+                    text: "Will Sam AIltman announce a new AI feature?",
+                    resolutionCriteria: "If OpenAGI announces a new feature",
+                    daysUntilResolution: 5,
+                    expectedOutcome: "yes",
+                    dramaPotential: 7,
+                    uncertainty: 6,
+                    satiricalValue: 8,
+                    observableOutcome: "Official announcement from OpenAGI"
+                  }
+                ]
+              };
+            }
+            
             // Question resolution (has response.event property)
             if (schema.properties.response?.properties?.event) {
               return {
@@ -56,25 +90,45 @@ mock.module('@/generator/llm/openai-client', () => {
             
             // Market decisions (has npcId property)
             if (schema.properties.npcId || schema.properties.decisions) {
-              return {
-                decisions: [
-                  {
-                    npcId: "test-npc",
-                    npcName: "Test NPC",
-                    reasoning: "Mock reasoning",
+              // Extract from ID=xxx NAME="yyy" patterns in TRADERS section
+              const idMatches = _prompt.matchAll(/ID=([^\s]+)\s+NAME="([^"]+)"/g);
+              const npcsFromPrompt = Array.from(idMatches).slice(0, 3);
+              
+              if (npcsFromPrompt.length > 0) {
+                // All hold actions to avoid balance warnings
+                return {
+                  decisions: npcsFromPrompt.map(([, id, name]) => ({
+                    npcId: id,
+                    npcName: name,
+                    reasoning: `Mock reasoning for ${name} - holding for now`,
                     action: "hold",
-                    confidence: 0.5
-                  }
-                ]
-              };
+                    confidence: 0.5,
+                    marketType: null,
+                    marketId: null,
+                    amount: 0
+                  }))
+                };
+              }
+              // Fallback - no trades (empty decisions means no warnings)
+              return { decisions: [] };
             }
             
-            // Article generation (has title and article properties)
-            if (schema.properties.title && schema.properties.article) {
+            // Article generation (has title and/or article properties)
+            if (schema.properties.title || schema.properties.article || schema.properties.content) {
+              // Extract question context from prompt if available
+              const questionMatch = _prompt.match(/Question[:\s]*([^\n]+)/i);
+              const questionText = questionMatch?.[1]?.trim() || 'Market Update';
+              
               return {
-                title: "Mock Article Title",
-                summary: "Mock article summary for testing.",
-                article: "Mock article body content that is long enough.\n\nIt has multiple paragraphs.\n\nTo satisfy length requirements.\n\nAnd validation checks."
+                response: {
+                  title: `Breaking: ${questionText.substring(0, 50)}`,
+                  summary: `Analysis of the latest developments regarding ${questionText.substring(0, 100)}`,
+                  content: `This is a comprehensive mock article analyzing the current market situation.\n\nThe question "${questionText}" has generated significant interest.\n\nExperts weigh in on the potential outcomes.\n\nMarket participants remain divided on the final resolution.`,
+                  slant: "Neutral analysis of market conditions",
+                  sentiment: "neutral",
+                  category: "markets",
+                  tags: { tag: ["markets", "analysis", "prediction"] }
+                }
               };
             }
             
@@ -96,8 +150,12 @@ mock.module('@/generator/llm/openai-client', () => {
             // Scenarios or questions (has scenarios or response property)
             if (schema.properties.scenarios || schema.properties.response) {
               // Check prompt to distinguish between scenarios and questions
-              const isQuestionGeneration = _prompt.includes('ORGANIZATIONS IN PLAY') ||
-                                        _prompt.includes('Create prediction market questions');
+              // Use more specific checks to avoid false positives with "ORGANIZATIONS IN PLAY"
+              const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios');
+              const isQuestionGeneration = !isScenarioGeneration && (
+                _prompt.includes('ORGANIZATIONS IN PLAY') ||
+                _prompt.includes('Create prediction market questions')
+              );
               
               if (isQuestionGeneration) {
                 return {
@@ -146,39 +204,78 @@ mock.module('@/generator/llm/openai-client', () => {
           
           // Priority 3: No schema - infer from prompt content
           if (!schema || !schema.properties) {
-            // Question generation prompts
-            if (_prompt.includes('ORGANIZATIONS IN PLAY') || 
-                _prompt.includes('Create prediction market questions') ||
-                (_prompt.includes('Scenario') && _prompt.includes('Actors:') && !_prompt.includes('MAIN ACTORS'))) {
+            // IMPORTANT: Check scenario generation FIRST because "MAIN ACTORS:" contains "ACTORS:"
+            // which would falsely match the question generation check
+            const isScenarioGeneration = _prompt.includes('Create 3 dramatic, satirical scenarios') || 
+                                      (_prompt.includes('MAIN ACTORS:') && _prompt.includes('<scenarios>'));
+            
+            if (isScenarioGeneration) {
+              // Extract actor IDs from the MAIN ACTORS section if possible
+              const mainActorsMatch = _prompt.match(/MAIN ACTORS:\s*([\s\S]*?)(?:AFFILIATED|IMPORTANT|$)/i);
+              let actorIds = ["actor-1", "actor-2", "actor-3"];
+              if (mainActorsMatch?.[1]) {
+                const actorLines = mainActorsMatch[1].match(/- ([^:]+):/g) || [];
+                const extractedIds = actorLines.slice(0, 3).map((m) => {
+                  const name = m.replace(/^- |:/g, '').trim().split(' - ')[0]?.split(' [')[0] ?? 'actor';
+                  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 50) || `actor-${actorIds.length + 1}`;
+                });
+                if (extractedIds.length > 0) actorIds = extractedIds;
+              }
+              
               return {
-                questions: [
+                scenarios: [
                   {
                     id: 1,
-                    text: "Will testing succeed?",
-                    scenario: 1,
-                    outcome: true,
-                    rank: 1,
-                    createdDate: new Date().toISOString(),
-                    resolutionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                    status: "active"
+                    title: "Test Scenario: Will Testing Succeed?",
+                    description: "A test scenario to verify the gameplay tick functionality works correctly.",
+                    mainActors: actorIds,
+                    theme: "testing",
+                    involvedOrganizations: []
                   }
                 ]
               };
             }
             
-            // Default: return scenarios format (safest fallback)
-            return {
-              scenarios: [
-                {
-                  id: 1,
-                  title: "Test Scenario: Will Testing Succeed?",
-                  description: "A test scenario to verify the gameplay tick functionality works correctly.",
-                  mainActors: ["actor-1", "actor-2", "actor-3"],
-                  theme: "testing",
-                  involvedOrganizations: []
-                }
-              ]
-            };
+            // Question generation prompts - look for "Generate X prediction market questions"
+            // Note: Check for 'ACTORS:' only after excluding MAIN ACTORS scenario prompts
+            const isQuestionGeneration = _prompt.includes('prediction market questions') ||
+                                         _prompt.includes('COMPANIES:') ||
+                                         (_prompt.includes('ACTORS:') && !_prompt.includes('MAIN ACTORS:'));
+            
+            if (isQuestionGeneration) {
+              // Note: Return format matches what XML parser produces (root element unwrapped)
+              return {
+                questions: [
+                  {
+                    id: 1,
+                    scenario: 1,
+                    text: "Will AIlon Musk tweet about Mars this week?",
+                    resolutionCriteria: "If AIlon Musk posts about Mars on social media",
+                    daysUntilResolution: 3,
+                    expectedOutcome: "yes",
+                    dramaPotential: 8,
+                    uncertainty: 7,
+                    satiricalValue: 9,
+                    observableOutcome: "Public tweet from AIlon Musk about Mars"
+                  },
+                  {
+                    id: 2,
+                    scenario: 1,
+                    text: "Will Sam AIltman announce a new AI feature?",
+                    resolutionCriteria: "If OpenAGI announces a new feature",
+                    daysUntilResolution: 5,
+                    expectedOutcome: "yes",
+                    dramaPotential: 7,
+                    uncertainty: 6,
+                    satiricalValue: 8,
+                    observableOutcome: "Official announcement from OpenAGI"
+                  }
+                ]
+              };
+            }
+            
+            // Default fallback - return empty object (will be caught by error handling)
+            return {};
           }
           
           // Final fallback: return safe empty structure (never return {} which could cause parsing errors)
@@ -195,19 +292,29 @@ mock.module('@/generator/llm/openai-client', () => {
       forGroq: () => ({ 
         getStats: () => ({ provider: 'mock', model: 'mock-model' }),
         getProvider: () => 'mock',
-        generateJSON: async () => {
-           // Market decisions mock
-           return {
-             decisions: [
-               {
-                 npcId: "test-npc",
-                 npcName: "Test NPC",
-                 reasoning: "Mock reasoning",
+        generateJSON: async (_prompt: string) => {
+           // Market decisions mock - extract NPC IDs from prompt
+           const idMatches = _prompt.matchAll(/ID=([^\s]+)\s+NAME="([^"]+)"/g);
+           const npcsFromPrompt = Array.from(idMatches).slice(0, 3);
+           
+           if (npcsFromPrompt.length > 0) {
+             // All hold actions to avoid balance warnings
+             return {
+               decisions: npcsFromPrompt.map(([, id, name]) => ({
+                 npcId: id,
+                 npcName: name,
+                 reasoning: `Mock reasoning for ${name} - holding for now`,
                  action: "hold",
-                 confidence: 0.5
-               }
-             ]
-           };
+                 confidence: 0.5,
+                 marketType: null,
+                 marketId: null,
+                 amount: 0
+               }))
+             };
+           }
+           
+           // Fallback - return empty decisions (no trades, no warnings)
+           return { decisions: [] };
         },
         complete: async () => "Mock completion"
       }),
@@ -243,7 +350,7 @@ describe('Gameplay Tick Integration', () => {
       return await db.game.findFirst({
         where: { isContinuous: true }
       })
-    })
+    }, 'gameplay-tick-test-get-game-state')
 
     if (!gameState) {
       // Create game state if it doesn't exist
@@ -257,7 +364,7 @@ describe('Gameplay Tick Integration', () => {
             updatedAt: new Date()
           }
         })
-      })
+      }, 'gameplay-tick-test-create-game-state')
     } else {
       initialGameRunning = gameState.isRunning
       // Ensure game is running for tests
@@ -267,15 +374,15 @@ describe('Gameplay Tick Integration', () => {
             where: { isContinuous: true },
             data: { isRunning: true }
           })
-        })
+        }, 'gameplay-tick-test-enable-game')
       }
     }
 
     // Create a test question for resolution testing
-    // Use timestamp-based questionNumber to avoid conflicts
+    // Use random questionNumber to avoid conflicts
     testQuestionId = await generateSnowflakeId()
-    const uniqueQuestionNumber = (Math.floor(Date.now() / 1000) % 1000000) + 2 // Use timestamp mod + 2 to avoid conflicts
-    await prisma.question.create({
+    const uniqueQuestionNumber = Math.floor(Math.random() * 1000000000) + 1000000 // Random int between 1M and 1B
+    await db.question.create({
       data: {
         id: testQuestionId,
         questionNumber: uniqueQuestionNumber,
@@ -293,13 +400,13 @@ describe('Gameplay Tick Integration', () => {
 
     // Create a test market
     testMarketId = await generateSnowflakeId()
-    await prisma.market.create({
+    await db.market.create({
       data: {
         id: testMarketId,
         question: 'Integration test: Will gameplay work?',
-        yesShares: 100,
-        noShares: 100,
-        liquidity: 200,
+        yesShares: '100',
+        noShares: '100',
+        liquidity: '200',
         resolved: false,
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         createdAt: new Date(),
@@ -316,13 +423,13 @@ describe('Gameplay Tick Integration', () => {
           where: { isContinuous: true },
           data: { isRunning: initialGameRunning }
         })
-      })
+      }, 'gameplay-tick-test-restore-game-state')
     }
 
     // Cleanup test data
     if (testQuestionId) {
       try {
-        await prisma.question.delete({ where: { id: testQuestionId } })
+        await db.question.delete({ where: { id: testQuestionId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -330,7 +437,7 @@ describe('Gameplay Tick Integration', () => {
 
     if (testMarketId) {
       try {
-        await prisma.market.delete({ where: { id: testMarketId } })
+        await db.market.delete({ where: { id: testMarketId } })
       } catch (error) {
         // Cleanup errors not critical
       }
@@ -352,7 +459,7 @@ describe('Gameplay Tick Integration', () => {
 
   test('should update market prices when NPC trading occurs', async () => {
     // Get initial market state
-    const marketBefore = await prisma.market.findUnique({
+    const marketBefore = await db.market.findUnique({
       where: { id: testMarketId },
       select: {
         yesShares: true,
@@ -369,7 +476,7 @@ describe('Gameplay Tick Integration', () => {
     const result = await executeGameTick(true) // Skip content generation
 
     // Check if markets were updated
-    const marketAfter = await prisma.market.findUnique({
+    const marketAfter = await db.market.findUnique({
       where: { id: testMarketId },
       select: {
         yesShares: true,
@@ -399,7 +506,7 @@ describe('Gameplay Tick Integration', () => {
 
   test('should have reasonable market pricing (0-100% for predictions)', async () => {
     // Get all active markets
-    const markets = await prisma.market.findMany({
+    const markets = await db.market.findMany({
       where: {
         resolved: false,
         endDate: { gte: new Date() }
@@ -432,7 +539,7 @@ describe('Gameplay Tick Integration', () => {
 
   test('should create NPC positions when trading occurs', async () => {
     // Get initial NPC position count (NPCs are users who are not agents)
-    const npcUsers = await prisma.user.findMany({
+    const npcUsers = await db.user.findMany({
       where: {
         isAgent: false
       },
@@ -445,7 +552,7 @@ describe('Gameplay Tick Integration', () => {
       return
     }
 
-    const initialPositions = await prisma.position.count({
+    const initialPositions = await db.position.count({
       where: {
         userId: { in: npcUsers.map(u => u.id) }
       }
@@ -456,7 +563,7 @@ describe('Gameplay Tick Integration', () => {
 
     // If markets were updated, NPCs likely traded
     if (result.marketsUpdated > 0) {
-      const afterPositions = await prisma.position.count({
+      const afterPositions = await db.position.count({
         where: {
           userId: { in: npcUsers.map(u => u.id) }
         }
@@ -484,10 +591,10 @@ describe('Gameplay Tick Integration', () => {
 
   test('should resolve questions when resolution date passes', async () => {
     // Create a question that should resolve
-    // Use timestamp-based questionNumber to avoid conflicts
+    // Use random questionNumber to avoid conflicts
     const pastQuestionId = await generateSnowflakeId()
-    const uniqueQuestionNumber = Math.floor(Date.now() / 1000) % 1000000 // Use timestamp mod to avoid conflicts
-    await prisma.question.create({
+    const uniqueQuestionNumber = Math.floor(Math.random() * 1000000000) + 1000000 // Random int between 1M and 1B
+    await db.question.create({
       data: {
         id: pastQuestionId,
         questionNumber: uniqueQuestionNumber,
@@ -504,13 +611,13 @@ describe('Gameplay Tick Integration', () => {
     })
 
     // Create associated market (required for resolution)
-    await prisma.market.create({
+    await db.market.create({
       data: {
         id: pastQuestionId, // Same ID as question
         question: 'Integration test: Past question',
-        yesShares: 100,
-        noShares: 100,
-        liquidity: 200,
+        yesShares: '100',
+        noShares: '100',
+        liquidity: '200',
         resolved: false,
         endDate: new Date(Date.now() - 1000), // Same as resolution date
         createdAt: new Date(),
@@ -522,7 +629,7 @@ describe('Gameplay Tick Integration', () => {
     const result = await executeGameTick(true)
 
     // Check if question was resolved
-    const resolvedQuestion = await prisma.question.findUnique({
+    const resolvedQuestion = await db.question.findUnique({
       where: { id: pastQuestionId }
     })
 
@@ -538,7 +645,7 @@ describe('Gameplay Tick Integration', () => {
 
     // Cleanup
     try {
-      await prisma.question.delete({ where: { id: pastQuestionId } })
+      await db.question.delete({ where: { id: pastQuestionId } })
     } catch (error) {
       // Cleanup errors not critical
     }

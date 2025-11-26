@@ -6,7 +6,7 @@
  * each user has a unique referral code for tracking referrals.
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, users, eq, and, ne } from '@/db'
 import { logger } from '@/lib/logger'
 
 /**
@@ -28,14 +28,16 @@ import { logger } from '@/lib/logger'
  */
 export async function getOrCreateReferralCode(userId: string): Promise<string> {
   // Get user with username and referral code
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      referralCode: true,
-    },
+  const result = await db.select({
+    id: users.id,
+    username: users.username,
+    referralCode: users.referralCode,
   })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const user = result[0]
 
   if (!user) {
     throw new Error(`User not found: ${userId}`)
@@ -47,23 +49,24 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
   }
 
   // Check if username is already used as a referral code by another user
-  const existingUserWithCode = await prisma.user.findFirst({
-    where: {
-      referralCode: user.username,
-      id: { not: userId }, // Exclude current user
-    },
-  })
+  const existingUserWithCode = await db.select({ id: users.id })
+    .from(users)
+    .where(and(
+      eq(users.referralCode, user.username),
+      ne(users.id, userId)
+    ))
+    .limit(1)
 
-  if (existingUserWithCode) {
+  if (existingUserWithCode.length > 0) {
     throw new Error(`Username "${user.username}" is already used as a referral code by another user`)
   }
 
   // Update referral code to username if it's different
   if (user.referralCode !== user.username) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { referralCode: user.username },
-    })
+    await db.update(users)
+      .set({ referralCode: user.username })
+      .where(eq(users.id, userId))
+
     logger.info(
       `Updated referral code to username for user ${userId}: ${user.username}`,
       { userId, code: user.username },
@@ -73,4 +76,3 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
 
   return user.username
 }
-

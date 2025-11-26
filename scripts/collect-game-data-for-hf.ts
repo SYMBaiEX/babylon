@@ -11,7 +11,7 @@
  * for offline faster-than-real-time simulation.
  */
 
-import { prisma } from '../src/lib/prisma';
+import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { logger } from '../src/lib/logger';
@@ -142,7 +142,7 @@ async function collectGameWorlds(): Promise<GameWorldData[]> {
   
   // Check database for game histories (stored when games are generated)
   try {
-    const gameConfigs = await prisma.gameConfig.findMany({
+    const gameConfigs = await db.gameConfig.findMany({
       where: {
         key: { startsWith: 'game-history-' },
       },
@@ -202,7 +202,7 @@ async function collectTrajectories(since?: Date): Promise<TrajectoryData[]> {
   let hasMore = true;
   
   while (hasMore && trajectories.length < MAX_TOTAL) {
-    const batch = await prisma.trajectory.findMany({
+    const batch = await db.trajectory.findMany({
       where: {
         isTrainingData: true,
         createdAt: since ? { gte: since } : undefined,
@@ -264,7 +264,7 @@ async function collectBenchmarks(): Promise<BenchmarkData[]> {
   // MEMORY SAFETY: Limit to reasonable size
   const MAX_BENCHMARKS = 500;
   
-  const benchmarks = await prisma.benchmarkResult.findMany({
+  const benchmarks = await db.benchmarkResult.findMany({
     orderBy: { createdAt: 'desc' },
     take: MAX_BENCHMARKS,
   });
@@ -401,12 +401,12 @@ async function main() {
   console.log(`\nOutput:        ${outputDir}`);
   console.log('');
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main().catch(async (error) => {
   console.error('❌ Collection failed:', error);
-  await prisma.$disconnect();
+  await db.$disconnect();
   process.exit(1);
 });
 

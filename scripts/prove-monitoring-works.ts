@@ -245,7 +245,7 @@ console.log('  9. Recommendations are GENERATED based on real data');
 console.log(' 10. P95/P99 latencies are CALCULATED correctly\n');
 
 console.log('What you need to do:');
-console.log('  1. Integrate with Prisma (monitored-prisma.ts)');
+console.log('  1. Integrate with database (monitored-db.ts)');
 console.log('  2. Add to API routes that need monitoring');
 console.log('  3. Set ENABLE_QUERY_MONITORING=true in production');
 console.log('  4. Watch for slow query warnings in logs');

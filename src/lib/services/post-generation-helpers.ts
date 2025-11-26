@@ -9,7 +9,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import db from '@/lib/database-service';
 import { characterMappingService } from './character-mapping-service';
 import type { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { Actor, Organization, Question } from '@prisma/client';
+import type { Actor, Organization, Question } from '@/db';
 
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
@@ -175,7 +175,7 @@ Return your response as XML in this exact format:
       },
       required: ['title', 'summary', 'article'] 
     },
-    { temperature: 0.7, maxTokens: MAX_ARTICLE_TOKENS, ...(model ? { model } : {}), format: 'xml' }
+    { temperature: 0.7, maxTokens: MAX_ARTICLE_TOKENS, ...(model ? { model } : {}), format: 'xml', promptType: 'generate_org_article' }
   );
   
   const articleData = 'response' in response && response.response 

@@ -1,16 +1,24 @@
-/**
- * Test for handling users not found in database but authenticated via Privy
- * Tests the fix for the error: "User not found: did:privy:cmhyl4q360160jm0cbhzltoyn"
- */
-
 import { describe, expect, it, beforeEach, mock } from 'bun:test';
+import type { UserFindUniqueArgs, MockUserRecord } from '../types/test-types';
 import { NextRequest } from 'next/server';
 import { NotFoundError } from '@/lib/errors/base.errors';
+
+// Mock result storage - will be set by tests
+let mockDbResult: MockUserRecord | null = null;
+
+// Create a chainable mock that mimics Drizzle's query builder
+const createChainableMock = () => ({
+  from: () => createChainableMock(),
+  where: () => createChainableMock(),
+  limit: () => Promise.resolve(mockDbResult ? [mockDbResult] : []),
+});
+
+const mockSelect = mock(() => createChainableMock());
 
 // Mock modules before importing the module under test
 const mockVerifyAuthToken = mock(() => Promise.resolve({ userId: 'did:privy:testuser123' }));
 const mockVerifyAgentSession = mock(() => Promise.resolve(null));
-const mockFindUnique = mock<(args?: any) => Promise<{ id: string; walletAddress: string } | null>>(() => Promise.resolve(null));
+const mockFindUnique = mock<(args?: UserFindUniqueArgs) => Promise<MockUserRecord | null>>(() => Promise.resolve(null));
 
 // Mock Privy client
 mock.module('@privy-io/server-auth', () => ({
@@ -24,13 +32,50 @@ mock.module('@/lib/auth/agent-auth', () => ({
   verifyAgentSession: mockVerifyAgentSession,
 }));
 
-// Mock database (auth-middleware imports from @/lib/prisma, not database-service)
-mock.module('@/lib/prisma', () => ({
-  prisma: {
+// Mock database (auth-middleware uses Drizzle query builder)
+// Include all exports that may be needed by dependencies
+mock.module('@/db', () => ({
+  db: {
+    select: mockSelect,
     user: {
       findUnique: mockFindUnique,
     },
   },
+  // Tables
+  users: {
+    id: 'id',
+    privyId: 'privyId',
+    walletAddress: 'walletAddress',
+  },
+  actors: {},
+  agentLogs: {},
+  agentMessages: {},
+  agentRegistries: {},
+  llmCallLogs: {},
+  trajectories: {},
+  worldFacts: {},
+  referrals: {},
+  pointsTransactions: {},
+  // Operators
+  eq: () => ({}),
+  and: () => ({}),
+  or: () => ({}),
+  ne: () => ({}),
+  gt: () => ({}),
+  gte: () => ({}),
+  lt: () => ({}),
+  lte: () => ({}),
+  desc: () => ({}),
+  asc: () => ({}),
+  like: () => ({}),
+  ilike: () => ({}),
+  inArray: () => ({}),
+  notInArray: () => ({}),
+  isNull: () => ({}),
+  isNotNull: () => ({}),
+  not: () => ({}),
+  count: () => ({}),
+  sql: () => ({}),
 }));
 
 describe('User Not Found Handling', () => {
@@ -39,10 +84,15 @@ describe('User Not Found Handling', () => {
     mockVerifyAuthToken.mockClear();
     mockVerifyAgentSession.mockClear();
     mockFindUnique.mockClear();
+    mockSelect.mockClear();
+    mockDbResult = null;
     
     // Set default mock implementations
     mockVerifyAuthToken.mockImplementation(() => Promise.resolve({ userId: 'did:privy:testuser123' }));
     mockVerifyAgentSession.mockImplementation(() => Promise.resolve(null));
+    
+    // Reset select mock to return chainable object
+    mockSelect.mockImplementation(() => createChainableMock());
     
     // Set required env vars
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-app-id';
@@ -51,7 +101,7 @@ describe('User Not Found Handling', () => {
 
   describe('authenticate()', () => {
     it('should return Privy DID when user does not exist in database', async () => {
-      mockFindUnique.mockImplementation(() => Promise.resolve(null));
+      mockDbResult = null; // No user in DB
       
       const { authenticate } = await import('@/lib/api/auth-middleware');
 
@@ -70,16 +120,11 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return database user ID when user exists in database', async () => {
-      // Mock findUnique to return user when queried by privyId
-      mockFindUnique.mockImplementation((args: any) => {
-        if (args?.where?.privyId === 'did:privy:testuser123') {
-          return Promise.resolve({
-            id: 'db-user-123',
-            walletAddress: '0x1234567890123456789012345678901234567890',
-          });
-        }
-        return Promise.resolve(null);
-      });
+      // Set mock to return user
+      mockDbResult = {
+        id: 'db-user-123',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+      };
       
       const { authenticate } = await import('@/lib/api/auth-middleware');
 
@@ -101,7 +146,7 @@ describe('User Not Found Handling', () => {
 
   describe('authenticateWithDbUser()', () => {
     it('should throw error when user does not exist in database', async () => {
-      mockFindUnique.mockImplementation(() => Promise.resolve(null));
+      mockDbResult = null; // No user in DB
       
       const { authenticateWithDbUser } = await import('@/lib/api/auth-middleware');
 
@@ -117,16 +162,11 @@ describe('User Not Found Handling', () => {
     });
 
     it('should return user with dbUserId when user exists in database', async () => {
-      // Mock findUnique to return user when queried by privyId
-      mockFindUnique.mockImplementation((args: any) => {
-        if (args?.where?.privyId === 'did:privy:testuser123') {
-          return Promise.resolve({
-            id: 'db-user-123',
-            walletAddress: '0x1234567890123456789012345678901234567890',
-          });
-        }
-        return Promise.resolve(null);
-      });
+      // Set mock to return user
+      mockDbResult = {
+        id: 'db-user-123',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+      };
       
       const { authenticateWithDbUser } = await import('@/lib/api/auth-middleware');
 
@@ -172,4 +212,3 @@ describe('User Not Found Handling', () => {
     });
   });
 });
-

@@ -6,7 +6,7 @@
  */
 
 import { getCache, setCache, invalidateCache, CACHE_KEYS, DEFAULT_TTLS } from '../cache-service';
-import { prisma } from '../prisma';
+import { db, users, posts, follows, eq, inArray, count } from '@/db';
 import { logger } from '../logger';
 
 interface CachedUserProfile {
@@ -44,42 +44,36 @@ export async function getCachedUserProfile(userId: string): Promise<CachedUserPr
   // Cache miss - fetch from database
   logger.debug('User profile cache miss', { userId }, 'UserProfileCache');
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      walletAddress: true,
-      reputationPoints: true,
-      virtualBalance: true,
-      lifetimePnL: true,
-      createdAt: true,
-      isActor: true,
-      _count: {
-        select: {
-          Follow_Follow_followerIdToUser: true,
-          Follow_Follow_followingIdToUser: true,
-          Comment: true,
-        },
-      },
-    },
-  });
+  const userResult = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
+    coverImageUrl: users.coverImageUrl,
+    walletAddress: users.walletAddress,
+    reputationPoints: users.reputationPoints,
+    virtualBalance: users.virtualBalance,
+    lifetimePnL: users.lifetimePnL,
+    createdAt: users.createdAt,
+    isActor: users.isActor,
+  })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const user = userResult[0];
 
   if (!user) {
     return null;
   }
 
-  // Get post count separately (more efficient)
-  const postsCount = await prisma.post.count({
-    where: {
-      authorId: userId,
-      deletedAt: null,
-    },
-  });
+  // Get counts
+  const followersCountResult = await db.select({ count: count() }).from(follows).where(eq(follows.followingId, userId));
+  const followingCountResult = await db.select({ count: count() }).from(follows).where(eq(follows.followerId, userId));
+  const postsCountResult = await db.select({ count: count() })
+    .from(posts)
+    .where(eq(posts.authorId, userId));
 
   const profile: CachedUserProfile = {
     id: user.id,
@@ -90,13 +84,13 @@ export async function getCachedUserProfile(userId: string): Promise<CachedUserPr
     coverImageUrl: user.coverImageUrl,
     walletAddress: user.walletAddress,
     reputationPoints: user.reputationPoints,
-    virtualBalance: user.virtualBalance.toString(),
-    lifetimePnL: user.lifetimePnL.toString(),
+    virtualBalance: user.virtualBalance?.toString() || '0',
+    lifetimePnL: user.lifetimePnL?.toString() || '0',
     createdAt: user.createdAt.toISOString(),
     isActor: user.isActor,
-    followersCount: user._count.Follow_Follow_followingIdToUser,
-    followingCount: user._count.Follow_Follow_followerIdToUser,
-    postsCount,
+    followersCount: followersCountResult[0]?.count || 0,
+    followingCount: followingCountResult[0]?.count || 0,
+    postsCount: postsCountResult[0]?.count || 0,
   };
 
   // Cache for 5 minutes
@@ -129,43 +123,46 @@ export async function getCachedUserProfiles(userIds: string[]): Promise<Map<stri
 
   // Fetch uncached profiles from database
   if (uncachedIds.length > 0) {
-    const users = await prisma.user.findMany({
-      where: { id: { in: uncachedIds } },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        coverImageUrl: true,
-        walletAddress: true,
-        reputationPoints: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        createdAt: true,
-        isActor: true,
-        _count: {
-          select: {
-            Follow_Follow_followerIdToUser: true,
-            Follow_Follow_followingIdToUser: true,
-            Comment: true,
-          },
-        },
-      },
+    const usersResult = await db.select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
+      coverImageUrl: users.coverImageUrl,
+      walletAddress: users.walletAddress,
+      reputationPoints: users.reputationPoints,
+      virtualBalance: users.virtualBalance,
+      lifetimePnL: users.lifetimePnL,
+      createdAt: users.createdAt,
+      isActor: users.isActor,
+    })
+      .from(users)
+      .where(inArray(users.id, uncachedIds));
+
+    // Get counts for all users
+    const countsPromises = usersResult.map(async (user) => {
+      const followersCountResult = await db.select({ count: count() }).from(follows).where(eq(follows.followingId, user.id));
+      const followingCountResult = await db.select({ count: count() }).from(follows).where(eq(follows.followerId, user.id));
+      const postsCountResult = await db.select({ count: count() })
+        .from(posts)
+        .where(eq(posts.authorId, user.id));
+      
+      return {
+        userId: user.id,
+        followersCount: followersCountResult[0]?.count || 0,
+        followingCount: followingCountResult[0]?.count || 0,
+        postsCount: postsCountResult[0]?.count || 0,
+      };
     });
 
-    // Get post counts in batch
-    const postCounts = await Promise.all(
-      users.map(user =>
-        prisma.post.count({
-          where: { authorId: user.id, deletedAt: null },
-        })
-      )
-    );
+    const counts = await Promise.all(countsPromises);
+    const countsMap = new Map(counts.map(c => [c.userId, c]));
 
     // Cache and add to results
     await Promise.all(
-      users.map(async (user, idx) => {
+      usersResult.map(async (user) => {
+        const userCounts = countsMap.get(user.id);
         const profile: CachedUserProfile = {
           id: user.id,
           username: user.username,
@@ -175,13 +172,13 @@ export async function getCachedUserProfiles(userIds: string[]): Promise<Map<stri
           coverImageUrl: user.coverImageUrl,
           walletAddress: user.walletAddress,
           reputationPoints: user.reputationPoints,
-          virtualBalance: user.virtualBalance.toString(),
-          lifetimePnL: user.lifetimePnL.toString(),
+          virtualBalance: user.virtualBalance?.toString() || '0',
+          lifetimePnL: user.lifetimePnL?.toString() || '0',
           createdAt: user.createdAt.toISOString(),
           isActor: user.isActor,
-          followersCount: user._count.Follow_Follow_followingIdToUser,
-          followingCount: user._count.Follow_Follow_followerIdToUser,
-          postsCount: postCounts[idx],
+          followersCount: userCounts?.followersCount || 0,
+          followingCount: userCounts?.followingCount || 0,
+          postsCount: userCounts?.postsCount || 0,
         };
 
         profiles.set(user.id, profile);
@@ -220,4 +217,3 @@ export async function warmUserProfileCache(userIds: string[]): Promise<void> {
   logger.info('Warming user profile cache', { count: userIds.length }, 'UserProfileCache');
   await getCachedUserProfiles(userIds);
 }
-

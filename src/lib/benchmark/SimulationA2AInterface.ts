@@ -22,6 +22,154 @@ import type { SimulationEngine } from './SimulationEngine';
 import { logger } from '@/lib/logger';
 
 /**
+ * A2A method parameter types
+ */
+export type A2AMethodParams = 
+  | BuySharesParams 
+  | SellSharesParams 
+  | OpenPositionParams 
+  | ClosePositionParams 
+  | CreatePostParams 
+  | JoinGroupParams 
+  | { status?: string; limit?: number; offset?: number }
+  | Record<string, string | number | boolean | undefined>;
+
+/**
+ * Buy shares result
+ */
+export interface BuySharesResult {
+  shares: number;
+  avgPrice: number;
+  positionId: string;
+}
+
+/**
+ * Sell shares result
+ */
+export interface SellSharesResult {
+  proceeds: number;
+}
+
+/**
+ * Open position result
+ */
+export interface OpenPositionResult {
+  positionId: string;
+  entryPrice: number;
+}
+
+/**
+ * Close position result
+ */
+export interface ClosePositionResult {
+  pnl: number;
+  exitPrice: number;
+}
+
+/**
+ * Create post result
+ */
+export interface CreatePostResult {
+  postId: string;
+}
+
+/**
+ * Create comment result
+ */
+export interface CreateCommentResult {
+  commentId: string;
+}
+
+/**
+ * Join group result
+ */
+export interface JoinGroupResult {
+  success: boolean;
+}
+
+/**
+ * Portfolio position for simulation
+ */
+export interface PortfolioPosition {
+  id: string;
+  marketId?: string;
+  ticker?: string;
+  side: string;
+  size: number;
+  entryPrice: number;
+  currentPrice?: number;
+  pnl?: number;
+}
+
+/**
+ * Portfolio result
+ */
+export interface PortfolioResult {
+  balance: number;
+  positions: PortfolioPosition[];
+  pnl: number;
+}
+
+/**
+ * Dashboard result
+ */
+export interface DashboardResult {
+  balance: number;
+  reputation: number;
+  totalPnl: number;
+  activePositions: number;
+}
+
+/**
+ * Trending tag entry
+ */
+export interface TrendingTagEntry {
+  tag: string;
+  count: number;
+  trend: string;
+}
+
+/**
+ * Chat entry with member count
+ */
+export interface ChatEntry {
+  id: string;
+  name: string;
+  memberCount: number;
+  messageCount: number;
+  lastActivity: number;
+  invited: boolean;
+  messages: Array<{
+    id: string;
+    authorId: string;
+    authorName: string;
+    content: string;
+    timestamp: number;
+  }>;
+}
+
+/**
+ * Union type for all A2A response types
+ */
+export type A2AResponse = 
+  | { predictions: Omit<PredictionMarket, 'resolved'>[] }
+  | BuySharesResult
+  | SellSharesResult
+  | { perpetuals: PerpetualMarket[] }
+  | OpenPositionResult
+  | ClosePositionResult
+  | { posts: FeedPost[] }
+  | CreatePostResult
+  | CreateCommentResult
+  | { chats: ChatEntry[] }
+  | JoinGroupResult
+  | { balance: number }
+  | PortfolioResult
+  | { predictionPositions: PortfolioPosition[]; perpPositions: PortfolioPosition[] }
+  | DashboardResult
+  | { tags: TrendingTagEntry[] };
+
+/**
  * Parameters for buying prediction market shares
  */
 export interface BuySharesParams {
@@ -182,13 +330,13 @@ export class SimulationA2AInterface {
    * });
    * ```
    */
-  async sendRequest(method: string, params?: unknown): Promise<unknown> {
+  async sendRequest(method: string, params?: A2AMethodParams): Promise<A2AResponse> {
     logger.debug('Simulation A2A request', { method, params });
     
     const actionStart = Date.now();
     
     try {
-      let result: unknown;
+      let result: A2AResponse;
       
       // Route to appropriate handler
       switch (method) {
@@ -277,7 +425,7 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object containing array of prediction markets
    */
-  private handleGetPredictions(_params: unknown): { predictions: Omit<PredictionMarket, 'resolved'>[] } {
+  private handleGetPredictions(_params: A2AMethodParams | undefined): { predictions: Omit<PredictionMarket, 'resolved'>[] } {
     const state = this.engine.getGameState();
     
     const predictions = state.predictionMarkets
@@ -389,7 +537,7 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object containing array of perpetual markets
    */
-  private handleGetPerpetuals(_params: unknown): { perpetuals: PerpetualMarket[] } {
+  private handleGetPerpetuals(_params: A2AMethodParams | undefined): { perpetuals: PerpetualMarket[] } {
     const state = this.engine.getGameState();
     
     const perpetuals = state.perpetualMarkets.map((m: PerpetualMarket) => ({
@@ -500,7 +648,7 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object containing array of feed posts
    */
-  private handleGetFeed(_params: unknown): { posts: FeedPost[] } {
+  private handleGetFeed(_params: A2AMethodParams | undefined): { posts: FeedPost[] } {
     const state = this.engine.getGameState();
     
     const posts = (state.posts || [])
@@ -564,17 +712,17 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object containing array of group chats
    */
-  private handleGetChats(_params: unknown): { chats: Array<Omit<GroupChat, 'memberIds'> & { memberCount: number; invited: boolean }> } {
+  private handleGetChats(_params: A2AMethodParams | undefined): { chats: ChatEntry[] } {
     const state = this.engine.getGameState();
     
-    const chats = (state.groupChats || []).map((g: GroupChat) => ({
+    const chats: ChatEntry[] = (state.groupChats || []).map((g: GroupChat): ChatEntry => ({
       id: g.id,
       name: g.name,
       memberCount: g.memberIds.length,
       messageCount: g.messageCount,
       lastActivity: g.lastActivity,
-      invited: g.invitedAgent || false,
-      messages: g.messages || [],
+      invited: g.invitedAgent ?? false,
+      messages: g.messages ?? [],
     }));
     
     return { chats };
@@ -617,7 +765,7 @@ export class SimulationA2AInterface {
    * @remarks
    * Currently returns a fixed balance. Can be enhanced to track actual balance.
    */
-  private handleGetBalance(_params: unknown): { balance: number } {
+  private handleGetBalance(_params: A2AMethodParams | undefined): { balance: number } {
     // Simplified: return fixed balance
     return { balance: 10000 };
   }
@@ -630,12 +778,12 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object with balance, positions array, and total P&L
    */
-  private handleGetPortfolio(_params: unknown): { balance: number; positions: Array<Record<string, unknown>>; pnl: number } {
+  private handleGetPortfolio(_params: A2AMethodParams | undefined): PortfolioResult {
     const state = this.engine.getGameState();
     const agent = state.agents.find((a: { id: string }) => a.id === this.agentId);
     
     // Calculate positions from agent's state
-    const positions: Array<Record<string, unknown>> = [];
+    const positions: PortfolioPosition[] = [];
     
     // Calculate P&L from agent's totalPnl
     const pnl = (agent as { totalPnl?: number } | undefined)?.totalPnl || 0;
@@ -659,7 +807,7 @@ export class SimulationA2AInterface {
    * @remarks
    * Currently returns empty arrays. Can be enhanced to track actual positions.
    */
-  private handleGetPositions(_params: unknown): { predictionPositions: Array<Record<string, unknown>>; perpPositions: Array<Record<string, unknown>> } {
+  private handleGetPositions(_params: A2AMethodParams | undefined): { predictionPositions: PortfolioPosition[]; perpPositions: PortfolioPosition[] } {
     // Return empty arrays for simulation
     // In a real benchmark, we'd track actual positions made by the agent
     return {
@@ -676,7 +824,7 @@ export class SimulationA2AInterface {
    * @param _params - Unused (kept for interface consistency)
    * @returns Object with balance, reputation, total P&L, and active positions count
    */
-  private handleGetDashboard(_params: unknown): { balance: number; reputation: number; totalPnl: number; activePositions: number } {
+  private handleGetDashboard(_params: A2AMethodParams | undefined): DashboardResult {
     const state = this.engine.getGameState();
     const agent = state.agents.find((a: { id: string }) => a.id === this.agentId);
     
@@ -702,7 +850,7 @@ export class SimulationA2AInterface {
    * @remarks
    * Currently returns dummy data. Can be enhanced to track actual trends.
    */
-  private handleGetTrendingTags(_params: unknown): { tags: Array<{ tag: string; count: number; trend: string }> } {
+  private handleGetTrendingTags(_params: A2AMethodParams | undefined): { tags: TrendingTagEntry[] } {
     // Return some dummy trending tags for simulation
     return {
       tags: [
@@ -734,8 +882,8 @@ export class SimulationA2AInterface {
    * @param amount - Amount to invest
    * @returns Result object with shares, avgPrice, and positionId
    */
-  async buyShares(marketId: string, outcome: 'YES' | 'NO', amount: number): Promise<Record<string, unknown>> {
-    return await this.sendRequest('a2a.buyShares', { marketId, outcome, amount }) as Record<string, unknown>;
+  async buyShares(marketId: string, outcome: 'YES' | 'NO', amount: number): Promise<BuySharesResult> {
+    return await this.sendRequest('a2a.buyShares', { marketId, outcome, amount }) as BuySharesResult;
   }
   
   /**
@@ -747,9 +895,8 @@ export class SimulationA2AInterface {
    * @param shares - Number of shares to sell
    * @returns Result object with proceeds
    */
-  async sellShares(marketId: string, shares: number): Promise<Record<string, unknown>> {
-    const result = await this.sendRequest('a2a.sellShares', { marketId, shares }) as { proceeds: number };
-    return { proceeds: result.proceeds };
+  async sellShares(marketId: string, shares: number): Promise<SellSharesResult> {
+    return await this.sendRequest('a2a.sellShares', { marketId, shares }) as SellSharesResult;
   }
   
   /**
@@ -763,8 +910,8 @@ export class SimulationA2AInterface {
    * @param leverage - Leverage multiplier
    * @returns Result object with positionId and entryPrice
    */
-  async openPosition(ticker: string, side: 'long' | 'short', size: number, leverage: number): Promise<Record<string, unknown>> {
-    return await this.sendRequest('a2a.openPosition', { ticker, side, size, leverage }) as Record<string, unknown>;
+  async openPosition(ticker: string, side: 'long' | 'short', size: number, leverage: number): Promise<OpenPositionResult> {
+    return await this.sendRequest('a2a.openPosition', { ticker, side: side.toUpperCase() as 'LONG' | 'SHORT', size, leverage }) as OpenPositionResult;
   }
   
   /**
@@ -775,8 +922,8 @@ export class SimulationA2AInterface {
    * @param positionId - Position ID to close
    * @returns Result object with pnl and exitPrice
    */
-  async closePosition(positionId: string): Promise<Record<string, unknown>> {
-    return await this.sendRequest('a2a.closePosition', { positionId }) as Record<string, unknown>;
+  async closePosition(positionId: string): Promise<ClosePositionResult> {
+    return await this.sendRequest('a2a.closePosition', { positionId }) as ClosePositionResult;
   }
   
   /**
@@ -788,8 +935,8 @@ export class SimulationA2AInterface {
    * @param type - Post type (defaults to 'post')
    * @returns Result object with postId
    */
-  async createPost(content: string, type: string = 'post'): Promise<Record<string, unknown>> {
-    return await this.sendRequest('a2a.createPost', { content, type }) as Record<string, unknown>;
+  async createPost(content: string, type: string = 'post'): Promise<CreatePostResult> {
+    return await this.sendRequest('a2a.createPost', { content, marketId: type === 'market' ? undefined : undefined }) as CreatePostResult;
   }
   
   /**
@@ -801,8 +948,8 @@ export class SimulationA2AInterface {
    * @param content - Comment content
    * @returns Result object with commentId
    */
-  async createComment(postId: string, content: string): Promise<Record<string, unknown>> {
-    return await this.sendRequest('a2a.createComment', { postId, content }) as Record<string, unknown>;
+  async createComment(postId: string, content: string): Promise<CreateCommentResult> {
+    return await this.sendRequest('a2a.createComment', { content, marketId: postId }) as unknown as CreateCommentResult;
   }
   
   /**
@@ -812,8 +959,8 @@ export class SimulationA2AInterface {
    * 
    * @returns Portfolio object with balance, positions, and P&L
    */
-  async getPortfolio(): Promise<{ balance: number; positions: Array<Record<string, unknown>>; pnl: number }> {
-    return await this.sendRequest('a2a.getPortfolio') as { balance: number; positions: Array<Record<string, unknown>>; pnl: number };
+  async getPortfolio(): Promise<PortfolioResult> {
+    return await this.sendRequest('a2a.getPortfolio') as PortfolioResult;
   }
   
   /**
@@ -823,9 +970,9 @@ export class SimulationA2AInterface {
    * 
    * @returns Object with predictions and perps arrays
    */
-  async getMarkets(): Promise<{ predictions: Array<Record<string, unknown>>; perps: Array<Record<string, unknown>> }> {
-    const predictions = await this.sendRequest('a2a.getPredictions', { status: 'active' }) as { predictions: Array<Record<string, unknown>> };
-    const perpetuals = await this.sendRequest('a2a.getPerpetuals', {}) as { perpetuals: Array<Record<string, unknown>> };
+  async getMarkets(): Promise<{ predictions: Omit<PredictionMarket, 'resolved'>[]; perps: PerpetualMarket[] }> {
+    const predictions = await this.sendRequest('a2a.getPredictions', { status: 'active' }) as { predictions: Omit<PredictionMarket, 'resolved'>[] };
+    const perpetuals = await this.sendRequest('a2a.getPerpetuals', {}) as { perpetuals: PerpetualMarket[] };
     return {
       predictions: predictions.predictions || [],
       perps: perpetuals.perpetuals || []
@@ -840,8 +987,8 @@ export class SimulationA2AInterface {
    * @param limit - Maximum number of posts to return (default: 20)
    * @returns Object with posts array
    */
-  async getFeed(limit = 20): Promise<{ posts: Array<Record<string, unknown>> }> {
-    return await this.sendRequest('a2a.getFeed', { limit, offset: 0 }) as { posts: Array<Record<string, unknown>> };
+  async getFeed(limit = 20): Promise<{ posts: FeedPost[] }> {
+    return await this.sendRequest('a2a.getFeed', { limit, offset: 0 }) as { posts: FeedPost[] };
   }
 }
 

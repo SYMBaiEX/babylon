@@ -162,9 +162,11 @@ export async function streamRead(
 
   try {
     if (redisType === 'upstash') {
-      const res = (await (redis as UpstashRedis).xread(streams, ids, {
+      // Upstash xread returns complex nested array structure
+      // Type as unknown first, then validate structure
+      const res: unknown = await (redis as UpstashRedis).xread(streams, ids, {
         count: opts?.count,
-      })) as unknown
+      })
 
       // Upstash returns: [[streamName, [[id, [field, value, ...]], ...]], ...]
       const parsed: StreamMessage[] = []

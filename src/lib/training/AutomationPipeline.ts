@@ -11,7 +11,7 @@
  * 7. Monitor performance
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trajectories, trainingBatches, trainedModels, users, eq, and, desc, gte, isNull, isNotNull, not, count } from '@/db';
 import { logger } from '@/lib/logger';
 import { exportGroupedForGRPO } from '../agents/plugins/plugin-trajectory-logger/src/export';
 import { modelSelectionService } from './ModelSelectionService';
@@ -60,41 +60,47 @@ export class AutomationPipeline {
    */
   async checkTrainingReadiness(): Promise<TrainingReadinessResult> {
     // Count SCORED trajectories ready for training
-    const scoredAndReady = await prisma.trajectory.count({
-      where: {
-        isTrainingData: true,
-        usedInTraining: false,
-        aiJudgeReward: { not: null },  // Must be SCORED
-        NOT: {
-          OR: [
-            { stepsJson: 'null' },
-            { stepsJson: '[]' }
-          ]
-        }
-      }
-    });
+    const scoredAndReadyResult = await db.select({ count: count() })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false),
+          isNotNull(trajectories.aiJudgeReward),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      );
+    const scoredAndReady = scoredAndReadyResult[0]?.count || 0;
 
     // Also count unscored for reporting
-    const unscored = await prisma.trajectory.count({
-      where: {
-        isTrainingData: true,
-        usedInTraining: false,
-        aiJudgeReward: null
-      }
-    });
+    const unscoredResult = await db.select({ count: count() })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false),
+          isNull(trajectories.aiJudgeReward)
+        )
+      );
+    const unscored = unscoredResult[0]?.count || 0;
 
     // Get scenario groups
-    const scenarios = await prisma.trajectory.groupBy({
-      by: ['scenarioId'],
-      where: {
-        isTrainingData: true,
-        usedInTraining: false,
-        scenarioId: { not: null }  // Only include trajectories with scenario IDs
-      },
-      _count: true
-    });
+    const scenariosResult = await db.select({ 
+      scenarioId: trajectories.scenarioId, 
+      count: count() 
+    })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false),
+          isNotNull(trajectories.scenarioId)
+        )
+      )
+      .groupBy(trajectories.scenarioId);
 
-    const validGroups = scenarios.filter((s: { _count: number }) => s._count >= this.config.minGroupSize);
+    const validGroups = scenariosResult.filter((s: { scenarioId: string | null; count: number }) => s.count >= this.config.minGroupSize);
 
     // Calculate data quality
     const quality = await this.calculateDataQuality();
@@ -144,14 +150,16 @@ export class AutomationPipeline {
    * Calculate data quality score
    */
   private async calculateDataQuality(): Promise<number> {
-    const sample = await prisma.trajectory.findMany({
-      where: {
-        isTrainingData: true,
-        usedInTraining: false
-      },
-      take: 50,
-      orderBy: { createdAt: 'desc' }
-    });
+    const sample = await db.select()
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false)
+        )
+      )
+      .orderBy(desc(trajectories.createdAt))
+      .limit(50);
 
     if (sample.length === 0) return 0;
 
@@ -226,18 +234,18 @@ export class AutomationPipeline {
       
       const { rulerScoringService } = await import('./RulerScoringService');
       // Score recent trajectories
-      const recentWindows = await prisma.trajectory.findMany({
-        where: {
-          isTrainingData: true,
-          usedInTraining: false,
-          aiJudgeReward: null,
-          windowId: { not: null }
-        },
-        select: { windowId: true },
-        distinct: ['windowId'],
-        take: 5,
-        orderBy: { createdAt: 'desc' }
-      });
+      const recentWindows = await db.selectDistinct({ windowId: trajectories.windowId })
+        .from(trajectories)
+        .where(
+          and(
+            eq(trajectories.isTrainingData, true),
+            eq(trajectories.usedInTraining, false),
+            isNull(trajectories.aiJudgeReward),
+            isNotNull(trajectories.windowId)
+          )
+        )
+        .orderBy(desc(trajectories.createdAt))
+        .limit(5);
 
       for (const window of recentWindows) {
         if (window.windowId) {
@@ -297,25 +305,19 @@ export class AutomationPipeline {
     // Create training batch record
     const nextVersion = await this.getNextModelVersion();
     
-    const batch = await prisma.trainingBatch.create({
-      data: {
-        id: batchId,
-        batchId,
-        scenarioId: windowId,
-        baseModel: modelSelection.modelPath,  // FIX: Use selected model, not config
-        modelVersion: nextVersion,
-        trajectoryIds: JSON.stringify(await this.getTrajectoryIds(maxTrajectories)),
-        rewardsJson: JSON.stringify([]),
-        status: 'pending',
-        createdAt: new Date()
-      }
-    });
-
-    // Update batch status to 'pending' (will be updated to 'training' by Python script)
-    await prisma.trainingBatch.update({
-      where: { batchId },
-      data: { status: 'pending' }
-    });
+    const batchResult = await db.insert(trainingBatches).values({
+      id: batchId,
+      batchId,
+      scenarioId: windowId,
+      baseModel: modelSelection.modelPath,  // FIX: Use selected model, not config
+      modelVersion: nextVersion,
+      trajectoryIds: JSON.stringify(await this.getTrajectoryIds(maxTrajectories)),
+      rewardsJson: JSON.stringify([]),
+      status: 'pending',
+      createdAt: new Date()
+    }).returning();
+    
+    const batch = batchResult[0]!;
 
     // Trigger Python training script
     const pythonScript = path.resolve(process.cwd(), 'python/src/training/babylon_trainer.py');
@@ -379,13 +381,13 @@ export class AutomationPipeline {
     trainingProcess.on('error', (error: Error) => {
       logger.error('Training process error', { error: error.message });
       // Update batch status to failed
-      prisma.trainingBatch.update({
-        where: { batchId },
-        data: { 
+      db.update(trainingBatches)
+        .set({ 
           status: 'failed',
           error: `Process spawn failed: ${error.message}`
-        }
-      }).catch((err) => logger.error('Failed to update batch status', { error: err }));
+        })
+        .where(eq(trainingBatches.batchId, batchId))
+        .catch((err: unknown) => logger.error('Failed to update batch status', { error: err }));
     });
 
     trainingProcess.unref();
@@ -408,9 +410,12 @@ export class AutomationPipeline {
    * Get next model version
    */
   private async getNextModelVersion(): Promise<string> {
-    const latestModel = await prisma.trainedModel.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
+    const latestModelResult = await db.select()
+      .from(trainedModels)
+      .orderBy(desc(trainedModels.createdAt))
+      .limit(1);
+    
+    const latestModel = latestModelResult[0];
 
     if (!latestModel) {
       return 'v1.0.0';
@@ -425,26 +430,35 @@ export class AutomationPipeline {
    * Get trajectory IDs for training
    */
   private async getTrajectoryIds(limit?: number): Promise<string[]> {
-    const trajectories = await prisma.trajectory.findMany({
-      where: {
-        isTrainingData: true,
-        usedInTraining: false
-      },
-      select: { trajectoryId: true },
-      take: limit,
-      orderBy: { createdAt: 'asc' }
-    });
+    let query = db.select({ trajectoryId: trajectories.trajectoryId })
+      .from(trajectories)
+      .where(
+        and(
+          eq(trajectories.isTrainingData, true),
+          eq(trajectories.usedInTraining, false)
+        )
+      )
+      .orderBy(trajectories.createdAt);
+    
+    if (limit) {
+      query = query.limit(limit) as typeof query;
+    }
+    
+    const result = await query;
 
-    return trajectories.map((t: { trajectoryId: string }) => t.trajectoryId);
+    return result.map((t: { trajectoryId: string }) => t.trajectoryId);
   }
 
   /**
    * Monitor training job
    */
   async monitorTraining(batchId: string): Promise<TrainingMonitoringStatus> {
-    const batch = await prisma.trainingBatch.findUnique({
-      where: { batchId }
-    });
+    const batchResult = await db.select()
+      .from(trainingBatches)
+      .where(eq(trainingBatches.batchId, batchId))
+      .limit(1);
+    
+    const batch = batchResult[0];
 
     if (!batch) {
       return { status: 'not_found' };
@@ -466,14 +480,13 @@ export class AutomationPipeline {
    * CRITICAL: Export files can accumulate to 200GB+ if not cleaned up
    */
   private async cleanupExportFiles(batchId: string): Promise<void> {
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
+    const pathModule = await import('node:path');
     
     // Clean up GRPO export directory
-    const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
+    const exportDir = pathModule.resolve(process.cwd(), 'exports', 'grpo-groups');
     const files = await fs.readdir(exportDir);
     for (const file of files) {
-      const filePath = path.join(exportDir, file);
+      const filePath = pathModule.join(exportDir, file);
       await fs.unlink(filePath);
     }
     logger.info('Cleaned up export files', { batchId, filesRemoved: files.length }, 'AutomationPipeline');
@@ -505,26 +518,33 @@ export class AutomationPipeline {
 
     // Check for newly completed batches (Python script may have completed)
     // Check last 24 hours to catch long-running training jobs
-    const newlyCompleted = await prisma.trainingBatch.findFirst({
-      where: {
-        status: 'completed',
-        completedAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-        }
-      },
-      orderBy: { completedAt: 'desc' }
-    });
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const newlyCompletedResult = await db.select()
+      .from(trainingBatches)
+      .where(
+        and(
+          eq(trainingBatches.status, 'completed'),
+          gte(trainingBatches.completedAt, twentyFourHoursAgo)
+        )
+      )
+      .orderBy(desc(trainingBatches.completedAt))
+      .limit(1);
+    
+    const newlyCompleted = newlyCompletedResult[0];
 
     // Check if this batch has already been deployed
     if (newlyCompleted) {
-      const existingModel = await prisma.trainedModel.findFirst({
-        where: {
-          trainingBatch: newlyCompleted.batchId,
-          status: 'deployed'
-        }
-      });
+      const existingModelResult = await db.select()
+        .from(trainedModels)
+        .where(
+          and(
+            eq(trainedModels.trainingBatch, newlyCompleted.batchId),
+            eq(trainedModels.status, 'deployed')
+          )
+        )
+        .limit(1);
 
-      if (existingModel) {
+      if (existingModelResult.length > 0) {
         return; // Skip if already deployed
       }
       
@@ -537,10 +557,13 @@ export class AutomationPipeline {
     
     if (readiness.ready && this.config.autoTriggerTraining) {
       // Check if enough time has passed since last training
-      const lastTraining = await prisma.trainingBatch.findFirst({
-        where: { status: 'completed' },
-        orderBy: { completedAt: 'desc' }
-      });
+      const lastTrainingResult = await db.select()
+        .from(trainingBatches)
+        .where(eq(trainingBatches.status, 'completed'))
+        .orderBy(desc(trainingBatches.completedAt))
+        .limit(1);
+      
+      const lastTraining = lastTrainingResult[0];
 
       const hoursSinceLastTraining = lastTraining
         ? (Date.now() - lastTraining.completedAt!.getTime()) / (1000 * 60 * 60)
@@ -574,11 +597,11 @@ export class AutomationPipeline {
     // Score current window and previous windows
     for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
       const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-      const windowId = windowDate.toISOString().slice(0, 13) + ':00';
+      const windowIdStr = windowDate.toISOString().slice(0, 13) + ':00';
       
-      const scored = await rulerScoringService.scoreWindow(windowId);
+      const scored = await rulerScoringService.scoreWindow(windowIdStr);
       if (scored > 0) {
-        logger.info('Scored trajectories with RULER', { windowId, scored });
+        logger.info('Scored trajectories with RULER', { windowId: windowIdStr, scored });
       }
     }
 
@@ -591,9 +614,12 @@ export class AutomationPipeline {
    * Note: Model is already created by Python script, this just marks trajectories as used
    */
   private async deployModel(batchId: string): Promise<void> {
-    const batch = await prisma.trainingBatch.findUnique({
-      where: { batchId }
-    });
+    const batchResult = await db.select()
+      .from(trainingBatches)
+      .where(eq(trainingBatches.batchId, batchId))
+      .limit(1);
+    
+    const batch = batchResult[0];
 
     if (!batch) {
       logger.warn('Batch not found for deployment', { batchId });
@@ -601,12 +627,17 @@ export class AutomationPipeline {
     }
 
     // Check if model was created by Python script
-    const model = await prisma.trainedModel.findFirst({
-      where: {
-        trainingBatch: batch.id,
-        status: 'ready'
-      }
-    });
+    const modelResult = await db.select()
+      .from(trainedModels)
+      .where(
+        and(
+          eq(trainedModels.trainingBatch, batch.id),
+          eq(trainedModels.status, 'ready')
+        )
+      )
+      .limit(1);
+    
+    const model = modelResult[0];
 
     if (!model) {
       logger.warn('Model not found for batch', { batchId });
@@ -632,24 +663,24 @@ export class AutomationPipeline {
         trajectoryIds = [];
       }
     }
-    await prisma.trajectory.updateMany({
-      where: {
-        trajectoryId: { in: trajectoryIds }
-      },
-      data: {
-        usedInTraining: true,
-        trainedInBatch: batch.id
-      }
-    });
+    
+    if (trajectoryIds.length > 0) {
+      const { inArray } = await import('drizzle-orm');
+      await db.update(trajectories)
+        .set({
+          usedInTraining: true,
+          trainedInBatch: batch.id
+        })
+        .where(inArray(trajectories.trajectoryId, trajectoryIds));
+    }
 
     // Update model status to deployed
-    await prisma.trainedModel.update({
-      where: { modelId: model.modelId },
-      data: {
+    await db.update(trainedModels)
+      .set({
         status: 'deployed',
         deployedAt: new Date()
-      }
-    });
+      })
+      .where(eq(trainedModels.modelId, model.modelId));
 
     logger.info('Model deployed', { 
       version: batch.modelVersion,
@@ -666,21 +697,29 @@ export class AutomationPipeline {
     deployed: boolean;
     reason?: string;
   }> {
-    const batch = await prisma.trainingBatch.findUnique({
-      where: { batchId }
-    });
+    const batchResult = await db.select()
+      .from(trainingBatches)
+      .where(eq(trainingBatches.batchId, batchId))
+      .limit(1);
+    
+    const batch = batchResult[0];
 
     if (!batch) {
       return { benchmarked: false, deployed: false, reason: 'Batch not found' };
     }
 
     // Get model
-    const model = await prisma.trainedModel.findFirst({
-      where: {
-        trainingBatch: batch.id,
-        status: 'ready'
-      }
-    });
+    const modelResult = await db.select()
+      .from(trainedModels)
+      .where(
+        and(
+          eq(trainedModels.trainingBatch, batch.id),
+          eq(trainedModels.status, 'ready')
+        )
+      )
+      .limit(1);
+    
+    const model = modelResult[0];
 
     if (!model) {
       return { benchmarked: false, deployed: false, reason: 'Model not found' };
@@ -737,16 +776,15 @@ export class AutomationPipeline {
   private async runHealthChecks(): Promise<void> {
     try {
       // Check database connectivity
-      await prisma.user.count();
+      await db.select({ count: count() }).from(users);
 
       // Check data collection rate
-      const last1h = await prisma.trajectory.count({
-        where: {
-          startTime: {
-            gte: new Date(Date.now() - 60 * 60 * 1000)
-          }
-        }
-      });
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const last1hResult = await db.select({ count: count() })
+        .from(trajectories)
+        .where(gte(trajectories.startTime, oneHourAgo));
+      
+      const last1h = last1hResult[0]?.count || 0;
 
       if (last1h < 1) {
         logger.warn('Low data collection rate', { trajectoriesLastHour: last1h });
@@ -765,40 +803,61 @@ export class AutomationPipeline {
    */
   async getStatus(): Promise<AutomationStatus> {
     // Data collection stats
-    const last24h = await prisma.trajectory.count({
-      where: {
-        startTime: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-      }
-    });
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    const last24hResult = await db.select({ count: count() })
+      .from(trajectories)
+      .where(gte(trajectories.startTime, twentyFourHoursAgo));
+    const last24h = last24hResult[0]?.count || 0;
 
-    const last7d = await prisma.trajectory.count({
-      where: {
-        startTime: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-      }
-    });
+    const last7dResult = await db.select({ count: count() })
+      .from(trajectories)
+      .where(gte(trajectories.startTime, sevenDaysAgo));
+    const last7d = last7dResult[0]?.count || 0;
 
     // Training stats
-    const lastCompleted = await prisma.trainingBatch.findFirst({
-      where: { status: 'completed' },
-      orderBy: { completedAt: 'desc' }
-    });
+    const lastCompletedResult = await db.select()
+      .from(trainingBatches)
+      .where(eq(trainingBatches.status, 'completed'))
+      .orderBy(desc(trainingBatches.completedAt))
+      .limit(1);
+    const lastCompleted = lastCompletedResult[0];
 
     // Model stats
-    const latestModel = await prisma.trainedModel.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
+    const latestModelResult = await db.select()
+      .from(trainedModels)
+      .orderBy(desc(trainedModels.createdAt))
+      .limit(1);
+    const latestModel = latestModelResult[0];
 
-    const deployedCount = await prisma.trainedModel.count({
-      where: { status: 'deployed' }
-    });
+    const deployedCountResult = await db.select({ count: count() })
+      .from(trainedModels)
+      .where(eq(trainedModels.status, 'deployed'));
+    const deployedCount = deployedCountResult[0]?.count || 0;
 
-    const trainingCount = await prisma.trainingBatch.count({
-      where: { status: 'training' }
-    });
+    const trainingCountResult = await db.select({ count: count() })
+      .from(trainingBatches)
+      .where(eq(trainingBatches.status, 'training'));
+    const trainingCount = trainingCountResult[0]?.count || 0;
 
     // Health checks
-    const dbHealthy = await prisma.user.count().then(() => true).catch(() => false);
-    const storageHealthy = await fs.access(this.config.modelStoragePath).then(() => true).catch(() => false);
+    let dbHealthy = false;
+    try {
+      await db.select({ count: count() }).from(users);
+      dbHealthy = true;
+    } catch {
+      dbHealthy = false;
+    }
+    
+    let storageHealthy = false;
+    try {
+      await fs.access(this.config.modelStoragePath);
+      storageHealthy = true;
+    } catch {
+      storageHealthy = false;
+    }
+    
     const wandbHealthy = !!this.config.wandbApiKey;
 
     return {
@@ -830,4 +889,3 @@ export class AutomationPipeline {
 
 // Singleton
 export const automationPipeline = new AutomationPipeline();
-

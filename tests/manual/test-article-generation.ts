@@ -9,7 +9,7 @@
  * 5. Shows sample outputs
  */
 
-import { prisma } from '../../src/lib/prisma'
+import { db } from '@/db'
 import { BabylonLLMClient } from '../../src/generator/llm/openai-client'
 
 async function testArticleGeneration() {
@@ -21,7 +21,7 @@ async function testArticleGeneration() {
     console.log('1️⃣ Checking Recent Articles in Database')
     console.log('-'.repeat(80))
     
-    const recentArticles = await prisma.post.findMany({
+    const recentArticles = await db.post.findMany({
       where: { type: 'article' },
       take: 5,
       orderBy: { timestamp: 'desc' },
@@ -238,7 +238,7 @@ Return your response as XML in this exact format:
     console.error('❌ Test failed:', error)
     process.exit(1)
   } finally {
-    await prisma.$disconnect()
+    await db.$disconnect()
   }
 }
 

@@ -2,7 +2,7 @@
  * Prompt Debug Logger
  * 
  * Logs all LLM prompts and responses to markdown files for debugging and review.
- * Files are saved as: debug-prompts/<timestamp>_<promptType>.md
+ * Files are saved as: debug/prompts/<timestamp>_<promptType>.md
  * 
  * Each file includes:
  * - Prompt template (if available)
@@ -34,7 +34,7 @@ export interface PromptLogEntry {
  * Check if prompt logging is enabled via environment variable
  */
 export function isPromptLoggingEnabled(): boolean {
-  return process.env.DEBUG_PROMPTS === 'true' || process.env.DEBUG_PROMPTS === '1';
+  return process.env.DEBUG_SAVE_PROMPTS === 'true' || process.env.DEBUG_SAVE_PROMPTS === '1' || process.env.DEBUG_PROMPTS === 'true' || process.env.DEBUG_PROMPTS === '1';
 }
 
 /**
@@ -47,8 +47,9 @@ export async function logPrompt(entry: PromptLogEntry): Promise<void> {
 
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${timestamp}_${entry.promptType}.md`;
-    const debugDir = path.join(process.cwd(), 'debug-prompts');
+    const safePromptType = entry.promptType.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const filename = `${timestamp}_${safePromptType}.md`;
+    const debugDir = path.join(process.cwd(), 'debug', 'prompts');
     const filepath = path.join(debugDir, filename);
 
     // Create debug directory if it doesn't exist
@@ -85,14 +86,14 @@ export async function logPrompt(entry: PromptLogEntry): Promise<void> {
     }
 
     // Add rendered input
-    lines.push(`## Rendered Input Prompt`, ``);
+    lines.push(`# Input`, ``);
     lines.push('```');
     lines.push(entry.input);
     lines.push('```');
     lines.push(``);
 
     // Add raw output
-    lines.push(`## Raw LLM Output`, ``);
+    lines.push(`# Output`, ``);
     lines.push('```');
     lines.push(entry.output);
     lines.push('```');
@@ -136,7 +137,7 @@ export async function cleanOldDebugLogs(maxAgeDays: number = 7): Promise<number>
   }
 
   try {
-    const debugDir = path.join(process.cwd(), 'debug-prompts');
+    const debugDir = path.join(process.cwd(), 'debug', 'prompts');
     
     if (!fs.existsSync(debugDir)) {
       return 0;

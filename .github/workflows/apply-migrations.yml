@@ -1,4 +1,4 @@
-name: Apply Prisma migrations
+name: Apply database migrations
 
 on:
   push:
@@ -25,11 +25,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           DIRECT_DATABASE_URL: ${{ secrets.STAGING_DIRECT_DATABASE_URL }}
-        run: bunx prisma migrate deploy
+        run: bunx drizzle-kit push --force
 
       - name: Apply migrations (production)
         if: github.ref == 'refs/heads/main'
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
           DIRECT_DATABASE_URL: ${{ secrets.PROD_DIRECT_DATABASE_URL }}
-        run: bunx prisma migrate deploy
+        run: bunx drizzle-kit push --force

@@ -19,7 +19,7 @@ import {
 import { logger } from '@/lib/logger';
 import { cachedDb } from '@/lib/cached-database-service';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
-import { prisma } from '@/lib/prisma';
+import { db, users, perpPositions, balanceTransactions, organizations, eq } from '@/db';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
@@ -200,11 +200,11 @@ export class PerpTradeService {
     });
 
     try {
-      await asUser(authUser, async (db) => {
-        const dbUser = await db.user.findUnique({
-          where: { id: authUser.userId },
-          select: { id: true, virtualBalance: true },
-        });
+      await asUser(authUser.userId, async (txDb) => {
+        const [dbUser] = await txDb.select({ id: users.id, virtualBalance: users.virtualBalance })
+          .from(users)
+          .where(eq(users.id, authUser.userId))
+          .limit(1);
 
         if (!dbUser) {
           throw new NotFoundError('User', authUser.userId);
@@ -223,28 +223,26 @@ export class PerpTradeService {
 
         const newBalance = currentBalance - totalCost;
 
-        await db.user.update({
-          where: { id: authUser.userId },
-          data: {
-            virtualBalance: newBalance,
-          },
-        });
+        await txDb.update(users)
+          .set({
+            virtualBalance: newBalance.toString(),
+          })
+          .where(eq(users.id, authUser.userId));
 
-        await db.balanceTransaction.create({
-          data: {
+        await txDb.insert(balanceTransactions)
+          .values({
             id: await generateSnowflakeId(),
             userId: authUser.userId,
             type: 'perp_open',
-            amount: -totalCost,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
+            amount: (-totalCost).toString(),
+            balanceBefore: currentBalance.toString(),
+            balanceAfter: newBalance.toString(),
             relatedId: position.id,
             description: `Opened ${input.leverage}x ${input.side} position on ${input.ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
-          },
-        });
+          });
 
-        await db.perpPosition.create({
-          data: {
+        await txDb.insert(perpPositions)
+          .values({
             id: position.id,
             userId: authUser.userId,
             ticker: position.ticker,
@@ -259,8 +257,7 @@ export class PerpTradeService {
             unrealizedPnLPercent: position.unrealizedPnLPercent,
             fundingPaid: position.fundingPaid,
             lastUpdated: new Date(),
-          },
-        });
+          });
       });
     } catch (error) {
       perpsEngine.closePosition(position.id);
@@ -323,10 +320,12 @@ export class PerpTradeService {
   ): Promise<ClosePerpPositionResult> {
     const perpsEngine = await getReadyPerpsEngine();
 
-    const dbPosition = await asUser(authUser, async (db) => {
-      return await db.perpPosition.findUnique({
-        where: { id: positionId },
-      });
+    const dbPosition = await asUser(authUser.userId, async (txDb) => {
+      const [result] = await txDb.select()
+        .from(perpPositions)
+        .where(eq(perpPositions.id, positionId))
+        .limit(1);
+      return result || null;
     });
 
     if (!dbPosition) {
@@ -365,10 +364,10 @@ export class PerpTradeService {
       });
     }
 
-    const latestOrganization = await prisma.organization.findUnique({
-      where: { id: dbPosition.organizationId },
-      select: { currentPrice: true },
-    });
+    const [latestOrganization] = await db.select({ currentPrice: organizations.currentPrice })
+      .from(organizations)
+      .where(eq(organizations.id, dbPosition.organizationId))
+      .limit(1);
 
     const enginePosition = perpsEngine.getPosition(positionId);
 
@@ -401,7 +400,7 @@ export class PerpTradeService {
       {
         positionId,
         enginePrice: enginePosition?.currentPrice ?? null,
-        prismaPositionPrice: dbPosition.currentPrice
+        dbPositionPrice: dbPosition.currentPrice
           ? Number(dbPosition.currentPrice)
           : null,
         organizationPrice: latestOrganization?.currentPrice
@@ -449,22 +448,22 @@ export class PerpTradeService {
       position.id
     );
 
-    await asUser(authUser, async (db) => {
+    await asUser(authUser.userId, async (txDb) => {
       try {
-        await db.perpPosition.update({
-          where: { id: positionId },
-          data: {
+        const result = await txDb.update(perpPositions)
+          .set({
             closedAt: new Date(),
             realizedPnL: realizedPnL,
             currentPrice: position.currentPrice,
             unrealizedPnL: 0,
             unrealizedPnLPercent: 0,
             lastUpdated: new Date(),
-          },
-        });
-      } catch (error: unknown) {
-        // Handle case where position was deleted between fetch and update
-        if ((error as { code?: string })?.code === 'P2025') {
+          })
+          .where(eq(perpPositions.id, positionId))
+          .returning({ id: perpPositions.id });
+
+        // Check if position was found
+        if (result.length === 0) {
           logger.warn(
             'Position not found during update (may have been deleted)',
             { positionId, userId: authUser.userId },
@@ -474,6 +473,7 @@ export class PerpTradeService {
           // The position was already closed in the engine, so we can continue
           return;
         }
+      } catch (error) {
         throw error;
       }
     });

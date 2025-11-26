@@ -12,7 +12,7 @@
  * 5. Optional trajectory recording for RL training
  */
 
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
 import type { BabylonRuntime } from '../plugins/babylon/types'
@@ -100,7 +100,7 @@ export class AutonomousCoordinator {
     logger.info(`Starting autonomous tick for agent ${agentUserId}`, undefined, 'AutonomousCoordinator')
 
     // Get agent config
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentUserId },
       select: {
         isAgent: true,
@@ -119,7 +119,7 @@ export class AutonomousCoordinator {
     }
     
     // Check if agent has goals configured
-    const hasGoals = await prisma.agentGoal.count({
+    const hasGoals = await db.agentGoal.count({
       where: {
         agentUserId,
         status: 'active'
@@ -362,7 +362,7 @@ export class AutonomousCoordinator {
     errors: number
   }> {
     // Get all agents with autonomous features enabled
-    const activeAgents = await prisma.user.findMany({
+    const activeAgents = await db.user.findMany({
       where: {
         isAgent: true,
         OR: [
@@ -408,7 +408,7 @@ export class AutonomousCoordinator {
    * Capture current environment state for trajectory recording
    */
   private async captureEnvironmentState(agentUserId: string) {
-    const agent = await prisma.user.findUnique({
+    const agent = await db.user.findUnique({
       where: { id: agentUserId },
       select: {
         virtualBalance: true,
@@ -420,11 +420,11 @@ export class AutonomousCoordinator {
     const balance = await WalletService.getBalance(agentUserId)
 
     const [positions, perpPositions] = await Promise.all([
-      prisma.position.count({ where: { userId: agentUserId, status: 'active' } }),
-      prisma.perpPosition.count({ where: { userId: agentUserId, closedAt: null } })
+      db.position.count({ where: { userId: agentUserId, status: 'active' } }),
+      db.perpPosition.count({ where: { userId: agentUserId, closedAt: null } })
     ])
 
-    const activeMarkets = await prisma.market.count({
+    const activeMarkets = await db.market.count({
       where: { resolved: false, endDate: { gte: new Date() } }
     })
 

@@ -13,7 +13,7 @@
  * @see ModelBenchmarkService - For HuggingFace upload evaluation
  */
 
-import { prisma } from '@/lib/prisma';
+import { db, trainedModels, users, eq, and, not, isNotNull, desc, inArray } from '@/db';
 import { logger } from '@/lib/logger';
 import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
@@ -124,9 +124,12 @@ export class BenchmarkService {
 
     // Force the runtime to use the specific model we're benchmarking
     // by temporarily overriding the model selection
-    const model = await prisma.trainedModel.findUnique({
-      where: { modelId }
-    });
+    const modelResult = await db.select()
+      .from(trainedModels)
+      .where(eq(trainedModels.modelId, modelId))
+      .limit(1);
+    
+    const model = modelResult[0];
 
     if (!model) {
       throw new Error(`Model not found: ${modelId}`);
@@ -219,9 +222,12 @@ export class BenchmarkService {
     logger.info(`Comparing model: ${newModelId}`, undefined, 'BenchmarkService');
 
     // Get new model's benchmark results
-    const newModel = await prisma.trainedModel.findUnique({
-      where: { modelId: newModelId }
-    });
+    const newModelResult = await db.select()
+      .from(trainedModels)
+      .where(eq(trainedModels.modelId, newModelId))
+      .limit(1);
+    
+    const newModel = newModelResult[0];
 
     if (!newModel) {
       throw new Error(`Model not found: ${newModelId}`);
@@ -234,16 +240,19 @@ export class BenchmarkService {
     const newScore = newModel.benchmarkScore;
 
     // Get previous best model (excluding the new one)
-    const previousBest = await prisma.trainedModel.findFirst({
-      where: {
-        modelId: { not: newModelId },
-        status: { in: ['ready', 'deployed'] },
-        benchmarkScore: { not: null }
-      },
-      orderBy: {
-        benchmarkScore: 'desc'
-      }
-    });
+    const previousBestResult = await db.select()
+      .from(trainedModels)
+      .where(
+        and(
+          not(eq(trainedModels.modelId, newModelId)),
+          inArray(trainedModels.status, ['ready', 'deployed']),
+          isNotNull(trainedModels.benchmarkScore)
+        )
+      )
+      .orderBy(desc(trainedModels.benchmarkScore))
+      .limit(1);
+    
+    const previousBest = previousBestResult[0];
 
     // If no previous model, always deploy
     if (!previousBest) {
@@ -318,9 +327,8 @@ export class BenchmarkService {
     modelId: string,
     results: BenchmarkResults
   ): Promise<void> {
-    await prisma.trainedModel.update({
-      where: { modelId },
-      data: {
+    await db.update(trainedModels)
+      .set({
         benchmarkScore: results.benchmarkScore,
         accuracy: results.accuracy,
         evalMetrics: {
@@ -333,8 +341,8 @@ export class BenchmarkService {
           duration: results.duration,
           benchmarkedAt: results.timestamp.toISOString()
         }
-      }
-    });
+      })
+      .where(eq(trainedModels.modelId, modelId));
 
     logger.info(
       'Stored benchmark results',
@@ -423,19 +431,25 @@ export class BenchmarkService {
    */
   private async getTestAgent() {
     // Try to find a specific test agent
-    let agent = await prisma.user.findFirst({
-      where: {
-        isAgent: true,
-        username: { in: ['trader-aggressive', 'test-agent', 'benchmark-agent'] }
-      }
-    });
+    let agentResult = await db.select()
+      .from(users)
+      .where(
+        and(
+          eq(users.isAgent, true),
+          inArray(users.username, ['trader-aggressive', 'test-agent', 'benchmark-agent'])
+        )
+      )
+      .limit(1);
 
     // Fall back to any agent
-    if (!agent) {
-      agent = await prisma.user.findFirst({
-        where: { isAgent: true }
-      });
+    if (agentResult.length === 0) {
+      agentResult = await db.select()
+        .from(users)
+        .where(eq(users.isAgent, true))
+        .limit(1);
     }
+    
+    const agent = agentResult[0];
 
     if (!agent) {
       throw new Error('No test agent available for benchmarking');
@@ -459,17 +473,13 @@ export class BenchmarkService {
    * Get benchmark summary for monitoring
    */
   async getBenchmarkSummary() {
-    const models = await prisma.trainedModel.findMany({
-      where: {
-        benchmarkScore: { not: null }
-      },
-      orderBy: {
-        benchmarkScore: 'desc'
-      },
-      take: 10
-    });
+    const models = await db.select()
+      .from(trainedModels)
+      .where(isNotNull(trainedModels.benchmarkScore))
+      .orderBy(desc(trainedModels.benchmarkScore))
+      .limit(10);
 
-    const summary = models.map(m => ({
+    const summary = models.map((m: typeof models[number]) => ({
       modelId: m.modelId,
       version: m.version,
       score: m.benchmarkScore,
@@ -481,7 +491,7 @@ export class BenchmarkService {
     return {
       totalBenchmarked: models.length,
       topModels: summary.slice(0, 5),
-      recentModels: summary.sort((a, b) => 
+      recentModels: summary.sort((a: typeof summary[number], b: typeof summary[number]) => 
         b.createdAt.getTime() - a.createdAt.getTime()
       ).slice(0, 5)
     };
@@ -507,4 +517,3 @@ export class BenchmarkService {
 
 // Export singleton instance
 export const benchmarkService = new BenchmarkService();
-

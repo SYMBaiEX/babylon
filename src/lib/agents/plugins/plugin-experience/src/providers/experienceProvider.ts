@@ -57,7 +57,8 @@ export const experienceProvider: Provider = {
     return {
       text: contextText,
       data: {
-        experiences: relevantExperiences as unknown as JsonValue,
+        // relevantExperiences is an array of plain objects, which is compatible with JsonValue
+        experiences: JSON.parse(JSON.stringify(relevantExperiences)) as JsonValue,
         count: relevantExperiences.length,
       },
     };

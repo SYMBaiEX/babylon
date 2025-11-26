@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeAll } from 'bun:test'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { syncUserReputationToERC8004 } from '@/lib/reputation/erc8004-reputation-sync'
 import { Agent0FeedbackService } from '@/lib/agent0/feedback-service'
@@ -14,17 +14,21 @@ describe('Reputation Sync with Localnet Default Keys', () => {
   let testAgentUserId: string
 
   beforeAll(async () => {
-    // Create test agent
+    // Create test agent with unique wallet address
     testAgentUserId = await generateSnowflakeId()
+    
+    // Generate a unique wallet address to avoid conflicts
+    const uniqueWalletSuffix = Date.now().toString(16).padStart(40, '0')
+    const uniqueWalletAddress = `0x${uniqueWalletSuffix}`
 
-    await prisma.user.create({
+    await db.user.create({
       data: {
         id: testAgentUserId,
         username: `test-localnet-agent-${Date.now()}`,
         displayName: 'Test Localnet Agent',
         isAgent: true,
         agent0TokenId: 12345,
-        walletAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Second Anvil account
+        walletAddress: uniqueWalletAddress,
         updatedAt: new Date(),
       },
     })

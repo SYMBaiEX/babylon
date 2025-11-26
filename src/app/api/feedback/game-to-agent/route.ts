@@ -64,8 +64,8 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import type { JsonValue } from '@/db'
+import { db } from '@/db'
 import { updateGameMetrics, updateFeedbackMetrics } from '@/lib/reputation/reputation-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
   const agent = await requireUserByIdentifier(body.agentId)
 
   // Check if feedback already exists for this game
-  const existingFeedback = await prisma.feedback.findFirst({
+  const existingFeedback = await db.feedback.findFirst({
     where: {
       toUserId: agent.id,
       gameId: body.gameId,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date()
-  const feedback = await prisma.feedback.create({
+  const feedback = await db.feedback.create({
     data: {
       id: await generateSnowflakeId(),
       toUserId: agent.id,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       comment: body.comment,
       gameId: body.gameId,
       interactionType: 'game_to_agent',
-      metadata: body.metadata as Prisma.InputJsonValue | undefined,
+      metadata: body.metadata as JsonValue | undefined,
       createdAt: now,
       updatedAt: now,
     },
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     })
   })
 
-  const metrics = await prisma.agentPerformanceMetrics.findUnique({
+  const metrics = await db.agentPerformanceMetrics.findUnique({
     where: { userId: agent.id },
     select: {
       reputationScore: true,

@@ -4,7 +4,7 @@
  * Handles agents participating in group chats autonomously
  */
 
-import { prisma } from '@/lib/prisma'
+import { db, messages, users, eq, gte, and, desc } from '@/db'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
@@ -15,37 +15,38 @@ export class AutonomousGroupChatService {
    * Participate in group chats agent is member of
    */
   async participateInGroupChats(agentUserId: string, _runtime: IAgentRuntime): Promise<number> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const [agent] = await db.select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1)
     if (!agent?.isAgent) {
       throw new Error('Agent not found')
     }
 
       // Get agent's group chats
-      const groupChats = await prisma.chatParticipant.findMany({
-        where: { userId: agentUserId },
-        include: {
-          Chat: true
-        }
+      const groupChatsRaw = await db.query.chatParticipants.findMany({
+        where: (chatParticipants, { eq }) => eq(chatParticipants.userId, agentUserId),
+        with: {
+          chat: true,
+        },
       })
 
       let messagesCreated = 0
 
-      for (const chatParticipant of groupChats) {
-        const chat = chatParticipant.Chat
-        
-        if (!chat.isGroup) continue // Skip DMs
+      for (const chatParticipant of groupChatsRaw) {
+        const chat = chatParticipant.chat
+        if (!chat || !chat.isGroup) continue // Skip DMs
         
         // Get recent messages in this group
-        const recentMessages = await prisma.message.findMany({
-          where: {
-            chatId: chat.id,
-            createdAt: {
-              gte: new Date(Date.now() - 60 * 60 * 1000) // Last hour
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10
-        })
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+        const recentMessages = await db.select()
+          .from(messages)
+          .where(and(
+            eq(messages.chatId, chat.id),
+            gte(messages.createdAt, oneHourAgo)
+          ))
+          .orderBy(desc(messages.createdAt))
+          .limit(10)
 
         if (recentMessages.length === 0) continue
 
@@ -83,7 +84,8 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
           modelSize: 'large',  // Important social content
           runtime: _runtime,  // Pass runtime to access W&B trained models
           temperature: 0.8,
-          maxTokens: 80
+          maxTokens: 80,
+          actionType: 'generate_group_chat_response'
         })
 
         const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '')
@@ -93,14 +95,12 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
         }
 
         // Create group message
-        await prisma.message.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId: chat.id,
-            senderId: agentUserId,
-            content: cleanContent,
-            createdAt: new Date()
-          }
+        await db.insert(messages).values({
+          id: await generateSnowflakeId(),
+          chatId: chat.id,
+          senderId: agentUserId,
+          content: cleanContent,
+          createdAt: new Date()
         })
 
         messagesCreated++

@@ -47,7 +47,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/db'
 import { z } from 'zod'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 
@@ -189,7 +189,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const twitterUser = userData.data
 
   // Check for duplicate Twitter account
-  const existingUser = await prisma.user.findFirst({
+  const existingUser = await db.user.findFirst({
     where: {
       twitterId: twitterUser.id,
       id: { not: userId },

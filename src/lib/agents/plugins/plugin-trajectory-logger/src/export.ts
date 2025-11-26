@@ -4,12 +4,24 @@
  * Prepares trajectory data for RLAIF training pipelines.
  * Exports to HuggingFace Hub for easy access in training scripts.
  * 
- * NOTE: Requires trajectory schema that's not yet in main Prisma
+ * NOTE: Requires trajectory schema that's not yet in main schema
  */
 
-import type { Prisma } from '@prisma/client';
+import { 
+  db, 
+  trajectories, 
+  eq, 
+  and, 
+  gte, 
+  lte, 
+  inArray, 
+  isNotNull, 
+  desc,
+  sql,
+} from '@/db';
 import type { Trajectory } from './types';
 import { shuffleArray } from '@/lib/utils/randomization';
+import type { JsonValue } from '@/types/common';
 
 export interface ExportOptions {
   // Dataset configuration
@@ -47,64 +59,44 @@ export async function exportToHuggingFace(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
-    const { prisma } = await import('@/lib/prisma');
-    
-    // Build query using proper Prisma type
-    const where = buildWhereClause(options);
+    // Build where conditions
+    const conditions = buildWhereConditions(options);
 
-    interface TrajectoryRecord {
-      trajectoryId: string;
-      agentId: string;
-      episodeId: string | null;
-      scenarioId: string | null;
-      startTime: Date;
-      durationMs: number;
-      stepsJson: string;
-      metricsJson: string;
-      metadataJson: string;
-      totalReward: number;
-      finalStatus: string;
-      finalPnL: number | null;
-      aiJudgeReward: number | null;
-      aiJudgeReasoning: string | null;
-    }
+    // Fetch trajectories using Drizzle
+    const result = await db.select({
+      trajectoryId: trajectories.trajectoryId,
+      agentId: trajectories.agentId,
+      episodeId: trajectories.episodeId,
+      scenarioId: trajectories.scenarioId,
+      startTime: trajectories.startTime,
+      durationMs: trajectories.durationMs,
+      stepsJson: trajectories.stepsJson,
+      metricsJson: trajectories.metricsJson,
+      metadataJson: trajectories.metadataJson,
+      totalReward: trajectories.totalReward,
+      finalStatus: trajectories.finalStatus,
+      finalPnL: trajectories.finalPnL,
+      aiJudgeReward: trajectories.aiJudgeReward,
+      aiJudgeReasoning: trajectories.aiJudgeReasoning,
+    })
+    .from(trajectories)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(trajectories.startTime))
+    .limit(options.maxTrajectories || 10000);
 
-    // Fetch trajectories using Prisma directly
-    const trajectories = await prisma.trajectory.findMany({
-      where,
-      orderBy: { startTime: 'desc' },
-      take: options.maxTrajectories || 10000,
-      select: {
-        trajectoryId: true,
-        agentId: true,
-        episodeId: true,
-        scenarioId: true,
-        startTime: true,
-        durationMs: true,
-        stepsJson: true,
-        metricsJson: true,
-        metadataJson: true,
-        totalReward: true,
-        finalStatus: true,
-        finalPnL: true,
-        aiJudgeReward: true,
-        aiJudgeReasoning: true,
-      }
-    }) as TrajectoryRecord[];
-
-    console.log(`Exporting ${trajectories.length} trajectories...`);
+    console.log(`Exporting ${result.length} trajectories...`);
 
     // Transform to training format
-    const dataset = trajectories.map((traj: TrajectoryRecord) => transformForTraining(traj));
+    const dataset = result.map((traj) => transformForTraining(traj));
 
     // Split into train/validation/test
     const splits = splitDataset(dataset, options.splitRatio);
 
     // Export based on format
     if (options.format === 'parquet' || options.format === 'arrow') {
-      return await exportToParquet(splits, options);
+      return await exportToParquet<TrainingTrajectory>(splits, options);
     } else {
-      return await exportToJSONL(splits, options);
+      return await exportToJSONL<TrainingTrajectory>(splits, options);
     }
   } catch (error) {
     return {
@@ -138,8 +130,8 @@ interface TrajectoryRecord {
 interface TrajectoryStep {
   stepNumber: number;
   timestamp: number;
-  environmentState: Record<string, unknown>;
-  observation: Record<string, unknown>;
+  environmentState: Record<string, JsonValue>;
+  observation: Record<string, JsonValue>;
   llmCalls: Array<{
     model: string;
     systemPrompt: string;
@@ -151,16 +143,16 @@ interface TrajectoryStep {
   }>;
   action: {
     actionType: string;
-    parameters: Record<string, unknown>;
+    parameters: Record<string, JsonValue>;
     success: boolean;
-    result?: Record<string, unknown>;
+    result?: Record<string, JsonValue>;
     error?: string;
   };
   reward: number;
   reasoning?: string;
 }
 
-interface TrainingTrajectory extends Record<string, unknown> {
+interface TrainingTrajectory {
   trajectory_id: string;
   agent_id: string;
   episode_id: string | null;
@@ -170,26 +162,26 @@ interface TrainingTrajectory extends Record<string, unknown> {
   steps: Array<{
     step_number: number;
     timestamp: number;
-    environment_state: Record<string, unknown>;
-    observation: Record<string, unknown>;
+    environment_state: Record<string, JsonValue>;
+    observation: Record<string, JsonValue>;
     llm_calls: Array<{
       model: string;
       system_prompt: string;
       user_prompt: string;
       response: string;
-      reasoning?: string;
+      reasoning: string | null;
       temperature: number;
       purpose: string;
     }>;
     action: {
       type: string;
-      parameters: Record<string, unknown>;
+      parameters: Record<string, JsonValue>;
       success: boolean;
-      result?: Record<string, unknown>;
-      error?: string;
+      result: Record<string, JsonValue> | null;
+      error: string | null;
     };
     reward: number;
-    reasoning?: string;
+    reasoning: string | null;
   }>;
   total_reward: number;
   final_status: string;
@@ -198,18 +190,18 @@ interface TrainingTrajectory extends Record<string, unknown> {
   ai_judge_reasoning: string | null;
   metrics: {
     episode_length: number;
-    trades_executed?: number;
-    posts_created?: number;
-    messages_handled?: number;
-    error_count?: number;
+    trades_executed: number | null;
+    posts_created: number | null;
+    messages_handled: number | null;
+    error_count: number | null;
   };
-  metadata: Record<string, unknown>;
+  metadata: Record<string, JsonValue>;
 }
 
 function transformForTraining(traj: TrajectoryRecord): TrainingTrajectory {
   const steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
-  const metrics = JSON.parse(traj.metricsJson) as Record<string, unknown>;
-  const metadata = JSON.parse(traj.metadataJson) as Record<string, unknown>;
+  const metrics = JSON.parse(traj.metricsJson) as Record<string, JsonValue>;
+  const metadata = JSON.parse(traj.metadataJson) as Record<string, JsonValue>;
   
   return {
     // Identifiers
@@ -237,7 +229,7 @@ function transformForTraining(traj: TrajectoryRecord): TrainingTrajectory {
         system_prompt: call.systemPrompt,
         user_prompt: call.userPrompt,
         response: call.response,
-        reasoning: call.reasoning,
+        reasoning: call.reasoning ?? null,
         temperature: call.temperature,
         purpose: call.purpose
       })),
@@ -247,13 +239,13 @@ function transformForTraining(traj: TrajectoryRecord): TrainingTrajectory {
         type: step.action.actionType,
         parameters: step.action.parameters,
         success: step.action.success,
-        result: step.action.result,
-        error: step.action.error
+        result: step.action.result ?? null,
+        error: step.action.error ?? null
       },
       
       // Feedback
       reward: step.reward,
-      reasoning: step.reasoning
+      reasoning: step.reasoning ?? null
     })),
     
     // Outcomes
@@ -267,11 +259,11 @@ function transformForTraining(traj: TrajectoryRecord): TrainingTrajectory {
     
     // Metrics
     metrics: {
-      episode_length: (metrics.episodeLength as number) || 0,
-      trades_executed: metrics.tradesExecuted as number | undefined,
-      posts_created: metrics.postsCreated as number | undefined,
-      messages_handled: metrics.messagesHandled as number | undefined,
-      error_count: metrics.errorCount as number | undefined
+      episode_length: typeof metrics.episodeLength === 'number' ? metrics.episodeLength : 0,
+      trades_executed: typeof metrics.tradesExecuted === 'number' ? metrics.tradesExecuted : null,
+      posts_created: typeof metrics.postsCreated === 'number' ? metrics.postsCreated : null,
+      messages_handled: typeof metrics.messagesHandled === 'number' ? metrics.messagesHandled : null,
+      error_count: typeof metrics.errorCount === 'number' ? metrics.errorCount : null
     },
     
     // Metadata
@@ -308,7 +300,7 @@ function splitDataset<T>(
 /**
  * Export to JSONL format
  */
-async function exportToJSONL<T extends Record<string, unknown>>(
+async function exportToJSONL<T extends object>(
   splits: { train: T[]; validation: T[]; test: T[] },
   options: ExportOptions
 ): Promise<ExportResult> {
@@ -351,7 +343,7 @@ async function exportToJSONL<T extends Record<string, unknown>>(
 /**
  * Export to Parquet format (more efficient for large datasets)
  */
-async function exportToParquet<T extends Record<string, unknown>>(
+async function exportToParquet<T extends object>(
   splits: { train: T[]; validation: T[]; test: T[] },
   options: ExportOptions
 ): Promise<ExportResult> {
@@ -443,49 +435,59 @@ export async function exportGroupedByScenario(
   options: Omit<ExportOptions, 'format'>
 ): Promise<ExportResult> {
   try {
-    const { prisma } = await import('@/lib/prisma');
-    
-    // Get all scenarios
-    const scenarios = await prisma.trajectory.findMany({
-      where: {
-        scenarioId: { not: null },
-        ...buildWhereClause(options)
-      },
-      select: {
-        scenarioId: true
-      },
-      distinct: ['scenarioId']
-    });
-
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
     const exportDir = path.resolve(process.cwd(), 'exports', 'scenarios');
     await fs.mkdir(exportDir, { recursive: true });
 
+    // Build conditions
+    const baseConditions = buildWhereConditions(options);
+    baseConditions.push(isNotNull(trajectories.scenarioId));
+
+    // Get distinct scenario IDs
+    const scenarioResults = await db.selectDistinct({ scenarioId: trajectories.scenarioId })
+      .from(trajectories)
+      .where(baseConditions.length > 0 ? and(...baseConditions) : undefined);
+
     let totalExported = 0;
 
-    for (const { scenarioId } of scenarios) {
+    for (const { scenarioId } of scenarioResults) {
       if (!scenarioId) continue;
       
       // Get all trajectories for this scenario
-      const trajectories = await prisma.trajectory.findMany({
-        where: {
-          scenarioId,
-          ...buildWhereClause(options)
-        },
-        orderBy: { startTime: 'asc' }
-      });
+      const trajResults = await db.select()
+        .from(trajectories)
+        .where(and(
+          eq(trajectories.scenarioId, scenarioId),
+          ...baseConditions
+        ))
+        .orderBy(trajectories.startTime);
 
-      if (trajectories.length < 2) continue; // Need at least 2 for comparison
+      if (trajResults.length < 2) continue; // Need at least 2 for comparison
 
-      const transformed = trajectories.map((traj) => transformForTraining(traj));
+      const transformed = trajResults.map((traj) => transformForTraining({
+        trajectoryId: traj.trajectoryId,
+        agentId: traj.agentId,
+        episodeId: traj.episodeId,
+        scenarioId: traj.scenarioId,
+        startTime: traj.startTime,
+        durationMs: traj.durationMs,
+        stepsJson: traj.stepsJson,
+        metricsJson: traj.metricsJson,
+        metadataJson: traj.metadataJson,
+        totalReward: traj.totalReward,
+        finalStatus: traj.finalStatus,
+        finalPnL: traj.finalPnL,
+        aiJudgeReward: traj.aiJudgeReward,
+        aiJudgeReasoning: traj.aiJudgeReasoning,
+      }));
       
       const filePath = path.join(exportDir, `scenario-${scenarioId}.jsonl`);
       const lines = transformed.map((item) => JSON.stringify(item)).join('\n');
       await fs.writeFile(filePath, lines, 'utf-8');
       
-      console.log(`Exported ${trajectories.length} trajectories for scenario ${scenarioId}`);
-      totalExported += trajectories.length;
+      console.log(`Exported ${trajResults.length} trajectories for scenario ${scenarioId}`);
+      totalExported += trajResults.length;
     }
 
     return {
@@ -509,16 +511,17 @@ export async function exportForOpenPipeART(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
-    const { prisma } = await import('@/lib/prisma');
     const { toARTTrajectory } = await import('./art-format');
     
-    const trajectories = await prisma.trajectory.findMany({
-      where: buildWhereClause(options),
-      take: options.maxTrajectories,
-      orderBy: { startTime: 'asc' }
-    });
+    const conditions = buildWhereConditions(options);
+    
+    const trajResults = await db.select()
+      .from(trajectories)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .limit(options.maxTrajectories || 10000)
+      .orderBy(trajectories.startTime);
 
-    const artFormat = trajectories.map((traj: typeof trajectories[0]) => {
+    const artFormat = trajResults.map((traj) => {
       const steps = JSON.parse(traj.stepsJson);
       const metrics = JSON.parse(traj.metricsJson);
       const metadata = JSON.parse(traj.metadataJson);
@@ -573,19 +576,46 @@ export async function exportGroupedForGRPO(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
-    const { prisma } = await import('@/lib/prisma');
     const { groupTrajectories, toARTTrajectory } = await import('./art-format');
     
     // CRITICAL: Enforce maxTrajectories limit to prevent 200GB disk usage
     const MAX_TRAJECTORIES = options.maxTrajectories || 2000; // Default hard limit
     const MAX_TRAJECTORIES_PER_SCENARIO = 50; // Limit per scenario to prevent huge files
     
-    // Get all scenarios
-    const scenarios = await prisma.trajectory.groupBy({
-      by: ['scenarioId'],
-      where: buildWhereClause(options),
-      _count: true
-    });
+    const baseConditions = buildWhereConditions(options);
+    
+    // Get scenarios with counts using raw SQL for groupBy
+    const scenarioCountsRaw = await db.execute(sql`
+      SELECT "scenarioId", COUNT(*) as count 
+      FROM trajectories 
+      WHERE "scenarioId" IS NOT NULL AND "isTrainingData" = true
+      GROUP BY "scenarioId"
+    `);
+    
+    // Type for raw SQL scenario count row with index signature for compatibility
+    interface ScenarioCountRow {
+      scenarioId: string | null
+      count: string | number
+      [key: string]: string | number | null
+    }
+    
+    // Type guard for scenario count row
+    function isScenarioCountRow(row: object): row is ScenarioCountRow {
+      return 'scenarioId' in row && 'count' in row
+    }
+    
+    // Validate and type the raw SQL result
+    if (!Array.isArray(scenarioCountsRaw)) {
+      throw new Error('Invalid scenario counts result from database')
+    }
+    const scenarioCounts: Array<{ scenarioId: string; count: string }> = (scenarioCountsRaw as object[])
+      .filter((row): row is ScenarioCountRow => 
+        row !== null && typeof row === 'object' && isScenarioCountRow(row)
+      )
+      .map(row => ({
+        scenarioId: String(row.scenarioId),
+        count: String(row.count),
+      }))
 
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
@@ -595,8 +625,9 @@ export async function exportGroupedForGRPO(
     let totalExported = 0;
     let remainingQuota = MAX_TRAJECTORIES;
 
-    for (const { scenarioId, _count } of scenarios) {
-      if (!scenarioId || _count < 2) continue; // Need at least 2 for comparison
+    for (const { scenarioId, count } of scenarioCounts) {
+      const countNum = parseInt(count);
+      if (!scenarioId || countNum < 2) continue; // Need at least 2 for comparison
       if (remainingQuota <= 0) break; // Stop if we've hit the limit
       
       // Calculate how many trajectories we can take for this scenario
@@ -605,21 +636,21 @@ export async function exportGroupedForGRPO(
         remainingQuota
       );
       
-      const trajectories = await prisma.trajectory.findMany({
-        where: {
-          scenarioId,
-          ...buildWhereClause(options)
-        },
-        orderBy: { startTime: 'asc' },
-        take: takeForScenario // CRITICAL: Limit per scenario
-      });
+      const trajResults = await db.select()
+        .from(trajectories)
+        .where(and(
+          eq(trajectories.scenarioId, scenarioId),
+          ...baseConditions
+        ))
+        .orderBy(trajectories.startTime)
+        .limit(takeForScenario);
 
       // Convert to trajectory objects
-      const trajObjects = trajectories.map((traj) => ({
+      const trajObjects = trajResults.map((traj, index) => ({
         trajectoryId: traj.trajectoryId,
         agentId: traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
         scenarioId: traj.scenarioId,
-        groupIndex: trajectories.indexOf(traj),
+        groupIndex: index,
         startTime: traj.startTime.getTime(),
         endTime: traj.endTime.getTime(),
         durationMs: traj.durationMs,
@@ -653,7 +684,7 @@ export async function exportGroupedForGRPO(
       }
     }
 
-    console.log(`Exported ${totalExported} trajectories in ${scenarios.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`);
+    console.log(`Exported ${totalExported} trajectories in ${scenarioCounts.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`);
 
     return {
       success: true,
@@ -669,41 +700,32 @@ export async function exportGroupedForGRPO(
 }
 
 /**
- * Helper to build Prisma where clause
+ * Build Drizzle where conditions from export options
  */
-function buildWhereClause(options: ExportOptions): Prisma.TrajectoryWhereInput {
-  const where: Prisma.TrajectoryWhereInput = {
-    isTrainingData: true
-  };
+function buildWhereConditions(options: ExportOptions) {
+  const conditions = [eq(trajectories.isTrainingData, true)];
   
-  if (options.startDate || options.endDate) {
-    where.startTime = {};
-    if (options.startDate) {
-      where.startTime.gte = options.startDate;
-    }
-    if (options.endDate) {
-      where.startTime.lte = options.endDate;
-    }
+  if (options.startDate) {
+    conditions.push(gte(trajectories.startTime, options.startDate));
   }
-  if (options.agentIds) {
-    where.agentId = { in: options.agentIds };
+  if (options.endDate) {
+    conditions.push(lte(trajectories.startTime, options.endDate));
   }
-  if (options.scenarioIds) {
-    where.scenarioId = { in: options.scenarioIds };
+  if (options.agentIds && options.agentIds.length > 0) {
+    conditions.push(inArray(trajectories.agentId, options.agentIds));
   }
-  if (options.minReward !== undefined || options.maxReward !== undefined) {
-    where.totalReward = {};
-    if (options.minReward !== undefined) {
-      where.totalReward.gte = options.minReward;
-    }
-    if (options.maxReward !== undefined) {
-      where.totalReward.lte = options.maxReward;
-    }
+  if (options.scenarioIds && options.scenarioIds.length > 0) {
+    conditions.push(inArray(trajectories.scenarioId, options.scenarioIds));
+  }
+  if (options.minReward !== undefined) {
+    conditions.push(gte(trajectories.totalReward, options.minReward));
+  }
+  if (options.maxReward !== undefined) {
+    conditions.push(lte(trajectories.totalReward, options.maxReward));
   }
   if (options.includeJudged) {
-    where.aiJudgeReward = { not: null };
+    conditions.push(isNotNull(trajectories.aiJudgeReward));
   }
   
-  return where;
+  return conditions;
 }
-

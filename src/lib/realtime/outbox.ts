@@ -1,11 +1,10 @@
-import { prisma } from '@/lib/prisma'
+import { db, eq, lt, or, and, realtimeOutboxes, sql } from '@/db'
 import { logger } from '@/lib/logger'
 import { streamAdd } from '@/lib/redis'
 import type { RealtimeChannel, RealtimeEventEnvelope } from './index'
 import { toStreamKey } from './index'
 import type { JsonValue } from '@/types/common'
 import { randomUUID } from 'crypto'
-import type { Prisma } from '@prisma/client'
 
 const MAX_ATTEMPTS = 5
 const BATCH_SIZE = 100
@@ -15,15 +14,21 @@ const BATCH_SIZE = 100
  */
 export async function enqueueOutbox(event: RealtimeEventEnvelope): Promise<void> {
   try {
-    const payload = event as unknown as Prisma.InputJsonValue
-    await prisma.realtimeOutbox.create({
-      data: {
-        id: randomUUID(),
-        channel: event.channel,
-        type: event.type,
-        version: event.version ?? 'v1',
-        payload,
-      },
+    // RealtimeEventEnvelope is compatible with JsonValue - it's a plain object with JsonValue fields
+    const payload: JsonValue = {
+      channel: event.channel,
+      type: event.type,
+      version: event.version ?? 'v1',
+      data: event.data,
+      timestamp: event.timestamp,
+    };
+    await db.insert(realtimeOutboxes).values({
+      id: randomUUID(),
+      channel: event.channel,
+      type: event.type,
+      version: event.version ?? 'v1',
+      payload,
+      updatedAt: new Date(),
     })
   } catch (error) {
     logger.error('Failed to enqueue realtime outbox event', { error, channel: event.channel, type: event.type }, 'RealtimeOutbox')
@@ -38,42 +43,70 @@ export async function drainOutboxBatch(limit: number = BATCH_SIZE): Promise<{
   sent: number
   failed: number
 }> {
-  const rows = await prisma.realtimeOutbox.findMany({
-    where: {
-      OR: [
-        { status: 'pending' },
-        { status: 'failed', attempts: { lt: MAX_ATTEMPTS } },
-      ],
-    },
-    orderBy: { createdAt: 'asc' },
-    take: limit,
-  })
+  const rows = await db.select()
+    .from(realtimeOutboxes)
+    .where(
+      or(
+        eq(realtimeOutboxes.status, 'pending'),
+        and(
+          eq(realtimeOutboxes.status, 'failed'),
+          lt(realtimeOutboxes.attempts, MAX_ATTEMPTS)
+        )
+      )
+    )
+    .orderBy(realtimeOutboxes.createdAt)
+    .limit(limit)
 
   let sent = 0
   let failed = 0
 
   for (const row of rows) {
-    const envelope = row.payload as unknown as RealtimeEventEnvelope
+    // Validate and parse payload from database
+    const payload = row.payload;
+    if (!payload || typeof payload !== 'object' || !('channel' in payload) || !('type' in payload) || !('data' in payload) || !('timestamp' in payload)) {
+      logger.error('Invalid payload structure in outbox', { rowId: row.id }, 'RealtimeOutbox');
+      failed++;
+      continue;
+    }
+    
+    const envelope: RealtimeEventEnvelope = {
+      channel: payload.channel as RealtimeChannel,
+      type: payload.type as string,
+      version: 'version' in payload ? payload.version as string : undefined,
+      data: payload.data as JsonValue,
+      timestamp: typeof payload.timestamp === 'number' ? payload.timestamp : Number(payload.timestamp),
+    };
+    
     try {
-      await streamAdd(toStreamKey(envelope.channel as RealtimeChannel), envelope as unknown as Record<string, JsonValue>, {
+      // Convert envelope to Record<string, JsonValue> for streamAdd
+      const envelopeRecord: Record<string, JsonValue> = {
+        channel: envelope.channel,
+        type: envelope.type,
+        version: envelope.version ?? 'v1',
+        data: envelope.data,
+        timestamp: envelope.timestamp,
+      };
+      await streamAdd(toStreamKey(envelope.channel), envelopeRecord, {
         maxlen: 10_000,
       })
-      await prisma.realtimeOutbox.update({
-        where: { id: row.id },
-        data: { status: 'sent', attempts: { increment: 1 }, lastError: null },
-      })
+      await db.update(realtimeOutboxes)
+        .set({ 
+          status: 'sent', 
+          attempts: sql`${realtimeOutboxes.attempts} + 1`,
+          lastError: null 
+        })
+        .where(eq(realtimeOutboxes.id, row.id))
       sent++
     } catch (error) {
       failed++
       const attempts = row.attempts + 1
-      await prisma.realtimeOutbox.update({
-        where: { id: row.id },
-        data: {
+      await db.update(realtimeOutboxes)
+        .set({
           attempts,
           status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending',
           lastError: `${error}`,
-        },
-      })
+        })
+        .where(eq(realtimeOutboxes.id, row.id))
       logger.warn('Realtime outbox publish failed', { id: row.id, attempts }, 'RealtimeOutbox')
     }
   }

@@ -21,7 +21,7 @@ import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordin
 import { initializeAgentRuntime } from '@/lib/agents/plugins/babylon/integration';
 import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/db';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 
@@ -74,7 +74,7 @@ async function runElizaBenchmark(config: ElizaBenchmarkConfig): Promise<Simulati
     : await generateBenchmark(config.generatorConfig!);
   
   // 2. Get agent from database
-  const agent = await prisma.user.findUnique({
+  const agent = await db.user.findUnique({
     where: { id: config.agentUserId },
     select: {
       id: true,
@@ -342,7 +342,7 @@ async function main() {
     console.log(`View comparison: file://${path.join(outputDir, 'comparison.html')}`);
   }
   
-  await prisma.$disconnect();
+  await db.$disconnect();
 }
 
 main();
