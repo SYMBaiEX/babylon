@@ -9,7 +9,7 @@
  */
 
 import { PrivyClient } from '@privy-io/server-auth'
-import { db, users, agentLogs, eq } from '@/db'
+import { db, users, agentLogs, eq, type JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { v4 as uuidv4 } from 'uuid'
@@ -254,7 +254,7 @@ export class AgentWalletService {
           tokenId: registration.tokenId,
           txHash: registration.txHash,
           metadataCID: registration.metadataCID
-        }
+        } as JsonValue
       })
 
     logger.info(`Agent ${agentUserId} registered on-chain: Token ID ${registration.tokenId}`, undefined, 'AgentWalletService')

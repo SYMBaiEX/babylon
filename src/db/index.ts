@@ -19,7 +19,7 @@ import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import * as schema from './schema';
 import { logger } from '@/lib/logger';
-import { createDrizzleClient, type DrizzleClient } from './client';
+import { createDrizzleClient, type DrizzleClient, type SQLValue } from './client';
 
 // Re-export everything from schema
 export * from './schema';
@@ -29,7 +29,7 @@ export { schema };
 export * from './types';
 
 // Re-export client types
-export type { DrizzleClient } from './client';
+export type { DrizzleClient, JsonValue, SQLValue } from './client';
 export { TableRepository } from './client';
 
 // ============================================================================
@@ -43,7 +43,9 @@ export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 // Connection Management
 // ============================================================================
 
-const globalForDb = globalThis as unknown as {
+// Global state for database connections (serverless-safe)
+// Using a type assertion here is safe because we're extending globalThis
+const globalForDb = globalThis as typeof globalThis & {
   postgresClient: ReturnType<typeof postgres> | undefined;
   drizzleDb: Database | undefined;
   db: DrizzleClient | undefined;
@@ -216,7 +218,10 @@ function createLazyDbProxy(): DrizzleClient {
 
   // Create proxy with proper type casting
   // The proxy intercepts all property access so the empty object target is fine
-  return new Proxy({} as unknown as DrizzleClient, handler);
+  // Proxy requires a target object, but handler intercepts all access
+  // We use a partial DrizzleClient as target since handler provides all properties
+  const proxyTarget: Partial<DrizzleClient> = {};
+  return new Proxy(proxyTarget, handler) as DrizzleClient;
 }
 
 // ============================================================================
@@ -306,7 +311,8 @@ export async function asSystem<T>(
       await tx.execute(
         sql`SELECT set_config('app.current_user_id', 'system', true)`
       );
-      const txClient = createDrizzleClient(tx as unknown as Database);
+      // Transaction type is compatible with Database for our use case
+      const txClient = createDrizzleClient(tx as Database);
       return operation(txClient);
     })
   );
@@ -333,7 +339,8 @@ export async function asPublic<T>(
   return withRetryInternal(() =>
     instance.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_user_id', '', true)`);
-      const txClient = createDrizzleClient(tx as unknown as Database);
+      // Transaction type is compatible with Database for our use case
+      const txClient = createDrizzleClient(tx as Database);
       return operation(txClient);
     })
   );
@@ -367,7 +374,7 @@ export async function closeDatabase(): Promise<void> {
 }
 
 /** Execute raw SQL */
-export async function executeRaw<T = unknown>(
+export async function executeRaw<T extends Record<string, SQLValue> = Record<string, SQLValue>>(
   query: ReturnType<typeof sql>
 ): Promise<T[]> {
   const instance = getDrizzleInstance();
@@ -383,3 +390,7 @@ export { eq, ne, gt, gte, lt, lte, like, ilike, and, or, not, inArray, notInArra
 
 // Re-export query helpers
 export { generateId, now, $queryRaw, $executeRaw, $connect, $disconnect, withRetry, isRetryableError } from './helpers';
+
+// Re-export error utilities
+export { toDatabaseErrorType, isUniqueConstraintError } from './types';
+export type { DatabaseErrorType } from './types';

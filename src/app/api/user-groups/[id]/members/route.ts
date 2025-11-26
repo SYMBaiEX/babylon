@@ -92,7 +92,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { z } from 'zod';
 import { notifyUserGroupInvite } from '@/lib/services/notification-service';
-import { isUniqueConstraintError } from '@/db';
+import { isUniqueConstraintError, toDatabaseErrorType } from '@/db';
 
 const addMemberSchema = z.object({
   userId: z.string(),
@@ -203,7 +203,7 @@ export const POST = withErrorHandling(async (
   } catch (error: unknown) {
     // Handle unique constraint violation (race condition)
     // PostgreSQL error code 23505 is unique_violation
-    if (isUniqueConstraintError(error)) {
+      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
       // Check if the error is related to the groupId_invitedUserId constraint
       // PostgreSQL errors include constraint name in the error message
       const errorMessage = error instanceof Error ? error.message : String(error);

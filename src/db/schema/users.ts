@@ -14,6 +14,7 @@ import {
 import { relations } from 'drizzle-orm';
 import { onboardingStatusEnum } from './enums';
 import { agentPerformanceMetrics } from './agents';
+import type { JsonValue } from '../client';
 
 // User - Main user table
 export const users = pgTable(
@@ -123,7 +124,7 @@ export const users = pgTable(
     appealStatus: text('appealStatus'),
     appealSubmittedAt: timestamp('appealSubmittedAt', { mode: 'date' }),
     appealReviewedAt: timestamp('appealReviewedAt', { mode: 'date' }),
-    falsePositiveHistory: json('falsePositiveHistory'),
+    falsePositiveHistory: json('falsePositiveHistory').$type<JsonValue>(),
     privyId: text('privyId').unique(),
     registrationBlockNumber: bigint('registrationBlockNumber', { mode: 'bigint' }),
     registrationGasUsed: bigint('registrationGasUsed', { mode: 'bigint' }),
@@ -173,12 +174,12 @@ export const users = pgTable(
     agentErrorMessage: text('agentErrorMessage'),
     agentLastChatAt: timestamp('agentLastChatAt', { mode: 'date' }),
     agentLastTickAt: timestamp('agentLastTickAt', { mode: 'date' }),
-    agentMessageExamples: json('agentMessageExamples'),
+    agentMessageExamples: json('agentMessageExamples').$type<JsonValue>(),
     agentModelTier: text('agentModelTier').notNull().default('free'),
     agentPersonality: text('agentPersonality'),
     agentPointsBalance: integer('agentPointsBalance').notNull().default(0),
     agentStatus: text('agentStatus').notNull().default('idle'),
-    agentStyle: json('agentStyle'),
+    agentStyle: json('agentStyle').$type<JsonValue>(),
     agentSystem: text('agentSystem'),
     agentTotalDeposited: integer('agentTotalDeposited').notNull().default(0),
     agentTotalPointsSpent: integer('agentTotalPointsSpent').notNull().default(0),
@@ -192,9 +193,9 @@ export const users = pgTable(
     a2aEnabled: boolean('a2aEnabled').notNull().default(false),
     isAgent: boolean('isAgent').notNull().default(false),
     managedBy: text('managedBy'),
-    agentGoals: json('agentGoals'),
-    agentDirectives: json('agentDirectives'),
-    agentConstraints: json('agentConstraints'),
+    agentGoals: json('agentGoals').$type<JsonValue>(),
+    agentDirectives: json('agentDirectives').$type<JsonValue>(),
+    agentConstraints: json('agentConstraints').$type<JsonValue>(),
     agentPersonaPrompt: text('agentPersonaPrompt'),
     agentPlanningHorizon: text('agentPlanningHorizon').notNull().default('single'),
     agentRiskTolerance: text('agentRiskTolerance').notNull().default('medium'),
@@ -237,12 +238,12 @@ export const onboardingIntents = pgTable(
     userId: text('userId').notNull().unique(),
     status: onboardingStatusEnum('status').notNull().default('PENDING_PROFILE'),
     referralCode: text('referralCode'),
-    payload: json('payload'),
+    payload: json('payload').$type<JsonValue>(),
     profileApplied: boolean('profileApplied').notNull().default(false),
     profileCompletedAt: timestamp('profileCompletedAt', { mode: 'date' }),
     onchainStartedAt: timestamp('onchainStartedAt', { mode: 'date' }),
     onchainCompletedAt: timestamp('onchainCompletedAt', { mode: 'date' }),
-    lastError: json('lastError'),
+    lastError: json('lastError').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
@@ -354,7 +355,7 @@ export const referrals = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     completedAt: timestamp('completedAt', { mode: 'date' }),
     qualifiedAt: timestamp('qualifiedAt', { mode: 'date' }),
-    suspiciousReferralFlags: json('suspiciousReferralFlags'),
+    suspiciousReferralFlags: json('suspiciousReferralFlags').$type<JsonValue>(),
   },
   (table) => [
     unique('Referral_referralCode_referredUserId_key').on(

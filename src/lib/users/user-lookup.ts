@@ -1,6 +1,7 @@
 import { db, users, eq, or } from '@/db'
 import { NotFoundError } from '@/lib/errors'
 import type { InferSelectModel } from 'drizzle-orm'
+import type { SelectedFields } from 'drizzle-orm/pg-core'
 
 type User = InferSelectModel<typeof users>
 
@@ -31,7 +32,9 @@ export async function findUserByIdentifierWithSelect<T extends Record<string, un
   identifier: string,
   select: T
 ): Promise<T | null> {
-  const [user] = await db.select(select as never)
+  // Drizzle's select() accepts SelectedFields which is compatible with our select object
+  // The select object contains column references which satisfy SelectedFields requirements
+  const [user] = await db.select(select as SelectedFields)
     .from(users)
     .where(or(
       eq(users.id, identifier),

@@ -107,7 +107,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { db, users, userMutes, eq, and, isUniqueConstraintError } from '@/db';
+import { db, users, userMutes, eq, and, isUniqueConstraintError, toDatabaseErrorType } from '@/db';
 import { MuteUserSchema } from '@/lib/validation/schemas/moderation';
 import { logger } from '@/lib/logger';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -191,7 +191,7 @@ export const POST = withErrorHandling(async (
       mute = insertedMute;
     } catch (error: unknown) {
       // Handle unique constraint violation (race condition)
-      if (isUniqueConstraintError(error)) {
+      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
         // Race condition: mute was created by another concurrent request
         // Fetch the existing mute and return success
         const [raceConditionMute] = await db.select()

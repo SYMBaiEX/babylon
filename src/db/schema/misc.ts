@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { realtimeOutboxStatusEnum } from './enums';
+import type { JsonValue } from '../client';
 
 // Game
 export const games = pgTable(
@@ -42,7 +43,7 @@ export const gameConfigs = pgTable(
   {
     id: text('id').primaryKey(),
     key: text('key').notNull().unique(),
-    value: json('value').notNull(),
+    value: json('value').$type<JsonValue>().notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
@@ -57,7 +58,7 @@ export const realtimeOutboxes = pgTable(
     channel: text('channel').notNull(),
     type: text('type').notNull(),
     version: text('version').default('v1'),
-    payload: json('payload').notNull(),
+    payload: json('payload').$type<JsonValue>().notNull(),
     status: realtimeOutboxStatusEnum('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastError: text('lastError'),
@@ -139,7 +140,7 @@ export const widgetCaches = pgTable(
   'WidgetCache',
   {
     widget: text('widget').primaryKey(),
-    data: json('data').notNull(),
+    data: json('data').$type<JsonValue>().notNull(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
@@ -249,7 +250,7 @@ export const rssHeadlines = pgTable(
     publishedAt: timestamp('publishedAt', { mode: 'date' }).notNull(),
     summary: text('summary'),
     content: text('content'),
-    rawData: json('rawData'),
+    rawData: json('rawData').$type<JsonValue>(),
     fetchedAt: timestamp('fetchedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
@@ -271,8 +272,8 @@ export const parodyHeadlines = pgTable(
     originalSource: text('originalSource').notNull(),
     parodyTitle: text('parodyTitle').notNull(),
     parodyContent: text('parodyContent'),
-    characterMappings: json('characterMappings').notNull(),
-    organizationMappings: json('organizationMappings').notNull(),
+    characterMappings: json('characterMappings').$type<JsonValue>().notNull(),
+    organizationMappings: json('organizationMappings').$type<JsonValue>().notNull(),
     generatedAt: timestamp('generatedAt', { mode: 'date' }).notNull(),
     isUsed: boolean('isUsed').notNull().default(false),
     usedAt: timestamp('usedAt', { mode: 'date' }),

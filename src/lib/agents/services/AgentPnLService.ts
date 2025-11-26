@@ -4,7 +4,7 @@
  * Handles P&L tracking, trade recording, and rollup to user accounts
  */
 
-import { db, users, agentTrades, agentLogs, eq, desc, withTransaction } from '@/db'
+import { db, users, agentTrades, agentLogs, eq, desc, withTransaction, type JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -90,7 +90,7 @@ export class AgentPnLService {
           ticker,
           pnl,
           reasoning
-        }
+        } as JsonValue
       })
     })
 

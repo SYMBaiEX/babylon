@@ -144,7 +144,7 @@ import { asUser } from '@/lib/db/context'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { notifyUserGroupInvite } from '@/lib/services/notification-service'
-import { isUniqueConstraintError } from '@/db'
+import { isUniqueConstraintError, toDatabaseErrorType } from '@/db'
 
 const AddMemberSchema = z.object({
   userId: z.string(),
@@ -224,7 +224,7 @@ export const POST = withErrorHandling(
         })
       } catch (error: unknown) {
         // Handle unique constraint violation (race condition)
-        if (isUniqueConstraintError(error)) {
+        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
           // Check if the error is related to the groupId_invitedUserId constraint
           // PostgreSQL errors include constraint name in the error message
           const errorMessage = error instanceof Error ? error.message : String(error);

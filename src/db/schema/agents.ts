@@ -8,6 +8,7 @@ import {
   index,
   json,
 } from 'drizzle-orm/pg-core';
+import type { JsonValue } from '../client';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 import { actors } from './actors';
@@ -24,7 +25,7 @@ export const agentLogs = pgTable(
     prompt: text('prompt'),
     completion: text('completion'),
     thinking: text('thinking'),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     agentUserId: text('agentUserId').notNull(),
   },
@@ -47,7 +48,7 @@ export const agentMessages = pgTable(
     content: text('content').notNull(),
     modelUsed: text('modelUsed'),
     pointsCost: integer('pointsCost').notNull().default(0),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     agentUserId: text('agentUserId').notNull(),
   },
@@ -120,7 +121,7 @@ export const agentGoals = pgTable(
     type: text('type').notNull(),
     name: text('name').notNull(),
     description: text('description').notNull(),
-    target: json('target'),
+    target: json('target').$type<JsonValue>(),
     priority: integer('priority').notNull(),
     status: text('status').notNull().default('active'),
     progress: doublePrecision('progress').notNull().default(0),
@@ -146,7 +147,7 @@ export const agentGoalActions = pgTable(
     actionType: text('actionType').notNull(),
     actionId: text('actionId'),
     impact: doublePrecision('impact').notNull(),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
@@ -309,7 +310,7 @@ export const externalAgentConnections = pgTable(
     protocol: text('protocol').notNull(),
     authType: text('authType'),
     authCredentials: text('authCredentials'),
-    agentCardJson: json('agentCardJson'),
+    agentCardJson: json('agentCardJson').$type<JsonValue>(),
     isHealthy: boolean('isHealthy').notNull().default(true),
     lastHealthCheck: timestamp('lastHealthCheck', { mode: 'date' }),
     lastConnected: timestamp('lastConnected', { mode: 'date' }),

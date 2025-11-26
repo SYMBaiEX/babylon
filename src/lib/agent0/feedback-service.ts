@@ -6,7 +6,7 @@
  */
 
 import { SDK } from 'agent0-sdk'
-import { db, users, gameConfigs } from '@/db'
+import { db, users, gameConfigs, type JsonValue } from '@/db'
 import { eq, like } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -171,7 +171,7 @@ export class Agent0FeedbackService {
           skill: params.skill,
           comment: params.comment,
           submittedAt: new Date().toISOString()
-        },
+        } as JsonValue,
         createdAt: new Date(),
         updatedAt: new Date()
       })
@@ -362,7 +362,7 @@ export class Agent0FeedbackService {
         comment,
         agent0AgentId: agent0AgentId || null,
         ratedAt: new Date().toISOString()
-      },
+      } as JsonValue,
       createdAt: new Date(),
       updatedAt: new Date()
     })

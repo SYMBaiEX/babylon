@@ -37,6 +37,7 @@ import {
   lt,
   desc,
   count,
+  toDatabaseErrorType,
   isUniqueConstraintError,
 } from '@/db';
 import { logger } from '@/lib/logger';
@@ -1009,7 +1010,7 @@ Return your response as XML:
         }, 'NPCGroupDynamicsService');
       } catch (error) {
         // Handle unique constraint violation - user already has an invite
-        if (isUniqueConstraintError(error)) {
+        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
           const pgError = error as { meta?: { target?: string[] } }
           const target = pgError.meta?.target
           if (target?.includes('groupId') && target?.includes('invitedUserId')) {

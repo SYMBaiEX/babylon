@@ -32,11 +32,13 @@ import {
   games,
   pools,
   poolPositions,
+  positions,
   widgetCaches,
   rssHeadlines,
   actorRelationships,
   eq,
   and,
+  ne,
   desc,
   asc,
   gte,
@@ -44,6 +46,7 @@ import {
   inArray,
   isNull,
   count,
+  type JsonValue
 } from '@/db';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { QuestionManager } from '@/engine/QuestionManager';
@@ -2136,8 +2139,14 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
   const winningSide = question.outcome;
   const resolutionTimestamp = new Date();
 
-  // Import positions schema for the query
-  const { positions, ne } = await import('@/db');
+  // Store market properties in consts to ensure type narrowing
+  const marketId = market.id;
+  const marketQuestion = market.question;
+  const marketLiquidity = market.liquidity;
+  const marketOnChainMarketId = market.onChainMarketId;
+  const marketOnChainResolved = market.onChainResolved;
+  const marketYesShares = market.yesShares;
+  const marketNoShares = market.noShares;
   
   const { positionUpdates, totalPayout } = await db.transaction(async (tx) => {
     const positionsList = await tx
@@ -2145,7 +2154,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       .from(positions)
       .where(
         and(
-          eq(positions.marketId, market.id),
+          eq(positions.marketId, marketId),
           ne(positions.status, 'resolved')
         )
       );
@@ -2173,8 +2182,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
           position.userId,
           payout,
           'pred_resolve_win',
-          `Prediction market payout: ${market.question}`,
-          market.id,
+          `Prediction market payout: ${marketQuestion}`,
+          marketId,
           tx
         );
         payoutAccumulator += payout;
@@ -2203,12 +2212,12 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
 
     const liquidityReduction = Math.min(
       payoutAccumulator,
-      Number(market.liquidity ?? 0)
+      Number(marketLiquidity ?? 0)
     );
 
     const newLiquidity = liquidityReduction > 0 
-      ? Decimal.sub(market.liquidity ?? 0, liquidityReduction).toString()
-      : market.liquidity;
+      ? Decimal.sub(marketLiquidity ?? 0, liquidityReduction).toString()
+      : marketLiquidity;
 
     await tx
       .update(marketsSchema)
@@ -2218,7 +2227,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         updatedAt: resolutionTimestamp,
         liquidity: newLiquidity,
       })
-      .where(eq(marketsSchema.id, market.id));
+      .where(eq(marketsSchema.id, marketId));
 
     await tx
       .update(questionsSchema)
@@ -2242,7 +2251,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         update.userId,
         update.pnl,
         'prediction_resolve',
-        market.id
+        marketId
       );
     } catch (error) {
       logger.error(
@@ -2264,33 +2273,33 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       process.env.NEXT_PUBLIC_RPC_URL
     ) {
       await ReputationService.updateReputationForResolvedMarket({
-        marketId: market.id,
+        marketId: marketId,
         outcome: winningSide,
       });
     } else {
       logger.debug(
         'Skipping reputation update due to missing configuration',
-        { marketId: market.id },
+        { marketId: marketId },
         'GameTick'
       );
     }
   } catch (error) {
-    logger.error(
-      'Failed to push reputation update on-chain',
-      {
-        error: error instanceof Error ? error.message : String(error),
-        marketId: market.id,
-      },
-      'GameTick'
-    );
+      logger.error(
+        'Failed to push reputation update on-chain',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          marketId: marketId,
+        },
+        'GameTick'
+      );
   }
 
   // Resolve market on-chain if onChainMarketId exists
   let onChainResolutionTxHash: string | null = null;
-  if (market.onChainMarketId && !market.onChainResolved) {
+  if (marketOnChainMarketId && !marketOnChainResolved) {
     try {
       onChainResolutionTxHash = await resolveMarketOnChain(
-        market.onChainMarketId,
+        marketOnChainMarketId,
         winningSide ? 1 : 0 // Binary market: true = 1, false = 0
       );
     } catch (error) {
@@ -2298,8 +2307,8 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         'Failed to resolve market on-chain',
         {
           error: error instanceof Error ? error.message : String(error),
-          marketId: market.id,
-          onChainMarketId: market.onChainMarketId,
+          marketId: marketId,
+          onChainMarketId: marketOnChainMarketId,
           questionNumber,
         },
         'GameTick'
@@ -2315,17 +2324,17 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
         onChainResolutionTxHash,
         updatedAt: new Date(),
       })
-      .where(eq(marketsSchema.id, market.id));
+      .where(eq(marketsSchema.id, marketId));
   }
 
   const [resolvedMarket] = await db
     .select()
     .from(marketsSchema)
-    .where(eq(marketsSchema.id, market.id))
+    .where(eq(marketsSchema.id, marketId))
     .limit(1);
 
-  const resolvedYesShares = Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0);
-  const resolvedNoShares = Number(resolvedMarket?.noShares ?? market.noShares ?? 0);
+  const resolvedYesShares = Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0);
+  const resolvedNoShares = Number(resolvedMarket?.noShares ?? marketNoShares ?? 0);
   let yesPrice = 0.5;
   let noPrice = 0.5;
   if (resolvedYesShares + resolvedNoShares > 0) {
@@ -2337,7 +2346,7 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
   }
 
   await PredictionPriceHistoryService.recordSnapshot({
-    marketId: market.id,
+    marketId: marketId,
     yesPrice,
     noPrice,
     yesShares: resolvedYesShares,
@@ -2346,18 +2355,18 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
     eventType: 'resolution',
     source: 'system',
   }).catch((error) => {
-    logger.warn('Failed to record price history for resolution', { error, marketId: market.id }, 'GameTick');
+    logger.warn('Failed to record price history for resolution', { error, marketId: marketId }, 'GameTick');
   });
 
-  await invalidateAfterPredictionTrade(market.id).catch((error) => {
-    logger.warn('Failed to invalidate prediction cache after resolution', { error, marketId: market.id }, 'GameTick');
+  await invalidateAfterPredictionTrade(marketId).catch((error) => {
+    logger.warn('Failed to invalidate prediction cache after resolution', { error, marketId: marketId }, 'GameTick');
   });
 
   PredictionMarketEventService.emitResolution({
-    marketId: market.id,
+    marketId: marketId,
     winningSide: winningSide ? 'yes' : 'no',
-    yesShares: Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0),
-    noShares: Number(resolvedMarket?.noShares ?? market.noShares ?? 0),
+    yesShares: Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0),
+    noShares: Number(resolvedMarket?.noShares ?? marketNoShares ?? 0),
     liquidity: Number(resolvedMarket?.liquidity ?? 0),
     totalPayout,
     timestamp: resolutionTimestamp.toISOString(),
@@ -2743,7 +2752,7 @@ async function updateWidgetCaches(): Promise<number> {
     await db
       .update(widgetCaches)
       .set({
-        data: cacheData as object,
+        data: cacheData as JsonValue,
         updatedAt: new Date(),
       })
       .where(eq(widgetCaches.widget, 'markets'));
@@ -2752,7 +2761,7 @@ async function updateWidgetCaches(): Promise<number> {
       .insert(widgetCaches)
       .values({
       widget: 'markets',
-      data: cacheData as object,
+      data: cacheData as JsonValue,
       updatedAt: new Date(),
   });
   }

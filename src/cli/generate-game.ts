@@ -367,10 +367,11 @@ async function main() {
       if (historyConfig && historyConfig.value) {
         // Use stored history if available
         // Validate historyConfig.value structure matches GameHistory
-        if (!historyConfig.value || typeof historyConfig.value !== 'object') {
+        // JsonValue is compatible with object types, so we can safely cast
+        if (!historyConfig.value || typeof historyConfig.value !== 'object' || Array.isArray(historyConfig.value)) {
           throw new Error('Invalid game history format in database')
         }
-        const storedHistory = historyConfig.value as GameHistory;
+        const storedHistory = historyConfig.value as unknown as GameHistory;
         history.push(storedHistory);
         logger.info(`Loaded stored history for game ${gameData.id}`, undefined, 'CLI');
       } else {

@@ -109,7 +109,8 @@ import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { trackServerEvent } from '@/lib/posthog/server'
 import { notifyNewAccount } from '@/lib/services/notification-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import { withRetry, isRetryableError } from '@/db/helpers'
+import { withRetry, isRetryableError } from '@/db/helpers';
+import { toDatabaseErrorType } from '@/db/types';
 import type { JsonValue } from '@/types/common'
 import { getOrCreateReferralCode } from '@/lib/services/referral-service'
 import { getHashedClientIp } from '@/lib/utils/ip-utils'
@@ -377,7 +378,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     200 // delayMs
   ).catch((error: unknown) => {
     // Improve error message for connection errors
-    if (isRetryableError(error)) {
+    if (isRetryableError(toDatabaseErrorType(error))) {
       logger.error(
         'Database connection error during signup transaction',
         { error: error instanceof Error ? error.message : String(error) },

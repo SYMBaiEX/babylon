@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
+import type { JsonValue } from '../client';
 
 // BalanceTransaction
 export const balanceTransactions = pgTable(
@@ -107,7 +108,7 @@ export const feedbacks = pgTable(
     interactionType: text('interactionType').notNull(),
     onChainTxHash: text('onChainTxHash'),
     agent0TokenId: integer('agent0TokenId'),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
@@ -181,7 +182,7 @@ export const moderationEscrows = pgTable(
     refundTxHash: text('refundTxHash').unique(),
     refundedBy: text('refundedBy'),
     refundedAt: timestamp('refundedAt', { mode: 'date' }),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
     expiresAt: timestamp('expiresAt', { mode: 'date' }).notNull(),

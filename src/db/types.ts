@@ -76,13 +76,30 @@ export class DatabaseError extends Error {
   }
 }
 
+// Database error type - union of all possible database error types
+export type DatabaseErrorType = 
+  | DatabaseError
+  | Error
+  | { code?: string; message?: string; name?: string };
+
+// Type guard to convert catch clause error to DatabaseErrorType
+export function toDatabaseErrorType(error: unknown): DatabaseErrorType {
+  if (error instanceof DatabaseError || error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'object' && error !== null) {
+    return error as DatabaseErrorType;
+  }
+  return new Error(String(error));
+}
+
 // Check if an error is a unique constraint violation
-export function isUniqueConstraintError(error: unknown): boolean {
+export function isUniqueConstraintError(error: DatabaseErrorType): boolean {
   if (error instanceof DatabaseError) {
     return error.code === DbErrorCodes.UNIQUE_VIOLATION;
   }
   // PostgreSQL error format
-  if (typeof error === 'object' && error !== null) {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
     const pgError = error as { code?: string };
     return pgError.code === DbErrorCodes.UNIQUE_VIOLATION;
   }

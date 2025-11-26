@@ -9,6 +9,7 @@ import {
   index,
   json,
 } from 'drizzle-orm/pg-core';
+import type { JsonValue } from '../client';
 import { relations } from 'drizzle-orm';
 
 // Actor - NPCs in the game
@@ -74,7 +75,7 @@ export const actorRelationships = pgTable(
     sentiment: doublePrecision('sentiment').notNull(),
     isPublic: boolean('isPublic').notNull().default(true),
     history: text('history'),
-    affects: json('affects'),
+    affects: json('affects').$type<JsonValue>(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
     lastInteraction: timestamp('lastInteraction', { mode: 'date' }),
@@ -101,7 +102,7 @@ export const npcInteractions = pgTable(
     interactionType: text('interactionType').notNull(),
     sentiment: doublePrecision('sentiment').notNull().default(0),
     context: text('context').notNull(),
-    metadata: json('metadata'),
+    metadata: json('metadata').$type<JsonValue>(),
     timestamp: timestamp('timestamp', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [

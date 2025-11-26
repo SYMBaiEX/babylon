@@ -24,6 +24,9 @@ import { logger } from '@/lib/logger';
 import type { SimulationResult, SimulationMetrics } from './SimulationEngine';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { ethers } from 'ethers';
+import type { JsonValue } from '@/db/types';
 
 export interface ModelBenchmarkOptions {
   modelId: string;
@@ -291,8 +294,6 @@ export class ModelBenchmarkService {
    * Save benchmark result to database
    */
   private static async saveBenchmarkResultToDatabase(result: ModelBenchmarkResult): Promise<void> {
-    const { generateSnowflakeId } = await import('@/lib/snowflake');
-    
     await db.insert(benchmarkResults).values({
       id: await generateSnowflakeId(),
       modelId: result.modelId,
@@ -343,7 +344,7 @@ export class ModelBenchmarkService {
       benchmarkId: r.benchmarkId,
       benchmarkPath: r.benchmarkPath,
       runAt: r.runAt,
-      metrics: r.detailedMetrics as SimulationMetrics,
+      metrics: this.validateSimulationMetrics(r.detailedMetrics),
       comparisonToBaseline: r.baselinePnlDelta !== null ? {
         pnlDelta: r.baselinePnlDelta,
         accuracyDelta: r.baselineAccuracyDelta ?? 0,
@@ -442,6 +443,85 @@ export class ModelBenchmarkService {
   }
 
   /**
+   * Validate and convert JsonValue to SimulationMetrics
+   */
+  private static validateSimulationMetrics(data: JsonValue): SimulationMetrics {
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('Invalid SimulationMetrics: expected object');
+    }
+    
+    const metrics = data as Record<string, JsonValue>;
+    
+    // Validate required fields
+    if (typeof metrics.totalPnl !== 'number') {
+      throw new Error('Invalid SimulationMetrics: totalPnl must be a number');
+    }
+    
+    if (typeof metrics.predictionMetrics !== 'object' || metrics.predictionMetrics === null) {
+      throw new Error('Invalid SimulationMetrics: predictionMetrics must be an object');
+    }
+    
+    if (typeof metrics.perpMetrics !== 'object' || metrics.perpMetrics === null) {
+      throw new Error('Invalid SimulationMetrics: perpMetrics must be an object');
+    }
+    
+    if (typeof metrics.optimalityScore !== 'number') {
+      throw new Error('Invalid SimulationMetrics: optimalityScore must be a number');
+    }
+    
+    if (typeof metrics.timing !== 'object' || metrics.timing === null) {
+      throw new Error('Invalid SimulationMetrics: timing must be an object');
+    }
+    
+    // Validate nested structures
+    const predictionMetrics = metrics.predictionMetrics as Record<string, JsonValue>;
+    const perpMetrics = metrics.perpMetrics as Record<string, JsonValue>;
+    const timing = metrics.timing as Record<string, JsonValue>;
+    
+    // Type assertion is safe after validation - use unknown as intermediate type
+    return {
+      totalPnl: metrics.totalPnl as number,
+      predictionMetrics: {
+        totalPositions: typeof predictionMetrics.totalPositions === 'number' ? predictionMetrics.totalPositions : 0,
+        correctPredictions: typeof predictionMetrics.correctPredictions === 'number' ? predictionMetrics.correctPredictions : 0,
+        incorrectPredictions: typeof predictionMetrics.incorrectPredictions === 'number' ? predictionMetrics.incorrectPredictions : 0,
+        accuracy: typeof predictionMetrics.accuracy === 'number' ? predictionMetrics.accuracy : 0,
+        avgPnlPerPosition: typeof predictionMetrics.avgPnlPerPosition === 'number' ? predictionMetrics.avgPnlPerPosition : 0,
+      },
+      perpMetrics: {
+        totalTrades: typeof perpMetrics.totalTrades === 'number' ? perpMetrics.totalTrades : 0,
+        profitableTrades: typeof perpMetrics.profitableTrades === 'number' ? perpMetrics.profitableTrades : 0,
+        winRate: typeof perpMetrics.winRate === 'number' ? perpMetrics.winRate : 0,
+        avgPnlPerTrade: typeof perpMetrics.avgPnlPerTrade === 'number' ? perpMetrics.avgPnlPerTrade : 0,
+        maxDrawdown: typeof perpMetrics.maxDrawdown === 'number' ? perpMetrics.maxDrawdown : 0,
+      },
+      socialMetrics: typeof metrics.socialMetrics === 'object' && metrics.socialMetrics !== null
+        ? {
+            postsCreated: typeof (metrics.socialMetrics as Record<string, JsonValue>).postsCreated === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).postsCreated as number : 0,
+            groupsJoined: typeof (metrics.socialMetrics as Record<string, JsonValue>).groupsJoined === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).groupsJoined as number : 0,
+            messagesReceived: typeof (metrics.socialMetrics as Record<string, JsonValue>).messagesReceived === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).messagesReceived as number : 0,
+            reputationGained: typeof (metrics.socialMetrics as Record<string, JsonValue>).reputationGained === 'number' 
+              ? (metrics.socialMetrics as Record<string, JsonValue>).reputationGained as number : 0,
+          }
+        : {
+            postsCreated: 0,
+            groupsJoined: 0,
+            messagesReceived: 0,
+            reputationGained: 0,
+          },
+      timing: {
+        avgResponseTime: typeof timing.avgResponseTime === 'number' ? timing.avgResponseTime : 0,
+        maxResponseTime: typeof timing.maxResponseTime === 'number' ? timing.maxResponseTime : 0,
+        totalDuration: typeof timing.totalDuration === 'number' ? timing.totalDuration : 0,
+      },
+      optimalityScore: metrics.optimalityScore as number,
+    };
+  }
+
+  /**
    * Get or create test agent for benchmarking
    */
   private static async getOrCreateTestAgent(): Promise<string> {
@@ -455,9 +535,6 @@ export class ModelBenchmarkService {
     }
 
     // Create new test agent
-    const { generateSnowflakeId } = await import('@/lib/snowflake');
-    const { ethers } = await import('ethers');
-    
     const agentId = await generateSnowflakeId();
     const newAgentResult = await db.insert(users).values({
       id: agentId,

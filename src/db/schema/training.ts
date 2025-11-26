@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
+import type { JsonValue } from '../client';
 
 // Trajectory
 export const trajectories = pgTable(
@@ -133,7 +134,7 @@ export const trainedModels = pgTable(
     benchmarkScore: doublePrecision('benchmarkScore'),
     accuracy: doublePrecision('accuracy'),
     avgReward: doublePrecision('avgReward'),
-    evalMetrics: json('evalMetrics'),
+    evalMetrics: json('evalMetrics').$type<JsonValue>(),
     wandbRunId: text('wandbRunId'),
     wandbArtifactId: text('wandbArtifactId'),
     huggingFaceRepo: text('huggingFaceRepo'),
@@ -165,7 +166,7 @@ export const benchmarkResults = pgTable(
     predictionAccuracy: doublePrecision('predictionAccuracy').notNull(),
     perpWinRate: doublePrecision('perpWinRate').notNull(),
     optimalityScore: doublePrecision('optimalityScore').notNull(),
-    detailedMetrics: json('detailedMetrics').notNull(),
+    detailedMetrics: json('detailedMetrics').$type<JsonValue>().notNull(),
     baselinePnlDelta: doublePrecision('baselinePnlDelta'),
     baselineAccuracyDelta: doublePrecision('baselineAccuracyDelta'),
     improved: boolean('improved'),
@@ -225,7 +226,7 @@ export const marketOutcomes = pgTable(
     endPrice: decimal('endPrice', { precision: 10, scale: 2 }),
     changePercent: decimal('changePercent', { precision: 5, scale: 2 }),
     sentiment: varchar('sentiment', { length: 20 }),
-    newsEvents: json('newsEvents'),
+    newsEvents: json('newsEvents').$type<JsonValue>(),
     predictionMarketId: text('predictionMarketId'),
     question: text('question'),
     outcome: varchar('outcome', { length: 20 }),

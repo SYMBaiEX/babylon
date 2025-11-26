@@ -9,7 +9,7 @@
  * IMPORTANT: Agents are Users (isAgent=true)
  */
 
-import { db, users, agentLogs, eq } from '@/db'
+import { db, users, agentLogs, eq, type JsonValue } from '@/db'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -119,7 +119,7 @@ export class AgentIdentityService {
         type: 'system',
         level: 'info',
         message: `Agent registered on Agent0: Token ID ${registration.tokenId}`,
-        metadata: { tokenId: registration.tokenId, metadataCID: registration.metadataCID, txHash: registration.txHash }
+        metadata: { tokenId: registration.tokenId, metadataCID: registration.metadataCID, txHash: registration.txHash } as JsonValue
       })
 
     logger.info(`Agent ${agentUserId} registered on Agent0: Token ID ${registration.tokenId}`, undefined, 'AgentIdentityService')

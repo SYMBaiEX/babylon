@@ -4,7 +4,7 @@
  * Persists benchmark results to the database for historical tracking and analysis.
  */
 
-import { db } from '@/db';
+import { db, type JsonValue } from '@/db';
 import { benchmarkResults, type BenchmarkResult, type NewBenchmarkResult } from '@/db/schema/training';
 import { eq, desc, and, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -60,7 +60,7 @@ export class BenchmarkHistoryService {
       predictionAccuracy: input.metrics.predictionMetrics.accuracy,
       perpWinRate: input.metrics.perpMetrics.winRate,
       optimalityScore: input.metrics.optimalityScore,
-      detailedMetrics: input.metrics,
+      detailedMetrics: input.metrics as unknown as JsonValue,
       baselinePnlDelta: input.baselineComparison?.pnlDelta ?? null,
       baselineAccuracyDelta: input.baselineComparison?.accuracyDelta ?? null,
       improved: input.baselineComparison?.improved ?? null,
