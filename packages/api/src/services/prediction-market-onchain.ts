@@ -15,6 +15,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { CHAIN, logger } from '@babylon/shared';
 import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
+import { BadRequestError } from '../errors';
 
 // Get contract addresses for current network
 const { diamond: DIAMOND_ADDRESS } = getContractAddresses();
@@ -126,7 +127,7 @@ export class OnChainPredictionMarketService {
     userWalletClient: WalletClient
   ): Promise<{ txHash: string; sharesBought: number }> {
     if (!userWalletClient.account) {
-      throw new Error('Wallet client must have an account');
+      throw new BadRequestError('Wallet client must have an account');
     }
 
     const outcomeIndex = outcome === 'YES' ? 1 : 0;
@@ -193,7 +194,7 @@ export class OnChainPredictionMarketService {
     userWalletClient: WalletClient
   ): Promise<{ txHash: string; sharesSold: number }> {
     if (!userWalletClient.account) {
-      throw new Error('Wallet client must have an account');
+      throw new BadRequestError('Wallet client must have an account');
     }
 
     const outcomeIndex = outcome === 'YES' ? 1 : 0;

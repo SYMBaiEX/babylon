@@ -65,6 +65,8 @@ export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
 // Types
 export * from './types';
 
+// Note: getLatestRLModel and ModelArtifact are exported from @babylon/agents
+
 // Window utilities
 export {
   generateWindowIds,

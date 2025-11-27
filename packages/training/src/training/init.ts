@@ -18,10 +18,8 @@ export async function initializeTrainingSystem(): Promise<void> {
   const available = isRLModelAvailable();
 
   if (available) {
-    // Note: getLatestRLModel is available from @babylon/agents if needed
-    // Keeping init lightweight - model info available via agents package
     console.log('\n✅ RL Model system available');
-    console.log('   Use @babylon/agents getLatestRLModel() to fetch model details');
+    console.log('   Use getLatestRLModel() to fetch model details');
   } else {
     console.log('\nℹ️  RL models not available - using base model');
   }

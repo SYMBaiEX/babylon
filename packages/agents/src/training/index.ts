@@ -2,6 +2,7 @@
  * Training Module Exports
  *
  * RL model configuration utilities.
+ * For model fetching (getLatestRLModel), use @babylon/training.
  */
 
 export {
@@ -10,7 +11,3 @@ export {
   logRLModelConfig,
   type RLModelConfig,
 } from './RLModelConfig';
-
-// WandbModelFetcher exports moved to @babylon/training package
-// Import from there if needed:
-// import { getLatestRLModel, ... } from '@babylon/training';
