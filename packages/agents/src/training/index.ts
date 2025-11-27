@@ -1,8 +1,8 @@
 /**
  * Training Module Exports
  *
- * RL model configuration utilities.
- * For model fetching (getLatestRLModel), use @babylon/training.
+ * Re-exports from @babylon/training for convenience.
+ * The canonical source for all training utilities is @babylon/training.
  */
 
 export {
@@ -10,4 +10,4 @@ export {
   isRLModelAvailable,
   logRLModelConfig,
   type RLModelConfig,
-} from './RLModelConfig';
+} from '@babylon/training';

@@ -3,6 +3,7 @@
  *
  * @description Handles on-chain reputation updates based on prediction market
  * outcomes. Winners get +10 reputation, losers get -5 reputation.
+ * Also provides an optional interface for syncing reputation to ERC-8004.
  */
 
 import {
@@ -18,6 +19,70 @@ import { baseSepolia } from 'viem/chains';
 import { db, eq, positions, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { REPUTATION_SYSTEM_ABI } from '@babylon/shared';
+
+// =============================================================================
+// Reputation Sync Interface
+// =============================================================================
+
+/**
+ * Result of batch reputation sync
+ */
+export interface ReputationSyncResult {
+  synced: number;
+  failed: number;
+  total: number;
+  skipped?: number;
+}
+
+/**
+ * Options for reputation sync
+ */
+export interface ReputationSyncOptions {
+  limit?: number;
+  offset?: number;
+  forceRecalculate?: boolean;
+  prioritizeNew?: boolean;
+}
+
+/**
+ * Reputation sync service interface
+ */
+export interface ReputationSyncServiceInterface {
+  batchSync(options?: ReputationSyncOptions): Promise<ReputationSyncResult>;
+}
+
+/**
+ * Global reputation sync service provider
+ */
+let reputationSyncService: ReputationSyncServiceInterface | null = null;
+
+/**
+ * Set the reputation sync service provider
+ */
+export function setReputationSyncService(
+  service: ReputationSyncServiceInterface | null
+): void {
+  reputationSyncService = service;
+}
+
+/**
+ * Get the reputation sync service provider
+ */
+export function getReputationSyncService(): ReputationSyncServiceInterface | null {
+  return reputationSyncService;
+}
+
+/**
+ * Sync reputation if service is available
+ */
+export async function syncReputationIfAvailable(
+  options?: ReputationSyncOptions
+): Promise<ReputationSyncResult | null> {
+  if (!reputationSyncService) {
+    return null;
+  }
+  return await reputationSyncService.batchSync(options);
+}
 
 // Contract addresses
 const REPUTATION_SYSTEM = process.env

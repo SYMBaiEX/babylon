@@ -778,7 +778,7 @@ export class ModelBenchmarkService {
 
     if (standardBenchmarks.length === 0) {
       logger.warn(
-        'No standard benchmarks found. Generate with: npx ts-node scripts/generate-standard-benchmarks.ts'
+        'No standard benchmarks found. Generate with: babylon train generate'
       );
     }
 

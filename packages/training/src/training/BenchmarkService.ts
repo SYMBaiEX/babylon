@@ -99,7 +99,7 @@ export class BenchmarkService {
     }
 
     throw new Error(
-      `No benchmark files found. Generate one with: bun run tsx scripts/generate-benchmark.ts`
+      `No benchmark files found. Generate one with: babylon train generate`
     );
   }
 

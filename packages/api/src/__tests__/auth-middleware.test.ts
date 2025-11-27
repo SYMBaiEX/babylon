@@ -55,15 +55,10 @@ const createRequest = (token: string): NextRequest =>
   }) as MockNextRequest as NextRequest;
 
 describe('authenticate middleware', () => {
-  beforeAll(async () => {
-    // authenticate is now statically imported
-  });
-
   beforeEach(() => {
     mockVerifyAgentSession.mockReset();
     mockVerifyAuthToken.mockReset();
     mockSelect.mockReset();
-    mockPrivyClient.mockReset();
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-app';
     process.env.PRIVY_APP_SECRET = 'test-secret';
 
@@ -153,9 +148,13 @@ describe('authenticate middleware', () => {
 
     const request = createRequest('expired-token');
 
-    await expect(authenticate(request)).rejects.toMatchObject({
-      message: 'Authentication token has expired. Please refresh your session.',
-      code: 'AUTH_FAILED',
-    });
+    try {
+      await authenticate(request);
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('Authentication token has expired. Please refresh your session.');
+      expect((error as { code: string }).code).toBe('AUTH_FAILED');
+    }
   });
 });

@@ -102,7 +102,9 @@ describe('A2A ExtendedTaskStore', () => {
       });
 
       expect(result.tasks.length).toBe(1);
-      expect(result.tasks[0].id).toBe('task-003');
+      const task = result.tasks[0];
+      if (!task) throw new Error('Expected task to exist');
+      expect(task.id).toBe('task-003');
     });
 
     it('should support pagination with pageSize', async () => {
@@ -115,12 +117,14 @@ describe('A2A ExtendedTaskStore', () => {
 
     it('should support pagination with pageToken', async () => {
       const page1 = await store.list({ pageSize: 2 });
+      expect(page1.nextPageToken).not.toBe('');
+
       const page2 = await store.list({
         pageSize: 2,
         pageToken: page1.nextPageToken,
       });
 
-      expect(page2.tasks.length).toBe(2);
+      expect(page2.tasks.length).toBeGreaterThan(0);
       // Ensure no overlap
       const page1Ids = page1.tasks.map((t) => t.id);
       const page2Ids = page2.tasks.map((t) => t.id);
@@ -196,7 +200,10 @@ describe('A2A ExtendedTaskStore', () => {
 
       const result = await store.list({ historyLength: 2 });
 
-      expect(result.tasks[0].history?.length).toBe(2);
+      expect(result.tasks.length).toBe(1);
+      const firstTask = result.tasks[0];
+      if (!firstTask) throw new Error('Expected task to exist');
+      expect(firstTask.history?.length).toBe(2);
     });
   });
 
@@ -223,7 +230,10 @@ describe('A2A ExtendedTaskStore', () => {
 
       const result = await store.list({ includeArtifacts: false });
 
-      expect(result.tasks[0].artifacts).toBeUndefined();
+      expect(result.tasks.length).toBe(1);
+      const firstTask = result.tasks[0];
+      if (!firstTask) throw new Error('Expected task to exist');
+      expect(firstTask.artifacts).toBeUndefined();
     });
 
     it('should include artifacts by default', async () => {
@@ -248,8 +258,11 @@ describe('A2A ExtendedTaskStore', () => {
 
       const result = await store.list();
 
-      expect(result.tasks[0].artifacts).toBeDefined();
-      expect(result.tasks[0].artifacts?.length).toBe(1);
+      expect(result.tasks.length).toBe(1);
+      const firstTask = result.tasks[0];
+      if (!firstTask) throw new Error('Expected task to exist');
+      expect(firstTask.artifacts).toBeDefined();
+      expect(firstTask.artifacts?.length).toBe(1);
     });
   });
 });

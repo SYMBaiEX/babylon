@@ -3,11 +3,18 @@ Shared Quality Utilities
 
 Common quality scoring and validation functions used across the training pipeline.
 Extracted to avoid duplication between rollout_generator and fast_simulator.
+
+ENHANCED v2:
+- Archetype-specific scoring weights
+- Reasoning-action alignment validation
+- Coherence heuristics
+- Curriculum learning support
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ..models import (
     BabylonTrajectory,
@@ -19,47 +26,208 @@ from ..models import (
 if TYPE_CHECKING:
     from .rollout_generator import AgentTickData
 
+# Archetype-specific quality weights
+ARCHETYPE_WEIGHTS: dict[str, dict[str, float]] = {
+    # Research-heavy archetypes prioritize reasoning
+    "researcher": {"llm_calls": 0.3, "reasoning": 0.45, "action": 0.15, "feedback": 0.1},
+    "information-trader": {"llm_calls": 0.3, "reasoning": 0.4, "action": 0.2, "feedback": 0.1},
+    "super-predictor": {"llm_calls": 0.3, "reasoning": 0.4, "action": 0.2, "feedback": 0.1},
+    
+    # Action-heavy archetypes prioritize execution
+    "trader": {"llm_calls": 0.3, "reasoning": 0.2, "action": 0.4, "feedback": 0.1},
+    "degen": {"llm_calls": 0.2, "reasoning": 0.15, "action": 0.55, "feedback": 0.1},
+    "perps-trader": {"llm_calls": 0.25, "reasoning": 0.2, "action": 0.45, "feedback": 0.1},
+    
+    # Social archetypes prioritize engagement (response quality)
+    "social-butterfly": {"llm_calls": 0.35, "reasoning": 0.25, "action": 0.25, "feedback": 0.15},
+    "ass-kisser": {"llm_calls": 0.35, "reasoning": 0.3, "action": 0.2, "feedback": 0.15},
+    "goody-twoshoes": {"llm_calls": 0.35, "reasoning": 0.3, "action": 0.2, "feedback": 0.15},
+    
+    # Deceptive archetypes prioritize reasoning (planning deception)
+    "scammer": {"llm_calls": 0.25, "reasoning": 0.4, "action": 0.25, "feedback": 0.1},
+    "liar": {"llm_calls": 0.25, "reasoning": 0.4, "action": 0.25, "feedback": 0.1},
+    
+    # Balanced
+    "infosec": {"llm_calls": 0.3, "reasoning": 0.3, "action": 0.3, "feedback": 0.1},
+    
+    # Default
+    "default": {"llm_calls": 0.4, "reasoning": 0.3, "action": 0.2, "feedback": 0.1},
+}
+
+
+def check_reasoning_action_alignment(
+    reasoning_text: str,
+    action: Action | None,
+) -> float:
+    """
+    Check if reasoning aligns with action taken (0-1 score).
+    
+    Examples of misalignment:
+    - Reasoning says "bearish" but action is "buy"
+    - Reasoning says "wait" but action is "sell"
+    """
+    if not action or not reasoning_text:
+        return 0.5  # Neutral if we can't check
+    
+    reasoning_lower = reasoning_text.lower()
+    action_type = action.action_type.lower()
+    
+    # Sentiment indicators
+    bullish_words = ["bullish", "buy", "long", "upward", "positive", "opportunity", "moon"]
+    bearish_words = ["bearish", "sell", "short", "downward", "negative", "avoid", "dump"]
+    wait_words = ["wait", "hold", "unclear", "uncertain", "need more data", "observing"]
+    
+    # Count sentiment
+    bullish_score = sum(1 for w in bullish_words if w in reasoning_lower)
+    bearish_score = sum(1 for w in bearish_words if w in reasoning_lower)
+    wait_score = sum(1 for w in wait_words if w in reasoning_lower)
+    
+    # Check alignment
+    if action_type in ["buy", "buy_prediction", "open_perp"]:
+        if bullish_score > bearish_score:
+            return 1.0  # Aligned
+        elif bearish_score > bullish_score:
+            return 0.2  # Misaligned
+    elif action_type in ["sell", "sell_prediction", "close_perp"]:
+        if bearish_score > bullish_score:
+            return 1.0  # Aligned
+        elif bullish_score > bearish_score:
+            return 0.2  # Misaligned
+    elif action_type == "wait":
+        if wait_score > 0:
+            return 1.0  # Aligned
+    
+    return 0.7  # Neutral/unclear
+
+
+def check_reasoning_coherence(reasoning_text: str) -> float:
+    """
+    Check reasoning coherence using simple heuristics (0-1 score).
+    
+    Checks for:
+    - Has structured points (numbered lists, bullet points)
+    - Has conclusion/decision markers
+    - Reasonable sentence structure
+    - No repetitive patterns
+    """
+    if not reasoning_text or len(reasoning_text) < 20:
+        return 0.1
+    
+    score = 0.0
+    text = reasoning_text
+    
+    # Check for structure (numbered lists, bullet points)
+    if re.search(r'(\d+[\.\):]|\-|\*|\•)', text):
+        score += 0.25
+    
+    # Check for conclusion markers
+    conclusion_markers = [
+        "therefore", "conclusion", "decision", "recommend",
+        "suggest", "final", "result", "action:", "execute"
+    ]
+    if any(marker in text.lower() for marker in conclusion_markers):
+        score += 0.25
+    
+    # Check sentence count (2-10 sentences is ideal)
+    sentences = text.split('. ')
+    if 2 <= len(sentences) <= 10:
+        score += 0.2
+    elif len(sentences) > 10:
+        score += 0.1  # Too verbose
+    
+    # Check for repetitive patterns (bad quality indicator)
+    words = text.lower().split()
+    if len(words) > 10:
+        unique_ratio = len(set(words)) / len(words)
+        if unique_ratio > 0.4:
+            score += 0.15  # Good vocabulary diversity
+        else:
+            score -= 0.1  # Repetitive
+    else:
+        score += 0.1
+    
+    # Check for numeric analysis (prices, percentages)
+    if re.search(r'\$?\d+(?:\.\d+)?(?:%|k|K|M)?', text):
+        score += 0.15  # Contains quantitative analysis
+    
+    return min(max(score, 0.0), 1.0)
+
 
 def calculate_tick_quality_score(
     llm_calls: list,
     action: Action | None,
     feedback: dict | None,
+    archetype: str | None = None,
 ) -> float:
     """
     Calculate quality score for a single tick (0-1).
     
-    Scoring breakdown:
-    - LLM call coverage: 0.4 weight (1-3 calls = proportional score)
-    - Reasoning completeness: 0.3 weight (up to 500 chars)
-    - Action quality: 0.2 weight (success/failure)
-    - Feedback presence: 0.1 weight
+    ENHANCED scoring:
+    - Archetype-specific weights
+    - Reasoning coherence checks
+    - Reasoning-action alignment
+    
+    Args:
+        llm_calls: List of LLM calls in this tick
+        action: Action taken (if any)
+        feedback: Feedback received (if any)
+        archetype: Agent archetype for weight customization
+    
+    Returns:
+        Quality score from 0.0 to 1.0
     """
+    # Get archetype-specific weights
+    weights = ARCHETYPE_WEIGHTS.get(archetype or "default", ARCHETYPE_WEIGHTS["default"])
+    
     score = 0.0
     
-    # LLM calls (0.4 weight)
+    # LLM calls score
     if llm_calls:
-        call_score = min(len(llm_calls) / 3.0, 1.0)
-        score += call_score * 0.4
+        # Ideal: 2-4 calls depending on archetype
+        ideal_calls = 3 if archetype in ["researcher", "information-trader"] else 2
+        call_score = min(len(llm_calls) / ideal_calls, 1.0)
+        score += call_score * weights["llm_calls"]
     
-    # Reasoning completeness (0.3 weight)
-    reasoning_len = sum(len(c.reasoning or "") for c in llm_calls)
+    # Reasoning quality (coherence + length)
+    reasoning_texts = []
+    for call in llm_calls:
+        if call.reasoning:
+            reasoning_texts.append(call.reasoning)
+        if call.response:
+            reasoning_texts.append(call.response)
     if action and action.reasoning:
-        reasoning_len += len(action.reasoning)
-    reasoning_score = min(reasoning_len / 500.0, 1.0)
-    score += reasoning_score * 0.3
+        reasoning_texts.append(action.reasoning)
     
-    # Action quality (0.2 weight)
+    full_reasoning = " ".join(reasoning_texts)
+    
+    if full_reasoning:
+        # Length score (up to 500 chars)
+        length_score = min(len(full_reasoning) / 500.0, 1.0)
+        
+        # Coherence score
+        coherence_score = check_reasoning_coherence(full_reasoning)
+        
+        # Alignment score
+        alignment_score = check_reasoning_action_alignment(full_reasoning, action)
+        
+        # Combined reasoning score
+        reasoning_score = (length_score * 0.4) + (coherence_score * 0.35) + (alignment_score * 0.25)
+        score += reasoning_score * weights["reasoning"]
+    
+    # Action quality
     if action:
+        action_score = 0.0
         if action.success:
-            score += 0.2
+            action_score = 1.0
         elif action.error:
-            score += 0.05
+            action_score = 0.25
         else:
-            score += 0.1
+            action_score = 0.5  # Unknown outcome
+        score += action_score * weights["action"]
     
-    # Feedback presence (0.1 weight)
+    # Feedback presence
     if feedback:
-        score += 0.1
+        score += weights["feedback"]
     
     return score
 

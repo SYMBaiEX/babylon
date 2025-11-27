@@ -376,7 +376,7 @@ export class HuggingFaceIntegrationService {
       await ModelBenchmarkService.getStandardBenchmarkPaths();
     if (standardBenchmarks.length === 0) {
       warnings.push(
-        'No standard benchmarks found. Run: npx ts-node scripts/generate-standard-benchmarks.ts'
+        'No standard benchmarks found. Run: babylon train generate'
       );
     }
 

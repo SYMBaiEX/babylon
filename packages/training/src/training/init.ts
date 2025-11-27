@@ -19,7 +19,6 @@ export async function initializeTrainingSystem(): Promise<void> {
 
   if (available) {
     console.log('\n✅ RL Model system available');
-    console.log('   Use getLatestRLModel() to fetch model details');
   } else {
     console.log('\nℹ️  RL models not available - using base model');
   }

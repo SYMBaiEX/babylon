@@ -28,8 +28,26 @@ import { asUser } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
 import { FeeService } from './fee-service';
 import type { TradeImpactInput } from './market-impact-service';
-import { applyPerpTradeImpacts } from './perp-price-impact-service';
 import { WalletService } from './wallet-service';
+
+/**
+ * NO-OP: User perpetual trades do not affect spot prices
+ *
+ * Perpetuals are synthetic derivatives. User trades create positions that:
+ * - Track the underlying spot price (set by NPC trading)
+ * - Are settled via funding rate payments between longs and shorts
+ * - Do NOT influence the underlying organization price
+ */
+async function applyPerpTradeImpacts(_trades: TradeImpactInput[]): Promise<void> {
+  // Perpetuals are synthetic - user/agent trades do NOT affect spot price
+  // Only NPC spot trading (handled in serverless-game-tick.ts) affects prices
+  // Funding rates balance long/short imbalances every 8 hours
+  logger.debug(
+    'applyPerpTradeImpacts called but is no-op (perps are synthetic)',
+    undefined,
+    'PerpTradeService'
+  );
+}
 import { generateSnowflakeId } from '@babylon/shared';
 
 import type { PerpPosition } from '@babylon/shared';

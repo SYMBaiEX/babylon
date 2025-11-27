@@ -61,11 +61,10 @@ export {
 } from './storage/TrainingDataArchiver';
 export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
 export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
+export { getLatestRLModel, type ModelArtifact } from './WandbModelFetcher';
 
 // Types
 export * from './types';
-
-// Note: getLatestRLModel and ModelArtifact are exported from @babylon/agents
 
 // Window utilities
 export {
