@@ -168,6 +168,6 @@ export async function downloadModelWeights(modelPath: string): Promise<string> {
  */
 export function shouldUseRLModel(): boolean {
   const config = getRLModelConfig();
-  return config.enabled && !!(config.wandbApiKey && config.wandbEntity);
+  return config.enabled && !!config.atroposApiUrl;
 }
 

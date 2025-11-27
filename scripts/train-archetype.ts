@@ -23,7 +23,6 @@ import {
   not,
   count,
   trajectories,
-  users,
 } from '@babylon/db';
 import {
   archetypeScoringService,
@@ -119,28 +118,20 @@ EXAMPLES:
 `);
 }
 
-async function getArchetypeStats(archetype: string): Promise<{
-  totalAgents: number;
+async function getArchetypeStats(_archetype: string): Promise<{
   totalTrajectories: number;
   unscoredTrajectories: number;
   scoredTrajectories: number;
 }> {
-  // Count agents with this archetype
-  const agentCountResult = await db
-    .select({ count: count() })
-    .from(users)
-    .where(eq(users.archetype, archetype));
+  // Note: archetype is not stored in DB, so we count all training trajectories
+  // In production, you'd filter by agent IDs that are known to have this archetype
 
-  const totalAgents = agentCountResult[0]?.count || 0;
-
-  // Count total trajectories
+  // Count total training trajectories
   const totalResult = await db
     .select({ count: count() })
     .from(trajectories)
-    .innerJoin(users, eq(trajectories.agentId, users.id))
     .where(
       and(
-        eq(users.archetype, archetype),
         eq(trajectories.isTrainingData, true),
         not(eq(trajectories.stepsJson, 'null')),
         not(eq(trajectories.stepsJson, '[]'))
@@ -153,10 +144,8 @@ async function getArchetypeStats(archetype: string): Promise<{
   const unscoredResult = await db
     .select({ count: count() })
     .from(trajectories)
-    .innerJoin(users, eq(trajectories.agentId, users.id))
     .where(
       and(
-        eq(users.archetype, archetype),
         eq(trajectories.isTrainingData, true),
         isNull(trajectories.aiJudgeReward),
         not(eq(trajectories.stepsJson, 'null')),
@@ -167,7 +156,6 @@ async function getArchetypeStats(archetype: string): Promise<{
   const unscoredTrajectories = unscoredResult[0]?.count || 0;
 
   return {
-    totalAgents,
     totalTrajectories,
     unscoredTrajectories,
     scoredTrajectories: totalTrajectories - unscoredTrajectories,
@@ -177,16 +165,16 @@ async function getArchetypeStats(archetype: string): Promise<{
 async function scoreArchetypeTrajectories(
   archetype: string,
   dryRun: boolean,
-  verbose: boolean
+  _verbose: boolean
 ): Promise<{ scored: number; errors: number }> {
   if (dryRun) {
     console.log(`[DRY RUN] Would score unscored ${archetype} trajectories`);
     return { scored: 0, errors: 0 };
   }
 
-  console.log(`\n🎯 Scoring ${archetype} trajectories...`);
+  console.log(`\n🎯 Scoring trajectories with ${archetype} rubric...`);
 
-  const result = await archetypeScoringService.scoreByArchetype(archetype, 100);
+  const result = await archetypeScoringService.scoreUnscoredTrajectories(archetype, 100);
 
   console.log(`   ✅ Scored: ${result.scored}`);
   if (result.errors > 0) {
@@ -317,7 +305,6 @@ async function main(): Promise<void> {
   const stats = await getArchetypeStats(archetype);
 
   console.log(`
-   Agents with archetype: ${stats.totalAgents}
    Total trajectories:    ${stats.totalTrajectories}
    Already scored:        ${stats.scoredTrajectories}
    Need scoring:          ${stats.unscoredTrajectories}

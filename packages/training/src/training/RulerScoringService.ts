@@ -27,16 +27,16 @@ import { asUUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
   getLLMCaller,
-  getToARTMessages,
-  type TrajectoryForART,
-  type TrajectoryStepForART,
+  getToTrainingMessages,
+  type TrajectoryForTraining,
+  type TrajectoryStepForTraining,
 } from '../dependencies';
 import { logger } from '../utils/logger';
 import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
 
 // Use types from dependencies
-type RichTrajectory = TrajectoryForART;
-type TrajectoryStep = TrajectoryStepForART;
+type RichTrajectory = TrajectoryForTraining;
+type TrajectoryStep = TrajectoryStepForTraining;
 
 export interface RulerScore {
   trajectoryId: string;
@@ -315,7 +315,7 @@ export class RulerScoringService {
         },
       };
 
-      const toARTMessages = getToARTMessages();
+      const toARTMessages = getToTrainingMessages();
       const messages = toARTMessages(richTraj);
       richTrajectories.push({ traj: richTraj, messages });
     }
@@ -444,8 +444,8 @@ export class RulerScoringService {
       contextParts.push(`  - Total Reward: ${rt.traj.totalReward.toFixed(2)}`);
 
       const actionTypes = rt.traj.steps
-        .filter((s) => s.action)
-        .map((s) => s.action!.actionType);
+        .filter((s: TrajectoryStep): boolean => !!s.action)
+        .map((s: TrajectoryStep): string => s.action!.actionType);
       const uniqueActions = [...new Set(actionTypes)];
       contextParts.push(
         `  - Actions Taken: ${uniqueActions.join(', ')} (${actionTypes.length} total)`
@@ -453,7 +453,7 @@ export class RulerScoringService {
 
       // Add success/error info
       const errors = rt.traj.steps.filter(
-        (s) => s.action && !s.action.success
+        (s: TrajectoryStep): boolean => !!s.action && !s.action.success
       ).length;
       const successRate =
         rt.traj.steps.length > 0

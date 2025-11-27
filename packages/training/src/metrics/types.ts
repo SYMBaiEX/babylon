@@ -136,9 +136,10 @@ export interface InformationMetrics {
 }
 
 /**
- * Complete trajectory metrics combining all categories
+ * Complete behavioral metrics combining all categories
+ * Note: Named BehavioralMetrics to avoid conflict with existing TrajectoryMetrics in training/types.ts
  */
-export interface TrajectoryMetrics {
+export interface BehavioralMetrics {
   /** Social interaction metrics */
   social: SocialMetrics;
   /** Trading performance metrics */
@@ -185,7 +186,7 @@ export interface MetricsSummary {
 /**
  * Extract summary from full metrics
  */
-export function getMetricsSummary(metrics: TrajectoryMetrics): MetricsSummary {
+export function getMetricsSummary(metrics: BehavioralMetrics): MetricsSummary {
   return {
     totalPnL: metrics.trading.totalPnL,
     winRate: metrics.trading.winRate,

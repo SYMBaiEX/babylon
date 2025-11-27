@@ -5,9 +5,9 @@
  * The key insight: metrics are included as CONTEXT for the judge, not weighted directly.
  */
 
-import type { TrajectoryMetrics, MetricsSummary } from '../metrics/types';
+import type { BehavioralMetrics } from '../metrics/types';
 import { getMetricsSummary } from '../metrics/types';
-import { getRubric, getPriorityMetrics, DEFAULT_RUBRIC } from '../rubrics';
+import { getRubric, getPriorityMetrics } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
 
 export interface TrajectoryContext {
@@ -15,7 +15,7 @@ export interface TrajectoryContext {
   agentId: string;
   archetype?: string;
   steps: TrajectoryStep[];
-  metrics: TrajectoryMetrics;
+  metrics: BehavioralMetrics;
   finalPnL?: number;
   episodeLength?: number;
   totalReward?: number;
@@ -184,7 +184,7 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
     trajectories: TrajectoryContext[],
     scenarioId: string,
     priorityMetrics: string[],
-    options: JudgePromptOptions
+    _options: JudgePromptOptions
   ): string {
     const parts: string[] = [];
 
@@ -247,7 +247,7 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
   /**
    * Format metrics for prompt, highlighting priority metrics
    */
-  private formatMetrics(metrics: TrajectoryMetrics, priorityMetrics: string[]): string {
+  private formatMetrics(metrics: BehavioralMetrics, _priorityMetrics: string[]): string {
     const lines: string[] = [];
 
     // Always show summary metrics

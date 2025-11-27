@@ -296,7 +296,8 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       trainingInterval: 12,
       baseModel: 'unsloth/Qwen3-4B-128K',
       modelNamePrefix: 'test-model',
-      wandbProject: 'test-project',
+      atroposApiUrl: 'http://localhost:8000',
+      vllmPort: 9001,
       modelStoragePath: '/tmp/test-models',
       dataStoragePath: '/tmp/test-data',
     };

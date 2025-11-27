@@ -2,9 +2,9 @@
   "base_model": {
     "model": "Qwen/Qwen3-4B",
     "agents": 5,
-    "avg_pnl": 169.8623510081143,
-    "best_pnl": 532.2006150046611,
-    "worst_pnl": -273.1195826932212
+    "avg_pnl": 153.044579085939,
+    "best_pnl": 444.9051544934889,
+    "worst_pnl": -159.5810055740472
   },
   "trained_model": {
     "model": "Qwen/Qwen3-4B-trained",

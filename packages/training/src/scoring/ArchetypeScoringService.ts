@@ -13,13 +13,12 @@ import {
   isNull,
   not,
   trajectories,
-  users,
 } from '@babylon/db';
 import { getLLMCaller } from '../dependencies';
 import { logger } from '../utils/logger';
-import { trajectoryMetricsExtractor, type TrajectoryMetrics } from '../metrics';
+import { trajectoryMetricsExtractor, type BehavioralMetrics } from '../metrics';
 import { judgePromptBuilder, type TrajectoryContext } from './JudgePromptBuilder';
-import { getRubric, hasCustomRubric } from '../rubrics';
+import { hasCustomRubric } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
 
 export interface ArchetypeScore {
@@ -30,7 +29,7 @@ export interface ArchetypeScore {
   reasoning: string;
   strengths: string[];
   weaknesses: string[];
-  metrics: TrajectoryMetrics;
+  metrics: BehavioralMetrics;
   scoredAt: Date;
 }
 
@@ -97,12 +96,12 @@ export class ArchetypeScoringService {
       return null;
     }
 
-    // Get agent archetype
-    const archetype = opts.archetype || (await this.getAgentArchetype(traj.agentId));
+    // Get archetype from options (must be provided explicitly since not stored in DB)
+    const archetype = opts.archetype || 'default';
 
-    if (!archetype) {
-      logger.warn(
-        'Could not determine archetype for agent',
+    if (archetype === 'default') {
+      logger.info(
+        'Using default archetype for scoring',
         { agentId: traj.agentId, trajectoryId },
         'ArchetypeScoring'
       );
@@ -138,7 +137,7 @@ export class ArchetypeScoringService {
     const context: TrajectoryContext = {
       trajectoryId: traj.trajectoryId,
       agentId: traj.agentId,
-      archetype: archetype || 'default',
+      archetype,
       steps,
       metrics,
       finalPnL: traj.finalPnL || undefined,
@@ -161,7 +160,7 @@ export class ArchetypeScoringService {
     const score: ArchetypeScore = {
       trajectoryId: traj.trajectoryId,
       agentId: traj.agentId,
-      archetype: archetype || 'default',
+      archetype,
       score: Math.max(0, Math.min(1, response.score)),
       reasoning: response.reasoning,
       strengths: response.strengths || [],
@@ -239,6 +238,7 @@ export class ArchetypeScoringService {
 
     // Build contexts with metrics
     const contexts: TrajectoryContext[] = [];
+    const archetype = opts.archetype || 'default';
 
     for (const traj of trajResults) {
       let steps: TrajectoryStep[];
@@ -248,8 +248,6 @@ export class ArchetypeScoringService {
         logger.warn('Skipping trajectory with invalid steps', { trajectoryId: traj.trajectoryId }, 'ArchetypeScoring');
         continue;
       }
-
-      const archetype = opts.archetype || (await this.getAgentArchetype(traj.agentId));
 
       const metrics = trajectoryMetricsExtractor.extractFromRaw({
         trajectoryId: traj.trajectoryId,
@@ -267,7 +265,7 @@ export class ArchetypeScoringService {
       contexts.push({
         trajectoryId: traj.trajectoryId,
         agentId: traj.agentId,
-        archetype: archetype || 'default',
+        archetype,
         steps,
         metrics,
         finalPnL: traj.finalPnL || undefined,
@@ -348,11 +346,11 @@ export class ArchetypeScoringService {
   }
 
   /**
-   * Score all unscored trajectories for a specific archetype
+   * Score trajectories with a specific archetype rubric
    */
   async scoreByArchetype(
     archetype: string,
-    limit: number = 100
+    trajectoryIds: string[],
   ): Promise<{ scored: number; errors: number }> {
     if (!hasCustomRubric(archetype)) {
       logger.warn(
@@ -362,32 +360,11 @@ export class ArchetypeScoringService {
       );
     }
 
-    // Find unscored trajectories for agents with this archetype
-    const unscoredResult = await db
-      .select({
-        trajectoryId: trajectories.trajectoryId,
-      })
-      .from(trajectories)
-      .innerJoin(users, eq(trajectories.agentId, users.id))
-      .where(
-        and(
-          eq(users.archetype, archetype),
-          isNull(trajectories.aiJudgeReward),
-          eq(trajectories.isTrainingData, true),
-          not(eq(trajectories.stepsJson, 'null')),
-          not(eq(trajectories.stepsJson, '[]'))
-        )
-      )
-      .limit(limit);
-
-    if (unscoredResult.length === 0) {
-      logger.info('No unscored trajectories for archetype', { archetype }, 'ArchetypeScoring');
+    if (trajectoryIds.length === 0) {
+      logger.info('No trajectories provided for archetype scoring', { archetype }, 'ArchetypeScoring');
       return { scored: 0, errors: 0 };
     }
 
-    const trajectoryIds = unscoredResult.map((r) => r.trajectoryId);
-
-    // Score in groups
     const scores = await this.scoreTrajectoryGroup(trajectoryIds, { archetype });
 
     return {
@@ -397,16 +374,35 @@ export class ArchetypeScoringService {
   }
 
   /**
-   * Get agent's archetype from database
+   * Score all unscored trajectories with a default archetype
    */
-  private async getAgentArchetype(agentId: string): Promise<string | null> {
-    const result = await db
-      .select({ archetype: users.archetype })
-      .from(users)
-      .where(eq(users.id, agentId))
-      .limit(1);
+  async scoreUnscoredTrajectories(
+    archetype: string = 'default',
+    limit: number = 100
+  ): Promise<{ scored: number; errors: number }> {
+    const unscoredResult = await db
+      .select({
+        trajectoryId: trajectories.trajectoryId,
+      })
+      .from(trajectories)
+      .where(
+        and(
+          isNull(trajectories.aiJudgeReward),
+          eq(trajectories.isTrainingData, true),
+          not(eq(trajectories.stepsJson, 'null')),
+          not(eq(trajectories.stepsJson, '[]'))
+        )
+      )
+      .limit(limit);
 
-    return result[0]?.archetype || null;
+    if (unscoredResult.length === 0) {
+      logger.info('No unscored trajectories found', {}, 'ArchetypeScoring');
+      return { scored: 0, errors: 0 };
+    }
+
+    const trajectoryIds = unscoredResult.map((r) => r.trajectoryId);
+
+    return this.scoreByArchetype(archetype, trajectoryIds);
   }
 
   /**
@@ -544,4 +540,3 @@ Return ONLY valid JSON, no other text.`;
  * Singleton instance
  */
 export const archetypeScoringService = new ArchetypeScoringService();
-

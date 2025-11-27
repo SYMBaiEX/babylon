@@ -450,7 +450,13 @@ class FastSimulator:
         # Build trajectories
         trajectories = []
         for agent_id, ticks in self.agent_trajectories.items():
-            trajectory = self._build_trajectory(agent_id, ticks)
+            trajectory_id = f"traj-{agent_id}-{int(time.time()*1000)}"
+            trajectory = build_trajectory_from_ticks(
+                trajectory_id=trajectory_id,
+                agent_id=agent_id,
+                ticks=ticks,
+                min_steps=self.config.min_actions_per_trajectory,
+            )
             if trajectory:
                 trajectories.append(trajectory)
                 self.metrics.successful_trajectories += 1
@@ -497,17 +503,18 @@ class FastSimulator:
         final_pnl = ticks[-1].environment_state.agent_pnl
         
         # Calculate quality score
-        quality_score = self._calculate_quality_score(ticks)
+        quality_score = calculate_trajectory_quality_score(ticks)
         
         # Calculate accuracy against ground truth
         if self.ground_truth:
             self._evaluate_against_ground_truth(agent_id, ticks)
         
         duration = (ticks[-1].timestamp - ticks[0].timestamp) if len(ticks) > 1 else 0
+        trajectory_id = f"bench-{agent_id}-{int(time.time())}"
         
         return RolloutResult(
             agent_id=agent_id,
-            trajectory_id=f"bench-{agent_id}-{int(time.time())}",
+            trajectory_id=trajectory_id,
             ticks_completed=len(ticks),
             total_duration_ms=duration,
             avg_tick_duration_ms=duration / len(ticks) if ticks else 0,
@@ -515,12 +522,13 @@ class FastSimulator:
             total_reward=total_reward,
             final_pnl=final_pnl,
             quality_score=quality_score,
-            trajectory=self._build_trajectory(agent_id, ticks),
+            trajectory=build_trajectory_from_ticks(
+                trajectory_id=trajectory_id,
+                agent_id=agent_id,
+                ticks=ticks,
+                min_steps=self.config.min_actions_per_trajectory,
+            ),
         )
-    
-    def _calculate_quality_score(self, ticks: list[AgentTickData]) -> float:
-        """Calculate quality score for tick data"""
-        return calculate_trajectory_quality_score(ticks)
     
     def _evaluate_against_ground_truth(
         self,
@@ -552,20 +560,6 @@ class FastSimulator:
             self.metrics.avg_accuracy = (
                 self.metrics.avg_accuracy * (self.metrics.total_agents - 1) + accuracy
             ) / self.metrics.total_agents
-    
-    def _build_trajectory(
-        self,
-        agent_id: str,
-        ticks: list[AgentTickData],
-    ) -> BabylonTrajectory | None:
-        """Build trajectory from tick data"""
-        trajectory_id = f"traj-{agent_id}-{int(time.time()*1000)}"
-        return build_trajectory_from_ticks(
-            trajectory_id=trajectory_id,
-            agent_id=agent_id,
-            ticks=ticks,
-            min_steps=self.config.min_actions_per_trajectory,
-        )
     
     async def _save_trajectories(self, trajectories: list[BabylonTrajectory]) -> None:
         """Save trajectories to database"""

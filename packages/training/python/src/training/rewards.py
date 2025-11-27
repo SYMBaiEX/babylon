@@ -355,8 +355,12 @@ class RewardNormalizer:
         std = max(math.sqrt(self.var), 1e-8)
         return [(r - self.mean) / std for r in rewards]
         
+    @property
+    def std(self) -> float:
+        """Standard deviation of rewards."""
+        return max(math.sqrt(self.var), 1e-8)
+        
     def denormalize(self, normalized: List[float]) -> List[float]:
         """Convert normalized rewards back to original scale."""
-        std = max(math.sqrt(self.var), 1e-8)
-        return [n * std + self.mean for n in normalized]
+        return [n * self.std + self.mean for n in normalized]
 

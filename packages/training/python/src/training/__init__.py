@@ -90,6 +90,18 @@ from .tick_reward_attribution import (
     group_samples_for_grpo,
 )
 
+# Archetype-aware training
+from .archetype_trainer import (
+    ArchetypeTrainer,
+    ArchetypeTrainingConfig,
+    ArchetypeTrainingResult,
+    get_rubric,
+    get_priority_metrics,
+    get_available_archetypes,
+    reload_rubrics,
+    DEFAULT_RUBRIC,
+)
+
 __all__ = [
     # Atropos trainer (recommended)
     "BabylonAtroposTrainer",
@@ -140,4 +152,13 @@ __all__ = [
     "state_to_env_state",
     "validate_trajectory_quality",
     "ValidationResult",
+    # Archetype training
+    "ArchetypeTrainer",
+    "ArchetypeTrainingConfig",
+    "ArchetypeTrainingResult",
+    "get_rubric",
+    "get_priority_metrics",
+    "get_available_archetypes",
+    "reload_rubrics",
+    "DEFAULT_RUBRIC",
 ]

@@ -5,6 +5,8 @@
  * @description Automatically generates OpenAPI spec from @openapi tags in route files
  */
 
+/// <reference path="./swagger-jsdoc.d.ts" />
+
 import path from 'path';
 import { generateOpenApiSpec } from './generator';
 import { swaggerDefinition } from './config';

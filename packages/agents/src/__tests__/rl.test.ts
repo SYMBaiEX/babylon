@@ -25,12 +25,12 @@ describe('RL Training System', () => {
       expect(config.baseModel).toBe('unsloth/Qwen3-4B-128K');
     });
 
-    it('should have W&B configuration if enabled', () => {
+    it('should have Atropos configuration if enabled', () => {
       const config = getRLModelConfig();
 
       if (config.enabled) {
-        expect(config.wandbApiKey).toBeDefined();
-        expect(config.wandbProject).toBeDefined();
+        expect(config.atroposApiUrl).toBeDefined();
+        expect(config.vllmPort).toBeDefined();
       }
     });
   });

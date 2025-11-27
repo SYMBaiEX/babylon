@@ -6,14 +6,14 @@
  */
 
 import type {
-  TrajectoryMetrics,
+  BehavioralMetrics,
   SocialMetrics,
   TradingMetrics,
   InfluenceMetrics,
   BehaviorMetrics,
   InformationMetrics,
 } from './types';
-import type { TrajectoryStep, Action } from '../training/types';
+import type { TrajectoryStep } from '../training/types';
 import { logger } from '../utils/logger';
 
 /**
@@ -53,19 +53,6 @@ const TRADING_ACTION_TYPES = new Set([
   'swap',
 ]);
 
-/**
- * Action types that count as information gathering
- */
-const INFO_ACTION_TYPES = new Set([
-  'research',
-  'analyze',
-  'read_news',
-  'query_market',
-  'check_price',
-  'get_sentiment',
-  'fetch_data',
-  'search',
-]);
 
 export class TrajectoryMetricsExtractor {
   /**
@@ -78,7 +65,7 @@ export class TrajectoryMetricsExtractor {
     scenarioId?: string;
     startBalance?: number;
     endBalance?: number;
-  }): TrajectoryMetrics {
+  }): BehavioralMetrics {
     const { trajectoryId, agentId, steps, scenarioId, startBalance, endBalance } = params;
 
     const social = this.extractSocialMetrics(steps, agentId);
@@ -428,7 +415,6 @@ export class TrajectoryMetricsExtractor {
     const actionTypeCounts = new Map<string, number>();
     let socialActions = 0;
     let tradeActions = 0;
-    let infoActions = 0;
 
     for (const step of steps) {
       const action = step.action;
@@ -451,9 +437,6 @@ export class TrajectoryMetricsExtractor {
       if (TRADING_ACTION_TYPES.has(actionType)) {
         tradeActions++;
       }
-      if (INFO_ACTION_TYPES.has(actionType)) {
-        infoActions++;
-      }
     }
 
     // Calculate derived metrics
@@ -468,8 +451,11 @@ export class TrajectoryMetricsExtractor {
     if (tradeActions > 0) {
       metrics.socialToTradeRatio = socialActions / tradeActions;
     } else if (socialActions > 0) {
-      metrics.socialToTradeRatio = 999; // High ratio indicates social-focused
+      // No trades but has social actions - use social count as ratio
+      // This makes it clear they're social-focused without a magic number
+      metrics.socialToTradeRatio = socialActions;
     }
+    // If both are 0, ratio stays at 0 (no activity)
 
     // Find action types used and dominant type
     metrics.actionTypesUsed = Array.from(actionTypeCounts.keys());
@@ -516,7 +502,6 @@ export class TrajectoryMetricsExtractor {
       if (!action) continue;
 
       const actionType = action.actionType.toLowerCase();
-      const params = action.parameters || {};
 
       if (actionType === 'research' || actionType === 'analyze') {
         metrics.researchActions++;
@@ -559,7 +544,7 @@ export class TrajectoryMetricsExtractor {
     stepsJson: string;
     scenarioId?: string;
     finalPnL?: number;
-  }): TrajectoryMetrics | null {
+  }): BehavioralMetrics | null {
     try {
       const steps = JSON.parse(params.stepsJson) as TrajectoryStep[];
 

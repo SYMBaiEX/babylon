@@ -4,14 +4,20 @@
  * Shared types, constants, and utilities for Babylon
  */
 
-// Constants
-export * from './constants';
+// Constants (explicit index path for ESM compatibility)
+export * from './constants/index';
 
 // Types (all types are re-exported through ./types)
-export * from './types';
+export * from './types/index';
+
+// Game types (Actor, FeedPost, Question, etc.)
+export * from './game-types';
+
+// Game types (game-specific type definitions)
+export * from './game-types';
 
 // Errors (all error classes are re-exported through ./errors)
-export * from './errors';
+export * from './errors/index';
 
 // Explicitly export commonly used types and utilities for better IDE support
 export type { AuthenticatedUser } from './types/auth';
@@ -33,50 +39,50 @@ export * from './perps-types';
 // Perp Mode Configuration
 export * from './perp-modes';
 
-// Utilities
-export * from './utils';
+// Utilities (explicit index path for ESM compatibility)
+export * from './utils/index';
 
-// Auth utilities
-export * from './auth';
+// Auth utilities (explicit index path for ESM compatibility)
+export * from './auth/index';
 
-// Contracts (ABIs and addresses)
-export * from './contracts';
+// Contracts (ABIs and addresses, explicit index path for ESM compatibility)
+export * from './contracts/index';
 
 // Moderation utilities (empty - services exported from @babylon/api)
-// export * from './moderation';
+// export * from './moderation/index';
 
-// Monitoring utilities
-export * from './monitoring';
+// Monitoring utilities (explicit index path for ESM compatibility)
+export * from './monitoring/index';
 
-// Onboarding utilities
-export * from './onboarding';
+// Onboarding utilities (explicit index path for ESM compatibility)
+export * from './onboarding/index';
 
-// Validation utilities and schemas
-export * from './validation';
+// Validation utilities and schemas (explicit index path for ESM compatibility)
+export * from './validation/index';
 
-// Storage utilities
-export * from './storage';
+// Storage utilities (explicit index path for ESM compatibility)
+export * from './storage/index';
 
-// Services
-export * from './services';
+// Services (explicit index path for ESM compatibility)
+export * from './services/index';
 
-// Rate limiting utilities
-export * from './rate-limiting';
+// Rate limiting utilities (explicit index path for ESM compatibility)
+export * from './rate-limiting/index';
 
 // On-chain betting (empty - services exported from @babylon/api)
-// export * from './onchain-betting';
+// export * from './onchain-betting/index';
 
 // Portfolio utilities (empty - functions exported from @babylon/engine)
-// export * from './portfolio';
+// export * from './portfolio/index';
 
-// Referral utilities
-export * from './referral';
+// Referral utilities (explicit index path for ESM compatibility)
+export * from './referral/index';
 
-// Oracle utilities
-export * from './oracle';
+// Oracle utilities (explicit index path for ESM compatibility)
+export * from './oracle/index';
 
-// PostHog server utilities
-export * from './posthog';
+// PostHog server utilities (explicit index path for ESM compatibility)
+export * from './posthog/index';
 
-// Share utilities
-export * from './share';
+// Share utilities (explicit index path for ESM compatibility)
+export * from './share/index';

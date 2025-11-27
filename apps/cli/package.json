@@ -1,12 +1,24 @@
 {
   "name": "@babylon/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Babylon CLI - Game generation, simulation, and utilities",
+  "description": "Babylon CLI - Unified command-line interface for db, training, models, games, and agents",
   "type": "module",
+  "bin": {
+    "babylon": "./dist/index.js"
+  },
   "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "dev": "bun run src/index.ts",
     "lint": "biome lint .",
     "typecheck": "tsc --noEmit",
+    "db": "bun run src/index.ts db",
+    "admin": "bun run src/index.ts admin",
+    "status": "bun run src/index.ts status",
+    "train": "bun run src/index.ts train",
+    "model": "bun run src/index.ts model",
+    "game": "bun run src/index.ts game",
+    "agent": "bun run src/index.ts agent",
     "generate": "bun run src/generate-game.ts",
     "generate:verbose": "bun run src/generate-game.ts --verbose",
     "world": "bun run src/generate-world.ts",
@@ -18,11 +30,14 @@
     "images:migrate": "bun run src/migrate-images-to-blob.ts"
   },
   "dependencies": {
+    "@babylon/agents": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
+    "@babylon/training": "workspace:*",
     "@fal-ai/client": "^1.7.2",
     "@vercel/blob": "^2.0.0",
     "dotenv": "^16.4.5",
+    "ethers": "^6.14.4",
     "nanoid": "^5.1.6",
     "zod": "^4.1.12"
   },

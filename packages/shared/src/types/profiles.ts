@@ -4,7 +4,7 @@
  * Types for user and actor profiles used throughout the application
  */
 
-import type { Actor } from '../types';
+import type { Actor } from '../game-types';
 
 /**
  * User profile information

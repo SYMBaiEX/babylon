@@ -242,7 +242,6 @@ export function getToTrainingMessages(): ToTrainingMessagesFn {
   }
   return _toTrainingMessages;
 }
-
 /**
  * Check if dependencies are configured
  */

@@ -14,16 +14,16 @@
 export * from './benchmark';
 
 export type {
-  ARTMessage,
   CreateAutonomousCoordinatorFn,
   ExportGroupedForGRPOFn,
   ExportToHuggingFaceFn,
   IAgentRuntimeManager,
   IAutonomousCoordinator,
   ILLMCaller,
-  ToARTMessagesFn,
-  TrajectoryForART,
-  TrajectoryStepForART,
+  ToTrainingMessagesFn,
+  TrajectoryForTraining,
+  TrajectoryStepForTraining,
+  TrainingMessage,
 } from './dependencies';
 // Dependencies configuration
 export {
@@ -35,13 +35,26 @@ export {
   getExportGroupedForGRPO,
   getExportToHuggingFace,
   getLLMCaller,
-  getToARTMessages,
+  getToTrainingMessages,
 } from './dependencies';
 export * from './huggingface';
 export * from './training';
 
-// Multi-criteria evaluation
-export * from './metrics';
+// Multi-criteria evaluation - export metrics types and extractor explicitly
+export type {
+  BehavioralMetrics,
+  BehaviorMetrics,
+  InformationMetrics,
+  InfluenceMetrics,
+  SocialMetrics,
+  TradingMetrics,
+  MetricsSummary,
+} from './metrics/types';
+export { getMetricsSummary } from './metrics/types';
+export {
+  TrajectoryMetricsExtractor,
+  trajectoryMetricsExtractor,
+} from './metrics/TrajectoryMetricsExtractor';
 export * from './rubrics';
 export * from './scoring';
 

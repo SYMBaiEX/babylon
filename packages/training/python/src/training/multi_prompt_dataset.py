@@ -317,9 +317,13 @@ class MultiPromptDatasetBuilder:
         
         # Validate content - require minimum response length for quality
         if not llm_call.response or len(llm_call.response) < self.min_response_length:
+            logger.debug(
+                f"Skipping LLM call: response too short ({len(llm_call.response or '')} < {self.min_response_length})"
+            )
             return None
         
         if not llm_call.user_prompt:
+            logger.debug("Skipping LLM call: no user_prompt")
             return None
         
         # CRITICAL: Use EXACT prompts from rollout - no modifications!

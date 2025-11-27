@@ -70,33 +70,39 @@ class TrajectoryStep(BaseModel):
     step_number: int
     timestamp: int
     environment_state: EnvironmentState
-    provider_accesses: List[ProviderAccess]
-    llm_calls: List[LLMCall]
-    action: Action
-    reward: float
+    provider_accesses: List[ProviderAccess] = []  # Optional, default empty
+    llm_calls: List[LLMCall] = []  # Optional, default empty
+    action: Action | None = None  # Optional, agent may choose to wait
+    reward: float = 0.0  # Default reward
 
 
 class BabylonTrajectory(BaseModel):
     """Complete trajectory from database"""
     model_config = ConfigDict(frozen=False)  # Allow modifications
     
-    id: str
+    # Required fields
     trajectory_id: str
     agent_id: str
-    window_id: str
-    start_time: datetime
-    end_time: datetime
-    duration_ms: int
+    
+    # Optional with defaults
+    id: str = ""  # Auto-generated if not provided
+    window_id: str = "default"
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    duration_ms: int = 0
     scenario_id: str | None = None
     episode_id: str | None = None
-    steps: List[TrajectoryStep]
-    total_reward: float
-    final_pnl: float
+    steps: List[TrajectoryStep] = []
+    total_reward: float = 0.0
+    final_pnl: float = 0.0
     final_balance: float | None = None
-    trades_executed: int | None = None
-    posts_created: int | None = None
-    episode_length: int
-    final_status: str
+    trades_executed: int = 0
+    successful_trades: int = 0  # Added for tracking
+    failed_trades: int = 0  # Added for tracking
+    posts_created: int = 0
+    provider_accesses: int = 0  # Added for tracking
+    episode_length: int = 0
+    final_status: str = "completed"
 
 
 class StockOutcome(BaseModel):

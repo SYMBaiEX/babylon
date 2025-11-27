@@ -501,9 +501,75 @@ async def main():
         action="store_true",
         help="Disable W&B logging"
     )
+    parser.add_argument(
+        "--archetype",
+        type=str,
+        default=None,
+        help="Single archetype to train (e.g., 'trader', 'scammer')"
+    )
+    parser.add_argument(
+        "--archetypes",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Multiple archetypes to train (e.g., --archetypes trader scammer)"
+    )
+    parser.add_argument(
+        "--list-archetypes",
+        action="store_true",
+        help="List all available archetypes and exit"
+    )
     
     args = parser.parse_args()
     
+    # Handle --list-archetypes
+    if args.list_archetypes:
+        from src.training import get_available_archetypes
+        print("Available archetypes:")
+        for arch in get_available_archetypes():
+            print(f"  - {arch}")
+        return
+    
+    # Handle archetype training mode
+    if args.archetype or args.archetypes:
+        from src.training import ArchetypeTrainer, ArchetypeTrainingConfig, get_rubric
+        
+        config = ArchetypeTrainingConfig(
+            base_model=args.model,
+            training_steps=args.ticks,  # Use ticks as steps for archetype training
+            output_dir=args.output,
+        )
+        trainer = ArchetypeTrainer(config)
+        
+        if args.archetypes:
+            # Train multiple archetypes
+            results = await trainer.train_archetypes(args.archetypes)
+            result = {
+                "mode": "archetype_training",
+                "archetypes": [r.archetype for r in results],
+                "results": [
+                    {
+                        "archetype": r.archetype,
+                        "steps": r.training_steps,
+                        "checkpoint": r.checkpoint_path,
+                    }
+                    for r in results
+                ]
+            }
+        else:
+            # Train single archetype
+            r = await trainer.train_archetype(args.archetype)
+            result = {
+                "mode": "archetype_training",
+                "archetype": r.archetype,
+                "steps": r.training_steps,
+                "checkpoint": r.checkpoint_path,
+            }
+        
+        print(f"\nResult: {json.dumps(result, indent=2, default=str)}")
+        return
+    
+    # Standard pipeline mode
     pipeline = FullPipeline(
         model_name=args.model,
         num_agents=args.agents,

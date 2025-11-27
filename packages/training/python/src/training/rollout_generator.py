@@ -247,15 +247,15 @@ class FastRolloutGenerator:
         avg_tick_duration = sum(tick_durations) / len(tick_durations) if tick_durations else 0
         
         # Build trajectory from ticks
-        trajectory = self._build_trajectory(
-            trajectory_id,
-            agent_id,
-            all_ticks,
-            total_reward,
+        trajectory = build_trajectory_from_ticks(
+            trajectory_id=trajectory_id,
+            agent_id=agent_id,
+            ticks=all_ticks,
+            min_steps=1,
         )
         
         # Calculate quality score
-        quality_score = self._calculate_quality_score(all_ticks)
+        quality_score = calculate_trajectory_quality_score(all_ticks)
         
         result = RolloutResult(
             agent_id=agent_id,
@@ -367,26 +367,6 @@ class FastRolloutGenerator:
         
         return True
     
-    def _calculate_quality_score(self, ticks: list[AgentTickData]) -> float:
-        """Calculate overall quality score for rollout (0-1)"""
-        return calculate_trajectory_quality_score(ticks)
-    
-    def _build_trajectory(
-        self,
-        trajectory_id: str,
-        agent_id: str,
-        ticks: list[AgentTickData],
-        total_reward: float,
-    ) -> BabylonTrajectory | None:
-        """Build BabylonTrajectory from tick data"""
-        return build_trajectory_from_ticks(
-            trajectory_id=trajectory_id,
-            agent_id=agent_id,
-            ticks=ticks,
-            min_steps=1,  # We handle min check elsewhere
-        )
-
-
 class RolloutQualityValidator:
     """
     Validates that rollouts meet quality standards for training.
