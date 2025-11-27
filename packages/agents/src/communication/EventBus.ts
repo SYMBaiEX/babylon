@@ -7,6 +7,7 @@
  * @see agent-patch-plan.md Phase 3.2
  */
 
+import { logger } from '../shared/logger';
 import type { JsonValue } from '../types/common';
 
 export type EventHandler<T extends JsonValue = JsonValue> = (
@@ -137,9 +138,10 @@ export class EventBus {
       if (result instanceof Promise) {
         promises.push(
           result.catch((error) => {
-            console.error(
-              `[EventBus] Error in handler for ${eventType}:`,
-              error
+            logger.error(
+              `Error in handler for ${eventType}`,
+              error instanceof Error ? error : new Error(String(error)),
+              'EventBus'
             );
           })
         );

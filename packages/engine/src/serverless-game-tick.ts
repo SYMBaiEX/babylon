@@ -2211,7 +2211,6 @@ Return your response as XML in this exact format:
         {
           temperature: 0.7,
           maxTokens: 8000,
-          ...(baselineModel ? { model: baselineModel } : {}),
           format: 'xml',
           promptType: 'generate_baseline_article',
         }

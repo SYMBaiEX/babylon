@@ -55,7 +55,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { BabylonLLMClient } from '@babylon/engine';
-import { getWandbModel } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 
 /**
@@ -64,14 +63,8 @@ import { logger } from '@babylon/shared';
  */
 export async function POST(_req: NextRequest) {
   try {
-    // Load wandb model from config
-    const wandbModel = await getWandbModel();
-
-    // Initialize client
-    // Admin test can use Wandb if explicitly configured, otherwise use game tick client
-    const client = wandbModel
-      ? BabylonLLMClient.forWandb(wandbModel)
-      : BabylonLLMClient.forGameTick();
+    // Initialize client with default provider priority: Groq > Claude > OpenAI
+    const client = BabylonLLMClient.forGameTick();
     const stats = client.getStats();
 
     logger.info(
@@ -138,7 +131,6 @@ Return your response as XML in this exact format:
       data: {
         provider: stats.provider,
         model: stats.model,
-        wandbModelConfigured: wandbModel || null,
         response: response,
         latency,
         timestamp: new Date().toISOString(),

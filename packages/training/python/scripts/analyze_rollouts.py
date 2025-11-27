@@ -262,8 +262,18 @@ async def generate_dataset():
         traj.successful_trades = agent.wins
         traj.failed_trades = agent.trades - agent.wins
         
-        # Calculate quality from ticks (not trajectory)
-        quality = calculate_trajectory_quality_score(ticks)
+        # Calculate quality combining data completeness AND outcomes
+        data_quality = calculate_trajectory_quality_score(ticks)
+        
+        # P&L component (normalize to 0-1 range, assuming -500 to +500 range)
+        pnl_score = max(0.0, min(1.0, (agent.pnl + 500) / 1000))
+        
+        # Win rate component
+        win_rate = agent.wins / agent.trades if agent.trades > 0 else 0.5
+        
+        # Combined: 30% data quality, 50% P&L, 20% win rate
+        quality = data_quality * 0.3 + pnl_score * 0.5 + win_rate * 0.2
+        
         all_trajectories.append((traj, quality, agent))
     
     return all_trajectories, all_tick_data, agents

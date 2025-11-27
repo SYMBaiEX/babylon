@@ -43,11 +43,7 @@ import { QuestionManager } from '../QuestionManager';
 interface MockLLMClient
   extends Pick<
     BabylonLLMClient,
-    | 'generateJSON'
-    | 'getProvider'
-    | 'getWandbModel'
-    | 'setWandbModel'
-    | 'getStats'
+    'generateJSON' | 'getProvider' | 'getStats'
   > {}
 
 // Mock LLM client for testing - implements MockLLMClient interface
@@ -56,8 +52,6 @@ const mockLLMImpl: MockLLMClient = {
     return { questions: [] } as T;
   },
   getProvider: () => 'groq',
-  getWandbModel: () => undefined,
-  setWandbModel: () => {},
   getStats: () => ({
     provider: 'groq' as const,
     model: 'test',
