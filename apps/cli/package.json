@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun",
-    "dev": "bun run src/index.ts",
+    "cli": "bun run src/index.ts",
     "lint": "biome lint .",
     "typecheck": "tsc --noEmit",
     "db": "bun run src/index.ts db",

@@ -18,6 +18,18 @@ const nextConfig: NextConfig = {
   // Use standalone output for dynamic routes and API endpoints
   // Temporarily disabled for Next.js 16 compatibility
   // output: 'standalone',
+  // Transpile internal workspace packages to resolve TypeScript imports properly
+  // This is necessary because these packages are not pre-built and use TypeScript source directly
+  transpilePackages: [
+    '@babylon/shared',
+    '@babylon/engine',
+    '@babylon/agents',
+    '@babylon/api',
+    '@babylon/db',
+    '@babylon/training',
+    '@babylon/contracts',
+    '@babylon/a2a',
+  ],
   experimental: {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+

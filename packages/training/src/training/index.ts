@@ -23,7 +23,28 @@ export {
   RewardBackpropagationService,
   rewardBackpropagationService,
 } from './RewardBackpropagationService';
-export { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
+export {
+  isRLModelAvailable,
+  logRLModelConfig,
+  getRLModelConfig,
+  getModelTierForVram,
+  getModelForTier,
+  getAvailableModelTiers,
+  isTierAvailable,
+  // Archetype model management
+  registerArchetypeModel,
+  getModelForArchetype,
+  getAllArchetypeModels,
+  hasArchetypeModel,
+  clearArchetypeModels,
+  MODEL_TIERS,
+} from './RLModelConfig';
+export type {
+  ModelTier,
+  ModelTierConfig,
+  RLModelConfig,
+  ArchetypeModelConfig,
+} from './RLModelConfig';
 export type { MarketOutcomes, RulerScore } from './RulerScoringService';
 export {
   RulerScoringService,

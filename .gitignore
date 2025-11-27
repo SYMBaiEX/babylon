@@ -87,3 +87,4 @@ python/trained_models
 
 # Soldeer (Solidity package manager)
 packages/contracts/dependencies/
+packages/training/python/trained_models
