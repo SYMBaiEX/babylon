@@ -9,8 +9,8 @@ import type { AgentCapabilities } from './agent-registry';
 import type { JsonRpcParams, JsonRpcResult, JsonValue } from './common';
 import { JsonValueSchema } from './common';
 
-// Re-export common types
-export type { JsonRpcParams, JsonRpcResult, JsonValue };
+// Re-export common types (JsonRpcParams is already exported from common, so don't re-export to avoid duplicate)
+export type { JsonRpcResult, JsonValue };
 
 // JSON-RPC 2.0 Base Types
 export interface JsonRpcRequest {
@@ -163,11 +163,11 @@ export interface AgentCredentials {
 export type {
   GameNetworkInfo,
   AgentCapabilities,
-} from '@babylon/shared/types/agents';
+} from '@babylon/shared';
 export {
   GameNetworkInfoSchema,
   AgentCapabilitiesSchema,
-} from '@babylon/shared/types/agents';
+} from '@babylon/shared';
 
 export interface AgentProfile {
   agentId?: string;

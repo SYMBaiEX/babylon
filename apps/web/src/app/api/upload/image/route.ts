@@ -184,6 +184,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const buffer = Buffer.from(bytes);
 
   if (USE_LOCAL_STORAGE) {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+      throw new Error(
+        'Local storage requires Node.js environment with file system access. Not available in edge runtime.'
+      );
+    }
+
     const uploadDir = join(process.cwd(), 'public', 'uploads', folder);
     await mkdir(uploadDir, { recursive: true });
 

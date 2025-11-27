@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { NextRequest } from 'next/server';
+import {
+  authenticate,
+  authenticateWithDbUser,
+} from '@babylon/api';
 import { NotFoundError } from '@babylon/agents';
 import type { MockUserRecord, UserFindUniqueArgs } from '../types/test-types';
 
@@ -111,7 +115,6 @@ describe('User Not Found Handling', () => {
     it('should return Privy DID when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
 
-      const { authenticate } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -134,7 +137,6 @@ describe('User Not Found Handling', () => {
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      const { authenticate } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -158,7 +160,6 @@ describe('User Not Found Handling', () => {
     it('should throw error when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
 
-      const { authenticateWithDbUser } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -178,7 +179,6 @@ describe('User Not Found Handling', () => {
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      const { authenticateWithDbUser } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {

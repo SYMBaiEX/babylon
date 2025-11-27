@@ -22,9 +22,9 @@ import {
   gte,
   userInteractions,
 } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { GroupChat } from '@babylon/shared';
-import { notifyGroupChatInvite } from '@babylon/api';
+// Notification handled by API layer - engine doesn't depend on api
 
 // Use GroupChat type for type-safe chat operations
 type GroupChatData = Omit<GroupChat, 'messages'> & {
@@ -287,7 +287,18 @@ export class GroupChatInvite {
       );
 
     // Send notification to user about the invite
-    await notifyGroupChatInvite(userId, npcId, chatId, chatName);
+    // Notification handled by API layer - engine doesn't manage notifications
+    try {
+      const { notifyGroupChatInvite } = await import('@babylon/api');
+      await notifyGroupChatInvite(userId, npcId, chatId, chatName);
+    } catch (error) {
+      // Notification is optional - engine can work without it
+      logger.debug(
+        'Group chat invite notification skipped (API layer handles notifications)',
+        { userId, npcId, chatId, error },
+        'GroupChatInvite'
+      );
+    }
   }
 
   /**

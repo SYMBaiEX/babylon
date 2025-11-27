@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ActorData, Organization } from '../src/shared/types';
+import type { ActorData, Organization } from '@babylon/shared';
 
 // Extended Organization type for name replacement (includes fields from actors.json)
 interface OrganizationWithNameFields extends Organization {
+  id: string;
+  name: string;
   originalName: string;
   originalHandle: string;
 }
@@ -22,22 +24,22 @@ interface ReplacementPattern {
 // Helper function to match case of original string (currently unused but kept for potential future use)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _matchCase(_original: string, _replacement: string): string {
-  if (original === original.toUpperCase()) {
-    return replacement.toUpperCase();
+  if (_original === _original.toUpperCase()) {
+    return _replacement.toUpperCase();
   }
-  if (original === original.toLowerCase()) {
-    return replacement.toLowerCase();
+  if (_original === _original.toLowerCase()) {
+    return _replacement.toLowerCase();
   }
   if (
-    original.length > 0 &&
-    original[0] === original[0]!.toUpperCase() &&
-    original.slice(1) === original.slice(1).toLowerCase()
+    _original.length > 0 &&
+    _original[0] === _original[0]!.toUpperCase() &&
+    _original.slice(1) === _original.slice(1).toLowerCase()
   ) {
-    return replacement.length > 0
-      ? replacement[0]!.toUpperCase() + replacement.slice(1).toLowerCase()
-      : replacement;
+    return _replacement.length > 0
+      ? _replacement[0]!.toUpperCase() + _replacement.slice(1).toLowerCase()
+      : _replacement;
   }
-  return replacement;
+  return _replacement;
 }
 
 export class NameReplacer {

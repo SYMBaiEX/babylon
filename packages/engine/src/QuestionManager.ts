@@ -58,8 +58,7 @@
  * ```
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+// Removed fs and path imports - using TypeScript imports instead
 import {
   actors,
   and,
@@ -82,6 +81,7 @@ import { logger } from '@babylon/shared';
 import { PredictionPricing } from './prediction-pricing';
 import { MarketContextService } from './services/market-context-service';
 import { TradeExecutionService } from './services/trade-execution-service';
+import { ensureMarketOnChain } from './services/onchain-market-service';
 import { worldFactsService } from './world-facts-service';
 import { generateSnowflakeId } from '@babylon/shared';
 import { shuffleArray } from './utils/randomization';
@@ -381,25 +381,16 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       realityGroundingLevel: 'concise',
     });
 
-    // Load example questions
+    // Load example questions from TypeScript export
     let exampleQuestions = '';
     try {
-      const examplesPath = path.join(
-        process.cwd(),
-        'src/data',
-        'question-examples.md'
-      );
-      if (fs.existsSync(examplesPath)) {
-        const content = fs.readFileSync(examplesPath, 'utf-8');
-        const lines = content
-          .split('\n')
-          .filter((line) => line.trim().length > 0);
-        const shuffled = shuffleArray(lines);
-        exampleQuestions = shuffled
-          .slice(0, 10)
-          .map((q) => `✅ "${q}"`)
-          .join('\n');
-      }
+      const { getQuestionExamples } = await import('./data/question-examples');
+      const examples = getQuestionExamples();
+      const shuffled = shuffleArray(examples);
+      exampleQuestions = shuffled
+        .slice(0, 10)
+        .map((q) => `✅ "${q}"`)
+        .join('\n');
     } catch (error) {
       logger.warn(
         'Failed to load question examples',
@@ -985,25 +976,16 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         .limit(10),
     ]);
 
-    // Load example questions
+    // Load example questions from TypeScript export
     let exampleQuestions = '';
     try {
-      const examplesPath = path.join(
-        process.cwd(),
-        'src/data',
-        'question-examples.md'
-      );
-      if (fs.existsSync(examplesPath)) {
-        const content = fs.readFileSync(examplesPath, 'utf-8');
-        const lines = content
-          .split('\n')
-          .filter((line) => line.trim().length > 0);
-        const shuffled = shuffleArray(lines);
-        exampleQuestions = shuffled
-          .slice(0, 10)
-          .map((q) => `✅ "${q}"`)
-          .join('\n');
-      }
+      const { getQuestionExamples } = await import('./data/question-examples');
+      const examples = getQuestionExamples();
+      const shuffled = shuffleArray(examples);
+      exampleQuestions = shuffled
+        .slice(0, 10)
+        .map((q) => `✅ "${q}"`)
+        .join('\n');
     } catch (error) {
       logger.warn(
         'Failed to load question examples',
@@ -1333,8 +1315,6 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
 
         // Create market on-chain if it doesn't have onChainMarketId
         if (!market.onChainMarketId) {
-          // @ts-ignore - Web app module, resolved at runtime
-          const { ensureMarketOnChain } = await import('@babylon/engine/services/onchain-market-service');
           await ensureMarketOnChain(market.id).catch((error: Error) => {
             logger.warn(
               'Failed to create market on-chain (non-blocking)',

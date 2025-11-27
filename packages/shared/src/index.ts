@@ -23,6 +23,8 @@ export type { PaymentVerificationParams, PaymentVerificationResult } from './typ
 export type { JsonValue, StringRecord } from './types/common';
 export type { AgentCapabilities, GameNetworkInfo } from './types/agents';
 export { AgentCapabilitiesSchema, GameNetworkInfoSchema } from './types/agents';
+export type { UserProfileStats, PredictionPosition, UserBalanceData, PerpPositionFromAPI } from './types/profile';
+export type { PostInteraction, CommentInteraction, CommentData, CommentWithReplies, FavoriteProfile, InteractionError, PendingInteraction } from './types/interactions';
 
 // Perps Types
 export * from './perps-types';

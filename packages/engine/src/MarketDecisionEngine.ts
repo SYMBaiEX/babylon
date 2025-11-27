@@ -82,6 +82,7 @@ import {
 import type { BabylonLLMClient } from './llm/openai-client';
 import { loadActorById } from './actors-loader';
 import { logger } from '@babylon/shared';
+import { parseXML } from './llm/xml-parser';
 import type { MarketContextService } from './services/market-context-service';
 import {
   countTokensSync,
@@ -672,7 +673,6 @@ ${prompt}`
           );
 
           // Try to extract XML from the string response
-          const { parseXML } = await import('./llm/xml-parser');
           const xmlResult = parseXML(rawResponse as string);
           if (xmlResult.success && xmlResult.data) {
             logger.info(

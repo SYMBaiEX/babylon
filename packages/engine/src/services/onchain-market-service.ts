@@ -7,6 +7,8 @@ import {
   createPublicClient,
   createWalletClient,
   http,
+  keccak256,
+  toBytes,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
@@ -135,7 +137,6 @@ export async function createMarketOnChain(
       // topics[1] = marketId (indexed, first parameter)
 
       // Calculate event signature hash
-      const { keccak256, toBytes } = await import('viem');
       const eventSignature = 'MarketCreated(bytes32,string,uint8,uint256)';
       const eventSignatureHash = keccak256(toBytes(eventSignature));
 
@@ -244,7 +245,6 @@ export async function getMarketIdFromTx(
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
 
     // Look for MarketCreated event using event signature
-    const { keccak256, toBytes } = await import('viem');
     const eventSignature = 'MarketCreated(bytes32,string,uint8,uint256)';
     const eventSignatureHash = keccak256(toBytes(eventSignature));
 
@@ -341,7 +341,6 @@ export async function ensureMarketOnChain(marketId: string): Promise<boolean> {
       // Get oracle address from deployer private key if not set
       let oracleAddr: string | null = market.oracleAddress;
       if (!oracleAddr && process.env.DEPLOYER_PRIVATE_KEY) {
-        const { privateKeyToAccount } = await import('viem/accounts');
         oracleAddr = privateKeyToAccount(
           process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
         ).address;

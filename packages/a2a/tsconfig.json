@@ -1,49 +1,25 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": false,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "noEmit": true,
-    "incremental": true,
-    "isolatedModules": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": ["bun-types"],
-    "moduleDetection": "force",
     "baseUrl": ".",
     "paths": {
-      "@babylon/contracts": ["../contracts/src/index.ts"],
-      "@babylon/contracts/*": ["../contracts/src/*"],
+      "@babylon/shared": ["../shared/src/index.ts"],
+      "@babylon/shared/*": ["../shared/src/*"],
       "@babylon/db": ["../db/src/index.ts"],
       "@babylon/db/*": ["../db/src/*"],
-      "@babylon/shared": ["../shared/src/index.ts"],
-      "@babylon/shared/*": ["../shared/src/*"]
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "../../apps/**/*", "../api/**/*", "../engine/**/*", "../shared/**/*", "../contracts/**/*", "../agents/**/*", "../testing/**/*", "../db/**/*", "../training/**/*"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../db" },
+    { "path": "../contracts" }
+  ]
 }
-

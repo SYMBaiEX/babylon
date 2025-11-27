@@ -408,12 +408,13 @@ export class AgentRegistryService {
     }
 
     if (search) {
-      conditions.push(
-        or(
-          ilike(agentRegistries.name, `%${search}%`),
-          ilike(agentRegistries.systemPrompt, `%${search}%`)
-        )
+      const searchCondition = or(
+        ilike(agentRegistries.name, `%${search}%`),
+        ilike(agentRegistries.systemPrompt, `%${search}%`)
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     const registrationsRaw = await db

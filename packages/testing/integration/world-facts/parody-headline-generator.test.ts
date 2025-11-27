@@ -17,7 +17,7 @@ import {
   test,
 } from 'bun:test';
 import { db, rssFeedSources } from '@babylon/db';
-import type { BabylonLLMClient } from '@/engine/llm/openai-client';
+import type { BabylonLLMClient } from '@babylon/engine';
 import { ParodyHeadlineGenerator } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 

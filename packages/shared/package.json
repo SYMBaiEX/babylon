@@ -14,7 +14,7 @@
   },
   "scripts": {
     "lint": "biome lint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

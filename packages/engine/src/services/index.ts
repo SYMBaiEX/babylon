@@ -72,3 +72,6 @@ export { CommitmentStore } from './oracle-commitment-store';
 export { calculatePortfolioPnL, type PortfolioPnLSnapshot } from './portfolio-pnl';
 export { getOracleService, OracleService } from './oracle/oracle-service';
 export * from './oracle/types';
+
+// Reputation Service
+export { ReputationService } from './reputation-service';

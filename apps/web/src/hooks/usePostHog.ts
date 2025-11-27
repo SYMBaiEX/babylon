@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { posthog } from '@babylon/shared';
+import { posthog, type StringRecord } from '@babylon/shared';
 
 /**
  * Main PostHog analytics hook for tracking events throughout the app.
@@ -29,7 +29,7 @@ import { posthog } from '@babylon/shared';
 export function usePostHog() {
   // Track generic event
   const track = useCallback(
-    (event: string, properties?: Record<string, unknown>) => {
+    (event: string, properties?: StringRecord) => {
       if (posthog && typeof window !== 'undefined') {
         posthog.capture(event, properties);
       }
@@ -39,9 +39,9 @@ export function usePostHog() {
 
   // Track user action (with automatic timestamp)
   const trackAction = useCallback(
-    (action: string, properties?: Record<string, unknown>) => {
+    (action: string, properties?: StringRecord) => {
       track(`user_${action}`, {
-        ...properties,
+        ...(properties || {}),
         timestamp: new Date().toISOString(),
       });
     },
@@ -53,7 +53,7 @@ export function usePostHog() {
     (destination: string, source?: string) => {
       track('navigation', {
         destination,
-        source,
+        ...(source && { source }),
         timestamp: new Date().toISOString(),
       });
     },
@@ -62,7 +62,7 @@ export function usePostHog() {
 
   // Track button click
   const trackClick = useCallback(
-    (buttonName: string, properties?: Record<string, unknown>) => {
+    (buttonName: string, properties?: StringRecord) => {
       track('button_click', {
         button: buttonName,
         ...properties,
@@ -77,7 +77,7 @@ export function usePostHog() {
     (
       formName: string,
       success: boolean,
-      properties?: Record<string, unknown>
+      properties?: StringRecord
     ) => {
       track('form_submit', {
         form: formName,
@@ -97,8 +97,8 @@ export function usePostHog() {
 
       track('$exception', {
         $exception_message: errorMessage,
-        $exception_stack: errorStack,
-        ...context,
+        ...(errorStack && { $exception_stack: errorStack }),
+        ...(context || {}),
         timestamp: new Date().toISOString(),
       });
     },
@@ -387,7 +387,7 @@ export function usePerformanceTracking() {
         method,
         duration,
         success,
-        statusCode,
+        ...(statusCode !== undefined && { statusCode }),
         timestamp: new Date().toISOString(),
       });
     },

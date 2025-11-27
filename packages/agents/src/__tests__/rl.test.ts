@@ -11,6 +11,10 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import {
+  getModelTokenLimit,
+  truncateToTokenLimitSync,
+} from '@babylon/engine';
 import { getRLModelConfig } from '../training/RLModelConfig';
 import { getLatestRLModel } from '../training/WandbModelFetcher';
 
@@ -55,8 +59,6 @@ describe('RL Training System', () => {
 
   describe('Context Window Safety', () => {
     it('should enforce 32K limit for W&B models', async () => {
-      const { getModelTokenLimit } = await import('@babylon/engine');
-
       const limit = getModelTokenLimit('OpenPipe/Qwen3-14B-Instruct');
 
       // CRITICAL: Must be 32K for W&B, not 131K
@@ -64,9 +66,6 @@ describe('RL Training System', () => {
     });
 
     it('should have truncation utilities available', async () => {
-      const { truncateToTokenLimitSync, countTokensSync: _countTokensSync } =
-        await import('@babylon/engine');
-
       const longText = 'a'.repeat(200000); // Very long text
       const result = truncateToTokenLimitSync(longText, 1000, {
         ellipsis: true,

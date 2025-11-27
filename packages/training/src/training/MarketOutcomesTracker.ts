@@ -11,6 +11,7 @@ import {
   eq,
   gte,
   lte,
+  markets,
   marketOutcomes,
   perpPositions,
 } from '@babylon/db';
@@ -101,7 +102,6 @@ export class MarketOutcomesTracker {
     }
 
     // Get prediction market resolutions
-    const { markets } = await import('@babylon/db');
     const resolvedMarkets = await db
       .select({
         id: markets.id,

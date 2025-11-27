@@ -67,16 +67,19 @@ import type {
 } from './types/shared';
 import type { TradingExecutionResult } from './types/market-decisions';
 import { getDbInstance as dbService } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, generateSnowflakeId, PREDICTION_MARKET_ABI } from '@babylon/shared';
 import { characterMappingService } from './services/character-mapping-service';
 import { MarketContextService } from './services/market-context-service';
 import { PredictionPriceHistoryService } from './services/prediction-price-history-service';
-import { generateSnowflakeId } from '@babylon/shared';
 import { worldFactsService } from './world-facts-service';
 import { getWandbModel } from './ai-model-config';
-// AlphaGroupInviteService imported but not used - reserved for future use
-// import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
+import { PriceUpdateService } from './services/price-update-service';
 import { syncReputationIfAvailable } from './services/reputation-sync-interface';
+import { generateWorldContext } from './prompts';
+import { ReputationService } from './services/reputation-service';
+import { getOracleService } from './services/oracle/oracle-service';
 
 // Migrated services - local imports
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
@@ -2695,8 +2698,6 @@ export async function resolveQuestionPayouts(
       process.env.DEPLOYER_PRIVATE_KEY &&
       process.env.NEXT_PUBLIC_RPC_URL
     ) {
-      // @ts-ignore - Web app module, resolved at runtime
-      const { ReputationService } = await import('@babylon/api/services/reputation-service');
       await ReputationService.updateReputationForResolvedMarket({
         marketId: marketId,
         outcome: winningSide,
@@ -2851,7 +2852,6 @@ async function resolveMarketOnChain(
     await import('viem');
   const { privateKeyToAccount } = await import('viem/accounts');
   const { baseSepolia } = await import('viem/chains');
-  const { PREDICTION_MARKET_ABI } = await import('@babylon/shared');
 
   const publicClient = createPublicClient({
     chain: baseSepolia,
@@ -2911,8 +2911,6 @@ async function publishOracleCommitments(
   }
 
   try {
-    // @ts-ignore - Web app module, resolved at runtime
-    const { getOracleService } = await import('./services/oracle/oracle-service');
     const oracleService = getOracleService();
 
     // Health check
@@ -2998,8 +2996,6 @@ async function publishOracleReveals(
   }
 
   try {
-    // @ts-ignore - Web app module, resolved at runtime
-    const { getOracleService } = await import('./services/oracle/oracle-service');
     const oracleService = getOracleService();
 
     // Health check

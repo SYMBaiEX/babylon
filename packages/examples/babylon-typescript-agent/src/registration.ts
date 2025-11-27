@@ -5,6 +5,7 @@
  */
 
 import { SDK } from 'agent0-sdk';
+import { Wallet } from 'ethers';
 import fs from 'fs';
 
 const IDENTITY_FILE = './agent-identity.json';
@@ -78,7 +79,6 @@ export async function registerAgent(): Promise<AgentIdentity> {
   const tokenId = Number.parseInt(parts[1]!);
 
   // Get wallet address from private key
-  const { Wallet } = await import('ethers');
   const wallet = new Wallet(process.env.AGENT0_PRIVATE_KEY!);
 
   // Save identity

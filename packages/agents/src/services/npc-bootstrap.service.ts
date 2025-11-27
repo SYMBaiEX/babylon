@@ -23,7 +23,7 @@ import {
   mapActorToOASFSkills,
 } from '@babylon/shared';
 import type { ActorData } from '@babylon/shared';
-import type { AgentCapabilities } from '@babylon/shared/types/agents';
+import type { AgentCapabilities } from '@babylon/shared';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 

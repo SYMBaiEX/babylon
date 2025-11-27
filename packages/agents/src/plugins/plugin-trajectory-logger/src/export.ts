@@ -315,6 +315,13 @@ async function exportToJSONL<T extends object>(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+      throw new Error(
+        'exportToJSONL requires Node.js environment with file system access. Not available in edge runtime.'
+      );
+    }
+
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
 
@@ -465,6 +472,13 @@ export async function exportGroupedByScenario(
   options: Omit<ExportOptions, 'format'>
 ): Promise<ExportResult> {
   try {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+      throw new Error(
+        'exportGroupedByScenario requires Node.js environment with file system access. Not available in edge runtime.'
+      );
+    }
+
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
     const exportDir = path.resolve(process.cwd(), 'exports', 'scenarios');
@@ -544,6 +558,13 @@ export async function exportForOpenPipeART(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+      throw new Error(
+        'exportForOpenPipeART requires Node.js environment with file system access. Not available in edge runtime.'
+      );
+    }
+
     const { toARTTrajectory } = await import('./art-format');
 
     const conditions = buildWhereConditions(options);
@@ -615,6 +636,13 @@ export async function exportGroupedForGRPO(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+      throw new Error(
+        'exportGroupedForGRPO requires Node.js environment with file system access. Not available in edge runtime.'
+      );
+    }
+
     const { groupTrajectories, toARTTrajectory } = await import('./art-format');
 
     // CRITICAL: Enforce maxTrajectories limit to prevent 200GB disk usage

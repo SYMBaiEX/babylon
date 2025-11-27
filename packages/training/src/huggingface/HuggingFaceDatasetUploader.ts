@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
 import { logger } from '../utils/logger';
 
@@ -578,9 +579,6 @@ For questions or issues, please open an issue on the Babylon repository.
       throw new Error('HuggingFace token not configured');
     }
 
-    const { HuggingFaceUploadUtil } = await import(
-      './shared/HuggingFaceUploadUtil'
-    );
 
     await HuggingFaceUploadUtil.ensureRepository(
       datasetName,

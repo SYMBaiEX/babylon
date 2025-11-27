@@ -11,11 +11,28 @@
  */
 
 import { Redis as UpstashRedis } from '@upstash/redis';
-import IORedis from 'ioredis';
 import { logger } from '@babylon/shared';
 
+// Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
+type IORedisInstance = {
+  rpush: (key: string, value: string) => Promise<number>;
+  expire: (key: string, seconds: number) => Promise<number>;
+  lpop: (key: string) => Promise<string | null>;
+  xadd: (...args: unknown[]) => Promise<string>;
+  xread: (...args: unknown[]) => Promise<unknown>;
+  scanStream: (options: { match: string }) => {
+    on: (event: string, callback: (keys: string[]) => void) => void;
+  };
+  del: (...keys: string[]) => Promise<number>;
+  set: (key: string, value: string, mode: string, ttl: number) => Promise<string>;
+  get: (key: string) => Promise<string | null>;
+  connect: () => Promise<void>;
+  quit: () => Promise<string>;
+  status: string;
+};
+
 // Redis client types
-type RedisClient = UpstashRedis | IORedis | null;
+type RedisClient = UpstashRedis | IORedisInstance | null;
 export type RedisClientType = 'upstash' | 'standard' | null;
 
 // Check if Upstash Redis is configured (Vercel production)
@@ -60,25 +77,51 @@ if (isBuildTime || isTestEnv) {
     'Redis'
   );
 } else if (hasStandardRedisUrl()) {
-  redisClient = new IORedis(process.env.REDIS_URL!, {
-    maxRetriesPerRequest: 3,
-    retryStrategy: (times) => {
-      if (times > 3) {
-        return null;
-      }
-      return Math.min(times * 100, 2000);
-    },
-    lazyConnect: true,
-  });
-  redisType = 'standard';
+  // Use lazy initialization for ioredis to avoid bundling in edge runtime
+  // Check if we're in a Node.js environment (not edge runtime)
+  if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+    // Lazy initialization - only loads ioredis when actually needed
+    // This prevents webpack from bundling ioredis for edge runtime
+    void (async () => {
+      try {
+        // Dynamic import - only loads in Node.js runtime
+        const IORedisModule = await import('ioredis');
+        const IORedis = IORedisModule.default;
+        
+        redisClient = new IORedis(process.env.REDIS_URL!, {
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times) => {
+            if (times > 3) {
+              return null;
+            }
+            return Math.min(times * 100, 2000);
+          },
+          lazyConnect: true,
+        }) as IORedisInstance;
+        redisType = 'standard';
 
-  void redisClient.connect().then(() => {
-    logger.info(
-      'Redis client initialized (Standard Redis Protocol)',
+        void redisClient.connect().then(() => {
+          logger.info(
+            'Redis client initialized (Standard Redis Protocol)',
+            undefined,
+            'Redis'
+          );
+        });
+      } catch (error) {
+        logger.warn(
+          'Failed to initialize ioredis client',
+          { error: error instanceof Error ? error.message : String(error) },
+          'Redis'
+        );
+      }
+    })();
+  } else {
+    logger.warn(
+      'Standard Redis URL configured but ioredis not available in edge runtime. Use Upstash Redis (UPSTASH_REDIS_REST_URL) for edge runtime compatibility.',
       undefined,
       'Redis'
     );
-  });
+  }
 } else {
   logger.info(
     'Redis not configured - caching will use in-memory fallback',
@@ -98,7 +141,8 @@ if (isBuildTime || isTestEnv) {
 }
 
 export const redis = redisClient;
-export const redisClientType = redisType;
+// Explicitly type to include 'standard' since it can be set async
+export const redisClientType: RedisClientType = redisType;
 
 /**
  * Check if Redis is available
@@ -134,8 +178,10 @@ export async function safePublish(
     await (redis as UpstashRedis).rpush(channel, message);
     await (redis as UpstashRedis).expire(channel, 60);
   } else if (redisType === 'standard') {
-    await (redis as IORedis).rpush(channel, message);
-    await (redis as IORedis).expire(channel, 60);
+    // Type assertion needed because TS can't narrow union based on separate variable
+    const ioredis = redis as unknown as IORedisInstance;
+    await ioredis.rpush(channel, message);
+    await ioredis.expire(channel, 60);
   }
   return true;
 }
@@ -160,9 +206,11 @@ export async function safePoll(channel: string, count = 10): Promise<string[]> {
     const result = await (redis as UpstashRedis).lpop(channel, count);
     messages = result as string[] | string | null;
   } else if (redisType === 'standard') {
+    // Type assertion needed because TS can't narrow union based on separate variable
+    const ioredis = redis as unknown as IORedisInstance;
     const items: string[] = [];
     for (let i = 0; i < count; i++) {
-      const item = await (redis as IORedis).lpop(channel);
+      const item = await ioredis.lpop(channel);
       if (!item) break;
       items.push(item);
     }
@@ -191,7 +239,8 @@ export async function closeRedis(): Promise<void> {
   isClosing = true;
 
   if (redis && redisType === 'standard') {
-    const ioRedisClient = redis as IORedis;
+    // Type assertion needed because TS can't narrow union based on separate variable
+    const ioRedisClient = redis as unknown as IORedisInstance;
     if (
       ioRedisClient.status === 'ready' ||
       ioRedisClient.status === 'connect'

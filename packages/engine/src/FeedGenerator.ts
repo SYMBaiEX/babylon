@@ -114,6 +114,7 @@ import type {
 } from './types/shared';
 import { buildPhaseContext, formatActorVoiceContext } from './utils/shared-utils';
 import { generateActorContext } from './EmotionSystem';
+import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import type { WorldEvent } from './GameWorld';
 import type { BabylonLLMClient } from './llm/openai-client';
 import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
@@ -459,9 +460,6 @@ export class FeedGenerator extends EventEmitter {
     }
 
     // Fetch from database (only if not cached)
-    const { RelationshipEvolutionEngine } = await import(
-      './RelationshipEvolutionEngine'
-    );
     const engine = new RelationshipEvolutionEngine();
     const context = await engine.getRelationshipContextForActor(actorId);
 
@@ -2198,7 +2196,7 @@ export class FeedGenerator extends EventEmitter {
 
       for (const actor of repostingActors) {
         const isQuoteTweet = Math.random() > 0.5; // 50% chance of quote tweet
-        let quoteComment = null;
+        let quoteComment: string | null = null;
 
         if (isQuoteTweet) {
           // Use generateReplyContent for the quote comment as it fits the "reaction" vibe

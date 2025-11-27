@@ -3,8 +3,7 @@
 import * as React from 'react';
 import * as RechartsPrimitive from 'recharts';
 
-import { cn } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+import { cn, type JsonValue } from '@babylon/shared';
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const;

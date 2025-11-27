@@ -11,6 +11,7 @@ import type { WorldFact } from '@babylon/db';
 import { and, db, desc, eq, worldFacts } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
+import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 
 export interface WorldFactsContext {
   crypto: string;
@@ -226,9 +227,6 @@ export class WorldFactsService {
     // Get recent headlines if requested
     let headlinesContext;
     if (includeHeadlines) {
-      const { createParodyHeadlineGenerator } = await import(
-        './services/parody-headline-generator'
-      );
       const generator = createParodyHeadlineGenerator();
       headlinesContext = await generator.generateDailySummary();
     }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { initializeAgentA2AClient } from '@babylon/agents';
 
 // Tests use mocked db module
 const describeTests = describe;
@@ -72,7 +73,6 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       walletAddress: null,
     });
 
-    const { initializeAgentA2AClient } = await import('@babylon/agents');
     await initializeAgentA2AClient('agent-1');
 
     expect(createWalletMock).toHaveBeenCalledTimes(1);
@@ -86,7 +86,6 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       walletAddress: '0xexisting',
     });
 
-    const { initializeAgentA2AClient } = await import('@babylon/agents');
     await initializeAgentA2AClient('agent-2');
 
     // Wallet service should not be called if wallet already exists

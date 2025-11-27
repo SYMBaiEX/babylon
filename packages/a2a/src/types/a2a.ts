@@ -13,11 +13,11 @@ import {
 import type {
   AgentCapabilities,
   GameNetworkInfo,
-} from '@babylon/shared/types/agents';
+} from '@babylon/shared';
 import {
   AgentCapabilitiesSchema,
   GameNetworkInfoSchema,
-} from '@babylon/shared/types/agents';
+} from '@babylon/shared';
 
 // Re-export common types
 export type { JsonRpcParams, JsonRpcResult, JsonValue };

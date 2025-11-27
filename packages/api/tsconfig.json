@@ -1,37 +1,9 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "noEmit": true,
-    "incremental": true,
-    "isolatedModules": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "composite": false,
-    "forceConsistentCasingInFileNames": true,
-    "moduleDetection": "force",
     "outDir": "./dist",
-      "rootDir": "./src",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "baseUrl": ".",
     "paths": {
       "@babylon/shared": ["../shared/src/index.ts"],
@@ -44,8 +16,12 @@
       "@babylon/contracts/*": ["../contracts/src/*"]
     }
   },
-  "include": ["src/**/*", "src/global.d.ts"],
-  "exclude": ["node_modules", "dist", "**/__tests__/**", "../**/*"],
-  "references": []
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../db" },
+    { "path": "../engine" },
+    { "path": "../contracts" }
+  ]
 }
-

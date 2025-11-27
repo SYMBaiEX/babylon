@@ -57,7 +57,7 @@
  * ```
  */
 
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { shuffleArray } from './utils/randomization';
 import { biasedArticle, renderPrompt } from './prompts';
 import type { Actor, Organization, Question, WorldEvent } from './types/shared';
@@ -463,8 +463,6 @@ export class ArticleGenerator {
 
     // Handle XML structure - check if response is an object before using 'in' operator
     if (typeof response !== 'object' || response === null) {
-      // Import logger dynamically to avoid circular dependencies
-      const { logger } = await import('@babylon/shared');
       const responseStr =
         typeof response === 'string' ? response : String(response);
       logger.error(

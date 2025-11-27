@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { NextRequest } from 'next/server';
+import { authenticate } from '../auth-middleware';
 
 // Type for mock request
 interface MockNextRequest {
@@ -52,10 +53,8 @@ const createRequest = (token: string): NextRequest =>
   }) as MockNextRequest as NextRequest;
 
 describe('authenticate middleware', () => {
-  let authenticate: typeof import('../auth-middleware').authenticate;
-
   beforeAll(async () => {
-    ({ authenticate } = await import('../auth-middleware'));
+    // authenticate is now statically imported
   });
 
   beforeEach(() => {

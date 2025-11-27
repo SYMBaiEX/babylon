@@ -233,6 +233,7 @@ function SidebarContent() {
               width={160}
               height={38}
               className="hidden h-8 w-auto lg:block"
+              loading="eager"
             />
           </Link>
         </div>

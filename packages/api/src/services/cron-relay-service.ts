@@ -10,9 +10,12 @@ interface RelayResult {
 /**
  * Conditionally relay cron execution to staging environment.
  * Enabled when REDIRECT_CRON_STAGING=true and host is not already staging.
+ * 
+ * Note: Accepts NextRequest-compatible objects to handle version mismatches
+ * between different Next.js versions in the monorepo.
  */
 export async function relayCronToStaging(
-  request: NextRequest,
+  request: NextRequest | { url: string; headers: Headers },
   routeName: string
 ): Promise<RelayResult> {
   if (process.env.REDIRECT_CRON_STAGING !== 'true') {
@@ -22,7 +25,9 @@ export async function relayCronToStaging(
   const stagingBaseUrl =
     process.env.CRON_STAGING_URL || 'https://staging.babylon.market';
   const stagingHost = stagingBaseUrl.replace(/^https?:\/\//, '');
-  const requestHost = request.headers.get('host') || '';
+  // Access headers safely - handle both NextRequest and plain Headers objects
+  const headers = request.headers as Headers | { get: (key: string) => string | null };
+  const requestHost = headers?.get('host') || '';
 
   // Avoid infinite loops when request already targets staging
   if (requestHost === stagingHost) {

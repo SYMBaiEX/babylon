@@ -6,6 +6,7 @@
  */
 
 import path from 'path';
+import { generateOpenApiSpec } from './generator';
 import { swaggerDefinition } from './config';
 
 // swagger-jsdoc is an optional dev dependency for docs generation
@@ -38,7 +39,7 @@ interface OpenAPISpec {
  *
  * @example
  * ```typescript
- * import { generateAutoSpec } from '@/lib/swagger/auto-generator';
+ * import { generateAutoSpec } from '@babylon/api/swagger/auto-generator';
  *
  * const spec = generateAutoSpec();
  * console.log(spec.paths); // All documented paths
@@ -55,6 +56,17 @@ export async function generateAutoSpec() {
     swaggerJsdoc = swaggerModule.default as SwaggerJsdocFunction;
   } catch {
     // swagger-jsdoc not installed, will fall back to manual spec only
+  }
+
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    // Edge runtime - return minimal spec without file scanning
+    return {
+      openapi: swaggerDefinition.openapi || '3.0.0',
+      info: swaggerDefinition.info,
+      paths: {},
+      tags: [],
+    };
   }
 
   const options: SwaggerJsdocOptions = {
@@ -84,7 +96,6 @@ export async function generateAutoSpec() {
 
   // Merge with manual generator to fill in missing routes
   // This ensures we have complete documentation even if swagger-jsdoc misses some routes
-  const { generateOpenApiSpec } = await import('./generator');
   const manualSpec = generateOpenApiSpec();
 
   // Merge paths: auto-generated takes precedence, but manual fills gaps

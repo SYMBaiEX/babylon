@@ -1,34 +1,19 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
       "@babylon/contracts": ["./src/index.ts"],
-      "@babylon/contracts/*": ["./src/*"]
+      "@babylon/contracts/*": ["./src/*"],
+      "@babylon/contracts/deployments/local": ["./deployments/local/index.ts"],
+      "@babylon/contracts/deployments/base-sepolia": ["./deployments/base-sepolia/index.ts"],
+      "@babylon/contracts/deployments/base": ["./deployments/base/index.ts"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "out", "cache", "../api/**/*", "../shared/**/*", "../engine/**/*", "../agents/**/*", "../db/**/*", "../a2a/**/*", "../training/**/*"]
+  "include": ["src/**/*", "deployments/**/*.ts", "deployments/**/*.json"],
+  "exclude": ["node_modules", "dist", "out", "cache"]
 }
-

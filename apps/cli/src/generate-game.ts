@@ -98,7 +98,7 @@ const logger = {
   },
 };
 
-// Simple snowflake ID generator - replaces @/lib/snowflake
+// Simple snowflake ID generator - replaces @babylon/shared snowflake
 async function generateSnowflakeId(): Promise<string> {
   return nanoid(21);
 }
@@ -216,7 +216,8 @@ function validateGameHistory(value: JsonValue): GameHistory {
     }
   }
 
-  return obj as GameHistory;
+  // Safe cast after runtime validation of all required fields
+  return obj as unknown as GameHistory;
 }
 
 /**

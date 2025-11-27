@@ -10,7 +10,7 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { apiFetch } from '@babylon/api';
+import { apiFetch } from '@/utils/api-fetch';
 import { logger } from '@babylon/shared';
 
 /**

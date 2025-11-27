@@ -6,6 +6,7 @@
 
 import { parseEther } from 'ethers';
 import { z } from 'zod';
+import type { SQL } from 'drizzle-orm';
 import { and, db, eq, lt, moderationEscrows, sql, users } from '@babylon/db';
 import { X402Manager } from '../payments/x402-manager';
 import { logger } from '@babylon/shared';
@@ -657,7 +658,7 @@ export async function handleListEscrowPayments(
         )
       );
 
-    const whereConditions = [];
+    const whereConditions: SQL<unknown>[] = [];
     if (params.recipientId)
       whereConditions.push(
         eq(moderationEscrows.recipientId, params.recipientId)
@@ -673,7 +674,7 @@ export async function handleListEscrowPayments(
       db.query.moderationEscrows.findMany({
         where: whereClause
           ? (moderationEscrows, { eq, and: andFn }) => {
-              const conditions = [];
+              const conditions: SQL<unknown>[] = [];
               if (params.recipientId)
                 conditions.push(
                   eq(moderationEscrows.recipientId, params.recipientId)

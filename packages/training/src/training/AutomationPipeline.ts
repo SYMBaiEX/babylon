@@ -11,8 +11,10 @@
  * 7. Monitor performance
  */
 
+import { spawn } from 'child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { inArray } from 'drizzle-orm';
 import {
   and,
   count,
@@ -31,7 +33,11 @@ import {
 import { getExportGroupedForGRPO } from '../dependencies';
 import { logger } from '../utils/logger';
 import { benchmarkService } from './BenchmarkService';
+import { MarketOutcomesTracker } from './MarketOutcomesTracker';
 import { modelSelectionService } from './ModelSelectionService';
+import { rewardBackpropagationService } from './RewardBackpropagationService';
+import { rulerScoringService } from './RulerScoringService';
+import { getCurrentWindowId } from './window-utils';
 import type {
   AutomationConfig,
   AutomationStatus,
@@ -299,7 +305,6 @@ export class AutomationPipeline {
         'AutomationPipeline'
       );
 
-      const { rulerScoringService } = await import('./RulerScoringService');
       // Score recent trajectories
       const recentWindows = await db
         .selectDistinct({ windowId: trajectories.windowId })
@@ -355,7 +360,6 @@ export class AutomationPipeline {
 
     const batchId = `batch-${Date.now()}`;
     // Use standardized window ID format (YYYY-MM-DDTHH:00)
-    const { getCurrentWindowId } = await import('./window-utils');
     const windowId = getCurrentWindowId();
 
     // Export trajectories with data limit
@@ -403,7 +407,6 @@ export class AutomationPipeline {
       process.cwd(),
       'python/src/training/babylon_trainer.py'
     );
-    const spawn = await import('child_process');
 
     // Set environment variables for Python script
     // If WANDB_API_KEY is set, will use remote training; otherwise falls back to local
@@ -457,7 +460,7 @@ export class AutomationPipeline {
     // Use python3 if available, fallback to python
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
 
-    const trainingProcess = spawn.spawn(pythonCmd, [pythonScript], {
+    const trainingProcess = spawn(pythonCmd, [pythonScript], {
       detached: false, // Keep attached to see output
       stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr for debugging
       env,
@@ -587,17 +590,16 @@ export class AutomationPipeline {
    * CRITICAL: Export files can accumulate to 200GB+ if not cleaned up
    */
   private async cleanupExportFiles(batchId: string): Promise<void> {
-    const pathModule = await import('node:path');
 
     // Clean up GRPO export directory
-    const exportDir = pathModule.resolve(
+    const exportDir = path.resolve(
       process.cwd(),
       'exports',
       'grpo-groups'
     );
     const files = await fs.readdir(exportDir);
     for (const file of files) {
-      const filePath = pathModule.join(exportDir, file);
+      const filePath = path.join(exportDir, file);
       await fs.unlink(filePath);
     }
     logger.info(
@@ -698,7 +700,6 @@ export class AutomationPipeline {
     }
 
     // Track market outcomes for recent windows (prerequisite for reward backpropagation)
-    const { MarketOutcomesTracker } = await import('./MarketOutcomesTracker');
     const outcomesTracker = new MarketOutcomesTracker();
     const synced = await outcomesTracker.syncRecentWindows(24); // Sync last 24 hours
     if (synced > 0) {
@@ -708,9 +709,6 @@ export class AutomationPipeline {
     }
 
     // Update rewards for windows with known outcomes (reward backpropagation)
-    const { rewardBackpropagationService } = await import(
-      './RewardBackpropagationService'
-    );
     const processed =
       await rewardBackpropagationService.processPendingWindows();
     if (processed > 0) {
@@ -720,7 +718,6 @@ export class AutomationPipeline {
     }
 
     // Score trajectories using RULER framework
-    const { rulerScoringService } = await import('./RulerScoringService');
     // Score trajectories from recent windows (last 24 hours)
 
     // Score current window and previous windows
@@ -807,7 +804,6 @@ export class AutomationPipeline {
     }
 
     if (trajectoryIds.length > 0) {
-      const { inArray } = await import('drizzle-orm');
       await db
         .update(trajectories)
         .set({

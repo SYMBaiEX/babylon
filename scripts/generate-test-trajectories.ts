@@ -242,7 +242,7 @@ async function main() {
   });
 
   if (sample) {
-    // TrajectoryStep type matching @/lib/training/types
+    // TrajectoryStep type matching @babylon/training types
     interface LocalTrajectoryStep {
       llmCalls: Array<{
         model: string;

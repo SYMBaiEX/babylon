@@ -5,8 +5,11 @@
  * Consolidates upload logic used across different services.
  */
 
+import { exec } from 'node:child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { promisify } from 'node:util';
+import * as hubModule from '@huggingface/hub';
 import { logger } from '../../utils/logger';
 
 export interface UploadFileOptions {
@@ -32,7 +35,6 @@ export class HuggingFaceUploadUtil {
     fileContent: string,
     token: string
   ): Promise<void> {
-    const hubModule = await import('@huggingface/hub');
     const uploadFile = hubModule.uploadFile;
 
     await uploadFile({
@@ -99,7 +101,6 @@ export class HuggingFaceUploadUtil {
     token: string,
     isPrivate = false
   ): Promise<void> {
-    const hubModule = await import('@huggingface/hub');
     const createRepo = hubModule.createRepo;
 
     try {
@@ -138,8 +139,6 @@ export class HuggingFaceUploadUtil {
     token: string
   ): Promise<void> {
     try {
-      const { exec } = await import('node:child_process');
-      const { promisify } = await import('node:util');
       const execAsync = promisify(exec);
 
       // Set token as environment variable

@@ -12,7 +12,7 @@ import { db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Mock agent0 sync to prevent race conditions in tests
-mock.module('@/lib/reputation/agent0-reputation-sync', () => ({
+mock.module('@babylon/agents/agent0/reputation/agent0-reputation-sync', () => ({
   submitFeedbackToAgent0: async () => {
     return { submitted: true };
   },

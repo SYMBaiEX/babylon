@@ -6,10 +6,15 @@
  */
 
 import { Redis as UpstashRedis } from '@upstash/redis';
-import IORedis from 'ioredis';
 import { logger } from '@babylon/shared';
 import { redis, redisClientType } from './client';
 import type { JsonValue } from '../types';
+
+// Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
+type IORedisInstance = {
+  xadd: (...args: unknown[]) => Promise<string>;
+  xread: (...args: unknown[]) => Promise<unknown>;
+};
 
 /**
  * Convert a payload object into Redis stream field/value pairs (stringified).
@@ -72,7 +77,9 @@ export async function streamAdd(
       args.push(key, String(value));
     });
 
-    return await (redis as IORedis).xadd(...(args as [string, string]));
+    // Type assertion needed because TS can't narrow union based on separate variable
+    const ioredis = redis as unknown as IORedisInstance;
+    return await ioredis.xadd(...(args as [string, string]));
   }
 
   return null;
@@ -157,7 +164,8 @@ export async function streamRead(
     }
 
     if (redisClientType === 'standard') {
-      const ioredis = redis as IORedis;
+      // Type assertion needed because TS can't narrow union based on separate variable
+      const ioredis = redis as unknown as IORedisInstance;
       const streamArgs = [...streams, ...ids] as string[];
 
       // Call appropriate overload based on whether COUNT is specified

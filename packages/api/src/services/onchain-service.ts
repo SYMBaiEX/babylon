@@ -1,13 +1,20 @@
 import {
+  type Account,
   type Address,
   createPublicClient,
   createWalletClient,
   decodeEventLog,
   http,
+  type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
-import type { JsonValue, StringRecord } from '@babylon/shared/types/common';
+import type {
+  JsonValue,
+  StringRecord,
+  AuthenticatedUser,
+  AgentCapabilities,
+} from '@babylon/shared';
 import {
   and,
   balanceTransactions,
@@ -18,22 +25,19 @@ import {
   referrals,
   users,
 } from '@babylon/db';
-import type { AuthenticatedUser } from '@babylon/shared/types/auth';
-import { extractErrorMessage } from '@babylon/shared/types/errors';
-import { POINTS } from '@babylon/shared/constants';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import {
+  extractErrorMessage,
+  POINTS,
   BusinessLogicError,
   InternalServerError,
   ValidationError,
-} from '@babylon/shared/errors';
-import { logger, generateSnowflakeId } from '@babylon/shared';
-import type { AgentCapabilities } from '@babylon/shared/types/agents';
-import {
+  logger,
+  generateSnowflakeId,
   IDENTITY_REGISTRY_ABI,
   identityRegistryAbi,
   reputationSystemAbi,
 } from '@babylon/shared';
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 
 // Web-specific dependencies - to be injected from app layer
 type Agent0Client = {
@@ -422,8 +426,8 @@ export async function processOnchainRegistration({
     typeof DEPLOYER_PRIVATE_KEY === 'string' &&
     /^0x[0-9a-fA-F]{64}$/.test(DEPLOYER_PRIVATE_KEY);
 
-  let deployerAccount = null;
-  let walletClient = null;
+  let deployerAccount: Account | null = null;
+  let walletClient: WalletClient | null = null;
 
   if (deployerConfigured) {
     const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
@@ -515,7 +519,7 @@ export async function processOnchainRegistration({
         abi: identityRegistryAbi,
         functionName: 'registerAgent',
         args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-      });
+      } as unknown as Parameters<typeof walletClient.writeContract>[0]);
     } catch (registrationError) {
       const message = extractErrorMessage(
         registrationError as Error | { message?: string }
@@ -595,6 +599,12 @@ export async function processOnchainRegistration({
       'OnboardingOnchain'
     );
 
+    if (!registrationTxHash) {
+      throw new InternalServerError(
+        'Registration transaction hash is missing',
+        { missing: 'registrationTxHash' }
+      );
+    }
     receipt = await publicClient.waitForTransactionReceipt({
       hash: registrationTxHash,
       confirmations: 2,
@@ -674,7 +684,7 @@ export async function processOnchainRegistration({
       abi: reputationSystemAbi,
       functionName: 'submitFeedback',
       args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
-    });
+    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
     await publicClient.waitForTransactionReceipt({
       hash: bootstrapTx,
       confirmations: 1,

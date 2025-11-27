@@ -4,7 +4,7 @@
  * Helper functions for creating notifications when users interact
  */
 
-import { db, eq, notifications, users } from '@babylon/db';
+import { db, eq, hasBlocked, notifications, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
 
@@ -56,7 +56,6 @@ export async function createNotification(
 
   // Check if users have blocked each other (if actorId is provided)
   if (params.actorId) {
-    const { hasBlocked } = await import('@babylon/db');
     const [isBlocked, hasBlockedMe] = await Promise.all([
       hasBlocked(params.userId, params.actorId),
       hasBlocked(params.actorId, params.userId),

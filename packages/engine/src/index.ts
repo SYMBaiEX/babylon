@@ -98,7 +98,7 @@ export {
 } from './llm/json-continuation-parser';
 export { parseXML, type XMLParseResult } from './llm/xml-parser';
 
-// Prompts (also available via @babylon/engine/prompts)
+// Prompts
 export * from './prompts';
 
 // Actors Data Loader
@@ -300,7 +300,7 @@ export {
 } from './services/rss-feed-service';
 
 export {
-  NPCGroupDynamicsService,
+  NPCGroupDynamicsService as NPCGroupDynamicsCalculations,
   type KickProbabilityResult,
   type KickThresholds,
 } from './services/npc-group-dynamics-calculations';
@@ -360,6 +360,13 @@ export {
   logPrompt,
   type PromptLogEntry,
 } from './utils/prompt-logger';
+
+// Data Exports
+export {
+  getQuestionExamples,
+  questionExamples,
+} from './data/question-examples';
+export { realityGroundingContent } from './data/reality-grounding';
 
 // Token Counter
 export {

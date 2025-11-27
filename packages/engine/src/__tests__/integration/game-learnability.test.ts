@@ -85,7 +85,10 @@ const mockWorldContext = {
   checkRealityGrounding: () => ({ score: 1, feedback: [] }),
 };
 
-mock.module('@babylon/engine/prompts', () => mockWorldContext);
+// Mock world-context functions to avoid DB calls
+// Note: Since prompts are now exported from root, we mock the root package
+// Internal code uses relative imports so this only affects external imports
+mock.module('@babylon/engine', () => mockWorldContext);
 
 // Load environment variables from .env files
 const loadEnvFile = (filePath: string) => {

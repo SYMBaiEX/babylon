@@ -29,7 +29,7 @@
   },
   "scripts": {
     "lint": "biome lint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@huggingface/hub": "^2.6.12",

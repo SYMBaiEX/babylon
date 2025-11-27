@@ -88,14 +88,19 @@ export function Avatar({
   // 1. If src is provided directly (uploaded profile image), use it
   // 2. Otherwise, use imageUrl if provided
   // 3. Finally, construct from id (static actor/org image)
+  // Note: Skip static images for numeric IDs (e.g., Discord snowflakes) as they
+  // don't have corresponding image files - go straight to fallback
   let imagePath: string | undefined;
   let fallbackPath: string | undefined;
+
+  // Check if ID is purely numeric (likely a snowflake ID without static image)
+  const isNumericId = id && /^\d+$/.test(id);
 
   if (src) {
     imagePath = src;
   } else if (imageUrl) {
     imagePath = imageUrl;
-  } else if (id) {
+  } else if (id && !isNumericId) {
     const sanitizedId = sanitizeId(id);
     if (type === 'business') {
       imagePath = `/images/organizations/${sanitizedId}.jpg`;

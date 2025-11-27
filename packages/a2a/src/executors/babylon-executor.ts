@@ -25,9 +25,11 @@ import { generateSnowflakeId } from '@babylon/shared';
 import type { JsonRpcRequest } from '../types/a2a';
 import type { JsonValue } from '../shared/types';
 import {
+  handleAppealBanWithEscrow,
   handleCreateEscrowPayment,
-  handleVerifyEscrowPayment,
+  handleListEscrowPayments,
   handleRefundEscrowPayment,
+  handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
 
 /**
@@ -471,9 +473,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<unknown> {
     const agentId = context.contextId || context.taskId;
-    const { handleListEscrowPayments } = await import(
-      '../handlers/escrow-handlers'
-    );
     const requestParams: Record<string, JsonValue> = {};
     if (params.recipientId)
       requestParams.recipientId = String(params.recipientId);
@@ -499,9 +498,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<unknown> {
     const agentId = context.contextId || context.taskId;
-    const { handleAppealBanWithEscrow } = await import(
-      '../handlers/escrow-handlers'
-    );
     const request = {
       jsonrpc: '2.0' as const,
       method: 'a2a.appealBanWithEscrow',

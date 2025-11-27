@@ -14,9 +14,13 @@
  */
 
 import type { Redis as UpstashRedis } from '@upstash/redis';
-import type IORedis from 'ioredis';
 import { logger } from '@babylon/shared';
 import { redis, redisClientType } from '../redis/client';
+
+// Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
+type IORedisInstance = {
+  set: (key: string, value: string, mode: string, ttl: number) => Promise<string>;
+};
 
 /**
  * Cache options
@@ -256,7 +260,7 @@ export async function setCache<T>(
     if (redisClientType === 'upstash') {
       await (redis as UpstashRedis).set(fullKey, serialized, { ex: ttl });
     } else {
-      await (redis as IORedis).set(fullKey, serialized, 'EX', ttl);
+      await (redis as IORedisInstance).set(fullKey, serialized, 'EX', ttl);
     }
     logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
     return;
@@ -315,7 +319,8 @@ export async function invalidateCachePattern(
       'CacheService'
     );
   } else if (redis && redisClientType === 'standard') {
-    const ioRedis = redis as {
+    // Type assertion needed because TS can't narrow union based on separate variable
+    const ioRedis = redis as unknown as {
       scanStream: (opts: { match: string }) => NodeJS.ReadableStream;
       del: (...keys: string[]) => Promise<unknown>;
     };

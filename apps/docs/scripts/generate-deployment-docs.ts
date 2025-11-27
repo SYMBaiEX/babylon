@@ -31,13 +31,18 @@ async function loadDeployments() {
     const stat = await fs.stat(networkPath);
 
     if (stat.isDirectory()) {
-      const latestPath = path.join(networkPath, 'latest.json');
-      const content = await fs.readFile(latestPath, 'utf-8');
-      const data = JSON.parse(content);
-      deployments.push({
-        network: data.network || network,
-        ...data,
-      });
+      const indexPath = path.join(networkPath, 'index.json');
+      try {
+        const content = await fs.readFile(indexPath, 'utf-8');
+        const data = JSON.parse(content);
+        deployments.push({
+          network: data.network || network,
+          ...data,
+        });
+      } catch {
+        // index.json doesn't exist, skip this network
+        console.warn(`No index.json found for ${network}, skipping...`);
+      }
     }
   }
 

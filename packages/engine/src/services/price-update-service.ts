@@ -12,9 +12,9 @@ import { db, eq, getDbInstance, organizations } from '@babylon/db';
 import { isOnChainEnabled } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import { getReadyPerpsEngine } from '@babylon/engine';
-import { broadcastToChannel } from '@babylon/api';
 import { PRICE_STORAGE_FACET_ABI } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+import type { JsonValue } from '@babylon/shared';
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts/deployment';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -136,12 +136,23 @@ export class PriceUpdateService {
       // Write prices to blockchain
       await PriceUpdateService.writePricesToChain(appliedUpdates);
 
-      // AppliedPriceUpdate[] is compatible with JsonValue (array of plain objects with JsonValue fields)
-      // Convert through JSON serialization for type safety
-      broadcastToChannel('markets', {
-        type: 'price_update',
-        updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
-      });
+      // Broadcast price updates (optional - handled by API layer if available)
+      // Note: Engine doesn't manage SSE broadcasting, API layer handles it
+      try {
+        // Dynamic import to avoid dependency on api package
+        const { broadcastToChannel } = await import('@babylon/api');
+        await broadcastToChannel('markets', {
+          type: 'price_update',
+          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
+        });
+      } catch (error) {
+        // Broadcast is optional - engine can work without it
+        logger.debug(
+          'Price update broadcast skipped (API layer handles SSE)',
+          { error },
+          'PriceUpdateService'
+        );
+      }
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,
@@ -170,9 +181,6 @@ export class PriceUpdateService {
       return;
     }
 
-    const { getContractAddresses, getRpcUrl } = await import(
-      '@babylon/contracts/deployment'
-    );
     const { diamond: diamondAddress } = getContractAddresses();
     const deployerPrivateKey = process.env
       .DEPLOYER_PRIVATE_KEY as `0x${string}`;

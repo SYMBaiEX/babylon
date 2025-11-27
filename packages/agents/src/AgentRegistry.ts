@@ -5,7 +5,7 @@
  * Provides interface for AgentDiscoveryService (Agent0 SDK compatibility).
  *
  * @deprecated This class is maintained for Agent0 SDK compatibility.
- * For new code, use AgentRegistryService from @/lib/services/agent-registry.service
+ * For new code, use AgentRegistryService from @babylon/agents/services/agent-registry.service
  */
 
 import { db } from '@babylon/db';

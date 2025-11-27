@@ -8,6 +8,7 @@
 
 import {
   agentLogs,
+  agentMessages,
   agentPointsTransactions,
   agentTrades,
   and,
@@ -24,7 +25,7 @@ import { AuthorizationError } from '../errors';
 import { logger } from '../shared/logger';
 import { getService } from './interfaces';
 import { generateSnowflakeId } from '../shared/snowflake';
-import type { AgentCapabilities } from '@babylon/shared/types/agents';
+import type { AgentCapabilities } from '@babylon/shared';
 import { AgentType } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
 import { agentIdentityService } from '../identity/AgentIdentityService';
@@ -674,8 +675,6 @@ export class AgentServiceV2 {
   }
 
   async getChatHistory(agentUserId: string, limit = 50) {
-    const { agentMessages } = await import('@babylon/db');
-
     return db
       .select()
       .from(agentMessages)

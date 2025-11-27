@@ -9,8 +9,8 @@ import { agentRegistry } from '@babylon/agents/services/agent-registry.service';
 import {
   OASFDomainCategories,
   OASFSkillCategories,
+  type AgentCapabilities,
 } from '@babylon/shared';
-import type { AgentCapabilities } from '@/types/a2a';
 import { AgentStatus, AgentType } from '@babylon/agents';
 
 describe('A2A Endpoints Integration Tests', () => {

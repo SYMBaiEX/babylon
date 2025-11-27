@@ -15,6 +15,7 @@ import dotenv from 'dotenv';
 import type {
   A2APerpPosition,
 } from '@babylon/a2a';
+import { db, eq, users } from '@babylon/db';
 import {
   AgentDecisionMaker,
   type FeedPost,
@@ -51,8 +52,6 @@ describe('E2E - Autonomous Agent Live Tests', () => {
     };
 
     // Create test user in database if needed using Drizzle
-    const { db, eq, users } = await import('@babylon/db');
-
     const existing = await db
       .select()
       .from(users)

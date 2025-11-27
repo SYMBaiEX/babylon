@@ -33,17 +33,22 @@ type ExtendedAppearance = Omit<
  * manual embedded wallet creation and Farcaster-first login flow.
  */
 export interface ExtendedPrivyClientConfig
-  extends Omit<PrivyClientConfig, 'appearance' | 'embeddedWallets'> {
+  extends Omit<
+    PrivyClientConfig,
+    'appearance' | 'embeddedWallets' | 'externalWallets'
+  > {
   appearance?: ExtendedAppearance;
   embeddedWallets?: {
     ethereum?: {
       createOnLogin?: 'all-users' | 'users-without-wallets' | 'off';
     };
-    solana?: {
-      createOnLogin?: 'all-users' | 'users-without-wallets' | 'off';
-    };
     disableAutomaticMigration?: boolean;
     showWalletUIs?: boolean;
+  };
+  externalWallets?: {
+    solana?: {
+      connectors?: never[]; // Explicitly disable Solana external wallets
+    };
   };
 }
 
@@ -84,9 +89,12 @@ export const privyConfig: {
       ethereum: {
         createOnLogin: 'off' as const,
       },
-      // Explicitly disable Solana to prevent warnings
+      // Solana is not configured - we only support Ethereum wallets
+    },
+    // Explicitly disable Solana external wallets to prevent warnings
+    externalWallets: {
       solana: {
-        createOnLogin: 'off' as const,
+        connectors: [], // Empty array disables Solana external wallet connectors
       },
     },
     defaultChain: CHAIN,

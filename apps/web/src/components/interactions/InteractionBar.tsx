@@ -83,29 +83,44 @@ export function InteractionBar({
     if (initialInteractions) {
       const store = useInteractionStore.getState();
       const currentStoreData = store.postInteractions.get(interactionPostId);
-      const updatedInteractions = new Map(store.postInteractions);
+      
+      // Check if values have actually changed to prevent unnecessary updates
+      const newLikeCount = initialInteractions.likeCount ?? 0;
+      const newCommentCount = initialInteractions.commentCount ?? 0;
+      const newShareCount = initialInteractions.shareCount ?? 0;
+      
+      const hasChanged =
+        !currentStoreData ||
+        currentStoreData.likeCount !== newLikeCount ||
+        currentStoreData.commentCount !== newCommentCount ||
+        currentStoreData.shareCount !== newShareCount;
+      
+      // Only update if values have changed
+      if (hasChanged) {
+        const updatedInteractions = new Map(store.postInteractions);
 
-      updatedInteractions.set(interactionPostId, {
-        postId: interactionPostId,
-        // Use fresh counts from API
-        likeCount: initialInteractions.likeCount ?? 0,
-        commentCount: initialInteractions.commentCount ?? 0,
-        shareCount: initialInteractions.shareCount ?? 0,
-        // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
-        isLiked:
-          currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
-        isShared:
-          currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
-      });
-      useInteractionStore.setState({ postInteractions: updatedInteractions });
+        updatedInteractions.set(interactionPostId, {
+          postId: interactionPostId,
+          // Use fresh counts from API
+          likeCount: newLikeCount,
+          commentCount: newCommentCount,
+          shareCount: newShareCount,
+          // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
+          isLiked:
+            currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+          isShared:
+            currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
+        });
+        useInteractionStore.setState({ postInteractions: updatedInteractions });
+      }
     }
   }, [
     interactionPostId,
     initialInteractions?.likeCount,
     initialInteractions?.commentCount,
     initialInteractions?.shareCount,
-    initialInteractions?.isLiked,
-    initialInteractions,
+    // Removed initialInteractions from deps to prevent infinite loops
+    // Individual properties are already tracked above
   ]);
 
   const handleCommentClick = () => {

@@ -8,6 +8,9 @@ import { redirect } from 'next/navigation';
 import { db } from '@babylon/db';
 import { getOrCreateReferralCode } from '@babylon/api';
 
+// Use Node.js runtime for database access
+export const runtime = 'nodejs';
+
 interface PageProps {
   params: Promise<{
     userId: string;

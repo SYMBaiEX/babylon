@@ -14,18 +14,17 @@ import {
   perpPositions,
   users,
 } from '@babylon/db';
-import type { AuthenticatedUser } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { FEE_CONFIG } from '@babylon/engine';
-import { asUser } from '@babylon/db';
 import {
+  type AuthenticatedUser,
+  InsufficientFundsError,
+  logger,
   AuthorizationError,
   BusinessLogicError,
   InternalServerError,
   NotFoundError,
-} from '@babylon/api';
-import { InsufficientFundsError } from '@babylon/shared';
-import { logger } from '@babylon/shared';
+} from '@babylon/shared';
+import { FEE_CONFIG } from '@babylon/engine';
+import { asUser } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
 import { FeeService } from './fee-service';
 import type { TradeImpactInput } from './market-impact-service';
@@ -219,7 +218,7 @@ export class PerpTradeService {
         }
 
         if (dbUser.virtualBalance === null) {
-          throw new InternalServerError('User balance not initialized', undefined, {
+          throw new InternalServerError('User balance not initialized', {
             userId: authUser.userId,
           });
         }
@@ -279,13 +278,13 @@ export class PerpTradeService {
       input.ticker
     );
 
-    await cachedDb.invalidateUserCache(authUser.userId).catch((error: unknown) => {
-      logger.error(
-        'Failed to invalidate user cache after perp open',
-        { userId: authUser.userId, error },
-        'PerpTradeService.openPosition'
-      );
-    });
+    // Cache invalidation handled by API layer
+    // Note: Engine doesn't manage cache, API layer handles invalidation
+    logger.debug(
+      'Perp position opened, cache invalidation handled by API layer',
+      { userId: authUser.userId },
+      'PerpTradeService.openPosition'
+    );
 
     const tradeImpact: TradeImpactInput = {
       marketType: 'perp',

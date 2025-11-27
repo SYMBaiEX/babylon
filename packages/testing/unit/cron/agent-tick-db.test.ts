@@ -121,32 +121,32 @@ mock.module('@babylon/db', () => {
   };
 });
 
-mock.module('@/lib/services/agent-registry.service', () => ({
+mock.module('@babylon/agents/services/agent-registry.service', () => ({
   agentRegistry: {
     discoverAgents: async () => [],
   },
 }));
 
-mock.module('@/lib/services/agent-lock-service', () => ({
+mock.module('@babylon/agents/services/agent-lock-service', () => ({
   acquireAgentLock: async () => true,
   releaseAgentLock: async () => {},
 }));
 
 // Mock other services to avoid errors if they are imported
-mock.module('@/lib/agents/runtime/AgentRuntimeManager', () => ({
+mock.module('@babylon/agents/runtime/AgentRuntimeManager', () => ({
   agentRuntimeManager: {
     getRuntime: async () => ({}),
   },
 }));
 
-mock.module('@/lib/agents/services/AgentService', () => ({
+mock.module('@babylon/agents/services/AgentService', () => ({
   agentService: {
     deductPoints: async () => {},
     createLog: async () => {},
   },
 }));
 
-mock.module('@/lib/agents/autonomous', () => ({
+mock.module('@babylon/agents/autonomous', () => ({
   autonomousCoordinator: {
     executeAutonomousTick: async () => ({
       success: true,
@@ -162,7 +162,7 @@ mock.module('@/lib/agents/autonomous', () => ({
   },
 }));
 
-mock.module('@/lib/services/cron-relay-service', () => ({
+mock.module('@babylon/api/services/cron-relay-service', () => ({
   relayCronToStaging: async () => ({ forwarded: false }),
 }));
 

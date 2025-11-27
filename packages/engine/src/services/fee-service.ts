@@ -6,6 +6,7 @@
  * Handles both platform fees and referrer share distribution.
  */
 
+import type { SQL } from 'drizzle-orm';
 import {
   and,
   balanceTransactions,
@@ -465,7 +466,7 @@ export class FeeService {
     totalPlatformFees: number;
     totalTrades: number;
   }> {
-    const conditions = [];
+    const conditions: SQL<unknown>[] = [];
     if (startDate) {
       conditions.push(gte(tradingFees.createdAt, startDate));
     }

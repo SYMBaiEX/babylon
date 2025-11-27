@@ -5,5 +5,5 @@
  */
 
 // Re-export from shared for backwards compatibility
-export { callClaudeDirect } from '@babylon/shared/services/llm';
+export { callClaudeDirect } from '@babylon/shared';
 export * from './direct-groq';

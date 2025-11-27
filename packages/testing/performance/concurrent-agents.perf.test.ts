@@ -15,7 +15,7 @@ import {
   ExternalAgentAdapter,
   getEventBus,
 } from '@babylon/agents';
-import type { AgentCapabilities } from '@/types/a2a';
+import type { AgentCapabilities } from '@babylon/shared';
 
 // Performance thresholds
 const PERF_THRESHOLDS = {

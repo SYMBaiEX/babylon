@@ -15,7 +15,7 @@
 import { and, db, desc, eq, followStatuses, userInteractions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
-import { notifyFollow } from '@babylon/api';
+// Notification handled by API layer - engine doesn't depend on api
 
 export interface FollowingChance {
   willFollow: boolean;
@@ -214,7 +214,18 @@ export class FollowingMechanics {
     // Create notification for the user (NPCs follow users, not the other way around)
     // Note: For NPC follows, we use the NPC's ID as actorId since they're not real users
     // In the future, if NPCs have user records, we can update this
-    await notifyFollow(userId, npcId);
+    // Notification handled by API layer - engine doesn't manage notifications
+    try {
+      const { notifyFollow } = await import('@babylon/api');
+      await notifyFollow(userId, npcId);
+    } catch (error) {
+      // Notification is optional - engine can work without it
+      logger.debug(
+        'Follow notification skipped (API layer handles notifications)',
+        { userId, npcId, error },
+        'FollowingMechanics'
+      );
+    }
   }
 
   /**

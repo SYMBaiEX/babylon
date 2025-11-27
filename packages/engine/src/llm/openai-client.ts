@@ -16,6 +16,7 @@ import {
   parseContinuationContent,
 } from './json-continuation-parser';
 import { parseXML } from './xml-parser';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 type LLMProvider = 'wandb' | 'groq' | 'claude' | 'openai';
 
@@ -538,10 +539,6 @@ export class BabylonLLMClient {
     promptType: string
   ): Promise<void> {
     try {
-      const { isPromptLoggingEnabled } = await import(
-        '../utils/prompt-logger'
-      );
-
       if (!isPromptLoggingEnabled()) {
         return;
       }
@@ -578,9 +575,6 @@ export class BabylonLLMClient {
     }
   ): Promise<void> {
     try {
-      const { logPrompt, isPromptLoggingEnabled } = await import(
-        '../utils/prompt-logger'
-      );
 
       if (!isPromptLoggingEnabled()) {
         return;

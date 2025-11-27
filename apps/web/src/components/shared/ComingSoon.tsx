@@ -716,8 +716,6 @@ export function ComingSoon() {
     privyUser,
     searchParams,
     dbUser,
-    fetchWaitlistPosition,
-    awardWalletBonus,
     getAccessToken,
   ]);
 
@@ -751,7 +749,7 @@ export function ComingSoon() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [authenticated, dbUser?.id, privyUser?.wallet?.address, awardWalletBonus]);
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address]);
 
   // Periodically refresh waitlist position to show real-time updates
   // (e.g., when others get referrals and user's rank changes)
@@ -764,7 +762,7 @@ export function ComingSoon() {
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [authenticated, dbUser?.id, waitlistData, fetchWaitlistPosition]);
+  }, [authenticated, dbUser?.id, waitlistData]);
 
   const getPointsTypeForTab = useCallback((tab: 'leaderboard' | 'inviters') =>
     tab === 'leaderboard' ? 'total' : 'invite', []);
@@ -2008,6 +2006,7 @@ export function ComingSoon() {
           </div>
         </footer>
 
+        {/* @ts-expect-error - Next.js styled-jsx types */}
         <style jsx>{`
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -3323,6 +3322,7 @@ export function ComingSoon() {
         userId={selectedUserId}
       />
 
+      {/* @ts-expect-error - Next.js styled-jsx types */}
       <style jsx>{`
         @keyframes fadeIn {
           from {

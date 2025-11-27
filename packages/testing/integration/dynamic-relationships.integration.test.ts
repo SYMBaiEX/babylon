@@ -10,8 +10,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
-import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
-import { InteractionTracker } from '@babylon/engine';
+import { InteractionTracker, RelationshipEvolutionEngine } from '@babylon/engine';
 import type { Actor, Organization } from '@babylon/shared';
 
 // Test data

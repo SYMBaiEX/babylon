@@ -14,13 +14,14 @@
   },
   "scripts": {
     "lint": "biome lint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b .",
     "test:unit": "bun test unit/ --preload ./unit/preload.ts",
     "test:integration": "bun test integration/ --preload ./integration/preload.ts",
     "test:e2e": "playwright test e2e/",
     "test:synpress": "playwright test --config=synpress.config.ts"
   },
   "dependencies": {
+    "@babylon/api": "workspace:*",
     "@babylon/shared": "workspace:*",
     "@babylon/engine": "workspace:*",
     "@babylon/db": "workspace:*",
@@ -30,6 +31,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "next": "^16.0.5",
+    "playwright": "^1.56.1"
   }
 }

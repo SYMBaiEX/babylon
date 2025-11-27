@@ -13,7 +13,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
 import { asSystem } from '@babylon/db';
-import { executeGameTick } from '@babylon/engine/serverless-game-tick';
+import { executeGameTick } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Helper to check if we should skip due to rate limiting or API issues

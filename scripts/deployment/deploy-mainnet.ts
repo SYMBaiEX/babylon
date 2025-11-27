@@ -291,7 +291,7 @@ async function main() {
     logger.info('✅ MAINNET DEPLOYMENT COMPLETE!', undefined, 'Script');
     logger.info('='.repeat(60), undefined, 'Script');
     logger.info(
-      'Deployment saved to: packages/contracts/deployments/base/latest.json',
+      'Deployment saved to: packages/contracts/deployments/base/index.json',
       undefined,
       'Script'
     );

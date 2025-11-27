@@ -232,8 +232,19 @@ class PerformanceMonitor {
    * Take a performance snapshot
    */
   takeSnapshot(): PerformanceSnapshot {
-    const memUsage = process.memoryUsage();
-    const uptime = process.uptime();
+    // Check if process methods are available (not available in browser environments)
+    const hasMemoryUsage =
+      typeof process !== 'undefined' &&
+      typeof process.memoryUsage === 'function';
+    const hasCpuUsage =
+      typeof process !== 'undefined' && typeof process.cpuUsage === 'function';
+    const hasUptime =
+      typeof process !== 'undefined' && typeof process.uptime === 'function';
+
+    const memUsage = hasMemoryUsage
+      ? process.memoryUsage()
+      : { heapUsed: 0, heapTotal: 0, rss: 0, external: 0, arrayBuffers: 0 };
+    const uptime = hasUptime ? process.uptime() : 0;
 
     // Calculate database metrics
     const dbOperationBreakdown: Record<
@@ -321,12 +332,14 @@ class PerformanceMonitor {
         },
       },
       system: {
-        cpuUsagePercent: process.cpuUsage().user / 1000000, // Convert to percentage
+        cpuUsagePercent: hasCpuUsage
+          ? process.cpuUsage().user / 1000000
+          : 0, // Convert to percentage, default to 0 in browser
         memoryUsageMB: memUsage.heapUsed / 1024 / 1024,
-        memoryUsagePercent: Math.min(
-          (memUsage.heapUsed / memUsage.heapTotal) * 100,
-          100
-        ), // Cap at 100%
+        memoryUsagePercent:
+          memUsage.heapTotal > 0
+            ? Math.min((memUsage.heapUsed / memUsage.heapTotal) * 100, 100)
+            : 0, // Cap at 100%, default to 0 if heapTotal is 0
         uptimeSeconds: uptime,
         activeRequests: this.activeRequests,
         requestsPerSecond,

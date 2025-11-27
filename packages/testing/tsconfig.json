@@ -1,12 +1,18 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "composite": false,
     "noEmit": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "strict": false,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "baseUrl": ".",
     "paths": {
       "@/shared/constants": ["../../apps/web/src/shared/constants.ts"],
       "@/shared/types": ["../../apps/web/src/shared/types.ts"],
@@ -16,9 +22,49 @@
       "@/hooks/*": ["../../apps/web/src/hooks/*"],
       "@/stores/*": ["../../apps/web/src/stores/*"],
       "@/app/*": ["../../apps/web/src/app/*"],
-      "@/*": ["../../apps/web/src/*"]
+      "@/*": ["../../apps/web/src/*"],
+      "@babylon/shared": ["../shared/src/index.ts"],
+      "@babylon/shared/*": ["../shared/src/*"],
+      "@babylon/db": ["../db/src/index.ts"],
+      "@babylon/db/*": ["../db/src/*"],
+      "@babylon/engine": ["../engine/src/index.ts"],
+      "@babylon/engine/*": ["../engine/src/*"],
+      "@babylon/api": ["../api/src/index.ts"],
+      "@babylon/api/*": ["../api/src/*"],
+      "@babylon/agents": ["../agents/src/index.ts"],
+      "@babylon/agents/*": ["../agents/src/*"],
+      "@babylon/a2a": ["../a2a/src/index.ts"],
+      "@babylon/a2a/*": ["../a2a/src/*"],
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"],
+      "@babylon/training": ["../training/src/index.ts"],
+      "@babylon/training/*": ["../training/src/*"],
+      "@babylon/testing": ["./src/index.ts"],
+      "@babylon/testing/*": ["./*"]
     }
   },
-  "include": ["./**/*"],
-  "exclude": ["node_modules", "manual/**/*"]
+  "include": [
+    "unit/**/*",
+    "integration/**/*",
+    "performance/**/*",
+    "e2e/**/*",
+    "synpress/**/*",
+    "load-test/**/*",
+    "simulation/**/*",
+    "helpers/**/*",
+    "types/**/*",
+    "shared/**/*",
+    "src/**/*"
+  ],
+  "exclude": ["node_modules", "manual/**/*", "dist"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../db" },
+    { "path": "../engine" },
+    { "path": "../api" },
+    { "path": "../agents" },
+    { "path": "../a2a" },
+    { "path": "../contracts" },
+    { "path": "../training" }
+  ]
 }

@@ -8,6 +8,7 @@
 import { createGroq } from '@ai-sdk/groq';
 import type { IAgentRuntime } from '@elizaos/core';
 import { generateText } from 'ai';
+import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 
@@ -43,7 +44,6 @@ export async function callGroqDirect(params: {
       baseURL = 'https://api.inference.wandb.ai/v1';
       apiKey = wandbApiKey;
 
-      const { logger } = await import('../shared/logger');
       logger.info(
         'Using trained W&B model for agent decision',
         {

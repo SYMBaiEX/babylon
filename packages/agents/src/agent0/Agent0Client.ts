@@ -14,6 +14,7 @@ import type {
 } from 'agent0-sdk';
 // Import SDK and types from agent0-sdk
 import { SDK } from 'agent0-sdk';
+import { Wallet } from 'ethers';
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 
@@ -463,7 +464,6 @@ export class Agent0Client implements IAgent0Client {
     // The SDK's signer (from config.privateKey) is used to sign the authorization
     // The agent should have pre-authorized this client address during registration
     // Get the signer address from the private key
-    const { Wallet } = await import('ethers');
     const signerWallet = new Wallet(this.config.privateKey);
     const signerAddress = signerWallet.address as `0x${string}`;
 

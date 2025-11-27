@@ -73,7 +73,7 @@ import {
   organizationBanner,
   organizationLogo,
   renderPrompt,
-} from '@babylon/engine/prompts';
+} from '@babylon/engine';
 import { loadActorsData } from '@babylon/engine';
 import { fal } from '@fal-ai/client';
 import { config } from 'dotenv';

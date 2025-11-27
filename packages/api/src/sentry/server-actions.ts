@@ -8,7 +8,7 @@
  * ```ts
  * 'use server'
  *
- * import { wrapServerActionWithSentry } from '@/lib/sentry/server-actions'
+ * import { wrapServerActionWithSentry } from '@babylon/api/sentry/server-actions'
  *
  * export const myServerAction = wrapServerActionWithSentry(
  *   'myServerAction',

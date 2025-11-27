@@ -238,7 +238,7 @@ async function main() {
     logger.info('='.repeat(60), undefined, 'Script');
     logger.info('✅ Local deployment complete!', undefined, 'Script');
     logger.info(
-      'Deployment saved to: packages/contracts/deployments/local/latest.json',
+      'Deployment saved to: packages/contracts/deployments/local/index.json',
       undefined,
       'Script'
     );

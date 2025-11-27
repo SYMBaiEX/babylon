@@ -15,7 +15,7 @@ import {
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { loadActorById, type ActorData, getAIModelConfig } from '@babylon/engine';
+import { getAIModelConfig, loadActorById, type ActorData } from '@babylon/engine';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import {
@@ -212,7 +212,6 @@ export class AgentRuntimeManager {
     if (process.env.WANDB_API_KEY) {
       try {
         // First check system settings for configured WANDB model
-        const { getAIModelConfig } = await import('@babylon/engine');
         const aiConfig = await getAIModelConfig();
         if (aiConfig.wandbEnabled) {
           wandbModel =
@@ -228,9 +227,6 @@ export class AgentRuntimeManager {
         }
         if (!useWandb) {
           // Check for latest trained RL model from database
-          const { getLatestRLModel } = await import(
-            '../training/WandbModelFetcher'
-          );
           const latestModel = await getLatestRLModel();
           if (latestModel && latestModel.modelPath) {
             // modelPath contains the WANDB model identifier (entity/project/model-name:step)
@@ -683,7 +679,6 @@ export class AgentRuntimeManager {
     if (process.env.WANDB_API_KEY) {
       try {
         // First check system settings for configured WANDB model
-        const { getAIModelConfig } = await import('@babylon/engine');
         const aiConfig = await getAIModelConfig();
         if (aiConfig.wandbEnabled) {
           wandbModel =
@@ -699,9 +694,6 @@ export class AgentRuntimeManager {
         }
         if (!useWandb) {
           // Check for latest trained RL model from database
-          const { getLatestRLModel } = await import(
-            '../training/WandbModelFetcher'
-          );
           const latestModel = await getLatestRLModel();
           if (latestModel && latestModel.modelPath) {
             wandbModel = latestModel.modelPath;

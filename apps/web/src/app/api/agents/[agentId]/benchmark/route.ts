@@ -197,6 +197,17 @@ export async function POST(
     if (body.benchmarkData) {
       snapshot = body.benchmarkData;
     } else if (body.benchmarkPath) {
+      // Check if we're in a Node.js environment with file system access
+      if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'File system access not available in edge runtime. Use benchmarkData instead.',
+          },
+          { status: 400 }
+        );
+      }
+
       // Resolve path (support both absolute and relative)
       const fullPath = body.benchmarkPath.startsWith('/')
         ? body.benchmarkPath

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bunx next dev -p 3001",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' bunx next build",
-    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind --quiet",
     "start": "bunx next start",
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",
@@ -22,7 +22,7 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.17",
     "autoprefixer": "^10.4.22",
-    "next": "^16.0.3",
+    "next": "^16.0.5",
     "nextra": "^4.6.0",
     "nextra-theme-docs": "^4.6.0",
     "react": "^19.2.0",

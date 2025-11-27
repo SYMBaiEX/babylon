@@ -110,7 +110,7 @@ import { WalletService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 import { PredictionMarketTradeSchema } from '@babylon/shared';
-import { ensureMarketOnChain } from '@babylon/engine/services/onchain-market-service';
+import { ensureMarketOnChain } from '@babylon/engine';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market

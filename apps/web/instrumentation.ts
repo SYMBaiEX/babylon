@@ -8,10 +8,6 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
-import { setPointsService, setNotificationService } from '@babylon/api';
-import { PointsService } from '@babylon/api/services/points-service';
-import { createNotification } from '@babylon/api/services/notification-service';
-import { setReputationSyncService } from '@babylon/engine';
 
 const sentryDisabled =
   process.env.DISABLE_SENTRY === 'true' ||
@@ -23,18 +19,25 @@ export async function register() {
     return;
   }
 
-  // Initialize shared moderation services with web app implementations
-  setPointsService({
-    awardPoints: async (userId, amount, reason, metadata) => {
-      return await PointsService.awardPoints(userId, amount, reason as never, metadata);
-    },
-  });
+  // Only initialize services in Node.js runtime (not Edge Runtime)
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Dynamically import Node.js-only modules to avoid Edge Runtime errors
+    // Import from main package entry point
+    const { setPointsService, setNotificationService, PointsService, createNotification } = await import('@babylon/api');
 
-  setNotificationService({
-    createNotification: async (params) => {
-      return await createNotification(params);
-    },
-  });
+    // Initialize shared moderation services with web app implementations
+    setPointsService({
+      awardPoints: async (userId, amount, reason, metadata) => {
+        return await PointsService.awardPoints(userId, amount, reason as never, metadata);
+      },
+    });
+
+    setNotificationService({
+      createNotification: async (params) => {
+        return await createNotification(params);
+      },
+    });
+  }
 
   if (sentryDisabled && process.env.NODE_ENV === 'development') {
     console.info('[Sentry] Disabled via DISABLE_SENTRY flag');
@@ -47,8 +50,10 @@ export async function register() {
 
   // Register reputation sync service if agents package is available
   // This breaks the circular dependency between engine and agents packages
+  // Only load agent0 code server-side to avoid bundling electron-fetch in client
   if (process.env.AGENT0_ENABLED === 'true' && process.env.NEXT_RUNTIME === 'nodejs') {
     try {
+      const { setReputationSyncService } = await import('@babylon/engine');
       const { createReputationSyncAdapter } = await import(
         '@babylon/agents/agent0/reputation/reputation-sync-adapter'
       );
@@ -64,28 +69,35 @@ export async function register() {
 
   // Register Babylon on Agent0 registry (ERC-8004) on startup
   // Only if Agent0 is enabled and we're in Node.js runtime
+  // Only load agent0 code server-side to avoid bundling electron-fetch in client
   if (
     process.env.AGENT0_ENABLED === 'true' &&
     process.env.NEXT_RUNTIME === 'nodejs' &&
     process.env.NODE_ENV === 'production' // Only in production to avoid blocking dev
   ) {
-    const { registerBabylonGame } = await import(
-      '@babylon/agents/agent0'
-    );
-    await registerBabylonGame().catch((error: Error) => {
-      // Don't fail startup if registration fails - log and continue
-      console.error(
-        'Failed to register Babylon game on Agent0 registry:',
-        error
+    try {
+      const { registerBabylonGame } = await import('@babylon/agents/agent0');
+      await registerBabylonGame().catch((error: Error) => {
+        // Don't fail startup if registration fails - log and continue
+        console.error(
+          'Failed to register Babylon game on Agent0 registry:',
+          error
+        );
+        // Capture error in Sentry if available
+        if (
+          !sentryDisabled &&
+          (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
+        ) {
+          Sentry.captureException(error);
+        }
+      });
+    } catch (error) {
+      // Don't fail if agent0 package can't be loaded (e.g., electron-fetch bundling issue)
+      console.warn(
+        'Agent0 registration skipped (package may not be available in this environment):',
+        error instanceof Error ? error.message : String(error)
       );
-      // Capture error in Sentry if available
-      if (
-        !sentryDisabled &&
-        (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
-      ) {
-        Sentry.captureException(error);
-      }
-    });
+    }
   }
 }
 

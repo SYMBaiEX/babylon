@@ -302,7 +302,12 @@ export async function periodicReputationSync(userId?: string) {
 
   const metricsMap = new Map(metricsResults.map((m) => [m.userId, m]));
 
-  const results = [];
+  const results: Array<{
+    userId: string;
+    agent0TokenId: number;
+    success: boolean;
+    syncedAt: Date;
+  }> = [];
 
   for (const user of usersResult) {
     if (!user.agent0TokenId) continue;

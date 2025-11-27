@@ -10,8 +10,8 @@
  */
 
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { getAgent0Client } from '@/agents/agent0/Agent0Client';
-import { SubgraphClient } from '@/agents/agent0/SubgraphClient';
+import { getAgent0Client } from '@babylon/agents/agent0/Agent0Client';
+import { SubgraphClient } from '@babylon/agents/agent0/SubgraphClient';
 import { db } from '@babylon/db';
 import { Agent0FeedbackService } from '@babylon/agents';
 

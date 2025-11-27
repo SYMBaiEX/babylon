@@ -2,7 +2,11 @@ import { mock } from 'bun:test';
 
 // Mock LLM client for game tick tests
 // This avoids hitting real APIs during tests which causes timeouts and flakes
-mock.module('@/engine/llm/openai-client', () => {
+// Note: We mock @babylon/engine and override only BabylonLLMClient
+mock.module('@babylon/engine', async () => {
+  // Import actual engine to preserve all other exports
+  const actualEngine = await import('@babylon/engine');
+  
   const createMockClient = () => ({
     getStats: () => ({ provider: 'mock', model: 'mock-model' }),
     getProvider: () => 'mock',
@@ -100,12 +104,15 @@ mock.module('@/engine/llm/openai-client', () => {
     complete: async () => 'Mock completion response',
   });
 
+  // Return actual engine exports with mocked BabylonLLMClient
   return {
+    ...actualEngine,
     BabylonLLMClient: {
       forGameTick: createMockClient,
       forGroq: createMockClient,
       forClaude: createMockClient,
       forOpenAI: createMockClient,
+      forWandb: createMockClient,
     },
   };
 });

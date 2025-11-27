@@ -16,6 +16,7 @@ import {
   expect,
   it,
 } from 'bun:test';
+import { WaitlistService } from '@babylon/api';
 import { db, eq, inArray, pointsTransactions, referrals, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
@@ -23,12 +24,9 @@ import { generateSnowflakeId } from '@babylon/shared';
 const shouldSkip = !process.env.DATABASE_URL;
 const describeWaitlist = shouldSkip ? describe.skip : describe;
 
-type WaitlistServiceModule = typeof import('@babylon/api/services/waitlist-service');
-
 describeWaitlist('WaitlistService', () => {
   // Test data cleanup
   const testUserIds: string[] = [];
-  let WaitlistService: WaitlistServiceModule['WaitlistService'];
   let dbAvailable = true;
 
   beforeAll(async () => {
@@ -47,7 +45,6 @@ describeWaitlist('WaitlistService', () => {
       }
       throw error;
     }
-    ({ WaitlistService } = await import('@babylon/api/services/waitlist-service'));
   });
 
   beforeEach(() => {

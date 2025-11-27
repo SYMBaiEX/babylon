@@ -106,9 +106,9 @@ export class BabylonA2AClient {
   private sdkClient: A2AClient | null;
   // Stored for potential future use (ERC-8004 headers, etc.)
   // Prefixed with _ to indicate intentionally unused
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Intentionally unused, stored for future ERC-8004 use
   private readonly _agentAddress?: string;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Intentionally unused, stored for future ERC-8004 use
   private readonly _agentTokenId?: number;
 
   constructor(

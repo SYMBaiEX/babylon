@@ -691,7 +691,7 @@ describe('Benchmark/Simulation Group Chat Integration', () => {
   test('simulation data generator includes group chat events', async () => {
     // Import the data generator
     const { BenchmarkDataGenerator } = await import(
-      '@/lib/benchmark/BenchmarkDataGenerator'
+      '@babylon/training/benchmark/BenchmarkDataGenerator'
     );
 
     const config = {
@@ -732,13 +732,13 @@ describe('Benchmark/Simulation Group Chat Integration', () => {
   test('simulation interface should handle group chat queries', async () => {
     // Import simulation components
     const { BenchmarkDataGenerator } = await import(
-      '@/lib/benchmark/BenchmarkDataGenerator'
+      '@babylon/training/benchmark/BenchmarkDataGenerator'
     );
     const { SimulationEngine } = await import(
-      '@/lib/benchmark/SimulationEngine'
+      '@babylon/training/benchmark/SimulationEngine'
     );
     const { SimulationA2AInterface } = await import(
-      '@/lib/benchmark/SimulationA2AInterface'
+      '@babylon/training/benchmark/SimulationA2AInterface'
     );
 
     const config = {

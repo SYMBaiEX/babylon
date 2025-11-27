@@ -4,6 +4,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'bun:test';
+import { loadActorsData } from '@babylon/engine';
 import type {
   ActorData,
   ActorsDataFile,
@@ -14,7 +15,6 @@ describe('Actors.json Data Integrity', () => {
   let actorsData: ActorsDataFile;
 
   beforeAll(async () => {
-    const { loadActorsData } = await import('@babylon/engine');
     actorsData = loadActorsData() as ActorsDataFile;
   });
 

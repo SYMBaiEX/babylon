@@ -5,7 +5,7 @@
  * Similar to X's trending topics extraction
  */
 
-import type OpenAI from 'openai';
+import OpenAI from 'openai';
 import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 
@@ -32,7 +32,6 @@ async function getOpenAIClient(): Promise<OpenAIClient | null> {
   if (!openaiImportAttempted) {
     openaiImportAttempted = true;
     try {
-      const { default: OpenAI } = await import('openai');
       openaiClient = new OpenAI({
         apiKey,
         baseURL,

@@ -20,7 +20,7 @@
   },
   "scripts": {
     "lint": "biome lint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",

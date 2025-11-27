@@ -237,7 +237,7 @@ async function main() {
     logger.info('='.repeat(60), undefined, 'Script');
     logger.info('✅ Testnet deployment complete!', undefined, 'Script');
     logger.info(
-      'Deployment saved to: packages/contracts/deployments/base-sepolia/latest.json',
+      'Deployment saved to: packages/contracts/deployments/base-sepolia/index.json',
       undefined,
       'Script'
     );

@@ -90,9 +90,8 @@
  * ```
  */
 
-import { readFileSync } from 'fs';
 import type { NextRequest } from 'next/server';
-import { join } from 'path';
+// Removed fs and path imports - using TypeScript imports instead
 import { db } from '@babylon/db';
 import { requireAdmin } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
@@ -120,16 +119,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const context = await worldFactsService.generateWorldContext(true);
 
-  // Read reality grounding content
+  // Load reality grounding content from TypeScript export
   let realityGroundingContent = '';
   try {
-    realityGroundingContent = readFileSync(
-      join(process.cwd(), 'src/data', 'reality-grounding.md'),
-      'utf-8'
-    );
+    const { realityGroundingContent: content } = await import('@babylon/engine');
+    realityGroundingContent = content;
   } catch (e) {
     logger.warn(
-      'Failed to read reality-grounding.md',
+      'Failed to load reality-grounding content',
       { error: e },
       'WorldFactsAdmin'
     );

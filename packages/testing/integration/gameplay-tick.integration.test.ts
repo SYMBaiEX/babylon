@@ -16,16 +16,20 @@ import type { MockJSONSchema } from '../types/test-types';
 
 // Mock LLM client BEFORE importing serverless-game-tick
 // This ensures executeGameTick uses the mock
-mock.module('@/engine/llm/openai-client', () => {
-  return {
-    BabylonLLMClient: {
-      forGameTick: () => ({
-        getStats: () => ({ provider: 'mock', model: 'mock-model' }),
-        getProvider: () => 'mock',
-        generateJSON: async (
-          _prompt: string,
-          schema: MockJSONSchema | undefined
-        ) => {
+// Note: We mock @babylon/engine and override only BabylonLLMClient
+// Internal code uses relative imports, but BabylonLLMClient is exported from root
+mock.module('@babylon/engine', async () => {
+  // Import actual engine to preserve all other exports
+  const actualEngine = await import('@babylon/engine');
+  
+  // Create mock LLM client factory function
+  const createMockClient = () => ({
+    getStats: () => ({ provider: 'mock', model: 'mock-model' }),
+    getProvider: () => 'mock',
+    generateJSON: async (
+      _prompt: string,
+      schema: MockJSONSchema | undefined
+    ) => {
           // CRITICAL: This mock MUST prevent all real API calls
           // Always return a valid response structure based on schema or prompt patterns
 
@@ -345,48 +349,23 @@ mock.module('@/engine/llm/openai-client', () => {
           };
         },
         complete: async () => 'Mock completion response',
-      }),
-      forGroq: () => ({
-        getStats: () => ({ provider: 'mock', model: 'mock-model' }),
-        getProvider: () => 'mock',
-        generateJSON: async (_prompt: string) => {
-          // Market decisions mock - extract NPC IDs from prompt
-          const idMatches = _prompt.matchAll(/ID=([^\s]+)\s+NAME="([^"]+)"/g);
-          const npcsFromPrompt = Array.from(idMatches).slice(0, 3);
-
-          if (npcsFromPrompt.length > 0) {
-            // All hold actions to avoid balance warnings
-            return {
-              decisions: npcsFromPrompt.map(([, id, name]) => ({
-                npcId: id,
-                npcName: name,
-                reasoning: `Mock reasoning for ${name} - holding for now`,
-                action: 'hold',
-                confidence: 0.5,
-                marketType: null,
-                marketId: null,
-                amount: 0,
-              })),
-            };
-          }
-
-          // Fallback - return empty decisions (no trades, no warnings)
-          return { decisions: [] };
-        },
-        complete: async () => 'Mock completion',
-      }),
-      forClaude: () => ({
-        /* same mock */
-      }),
-      forOpenAI: () => ({
-        /* same mock */
-      }),
+      });
+  
+  // Return actual engine exports with mocked BabylonLLMClient
+  return {
+    ...actualEngine,
+    BabylonLLMClient: {
+      forGameTick: createMockClient,
+      forGroq: createMockClient,
+      forClaude: createMockClient,
+      forOpenAI: createMockClient,
+      forWandb: createMockClient,
     },
   };
 });
 
 import { asSystem } from '@babylon/db';
-import { executeGameTick } from '@babylon/engine/serverless-game-tick';
+import { executeGameTick } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =

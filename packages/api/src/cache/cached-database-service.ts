@@ -17,17 +17,23 @@ import {
   actors,
   and,
   asc,
+  comments,
   count,
   db,
   desc,
   eq,
   followStatuses,
+  follows,
   inArray,
   isNull,
   lt,
   lte,
   markets,
+  organizations,
+  positions,
   posts,
+  reactions,
+  userActorFollows,
   tags,
   trendingTags,
   users,
@@ -255,10 +261,6 @@ class CachedDatabaseService {
     return getCacheOrFetch(
       cacheKey,
       async () => {
-        // Import the tables we need for counting
-        const { follows, userActorFollows, positions, comments, reactions } =
-          await import('@babylon/db');
-
         // Count followers (users following this user)
         const followersResult = await db
           .select({ count: count() })
@@ -375,7 +377,6 @@ class CachedDatabaseService {
    */
   async getOrganizationById(orgId: string) {
     const cacheKey = orgId;
-    const { organizations } = await import('@babylon/db');
 
     return getCacheOrFetch(
       cacheKey,

@@ -72,10 +72,20 @@ export function clearDataCache(): void {
 
 /**
  * Load the actors.json index file (cached)
+ * 
+ * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
+ * For edge runtime, use environment variables or API routes to access this data.
  */
 function loadIndex(): ActorsIndex {
   if (dataCache.index) {
     return dataCache.index;
+  }
+
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'loadIndex requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
+    );
   }
 
   const dataDir = join(process.cwd(), 'public', 'data');
@@ -119,6 +129,13 @@ export interface RelationshipFileData {
  * @returns ActorsDatabase with requested data
  */
 export function loadActorsData(options?: LoadActorsOptions): ActorsDatabase {
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'loadActorsData requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
+    );
+  }
+
   const dataDir = join(process.cwd(), 'public', 'data');
   const indexData = loadIndex();
 
@@ -263,6 +280,13 @@ export function loadActorById(actorId: string): ActorData | null {
     return dataCache.actors.get(actorId)!;
   }
 
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'loadActorById requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
+    );
+  }
+
   const dataDir = join(process.cwd(), 'public', 'data');
   const actorFilePath = join(dataDir, 'actors', `${actorId}.json`);
 
@@ -297,6 +321,13 @@ export function loadOrganizationById(orgId: string): Organization | null {
   // Check cache first (fastest - no I/O)
   if (dataCache.organizations.has(orgId)) {
     return dataCache.organizations.get(orgId)!;
+  }
+
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'loadOrganizationById requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
+    );
   }
 
   const dataDir = join(process.cwd(), 'public', 'data');
@@ -341,6 +372,13 @@ export function loadRelationship(
   // Check cache first (fastest - no I/O)
   if (dataCache.relationships.has(relId)) {
     return dataCache.relationships.get(relId)!;
+  }
+
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'loadRelationship requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
+    );
   }
 
   const dataDir = join(process.cwd(), 'public', 'data');

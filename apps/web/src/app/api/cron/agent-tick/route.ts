@@ -253,7 +253,18 @@ export async function POST(_req: NextRequest) {
     'AgentTick'
   );
 
-  const results = [];
+  const results: Array<{
+    agentId: string;
+    agentType: AgentType;
+    name: string;
+    status: string;
+    reason?: string;
+    error?: string;
+    pointsDeducted?: number;
+    duration: number;
+    actions?: number;
+    method?: 'database' | 'a2a' | 'planning_coordinator';
+  }> = [];
   let totalActionsExecuted = 0;
   let errors = 0;
   let skippedDueToLock = 0;
@@ -313,7 +324,7 @@ export async function POST(_req: NextRequest) {
       );
 
       // Determine enabled features based on agent type
-      const enabledFeatures = [];
+      const enabledFeatures: string[] = [];
       if (
         eligibleAgent.type === AgentType.USER_CONTROLLED &&
         eligibleAgent.user

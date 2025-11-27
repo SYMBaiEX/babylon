@@ -4,6 +4,8 @@
  * Validate that contracts are deployed and working correctly.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { ethers } from 'ethers';
 import { logger } from './logger';
 import type { DeploymentEnv } from './env-detection';
@@ -15,9 +17,10 @@ export interface ContractAddresses {
   diamondLoupeFacet: string;
   predictionMarketFacet: string;
   oracleFacet: string;
-  liquidityPoolFacet: string;
-  perpetualMarketFacet: string;
-  referralSystemFacet: string;
+  // Optional facets (not all deployments have these)
+  liquidityPoolFacet?: string;
+  perpetualMarketFacet?: string;
+  referralSystemFacet?: string;
   // Identity system
   identityRegistry: string;
   reputationSystem: string;
@@ -42,7 +45,9 @@ export interface DeploymentInfo {
   contracts: ContractAddresses;
   deployer: string;
   timestamp: string;
-  blockNumber: number;
+  blockNumber?: number;
+  gasUsed?: string;
+  explorer?: Record<string, string>;
 }
 
 export interface ValidationResult {
@@ -54,39 +59,49 @@ export interface ValidationResult {
 }
 
 /**
- * Load deployment info from JSON file
+ * Load deployment info from module imports
  */
 export async function loadDeployment(
   env: DeploymentEnv
 ): Promise<DeploymentInfo | null> {
-  const fs = await import('fs');
-  const path = await import('path');
-
-  const deploymentPaths = {
-    localnet: 'packages/contracts/deployments/local/latest.json',
-    testnet: 'packages/contracts/deployments/base-sepolia/latest.json',
-    mainnet: 'packages/contracts/deployments/base/latest.json',
-  };
-
-  const filepath = path.join(process.cwd(), deploymentPaths[env]);
-
-  if (!fs.existsSync(filepath)) {
+  try {
+    // Try to import from module paths
+    if (env === 'localnet') {
+      const deployment = await import('@babylon/contracts/deployments/local');
+      return deployment.default as DeploymentInfo;
+    }
+    if (env === 'testnet') {
+      const deployment = await import('@babylon/contracts/deployments/base-sepolia');
+      return deployment.default as DeploymentInfo;
+    }
+    if (env === 'mainnet') {
+      const deployment = await import('@babylon/contracts/deployments/base');
+      return deployment.default as DeploymentInfo;
+    }
+  } catch {
+    // Module import failed, return null
     return null;
   }
 
-  const data = fs.readFileSync(filepath, 'utf-8');
-  return JSON.parse(data) as DeploymentInfo;
+  return null;
 }
 
 /**
  * Save deployment info to JSON file
+ * 
+ * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
+ * Only use this in Node.js environments (scripts, build-time, etc.).
  */
 export async function saveDeployment(
   env: DeploymentEnv,
   deployment: DeploymentInfo
 ): Promise<void> {
-  const fs = await import('fs');
-  const path = await import('path');
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'saveDeployment requires Node.js environment with file system access. Not available in edge runtime.'
+    );
+  }
 
   const deploymentPaths = {
     localnet: 'packages/contracts/deployments/local',
@@ -95,7 +110,7 @@ export async function saveDeployment(
   };
 
   const dirpath = path.join(process.cwd(), deploymentPaths[env]);
-  const filepath = path.join(dirpath, 'latest.json');
+  const filepath = path.join(dirpath, 'index.json');
 
   // Create directory if it doesn't exist
   if (!fs.existsSync(dirpath)) {
@@ -284,13 +299,20 @@ export function getContractAddressesFromEnv(): Partial<ContractAddresses> {
 
 /**
  * Update environment file with contract addresses
+ * 
+ * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
+ * Only use this in Node.js environments (scripts, build-time, etc.).
  */
 export async function updateEnvFile(
   env: DeploymentEnv,
   contracts: ContractAddresses
 ): Promise<void> {
-  const fs = await import('fs');
-  const path = await import('path');
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'updateEnvFile requires Node.js environment with file system access. Not available in edge runtime.'
+    );
+  }
 
   const envFiles = {
     localnet: '.env.local',

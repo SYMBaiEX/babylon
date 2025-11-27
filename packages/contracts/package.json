@@ -11,6 +11,18 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "require": "./src/index.ts"
+    },
+    "./deployments/local": {
+      "types": "./deployments/local/index.ts",
+      "import": "./deployments/local/index.ts"
+    },
+    "./deployments/base-sepolia": {
+      "types": "./deployments/base-sepolia/index.ts",
+      "import": "./deployments/base-sepolia/index.ts"
+    },
+    "./deployments/base": {
+      "types": "./deployments/base/index.ts",
+      "import": "./deployments/base/index.ts"
     }
   },
   "files": [
@@ -20,7 +32,7 @@
   ],
   "scripts": {
     "lint": "biome lint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {},
   "peerDependencies": {

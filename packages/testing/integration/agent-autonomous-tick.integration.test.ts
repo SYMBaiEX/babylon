@@ -142,10 +142,10 @@ describe('Agent Autonomous Tick Integration', () => {
     try {
       console.log('DATABASE_URL:', process.env.DATABASE_URL);
       const { agentRegistry } = await import(
-        '@/lib/services/agent-registry.service'
+        '@babylon/agents/services/agent-registry.service'
       );
       const { AgentType, AgentStatus } = await import(
-        '@/types/agent-registry.types'
+        '@babylon/agents'
       );
       const found = await agentRegistry.discoverAgents({
         types: [AgentType.USER_CONTROLLED],

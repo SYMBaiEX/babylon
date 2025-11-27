@@ -19,6 +19,7 @@ import {
 } from '@elizaos/core';
 import { generateObject, generateText } from 'ai';
 import { encodingForModel, type TiktokenModel } from 'js-tiktoken';
+import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService';
 
@@ -286,8 +287,6 @@ export const groqPlugin: Plugin = {
       const modelVersion = runtimeWithTrajectory.currentModelVersion;
 
       // Log which model is being used (for verification)
-      const { logger } = await import('../shared/logger');
-
       // Always log at INFO level for W&B model usage verification
       if (isWandbModel) {
         logger.info(

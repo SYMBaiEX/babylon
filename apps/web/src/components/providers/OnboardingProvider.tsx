@@ -9,7 +9,7 @@ import {
 } from '@/components/onboarding/OnboardingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
-import { apiFetch } from '@babylon/api';
+import { apiFetch } from '@/utils/api-fetch';
 import { POINTS } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import type { OnboardingProfilePayload } from '@babylon/shared';
@@ -19,7 +19,7 @@ import {
 } from '@babylon/shared';
 
 import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
-import type { JsonValue } from '@babylon/api';
+import type { JsonValue } from '@babylon/shared';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
