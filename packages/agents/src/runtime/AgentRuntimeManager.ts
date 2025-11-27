@@ -34,7 +34,6 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
-import { getLatestRLModel } from '../training/WandbModelFetcher';
 
 // Extended AgentRuntime with Babylon-specific properties
 interface ExtendedAgentRuntime extends AgentRuntime {
@@ -205,73 +204,14 @@ export class AgentRuntimeManager {
       }
     };
 
-    // Determine model: always use qwen 32b, but check for latest WANDB trained model if available
-    let wandbModel: string | undefined;
-    let useWandb = false;
-
-    if (process.env.WANDB_API_KEY) {
-      // Check for latest trained RL model from database
-      const latestModel = await getLatestRLModel();
-      if (latestModel && latestModel.modelPath) {
-        // modelPath contains the WANDB model identifier (entity/project/model-name:step)
-        // This is the format WANDB API expects for inference
-        wandbModel = latestModel.modelPath;
-        useWandb = true;
-        logger.info(
-          `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
-          {
-            agentId: agentUserId,
-            modelId: latestModel.modelPath,
-            version: latestModel.version,
-            avgReward: latestModel.metadata.avgReward,
-          },
-          'AgentRuntimeManager'
-        );
-      }
-
-      // Fall back to env model if no DB model but WANDB key exists
-      if (!useWandb && process.env.WANDB_MODEL) {
-        wandbModel = process.env.WANDB_MODEL;
-        useWandb = true;
-        logger.info(
-          `Agent will use WANDB model from env: ${wandbModel}`,
-          { agentId: agentUserId },
-          'AgentRuntimeManager'
-        );
-      }
-    }
-
-    // Get model version if using RL model
-    let modelVersion: string | undefined;
-    if (useWandb && wandbModel) {
-      const latestModel = await getLatestRLModel();
-      if (latestModel && latestModel.modelPath === wandbModel) {
-        modelVersion = latestModel.version;
-
-        // Log model usage for verification
-        logger.info(
-          'Agent using trained RL model',
-          {
-            agentId: agentUserId,
-            modelPath: wandbModel,
-            modelVersion: latestModel.version,
-            avgReward: latestModel.metadata.avgReward,
-          },
-          'AgentRuntimeManager'
-        );
-      }
-    } else {
-      // Log when using base model (for verification)
-      logger.info(
-        'Agent using base model (not trained RL model)',
-        {
-          agentId: agentUserId,
-          model: wandbModel || 'groq-qwen-32b',
-          reason: useWandb ? 'W&B model not available' : 'W&B disabled',
-        },
-        'AgentRuntimeManager'
-      );
-    }
+    logger.info(
+      'Agent using Groq model',
+      {
+        agentId: agentUserId,
+        model: 'groq-qwen-32b',
+      },
+      'AgentRuntimeManager'
+    );
 
     // Build character from agent user config
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
@@ -283,25 +223,10 @@ export class AgentRuntimeManager {
       style: parseStyle(),
       plugins: [],
       settings: {
-        // WANDB configuration (if available)
-        WANDB_API_KEY: useWandb ? process.env.WANDB_API_KEY || '' : '',
-        ...(wandbModel ? { WANDB_MODEL: wandbModel } : {}),
-        WANDB_ENABLED: useWandb ? 'true' : 'false',
-        // Model version for tracking
-        ...(modelVersion ? { MODEL_VERSION: modelVersion } : {}),
-        // GROQ fallback (always available)
+        // GROQ configuration (always available)
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        // Prefer RL model for both slots; fall back to Groq tiers only when WANDB unavailable
-        LARGE_GROQ_MODEL: useWandb
-          ? wandbModel ||
-            process.env.WANDB_MODEL ||
-            'unsloth/Qwen3-4B-128K'
-          : 'qwen/qwen3-32b',
-        SMALL_GROQ_MODEL: useWandb
-          ? wandbModel ||
-            process.env.WANDB_MODEL ||
-            'unsloth/Qwen3-4B-128K'
-          : 'llama-3.1-8b-instant',
+        LARGE_GROQ_MODEL: 'qwen/qwen3-32b',
+        SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
     };
@@ -318,9 +243,6 @@ export class AgentRuntimeManager {
       undefined,
       'AgentRuntimeManager'
     );
-
-    // Initialize Groq plugin (no-op for this version)
-    // groqPlugin.init requires runtime context in some versions
 
     // Create trajectory logger service for this agent
     const trajectoryLogger = new TrajectoryLoggerService();
@@ -346,11 +268,7 @@ export class AgentRuntimeManager {
 
     const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime;
 
-    // Store model version on runtime for LLM call logging (after runtime is created)
-    if (modelVersion) {
-      runtime.currentModelVersion = modelVersion;
-    }
-    runtime.currentModel = wandbModel || (useWandb ? 'wandb' : 'groq');
+    runtime.currentModel = 'groq';
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
@@ -501,7 +419,7 @@ export class AgentRuntimeManager {
       messageExamples: [],
       style: parseStyle(),
       plugins: [],
-      settings: await this.getModelSettings(registration.agentId),
+      settings: this.getModelSettings(),
     };
 
     // Create runtime with standard plugins
@@ -551,7 +469,7 @@ export class AgentRuntimeManager {
       bio,
       messageExamples: [],
       plugins: [],
-      settings: await this.getModelSettings(registration.agentId),
+      settings: this.getModelSettings(),
     };
 
     // Create runtime with standard plugins
@@ -573,7 +491,7 @@ export class AgentRuntimeManager {
       bio: [registration.systemPrompt],
       messageExamples: [],
       plugins: [],
-      settings: await this.getModelSettings(registration.agentId),
+      settings: this.getModelSettings(),
     };
 
     // External agents may use different plugins
@@ -623,9 +541,7 @@ export class AgentRuntimeManager {
     if (character.settings?.MODEL_VERSION) {
       runtime.currentModelVersion = character.settings.MODEL_VERSION as string;
     }
-    runtime.currentModel =
-      (character.settings?.WANDB_MODEL as string) ||
-      (character.settings?.WANDB_ENABLED === 'true' ? 'wandb' : 'groq');
+    runtime.currentModel = 'groq';
 
     // Configure logger
     this.configureLogger(runtime, character.name);
@@ -643,85 +559,15 @@ export class AgentRuntimeManager {
   }
 
   /**
-   * Get model settings (WANDB RL model or Groq fallback)
+   * Get model settings (Groq configuration)
    * Shared logic for model configuration
    */
-  private async getModelSettings(
-    agentId: string
-  ): Promise<Record<string, string>> {
-    let wandbModel: string | undefined;
-    let useWandb = false;
-    let modelVersion: string | undefined;
-
-    if (process.env.WANDB_API_KEY) {
-      // Check for latest trained RL model from database
-      const latestModel = await getLatestRLModel();
-      if (latestModel && latestModel.modelPath) {
-        wandbModel = latestModel.modelPath;
-        modelVersion = latestModel.version;
-        useWandb = true;
-        logger.info(
-          `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
-          {
-            agentId,
-            modelId: latestModel.modelPath,
-            version: latestModel.version,
-            avgReward: latestModel.metadata.avgReward,
-          },
-          'AgentRuntimeManager'
-        );
-      }
-
-      // Fall back to env model if no DB model but WANDB key exists
-      if (!useWandb && process.env.WANDB_MODEL) {
-        wandbModel = process.env.WANDB_MODEL;
-        useWandb = true;
-        logger.info(
-          `Agent will use WANDB model from env: ${wandbModel}`,
-          { agentId },
-          'AgentRuntimeManager'
-        );
-      }
-    }
-
-    // Log model usage for verification
-    if (useWandb && wandbModel) {
-      logger.info(
-        'Agent using trained RL model',
-        {
-          agentId,
-          modelPath: wandbModel,
-          modelVersion,
-        },
-        'AgentRuntimeManager'
-      );
-    } else {
-      logger.info(
-        'Agent using base model (not trained RL model)',
-        {
-          agentId,
-          model: wandbModel || 'groq-qwen-32b',
-          reason: useWandb ? 'W&B model not available' : 'W&B disabled',
-        },
-        'AgentRuntimeManager'
-      );
-    }
-
+  private getModelSettings(): Record<string, string> {
     return {
-      // WANDB configuration (if available)
-      WANDB_API_KEY: useWandb ? process.env.WANDB_API_KEY || '' : '',
-      ...(wandbModel ? { WANDB_MODEL: wandbModel } : {}),
-      WANDB_ENABLED: useWandb ? 'true' : 'false',
-      // Model version for tracking
-      ...(modelVersion ? { MODEL_VERSION: modelVersion } : {}),
-      // GROQ fallback (always available)
+      // GROQ configuration (always available)
       GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-      LARGE_GROQ_MODEL: useWandb
-        ? wandbModel || process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K'
-        : 'qwen/qwen3-32b',
-      SMALL_GROQ_MODEL: useWandb
-        ? wandbModel || process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K'
-        : 'llama-3.1-8b-instant',
+      LARGE_GROQ_MODEL: 'qwen/qwen3-32b',
+      SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     };
   }

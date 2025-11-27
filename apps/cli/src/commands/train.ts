@@ -1326,7 +1326,6 @@ async function runPipeline(args: ReturnType<typeof parseArgs>): Promise<void> {
     '--agents', agents,
     '--ticks', ticks,
     '--output', output,
-    '--no-wandb',
   ];
 
   // Handle archetypes

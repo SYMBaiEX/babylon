@@ -9,6 +9,8 @@
  * - Scalable to larger models when more memory is available
  */
 
+import { logger } from '../shared/logger';
+
 /**
  * Model tiers for scaling based on available resources
  * Supports automatic selection based on GPU memory
@@ -97,7 +99,11 @@ export function registerArchetypeModel(config: ArchetypeModelConfig): void {
   // Only replace if new model is better or no existing model
   if (!existing || (config.benchmarkScore && (!existing.benchmarkScore || config.benchmarkScore > existing.benchmarkScore))) {
     archetypeModelRegistry.set(config.archetype, config);
-    console.log(`📦 Registered model for archetype '${config.archetype}': ${config.modelId}`);
+    logger.info(
+      `Registered model for archetype '${config.archetype}': ${config.modelId}`,
+      undefined,
+      'RLModelConfig'
+    );
   }
 }
 
@@ -205,8 +211,10 @@ export function isRLModelAvailable(): boolean {
 
   // Need Atropos API URL to fetch RL models
   if (!config.atroposApiUrl) {
-    console.warn(
-      'RL models enabled but Atropos API URL missing. Set ATROPOS_API_URL.'
+    logger.warn(
+      'RL models enabled but Atropos API URL missing. Set ATROPOS_API_URL.',
+      undefined,
+      'RLModelConfig'
     );
     return false;
   }
@@ -222,20 +230,24 @@ export function logRLModelConfig(): void {
   const available = isRLModelAvailable();
   const tierConfig = MODEL_TIERS[config.modelTier];
 
-  console.log('🤖 RL Model Configuration:', {
-    enabled: config.enabled,
-    available,
-    atroposConfigured: !!config.atroposApiUrl,
-    vllmPort: config.vllmPort,
-    pinnedVersion: config.modelVersion || 'latest',
-    fallbackEnabled: config.fallbackToBase,
-    baseModel: config.baseModel,
-    modelTier: config.modelTier,
-    tierName: tierConfig.name,
-    tierParams: tierConfig.params,
-    contextWindow: tierConfig.context,
-    availableVramGb: config.availableVramGb || 'auto',
-  });
+  logger.info(
+    'RL Model Configuration',
+    {
+      enabled: config.enabled,
+      available,
+      atroposConfigured: !!config.atroposApiUrl,
+      vllmPort: config.vllmPort,
+      pinnedVersion: config.modelVersion || 'latest',
+      fallbackEnabled: config.fallbackToBase,
+      baseModel: config.baseModel,
+      modelTier: config.modelTier,
+      tierName: tierConfig.name,
+      tierParams: tierConfig.params,
+      contextWindow: tierConfig.context,
+      availableVramGb: config.availableVramGb || 'auto',
+    },
+    'RLModelConfig'
+  );
 }
 
 /**
