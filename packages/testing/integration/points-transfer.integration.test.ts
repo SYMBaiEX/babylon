@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { User } from '@babylon/db';
 import { db } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 let testUser1: User;
 let testUser2: User;

@@ -4,7 +4,6 @@ Tests each method with real server calls
 """
 
 import pytest
-import asyncio
 import os
 import time
 from dotenv import load_dotenv

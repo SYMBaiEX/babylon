@@ -1,10 +1,9 @@
 /**
  * Oracle Module
  *
- * Blockchain oracle integration for publishing Babylon game results on-chain
+ * Note: OracleService is now exported from @babylon/engine
+ * Import directly: import { getOracleService, OracleService } from '@babylon/engine'
  */
 
-// Re-export CommitmentStore from engine for backwards compatibility
-export { CommitmentStore } from '@babylon/engine/services/oracle-commitment-store';
-export { getOracleService, OracleService } from './oracle-service';
-export * from './types';
+// Export empty to make this a proper module
+export {};

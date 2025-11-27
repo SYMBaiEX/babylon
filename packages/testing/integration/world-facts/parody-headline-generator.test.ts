@@ -19,7 +19,7 @@ import {
 import { db, rssFeedSources } from '@babylon/db';
 import type { BabylonLLMClient } from '@/engine/llm/openai-client';
 import { ParodyHeadlineGenerator } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 // Skip tests if DATABASE_URL is not set
 const shouldSkip = !process.env.DATABASE_URL;

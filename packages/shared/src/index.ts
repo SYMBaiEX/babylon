@@ -10,6 +10,20 @@ export * from './constants';
 // Types (all types are re-exported through ./types)
 export * from './types';
 
+// Errors (all error classes are re-exported through ./errors)
+export * from './errors';
+
+// Explicitly export commonly used types and utilities for better IDE support
+export type { AuthenticatedUser } from './types/auth';
+export { extractErrorMessage } from './types/errors';
+
+// Explicitly export payment types to ensure they're available
+export type { PaymentVerificationParams, PaymentVerificationResult } from './types/payments';
+// Explicitly re-export commonly used types to ensure they're available when imported from other packages
+export type { JsonValue, StringRecord } from './types/common';
+export type { AgentCapabilities, GameNetworkInfo } from './types/agents';
+export { AgentCapabilitiesSchema, GameNetworkInfoSchema } from './types/agents';
+
 // Perps Types
 export * from './perps-types';
 
@@ -25,8 +39,8 @@ export * from './auth';
 // Contracts (ABIs and addresses)
 export * from './contracts';
 
-// Moderation utilities
-export * from './moderation';
+// Moderation utilities (empty - services exported from @babylon/api)
+// export * from './moderation';
 
 // Monitoring utilities
 export * from './monitoring';
@@ -43,11 +57,14 @@ export * from './storage';
 // Services
 export * from './services';
 
-// On-chain betting
-export * from './onchain-betting';
+// Rate limiting utilities
+export * from './rate-limiting';
 
-// Portfolio utilities
-export * from './portfolio';
+// On-chain betting (empty - services exported from @babylon/api)
+// export * from './onchain-betting';
+
+// Portfolio utilities (empty - functions exported from @babylon/engine)
+// export * from './portfolio';
 
 // Referral utilities
 export * from './referral';
@@ -60,4 +77,3 @@ export * from './posthog';
 
 // Share utilities
 export * from './share';
-

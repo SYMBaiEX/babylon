@@ -12,7 +12,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { asc, db, eq, oracleCommitments } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import type { StoredCommitment } from '@babylon/shared/oracle';
+import type { StoredCommitment } from './oracle/types';
 
 const ENCRYPTION_KEY =
   process.env.ORACLE_ENCRYPTION_KEY || 'default-key-change-in-production-32';

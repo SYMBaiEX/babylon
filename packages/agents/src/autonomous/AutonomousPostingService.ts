@@ -6,13 +6,13 @@
 
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
+  characterMappingService,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '../shared/logger';
-import { characterMappingService } from '../services/interfaces';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import { callGroqDirect } from '../llm/direct-groq';

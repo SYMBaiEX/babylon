@@ -15,13 +15,14 @@ import {
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { loadActorById, type ActorData } from '@babylon/engine';
+import { loadActorById, type ActorData, getAIModelConfig } from '@babylon/engine';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import {
   AgentType,
   type UnifiedAgentRegistration,
 } from '../types/agent-registry';
+import { agentRegistry } from '../services/agent-registry.service';
 import type { JsonValue } from '../types/common';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
@@ -33,6 +34,7 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { getLatestRLModel } from '../training/WandbModelFetcher';
 
 // Extended AgentRuntime with Babylon-specific properties
 interface ExtendedAgentRuntime extends AgentRuntime {
@@ -269,9 +271,6 @@ export class AgentRuntimeManager {
     // Get model version if using RL model
     let modelVersion: string | undefined;
     if (useWandb && wandbModel) {
-      const { getLatestRLModel } = await import(
-        '../training/WandbModelFetcher'
-      );
       const latestModel = await getLatestRLModel();
       if (latestModel && latestModel.modelPath === wandbModel) {
         modelVersion = latestModel.version;

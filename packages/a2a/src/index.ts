@@ -42,7 +42,8 @@ export {
 export * from './services';
 
 // Shared utilities (logger, snowflake, types)
-export * from './shared';
+// Note: Don't export types from ./shared to avoid duplicates with @babylon/shared
+export * from './shared/types';
 
 // Types
 export * from './types';

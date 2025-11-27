@@ -5,7 +5,8 @@
  */
 
 export * from './a2a';
-export * from './payments';
+// Don't re-export from @babylon/shared to avoid duplicate exports
+// Import directly from @babylon/shared when needed
 export * from './contracts';
 export * from './responses';
 export * from './server';

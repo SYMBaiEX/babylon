@@ -8,7 +8,7 @@ import { parseEther } from 'ethers';
 import { z } from 'zod';
 import { and, db, eq, lt, moderationEscrows, sql, users } from '@babylon/db';
 import { X402Manager } from '../payments/x402-manager';
-import { logger } from '../shared/logger';
+import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
 import type {
   JsonRpcRequest,

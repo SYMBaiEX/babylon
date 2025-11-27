@@ -15,8 +15,8 @@ import type { IAgentRuntime } from '@elizaos/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { createAutonomousCoordinator } from '../dependencies';
-import { logger } from '../utils/logger';
 import { TrajectoryRecorder } from '../training/TrajectoryRecorder';
+import { logger } from '../utils/logger';
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,

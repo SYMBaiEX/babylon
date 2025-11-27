@@ -38,7 +38,13 @@ export function errorHandler(
   const errorContext = {
     url: request.url,
     method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
+    headers: (() => {
+      const headersObj: Record<string, string> = {};
+      request.headers.forEach((value, key) => {
+        headersObj[key] = value;
+      });
+      return headersObj;
+    })(),
     timestamp: new Date().toISOString(),
   };
 
@@ -174,7 +180,13 @@ export function errorHandler(
       request: {
         url: request.url,
         method: request.method,
-        headers: Object.fromEntries(request.headers.entries()),
+        headers: (() => {
+      const headersObj: Record<string, string> = {};
+      request.headers.forEach((value, key) => {
+        headersObj[key] = value;
+      });
+      return headersObj;
+    })(),
       },
     };
     if (userId) {

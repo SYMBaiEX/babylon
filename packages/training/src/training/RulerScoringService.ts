@@ -13,9 +13,18 @@
  * Based on: https://art.openpipe.ai/fundamentals/ruler
  */
 
+import {
+  and,
+  asc,
+  db,
+  eq,
+  inArray,
+  isNull,
+  not,
+  trajectories,
+} from '@babylon/db';
 import { asUUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-import { and, asc, db, eq, inArray, isNull, not, trajectories } from '@babylon/db';
 import {
   getLLMCaller,
   getToARTMessages,
@@ -443,7 +452,9 @@ export class RulerScoringService {
       );
 
       // Add success/error info
-      const errors = rt.traj.steps.filter((s) => s.action && !s.action.success).length;
+      const errors = rt.traj.steps.filter(
+        (s) => s.action && !s.action.success
+      ).length;
       const successRate =
         rt.traj.steps.length > 0
           ? (

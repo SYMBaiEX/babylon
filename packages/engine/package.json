@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "require": "./src/index.ts"
+    },
+    "./prompts": {
+      "types": "./src/prompts/index.ts",
+      "import": "./src/prompts/index.ts",
+      "require": "./src/prompts/index.ts"
     }
   },
   "scripts": {

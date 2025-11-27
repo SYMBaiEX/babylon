@@ -19,5 +19,6 @@ export * from './profile';
 export * from './retry';
 export * from './singleton';
 export * from './snowflake';
+export * from './token-counter';
 export * from './ui';
 

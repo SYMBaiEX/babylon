@@ -8,10 +8,10 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
-import { setPointsService } from '@babylon/shared/moderation';
-import { setNotificationService } from '@babylon/shared/moderation';
+import { setPointsService, setNotificationService } from '@babylon/api';
 import { PointsService } from '@babylon/api/services/points-service';
 import { createNotification } from '@babylon/api/services/notification-service';
+import { setReputationSyncService } from '@babylon/engine';
 
 const sentryDisabled =
   process.env.DISABLE_SENTRY === 'true' ||
@@ -43,6 +43,23 @@ export async function register() {
   // Initialize Sentry for server-side (Node.js runtime)
   if (!sentryDisabled && process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config');
+  }
+
+  // Register reputation sync service if agents package is available
+  // This breaks the circular dependency between engine and agents packages
+  if (process.env.AGENT0_ENABLED === 'true' && process.env.NEXT_RUNTIME === 'nodejs') {
+    try {
+      const { createReputationSyncAdapter } = await import(
+        '@babylon/agents/agent0/reputation/reputation-sync-adapter'
+      );
+      setReputationSyncService(createReputationSyncAdapter());
+    } catch (error) {
+      // Don't fail startup if agents package isn't available
+      console.warn(
+        'Reputation sync service not available (agents package may not be installed):',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   }
 
   // Register Babylon on Agent0 registry (ERC-8004) on startup

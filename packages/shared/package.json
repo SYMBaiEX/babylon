@@ -27,14 +27,13 @@
     "zod": "^4.1.12"
   },
   "peerDependencies": {
-    "@babylon/contracts": "workspace:*",
-    "@babylon/db": "workspace:*",
     "@privy-io/react-auth": "^3.7.0",
     "posthog-js": "^1.290.0",
     "posthog-node": "^5.11.2"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "tiktoken": "^1.0.21",
     "typescript": "^5.9.3"
   }
 }

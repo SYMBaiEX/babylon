@@ -4,7 +4,6 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "rootDir": "./src",
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -18,8 +17,9 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "outDir": "./dist",
     "declaration": true,
+      "outDir": "./dist",
+      "rootDir": "./src",
     "declarationMap": true,
     "sourceMap": true,
     "removeComments": false,
@@ -30,6 +30,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "composite": false,
     "forceConsistentCasingInFileNames": true,
     "types": ["bun-types"],
     "moduleDetection": "force",
@@ -48,5 +49,5 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "../../apps/**/*"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "../../apps/**/*", "../training/**/*", "../api/**/*", "../engine/**/*", "../shared/**/*", "../contracts/**/*", "../a2a/**/*", "../testing/**/*", "../db/**/*"]
 }

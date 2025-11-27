@@ -87,13 +87,30 @@ import {
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 
-// Interface for accessing private SDK properties (needed for tasks/list handling)
-interface JsonRpcHandlerWithRequestHandler {
+// Type guards for accessing SDK internal structure (needed for tasks/list handling)
+// These are needed because the SDK doesn't expose these properties publicly
+function hasRequestHandler(
+  handler: JsonRpcTransportHandler
+): handler is JsonRpcTransportHandler & {
   requestHandler: DefaultRequestHandlerType;
+} {
+  return (
+    handler !== null &&
+    typeof handler === 'object' &&
+    'requestHandler' in handler
+  );
 }
 
-interface RequestHandlerWithTaskStore {
+function hasTaskStore(
+  handler: DefaultRequestHandlerType
+): handler is DefaultRequestHandlerType & {
   taskStore: ExtendedTaskStore;
+} {
+  return (
+    handler !== null &&
+    typeof handler === 'object' &&
+    'taskStore' in handler
+  );
 }
 
 export const dynamic = 'force-dynamic';
@@ -285,31 +302,20 @@ export async function POST(
       // Handle tasks/list manually
       if (body.method === 'tasks/list') {
         const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-        // Access requestHandler from jsonRpcHandler - it's a known property
-        // Type guard to ensure structure matches expected
-        if (
-          !jsonRpcHandler ||
-          typeof jsonRpcHandler !== 'object' ||
-          !('requestHandler' in jsonRpcHandler)
-        ) {
+        
+        // Use type guards to safely access internal SDK structure
+        if (!hasRequestHandler(jsonRpcHandler)) {
           throw new Error('Invalid JSON-RPC handler structure');
         }
-        // Cast through unknown to access private properties - the SDK doesn't expose these publicly
-        const handler =
-          jsonRpcHandler as unknown as JsonRpcHandlerWithRequestHandler;
-        // Access taskStore from requestHandler - ExtendedTaskStore is a known property
-        if (
-          !handler.requestHandler ||
-          typeof handler.requestHandler !== 'object' ||
-          !('taskStore' in handler.requestHandler)
-        ) {
+        
+        const requestHandler = jsonRpcHandler.requestHandler;
+        if (!hasTaskStore(requestHandler)) {
           throw new Error(
             'Invalid request handler structure - missing taskStore'
           );
         }
-        const taskStore = (
-          handler.requestHandler as unknown as RequestHandlerWithTaskStore
-        ).taskStore;
+        
+        const taskStore = requestHandler.taskStore;
 
         const params = (body.params || {}) as {
           contextId?: string;

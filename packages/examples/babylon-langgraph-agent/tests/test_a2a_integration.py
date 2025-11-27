@@ -5,10 +5,8 @@ Tests Agent0 registration, authentication, and all Babylon methods
 
 import os
 import pytest
-import asyncio
 import json
 from dotenv import load_dotenv
-from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
@@ -37,7 +35,7 @@ def test_identity(web3_account):
     return {
         'address': web3_account.address,
         'tokenId': 12345,
-        'agentId': f"11155111:12345",
+        'agentId': "11155111:12345",
         'name': 'Test Agent'
     }
 
@@ -110,7 +108,7 @@ class TestA2AAuthentication:
         assert str(test_identity['tokenId']) in message
         assert len(signature) == 132  # 0x + 130 hex chars
         
-        print(f"✅ Handshake message created and signed")
+        print("✅ Handshake message created and signed")
         print(f"   Message: {message[:50]}...")
         print(f"   Signature: {signature[:32]}...")
     
@@ -165,7 +163,7 @@ class TestA2AAuthentication:
             if 'result' in response:
                 assert 'agentId' in response['result']
                 assert 'sessionToken' in response['result']
-                print(f"✅ Handshake successful!")
+                print("✅ Handshake successful!")
                 print(f"   Agent ID: {response['result']['agentId']}")
                 print(f"   Session: {response['result']['sessionToken'][:16]}...")
             else:
@@ -214,7 +212,7 @@ class TestBabylonA2AMethods:
         })
         
         assert 'perpPositions' in result or 'marketPositions' in result
-        print(f"✅ Got positions")
+        print("✅ Got positions")
     
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Requires running Babylon server")

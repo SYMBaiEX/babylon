@@ -25,7 +25,7 @@ import {
   isNotNull,
 } from '@babylon/db';
 import { agentPerformanceMetrics, gameConfigs, users } from '@babylon/db/schema';
-import { logger } from '../../shared/logger';
+import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '../../shared/snowflake';
 import { getCachedAgent0ReputationScore } from './agent0-reputation-cache';
 import { recalculateReputation } from '@babylon/engine';

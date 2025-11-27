@@ -6,7 +6,7 @@
  */
 
 import { count, db, desc, eq, messages, posts, reports, users } from '@babylon/db';
-import { callClaudeDirect } from '@babylon/shared/services/llm';
+import { callClaudeDirect } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 
 // NotificationService interface - will be injected from the web app

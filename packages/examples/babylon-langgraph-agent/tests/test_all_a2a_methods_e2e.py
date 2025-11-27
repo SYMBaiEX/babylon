@@ -9,7 +9,6 @@ This test suite verifies that ALL ~60 A2A methods are:
 """
 
 import pytest
-import asyncio
 import os
 from agent import BabylonA2AClient, A2AError
 

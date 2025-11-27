@@ -24,7 +24,7 @@ import {
 } from '@babylon/shared';
 import type { ActorData } from '@babylon/shared';
 import type { AgentCapabilities } from '@babylon/shared/types/agents';
-import { AgentStatus, AgentType } from '@babylon/agents/types';
+import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 
 /**

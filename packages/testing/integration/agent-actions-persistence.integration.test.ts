@@ -19,7 +19,7 @@ import {
   createTestAgent,
 } from '@babylon/agents';
 import { WalletService } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 // Load environment variables from .env files if they exist (for CI and local environments)
 // Priority: process.env > .env.test > .env.local

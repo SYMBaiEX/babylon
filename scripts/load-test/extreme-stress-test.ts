@@ -15,8 +15,7 @@
  *   bun run scripts/load-test/extreme-stress-test.ts [environment]
  */
 
-import { logger } from '@babylon/shared';
-import { performanceMonitor } from '@babylon/shared/monitoring/performance-monitor';
+import { logger, performanceMonitor } from '@babylon/shared';
 import {
   type EnhancedLoadTestConfig,
   EnhancedLoadTestSimulator,

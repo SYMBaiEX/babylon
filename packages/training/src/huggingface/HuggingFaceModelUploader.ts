@@ -5,15 +5,15 @@
  * Handles conversion from WANDB format to HuggingFace format.
  */
 
+import {
+  benchmarkResults,
+  db,
+  type JsonValue,
+  trainedModels,
+} from '@babylon/db';
 import { desc, eq } from 'drizzle-orm';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import {
-  db,
-  benchmarkResults,
-  trainedModels,
-  type JsonValue,
-} from '@babylon/db';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
 import { logger } from '../utils/logger';
 import { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';

@@ -138,6 +138,16 @@ export {
   type GameTickResult,
 } from './serverless-game-tick';
 
+// Reputation Sync Interface (for optional integration with agents package)
+export {
+  getReputationSyncService,
+  setReputationSyncService,
+  syncReputationIfAvailable,
+  type ReputationSyncOptions,
+  type ReputationSyncResult,
+  type ReputationSyncService,
+} from './services/reputation-sync-interface';
+
 // Logger
 export { Logger, logger, type LogLevel } from '@babylon/shared';
 
@@ -334,7 +344,7 @@ export {
   calculateFreshness,
   detectPrediction,
   hasInsiderLanguage,
-} from './utils/content-analysis';
+} from '@babylon/shared';
 
 // Utils - Content Safety
 export {
@@ -342,7 +352,7 @@ export {
   checkUserInput,
   sanitizeContent,
   type ContentCheckResult,
-} from './utils/content-safety';
+} from '@babylon/shared';
 
 // Utils - Prompt Logging
 export {
@@ -361,7 +371,7 @@ export {
   MODEL_TOKEN_LIMITS,
   truncateToTokenLimit,
   truncateToTokenLimitSync,
-} from './token-counter';
+} from '@babylon/shared';
 
 // Post ID Parser
 export {

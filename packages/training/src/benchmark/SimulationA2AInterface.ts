@@ -455,6 +455,25 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for BuySharesParams
+   */
+  private isBuySharesParams(
+    params: A2AMethodParams
+  ): params is BuySharesParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'marketId' in params &&
+      'outcome' in params &&
+      'amount' in params &&
+      typeof params.marketId === 'string' &&
+      (params.outcome === 'YES' || params.outcome === 'NO') &&
+      typeof params.amount === 'number' &&
+      params.amount > 0
+    );
+  }
+
+  /**
    * Buy prediction market shares
    *
    * Executes a buy action through the simulation engine and returns the result.
@@ -464,23 +483,15 @@ export class SimulationA2AInterface {
    * @throws Error if buy action fails
    */
   private async handleBuyShares(
-    params: unknown
+    params: A2AMethodParams | undefined
   ): Promise<{ shares: number; avgPrice: number; positionId: string }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || !this.isBuySharesParams(params)) {
+      throw new Error(
+        'Invalid params: must be an object with marketId (string), outcome ("YES" | "NO"), and amount (positive number)'
+      );
     }
 
-    const { marketId, outcome, amount } = params as BuySharesParams;
-
-    if (!marketId || typeof marketId !== 'string') {
-      throw new Error('Invalid params: marketId must be a non-empty string');
-    }
-    if (outcome !== 'YES' && outcome !== 'NO') {
-      throw new Error('Invalid params: outcome must be "YES" or "NO"');
-    }
-    if (typeof amount !== 'number' || amount <= 0) {
-      throw new Error('Invalid params: amount must be a positive number');
-    }
+    const { marketId, outcome, amount } = params;
 
     const result = await this.engine.performAction('buy_prediction', {
       marketId,
@@ -511,6 +522,23 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for SellSharesParams
+   */
+  private isSellSharesParams(
+    params: A2AMethodParams
+  ): params is SellSharesParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'marketId' in params &&
+      'shares' in params &&
+      typeof params.marketId === 'string' &&
+      typeof params.shares === 'number' &&
+      params.shares > 0
+    );
+  }
+
+  /**
    * Sell prediction market shares
    *
    * Calculates proceeds from selling shares based on current market prices.
@@ -520,20 +548,15 @@ export class SimulationA2AInterface {
    * @throws Error if market not found
    */
   private async handleSellShares(
-    params: unknown
+    params: A2AMethodParams | undefined
   ): Promise<{ proceeds: number }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || !this.isSellSharesParams(params)) {
+      throw new Error(
+        'Invalid params: must be an object with marketId (string) and shares (positive number)'
+      );
     }
 
-    const { marketId, shares } = params as SellSharesParams;
-
-    if (!marketId || typeof marketId !== 'string') {
-      throw new Error('Invalid params: marketId must be a non-empty string');
-    }
-    if (typeof shares !== 'number' || shares <= 0) {
-      throw new Error('Invalid params: shares must be a positive number');
-    }
+    const { marketId, shares } = params;
 
     // Simplified: calculate proceeds based on current market price
     const state = this.engine.getGameState();
@@ -579,6 +602,28 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for OpenPositionParams
+   */
+  private isOpenPositionParams(
+    params: A2AMethodParams
+  ): params is OpenPositionParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'ticker' in params &&
+      'side' in params &&
+      'size' in params &&
+      'leverage' in params &&
+      typeof params.ticker === 'string' &&
+      (params.side === 'LONG' || params.side === 'SHORT') &&
+      typeof params.size === 'number' &&
+      params.size > 0 &&
+      typeof params.leverage === 'number' &&
+      params.leverage >= 1
+    );
+  }
+
+  /**
    * Open perpetual position
    *
    * Executes an open position action through the simulation engine.
@@ -588,26 +633,15 @@ export class SimulationA2AInterface {
    * @throws Error if open action fails
    */
   private async handleOpenPosition(
-    params: unknown
+    params: A2AMethodParams | undefined
   ): Promise<{ positionId: string; entryPrice: number }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || !this.isOpenPositionParams(params)) {
+      throw new Error(
+        'Invalid params: must be an object with ticker (string), side ("LONG" | "SHORT"), size (positive number), and leverage (>= 1)'
+      );
     }
 
-    const { ticker, side, size, leverage } = params as OpenPositionParams;
-
-    if (!ticker || typeof ticker !== 'string') {
-      throw new Error('Invalid params: ticker must be a non-empty string');
-    }
-    if (side !== 'LONG' && side !== 'SHORT') {
-      throw new Error('Invalid params: side must be "LONG" or "SHORT"');
-    }
-    if (typeof size !== 'number' || size <= 0) {
-      throw new Error('Invalid params: size must be a positive number');
-    }
-    if (typeof leverage !== 'number' || leverage < 1) {
-      throw new Error('Invalid params: leverage must be >= 1');
-    }
+    const { ticker, side, size, leverage } = params;
 
     const result = await this.engine.performAction('open_perp', {
       ticker,
@@ -634,6 +668,21 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for ClosePositionParams
+   */
+  private isClosePositionParams(
+    params: A2AMethodParams
+  ): params is ClosePositionParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'positionId' in params &&
+      typeof params.positionId === 'string' &&
+      params.positionId.length > 0
+    );
+  }
+
+  /**
    * Close perpetual position
    *
    * Executes a close position action through the simulation engine.
@@ -643,17 +692,15 @@ export class SimulationA2AInterface {
    * @throws Error if close action fails
    */
   private async handleClosePosition(
-    params: unknown
+    params: A2AMethodParams | undefined
   ): Promise<{ pnl: number; exitPrice: number }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || !this.isClosePositionParams(params)) {
+      throw new Error(
+        'Invalid params: must be an object with positionId (non-empty string)'
+      );
     }
 
-    const { positionId } = params as ClosePositionParams;
-
-    if (!positionId || typeof positionId !== 'string') {
-      throw new Error('Invalid params: positionId must be a non-empty string');
-    }
+    const { positionId } = params;
 
     const result = await this.engine.performAction('close_perp', {
       positionId,
@@ -701,6 +748,25 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for CreatePostParams
+   */
+  private isCreatePostParams(
+    params: A2AMethodParams
+  ): params is CreatePostParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'content' in params &&
+      typeof params.content === 'string' &&
+      params.content.trim().length > 0 &&
+      ('marketId' in params
+        ? typeof params.marketId === 'string' &&
+          params.marketId.trim().length > 0
+        : true)
+    );
+  }
+
+  /**
    * Create post
    *
    * Executes a create post action through the simulation engine.
@@ -709,28 +775,16 @@ export class SimulationA2AInterface {
    * @returns Object with created post ID
    * @throws Error if create action fails
    */
-  private async handleCreatePost(params: unknown): Promise<{ postId: string }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
-    }
-
-    const { content, marketId } = params as CreatePostParams;
-
-    if (
-      !content ||
-      typeof content !== 'string' ||
-      content.trim().length === 0
-    ) {
-      throw new Error('Invalid params: content must be a non-empty string');
-    }
-    if (
-      marketId !== undefined &&
-      (typeof marketId !== 'string' || marketId.trim().length === 0)
-    ) {
+  private async handleCreatePost(
+    params: A2AMethodParams | undefined
+  ): Promise<{ postId: string }> {
+    if (!params || !this.isCreatePostParams(params)) {
       throw new Error(
-        'Invalid params: marketId must be a non-empty string if provided'
+        'Invalid params: must be an object with content (non-empty string) and optional marketId (non-empty string)'
       );
     }
+
+    const { content, marketId } = params;
 
     const result = await this.engine.performAction('create_post', {
       content,
@@ -775,6 +829,21 @@ export class SimulationA2AInterface {
   }
 
   /**
+   * Type guard for JoinGroupParams
+   */
+  private isJoinGroupParams(
+    params: A2AMethodParams
+  ): params is JoinGroupParams {
+    return (
+      typeof params === 'object' &&
+      params !== null &&
+      'groupId' in params &&
+      typeof params.groupId === 'string' &&
+      params.groupId.length > 0
+    );
+  }
+
+  /**
    * Join group chat
    *
    * Executes a join group action through the simulation engine.
@@ -783,17 +852,15 @@ export class SimulationA2AInterface {
    * @returns Object indicating success status
    */
   private async handleJoinGroup(
-    params: unknown
+    params: A2AMethodParams | undefined
   ): Promise<{ success: boolean }> {
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || !this.isJoinGroupParams(params)) {
+      throw new Error(
+        'Invalid params: must be an object with groupId (non-empty string)'
+      );
     }
 
-    const { groupId } = params as JoinGroupParams;
-
-    if (!groupId || typeof groupId !== 'string') {
-      throw new Error('Invalid params: groupId must be a non-empty string');
-    }
+    const { groupId } = params;
 
     const result = await this.engine.performAction('join_group', {
       groupId,
@@ -1050,7 +1117,7 @@ export class SimulationA2AInterface {
     return (await this.sendRequest('a2a.createComment', {
       content,
       marketId: postId,
-    })) as unknown as CreateCommentResult;
+    })) as CreateCommentResult;
   }
 
   /**

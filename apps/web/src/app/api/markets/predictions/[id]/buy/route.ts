@@ -110,6 +110,7 @@ import { WalletService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 import { PredictionMarketTradeSchema } from '@babylon/shared';
+import { ensureMarketOnChain } from '@babylon/engine/services/onchain-market-service';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -317,9 +318,6 @@ export const POST = withErrorHandling(
 
         // Create market on-chain if it doesn't have onChainMarketId (non-blocking)
         if (!market.onChainMarketId) {
-          const { ensureMarketOnChain } = await import(
-            '@babylon/engine/services/onchain-market-service'
-          );
           await ensureMarketOnChain(market.id).catch((error) => {
             logger.warn(
               'Failed to create market on-chain (non-blocking)',

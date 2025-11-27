@@ -4,7 +4,6 @@ Tests for Babylon LangGraph Agent
 
 import pytest
 import json
-from unittest.mock import Mock, AsyncMock, patch
 
 def test_memory_system():
     """Test that memory stores and retrieves actions"""
@@ -93,7 +92,6 @@ def test_strategy_prompt():
     """Test system prompt includes strategy"""
     # This test doesn't need API key, just tests the prompt structure
     expected_strategy = "aggressive"
-    expected_text = "trading agent"
     
     # Verify the pattern works
     assert expected_strategy in "aggressive"

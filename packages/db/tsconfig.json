@@ -30,10 +30,16 @@
     "forceConsistentCasingInFileNames": true,
     "moduleDetection": "force",
     "outDir": "./dist",
-    "rootDir": "./src"
+    "baseUrl": ".",
+    "paths": {
+      "@babylon/db": ["./src/index.ts"],
+      "@babylon/db/*": ["./src/*"],
+      "@babylon/shared": ["../shared/src/index.ts"],
+      "@babylon/shared/*": ["../shared/src/*"],
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"]
+    }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "../api/**/*", "../engine/**/*", "../shared/**/*", "../contracts/**/*", "../agents/**/*", "../a2a/**/*", "../training/**/*", "../testing/**/*"]
 }
-
-

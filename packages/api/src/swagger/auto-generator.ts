@@ -6,19 +6,16 @@
  */
 
 import path from 'path';
-import type { Options } from 'swagger-jsdoc';
-import swaggerJsdoc from 'swagger-jsdoc';
 import { swaggerDefinition } from './config';
 
-const options: Options = {
-  definition: swaggerDefinition,
-  // Scan all route files for @openapi JSDoc comments
-  // Use absolute paths for better reliability
-  apis: [
-    path.join(process.cwd(), 'src/app/api/**/*.ts'),
-    path.join(process.cwd(), 'src/app/api/**/*.tsx'),
-  ],
+// swagger-jsdoc is an optional dev dependency for docs generation
+// Use dynamic import to handle cases where it's not installed
+type SwaggerJsdocOptions = {
+  definition: Record<string, unknown>;
+  apis: string[];
 };
+
+type SwaggerJsdocFunction = (options: SwaggerJsdocOptions) => Record<string, unknown>;
 
 /**
  * OpenAPI specification type
@@ -48,7 +45,32 @@ interface OpenAPISpec {
  * ```
  */
 export async function generateAutoSpec() {
-  const autoSpec: OpenAPISpec = swaggerJsdoc(options) as OpenAPISpec;
+  // Dynamically import swagger-jsdoc if available
+  // swagger-jsdoc is an optional dev dependency for docs generation
+  let swaggerJsdoc: SwaggerJsdocFunction | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error - swagger-jsdoc is an optional dev dependency for docs generation
+    const swaggerModule = await import('swagger-jsdoc');
+    swaggerJsdoc = swaggerModule.default as SwaggerJsdocFunction;
+  } catch {
+    // swagger-jsdoc not installed, will fall back to manual spec only
+  }
+
+  const options: SwaggerJsdocOptions = {
+    definition: swaggerDefinition,
+    // Scan all route files for @openapi JSDoc comments
+    // Use absolute paths for better reliability
+    apis: [
+      path.join(process.cwd(), 'src/app/api/**/*.ts'),
+      path.join(process.cwd(), 'src/app/api/**/*.tsx'),
+    ],
+  };
+
+  // Generate auto spec if swagger-jsdoc is available, otherwise use empty spec
+  const autoSpec: OpenAPISpec = swaggerJsdoc
+    ? (swaggerJsdoc(options) as OpenAPISpec)
+    : { openapi: swaggerDefinition.openapi || '3.0.0', info: swaggerDefinition.info };
 
   // Ensure openapi version field is present (required by Swagger UI)
   if (!autoSpec.openapi && !autoSpec.swagger) {

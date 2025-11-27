@@ -11,15 +11,14 @@
  * - Seeds data
  */
 
-// @ts-expect-error - bun global is available in bun runtime
 import { $ } from 'bun';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   printValidationResult,
   validateEnvironment,
-} from '../../src/lib/deployment/env-detection';
-import { logger } from '../../src/lib/logger';
+} from '../../packages/contracts/src/deployment/env-detection';
+import { logger } from '../../packages/shared/src/utils/logger';
 import { killPort } from '../utils/kill-port';
 import '../utils/ensure-foundry-path'; // Ensure Foundry tools are in PATH
 

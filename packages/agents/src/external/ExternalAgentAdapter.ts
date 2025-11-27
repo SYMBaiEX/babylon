@@ -18,7 +18,8 @@
 import { db } from '@babylon/db';
 import { createDecipheriv } from 'crypto';
 import { logger } from '../shared/logger';
-import type { AgentCard, TrustLevel } from '../types/agent-registry';
+import type { AgentCard } from '../types/agent-registry';
+import { TrustLevel } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
 
 // Re-export TrustLevel from types for backwards compatibility

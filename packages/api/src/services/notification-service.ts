@@ -56,10 +56,10 @@ export async function createNotification(
 
   // Check if users have blocked each other (if actorId is provided)
   if (params.actorId) {
-    const modFilters = await import('@babylon/shared/moderation/filters');
+    const { hasBlocked } = await import('@babylon/db');
     const [isBlocked, hasBlockedMe] = await Promise.all([
-      modFilters.hasBlocked(params.userId, params.actorId),
-      modFilters.hasBlocked(params.actorId, params.userId),
+      hasBlocked(params.userId, params.actorId),
+      hasBlocked(params.actorId, params.userId),
     ]);
 
     if (isBlocked || hasBlockedMe) {

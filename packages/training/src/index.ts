@@ -9,39 +9,35 @@
  * @packageDocumentation
  */
 
-// Dependencies configuration
-export {
-  configureTrainingDependencies,
-  configureAutonomousCoordinator,
-  getAgentRuntimeManager,
-  getLLMCaller,
-  getExportGroupedForGRPO,
-  getExportToHuggingFace,
-  getToARTMessages,
-  createAutonomousCoordinator,
-  areDependenciesConfigured,
-} from './dependencies';
+// Re-export all sub-modules
+export * from './benchmark';
 
 export type {
-  IAgentRuntimeManager,
-  ILLMCaller,
-  IAutonomousCoordinator,
+  ARTMessage,
+  CreateAutonomousCoordinatorFn,
   ExportGroupedForGRPOFn,
   ExportToHuggingFaceFn,
+  IAgentRuntimeManager,
+  IAutonomousCoordinator,
+  ILLMCaller,
   ToARTMessagesFn,
-  CreateAutonomousCoordinatorFn,
   TrajectoryForART,
   TrajectoryStepForART,
-  ARTMessage,
 } from './dependencies';
-
+// Dependencies configuration
+export {
+  areDependenciesConfigured,
+  configureAutonomousCoordinator,
+  configureTrainingDependencies,
+  createAutonomousCoordinator,
+  getAgentRuntimeManager,
+  getExportGroupedForGRPO,
+  getExportToHuggingFace,
+  getLLMCaller,
+  getToARTMessages,
+} from './dependencies';
+export * from './huggingface';
+export * from './training';
 // Utilities
 export { logger } from './utils/logger';
 export { generateSnowflakeId } from './utils/snowflake';
-
-// Re-export all sub-modules
-export * from './benchmark';
-export * from './huggingface';
-export * from './training';
-
-

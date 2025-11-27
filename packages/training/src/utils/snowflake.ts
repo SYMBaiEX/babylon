@@ -15,5 +15,3 @@ export async function generateSnowflakeId(): Promise<string> {
   // Format: timestamp (13 digits) + counter (3 digits)
   return `${timestamp}${currentCounter.toString().padStart(3, '0')}`;
 }
-
-

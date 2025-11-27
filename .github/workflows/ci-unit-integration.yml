@@ -110,7 +110,7 @@ jobs:
         run: |
           echo "🧪 Running unit tests with database connection..."
           echo "📊 Database URL configured: ${DATABASE_URL:0:30}..."
-          bun test tests/unit/ --coverage
+          bun test packages/testing/unit/ --preload ./packages/testing/unit/preload.ts --coverage
         continue-on-error: false
 
       - name: Start Next.js dev server
@@ -127,7 +127,7 @@ jobs:
           PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
         run: |
           echo "🚀 Starting Next.js dev server for integration tests..."
-          SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
+          SKIP_ENV_VALIDATION=1 bunx --bun next dev --dir apps/web > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
           echo "📝 Server PID: $(cat /tmp/next-server.pid)"
 
@@ -154,11 +154,11 @@ jobs:
         run: |
           echo "🔐 Setting up Playwright authentication for integration tests..."
           # First run E2E auth setup
-          bunx playwright test --project=setup || {
+          cd packages/testing && bunx playwright test --project=setup || {
             echo "⚠️  E2E auth setup failed, but continuing..."
           }
           # Then run integration auth setup to extract tokens
-          bunx playwright test --project=setup-integration-auth || {
+          cd packages/testing && bunx playwright test --project=setup-integration-auth || {
             echo "⚠️  Integration auth setup failed, but continuing..."
           }
           echo "✅ Playwright authentication setup complete"
@@ -204,8 +204,8 @@ jobs:
           PINATA_JWT: ${{ secrets.PINATA_JWT || '' }}
           AGENT0_SUBGRAPH_URL: ${{ secrets.AGENT0_SUBGRAPH_URL || '' }}
         run: |
-          bun test tests/integration/
-          bun test src/engine/__tests__/
+          bun test packages/testing/integration/ --preload ./packages/testing/integration/preload.ts
+          bun test packages/engine/src/__tests__/
         continue-on-error: false
 
       - name: Stop Next.js dev server

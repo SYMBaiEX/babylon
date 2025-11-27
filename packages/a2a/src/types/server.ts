@@ -8,7 +8,7 @@ import type { JsonValue } from '../shared/types';
 import type {
   PaymentVerificationParams,
   PaymentVerificationResult,
-} from './payments';
+} from '@babylon/shared';
 import type { AgentCapabilities, AgentProfile } from './a2a';
 
 /**

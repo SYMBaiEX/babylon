@@ -118,6 +118,7 @@ import {
 } from '@babylon/db';
 import { authenticate } from '@babylon/api';
 import { withErrorHandling } from '@babylon/api';
+import { z } from 'zod';
 
 /**
  * GET /api/user-groups/[id]
@@ -254,7 +255,6 @@ export const PUT = withErrorHandling(
     const body = await request.json();
 
     // Validate input
-    const { z } = await import('zod');
     const updateSchema = z.object({
       name: z.string().min(1).max(100).optional(),
       description: z.string().max(500).optional().nullable(),

@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 # Import official A2A SDK
 try:
     from a2a.client import A2AClient
-    from a2a.types import Message, Task, TextPart
     HAS_A2A_SDK = True
 except ImportError:
     print("⚠️  Official a2a-sdk not installed!")
@@ -49,7 +48,7 @@ async def main():
     # STEP 1: Initialize A2A Client
     # ==========================================
     
-    print(f"\n📡 Step 1: Connecting to Babylon via official A2A...")
+    print("\n📡 Step 1: Connecting to Babylon via official A2A...")
     print(f"   Agent Card URL: {AGENT_CARD_URL}")
     
     try:
@@ -119,11 +118,11 @@ async def main():
             # Check for artifacts (results)
             artifacts = response.get('artifacts', [])
             if artifacts:
-                print(f"\n   📊 Results:")
+                print("\n   📊 Results:")
                 for i, artifact in enumerate(artifacts, 1):
                     print(f"   Artifact {i}: {artifact}")
         elif response.get('kind') == 'message':
-            print(f"   Direct message response")
+            print("   Direct message response")
             
     except Exception as e:
         print(f"❌ Portfolio query failed: {e}")
@@ -174,7 +173,7 @@ async def main():
                 
                 if state in ['completed', 'failed', 'canceled']:
                     if state == 'completed':
-                        print(f"\n   ✅ Trade completed!")
+                        print("\n   ✅ Trade completed!")
                         if task.get('artifacts'):
                             print(f"   Results: {task['artifacts']}")
                     else:

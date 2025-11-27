@@ -79,7 +79,7 @@ import { EventEmitter } from 'events';
 import { logger } from '@babylon/shared';
 import { characterMappingService } from './services/character-mapping-service';
 import { shuffleArray } from './utils/randomization';
-import { ContentValidator } from './validation/content-validator';
+import { ContentValidator } from '@babylon/shared';
 import {
   ambientPosts,
   analystReaction,

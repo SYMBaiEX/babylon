@@ -117,3 +117,82 @@ export interface QueryParams extends PaginationParams {
   sort?: SortParams;
   filters?: FilterParams;
 }
+
+/**
+ * PostHog Server Client Interface
+ * Minimal interface for PostHog Node.js client (optional peer dependency)
+ */
+export interface PostHogServerClient {
+  capture(params: {
+    distinctId: string;
+    event: string;
+    properties?: StringRecord<JsonValue>;
+  }): void;
+  identify(params: {
+    distinctId: string;
+    properties?: StringRecord<JsonValue>;
+  }): void;
+  flush(): Promise<void>;
+  shutdown(): Promise<void>;
+}
+
+/**
+ * PostHog Server Client Constructor
+ * Type for PostHog constructor from posthog-node package
+ */
+export interface PostHogServerConstructor {
+  new (
+    apiKey: string,
+    options?: {
+      host?: string;
+      flushAt?: number;
+      flushInterval?: number;
+      requestTimeout?: number;
+    }
+  ): PostHogServerClient;
+}
+
+/**
+ * PostHog Client Interface (browser)
+ * Minimal interface for PostHog JS client (optional peer dependency)
+ */
+export interface PostHogClient {
+  init(
+    apiKey: string,
+    options?: {
+      api_host?: string;
+      capture_pageview?: boolean;
+      capture_pageleave?: boolean;
+      session_recording?: {
+        maskAllInputs?: boolean;
+        maskTextSelector?: string;
+        recordCrossOriginIframes?: boolean;
+      };
+      autocapture?: {
+        dom_event_allowlist?: string[];
+        url_allowlist?: string[];
+        element_allowlist?: string[];
+        css_selector_allowlist?: string[];
+      };
+      loaded?: () => void;
+      respect_dnt?: boolean;
+      persistence?: string;
+      enable_recording_console_log?: boolean;
+      capture_exceptions?: boolean;
+      sanitize_properties?: (properties: StringRecord<JsonValue>) => StringRecord<JsonValue>;
+    }
+  ): void;
+  capture(event: string, properties?: StringRecord<JsonValue>): void;
+  identify(distinctId: string, properties?: StringRecord<JsonValue>): void;
+  reset(): void;
+  __loaded?: boolean;
+}
+
+/**
+ * PostHog Client Constructor (browser)
+ * Type for PostHog default export from posthog-js package
+ */
+export interface PostHogClientConstructor {
+  (): PostHogClient;
+  default: PostHogClientConstructor;
+}

@@ -12,9 +12,17 @@
 
 import { describe, expect, it } from 'bun:test';
 import dotenv from 'dotenv';
+import type {
+  A2APerpPosition,
+} from '@babylon/a2a';
+import {
+  AgentDecisionMaker,
+  type FeedPost,
+  type PerpMarket,
+  type PredictionMarket,
+} from '../src/decision';
 import { BabylonA2AClient } from '../src/a2a-client';
 import { executeAction } from '../src/actions';
-import { AgentDecisionMaker } from '../src/decision';
 import { AgentMemory } from '../src/memory';
 
 dotenv.config({ path: '.env.local' });
@@ -152,9 +160,18 @@ describe('E2E - Autonomous Agent Live Tests', () => {
     const feed = await a2aClient.getFeed({ limit: 10 });
 
     const decision = await decisionMaker.decide({
-      portfolio,
-      markets,
-      feed,
+      portfolio: {
+        balance: portfolio.balance,
+        positions: portfolio.positions.filter((p): p is A2APerpPosition => 'ticker' in p),
+        pnl: portfolio.pnl,
+      },
+      markets: {
+        predictions: markets.predictions as unknown as PredictionMarket[],
+        perps: markets.perps as unknown as PerpMarket[],
+      },
+      feed: {
+        posts: feed.posts as unknown as FeedPost[],
+      },
       memory: memory.getRecent(5),
     });
 
@@ -249,7 +266,7 @@ describe('E2E - Autonomous Agent Live Tests', () => {
   });
 
   it('Phase 7: should get leaderboard', async () => {
-    const leaderboard = await a2aClient.getLeaderboard({ category: 'all', limit: 10 });
+    const leaderboard = await a2aClient.getLeaderboard({ pointsType: 'all', limit: 10 });
     expect(leaderboard).toBeDefined();
     console.log('   Leaderboard:', leaderboard);
   });
@@ -281,9 +298,18 @@ describe('E2E - Autonomous Agent Live Tests', () => {
 
     // 2. Make decision
     const decision = await decisionMaker.decide({
-      portfolio,
-      markets,
-      feed,
+      portfolio: {
+        balance: portfolio.balance,
+        positions: portfolio.positions.filter((p): p is A2APerpPosition => 'ticker' in p),
+        pnl: portfolio.pnl,
+      },
+      markets: {
+        predictions: markets.predictions as unknown as PredictionMarket[],
+        perps: markets.perps as unknown as PerpMarket[],
+      },
+      feed: {
+        posts: feed.posts as unknown as FeedPost[],
+      },
       memory: recentMemory,
     });
 

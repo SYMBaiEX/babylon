@@ -10,8 +10,7 @@
  * - Comprehensive reporting
  */
 
-import { logger } from '@babylon/shared';
-import { performanceMonitor } from '@babylon/shared/monitoring/performance-monitor';
+import { logger, performanceMonitor } from '@babylon/shared';
 import type {
   LoadTestConfig,
   LoadTestResult,

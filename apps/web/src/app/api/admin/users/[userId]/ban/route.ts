@@ -94,7 +94,9 @@ import { db } from '@babylon/db';
 import { requireAdmin } from '@babylon/api';
 import { BusinessLogicError, NotFoundError } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+import { logger, distributePointsToReporters } from '@babylon/shared';
+import { syncReputationToERC8004 } from '@babylon/agents';
+import { invalidateReputationCache } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
 
 const BanUserSchema = z.object({
   action: z.enum(['ban', 'unban']),
@@ -190,7 +192,6 @@ export const POST = withErrorHandling(
     // Sync with ERC-8004 reputation system via Agent0
     if (action === 'ban' && updatedUser.agent0TokenId) {
       try {
-        const { syncReputationToERC8004 } = await import('@babylon/agents');
         await syncReputationToERC8004(userId, {
           reputationScore: 0, // Banned users get 0 reputation
           isBanned: true,
@@ -214,9 +215,6 @@ export const POST = withErrorHandling(
     // Invalidate reputation cache
     if (action === 'ban') {
       try {
-        const { invalidateReputationCache } = await import(
-          '@babylon/agents/agent0/reputation/agent0-reputation-cache'
-        );
         await invalidateReputationCache(userId);
       } catch (error) {
         logger.error(
@@ -229,7 +227,6 @@ export const POST = withErrorHandling(
       // Distribute points to successful reporters if CSAM/scammer
       if ((isScammer ?? false) || (isCSAM ?? false)) {
         try {
-          const { distributePointsToReporters } = await import('@babylon/shared');
           const reason = isCSAM ? 'csam' : 'scammer';
           await distributePointsToReporters(userId, reason);
         } catch (error) {

@@ -11,20 +11,7 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "require": "./src/index.ts"
-    },
-    "./types": {
-      "types": "./src/types.ts",
-      "import": "./src/types.ts",
-      "require": "./src/types.ts"
-    },
-    "./deployment": {
-      "types": "./src/deployment/index.ts",
-      "import": "./src/deployment/index.ts",
-      "require": "./src/deployment/index.ts"
-    },
-    "./deployments/local": "./deployments/local/latest.json",
-    "./deployments/base-sepolia": "./deployments/base-sepolia/latest.json",
-    "./deployments/base": "./deployments/base/latest.json"
+    }
   },
   "files": [
     "src",

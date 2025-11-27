@@ -1,3 +1,5 @@
+/// <reference path="./global.d.ts" />
+
 /**
  * API Fetch Options
  *

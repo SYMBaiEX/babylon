@@ -14,17 +14,17 @@
  * @see BenchmarkService - For training pipeline evaluation
  */
 
+import {
+  benchmarkResults,
+  db,
+  type JsonValue,
+  trainedModels,
+  users,
+} from '@babylon/db';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { ethers } from 'ethers';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import {
-  db,
-  benchmarkResults,
-  trainedModels,
-  users,
-  type JsonValue,
-} from '@babylon/db';
 import { getAgentRuntimeManager } from '../dependencies';
 import { logger } from '../utils/logger';
 import { generateSnowflakeId } from '../utils/snowflake';

@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
 import { createTestAgent } from '@babylon/agents';
 import { asSystem } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
   process.env.TEST_API_URL ||

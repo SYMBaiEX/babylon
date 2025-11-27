@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import type { AgentCapabilities } from './agent-registry';
 import type { JsonRpcParams, JsonRpcResult, JsonValue } from './common';
 import { JsonValueSchema } from './common';
 

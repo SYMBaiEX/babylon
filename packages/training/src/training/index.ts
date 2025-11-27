@@ -4,54 +4,54 @@
  * Core training pipeline services for RL model development.
  */
 
-export { AutomationPipeline, automationPipeline } from './AutomationPipeline';
 export type { AutomationConfig } from './AutomationPipeline';
-
-export { BenchmarkService, benchmarkService } from './BenchmarkService';
+export { AutomationPipeline, automationPipeline } from './AutomationPipeline';
 export type { BenchmarkResults, ComparisonResults } from './BenchmarkService';
+export { BenchmarkService, benchmarkService } from './BenchmarkService';
 
 export { ConfigValidator } from './ConfigValidator';
-
-export { MarketOutcomesTracker } from './MarketOutcomesTracker';
-
-export { ModelDeployer, modelDeployer } from './ModelDeployer';
-export type { DeploymentOptions, DeploymentResult } from './ModelDeployer';
-
-export { ModelSelectionService, modelSelectionService } from './ModelSelectionService';
-
-export { ModelUsageVerifier } from './ModelUsageVerifier';
-
-export { RewardBackpropagationService, rewardBackpropagationService } from './RewardBackpropagationService';
-
-export { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
-
-export { RulerScoringService, rulerScoringService } from './RulerScoringService';
-export type { RulerScore, MarketOutcomes } from './RulerScoringService';
-
-export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
-
-export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
-
-export { getLatestRLModel } from './WandbModelFetcher';
-
 export { initializeTrainingSystem } from './init';
-
-// Window utilities
+export { MarketOutcomesTracker } from './MarketOutcomesTracker';
+export type { DeploymentOptions, DeploymentResult } from './ModelDeployer';
+export { ModelDeployer, modelDeployer } from './ModelDeployer';
 export {
-  getCurrentWindowId,
-  getPreviousWindowId,
-  parseWindowId,
-  isWindowComplete,
-  getWindowRange,
-  generateWindowIds,
-  getWindowIdForTimestamp,
-  isTimestampInWindow,
-} from './window-utils';
+  ModelSelectionService,
+  modelSelectionService,
+} from './ModelSelectionService';
+export { ModelUsageVerifier } from './ModelUsageVerifier';
+export {
+  RewardBackpropagationService,
+  rewardBackpropagationService,
+} from './RewardBackpropagationService';
+export { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
+export type { MarketOutcomes, RulerScore } from './RulerScoringService';
+export {
+  RulerScoringService,
+  rulerScoringService,
+} from './RulerScoringService';
+// Storage services
+export {
+  ModelStorageService,
+  modelStorage,
+} from './storage/ModelStorageService';
+export {
+  TrainingDataArchiver,
+  trainingDataArchiver,
+} from './storage/TrainingDataArchiver';
+export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
+export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
 
 // Types
 export * from './types';
-
-// Storage services
-export { ModelStorageService, modelStorage } from './storage/ModelStorageService';
-export { TrainingDataArchiver, trainingDataArchiver } from './storage/TrainingDataArchiver';
-
+export { getLatestRLModel } from './WandbModelFetcher';
+// Window utilities
+export {
+  generateWindowIds,
+  getCurrentWindowId,
+  getPreviousWindowId,
+  getWindowIdForTimestamp,
+  getWindowRange,
+  isTimestampInWindow,
+  isWindowComplete,
+  parseWindowId,
+} from './window-utils';

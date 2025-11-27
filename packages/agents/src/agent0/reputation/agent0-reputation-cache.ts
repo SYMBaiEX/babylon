@@ -12,7 +12,7 @@ import {
   users,
 } from '@babylon/db/schema';
 import { recalculateReputation } from '@babylon/engine';
-import { logger } from '../../shared/logger';
+import { logger } from '@babylon/shared';
 
 const CACHE_STALE_HOURS = 24;
 const CACHE_STALE_MS = CACHE_STALE_HOURS * 60 * 60 * 1000;

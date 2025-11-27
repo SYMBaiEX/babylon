@@ -12,7 +12,7 @@ import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
 import { PrivyClient } from '@privy-io/server-auth';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
-import { getAgent0Client } from '../services/interfaces';
+import { getAgent0Client } from '../agent0/Agent0Client';
 import { logger } from '../shared/logger';
 
 // Type definitions for Privy SDK (not exported by package)

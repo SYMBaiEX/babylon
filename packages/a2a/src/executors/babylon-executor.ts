@@ -20,10 +20,15 @@ import type {
 } from '@a2a-js/sdk/server';
 import { v4 as uuidv4 } from 'uuid';
 import { and, db, eq, follows, or, reports, userBlocks, userMutes } from '@babylon/db';
-import { logger } from '../shared/logger';
+import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { JsonRpcRequest } from '../types/a2a';
 import type { JsonValue } from '../shared/types';
+import {
+  handleCreateEscrowPayment,
+  handleVerifyEscrowPayment,
+  handleRefundEscrowPayment,
+} from '../handlers/escrow-handlers';
 
 /**
  * Main executor implementing all Babylon game operations
@@ -391,9 +396,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<unknown> {
     const agentId = context.contextId || context.taskId;
-    const { handleCreateEscrowPayment } = await import(
-      '../handlers/escrow-handlers'
-    );
     const requestParams: Record<string, JsonValue> = {
       recipientId: String(params.recipientId ?? ''),
       amountUSD: Number(params.amountUSD ?? 0),
@@ -420,9 +422,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<unknown> {
     const agentId = context.contextId || context.taskId;
-    const { handleVerifyEscrowPayment } = await import(
-      '../handlers/escrow-handlers'
-    );
     const request = {
       jsonrpc: '2.0' as const,
       method: 'a2a.verifyEscrowPayment',
@@ -447,9 +446,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<unknown> {
     const agentId = context.contextId || context.taskId;
-    const { handleRefundEscrowPayment } = await import(
-      '../handlers/escrow-handlers'
-    );
     const requestParams: Record<string, JsonValue> = {
       escrowId: String(params.escrowId ?? ''),
       refundTxHash: String(params.refundTxHash ?? ''),

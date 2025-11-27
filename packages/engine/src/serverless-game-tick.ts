@@ -32,6 +32,7 @@ import {
   gte,
   inArray,
   isNull,
+  isNotNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
@@ -41,6 +42,7 @@ import {
   pools,
   positions,
   posts,
+  postTags,
   questions as questionsSchema,
   rssHeadlines,
   tags,
@@ -71,6 +73,10 @@ import { MarketContextService } from './services/market-context-service';
 import { PredictionPriceHistoryService } from './services/prediction-price-history-service';
 import { generateSnowflakeId } from '@babylon/shared';
 import { worldFactsService } from './world-facts-service';
+import { getWandbModel } from './ai-model-config';
+// AlphaGroupInviteService imported but not used - reserved for future use
+// import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+import { syncReputationIfAvailable } from './services/reputation-sync-interface';
 
 // Migrated services - local imports
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
@@ -191,7 +197,6 @@ export async function executeGameTick(
     // Note: Wandb model configuration is loaded but not used in game tick
     // Wandb models should ONLY be used for agent operations, not game tick operations
     // This is kept for logging/debugging purposes only
-    const { getWandbModel } = await import('./ai-model-config');
     const wandbModel = await getWandbModel();
     if (wandbModel) {
       logger.debug(
@@ -645,18 +650,15 @@ export async function executeGameTick(
       logger.info('Trending tags recalculated', {}, 'GameTick');
     }
 
-    // Sync reputation to ERC-8004 if needed (checks sync interval internally)
-    // This runs during game ticks for local development, and also via Vercel cron
-    // @ts-ignore - Web app module, resolved at runtime
-    const { batchSyncReputationsToERC8004 } = await import('@babylon/agents/agent0/reputation/erc8004-reputation-sync');
-    try {
-      // Process a small batch during game tick (don't block the tick)
-      const syncResult = await batchSyncReputationsToERC8004({
-        limit: 10, // Small batch during game tick
-        offset: 0,
-        forceRecalculate: false,
-        prioritizeNew: true, // Prioritize new accounts
-      });
+    // Sync reputation to ERC-8004 if service is available
+    // Service is provided by agents package via setReputationSyncService()
+    const syncResult = await syncReputationIfAvailable({
+      limit: 10, // Small batch during game tick
+      offset: 0,
+      forceRecalculate: false,
+      prioritizeNew: true, // Prioritize new accounts
+    });
+    if (syncResult) {
       result.reputationSynced = syncResult.synced > 0;
       if (syncResult.synced > 0) {
         result.reputationSyncStats = {
@@ -670,13 +672,6 @@ export async function executeGameTick(
           'GameTick'
         );
       }
-    } catch (error) {
-      logger.warn(
-        'Reputation sync failed during game tick (non-blocking)',
-        { error },
-        'GameTick'
-      );
-      // Don't fail the game tick if reputation sync fails
     }
 
     // Update world facts if needed (checks 24-hour interval internally)
@@ -692,8 +687,6 @@ export async function executeGameTick(
     }
 
     // Process alpha group invites (small chance for highly engaged users)
-    // @ts-ignore - Web app module, resolved at runtime
-    const { AlphaGroupInviteService } = await import('@babylon/engine/services/alpha-group-invite-service');
     const invites = await AlphaGroupInviteService.processTickInvites();
     result.alphaInvitesSent = invites.length;
     if (invites.length > 0) {
@@ -723,8 +716,6 @@ export async function executeGameTick(
     }
 
     // Process NPC group dynamics (form, join, leave, post, invite, kick)
-    // @ts-ignore - Web app module, resolved at runtime
-    const { NPCGroupDynamicsService } = await import('@babylon/engine/services/npc-group-dynamics-service');
     const dynamics = await NPCGroupDynamicsService.processTickDynamics();
     result.npcGroupDynamics = {
       groupsCreated: dynamics.groupsCreated,
@@ -1136,8 +1127,6 @@ async function bootstrapTrending(): Promise<void> {
   logger.info('Bootstrapping trending tags...', undefined, 'GameTick');
 
   // Check if we have enough posts and tags
-  // Import postTags for the count query
-  const { postTags } = await import('@babylon/db');
   const [postCountResult, taggedPostCountResult] = await Promise.all([
     db.select({ count: count() }).from(posts),
     db
@@ -2104,7 +2093,6 @@ async function generateBaselineArticlesParallel(
       .limit(10),
     worldFactsService.generatePromptContext(),
     (async () => {
-      const { generateWorldContext } = await import('@babylon/engine/prompts');
       return generateWorldContext({
         maxActors: 30,
         realityGroundingLevel: 'concise',
@@ -2412,8 +2400,6 @@ async function updateMarketPricesFromTrades(
   // Calculate total holdings for each company from ALL positions
   const holdingsByTicker = new Map<string, number>();
 
-  // Import notNull for the query
-  const { isNotNull } = await import('@babylon/db');
   const allPositions = await db
     .select({
       ticker: poolPositions.ticker,
@@ -2502,8 +2488,6 @@ async function updateMarketPricesFromTrades(
 
   // Publish all price updates to blockchain in batch
   if (priceUpdatesForChain.length > 0) {
-    // @ts-ignore - Web app module, resolved at runtime
-    const { PriceUpdateService } = await import('@babylon/engine/services/price-update-service');
     await PriceUpdateService.applyUpdates(
       priceUpdatesForChain.map((u) => ({
         ...u,
@@ -2867,7 +2851,7 @@ async function resolveMarketOnChain(
     await import('viem');
   const { privateKeyToAccount } = await import('viem/accounts');
   const { baseSepolia } = await import('viem/chains');
-  const { PREDICTION_MARKET_ABI } = await import('@babylon/shared/contracts/abis');
+  const { PREDICTION_MARKET_ABI } = await import('@babylon/shared');
 
   const publicClient = createPublicClient({
     chain: baseSepolia,
@@ -2928,7 +2912,7 @@ async function publishOracleCommitments(
 
   try {
     // @ts-ignore - Web app module, resolved at runtime
-    const { getOracleService } = await import('@babylon/shared/oracle');
+    const { getOracleService } = await import('./services/oracle/oracle-service');
     const oracleService = getOracleService();
 
     // Health check
@@ -3015,7 +2999,7 @@ async function publishOracleReveals(
 
   try {
     // @ts-ignore - Web app module, resolved at runtime
-    const { getOracleService } = await import('@babylon/shared/oracle');
+    const { getOracleService } = await import('./services/oracle/oracle-service');
     const oracleService = getOracleService();
 
     // Health check

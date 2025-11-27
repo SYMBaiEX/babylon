@@ -24,7 +24,7 @@ import {
   InternalServerError,
   NotFoundError,
 } from '@babylon/api';
-import { InsufficientFundsError } from '@babylon/shared/types/domain-errors';
+import { InsufficientFundsError } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import { getReadyPerpsEngine } from '@babylon/engine';
 import { FeeService } from './fee-service';

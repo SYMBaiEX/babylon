@@ -21,8 +21,7 @@ interface ReplacementPattern {
 
 // Helper function to match case of original string (currently unused but kept for potential future use)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-// @ts-expect-error - Function is kept for potential future use
-function _matchCase(original: string, replacement: string): string {
+function _matchCase(_original: string, _replacement: string): string {
   if (original === original.toUpperCase()) {
     return replacement.toUpperCase();
   }

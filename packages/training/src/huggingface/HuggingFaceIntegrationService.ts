@@ -5,15 +5,10 @@
  * Main entry point for all HuggingFace operations.
  */
 
+import { benchmarkResults, db, trainedModels, trajectories } from '@babylon/db';
 import { count, desc, eq, gte, isNotNull } from 'drizzle-orm';
-import {
-  db,
-  benchmarkResults,
-  trainedModels,
-  trajectories,
-} from '@babylon/db';
-import { getExportToHuggingFace } from '../dependencies';
 import { ModelBenchmarkService } from '../benchmark/ModelBenchmarkService';
+import { getExportToHuggingFace } from '../dependencies';
 import { logger } from '../utils/logger';
 import { HuggingFaceDatasetUploader } from './HuggingFaceDatasetUploader';
 import { HuggingFaceModelUploader } from './HuggingFaceModelUploader';

@@ -14,6 +14,7 @@
 
 import { db } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { WalletService } from '@babylon/engine';
 import { trajectoryRecorder } from '@babylon/training';
 import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';

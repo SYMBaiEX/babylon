@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { NextRequest } from 'next/server';
 
 import { db } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 // Mock agent0 sync to prevent race conditions in tests
 mock.module('@/lib/reputation/agent0-reputation-sync', () => ({

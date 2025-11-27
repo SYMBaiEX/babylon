@@ -31,8 +31,8 @@ import {
   tags,
   trendingTags,
   users,
+  type Post,
 } from '@babylon/db';
-import type { Post } from '@babylon/db/schema';
 import { getDbInstance } from '@babylon/db';
 import {
   CACHE_KEYS,

@@ -19,7 +19,7 @@ import {
   GroupChatSweep,
   NPCGroupDynamicsService,
 } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 // Test data cleanup tracking
 const testIds = {

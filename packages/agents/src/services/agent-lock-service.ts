@@ -29,7 +29,7 @@
  */
 
 import { randomBytes } from 'crypto';
-import { DistributedLockService } from '@babylon/api/services/distributed-lock-service';
+import { DistributedLockService } from '@babylon/api';
 
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 

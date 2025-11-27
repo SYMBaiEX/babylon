@@ -5,8 +5,8 @@
  * Supports: localnet (Hardhat), Base Sepolia, Base mainnet
  */
 
-import baseSepoliaDeployment from '@babylon/contracts/deployments/base-sepolia';
-import localDeployment from '@babylon/contracts/deployments/local';
+import baseSepoliaDeployment from '../../deployments/base-sepolia/latest.json';
+import localDeployment from '../../deployments/local/latest.json';
 import type { Address } from 'viem';
 
 export interface DeployedContracts {

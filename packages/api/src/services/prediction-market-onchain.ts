@@ -13,9 +13,8 @@ import {
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { CHAIN } from '@babylon/shared';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts/deployment';
-import { logger } from '../utils/logger';
+import { CHAIN, logger } from '@babylon/shared';
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 
 // Get contract addresses for current network
 const { diamond: DIAMOND_ADDRESS } = getContractAddresses();

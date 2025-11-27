@@ -23,9 +23,17 @@
     "baseUrl": ".",
     "paths": {
       "@babylon/shared": ["./src/index.ts"],
-      "@babylon/shared/*": ["./src/*"]
+      "@babylon/shared/*": ["./src/*"],
+      "@babylon/engine": ["../engine/src/index.ts"],
+      "@babylon/engine/*": ["../engine/src/*"],
+      "@babylon/api": ["../api/src/index.ts"],
+      "@babylon/api/*": ["../api/src/*"],
+      "@babylon/db": ["../db/src/index.ts"],
+      "@babylon/db/*": ["../db/src/*"],
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "../api/**/*", "../db/**/*", "../engine/**/*", "../contracts/**/*", "../agents/**/*", "../a2a/**/*", "../training/**/*", "../testing/**/*"]
 }

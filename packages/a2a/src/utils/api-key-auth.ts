@@ -5,7 +5,7 @@
  * For Next.js-specific middleware, see apps/web/src/middleware/a2a-auth.ts
  */
 
-import { logger } from '../shared/logger';
+import { logger } from '@babylon/shared';
 
 export const A2A_API_KEY_HEADER = 'x-babylon-api-key';
 

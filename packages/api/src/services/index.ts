@@ -20,3 +20,12 @@ export * from './moderation';
 
 // Distributed Lock Service
 export { DistributedLockService, type LockOptions } from './distributed-lock-service';
+
+// Onchain Service
+export * from './onchain-service';
+
+// Generation Lock Service
+export * from './generation-lock-service';
+
+// On-chain Prediction Market Service
+export * from './prediction-market-onchain';

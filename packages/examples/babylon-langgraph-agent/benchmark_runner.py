@@ -9,7 +9,6 @@ import json
 import logging
 import sys
 import os
-from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List
 import asyncio
@@ -198,7 +197,7 @@ async def run_benchmark(
     logger.info(f'🤖 Loading agent from {agent_module}...')
     try:
         agent = __import__(agent_module)
-        logger.info(f'  Agent loaded successfully')
+        logger.info('  Agent loaded successfully')
     except ImportError as e:
         logger.error(f'Failed to import agent: {e}')
         raise
@@ -232,7 +231,7 @@ async def run_benchmark(
             # Make decision using agent's logic
             # (This would call your agent's decision function)
             # For now, simplified example:
-            decision = await make_agent_decision(agent, context, a2a_client)
+            await make_agent_decision(agent, context, a2a_client)
             
             # Advance tick
             a2a_client.advance_tick()

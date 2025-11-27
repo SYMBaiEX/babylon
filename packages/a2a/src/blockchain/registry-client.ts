@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers';
 import { z } from 'zod';
-import { Logger } from '../shared/logger';
+import { Logger } from '@babylon/shared';
 import type { AgentProfile, AgentReputation, JsonValue } from '../types/a2a';
 import type {
   IdentityRegistryContract,

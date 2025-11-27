@@ -68,9 +68,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@babylon/api';
+import { authenticate, notifyGroupChatInvite } from '@babylon/api';
 import { asSystem } from '@babylon/db';
 import { withErrorHandling } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * POST /api/admin/group-invite
@@ -208,7 +209,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Add user to chat participants
-    const { generateSnowflakeId } = await import('@babylon/shared');
     // Check if participant exists first (compound key lookup)
     const existingParticipant = await db.chatParticipant.findFirst({
       where: {
@@ -238,7 +238,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Send notification to user
-    const { notifyGroupChatInvite } = await import('@babylon/api');
     await notifyGroupChatInvite(userId, npcId, finalChatId, finalChatName);
   });
 

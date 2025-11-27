@@ -3,15 +3,23 @@
  * Client-side analytics and event tracking
  */
 
+import type {
+  PostHogClient,
+  PostHogClientConstructor,
+  StringRecord,
+  JsonValue,
+} from '../types/common';
+
 // Dynamic import to avoid SSR issues
-// PostHog is an optional peer dependency, so we use any here
-// biome-ignore lint/suspicious/noExplicitAny: Optional peer dependency
-let posthog: any = null;
+// PostHog is an optional peer dependency
+let posthog: PostHogClient | null = null;
 
 if (typeof window !== 'undefined') {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    posthog = require('posthog-js').default;
+    const PostHogConstructor = require('posthog-js')
+      .default as PostHogClientConstructor;
+    posthog = PostHogConstructor();
   } catch {
     // PostHog not available
   }
@@ -30,7 +38,7 @@ export const initPostHog = () => {
   }
 
   // Initialize PostHog only once
-  if (!(posthog as { __loaded?: boolean }).__loaded && posthog) {
+  if (!posthog?.__loaded && posthog) {
     posthog.init(apiKey, {
       api_host: apiHost,
 
@@ -71,11 +79,16 @@ export const initPostHog = () => {
       capture_exceptions: true, // Automatically capture errors
 
       // Properties
-      sanitize_properties: (properties: Record<string, unknown>) => {
+      sanitize_properties: (properties: StringRecord<JsonValue>) => {
         // Remove sensitive data from properties
         const sanitized = { ...properties };
-        if (sanitized.$set && typeof sanitized.$set === 'object' && sanitized.$set !== null) {
-          const $set = sanitized.$set as Record<string, unknown>;
+        if (
+          sanitized.$set &&
+          typeof sanitized.$set === 'object' &&
+          sanitized.$set !== null &&
+          !Array.isArray(sanitized.$set)
+        ) {
+          const $set = sanitized.$set as StringRecord<JsonValue>;
           delete $set.email;
           delete $set.password;
         }

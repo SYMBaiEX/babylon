@@ -7,7 +7,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
-import type { JsonValue } from '@babylon/db';
+import type { JsonValue, StringRecord } from '@babylon/shared/types/common';
 import {
   and,
   balanceTransactions,
@@ -29,6 +29,11 @@ import {
 } from '@babylon/shared/errors';
 import { logger, generateSnowflakeId } from '@babylon/shared';
 import type { AgentCapabilities } from '@babylon/shared/types/agents';
+import {
+  IDENTITY_REGISTRY_ABI,
+  identityRegistryAbi,
+  reputationSystemAbi,
+} from '@babylon/shared';
 
 // Web-specific dependencies - to be injected from app layer
 type Agent0Client = {
@@ -52,7 +57,7 @@ type OnboardingServices = {
       pointsAwarded: number;
       error?: string;
     }>;
-    awardPoints: (userId: string, amount: number, reason: string, metadata?: Record<string, unknown>) => Promise<{
+    awardPoints: (userId: string, amount: number, reason: string, metadata?: StringRecord<JsonValue>) => Promise<{
       success: boolean;
       pointsAwarded: number;
       newTotal: number;
@@ -82,12 +87,6 @@ export const IDENTITY_REGISTRY = contracts.identityRegistry;
 export const REPUTATION_SYSTEM = contracts.reputationSystem as Address;
 export const DEPLOYER_PRIVATE_KEY = process.env
   .DEPLOYER_PRIVATE_KEY as `0x${string}`;
-
-import {
-  IDENTITY_REGISTRY_ABI,
-  identityRegistryAbi,
-  reputationSystemAbi,
-} from '@babylon/shared';
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
@@ -987,7 +986,7 @@ export interface ConfirmOnchainProfileUpdateResult {
   tokenId: number;
   endpoint: string;
   capabilitiesHash: `0x${string}`;
-  metadata: Record<string, JsonValue> | null;
+  metadata: StringRecord<JsonValue> | null;
 }
 
 export async function confirmOnchainProfileUpdate({
@@ -1092,15 +1091,24 @@ export async function confirmOnchainProfileUpdate({
     args: [BigInt(tokenId)],
   });
 
-  const profileArray = profile as unknown[];
-  endpoint = endpoint || (profileArray[1] as string);
-  capabilitiesHash = profileArray[2] as `0x${string}`;
-  const rawMetadata = profileArray[5] as string;
+  // Profile is returned as a tuple from the contract
+  // Type assertion is safe because we know the contract ABI structure
+  const profileArray = profile as [
+    string, // name
+    string, // endpoint
+    `0x${string}`, // capabilitiesHash
+    bigint, // registeredAt
+    boolean, // isActive
+    string, // metadata
+  ];
+  endpoint = endpoint || profileArray[1];
+  capabilitiesHash = profileArray[2];
+  const rawMetadata = profileArray[5];
 
-  let metadata: Record<string, JsonValue> | null = null;
+  let metadata: StringRecord<JsonValue> | null = null;
   if (typeof rawMetadata === 'string' && rawMetadata.trim().length > 0) {
     try {
-      metadata = JSON.parse(rawMetadata) as Record<string, JsonValue>;
+      metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
     } catch (error) {
       logger.warn(
         'Failed to parse on-chain metadata JSON during profile update confirmation',
@@ -1208,3 +1216,4 @@ export async function getOnchainRegistrationStatus(
     dbRegistered: userRecord.onChainRegistered,
   };
 }
+

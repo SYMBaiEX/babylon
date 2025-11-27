@@ -57,8 +57,8 @@ export {
 } from './auth-middleware';
 
 // Re-export auth types from shared
-export type { AuthenticatedUser } from '@babylon/shared/types/auth';
-export { extractErrorMessage } from '@babylon/shared/types/errors';
+export type { AuthenticatedUser } from '@babylon/shared';
+export { extractErrorMessage } from '@babylon/shared';
 
 // Admin Middleware
 export { requireAdmin, isUserAdmin } from './admin-middleware';

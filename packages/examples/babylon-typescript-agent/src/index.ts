@@ -14,9 +14,15 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import fs from 'fs';
+import type { A2APerpPosition } from '@babylon/a2a';
 import { BabylonA2AClient } from './a2a-client';
 import { executeAction } from './actions';
-import { AgentDecisionMaker } from './decision';
+import {
+  AgentDecisionMaker,
+  type FeedPost,
+  type PerpMarket,
+  type PredictionMarket,
+} from './decision';
 import { AgentMemory } from './memory';
 import { registerAgent } from './registration';
 
@@ -115,11 +121,16 @@ async function main() {
     const decision = await decisionMaker.decide({
       portfolio: {
         balance: portfolio.balance,
-        positions: portfolio.positions,
+        positions: portfolio.positions.filter((p): p is A2APerpPosition => 'ticker' in p),
         pnl: portfolio.pnl,
       },
-      markets,
-      feed,
+      markets: {
+        predictions: markets.predictions as unknown as PredictionMarket[],
+        perps: markets.perps as unknown as PerpMarket[],
+      },
+      feed: {
+        posts: feed.posts as unknown as FeedPost[],
+      },
       memory: recentMemory,
     });
 

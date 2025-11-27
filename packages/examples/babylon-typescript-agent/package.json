@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "agent": "bun run src/index.ts",
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit",
     "test": "bun test tests/",
     "test:integration": "bun test tests/integration.test.ts",
     "test:e2e": "bun test tests/e2e.test.ts",
@@ -21,7 +23,11 @@
     "ai": "^5.0.92",
     "ethers": "^6.15.0",
     "ws": "^8.18.3",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "@babylon/a2a": "workspace:*",
+    "@babylon/db": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "@babylon/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

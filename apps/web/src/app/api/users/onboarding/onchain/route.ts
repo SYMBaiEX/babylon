@@ -61,7 +61,7 @@ import { authenticate } from '@babylon/api';
 import { BusinessLogicError, ConflictError } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
-import { processOnchainRegistration } from '@babylon/shared';
+import { processOnchainRegistration } from '@babylon/api';
 import type { JsonValue } from '@babylon/api';
 
 interface OnchainRequestBody {

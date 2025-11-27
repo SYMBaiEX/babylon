@@ -10,6 +10,7 @@ import { ethers } from 'ethers';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { AgentStatus } from '../types/agent-registry';
+import { agentRegistry } from '../services/agent-registry.service';
 
 export interface TestAgentConfig {
   username?: string;

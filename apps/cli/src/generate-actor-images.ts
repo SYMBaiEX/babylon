@@ -74,6 +74,7 @@ import {
   organizationLogo,
   renderPrompt,
 } from '@babylon/engine/prompts';
+import { loadActorsData } from '@babylon/engine';
 import { fal } from '@fal-ai/client';
 import { config } from 'dotenv';
 import { access, mkdir, writeFile } from 'fs/promises';
@@ -652,7 +653,6 @@ async function main() {
   });
 
   // Load actors database using the engine package loader
-  const { loadActorsData } = await import('@babylon/engine');
   const parsedActors = loadActorsData();
   const actorsDb = ActorsDatabaseSchema.parse(parsedActors);
 

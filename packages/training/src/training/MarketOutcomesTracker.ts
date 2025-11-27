@@ -5,7 +5,15 @@
  * This gives RULER the ground truth to evaluate agent decisions.
  */
 
-import { and, db, eq, gte, lte, marketOutcomes, perpPositions } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  gte,
+  lte,
+  marketOutcomes,
+  perpPositions,
+} from '@babylon/db';
 import { logger } from '../utils/logger';
 import { generateSnowflakeId } from '../utils/snowflake';
 

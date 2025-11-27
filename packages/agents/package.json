@@ -16,7 +16,9 @@
     "lint": "biome lint .",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@babylon/a2a": "workspace:*"
+  },
   "peerDependencies": {
     "@a2a-js/sdk": "^0.3.5",
     "@ai-sdk/groq": "^2.0.29",

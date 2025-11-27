@@ -23,10 +23,14 @@ export class GameLoop {
     private marketDecisions: MarketDecisionEngine,
     private perps: PerpetualsEngine,
     private relationships: RelationshipEvolutionEngine,
-
-    // @ts-expect-error - Reserved for future article generation integration
-    private _articles: NewsArticlePacingEngine
-  ) {}
+    // Reserved for future article generation integration
+    // Using void to satisfy TypeScript while keeping the property for future use
+    private readonly _articles: NewsArticlePacingEngine
+  ) {
+    // Explicitly reference to satisfy TypeScript unused variable check
+    // This will be used in future article generation features
+    void this._articles;
+  }
 
   /**
    * Run a single tick of the game universe.

@@ -9,8 +9,19 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["bun-types"]
+    "types": ["bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "@babylon/a2a": ["../../a2a/src/index.ts"],
+      "@babylon/a2a/*": ["../../a2a/src/*"],
+      "@babylon/db": ["../../db/src/index.ts"],
+      "@babylon/db/*": ["../../db/src/*"],
+      "@babylon/shared": ["../../shared/src/index.ts"],
+      "@babylon/shared/*": ["../../shared/src/*"],
+      "@babylon/contracts": ["../../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../../contracts/src/*"]
+    }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "../../api/**/*", "../../engine/**/*", "../../shared/**/*", "../../contracts/**/*", "../../agents/**/*", "../../a2a/**/*", "../../training/**/*", "../../testing/**/*", "../../db/**/*"]
 }

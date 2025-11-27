@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "packages/examples/*"
   ],
   "scripts": {
     "postinstall": "bun run scripts/postinstall-solidity-deps.ts && bun run scripts/postinstall-install-python-deps.ts",

@@ -6,11 +6,11 @@
 
 import type {
   LlmCallLog,
+  OrderByInput,
+  SelectInput,
   TrainedModel,
   TrainingBatch,
   Trajectory,
-  OrderByInput,
-  SelectInput,
   WhereInput,
 } from '@babylon/db';
 

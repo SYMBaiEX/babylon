@@ -169,7 +169,7 @@ jobs:
           REDIS_URL: ${{ steps.services.outputs.REDIS_URL }}
         run: |
           echo "🧪 Running unit tests..."
-          bun test tests/unit/ --preload ./tests/unit/preload.ts
+          bun test packages/testing/unit/ --preload ./packages/testing/unit/preload.ts
 
       - name: Run Integration Tests
         env:
@@ -182,7 +182,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           echo "🔗 Running integration tests..."
-          bun test tests/integration/ --preload ./tests/integration/preload.ts
+          bun test packages/testing/integration/ --preload ./packages/testing/integration/preload.ts
 
       - name: Summary
         run: |

@@ -9,7 +9,7 @@ import { agentRegistry } from '@babylon/agents/services/agent-registry.service';
 import {
   OASFDomainCategories,
   OASFSkillCategories,
-} from '@babylon/shared/utils/oasf-skill-mapper';
+} from '@babylon/shared';
 import type { AgentCapabilities } from '@/types/a2a';
 import { AgentStatus, AgentType } from '@babylon/agents';
 

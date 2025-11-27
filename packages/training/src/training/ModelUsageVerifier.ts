@@ -5,7 +5,6 @@
  * Provides assertions and logging for model usage verification.
  */
 
-import type { IAgentRuntime } from '@elizaos/core';
 import {
   count,
   db,
@@ -16,6 +15,7 @@ import {
   trajectories,
   users,
 } from '@babylon/db';
+import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '../utils/logger';
 import { getLatestRLModel } from './WandbModelFetcher';
 

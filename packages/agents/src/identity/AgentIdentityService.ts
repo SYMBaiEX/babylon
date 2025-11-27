@@ -9,15 +9,19 @@
  * IMPORTANT: Agents are Users (isAgent=true)
  */
 
-import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
-import type { InferSelectModel } from 'drizzle-orm';
-import { getAgent0Client } from '../services/interfaces';
+import {
+  agentLogs,
+  db,
+  eq,
+  type JsonValue,
+  type User,
+  users,
+} from '@babylon/db';
+import { getAgent0Client } from '../agent0/Agent0Client';
+import { syncAfterAgent0Registration } from '../agent0/reputation/agent0-reputation-sync';
 import { agentWalletService } from './AgentWalletService';
 import { logger } from '../shared/logger';
-import { syncAfterAgent0Registration } from '../services/interfaces';
 import { generateSnowflakeId } from '../shared/snowflake';
-
-type User = InferSelectModel<typeof users>;
 
 export class AgentIdentityService {
   /**

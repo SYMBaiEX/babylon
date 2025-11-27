@@ -88,8 +88,9 @@ export class AutonomyService extends Service {
         worldId,
         agentId: this.runtime.agentId,
         source: 'autonomy-plugin',
-        // @ts-expect-error - AUTONOMOUS is a custom channel type not in the ChannelType enum
-        type: 'AUTONOMOUS',
+        // AUTONOMOUS is a custom channel type not in the ChannelType enum
+        // Using type assertion since ensureRoomExists accepts string types
+        type: 'AUTONOMOUS' as string,
         metadata: {
           source: 'autonomy-plugin',
           description: 'Room for autonomous agent thinking',

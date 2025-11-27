@@ -13,7 +13,7 @@ import {
   syncAllReputationsToERC8004,
   syncUserReputationToERC8004,
 } from '@babylon/agents/agent0/reputation/erc8004-reputation-sync';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
   process.env.TEST_API_URL ||

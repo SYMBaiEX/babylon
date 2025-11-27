@@ -14,13 +14,13 @@ import {
   randomBytes,
 } from 'ethers';
 import { z } from 'zod';
-import { logger } from '../shared/logger';
+import { logger } from '@babylon/shared';
 import type { PaymentRequest, JsonValue } from '../types/a2a';
 import { PaymentRequestSchema } from '../types/a2a';
 import type {
   PaymentVerificationParams,
   PaymentVerificationResult,
-} from '../types/payments';
+} from '@babylon/shared';
 
 export interface X402Config {
   rpcUrl: string;

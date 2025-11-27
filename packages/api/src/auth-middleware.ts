@@ -11,14 +11,13 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { db, eq, users } from '@babylon/db';
 import { verifyAgentSession } from './agent-auth';
-import { logger } from '@babylon/shared';
-import { extractErrorMessage } from '@babylon/shared/types/errors';
-import type { AuthenticatedUser } from '@babylon/shared/types/auth';
+import { logger, extractErrorMessage } from '@babylon/shared';
+import type { AuthenticatedUser } from '@babylon/shared';
 import type { JsonValue } from './types';
 
 // Re-export types from shared for backwards compatibility
-export type { AuthenticatedUser } from '@babylon/shared/types/auth';
-export { extractErrorMessage } from '@babylon/shared/types/errors';
+export type { AuthenticatedUser } from '@babylon/shared';
+export { extractErrorMessage } from '@babylon/shared';
 
 // Define error types locally
 export type AuthenticationError = Error & {
@@ -134,13 +133,25 @@ export async function authenticate(
     logger.warn(
       'Privy authentication failed',
       {
-        error: extractErrorMessage(error),
+        error: extractErrorMessage(
+          error instanceof Error
+            ? error
+            : typeof error === 'string'
+              ? error
+              : { message: String(error) }
+        ),
       },
       'auth-middleware'
     );
 
     // Check for specific error types
-    const errorMessage = extractErrorMessage(error);
+    const errorMessage = extractErrorMessage(
+      error instanceof Error
+        ? error
+        : typeof error === 'string'
+          ? error
+          : { message: String(error) }
+    );
     if (errorMessage.includes('expired') || errorMessage.includes('exp')) {
       const authError = new Error(
         'Authentication token has expired. Please refresh your session.'

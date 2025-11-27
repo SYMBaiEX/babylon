@@ -14,7 +14,7 @@ import type {
 } from 'agent0-sdk';
 // Import SDK and types from agent0-sdk
 import { SDK } from 'agent0-sdk';
-import { logger } from '../shared/logger';
+import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 
 /**

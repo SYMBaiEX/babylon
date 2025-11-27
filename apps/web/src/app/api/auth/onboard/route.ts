@@ -118,7 +118,7 @@ import { logger } from '@babylon/shared';
 import {
   getOnchainRegistrationStatus,
   processOnchainRegistration,
-} from '@babylon/shared';
+} from '@babylon/api';
 import { trackServerEvent } from '@babylon/shared';
 import { OnChainRegistrationSchema } from '@babylon/shared';
 

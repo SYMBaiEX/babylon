@@ -6,8 +6,7 @@
  * information.
  */
 
-import { db, eq, users } from '@babylon/db';
-import type { User } from '@babylon/db/schema';
+import { db, eq, type User, users } from '@babylon/db';
 import type { AuthenticatedUser } from '../auth-middleware';
 
 /**

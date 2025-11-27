@@ -11,12 +11,13 @@
 import { AgentType } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
 import type {
-  AgentMessage,
+  ExternalAgentMessage as AgentMessage,
   AgentResponse,
 } from '../external/ExternalAgentAdapter';
 import { getExternalAgentAdapter } from '../external/ExternalAgentAdapter';
 import type { AgentEvent, EventBus } from './EventBus';
 import { getEventBus } from './EventBus';
+import { agentRegistry } from '../services/agent-registry.service';
 
 export interface Message {
   id: string;

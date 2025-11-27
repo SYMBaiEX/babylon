@@ -12,7 +12,7 @@ export {
   calculateFreshness,
   detectPrediction,
   hasInsiderLanguage,
-} from './content-analysis';
+} from '@babylon/shared';
 
 // Content safety utilities
 export {
@@ -20,7 +20,7 @@ export {
   checkUserInput,
   sanitizeContent,
   type ContentCheckResult,
-} from './content-safety';
+} from '@babylon/shared';
 
 // Prompt logging utilities
 export {

@@ -387,7 +387,7 @@ mock.module('@/engine/llm/openai-client', () => {
 
 import { asSystem } from '@babylon/db';
 import { executeGameTick } from '@babylon/engine/serverless-game-tick';
-import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
+import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
   process.env.TEST_API_URL ||

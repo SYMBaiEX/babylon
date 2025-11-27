@@ -31,15 +31,15 @@ import {
   type User,
   users,
 } from '@babylon/db';
-import { verifyApiKey } from '@babylon/shared/utils/api-keys';
+import { verifyApiKey } from '@babylon/shared';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
   ExternalAgentConnectionParams,
   TrustLevel,
   UnifiedAgentRegistration,
-} from '@babylon/agents/types';
-import { AgentStatus, AgentType } from '@babylon/agents/types';
+} from '../types/agent-registry';
+import { AgentStatus, AgentType } from '../types/agent-registry';
 
 const getEncryptionKey = () => {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET;

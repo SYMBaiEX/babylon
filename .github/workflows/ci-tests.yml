@@ -212,7 +212,7 @@ jobs:
           echo "🚀 Starting production server..."
           echo "🔑 Verifying NEXT_PUBLIC_PRIVY_APP_ID is available (length: ${#NEXT_PUBLIC_PRIVY_APP_ID})"
           SKIP_ENV_VALIDATION=1 bun scripts/validation/check-environment.ts || echo "⚠️  Environment check skipped in CI"
-          bunx --bun next start > /tmp/prod-server.log 2>&1 &
+          bunx --bun next start --dir apps/web > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
 
@@ -240,7 +240,7 @@ jobs:
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
 
       - name: Run Synpress Tests (Wallet E2E)
-        run: bunx playwright test --config=synpress.config.ts --reporter=list,json
+        run: cd packages/testing && bunx playwright test --config=synpress.config.ts --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PLAYWRIGHT_BASE_URL: http://localhost:3000
@@ -255,7 +255,7 @@ jobs:
 
       - name: Run E2E Tests (Standard)
         if: success() || failure()
-        run: bunx playwright test tests/e2e --reporter=list,json
+        run: cd packages/testing && bunx playwright test e2e --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PLAYWRIGHT_BASE_URL: http://localhost:3000

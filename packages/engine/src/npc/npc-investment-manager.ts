@@ -447,7 +447,7 @@ export class NPCInvestmentManager {
 
       const targetOrgIds = new Set<string>();
 
-      (actor.affiliations || []).forEach((orgId) => {
+      (actor.affiliations || []).forEach((orgId: string) => {
         if (organizationMap.has(orgId)) {
           targetOrgIds.add(orgId);
         }
@@ -458,7 +458,7 @@ export class NPCInvestmentManager {
         .filter((rel) => rel.sentiment >= 0.25 && rel.strength >= 0.4)
         .forEach((rel) => {
           const counterpart = actorMap.get(rel.otherId);
-          counterpart?.affiliations?.forEach((orgId) => {
+          counterpart?.affiliations?.forEach((orgId: string) => {
             if (organizationMap.has(orgId)) {
               targetOrgIds.add(orgId);
             }

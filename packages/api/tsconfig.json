@@ -27,12 +27,25 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "composite": false,
     "forceConsistentCasingInFileNames": true,
     "moduleDetection": "force",
     "outDir": "./dist",
-    "rootDir": "./src"
+      "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@babylon/shared": ["../shared/src/index.ts"],
+      "@babylon/shared/*": ["../shared/src/*"],
+      "@babylon/db": ["../db/src/index.ts"],
+      "@babylon/db/*": ["../db/src/*"],
+      "@babylon/engine": ["../engine/src/index.ts"],
+      "@babylon/engine/*": ["../engine/src/*"],
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"]
+    }
   },
   "include": ["src/**/*", "src/global.d.ts"],
-  "exclude": ["node_modules", "dist", "**/__tests__/**"]
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "../**/*"],
+  "references": []
 }
 

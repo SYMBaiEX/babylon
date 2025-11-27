@@ -111,6 +111,7 @@ import { PointsService } from '@babylon/api';
 import { requireUserByIdentifier } from '@babylon/api';
 import { UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
 import type { JsonValue } from '@babylon/api';
+import type { StringRecord } from '@babylon/shared';
 
 /**
  * POST /api/users/[userId]/update-profile
@@ -223,7 +224,7 @@ export const POST = withErrorHandling(
       currentUser!.onChainRegistered &&
       currentUser!.nftTokenId;
 
-    let onchainMetadata: Record<string, JsonValue> | null = null;
+    let onchainMetadata: StringRecord<JsonValue> | null = null;
     let backendSignedTxHash: `0x${string}` | undefined;
 
     if (requiresOnchainUpdate) {
@@ -250,12 +251,9 @@ export const POST = withErrorHandling(
         });
 
         backendSignedTxHash = result.txHash;
-        // ProfileMetadata is structurally compatible with Record<string, JsonValue>
+        // ProfileMetadata is structurally compatible with StringRecord<JsonValue>
         // (all fields are string | null | undefined, which are JsonValue types)
-        onchainMetadata = result.metadata as unknown as Record<
-          string,
-          JsonValue
-        >;
+        onchainMetadata = result.metadata as StringRecord<JsonValue>;
 
         logger.info(
           'Backend-signed profile update successful',
@@ -275,7 +273,7 @@ export const POST = withErrorHandling(
           txHash: onchainTxHash! as `0x${string}`,
         });
 
-        onchainMetadata = onchainResult.metadata as Record<string, JsonValue>;
+        onchainMetadata = onchainResult.metadata as StringRecord<JsonValue>;
 
         logger.info(
           'Confirmed user-signed on-chain profile update',

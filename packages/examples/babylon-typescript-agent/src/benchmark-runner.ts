@@ -11,29 +11,30 @@ dotenv.config({ path: '.env.local' });
 
 import fs from 'fs';
 import path from 'path';
-import type { A2APerpPosition, JsonValue } from '@babylon/a2a';
 
 // Benchmark types (defined locally for examples)
+// NOTE: Benchmark runner is disabled until simulation modules are available as packages
 interface BenchmarkGameSnapshot {
   markets: unknown[];
   posts: unknown[];
   timestamp: number;
+  ticks: Array<{ tick: number; markets: unknown[]; posts: unknown[] }>;
 }
 
 interface SimulationResult {
+  id: string;
   totalTrades: number;
   totalPnL: number;
   winRate: number;
   avgROI: number;
+  metrics: {
+    totalPnl: number;
+    predictionMetrics: {
+      accuracy: number;
+    };
+    optimalityScore: number;
+  };
 }
-import { type A2AActionClient, executeAction } from './actions';
-import {
-  AgentDecisionMaker,
-  type FeedPost,
-  type PerpMarket,
-  type PredictionMarket,
-} from './decision';
-import { AgentMemory } from './memory';
 
 const LOG_DIR = './logs';
 const LOG_FILE = path.join(LOG_DIR, 'benchmark.log');
@@ -73,16 +74,22 @@ async function runBenchmark(
   // 2. Dynamic import of benchmark modules
   log('🔧 Loading simulation modules...');
 
-  const { SimulationEngine } = await import(
-    '../../../src/lib/benchmark/SimulationEngine'
+  // TODO: Benchmark simulation modules not yet available as packages
+  // These would need to be migrated to @babylon/testing or similar
+  // For now, benchmark runner is disabled
+  throw new Error(
+    'Benchmark runner requires simulation modules that are not yet available as packages. ' +
+      'Please use the main app benchmark runner instead.'
   );
-  const { SimulationA2AInterface } = await import(
-    '../../../src/lib/benchmark/SimulationA2AInterface'
-  );
-  const { MetricsVisualizer } = await import(
-    '../../../src/lib/benchmark/MetricsVisualizer'
-  );
+  
+  // Placeholder types for when modules are available
+  // const { SimulationEngine } = await import('@babylon/testing/benchmark/SimulationEngine');
+  // const { SimulationA2AInterface } = await import('@babylon/testing/benchmark/SimulationA2AInterface');
+  // const { MetricsVisualizer } = await import('@babylon/testing/benchmark/MetricsVisualizer');
 
+  // NOTE: All code below is unreachable due to throw above, but kept for reference
+  // when simulation modules become available as packages
+  /*
   // 3. Create simulation engine
   log('🎮 Creating simulation engine...');
   const simConfig = {
@@ -294,13 +301,35 @@ async function runBenchmark(
   log(`View report: file://${path.join(outputDir, 'index.html')}`);
 
   return result;
+  */
+  
+  // Unreachable - return placeholder to satisfy type checker
+  return {
+    id: 'disabled',
+    totalTrades: 0,
+    totalPnL: 0,
+    winRate: 0,
+    avgROI: 0,
+    metrics: {
+      totalPnl: 0,
+      predictionMetrics: { accuracy: 0 },
+      optimalityScore: 0,
+    },
+  };
 }
 
 async function runMultiple(
   benchmarkFile: string,
   outputDir: string,
   runs: number
-) {
+): Promise<{ runs: SimulationResult[]; comparison: unknown }> {
+  // Benchmark runner is disabled - see runBenchmark function
+  throw new Error(
+    'Benchmark runner requires simulation modules that are not yet available as packages.'
+  );
+  
+  // Unreachable code kept for reference
+  /*
   log(`🔄 Running ${runs} benchmark iterations`);
 
   const results: SimulationResult[] = [];
@@ -362,6 +391,13 @@ async function runMultiple(
   log(`  Avg Optimality: ${avgOptimality.toFixed(1)}%`);
   log('');
   log(`Results: ${outputDir}`);
+  */
+  
+  // Unreachable - return placeholder to satisfy type checker
+  return {
+    runs: [],
+    comparison: {},
+  };
 }
 
 // CLI

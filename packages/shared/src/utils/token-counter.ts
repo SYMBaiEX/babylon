@@ -7,6 +7,8 @@
  * model-specific token limit definitions.
  */
 
+// tiktoken is a peer dependency - import types only
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import type { Tiktoken } from 'tiktoken';
 
 // Lazy-load encoding to avoid startup overhead

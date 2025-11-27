@@ -1,7 +1,11 @@
 /**
  * On-chain betting utilities
+ *
+ * Note: OnChainPredictionMarketService is now exported from @babylon/api
+ * Import directly: import { getOnChainPredictionMarketService } from '@babylon/api'
  */
 
-export * from './prediction-market-onchain';
+// Export empty to make this a proper module
+export {};
 
 

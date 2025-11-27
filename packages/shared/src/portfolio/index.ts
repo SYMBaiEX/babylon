@@ -1,7 +1,10 @@
 /**
  * Portfolio utilities
+ *
+ * Note: calculatePortfolioPnL is now exported from @babylon/engine
+ * Import directly: import { calculatePortfolioPnL } from '@babylon/engine'
  */
 
-// Re-export from engine for backwards compatibility
-export { calculatePortfolioPnL, type PortfolioPnLSnapshot } from '@babylon/engine/services/portfolio-pnl';
+// Export empty to make this a proper module
+export {};
 

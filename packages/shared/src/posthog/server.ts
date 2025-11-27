@@ -3,24 +3,28 @@
  * Server-side analytics and event tracking for API routes
  */
 
+import { logger } from '../utils/logger';
+import type {
+  PostHogServerClient,
+  PostHogServerConstructor,
+  StringRecord,
+  JsonValue,
+} from '../types/common';
+
 // Dynamic import to avoid client-side bundling
-// PostHog is an optional peer dependency, so we use any here
-// biome-ignore lint/suspicious/noExplicitAny: Optional peer dependency
-let PostHog: any = null;
+// PostHog is an optional peer dependency
+let PostHog: PostHogServerConstructor | null = null;
 
 if (typeof window === 'undefined') {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    PostHog = require('posthog-node').PostHog;
+    PostHog = require('posthog-node').PostHog as PostHogServerConstructor;
   } catch {
     // PostHog not available
   }
 }
-import { logger } from '../utils/logger';
 
-// PostHog is an optional peer dependency, so we use any here
-// biome-ignore lint/suspicious/noExplicitAny: Optional peer dependency
-let posthogClient: any = null;
+let posthogClient: PostHogServerClient | null = null;
 
 /**
  * Handle PostHog errors gracefully without blocking
@@ -40,9 +44,7 @@ function handlePostHogError(error: Error, context: string): void {
   }
 }
 
-// PostHog is an optional peer dependency, so we use any here
-// biome-ignore lint/suspicious/noExplicitAny: Optional peer dependency
-export const getPostHogServerClient = (): any => {
+export const getPostHogServerClient = (): PostHogServerClient | null => {
   // Only initialize on server
   if (typeof window !== 'undefined' || !PostHog) return null;
 
@@ -82,7 +84,7 @@ export const getPostHogServerClient = (): any => {
 export const trackServerEvent = async (
   distinctId: string,
   event: string,
-  properties?: Record<string, unknown>
+  properties?: StringRecord<JsonValue>
 ) => {
   const client = getPostHogServerClient();
   if (!client) return;
@@ -94,7 +96,7 @@ export const trackServerEvent = async (
       properties: {
         ...properties,
         $lib: 'posthog-node',
-        environment: process.env.NODE_ENV,
+        environment: process.env.NODE_ENV || 'development',
         timestamp: new Date().toISOString(),
       },
     });
@@ -112,7 +114,7 @@ export const trackServerEvent = async (
  */
 export const identifyServerUser = async (
   distinctId: string,
-  properties: Record<string, unknown>
+  properties: StringRecord<JsonValue>
 ) => {
   const client = getPostHogServerClient();
   if (!client) return;
@@ -141,8 +143,7 @@ export const trackServerError = async (
     endpoint: string;
     method: string;
     statusCode?: number;
-    [key: string]: unknown;
-  }
+  } & StringRecord<JsonValue>
 ) => {
   const client = getPostHogServerClient();
   if (!client) return;
@@ -155,13 +156,13 @@ export const trackServerError = async (
       event: '$exception',
       properties: {
         $exception_type: error.name || 'Error',
-        $exception_message: error.message,
-        $exception_stack: error.stack,
+        $exception_message: error.message || '',
+        $exception_stack: error.stack || '',
         endpoint,
         method,
-        statusCode,
+        ...(statusCode !== undefined && { statusCode }),
         ...otherContext,
-        environment: process.env.NODE_ENV,
+        environment: process.env.NODE_ENV || 'development',
         timestamp: new Date().toISOString(),
       },
     });

@@ -21,6 +21,9 @@ import {
 import {
   formatRandomContext,
   generateRandomMarketContext,
+  PerpTradeService,
+  PredictionPricing,
+  WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { asUser } from '@babylon/db';

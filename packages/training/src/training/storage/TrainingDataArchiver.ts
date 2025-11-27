@@ -1,14 +1,14 @@
 /**
  * Training Data Archiver (Vercel Blob)
- * 
+ *
  * Archives training data (exported trajectories, RULER scores) to Vercel Blob
  * for long-term storage and reproducibility.
  */
 
-import { put, list, del } from '@vercel/blob';
-import { logger } from '../../utils/logger';
+import { del, list, put } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
+import { logger } from '../../utils/logger';
 
 export interface ArchivedWindow {
   windowId: string;
@@ -38,72 +38,71 @@ export class TrainingDataArchiver {
   }): Promise<ArchivedWindow> {
     logger.info('Archiving training data', { windowId: options.windowId });
 
-      const prefix = `${this.blobPrefix}${options.windowId}/`;
-      interface BlobUrls {
-        trajectories: string;
-        groups?: string;
-        rulerScores?: string;
-        metadata: string;
-      }
-      const urls: BlobUrls = {
-        trajectories: '',
-        metadata: ''
-      };
-      let totalSize = 0;
+    const prefix = `${this.blobPrefix}${options.windowId}/`;
+    interface BlobUrls {
+      trajectories: string;
+      groups?: string;
+      rulerScores?: string;
+      metadata: string;
+    }
+    const urls: BlobUrls = {
+      trajectories: '',
+      metadata: '',
+    };
+    let totalSize = 0;
 
-      // Upload trajectories
-      const trajData = await fs.readFile(options.trajectoriesPath);
-      const trajBlob = await put(`${prefix}trajectories.jsonl`, trajData, {
+    // Upload trajectories
+    const trajData = await fs.readFile(options.trajectoriesPath);
+    const trajBlob = await put(`${prefix}trajectories.jsonl`, trajData, {
+      access: 'public',
+      addRandomSuffix: false,
+    });
+    urls.trajectories = trajBlob.url;
+    totalSize += trajData.length;
+
+    // Upload groups if provided
+    if (options.groupsPath) {
+      const groupsData = await fs.readFile(options.groupsPath);
+      const groupsBlob = await put(`${prefix}groups.jsonl`, groupsData, {
         access: 'public',
-        addRandomSuffix: false
+        addRandomSuffix: false,
       });
-      urls.trajectories = trajBlob.url;
-      totalSize += trajData.length;
+      urls.groups = groupsBlob.url;
+      totalSize += groupsData.length;
+    }
 
-      // Upload groups if provided
-      if (options.groupsPath) {
-        const groupsData = await fs.readFile(options.groupsPath);
-        const groupsBlob = await put(`${prefix}groups.jsonl`, groupsData, {
-          access: 'public',
-          addRandomSuffix: false
-        });
-        urls.groups = groupsBlob.url;
-        totalSize += groupsData.length;
-      }
-
-      // Upload RULER scores if provided
-      if (options.rulerScoresPath) {
-        const scoresData = await fs.readFile(options.rulerScoresPath);
-        const scoresBlob = await put(`${prefix}ruler_scores.json`, scoresData, {
-          access: 'public',
-          addRandomSuffix: false
-        });
-        urls.rulerScores = scoresBlob.url;
-        totalSize += scoresData.length;
-      }
-
-      // Upload metadata
-      const metadataJson = JSON.stringify(options.metadata || {}, null, 2);
-      const metadataBlob = await put(
-        `${prefix}metadata.json`,
-        metadataJson,
-        { access: 'public', addRandomSuffix: false }
-      );
-      urls.metadata = metadataBlob.url;
-      totalSize += Buffer.byteLength(metadataJson, 'utf8');
-
-      logger.info('Training data archived', {
-        windowId: options.windowId,
-        size: totalSize
+    // Upload RULER scores if provided
+    if (options.rulerScoresPath) {
+      const scoresData = await fs.readFile(options.rulerScoresPath);
+      const scoresBlob = await put(`${prefix}ruler_scores.json`, scoresData, {
+        access: 'public',
+        addRandomSuffix: false,
       });
+      urls.rulerScores = scoresBlob.url;
+      totalSize += scoresData.length;
+    }
 
-      return {
-        windowId: options.windowId,
-        trajectoryCount: (options.metadata?.trajectoryCount as number) || 0,
-        blobUrls: urls,
-        archivedAt: new Date(),
-        size: totalSize
-      };
+    // Upload metadata
+    const metadataJson = JSON.stringify(options.metadata || {}, null, 2);
+    const metadataBlob = await put(`${prefix}metadata.json`, metadataJson, {
+      access: 'public',
+      addRandomSuffix: false,
+    });
+    urls.metadata = metadataBlob.url;
+    totalSize += Buffer.byteLength(metadataJson, 'utf8');
+
+    logger.info('Training data archived', {
+      windowId: options.windowId,
+      size: totalSize,
+    });
+
+    return {
+      windowId: options.windowId,
+      trajectoryCount: (options.metadata?.trajectoryCount as number) || 0,
+      blobUrls: urls,
+      archivedAt: new Date(),
+      size: totalSize,
+    };
   }
 
   /**
@@ -122,40 +121,40 @@ export class TrainingDataArchiver {
       return null;
     }
 
-      interface WindowDataResult {
-        trajectories?: string;
-        groups?: string;
-        rulerScores?: Record<string, unknown>;
-        metadata?: Record<string, unknown>;
+    interface WindowDataResult {
+      trajectories?: string;
+      groups?: string;
+      rulerScores?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+    }
+    const result: WindowDataResult = {};
+
+    for (const blob of blobs) {
+      const response = await fetch(blob.url);
+      const filename = path.basename(blob.pathname);
+
+      if (filename === 'trajectories.jsonl') {
+        result.trajectories = await response.text();
+      } else if (filename === 'groups.jsonl') {
+        result.groups = await response.text();
+      } else if (filename === 'ruler_scores.json') {
+        result.rulerScores = (await response.json()) as Record<string, unknown>;
+      } else if (filename === 'metadata.json') {
+        result.metadata = (await response.json()) as Record<string, unknown>;
       }
-      const result: WindowDataResult = {};
+    }
 
-      for (const blob of blobs) {
-        const response = await fetch(blob.url);
-        const filename = path.basename(blob.pathname);
+    // Ensure required fields are present
+    if (!result.trajectories || !result.metadata) {
+      return null;
+    }
 
-        if (filename === 'trajectories.jsonl') {
-          result.trajectories = await response.text();
-        } else if (filename === 'groups.jsonl') {
-          result.groups = await response.text();
-        } else if (filename === 'ruler_scores.json') {
-          result.rulerScores = await response.json() as Record<string, unknown>;
-        } else if (filename === 'metadata.json') {
-          result.metadata = await response.json() as Record<string, unknown>;
-        }
-      }
-
-      // Ensure required fields are present
-      if (!result.trajectories || !result.metadata) {
-        return null;
-      }
-
-      return {
-        trajectories: result.trajectories,
-        groups: result.groups,
-        rulerScores: result.rulerScores,
-        metadata: result.metadata
-      };
+    return {
+      trajectories: result.trajectories,
+      groups: result.groups,
+      rulerScores: result.rulerScores,
+      metadata: result.metadata,
+    };
   }
 
   /**
@@ -192,4 +191,3 @@ export class TrainingDataArchiver {
 
 // Singleton
 export const trainingDataArchiver = new TrainingDataArchiver();
-

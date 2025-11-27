@@ -9,8 +9,9 @@ import { logger } from '@babylon/shared';
 import {
   checkDuplicate,
   type DUPLICATE_DETECTION_CONFIGS,
-} from './duplicate-detector';
-import { checkRateLimit, type RATE_LIMIT_CONFIGS } from './user-rate-limiter';
+  checkRateLimit,
+  type RATE_LIMIT_CONFIGS,
+} from '@babylon/shared';
 
 /**
  * Error response for rate limit exceeded

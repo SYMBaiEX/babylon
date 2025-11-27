@@ -60,7 +60,7 @@ import { relayCronToStaging } from '@babylon/api';
 import {
   acquireGenerationLock,
   releaseGenerationLock,
-} from '@babylon/shared';
+} from '@babylon/api';
 import {
   checkLookaheadStatus,
   generateAheadIfNeeded,

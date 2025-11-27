@@ -12,6 +12,7 @@ import type {
   A2AChat,
   A2AFeedPost,
   A2ALeaderboardEntry,
+  A2AMarketPosition,
   A2ANotification,
   A2AOrganization,
   A2APerpetualMarket,
@@ -87,7 +88,15 @@ export class BabylonA2AClient {
 
     if (!this.clientPromise) {
       const agentCardUrl = `${this.config.baseUrl}/.well-known/agent-card`;
-      this.clientPromise = A2AClient.fromCardUrl(agentCardUrl, {
+      // A2AClient.fromCardUrl accepts options with fetchImpl
+      // Type assertion needed because SDK types may not fully expose all options
+      type A2AClientOptions = {
+        fetchImpl?: (
+          url: string | URL | Request,
+          init?: RequestInit
+        ) => Promise<Response>;
+      };
+      const options: A2AClientOptions = {
         fetchImpl: async (url: string | URL | Request, init?: RequestInit) => {
           // Add authentication headers
           const headers = new Headers(init?.headers);
@@ -99,7 +108,11 @@ export class BabylonA2AClient {
           }
           return fetch(url, { ...init, headers });
         },
-      });
+      };
+      this.clientPromise = A2AClient.fromCardUrl(
+        agentCardUrl,
+        options as Parameters<typeof A2AClient.fromCardUrl>[1]
+      );
     }
 
     this.client = await this.clientPromise;
@@ -114,7 +127,8 @@ export class BabylonA2AClient {
     const client = await this.getClient();
 
     // Get agent card - A2AClient has internal agentCardPromise property
-    const clientInternal = client as A2AClient & A2AClientInternal;
+    // Use type assertion to access internal property
+    const clientInternal = client as unknown as A2AClientInternal;
     this.agentCard = (await clientInternal.agentCardPromise) || null;
 
     // Verify connection by sending a test message
@@ -172,17 +186,20 @@ export class BabylonA2AClient {
     }
 
     // Response can be either a Message or Task
-    if ('task' in response.result) {
-      return response.result.task;
+    if ('task' in response.result && response.result.task) {
+      return response.result.task as Task;
     }
-    if ('message' in response.result) {
-      return response.result.message;
+    if ('message' in response.result && response.result.message) {
+      return response.result.message as Message;
     }
     // Fallback - check if result itself is a Task or Message
-    const result = response.result as A2AResponseResult;
+    const result = response.result as unknown as A2AResponseResult;
     if (result && typeof result === 'object' && 'kind' in result) {
-      if (result.kind === 'task' || result.kind === 'message') {
-        return result as Task | Message;
+      if (result.kind === 'task' && result.task) {
+        return result.task as Task;
+      }
+      if (result.kind === 'message' && result.message) {
+        return result.message as Message;
       }
     }
     throw new Error('Unexpected response format');
@@ -195,7 +212,9 @@ export class BabylonA2AClient {
    */
   async getTask(taskId: string): Promise<Task> {
     const client = await this.getClient();
-    const response = await client.getTask({ taskId });
+    // A2AClient.getTask accepts either string or TaskQueryParams object
+    // Using object format for type safety
+    const response = await client.getTask({ id: taskId });
 
     if (client.isErrorResponse(response)) {
       throw new Error(
@@ -203,7 +222,10 @@ export class BabylonA2AClient {
       );
     }
 
-    return response.result.task;
+    if ('task' in response.result && response.result.task) {
+      return response.result.task as Task;
+    }
+    throw new Error(`Task ${taskId} not found`);
   }
 
   /**
@@ -423,12 +445,12 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        predictions: (result.predictions as A2APredictionMarket[]) || [],
+        predictions: Array.isArray(result.predictions) ? (result.predictions as unknown as A2APredictionMarket[]) : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { predictions: (result.predictions as A2APredictionMarket[]) || [] };
+      return { predictions: Array.isArray(result.predictions) ? (result.predictions as unknown as A2APredictionMarket[]) : [] };
   }
 
   /**
@@ -446,11 +468,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { perpetuals: (result.perpetuals as A2APerpetualMarket[]) || [] };
+      return { perpetuals: Array.isArray(result.perpetuals) ? (result.perpetuals as unknown as A2APerpetualMarket[]) : [] };
     }
 
     const result = this.extractResult(response);
-    return { perpetuals: (result.perpetuals as A2APerpetualMarket[]) || [] };
+    return { perpetuals: Array.isArray(result.perpetuals) ? (result.perpetuals as unknown as A2APerpetualMarket[]) : [] };
   }
 
   /**
@@ -494,7 +516,11 @@ export class BabylonA2AClient {
    */
   async getPositions(
     userId?: string
-  ): Promise<{ perpPositions: A2APerpPosition[]; totalPnL: number }> {
+  ): Promise<{
+    marketPositions: A2AMarketPosition[];
+    perpPositions: A2APerpPosition[];
+    totalPnL: number;
+  }> {
     const response = await this.sendMessage(
       userId
         ? `What are user ${userId}'s positions?`
@@ -509,14 +535,16 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        perpPositions: (result.perpPositions as A2APerpPosition[]) || [],
+        marketPositions: Array.isArray(result.marketPositions) ? (result.marketPositions as unknown as A2AMarketPosition[]) : [],
+        perpPositions: Array.isArray(result.perpPositions) ? (result.perpPositions as unknown as A2APerpPosition[]) : [],
         totalPnL: (result.totalPnL as number) || 0,
       };
     }
 
     const result = this.extractResult(response);
     return {
-      perpPositions: (result.perpPositions as A2APerpPosition[]) || [],
+      marketPositions: Array.isArray(result.marketPositions) ? (result.marketPositions as unknown as A2AMarketPosition[]) : [],
+      perpPositions: Array.isArray(result.perpPositions) ? (result.perpPositions as unknown as A2APerpPosition[]) : [],
       totalPnL: (result.totalPnL as number) || 0,
     };
   }
@@ -526,7 +554,7 @@ export class BabylonA2AClient {
    */
   async getPortfolio(): Promise<{
     balance: number;
-    positions: A2APerpPosition[];
+    positions: Array<A2AMarketPosition | A2APerpPosition>;
     pnl: number;
   }> {
     const [balance, positions] = await Promise.all([
@@ -536,7 +564,7 @@ export class BabylonA2AClient {
 
     return {
       balance: balance.balance,
-      positions: positions.perpPositions || [],
+      positions: [...(positions.marketPositions || []), ...(positions.perpPositions || [])],
       pnl: positions.totalPnL || 0,
     };
   }
@@ -562,11 +590,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { posts: (result.posts as A2AFeedPost[]) || [] };
+      return { posts: Array.isArray(result.posts) ? (result.posts as unknown as A2AFeedPost[]) : [] };
     }
 
     const result = this.extractResult(response);
-    return { posts: (result.posts as A2AFeedPost[]) || [] };
+    return { posts: Array.isArray(result.posts) ? (result.posts as unknown as A2AFeedPost[]) : [] };
   }
 
   /**
@@ -704,17 +732,17 @@ export class BabylonA2AClient {
   ): Promise<{ chats: A2AChat[] }> {
     const response = await this.sendMessage('What are my chats?', {
       operation: 'chats.get_chats',
-      params: { filter },
+      params: { filter: filter as JsonValue },
     });
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { chats: (result.chats as A2AChat[]) || [] };
+      return { chats: Array.isArray(result.chats) ? (result.chats as unknown as A2AChat[]) : [] };
     }
 
     const result = this.extractResult(response);
-    return { chats: (result.chats as A2AChat[]) || [] };
+    return { chats: Array.isArray(result.chats) ? (result.chats as unknown as A2AChat[]) : [] };
   }
 
   /**
@@ -725,21 +753,19 @@ export class BabylonA2AClient {
   ): Promise<{ notifications: A2ANotification[] }> {
     const response = await this.sendMessage('What are my notifications?', {
       operation: 'notifications.get_notifications',
-      params: { limit },
-      skill: 'notification-manager',
-      action: 'get_notifications',
+      params: { limit: limit as JsonValue },
     });
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        notifications: (result.notifications as A2ANotification[]) || [],
+        notifications: Array.isArray(result.notifications) ? (result.notifications as unknown as A2ANotification[]) : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { notifications: (result.notifications as A2ANotification[]) || [] };
+    return { notifications: Array.isArray(result.notifications) ? (result.notifications as unknown as A2ANotification[]) : [] };
   }
 
   /**
@@ -762,12 +788,12 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        leaderboard: (result.leaderboard as A2ALeaderboardEntry[]) || [],
+        leaderboard: Array.isArray(result.leaderboard) ? (result.leaderboard as unknown as A2ALeaderboardEntry[]) : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { leaderboard: (result.leaderboard as A2ALeaderboardEntry[]) || [] };
+    return { leaderboard: Array.isArray(result.leaderboard) ? (result.leaderboard as unknown as A2ALeaderboardEntry[]) : [] };
   }
 
   /**
@@ -836,8 +862,7 @@ export class BabylonA2AClient {
         : 'What is my reputation?',
       {
         operation: 'stats.get_reputation',
-        params: {
-        userId,
+        params: userId ? { userId } : {},
       }
     );
 
@@ -863,17 +888,17 @@ export class BabylonA2AClient {
   async getTrendingTags(limit?: number): Promise<{ tags: A2ATrendingTag[] }> {
     const response = await this.sendMessage('What topics are trending?', {
       operation: 'stats.get_trending_tags',
-      params: { limit },
+      params: { limit: limit as JsonValue },
     });
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { tags: (result.tags as A2ATrendingTag[]) || [] };
+      return { tags: Array.isArray(result.tags) ? (result.tags as unknown as A2ATrendingTag[]) : [] };
     }
 
     const result = this.extractResult(response);
-    return { tags: (result.tags as A2ATrendingTag[]) || [] };
+    return { tags: Array.isArray(result.tags) ? (result.tags as unknown as A2ATrendingTag[]) : [] };
   }
 
   /**
@@ -886,9 +911,7 @@ export class BabylonA2AClient {
       'What organizations/perpetual markets are available?',
       {
         operation: 'markets.get_organizations',
-        params: { limit },
-        skill: 'market-researcher',
-        action: 'get_organizations',
+        params: { limit: limit as JsonValue },
       }
     );
 
@@ -896,12 +919,12 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        organizations: (result.organizations as A2AOrganization[]) || [],
+        organizations: Array.isArray(result.organizations) ? (result.organizations as unknown as A2AOrganization[]) : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { organizations: (result.organizations as A2AOrganization[]) || [] };
+    return { organizations: Array.isArray(result.organizations) ? (result.organizations as unknown as A2AOrganization[]) : [] };
   }
 
   /**
@@ -916,18 +939,18 @@ export class BabylonA2AClient {
       operation: 'users.search',
       params: {
         query,
-        limit,
+        limit: limit as JsonValue,
       },
     });
 
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { users: (result.users as A2AUserSearchResult[]) || [] };
+      return { users: Array.isArray(result.users) ? (result.users as unknown as A2AUserSearchResult[]) : [] };
     }
 
     const result = this.extractResult(response);
-    return { users: (result.users as A2AUserSearchResult[]) || [] };
+    return { users: Array.isArray(result.users) ? (result.users as unknown as A2AUserSearchResult[]) : [] };
   }
 
   /**

@@ -4,8 +4,9 @@
  * Unified agent types for ERC-8004, Agent0, and A2A Protocol
  */
 
-// Re-export AgentCapabilities from shared
-export type { AgentCapabilities } from '@babylon/shared/types/agents';
+// Import and re-export AgentCapabilities from shared
+import type { AgentCapabilities } from '@babylon/shared/types/agents';
+export type { AgentCapabilities };
 
 /**
  * Agent types supported by the registry

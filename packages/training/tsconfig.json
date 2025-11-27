@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -29,11 +29,28 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleDetection": "force",
-    "outDir": "./dist",
-    "types": ["bun-types"],
-    "baseUrl": "."
+      "outDir": "./dist",
+      "rootDir": ".",
+      "types": ["bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "@babylon/shared": ["../shared/src/index.ts"],
+      "@babylon/shared/*": ["../shared/src/*"],
+      "@babylon/db": ["../db/src/index.ts"],
+      "@babylon/db/*": ["../db/src/*"],
+      "@babylon/engine": ["../engine/src/index.ts"],
+      "@babylon/engine/*": ["../engine/src/*"],
+      "@babylon/api": ["../api/src/index.ts"],
+      "@babylon/api/*": ["../api/src/*"],
+      "@babylon/agents": ["../agents/src/index.ts"],
+      "@babylon/agents/*": ["../agents/src/*"],
+      "@babylon/a2a": ["../a2a/src/index.ts"],
+      "@babylon/a2a/*": ["../a2a/src/*"],
+      "@babylon/contracts": ["../contracts/src/index.ts"],
+      "@babylon/contracts/*": ["../contracts/src/*"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "python", "**/__tests__/**/*"]
+  "include": ["src/**/*", "src/global.d.ts"],
+  "exclude": ["node_modules", "dist", "python", "**/__tests__/**/*", "../api/**/*", "../shared/**/*", "../engine/**/*", "../agents/**/*", "../db/**/*", "../a2a/**/*", "../contracts/**/*"]
 }
 

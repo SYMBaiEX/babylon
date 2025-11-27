@@ -4,9 +4,9 @@
  * Validates that benchmark metrics are calculated correctly against ground truth.
  */
 
-import { logger } from '../utils/logger';
 // Use shared ValidationResult type
 import type { ValidationResult } from '../training/ConfigValidator';
+import { logger } from '../utils/logger';
 import type { GroundTruth } from './BenchmarkDataGenerator';
 import type { AgentAction, SimulationMetrics } from './SimulationEngine';
 

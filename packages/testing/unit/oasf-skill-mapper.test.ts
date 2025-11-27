@@ -13,7 +13,7 @@ import {
   suggestSkillsFromKeywords,
   validateOASFDomainPath,
   validateOASFSkillPath,
-} from '@babylon/shared/utils/oasf-skill-mapper';
+} from '@babylon/shared';
 import type { ActorData } from '@babylon/shared';
 
 describe('OASF Skill Mapper', () => {

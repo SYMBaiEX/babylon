@@ -124,10 +124,10 @@ jobs:
       
       - name: Verify build artifacts exist
         run: |
-          if [ -d .next ]; then
+          if [ -d apps/web/.next ]; then
             echo "✅ Build completed successfully"
-            du -sh .next
+            du -sh apps/web/.next
           else
-            echo "❌ Build failed - .next directory does not exist"
+            echo "❌ Build failed - apps/web/.next directory does not exist"
             exit 1
           fi

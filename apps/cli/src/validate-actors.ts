@@ -47,6 +47,7 @@
  */
 
 import { z } from 'zod';
+import { loadActorsData } from '@babylon/engine';
 
 // Simple logger for CLI
 const logger = {
@@ -129,7 +130,6 @@ const ActorsDataSchema = z.object({
  */
 async function validateActors(): Promise<void> {
   // Use the loader from engine package which handles the split file structure
-  const { loadActorsData } = await import('@babylon/engine');
   const data = loadActorsData();
   const validatedData = ActorsDataSchema.parse(data);
 

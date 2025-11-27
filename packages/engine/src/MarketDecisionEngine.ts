@@ -87,7 +87,7 @@ import {
   countTokensSync,
   getSafeContextLimit,
   truncateToTokenLimitSync,
-} from './token-counter';
+} from '@babylon/shared';
 import {
   generateWorldContext,
   getShuffledExamplesText,

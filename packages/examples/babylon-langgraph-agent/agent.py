@@ -15,7 +15,7 @@ import time
 import asyncio
 import argparse
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 
 # LangChain & LangGraph
@@ -95,9 +95,14 @@ class BabylonA2AClient:
     
     # ===== Trading Methods =====
     
-    async def get_predictions(self, user_id: Optional[str] = None, status: Optional[str] = None) -> Dict:
+    async def get_predictions(
+        self, user_id: Optional[str] = None, status: Optional[str] = None
+    ) -> Dict:
         """Get all prediction markets"""
-        return await self.call('a2a.getPredictions', {'userId': user_id, 'status': status} if user_id or status else {})
+        params = {}
+        if user_id or status:
+            params = {'userId': user_id, 'status': status}
+        return await self.call('a2a.getPredictions', params)
     
     async def get_perpetuals(self) -> Dict:
         """Get all perpetual markets"""
@@ -107,25 +112,38 @@ class BabylonA2AClient:
         """Sell prediction market shares"""
         return await self.call('a2a.sellShares', {'positionId': position_id, 'shares': shares})
     
-    async def open_position(self, ticker: str, side: str, amount: float, leverage: int) -> Dict:
+    async def open_position(
+        self, ticker: str, side: str, amount: float, leverage: int
+    ) -> Dict:
         """Open perpetual position"""
-        return await self.call('a2a.openPosition', {'ticker': ticker, 'side': side, 'amount': amount, 'leverage': leverage})
+        params = {
+            'ticker': ticker,
+            'side': side,
+            'amount': amount,
+            'leverage': leverage,
+        }
+        return await self.call('a2a.openPosition', params)
     
     async def close_position(self, position_id: str) -> Dict:
         """Close perpetual position"""
         return await self.call('a2a.closePosition', {'positionId': position_id})
     
-    async def get_trades(self, limit: Optional[int] = None, market_id: Optional[str] = None) -> Dict:
+    async def get_trades(
+        self, limit: Optional[int] = None, market_id: Optional[str] = None
+    ) -> Dict:
         """Get recent trades"""
         params = {}
-        if limit: params['limit'] = limit
-        if market_id: params['marketId'] = market_id
+        if limit:
+            params['limit'] = limit
+        if market_id:
+            params['marketId'] = market_id
         return await self.call('a2a.getTrades', params)
     
     async def get_trade_history(self, user_id: str, limit: Optional[int] = None) -> Dict:
         """Get trade history for user"""
         params = {'userId': user_id}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getTradeHistory', params)
     
     # ===== Social Methods =====
@@ -149,13 +167,15 @@ class BabylonA2AClient:
     async def share_post(self, post_id: str, comment: Optional[str] = None) -> Dict:
         """Share/repost a post"""
         params = {'postId': post_id}
-        if comment: params['comment'] = comment
+        if comment:
+            params['comment'] = comment
         return await self.call('a2a.sharePost', params)
     
     async def get_comments(self, post_id: str, limit: Optional[int] = None) -> Dict:
         """Get comments on a post"""
         params = {'postId': post_id}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getComments', params)
     
     async def create_comment(self, post_id: str, content: str) -> Dict:
@@ -180,10 +200,14 @@ class BabylonA2AClient:
                             username: Optional[str] = None, profile_image_url: Optional[str] = None) -> Dict:
         """Update own profile"""
         params = {}
-        if display_name: params['displayName'] = display_name
-        if bio: params['bio'] = bio
-        if username: params['username'] = username
-        if profile_image_url: params['profileImageUrl'] = profile_image_url
+        if display_name:
+            params['displayName'] = display_name
+        if bio:
+            params['bio'] = bio
+        if username:
+            params['username'] = username
+        if profile_image_url:
+            params['profileImageUrl'] = profile_image_url
         return await self.call('a2a.updateProfile', params)
     
     async def follow_user(self, user_id: str) -> Dict:
@@ -197,19 +221,22 @@ class BabylonA2AClient:
     async def get_followers(self, user_id: str, limit: Optional[int] = None) -> Dict:
         """Get user's followers"""
         params = {'userId': user_id}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getFollowers', params)
     
     async def get_following(self, user_id: str, limit: Optional[int] = None) -> Dict:
         """Get who user follows"""
         params = {'userId': user_id}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getFollowing', params)
     
     async def search_users(self, query: str, limit: Optional[int] = None) -> Dict:
         """Search for users"""
         params = {'query': query}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.searchUsers', params)
     
     # ===== Messaging =====
@@ -217,14 +244,17 @@ class BabylonA2AClient:
     async def get_chats(self, filter_type: Optional[str] = None) -> Dict:
         """Get user's chats"""
         params = {}
-        if filter_type: params['filter'] = filter_type
+        if filter_type:
+            params['filter'] = filter_type
         return await self.call('a2a.getChats', params)
     
     async def get_chat_messages(self, chat_id: str, limit: Optional[int] = None, offset: Optional[int] = None) -> Dict:
         """Get messages from a chat"""
         params = {'chatId': chat_id}
-        if limit: params['limit'] = limit
-        if offset: params['offset'] = offset
+        if limit:
+            params['limit'] = limit
+        if offset:
+            params['offset'] = offset
         return await self.call('a2a.getChatMessages', params)
     
     async def send_message(self, chat_id: str, content: str) -> Dict:
@@ -234,7 +264,8 @@ class BabylonA2AClient:
     async def create_group(self, name: str, member_ids: list, description: Optional[str] = None) -> Dict:
         """Create group chat"""
         params = {'name': name, 'memberIds': member_ids}
-        if description: params['description'] = description
+        if description:
+            params['description'] = description
         return await self.call('a2a.createGroup', params)
     
     async def leave_chat(self, chat_id: str) -> Dict:
@@ -250,7 +281,8 @@ class BabylonA2AClient:
     async def get_notifications(self, limit: Optional[int] = None) -> Dict:
         """Get notifications"""
         params = {}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getNotifications', params)
     
     async def mark_notifications_read(self, notification_ids: list) -> Dict:
@@ -275,10 +307,14 @@ class BabylonA2AClient:
                              points_type: Optional[str] = None, min_points: Optional[int] = None) -> Dict:
         """Get leaderboard"""
         params = {}
-        if page: params['page'] = page
-        if page_size: params['pageSize'] = page_size
-        if points_type: params['pointsType'] = points_type
-        if min_points: params['minPoints'] = min_points
+        if page:
+            params['page'] = page
+        if page_size:
+            params['pageSize'] = page_size
+        if points_type:
+            params['pointsType'] = points_type
+        if min_points:
+            params['minPoints'] = min_points
         return await self.call('a2a.getLeaderboard', params)
     
     async def get_user_stats(self, user_id: str) -> Dict:
@@ -304,7 +340,8 @@ class BabylonA2AClient:
     async def get_reputation(self, user_id: Optional[str] = None) -> Dict:
         """Get reputation score"""
         params = {}
-        if user_id: params['userId'] = user_id
+        if user_id:
+            params['userId'] = user_id
         return await self.call('a2a.getReputation', params)
     
     async def get_reputation_breakdown(self, user_id: str) -> Dict:
@@ -314,20 +351,24 @@ class BabylonA2AClient:
     async def get_trending_tags(self, limit: Optional[int] = None) -> Dict:
         """Get trending tags"""
         params = {}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getTrendingTags', params)
     
     async def get_posts_by_tag(self, tag: str, limit: Optional[int] = None, offset: Optional[int] = None) -> Dict:
         """Get posts by tag"""
         params = {'tag': tag}
-        if limit: params['limit'] = limit
-        if offset: params['offset'] = offset
+        if limit:
+            params['limit'] = limit
+        if offset:
+            params['offset'] = offset
         return await self.call('a2a.getPostsByTag', params)
     
     async def get_organizations(self, limit: Optional[int] = None) -> Dict:
         """Get organizations"""
         params = {}
-        if limit: params['limit'] = limit
+        if limit:
+            params['limit'] = limit
         return await self.call('a2a.getOrganizations', params)
     
     async def close(self):
@@ -590,7 +631,7 @@ class AgentLogger:
             json.dump({
                 'total_logs': len(self.logs),
                 'by_level': {
-                    level: len([l for l in self.logs if l['level'] == level])
+                    level: len([log for log in self.logs if log['level'] == level])
                     for level in ['INFO', 'SUCCESS', 'ERROR', 'WARNING']
                 },
                 'logs': self.logs
@@ -601,7 +642,7 @@ class AgentLogger:
 async def main(max_ticks: Optional[int] = None, log_file: Optional[str] = None):
     """Main loop"""
     logger = AgentLogger(log_file=log_file)
-    client: Optional[BabylonA2AClient] = None
+    client: Optional[Any] = None
     
     try:
         logger.info("Starting Babylon Agent")
@@ -637,7 +678,7 @@ async def main(max_ticks: Optional[int] = None, log_file: Optional[str] = None):
             babylon_url = os.getenv('BABYLON_URL', 'http://localhost:3000')
             agent_card_url = f"{babylon_url}/.well-known/agent-card.json"
             
-                client = BabylonA2AClient(
+            client = BabylonA2AClient(
                 agent_card_url=agent_card_url,
                 agent_id=identity['agentId'],
                 address=identity['address'],

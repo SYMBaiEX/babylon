@@ -7,7 +7,6 @@ all Babylon methods via the A2A protocol (message/send).
 Fully compliant with A2A specification.
 """
 
-import os
 import json
 import uuid
 import logging
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Import official A2A SDK
 try:
     from a2a.client import A2AClient
-    from a2a.types import Message, Task, TextPart, DataPart
+    from a2a.types import Message
     HAS_A2A_SDK = True
 except ImportError:
     HAS_A2A_SDK = False
@@ -214,7 +213,7 @@ class BabylonA2AClient:
                                     # Try to parse as JSON
                                     try:
                                         return json.loads(part.get('text', '{}'))
-                                    except:
+                                    except Exception:
                                         return {'text': part.get('text', '')}
                         return task
                     else:

@@ -61,9 +61,10 @@ import {
 } from '@babylon/engine';
 import { nanoid } from 'nanoid';
 import type { GroupMessage } from '@babylon/engine';
+import type { JsonValue } from '@babylon/db';
 
 // Simple logger for CLI - replaces @babylon/shared
-type LogData = string | string[] | Record<string, unknown> | Error;
+type LogData = string | string[] | Record<string, JsonValue> | Error;
 const logger = {
   info: (msg: string, data?: LogData, _ctx?: string) => {
     if (data) {
@@ -152,6 +153,70 @@ function parseArgs(): CLIOptions {
   });
 
   return options;
+}
+
+/**
+ * Type guard to validate GameHistory structure from JsonValue
+ */
+function validateGameHistory(value: JsonValue): GameHistory {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    throw new Error('Invalid game history format in database: must be an object');
+  }
+
+  const obj = value as Record<string, JsonValue>;
+
+  // Validate required fields
+  if (
+    typeof obj.gameNumber !== 'number' ||
+    typeof obj.completedAt !== 'string' ||
+    typeof obj.summary !== 'string' ||
+    !Array.isArray(obj.keyOutcomes) ||
+    !Array.isArray(obj.highlights) ||
+    !Array.isArray(obj.topMoments)
+  ) {
+    throw new Error(
+      'Invalid game history format in database: missing or invalid required fields'
+    );
+  }
+
+  // Validate keyOutcomes structure
+  for (const outcome of obj.keyOutcomes) {
+    if (
+      typeof outcome !== 'object' ||
+      outcome === null ||
+      Array.isArray(outcome) ||
+      typeof (outcome as Record<string, JsonValue>).questionText !== 'string' ||
+      typeof (outcome as Record<string, JsonValue>).outcome !== 'boolean' ||
+      typeof (outcome as Record<string, JsonValue>).explanation !== 'string'
+    ) {
+      throw new Error(
+        'Invalid game history format in database: invalid keyOutcomes structure'
+      );
+    }
+  }
+
+  // Validate highlights and topMoments are string arrays
+  for (const highlight of obj.highlights) {
+    if (typeof highlight !== 'string') {
+      throw new Error(
+        'Invalid game history format in database: highlights must be string array'
+      );
+    }
+  }
+
+  for (const moment of obj.topMoments) {
+    if (typeof moment !== 'string') {
+      throw new Error(
+        'Invalid game history format in database: topMoments must be string array'
+      );
+    }
+  }
+
+  return obj as GameHistory;
 }
 
 /**
@@ -454,15 +519,7 @@ async function main() {
       if (historyConfig && historyConfig.value) {
         // Use stored history if available
         // Validate historyConfig.value structure matches GameHistory
-        // JsonValue is compatible with object types, so we can safely cast
-        if (
-          !historyConfig.value ||
-          typeof historyConfig.value !== 'object' ||
-          Array.isArray(historyConfig.value)
-        ) {
-          throw new Error('Invalid game history format in database');
-        }
-        const storedHistory = historyConfig.value as unknown as GameHistory;
+        const storedHistory = validateGameHistory(historyConfig.value);
         history.push(storedHistory);
         logger.info(
           `Loaded stored history for game ${gameData.id}`,

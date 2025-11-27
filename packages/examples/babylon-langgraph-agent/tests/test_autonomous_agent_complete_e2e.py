@@ -22,10 +22,9 @@ Prerequisites:
 """
 
 import pytest
-import asyncio
 import os
 from datetime import datetime
-from agent import BabylonA2AClient, A2AError
+from agent import BabylonA2AClient
 from dotenv import load_dotenv
 
 # Note: Database client needs to be imported from the main project
@@ -267,7 +266,7 @@ class TestAutonomousAgentCompleteE2E:
             result = await client.like_post(self.created_post_id)
             assert result is not None
             assert result.get('success') is True
-            print(f"   ✅ Liked post")
+            print("   ✅ Liked post")
     
     async def test_phase5_user_management(self, agent_setup):
         """Phase 5: User Management"""
@@ -336,12 +335,12 @@ class TestAutonomousAgentCompleteE2E:
         # Get user stats
         result = await client.get_user_stats(agent_user_id)
         assert result is not None
-        print(f"   ✅ User stats retrieved")
+        print("   ✅ User stats retrieved")
         
         # Get system stats
         result = await client.get_system_stats()
         assert result is not None
-        print(f"   ✅ System stats retrieved")
+        print("   ✅ System stats retrieved")
         
         # Get reputation
         result = await client.get_reputation(agent_user_id)

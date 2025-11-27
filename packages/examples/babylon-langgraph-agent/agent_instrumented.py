@@ -27,7 +27,6 @@ from langgraph.checkpoint.memory import MemorySaver
 
 import httpx
 from eth_account import Account
-from eth_account.messages import encode_defunct
 
 load_dotenv()
 
@@ -125,7 +124,7 @@ class InstrumentedA2AClient:
                 data=error.get('data')
             )
         
-        print(f"✅ Success")
+        print("✅ Success")
         print(f"{'='*80}\n")
             
         return result['result']
@@ -154,7 +153,7 @@ def set_client(client: InstrumentedA2AClient):
 @tool
 async def get_markets() -> str:
     """Get available prediction markets"""
-    print(f"\n🔧 TOOL CALLED: get_markets()")
+    print("\n🔧 TOOL CALLED: get_markets()")
     result = await _client.call('a2a.getMarketData', {})
     print(f"🔧 TOOL RESULT: {json.dumps(result, indent=2)[:200]}...")
     return json.dumps(result)
@@ -162,12 +161,12 @@ async def get_markets() -> str:
 @tool
 async def get_portfolio() -> str:
     """Get portfolio (balance + positions)"""
-    print(f"\n🔧 TOOL CALLED: get_portfolio()")
+    print("\n🔧 TOOL CALLED: get_portfolio()")
     
-    print(f"  → Calling a2a.getBalance...")
+    print("  → Calling a2a.getBalance...")
     balance = await _client.call('a2a.getBalance', {})
     
-    print(f"  → Calling a2a.getPositions...")
+    print("  → Calling a2a.getPositions...")
     positions = await _client.call('a2a.getPositions', {'userId': _client.agent_id})
     
     result = {
@@ -228,7 +227,7 @@ Task: Use tools to gather information, then analyze and decide.
         prompt = f"{self.get_system_prompt()}\n\nGather information using tools and analyze."
         
         print(f"\n{'='*80}")
-        print(f"🧠 LLM INVOCATION")
+        print("🧠 LLM INVOCATION")
         print(f"{'='*80}")
         print(f"Prompt (first 300 chars):\n{prompt[:300]}...")
         print(f"Session ID: {session_id}")
@@ -258,7 +257,7 @@ Task: Use tools to gather information, then analyze and decide.
         last_message = result["messages"][-1]
         decision = last_message.content if hasattr(last_message, 'content') else str(last_message)
         
-        print(f"\n💡 FINAL DECISION:")
+        print("\n💡 FINAL DECISION:")
         print(f"{decision}")
         print(f"{'='*80}\n")
         
@@ -335,7 +334,7 @@ async def main(max_ticks: Optional[int] = None):
         )
         
         set_client(client)
-        print(f"✅ Client created\n")
+        print("✅ Client created\n")
         
         # Phase 3: LangGraph
         print("━" * 80)
@@ -344,14 +343,14 @@ async def main(max_ticks: Optional[int] = None):
         
         strategy = os.getenv('AGENT_STRATEGY', 'balanced')
         print(f"Strategy: {strategy}")
-        print(f"Model: llama-3.1-8b-instant")
+        print("Model: llama-3.1-8b-instant")
         
         agent = InstrumentedAgent(strategy=strategy)
         print(f"Tools: {len(agent.tools)}")
         for t in agent.tools:
             print(f"  - {t.name}: {t.description}")
         
-        print(f"✅ Agent ready\n")
+        print("✅ Agent ready\n")
         
         # Phase 4: Loop
         print("━" * 80)
@@ -373,7 +372,7 @@ async def main(max_ticks: Optional[int] = None):
             print(f"# TICK {tick_count}" + (f" / {max_ticks}" if max_ticks else ""))
             print(f"{'#'*80}\n")
             
-            result = await agent.decide(session_id=identity['agentId'])
+            await agent.decide(session_id=identity['agentId'])
             
             print(f"✅ Tick {tick_count} complete\n")
             
@@ -396,7 +395,7 @@ async def main(max_ticks: Optional[int] = None):
             print(f"✅ API calls saved to: {api_log_file}")
             print(f"✅ LLM calls saved to: {llm_log_file}")
             
-            print(f"\n📈 SUMMARY:")
+            print("\n📈 SUMMARY:")
             print(f"  Total API calls: {len(client.call_log)}")
             print(f"  Total LLM calls: {len(agent.invocation_log)}")
             print(f"  Total ticks: {tick_count}")

@@ -11,9 +11,9 @@ import {
   getContractAddressesFromEnv,
   getRpcUrl,
 } from '@babylon/contracts/deployment';
-import { logger } from '../utils/logger';
+import { logger } from '@babylon/shared';
 import BabylonGameOracleABI from './abi/BabylonGameOracle.json';
-import { CommitmentStore } from '@babylon/engine/services/oracle-commitment-store';
+import { CommitmentStore } from '../oracle-commitment-store';
 import type {
   BatchCommitResult,
   BatchRevealResult,
@@ -433,7 +433,9 @@ export class OracleService {
       const allPending = await CommitmentStore.listPending();
       logger.info(
         `Found ${allPending.length} pending commitments before update`,
-        { questionIds: allPending.map((c) => c.questionId).slice(0, 10) },
+        {
+          questionIds: allPending.map((c: { questionId: string }) => c.questionId).slice(0, 10),
+        },
         'OracleService'
       );
 

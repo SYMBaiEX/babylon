@@ -26,8 +26,8 @@ import {
   trainedModels,
   users,
 } from '@babylon/db';
-import { getAgentRuntimeManager } from '../dependencies';
 import { BenchmarkRunner } from '../benchmark/BenchmarkRunner';
+import { getAgentRuntimeManager } from '../dependencies';
 import { logger } from '../utils/logger';
 
 export interface BenchmarkResults {

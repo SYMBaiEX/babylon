@@ -40,7 +40,13 @@ export type ExportGroupedForGRPOFn = (options: {
   outputPath: string;
   minTrajectoriesPerGroup?: number;
   maxGroupSize?: number;
-}) => Promise<{ success: boolean; groupsExported: number; trajectoriesExported: number; outputPath: string; error?: string }>;
+}) => Promise<{
+  success: boolean;
+  groupsExported: number;
+  trajectoriesExported: number;
+  outputPath: string;
+  error?: string;
+}>;
 
 /**
  * Export function type for HuggingFace
@@ -84,7 +90,10 @@ export interface TrajectoryStepForART {
   stepId: string;
   stepNumber: number;
   timestamp: number;
-  environmentState: Record<string, unknown> & { timestamp: number; agentPoints: number };
+  environmentState: Record<string, unknown> & {
+    timestamp: number;
+    agentPoints: number;
+  };
   observation: Record<string, unknown>;
   providerAccesses: Array<{
     providerId: string;
@@ -281,4 +290,3 @@ export function createAutonomousCoordinator(): IAutonomousCoordinator {
   }
   return _createAutonomousCoordinator();
 }
-

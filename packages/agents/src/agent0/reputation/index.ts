@@ -8,5 +8,6 @@ export * from './agent0-reputation-cache';
 export * from './agent0-reputation-sync';
 export * from './blockchain-reputation';
 export * from './erc8004-reputation-sync';
+export { createReputationSyncAdapter } from './reputation-sync-adapter';
 export * from './erc8004-sync';
 

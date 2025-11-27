@@ -15,9 +15,7 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { AutonomousCoordinator } from '@babylon/agents';
-// @ts-expect-error - initializeAgentRuntime may not be exported yet
-import { initializeAgentRuntime } from '@babylon/agents';
+import { AutonomousCoordinator, AgentRuntimeManager } from '@babylon/agents';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/engine';
 import {
@@ -106,7 +104,8 @@ async function runElizaBenchmark(
   logger.info('Found agent', { username: agent.username });
 
   // 3. Initialize Eliza runtime for agent
-  const runtime = await initializeAgentRuntime(config.agentUserId);
+  const runtimeManager = AgentRuntimeManager.getInstance();
+  const runtime = await runtimeManager.getRuntime(config.agentUserId);
 
   // 4. Create simulation engine
   const simConfig: SimulationConfig = {
