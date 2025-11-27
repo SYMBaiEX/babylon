@@ -1,47 +1,52 @@
 #!/usr/bin/env bun
 /**
  * Verification Script: ERC-8004 Reputation System
- * 
+ *
  * Comprehensive verification of the reputation system:
  * 1. Tests reputation calculation
  * 2. Tests sync functionality
  * 3. Verifies on-chain submission (if configured)
  * 4. Checks admin UI data structure
- * 
+ *
  * Run: bun run scripts/verify-reputation-system.ts
  */
 
-import { db } from '@/db'
+import { db } from '@/db';
+import { getCachedAgent0ReputationScore } from '../src/lib/reputation/agent0-reputation-cache';
 import {
-  syncUserReputationToERC8004,
   batchSyncReputationsToERC8004,
-} from '../src/lib/reputation/erc8004-reputation-sync'
-import { getCachedAgent0ReputationScore } from '../src/lib/reputation/agent0-reputation-cache'
-import { generateSnowflakeId } from '../src/lib/snowflake'
+  syncUserReputationToERC8004,
+} from '../src/lib/reputation/erc8004-reputation-sync';
+import { generateSnowflakeId } from '../src/lib/snowflake';
 
 interface VerificationResult {
-  test: string
-  passed: boolean
-  message: string
-  details?: unknown
+  test: string;
+  passed: boolean;
+  message: string;
+  details?: unknown;
 }
 
-const results: VerificationResult[] = []
+const results: VerificationResult[] = [];
 
-function recordResult(test: string, passed: boolean, message: string, details?: unknown) {
-  results.push({ test, passed, message, details })
-  const icon = passed ? '✅' : '❌'
-  console.log(`${icon} ${test}: ${message}`)
+function recordResult(
+  test: string,
+  passed: boolean,
+  message: string,
+  details?: unknown
+) {
+  results.push({ test, passed, message, details });
+  const icon = passed ? '✅' : '❌';
+  console.log(`${icon} ${test}: ${message}`);
   if (details && !passed) {
-    console.log('   Details:', JSON.stringify(details, null, 2))
+    console.log('   Details:', JSON.stringify(details, null, 2));
   }
 }
 
 async function verifyReputationCalculation() {
-  console.log('\n📊 Verifying Reputation Calculation...')
-  
+  console.log('\n📊 Verifying Reputation Calculation...');
+
   // Create test user
-  const testUserId = await generateSnowflakeId()
+  const testUserId = await generateSnowflakeId();
   await db.user.create({
     data: {
       id: testUserId,
@@ -50,56 +55,60 @@ async function verifyReputationCalculation() {
       agent0TokenId: 999999,
       updatedAt: new Date(),
     },
-  })
+  });
 
   try {
     // Test cached reputation
-    const score = await getCachedAgent0ReputationScore(testUserId)
+    const score = await getCachedAgent0ReputationScore(testUserId);
     recordResult(
       'Reputation Calculation',
       score >= 0 && score <= 100,
       `Score: ${score}/100`,
       { score }
-    )
+    );
 
     // Test banned user
     await db.user.update({
       where: { id: testUserId },
       data: { isBanned: true },
-    })
-    const bannedScore = await getCachedAgent0ReputationScore(testUserId)
+    });
+    const bannedScore = await getCachedAgent0ReputationScore(testUserId);
     recordResult(
       'Banned User Reputation',
       bannedScore === 0,
       `Banned score: ${bannedScore} (expected 0)`,
       { score: bannedScore }
-    )
+    );
 
     // Test scammer flag
     await db.user.update({
       where: { id: testUserId },
       data: { isBanned: false, isScammer: true },
-    })
-    const scammerScore = await getCachedAgent0ReputationScore(testUserId)
+    });
+    const scammerScore = await getCachedAgent0ReputationScore(testUserId);
     recordResult(
       'Scammer User Reputation',
       scammerScore === 5,
       `Scammer score: ${scammerScore} (expected 5)`,
       { score: scammerScore }
-    )
+    );
 
     // Clean up
-    await db.user.delete({ where: { id: testUserId } })
-    await db.agentPerformanceMetrics.deleteMany({ where: { userId: testUserId } })
+    await db.user.delete({ where: { id: testUserId } });
+    await db.agentPerformanceMetrics.deleteMany({
+      where: { userId: testUserId },
+    });
   } catch (error) {
-    recordResult('Reputation Calculation', false, 'Error during calculation', { error })
+    recordResult('Reputation Calculation', false, 'Error during calculation', {
+      error,
+    });
     // Clean up on error
-    await db.user.delete({ where: { id: testUserId } })
+    await db.user.delete({ where: { id: testUserId } });
   }
 }
 
 async function verifySyncFunctionality() {
-  console.log('\n🔄 Verifying Sync Functionality...')
+  console.log('\n🔄 Verifying Sync Functionality...');
 
   // Get a real agent with Agent0 token ID
   const agent = await db.user.findFirst({
@@ -112,16 +121,20 @@ async function verifySyncFunctionality() {
       agent0TokenId: true,
       displayName: true,
     },
-  })
+  });
 
   if (!agent || !agent.agent0TokenId) {
-    recordResult('Sync Functionality', false, 'No agent with Agent0 token ID found')
-    return
+    recordResult(
+      'Sync Functionality',
+      false,
+      'No agent with Agent0 token ID found'
+    );
+    return;
   }
 
   try {
     // Test single user sync
-    const syncResult = await syncUserReputationToERC8004(agent.id, false)
+    const syncResult = await syncUserReputationToERC8004(agent.id, false);
     recordResult(
       'Single User Sync',
       syncResult.synced || (syncResult.error?.includes('not needed') ?? false),
@@ -134,33 +147,33 @@ async function verifySyncFunctionality() {
         onChainSubmitted: syncResult.onChainSubmitted,
         onChainError: syncResult.onChainError,
       }
-    )
+    );
 
     // Test batch sync
     const batchResult = await batchSyncReputationsToERC8004({
       limit: 5,
       offset: 0,
       prioritizeNew: true,
-    })
+    });
     recordResult(
       'Batch Sync',
       batchResult.total >= 0 && batchResult.synced >= 0,
       `Batch: ${batchResult.synced} synced, ${batchResult.failed} failed, ${batchResult.skipped} skipped`,
       batchResult
-    )
+    );
   } catch (error) {
-    recordResult('Sync Functionality', false, 'Error during sync', { error })
+    recordResult('Sync Functionality', false, 'Error during sync', { error });
   }
 }
 
 async function verifyOnChainSubmission() {
-  console.log('\n⛓️  Verifying On-Chain Submission...')
+  console.log('\n⛓️  Verifying On-Chain Submission...');
 
   const hasConfig = !!(
     process.env.AGENT0_FEEDBACK_PRIVATE_KEY ||
     process.env.BABYLON_AGENT0_PRIVATE_KEY ||
     process.env.AGENT0_PRIVATE_KEY
-  )
+  );
 
   recordResult(
     'On-Chain Configuration',
@@ -173,7 +186,7 @@ async function verifyOnChainSubmission() {
       hasBabylonKey: !!process.env.BABYLON_AGENT0_PRIVATE_KEY,
       hasAgent0Key: !!process.env.AGENT0_PRIVATE_KEY,
     }
-  )
+  );
 
   // Test actual submission if configured
   if (hasConfig) {
@@ -188,14 +201,15 @@ async function verifyOnChainSubmission() {
         agent0TokenId: true,
         walletAddress: true,
       },
-    })
+    });
 
     if (agent) {
       try {
-        const syncResult = await syncUserReputationToERC8004(agent.id, true)
+        const syncResult = await syncUserReputationToERC8004(agent.id, true);
         recordResult(
           'On-Chain Submission',
-          syncResult.onChainSubmitted === true || syncResult.onChainError !== undefined,
+          syncResult.onChainSubmitted === true ||
+            syncResult.onChainError !== undefined,
           syncResult.onChainSubmitted === true
             ? 'Successfully submitted to ERC-8004'
             : `Submission skipped: ${syncResult.onChainError || 'unknown'}`,
@@ -203,56 +217,59 @@ async function verifyOnChainSubmission() {
             onChainSubmitted: syncResult.onChainSubmitted,
             onChainError: syncResult.onChainError,
           }
-        )
+        );
       } catch (error) {
-        recordResult('On-Chain Submission', false, 'Error during submission', { error })
+        recordResult('On-Chain Submission', false, 'Error during submission', {
+          error,
+        });
       }
     } else {
       recordResult(
         'On-Chain Submission',
         false,
         'No agent with wallet address found for testing'
-      )
+      );
     }
   }
 }
 
 async function verifyAdminAPI() {
-  console.log('\n👨‍💼 Verifying Admin API...')
+  console.log('\n👨‍💼 Verifying Admin API...');
 
   // Check if agents API returns reputation data
   const agents = await db.user.findMany({
     where: { isAgent: true },
     take: 5,
-  })
+  });
 
   // Get metrics for all agents
-  const agentIds = agents.map(a => a.id)
-  const metricsList = agentIds.length > 0
-    ? await db.agentPerformanceMetrics.findMany({
-        where: { userId: { in: agentIds } },
-      })
-    : []
-  const metricsMap = new Map(metricsList.map(m => [m.userId, m]))
+  const agentIds = agents.map((a) => a.id);
+  const metricsList =
+    agentIds.length > 0
+      ? await db.agentPerformanceMetrics.findMany({
+          where: { userId: { in: agentIds } },
+        })
+      : [];
+  const metricsMap = new Map(metricsList.map((m) => [m.userId, m]));
 
   recordResult(
     'Admin API Data Structure',
     agents.length > 0,
     `Found ${agents.length} agents`,
     {
-      agentsWithMetrics: agents.filter(a => metricsMap.has(a.id)).length,
+      agentsWithMetrics: agents.filter((a) => metricsMap.has(a.id)).length,
       agentsWithReputation: agents.filter(
-        a => metricsMap.get(a.id)?.reputationScore !== undefined
+        (a) => metricsMap.get(a.id)?.reputationScore !== undefined
       ).length,
     }
-  )
+  );
 
   // Verify data structure matches what API should return
   if (agents.length > 0) {
-    const agentWithMetrics = agents.find(a => metricsMap.has(a.id))
+    const agentWithMetrics = agents.find((a) => metricsMap.has(a.id));
     if (agentWithMetrics) {
-      const metrics = metricsMap.get(agentWithMetrics.id)
-      const hasReputationScore = metrics?.reputationScore !== undefined
+      const metrics = metricsMap.get(agentWithMetrics.id);
+      const hasReputationScore = metrics?.reputationScore !== undefined;
       recordResult(
         'Reputation Score in Metrics',
         hasReputationScore,
@@ -264,40 +281,43 @@ async function verifyAdminAPI() {
           averageFeedbackScore: metrics?.averageFeedbackScore,
           totalFeedbackCount: metrics?.totalFeedbackCount,
         }
-      )
+      );
     }
   }
 }
 
 async function verifyCronEndpoint() {
-  console.log('\n⏰ Verifying Cron Endpoint...')
+  console.log('\n⏰ Verifying Cron Endpoint...');
 
-  const BASE_URL = process.env.TEST_API_URL || process.env.TEST_BASE_URL || 'http://localhost:3000'
+  const BASE_URL =
+    process.env.TEST_API_URL ||
+    process.env.TEST_BASE_URL ||
+    'http://localhost:3000';
 
   try {
     const response = await fetch(`${BASE_URL}/api/cron/reputation-sync`, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer development',
+        Authorization: 'Bearer development',
         'Content-Type': 'application/json',
       },
-    })
+    });
 
     if (response.ok) {
-      const data = await response.json()
+      const data = await response.json();
       recordResult(
         'Cron Endpoint',
         data.success === true,
         `Cron endpoint accessible: ${data.success ? 'success' : 'failed'}`,
         data
-      )
+      );
     } else {
       recordResult(
         'Cron Endpoint',
         false,
         `Cron endpoint returned ${response.status}`,
         { status: response.status, statusText: response.statusText }
-      )
+      );
     }
   } catch (error) {
     recordResult(
@@ -305,52 +325,51 @@ async function verifyCronEndpoint() {
       false,
       'Server not available or endpoint not accessible',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    )
+    );
   }
 }
 
 async function main() {
-  console.log('🔍 ERC-8004 Reputation System Verification')
-  console.log('=' .repeat(60))
+  console.log('🔍 ERC-8004 Reputation System Verification');
+  console.log('='.repeat(60));
 
   try {
-    await verifyReputationCalculation()
-    await verifySyncFunctionality()
-    await verifyOnChainSubmission()
-    await verifyAdminAPI()
-    await verifyCronEndpoint()
+    await verifyReputationCalculation();
+    await verifySyncFunctionality();
+    await verifyOnChainSubmission();
+    await verifyAdminAPI();
+    await verifyCronEndpoint();
 
     // Summary
-    console.log('\n' + '='.repeat(60))
-    console.log('📋 Verification Summary')
-    console.log('='.repeat(60))
+    console.log('\n' + '='.repeat(60));
+    console.log('📋 Verification Summary');
+    console.log('='.repeat(60));
 
-    const passed = results.filter(r => r.passed).length
-    const failed = results.filter(r => !r.passed).length
-    const total = results.length
+    const passed = results.filter((r) => r.passed).length;
+    const failed = results.filter((r) => !r.passed).length;
+    const total = results.length;
 
-    console.log(`Total Tests: ${total}`)
-    console.log(`✅ Passed: ${passed}`)
-    console.log(`❌ Failed: ${failed}`)
-    console.log(`Success Rate: ${((passed / total) * 100).toFixed(1)}%`)
+    console.log(`Total Tests: ${total}`);
+    console.log(`✅ Passed: ${passed}`);
+    console.log(`❌ Failed: ${failed}`);
+    console.log(`Success Rate: ${((passed / total) * 100).toFixed(1)}%`);
 
     if (failed > 0) {
-      console.log('\n❌ Failed Tests:')
+      console.log('\n❌ Failed Tests:');
       results
-        .filter(r => !r.passed)
-        .forEach(r => {
-          console.log(`  - ${r.test}: ${r.message}`)
-        })
-      process.exit(1)
+        .filter((r) => !r.passed)
+        .forEach((r) => {
+          console.log(`  - ${r.test}: ${r.message}`);
+        });
+      process.exit(1);
     } else {
-      console.log('\n✅ All verification tests passed!')
-      process.exit(0)
+      console.log('\n✅ All verification tests passed!');
+      process.exit(0);
     }
   } catch (error) {
-    console.error('❌ Verification failed with error:', error)
-    process.exit(1)
+    console.error('❌ Verification failed with error:', error);
+    process.exit(1);
   }
 }
 
-main()
-
+main();

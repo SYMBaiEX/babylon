@@ -1,19 +1,19 @@
 /**
  * Test HuggingFace Integration
- * 
+ *
  * Comprehensive test script for the HuggingFace integration system.
  * Tests all components without actually uploading to HuggingFace.
- * 
+ *
  * Usage:
  *   npx ts-node scripts/test-huggingface-integration.ts
  */
 
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { db } from '@/db';
+import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
 import { HuggingFaceDatasetUploader } from '@/lib/huggingface/HuggingFaceDatasetUploader';
 import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { db } from '@/db';
-import * as path from 'path';
-import { promises as fs } from 'fs';
 
 interface TestResult {
   name: string;
@@ -29,14 +29,16 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
     results.push({ name, passed: true });
-    console.log(`   ✅ PASSED`);
+    console.log('   ✅ PASSED');
   } catch (error) {
     results.push({
       name,
       passed: false,
       error: error instanceof Error ? error.message : String(error),
     });
-    console.log(`   ❌ FAILED: ${error instanceof Error ? error.message : String(error)}`);
+    console.log(
+      `   ❌ FAILED: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -67,9 +69,13 @@ async function main() {
   await test('Benchmark Files Exist', async () => {
     const benchmarksDir = path.join(process.cwd(), 'benchmarks');
     const files = await fs.readdir(benchmarksDir);
-    const benchmarkFiles = files.filter(f => f.endsWith('.json') && f.startsWith('benchmark-'));
+    const benchmarkFiles = files.filter(
+      (f) => f.endsWith('.json') && f.startsWith('benchmark-')
+    );
     if (benchmarkFiles.length === 0) {
-      throw new Error('No benchmark files found. Run: npx ts-node scripts/generate-benchmark.ts');
+      throw new Error(
+        'No benchmark files found. Run: npx ts-node scripts/generate-benchmark.ts'
+      );
     }
     console.log(`   Found ${benchmarkFiles.length} benchmark files`);
   });
@@ -111,7 +117,9 @@ async function main() {
       const count = await db.benchmarkResult.count();
       console.log(`   BenchmarkResult table has ${count} records`);
     } catch (error) {
-      throw new Error('BenchmarkResult table not found. Run: npx drizzle-kit push');
+      throw new Error(
+        'BenchmarkResult table not found. Run: npx drizzle-kit push'
+      );
     }
   });
 
@@ -119,11 +127,18 @@ async function main() {
   await test('TrainedModel Schema Updated', async () => {
     const model = await db.trainedModel.findFirst();
     if (model) {
-      const hasNewFields = 'huggingFaceRepo' in model && 'lastBenchmarked' in model && 'benchmarkCount' in model;
+      const hasNewFields =
+        'huggingFaceRepo' in model &&
+        'lastBenchmarked' in model &&
+        'benchmarkCount' in model;
       if (!hasNewFields) {
-        throw new Error('TrainedModel missing new fields. Run: npx drizzle-kit push');
+        throw new Error(
+          'TrainedModel missing new fields. Run: npx drizzle-kit push'
+        );
       }
-      console.log('   Schema includes: huggingFaceRepo, lastBenchmarked, benchmarkCount');
+      console.log(
+        '   Schema includes: huggingFaceRepo, lastBenchmarked, benchmarkCount'
+      );
     } else {
       console.log('   ⚠️  No trained models in database (cannot verify schema)');
     }
@@ -145,7 +160,9 @@ async function main() {
     const count = await db.trajectory.count();
     console.log(`   Found ${count} trajectories in database`);
     if (count === 0) {
-      console.log('   ⚠️  No trajectories found (trajectory dataset will be empty)');
+      console.log(
+        '   ⚠️  No trajectories found (trajectory dataset will be empty)'
+      );
     }
   });
 
@@ -165,7 +182,10 @@ async function main() {
 
   // Test 13: Check CRON endpoint exists
   await test('Weekly Dataset Upload CRON Endpoint', async () => {
-    const cronFile = path.join(process.cwd(), 'src/app/api/cron/weekly-dataset-upload/route.ts');
+    const cronFile = path.join(
+      process.cwd(),
+      'src/app/api/cron/weekly-dataset-upload/route.ts'
+    );
     await fs.access(cronFile);
     console.log('   CRON endpoint file exists');
   });
@@ -189,8 +209,8 @@ async function main() {
   console.log('                 TEST SUMMARY                 ');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => r.passed === false).length;
+  const passed = results.filter((r) => r.passed).length;
+  const failed = results.filter((r) => r.passed === false).length;
 
   console.log(`Total Tests: ${results.length}`);
   console.log(`✅ Passed: ${passed}`);
@@ -198,9 +218,11 @@ async function main() {
 
   if (failed > 0) {
     console.log('\n❌ FAILED TESTS:');
-    results.filter(r => !r.passed).forEach(r => {
-      console.log(`   - ${r.name}: ${r.error}`);
-    });
+    results
+      .filter((r) => !r.passed)
+      .forEach((r) => {
+        console.log(`   - ${r.name}: ${r.error}`);
+      });
   }
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -208,12 +230,18 @@ async function main() {
   if (failed === 0) {
     console.log('🎉 ALL TESTS PASSED! System is ready for deployment.\n');
     console.log('Next steps:');
-    console.log('1. Apply migration: npx drizzle-kit push --name add_benchmark_results_table');
+    console.log(
+      '1. Apply migration: npx drizzle-kit push --name add_benchmark_results_table'
+    );
     console.log('2. Set HUGGING_FACE_TOKEN in your environment');
-    console.log('3. Test uploads: bun run hf:upload-dataset --dataset=test-org/test-dataset');
+    console.log(
+      '3. Test uploads: bun run hf:upload-dataset --dataset=test-org/test-dataset'
+    );
     console.log('4. Deploy to production\n');
   } else {
-    console.log('⚠️  Some tests failed. Please fix the issues above before deploying.\n');
+    console.log(
+      '⚠️  Some tests failed. Please fix the issues above before deploying.\n'
+    );
     process.exit(1);
   }
 
@@ -225,4 +253,3 @@ main().catch(async (error) => {
   await db.$disconnect();
   process.exit(1);
 });
-

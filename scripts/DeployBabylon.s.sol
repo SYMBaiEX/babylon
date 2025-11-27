@@ -463,8 +463,8 @@ contract DeployBabylon is Script {
                                    block.chainid == 31337 ? "local" : "base-sepolia";
         string memory output = vm.serializeAddress(json, "deployer", deployer);
 
-        vm.writeJson(output, string.concat("./deployments/", chainFolder, "/latest.json"));
+        vm.writeJson(output, string.concat("./packages/contracts/deployments/", chainFolder, "/latest.json"));
 
-        console.log("\nDeployment saved to ./deployments/", chainFolder, "/latest.json");
+        console.log("\nDeployment saved to ./packages/contracts/deployments/", chainFolder, "/latest.json");
     }
 }

@@ -1,0 +1,24 @@
+{
+  "id": "straitegy",
+  "name": "StrAItegy",
+  "ticker": "STRAT",
+  "description": "The world's most innovative business intelligence firm, formerly making enterprise software but now we just buy Bitcoin",
+  "type": "company",
+  "canBeInvolved": true,
+  "postStyle": "Bitcoin treasury. MAIchael worship. Enterprise software forgotten. BTC buying announcements. Leverage maximalism.",
+  "postExample": [
+    "Bought more Bitcoin",
+    "Balance sheet: 100% BTC",
+    "Enterprise software? We sell Bitcoin.",
+    "MAIchael's vision realized",
+    "BTC treasury strategy",
+    "Leveraged to the max"
+  ],
+  "initialPrice": 375,
+  "pfpDescription": "Bold red 'StrAItegy' wordmark on white background. Clean business intelligence aesthetic. Professional corporate typography. AI-enhanced with subtle Bitcoin symbol integration.",
+  "bannerDescription": "A software company that forgot it makes software. The balance sheet is 99% Bitcoin, 1% cope. MAIchael preaches from a Bitcoin throne. Every product presentation is actually about BTC. Hyperbitcoinization prophecy displayed. The treasury is micro, the bags are massive.",
+  "profileDescription": "Bought more Bitcoin. Balance sheet: 100% BTC. Enterprise software? We sell Bitcoin.. MAIchael's vision realized. BTC treasury strategy",
+  "originalName": "MicroStrategy",
+  "originalHandle": "microstrategy",
+  "username": "mAIcrostrAItegy"
+}

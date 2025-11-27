@@ -1,10 +1,10 @@
 /**
  * Moderation System Test Script
- * 
+ *
  * Comprehensive integration test for the moderation system
  */
 
-import { db, reports, count } from '@/db';
+import { count, db, reports } from '@/db';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface TestResult {
@@ -21,12 +21,15 @@ async function runTest(name: string, fn: () => Promise<void>): Promise<void> {
     results.push({ test: name, passed: true });
     console.log(`✅ ${name}`);
   } catch (error) {
-    results.push({ 
-      test: name, 
-      passed: false, 
-      error: error instanceof Error ? error.message : String(error)
+    results.push({
+      test: name,
+      passed: false,
+      error: error instanceof Error ? error.message : String(error),
     });
-    console.error(`❌ ${name}:`, error instanceof Error ? error.message : error);
+    console.error(
+      `❌ ${name}:`,
+      error instanceof Error ? error.message : error
+    );
   }
 }
 
@@ -325,13 +328,14 @@ async function main() {
         throw new Error('No reports found');
       }
 
-      console.log(`    Total: ${total}, Pending: ${pending}, Resolved: ${resolved}`);
+      console.log(
+        `    Total: ${total}, Pending: ${pending}, Resolved: ${resolved}`
+      );
     });
-
   } finally {
     // Cleanup
     console.log('\n🧹 Cleaning up test data...');
-    
+
     await db.report.deleteMany({
       where: {
         OR: [
@@ -344,19 +348,13 @@ async function main() {
 
     await db.userBlock.deleteMany({
       where: {
-        OR: [
-          { blockerId: testUser1Id },
-          { blockedId: testUser2Id },
-        ],
+        OR: [{ blockerId: testUser1Id }, { blockedId: testUser2Id }],
       },
     });
 
     await db.userMute.deleteMany({
       where: {
-        OR: [
-          { muterId: testUser1Id },
-          { mutedId: testUser2Id },
-        ],
+        OR: [{ muterId: testUser1Id }, { mutedId: testUser2Id }],
       },
     });
 
@@ -375,25 +373,29 @@ async function main() {
   console.log('\n' + '='.repeat(60));
   console.log('TEST SUMMARY');
   console.log('='.repeat(60));
-  
-  const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => !r.passed).length;
-  
+
+  const passed = results.filter((r) => r.passed).length;
+  const failed = results.filter((r) => !r.passed).length;
+
   console.log(`Total Tests: ${results.length}`);
   console.log(`✅ Passed: ${passed}`);
   console.log(`❌ Failed: ${failed}`);
-  
+
   if (failed > 0) {
     console.log('\nFailed Tests:');
-    results.filter(r => !r.passed).forEach(r => {
-      console.log(`  ❌ ${r.test}: ${r.error}`);
-    });
+    results
+      .filter((r) => !r.passed)
+      .forEach((r) => {
+        console.log(`  ❌ ${r.test}: ${r.error}`);
+      });
   }
-  
+
   console.log('='.repeat(60));
-  
+
   if (failed === 0) {
-    console.log('\n🎉 All tests passed! Moderation system is working correctly.\n');
+    console.log(
+      '\n🎉 All tests passed! Moderation system is working correctly.\n'
+    );
   } else {
     console.log('\n⚠️  Some tests failed. Please review the errors above.\n');
     process.exit(1);
@@ -408,4 +410,3 @@ main()
   .finally(() => {
     db.$disconnect();
   });
-

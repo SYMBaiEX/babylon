@@ -1,0 +1,17 @@
+{
+  "name": "@babylon/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared testing utilities and test suites for Babylon",
+  "scripts": {
+    "test:unit": "bun test unit/ --preload ./unit/preload.ts",
+    "test:integration": "bun test integration/ --preload ./integration/preload.ts",
+    "test:e2e": "playwright test e2e/",
+    "test:synpress": "playwright test --config=synpress.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "dotenv": "^16.4.5"
+  }
+}
+

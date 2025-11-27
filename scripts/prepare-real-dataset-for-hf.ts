@@ -1,31 +1,36 @@
 /**
  * Prepare REAL Dataset for HuggingFace
- * 
+ *
  * Collects REAL data (not mock) and prepares it for upload.
  * Uses actual benchmark files + database trajectories.
  */
 
-import { db } from '@/db';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { db } from '@/db';
 
 async function main() {
   console.log('\n╔════════════════════════════════════════════════════════╗');
   console.log('║    PREPARING REAL DATASET FOR HUGGINGFACE              ║');
   console.log('╚════════════════════════════════════════════════════════╝\n');
-  
-  const outputDir = path.join(process.cwd(), 'exports', 'huggingface', 'latest');
+
+  const outputDir = path.join(
+    process.cwd(),
+    'exports',
+    'huggingface',
+    'latest'
+  );
   await fs.mkdir(outputDir, { recursive: true });
   await fs.mkdir(path.join(outputDir, 'monthly-data'), { recursive: true });
-  
+
   // Collect real trajectories
   console.log('1. Collecting REAL trajectories from database...');
-  let trajectories = [];
-  
+  const trajectories = [];
+
   try {
     const dbTrajectories = await db.trajectory.findMany({
       where: { isTrainingData: true },
-      take: 1000,  // Limit for memory safety
+      take: 1000, // Limit for memory safety
       select: {
         trajectoryId: true,
         agentId: true,
@@ -37,7 +42,7 @@ async function main() {
         createdAt: true,
       },
     });
-    
+
     for (const t of dbTrajectories) {
       trajectories.push({
         trajectoryId: t.trajectoryId,
@@ -50,17 +55,17 @@ async function main() {
         metrics: JSON.parse(t.metricsJson),
       });
     }
-    
+
     console.log(`   ✅ Found ${trajectories.length} REAL trajectories\n`);
   } catch (error) {
-    console.log(`   ⚠️  Database not available, using 0 trajectories\n`);
+    console.log('   ⚠️  Database not available, using 0 trajectories\n');
   }
-  
+
   // Collect real benchmark metadata
   console.log('2. Collecting REAL benchmark files...');
   const benchmarkFiles = [];
   const benchmarksDir = path.join(process.cwd(), 'benchmarks');
-  
+
   const files = await fs.readdir(benchmarksDir);
   for (const file of files) {
     if (file.endsWith('.json') && file.startsWith('benchmark-week')) {
@@ -74,31 +79,31 @@ async function main() {
       }
     }
   }
-  
+
   console.log(`   ✅ Found ${benchmarkFiles.length} REAL benchmark files\n`);
-  
+
   // Create JSONL for trajectories (consistent schema)
   console.log('3. Creating trajectories.jsonl...');
   await fs.writeFile(
     path.join(outputDir, 'trajectories.jsonl'),
-    trajectories.map(t => JSON.stringify(t)).join('\n')
+    trajectories.map((t) => JSON.stringify(t)).join('\n')
   );
   console.log(`   ✅ ${trajectories.length} trajectories\n`);
-  
+
   // Create metadata about benchmarks (don't include full benchmarks - too large)
   console.log('4. Creating benchmark metadata...');
-  const benchmarkMetadata = benchmarkFiles.map(b => ({
+  const benchmarkMetadata = benchmarkFiles.map((b) => ({
     filename: b.filename,
     size: b.size,
     availableForDownload: true,
   }));
-  
+
   await fs.writeFile(
     path.join(outputDir, 'benchmarks-metadata.json'),
     JSON.stringify(benchmarkMetadata, null, 2)
   );
   console.log(`   ✅ ${benchmarkFiles.length} benchmark files listed\n`);
-  
+
   // Create summary
   console.log('5. Creating summary...');
   const summary = {
@@ -107,9 +112,9 @@ async function main() {
     totalTrajectories: trajectories.length,
     totalBenchmarkFiles: benchmarkFiles.length,
     totalBenchmarkSize: benchmarkFiles.reduce((sum, b) => sum + b.size, 0),
-    dataType: 'REAL',  // Mark as real data
+    dataType: 'REAL', // Mark as real data
   };
-  
+
   await fs.writeFile(
     path.join(outputDir, 'summary.json'),
     JSON.stringify(summary, null, 2)
@@ -118,8 +123,8 @@ async function main() {
     path.join(outputDir, 'index.json'),
     JSON.stringify(summary, null, 2)
   );
-  console.log(`   ✅ Summary created\n`);
-  
+  console.log('   ✅ Summary created\n');
+
   // Create README
   console.log('6. Creating README...');
   const readme = `---
@@ -177,26 +182,25 @@ Download full benchmarks from the Babylon repository.
 
 MIT
 `;
-  
-  await fs.writeFile(
-    path.join(outputDir, 'README.md'),
-    readme
-  );
-  console.log(`   ✅ README created\n`);
-  
+
+  await fs.writeFile(path.join(outputDir, 'README.md'), readme);
+  console.log('   ✅ README created\n');
+
   // Summary
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  DATASET READY');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   console.log(`Trajectories: ${trajectories.length} REAL`);
-  console.log(`Benchmarks: ${benchmarkFiles.length} files (${(benchmarkFiles.reduce((sum, b) => sum + b.size, 0) / 1024 / 1024).toFixed(2)} MB)`);
+  console.log(
+    `Benchmarks: ${benchmarkFiles.length} files (${(benchmarkFiles.reduce((sum, b) => sum + b.size, 0) / 1024 / 1024).toFixed(2)} MB)`
+  );
   console.log(`Output: ${outputDir}`);
   console.log('');
   console.log('✅ REAL data verified and ready for upload!');
   console.log('');
   console.log('Next: npm run hf:upload');
   console.log('');
-  
+
   await db.$disconnect();
 }
 
@@ -205,4 +209,3 @@ main().catch(async (error) => {
   await db.$disconnect();
   process.exit(1);
 });
-

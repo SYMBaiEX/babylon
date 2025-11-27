@@ -1,20 +1,20 @@
 /**
  * Spawn Test Agents for RL Training
- * 
+ *
  * Creates 5+ simultaneous agents running in the same time window.
  * This generates training data for GRPO comparison.
- * 
+ *
  * Usage:
  *   npx tsx scripts/spawn-test-agents.ts
  *   npx tsx scripts/spawn-test-agents.ts --agents=8 --duration=10
  */
 
-import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
 import { db } from '@/db';
+import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
 
 interface AgentStrategy {
   name: string;
-  riskTolerance: number;  // 0-1
+  riskTolerance: number; // 0-1
   tradeFrequency: number; // actions per window
   preferredAssets: string[];
 }
@@ -24,32 +24,32 @@ const STRATEGIES: AgentStrategy[] = [
     name: 'conservative',
     riskTolerance: 0.2,
     tradeFrequency: 5,
-    preferredAssets: ['$BTC', '$ETH']
+    preferredAssets: ['$BTC', '$ETH'],
   },
   {
     name: 'balanced',
     riskTolerance: 0.5,
     tradeFrequency: 10,
-    preferredAssets: ['$BTC', '$ETH', '$SOL']
+    preferredAssets: ['$BTC', '$ETH', '$SOL'],
   },
   {
     name: 'aggressive',
     riskTolerance: 0.8,
     tradeFrequency: 15,
-    preferredAssets: ['$BTC', '$ETH', '$SOL', '$DOGE']
+    preferredAssets: ['$BTC', '$ETH', '$SOL', '$DOGE'],
   },
   {
     name: 'momentum',
     riskTolerance: 0.7,
     tradeFrequency: 12,
-    preferredAssets: ['$TRUMP', '$PEPE', '$WIF']
+    preferredAssets: ['$TRUMP', '$PEPE', '$WIF'],
   },
   {
     name: 'contrarian',
     riskTolerance: 0.4,
     tradeFrequency: 8,
-    preferredAssets: ['$BTC', '$SOL']
-  }
+    preferredAssets: ['$BTC', '$SOL'],
+  },
 ];
 
 /**
@@ -57,16 +57,16 @@ const STRATEGIES: AgentStrategy[] = [
  */
 async function ensureTestUser(agentNum: number): Promise<string> {
   const userId = `test-agent-${agentNum}`;
-  
+
   // Check if user exists
   const existing = await db.user.findUnique({
-    where: { id: userId }
+    where: { id: userId },
   });
-  
+
   if (existing) {
     return userId;
   }
-  
+
   // Create test user
   await db.user.create({
     data: {
@@ -77,10 +77,10 @@ async function ensureTestUser(agentNum: number): Promise<string> {
       isActor: false,
       profileComplete: true,
       isTest: true,
-      updatedAt: new Date()
-    }
+      updatedAt: new Date(),
+    },
   });
-  
+
   return userId;
 }
 
@@ -91,7 +91,7 @@ async function simulateAgent(
   agentNum: number,
   strategy: AgentStrategy,
   windowId: string,
-  durationMinutes: number = 60
+  durationMinutes = 60
 ): Promise<{
   trajectoryId: string;
   agentId: string;
@@ -100,14 +100,16 @@ async function simulateAgent(
 }> {
   // Ensure user exists in database
   const agentId = await ensureTestUser(agentNum);
-  
-  console.log(`Starting agent ${agentNum} (${strategy.name}) for window ${windowId}`);
-  
+
+  console.log(
+    `Starting agent ${agentNum} (${strategy.name}) for window ${windowId}`
+  );
+
   // Start trajectory
   const trajectoryId = await trajectoryRecorder.startTrajectory({
     agentId,
     windowId,
-    scenarioId: windowId
+    scenarioId: windowId,
   });
 
   let balance = 10000;
@@ -122,28 +124,33 @@ async function simulateAgent(
       agentBalance: balance,
       agentPnL: pnl,
       openPositions: Math.floor(Math.random() * 5),
-      activeMarkets: 10 + Math.floor(Math.random() * 20)
+      activeMarkets: 10 + Math.floor(Math.random() * 20),
     });
 
     // Simulate market data access
-    const ticker = strategy.preferredAssets[Math.floor(Math.random() * strategy.preferredAssets.length)]!;
+    const ticker =
+      strategy.preferredAssets[
+        Math.floor(Math.random() * strategy.preferredAssets.length)
+      ]!;
     const currentPrice = 100 + Math.random() * 50;
-    
+
     trajectoryRecorder.logProviderAccess(trajectoryId, {
       providerName: 'market_data',
       data: {
         ticker,
         price: currentPrice,
         volume: 100000 + Math.random() * 900000,
-        sentiment: Math.random() > 0.5 ? 'BULLISH' : 'BEARISH'
+        sentiment: Math.random() > 0.5 ? 'BULLISH' : 'BEARISH',
       },
-      purpose: 'get_market_data'
+      purpose: 'get_market_data',
     });
 
     // Simulate LLM decision
-    const shouldTrade = Math.random() < (strategy.tradeFrequency / 60); // Normalized to per-minute
+    const shouldTrade = Math.random() < strategy.tradeFrequency / 60; // Normalized to per-minute
     const action = shouldTrade
-      ? (Math.random() > 0.5 ? 'BUY_SHARES' : 'SELL_SHARES')
+      ? Math.random() > 0.5
+        ? 'BUY_SHARES'
+        : 'SELL_SHARES'
       : 'HOLD';
 
     trajectoryRecorder.logLLMCall(trajectoryId, {
@@ -155,64 +162,73 @@ async function simulateAgent(
       temperature: 0.7,
       maxTokens: 150,
       purpose: 'action',
-      actionType: action
+      actionType: action,
     });
 
     // Execute action
     if (shouldTrade) {
       const shares = 10 + Math.floor(Math.random() * 40);
       const tradePnL = (-50 + Math.random() * 150) * strategy.riskTolerance;
-      
+
       pnl += tradePnL;
       balance += tradePnL;
       tradesExecuted++;
 
-      trajectoryRecorder.completeStep(trajectoryId, {
-        actionType: action,
-        parameters: { ticker, shares, price: currentPrice },
-        success: true,
-        result: { executed: true, pnl: tradePnL },
-        reasoning: `Executed ${action} based on ${strategy.name} strategy`
-      }, tradePnL / 100); // Normalized reward
+      trajectoryRecorder.completeStep(
+        trajectoryId,
+        {
+          actionType: action,
+          parameters: { ticker, shares, price: currentPrice },
+          success: true,
+          result: { executed: true, pnl: tradePnL },
+          reasoning: `Executed ${action} based on ${strategy.name} strategy`,
+        },
+        tradePnL / 100
+      ); // Normalized reward
     } else {
-      trajectoryRecorder.completeStep(trajectoryId, {
-        actionType: 'HOLD',
-        parameters: {},
-        success: true,
-        result: { held: true }
-      }, 0);
+      trajectoryRecorder.completeStep(
+        trajectoryId,
+        {
+          actionType: 'HOLD',
+          parameters: {},
+          success: true,
+          result: { held: true },
+        },
+        0
+      );
     }
 
     // Wait a bit before next action
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, 1000 + Math.random() * 2000)
+    );
   }
 
   // End trajectory
   await trajectoryRecorder.endTrajectory(trajectoryId, {
     finalPnL: pnl,
     finalBalance: balance,
-    windowId
+    windowId,
   });
 
-  console.log(`Agent ${agentNum} completed: P&L=$${pnl.toFixed(2)}, trades=${tradesExecuted}`);
+  console.log(
+    `Agent ${agentNum} completed: P&L=$${pnl.toFixed(2)}, trades=${tradesExecuted}`
+  );
 
   return {
     trajectoryId,
     agentId,
     finalPnL: pnl,
-    tradesExecuted
+    tradesExecuted,
   };
 }
 
 /**
  * Spawn simultaneous test agents
  */
-async function spawnTestAgents(
-  count: number = 5,
-  durationMinutes: number = 5
-): Promise<void> {
-  const windowId = new Date().toISOString().slice(0, 13) + ":00";
-  
+async function spawnTestAgents(count = 5, durationMinutes = 5): Promise<void> {
+  const windowId = new Date().toISOString().slice(0, 13) + ':00';
+
   console.log('='.repeat(80));
   console.log('SPAWNING TEST AGENTS FOR RL TRAINING');
   console.log('='.repeat(80));
@@ -224,19 +240,23 @@ async function spawnTestAgents(
 
   const agents = Array.from({ length: count }, (_, i) => ({
     num: i + 1,
-    strategy: STRATEGIES[i % STRATEGIES.length]!
+    strategy: STRATEGIES[i % STRATEGIES.length]!,
   }));
 
   console.log('Spawning agents:');
-  agents.forEach(a => {
-    console.log(`  Agent ${a.num}: ${a.strategy.name} (risk: ${a.strategy.riskTolerance})`);
+  agents.forEach((a) => {
+    console.log(
+      `  Agent ${a.num}: ${a.strategy.name} (risk: ${a.strategy.riskTolerance})`
+    );
   });
   console.log();
 
   const startTime = Date.now();
-  
+
   const results = await Promise.all(
-    agents.map(a => simulateAgent(a.num, a.strategy, windowId, durationMinutes))
+    agents.map((a) =>
+      simulateAgent(a.num, a.strategy, windowId, durationMinutes)
+    )
   );
 
   const elapsedMinutes = (Date.now() - startTime) / (1000 * 60);
@@ -249,11 +269,17 @@ async function spawnTestAgents(
   console.log('Results:');
   const sorted = results.sort((a, b) => b.finalPnL - a.finalPnL);
   sorted.forEach((r, i) => {
-    console.log(`  ${i + 1}. ${r.agentId}: P&L = $${r.finalPnL.toFixed(2)}, Trades = ${r.tradesExecuted}`);
+    console.log(
+      `  ${i + 1}. ${r.agentId}: P&L = $${r.finalPnL.toFixed(2)}, Trades = ${r.tradesExecuted}`
+    );
   });
 
-  console.log(`\nBest: ${sorted[0]!.agentId} (+$${sorted[0]!.finalPnL.toFixed(2)})`);
-  console.log(`Worst: ${sorted[sorted.length - 1]!.agentId} ($${sorted[sorted.length - 1]!.finalPnL.toFixed(2)})`);
+  console.log(
+    `\nBest: ${sorted[0]!.agentId} (+$${sorted[0]!.finalPnL.toFixed(2)})`
+  );
+  console.log(
+    `Worst: ${sorted[sorted.length - 1]!.agentId} ($${sorted[sorted.length - 1]!.finalPnL.toFixed(2)})`
+  );
 
   console.log('\nNext steps:');
   console.log('  1. Run this script 2-3 more times');
@@ -267,9 +293,13 @@ async function spawnTestAgents(
  */
 async function main() {
   const args = process.argv.slice(2);
-  const numAgents = parseInt(args.find(a => a.startsWith('--agents='))?.split('=')[1] || '5');
-  const durationMinutes = parseInt(args.find(a => a.startsWith('--duration='))?.split('=')[1] || '5');
-  
+  const numAgents = Number.parseInt(
+    args.find((a) => a.startsWith('--agents='))?.split('=')[1] || '5'
+  );
+  const durationMinutes = Number.parseInt(
+    args.find((a) => a.startsWith('--duration='))?.split('=')[1] || '5'
+  );
+
   await spawnTestAgents(numAgents, durationMinutes);
 }
 
@@ -279,4 +309,3 @@ if (require.main === module) {
 }
 
 export { spawnTestAgents, simulateAgent };
-

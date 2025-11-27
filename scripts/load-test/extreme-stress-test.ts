@@ -1,22 +1,26 @@
 #!/usr/bin/env bun
+
 /**
  * Extreme Stress Test - 100k CCU
- * 
+ *
  * Simulates 100,000 concurrent users to identify scaling bottlenecks
  * and architectural limitations.
- * 
+ *
  * WARNING: This will generate massive load. Only run against:
  * - Local environment with understanding of system impact
  * - Never against production without approval
  * - Staging only with explicit permission
- * 
+ *
  * Usage:
  *   bun run scripts/load-test/extreme-stress-test.ts [environment]
  */
 
-import { EnhancedLoadTestSimulator, type EnhancedLoadTestConfig } from '@/lib/testing/enhanced-load-test-simulator';
-import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
 import { logger } from '@/lib/logger';
+import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
+import {
+  type EnhancedLoadTestConfig,
+  EnhancedLoadTestSimulator,
+} from '@/lib/testing/enhanced-load-test-simulator';
 
 // Parse arguments
 const args = process.argv.slice(2);
@@ -52,10 +56,10 @@ const REALISTIC_ENDPOINTS: EnhancedLoadTestConfig['endpoints'] = [
   { path: '/api/posts', method: 'GET', weight: 0.25 },
   { path: '/api/leaderboard', method: 'GET', weight: 0.15 },
   { path: '/api/feed/widgets/trending-posts', method: 'GET', weight: 0.12 },
-  { path: '/api/feed/widgets/markets', method: 'GET', weight: 0.10 },
+  { path: '/api/feed/widgets/markets', method: 'GET', weight: 0.1 },
   { path: '/api/actors', method: 'GET', weight: 0.08 },
-  { path: '/api/agents', method: 'GET', weight: 0.10 },
-  
+  { path: '/api/agents', method: 'GET', weight: 0.1 },
+
   // Write operations (20% of traffic)
   { path: '/api/notifications', method: 'GET', weight: 0.08 },
   { path: '/api/users/me', method: 'GET', weight: 0.07 },
@@ -78,22 +82,34 @@ interface WaveResult {
 }
 
 async function main() {
-  console.log('╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║         EXTREME STRESS TEST - 100k CCU                       ║');
-  console.log('║                   ⚠️  CAUTION ⚠️                              ║');
-  console.log('╚═══════════════════════════════════════════════════════════════╝');
+  console.log(
+    '╔═══════════════════════════════════════════════════════════════╗'
+  );
+  console.log(
+    '║         EXTREME STRESS TEST - 100k CCU                       ║'
+  );
+  console.log(
+    '║                   ⚠️  CAUTION ⚠️                              ║'
+  );
+  console.log(
+    '╚═══════════════════════════════════════════════════════════════╝'
+  );
   console.log(`\nEnvironment: ${environment}`);
   console.log(`Base URL: ${baseUrl}`);
   console.log(`Start Time: ${new Date().toISOString()}`);
   console.log(`Total Waves: ${TEST_WAVES.length}`);
-  console.log(`Max Concurrent Users: 100,000\n`);
+  console.log('Max Concurrent Users: 100,000\n');
 
   // Confirm before proceeding
   if (environment === 'staging' || environment === 'production') {
-    console.log('⚠️  WARNING: This will generate EXTREME load on a remote server!');
+    console.log(
+      '⚠️  WARNING: This will generate EXTREME load on a remote server!'
+    );
     console.log('   This test should only be run with explicit approval.\n');
-    console.log('   Press Ctrl+C to cancel or wait 10 seconds to continue...\n');
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    console.log(
+      '   Press Ctrl+C to cancel or wait 10 seconds to continue...\n'
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10000));
   }
 
   // Check server
@@ -118,12 +134,18 @@ async function main() {
       continue;
     }
 
-    console.log('\n═══════════════════════════════════════════════════════════════');
+    console.log(
+      '\n═══════════════════════════════════════════════════════════════'
+    );
     console.log(`  ${wave.name.toUpperCase()}`);
-    console.log('═══════════════════════════════════════════════════════════════\n');
+    console.log(
+      '═══════════════════════════════════════════════════════════════\n'
+    );
     console.log(`Concurrent Users: ${wave.users.toLocaleString()}`);
     console.log(`Duration: ${wave.duration}s`);
-    console.log(`Expected Peak RPS: ~${Math.floor(wave.users / 2).toLocaleString()}\n`);
+    console.log(
+      `Expected Peak RPS: ~${Math.floor(wave.users / 2).toLocaleString()}\n`
+    );
 
     const config: EnhancedLoadTestConfig = {
       testType: 'mixed',
@@ -143,12 +165,15 @@ async function main() {
     try {
       console.log('🚀 Starting wave...\n');
       const startTime = Date.now();
-      
+
       const result = await simulator.runTest(config);
       const duration = (Date.now() - startTime) / 1000;
 
-      const criticalBottlenecks = result.bottlenecks?.filter(b => b.severity === 'critical').length || 0;
-      const breakdown = result.throughput.successRate < 0.5 || result.responseTime.p95 > 10000;
+      const criticalBottlenecks =
+        result.bottlenecks?.filter((b) => b.severity === 'critical').length ||
+        0;
+      const breakdown =
+        result.throughput.successRate < 0.5 || result.responseTime.p95 > 10000;
 
       const waveResult: WaveResult = {
         wave: wave.name,
@@ -168,40 +193,63 @@ async function main() {
       waveResults.push(waveResult);
 
       console.log(`\n✓ Wave completed in ${duration.toFixed(2)}s:`);
-      console.log(`  Total Requests:    ${result.totalRequests.toLocaleString()}`);
-      console.log(`  Success Rate:      ${(result.throughput.successRate * 100).toFixed(2)}%`);
-      console.log(`  Failed Requests:   ${result.failedRequests.toLocaleString()}`);
-      console.log(`  Avg Response:      ${result.responseTime.mean.toFixed(2)}ms`);
-      console.log(`  P95 Response:      ${result.responseTime.p95.toFixed(2)}ms`);
-      console.log(`  P99 Response:      ${result.responseTime.p99.toFixed(2)}ms`);
-      console.log(`  Throughput:        ${result.throughput.requestsPerSecond.toFixed(2)} req/s`);
+      console.log(
+        `  Total Requests:    ${result.totalRequests.toLocaleString()}`
+      );
+      console.log(
+        `  Success Rate:      ${(result.throughput.successRate * 100).toFixed(2)}%`
+      );
+      console.log(
+        `  Failed Requests:   ${result.failedRequests.toLocaleString()}`
+      );
+      console.log(
+        `  Avg Response:      ${result.responseTime.mean.toFixed(2)}ms`
+      );
+      console.log(
+        `  P95 Response:      ${result.responseTime.p95.toFixed(2)}ms`
+      );
+      console.log(
+        `  P99 Response:      ${result.responseTime.p99.toFixed(2)}ms`
+      );
+      console.log(
+        `  Throughput:        ${result.throughput.requestsPerSecond.toFixed(2)} req/s`
+      );
       console.log(`  Critical Issues:   ${criticalBottlenecks}`);
 
       if (result.performanceMetrics) {
-        console.log(`\n  Performance Metrics:`);
-        console.log(`    Peak Memory:       ${result.performanceMetrics.system.peakMemoryMB.toFixed(2)} MB`);
-        console.log(`    Cache Hit Rate:    ${(result.performanceMetrics.cache.hitRate * 100).toFixed(2)}%`);
-        console.log(`    Slow Query Rate:   ${(result.performanceMetrics.database.slowQueryRate * 100).toFixed(2)}%`);
+        console.log('\n  Performance Metrics:');
+        console.log(
+          `    Peak Memory:       ${result.performanceMetrics.system.peakMemoryMB.toFixed(2)} MB`
+        );
+        console.log(
+          `    Cache Hit Rate:    ${(result.performanceMetrics.cache.hitRate * 100).toFixed(2)}%`
+        );
+        console.log(
+          `    Slow Query Rate:   ${(result.performanceMetrics.database.slowQueryRate * 100).toFixed(2)}%`
+        );
       }
 
       if (breakdown) {
-        console.log(`\n  ⚠️  SYSTEM BREAKDOWN DETECTED`);
-        console.log(`      Success rate: ${(result.throughput.successRate * 100).toFixed(2)}%`);
-        console.log(`      P95 latency: ${result.responseTime.p95.toFixed(2)}ms`);
+        console.log('\n  ⚠️  SYSTEM BREAKDOWN DETECTED');
+        console.log(
+          `      Success rate: ${(result.throughput.successRate * 100).toFixed(2)}%`
+        );
+        console.log(
+          `      P95 latency: ${result.responseTime.p95.toFixed(2)}ms`
+        );
         systemBroke = true;
       }
 
       // Cool down between waves
       if (!systemBroke && wave.users < 100000) {
-        console.log(`\n  💤 Cooling down for 15 seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 15000));
+        console.log('\n  💤 Cooling down for 15 seconds...');
+        await new Promise((resolve) => setTimeout(resolve, 15000));
       }
-
     } catch (error) {
-      console.error(`\n❌ Wave failed:`, error);
+      console.error('\n❌ Wave failed:', error);
       logger.error(`Wave ${wave.name} failed`, error, 'ExtremeStressTest');
       systemBroke = true;
-      
+
       waveResults.push({
         wave: wave.name,
         users: wave.users,
@@ -220,14 +268,24 @@ async function main() {
   }
 
   // Final Analysis
-  console.log('\n\n╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║         EXTREME STRESS TEST - FINAL ANALYSIS                 ║');
-  console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+  console.log(
+    '\n\n╔═══════════════════════════════════════════════════════════════╗'
+  );
+  console.log(
+    '║         EXTREME STRESS TEST - FINAL ANALYSIS                 ║'
+  );
+  console.log(
+    '╚═══════════════════════════════════════════════════════════════╝\n'
+  );
 
   console.log('Wave Results Summary:\n');
-  console.log('Wave                 | Users    | Success Rate | P95 Latency | Throughput  | Critical Issues');
-  console.log('─────────────────────┼──────────┼──────────────┼─────────────┼─────────────┼────────────────');
-  
+  console.log(
+    'Wave                 | Users    | Success Rate | P95 Latency | Throughput  | Critical Issues'
+  );
+  console.log(
+    '─────────────────────┼──────────┼──────────────┼─────────────┼─────────────┼────────────────'
+  );
+
   for (const result of waveResults) {
     const users = result.users.toLocaleString().padEnd(8);
     const success = `${(result.successRate * 100).toFixed(1)}%`.padEnd(12);
@@ -235,23 +293,34 @@ async function main() {
     const throughput = `${result.throughput.toFixed(0)} req/s`.padEnd(11);
     const issues = result.criticalIssues.toString().padEnd(15);
     const breakdown = result.systemBreakdown ? ' ⚠️  BREAKDOWN' : '';
-    
-    console.log(`${result.wave.padEnd(20)} | ${users} | ${success} | ${p95} | ${throughput} | ${issues}${breakdown}`);
+
+    console.log(
+      `${result.wave.padEnd(20)} | ${users} | ${success} | ${p95} | ${throughput} | ${issues}${breakdown}`
+    );
   }
 
   // Find breaking point
-  const successfulWaves = waveResults.filter(w => !w.systemBreakdown && w.successRate > 0.9);
-  const maxSuccessfulCCU = successfulWaves.length > 0 
-    ? Math.max(...successfulWaves.map(w => w.users))
-    : 0;
+  const successfulWaves = waveResults.filter(
+    (w) => !w.systemBreakdown && w.successRate > 0.9
+  );
+  const maxSuccessfulCCU =
+    successfulWaves.length > 0
+      ? Math.max(...successfulWaves.map((w) => w.users))
+      : 0;
 
-  console.log('\n═══════════════════════════════════════════════════════════════');
+  console.log(
+    '\n═══════════════════════════════════════════════════════════════'
+  );
   console.log('  CAPACITY ANALYSIS');
-  console.log('═══════════════════════════════════════════════════════════════\n');
+  console.log(
+    '═══════════════════════════════════════════════════════════════\n'
+  );
 
   console.log(`Maximum Stable CCU:  ${maxSuccessfulCCU.toLocaleString()}`);
-  console.log(`Target CCU:          100,000`);
-  console.log(`Gap:                 ${(100000 - maxSuccessfulCCU).toLocaleString()} users (${((100000 - maxSuccessfulCCU) / 100000 * 100).toFixed(1)}%)\n`);
+  console.log('Target CCU:          100,000');
+  console.log(
+    `Gap:                 ${(100000 - maxSuccessfulCCU).toLocaleString()} users (${(((100000 - maxSuccessfulCCU) / 100000) * 100).toFixed(1)}%)\n`
+  );
 
   if (maxSuccessfulCCU < 100000) {
     console.log('⚠️  SYSTEM CANNOT HANDLE 100k CCU IN CURRENT STATE\n');
@@ -260,21 +329,31 @@ async function main() {
   }
 
   // Identify bottlenecks
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
   console.log('  IDENTIFIED BOTTLENECKS');
-  console.log('═══════════════════════════════════════════════════════════════\n');
+  console.log(
+    '═══════════════════════════════════════════════════════════════\n'
+  );
 
   const bottlenecks = [];
-  
+
   // Check for response time degradation
-  const responseTimeTrend = waveResults.map(w => w.p95ResponseTime);
+  const responseTimeTrend = waveResults.map((w) => w.p95ResponseTime);
   const lastResponseTime = responseTimeTrend[responseTimeTrend.length - 1];
   const firstResponseTime = responseTimeTrend[0];
-  const responseDegradation = responseTimeTrend.length > 1 && 
-    lastResponseTime !== undefined && firstResponseTime !== undefined &&
+  const responseDegradation =
+    responseTimeTrend.length > 1 &&
+    lastResponseTime !== undefined &&
+    firstResponseTime !== undefined &&
     lastResponseTime > firstResponseTime * 5;
-  
-  if (responseDegradation && lastResponseTime !== undefined && firstResponseTime !== undefined) {
+
+  if (
+    responseDegradation &&
+    lastResponseTime !== undefined &&
+    firstResponseTime !== undefined
+  ) {
     bottlenecks.push({
       type: 'Response Time Degradation',
       severity: 'CRITICAL',
@@ -284,9 +363,9 @@ async function main() {
   }
 
   // Check for error rate increase
-  const errorRates = waveResults.map(w => 1 - w.successRate);
-  const highErrorRate = errorRates.some(rate => rate > 0.1);
-  
+  const errorRates = waveResults.map((w) => 1 - w.successRate);
+  const highErrorRate = errorRates.some((rate) => rate > 0.1);
+
   if (highErrorRate) {
     bottlenecks.push({
       type: 'High Error Rate',
@@ -297,13 +376,15 @@ async function main() {
   }
 
   // Check throughput scaling
-  const throughputPerUser = waveResults.map(w => w.throughput / w.users);
+  const throughputPerUser = waveResults.map((w) => w.throughput / w.users);
   const lastThroughput = throughputPerUser[throughputPerUser.length - 1];
   const firstThroughput = throughputPerUser[0];
-  const throughputDegradation = throughputPerUser.length > 1 &&
-    lastThroughput !== undefined && firstThroughput !== undefined &&
+  const throughputDegradation =
+    throughputPerUser.length > 1 &&
+    lastThroughput !== undefined &&
+    firstThroughput !== undefined &&
     lastThroughput < firstThroughput * 0.5;
-  
+
   if (throughputDegradation) {
     bottlenecks.push({
       type: 'Throughput Bottleneck',
@@ -326,22 +407,35 @@ async function main() {
   // Save results
   const timestamp = Date.now();
   const resultsFile = `extreme-stress-test-100k-ccu-${environment}-${timestamp}.json`;
-  await Bun.write(resultsFile, JSON.stringify({
-    environment,
-    timestamp: new Date().toISOString(),
-    targetCCU: 100000,
-    maxStableCCU: maxSuccessfulCCU,
-    waves: waveResults,
-    bottlenecks,
-  }, null, 2));
-  
+  await Bun.write(
+    resultsFile,
+    JSON.stringify(
+      {
+        environment,
+        timestamp: new Date().toISOString(),
+        targetCCU: 100000,
+        maxStableCCU: maxSuccessfulCCU,
+        waves: waveResults,
+        bottlenecks,
+      },
+      null,
+      2
+    )
+  );
+
   console.log(`\n📊 Results saved to: ${resultsFile}\n`);
 
   performanceMonitor.logSummary();
 
-  console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║         Test Complete                                         ║');
-  console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+  console.log(
+    '\n╔═══════════════════════════════════════════════════════════════╗'
+  );
+  console.log(
+    '║         Test Complete                                         ║'
+  );
+  console.log(
+    '╚═══════════════════════════════════════════════════════════════╝\n'
+  );
 }
 
 // Handle graceful shutdown
@@ -355,4 +449,3 @@ main().catch((error) => {
   logger.error('Extreme stress test failed', error, 'ExtremeStressTest');
   process.exit(1);
 });
-

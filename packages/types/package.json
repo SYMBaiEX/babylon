@@ -1,0 +1,9 @@
+{
+  "name": "@babylon/types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared type declarations for Babylon",
+  "types": "./index.d.ts",
+  "scripts": {}
+}
+

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Initialize Game Content - Create game state and initial content
  *
@@ -11,10 +12,10 @@
  * Run this once after seeding the database to bootstrap content.
  */
 
+import { nanoid } from 'nanoid';
 import { db } from '@/db';
 import { logger } from '../src/lib/logger';
 import { generateSnowflakeId } from '../src/lib/snowflake';
-import { nanoid } from 'nanoid';
 
 async function main() {
   logger.info('🎬 Initializing game content...', undefined, 'Init');
@@ -42,7 +43,7 @@ async function main() {
     logger.info('Game is paused. Starting it...', undefined, 'Init');
     await db.game.update({
       where: { id: game.id },
-      data: { 
+      data: {
         isRunning: true,
         startedAt: game.startedAt || new Date(),
         pausedAt: null,
@@ -72,7 +73,7 @@ async function main() {
     const questions = [
       {
         questionNumber: 1,
-        text: "Will the Global AI Arms Race treaty be signed by at least 5 major nations within the next 30 days?",
+        text: 'Will the Global AI Arms Race treaty be signed by at least 5 major nations within the next 30 days?',
         scenarioId: 1,
         outcome: Math.random() > 0.5,
         rank: 1,
@@ -80,7 +81,7 @@ async function main() {
       },
       {
         questionNumber: 2,
-        text: "Will James Webb Telescope confirm biosignatures on K2-18b within the next 60 days?",
+        text: 'Will James Webb Telescope confirm biosignatures on K2-18b within the next 60 days?',
         scenarioId: 2,
         outcome: Math.random() > 0.5,
         rank: 2,
@@ -97,12 +98,12 @@ async function main() {
     ];
 
     for (const q of questions) {
-      await db.question.create({ 
+      await db.question.create({
         data: {
           id: nanoid(),
           ...q,
           updatedAt: new Date(),
-        }
+        },
       });
 
       // Also create a Market for trading
@@ -118,9 +119,17 @@ async function main() {
       });
     }
 
-    logger.info(`✅ Created ${questions.length} initial questions`, undefined, 'Init');
+    logger.info(
+      `✅ Created ${questions.length} initial questions`,
+      undefined,
+      'Init'
+    );
   } else {
-    logger.info(`✅ ${questionCount} questions already exist`, undefined, 'Init');
+    logger.info(
+      `✅ ${questionCount} questions already exist`,
+      undefined,
+      'Init'
+    );
   }
 
   // 4. Create some initial posts if none exist
@@ -132,11 +141,11 @@ async function main() {
     const actors = await db.actor.findMany({ take: 5 });
 
     const samplePosts = [
-      "Just saw the latest AI developments. Market is about to get wild 🚀",
-      "Technical analysis shows bullish patterns forming. Time to position? 📈",
-      "Everyone sleeping on this opportunity. DYOR but the signs are there 👀",
-      "Breaking: Major announcement incoming. This changes everything 🔥",
-      "Market sentiment shifting fast. Watch closely next 24hrs ⏰",
+      'Just saw the latest AI developments. Market is about to get wild 🚀',
+      'Technical analysis shows bullish patterns forming. Time to position? 📈',
+      'Everyone sleeping on this opportunity. DYOR but the signs are there 👀',
+      'Breaking: Major announcement incoming. This changes everything 🔥',
+      'Market sentiment shifting fast. Watch closely next 24hrs ⏰',
     ];
 
     for (let i = 0; i < 5 && i < actors.length; i++) {
@@ -161,10 +170,22 @@ async function main() {
   logger.info('🎉 Initialization complete!', undefined, 'Init');
   logger.info('', undefined, 'Init');
   logger.info('Next steps:', undefined, 'Init');
-  logger.info('1. Start the development server: bun run dev', undefined, 'Init');
+  logger.info(
+    '1. Start the development server: bun run dev',
+    undefined,
+    'Init'
+  );
   logger.info('2. Visit http://localhost:3000/feed', undefined, 'Init');
-  logger.info('3. Posts and questions should now be visible', undefined, 'Init');
-  logger.info('4. Daemon will continue generating content automatically', undefined, 'Init');
+  logger.info(
+    '3. Posts and questions should now be visible',
+    undefined,
+    'Init'
+  );
+  logger.info(
+    '4. Daemon will continue generating content automatically',
+    undefined,
+    'Init'
+  );
 
   await db.$disconnect();
 }

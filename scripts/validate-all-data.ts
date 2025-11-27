@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Comprehensive Data Validation Script
- * 
+ *
  * Validates all individual actor, organization, and relationship files
  * Ensures they all work together with no problems:
  * - Index file references match actual files
@@ -13,10 +13,10 @@
  * - Data consistency across all files
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../src/lib/logger';
 import { z } from 'zod';
+import { logger } from '../src/lib/logger';
 
 // Schemas
 const ActorSchema = z.object({
@@ -139,11 +139,17 @@ class DataValidator {
   /**
    * Validate all actor files
    */
-  validateActors(actorRefs: z.infer<typeof IndexReferenceSchema>[]): Set<string> {
+  validateActors(
+    actorRefs: z.infer<typeof IndexReferenceSchema>[]
+  ): Set<string> {
     const validActorIds = new Set<string>();
     const actorsDir = join(this.dataDir, 'actors');
 
-    logger.info(`Validating ${actorRefs.length} actor files...`, undefined, 'DataValidator');
+    logger.info(
+      `Validating ${actorRefs.length} actor files...`,
+      undefined,
+      'DataValidator'
+    );
 
     // Check directory exists
     if (!existsSync(actorsDir)) {
@@ -166,7 +172,11 @@ class DataValidator {
       try {
         actorData = JSON.parse(readFileSync(filePath, 'utf-8'));
       } catch (error) {
-        this.addError('ACTORS', `Invalid JSON for actor ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'ACTORS',
+          `Invalid JSON for actor ${ref.id}: ${error}`,
+          ref.file
+        );
         continue;
       }
 
@@ -176,46 +186,80 @@ class DataValidator {
 
         // Verify ID matches filename
         if (actor.id !== ref.id) {
-          this.addError('ACTORS', `Actor ID mismatch: file has ${ref.id}, data has ${actor.id}`, ref.file);
+          this.addError(
+            'ACTORS',
+            `Actor ID mismatch: file has ${ref.id}, data has ${actor.id}`,
+            ref.file
+          );
         }
 
         // Verify filename matches expected pattern
         const expectedFile = `./actors/${ref.id}.json`;
         if (ref.file !== expectedFile) {
-          this.addWarning('ACTORS', `File path mismatch: expected ${expectedFile}, got ${ref.file}`, ref.file);
+          this.addWarning(
+            'ACTORS',
+            `File path mismatch: expected ${expectedFile}, got ${ref.file}`,
+            ref.file
+          );
         }
 
         validActorIds.add(actor.id);
       } catch (error) {
-        this.addError('ACTORS', `Schema validation failed for ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'ACTORS',
+          `Schema validation failed for ${ref.id}: ${error}`,
+          ref.file
+        );
       }
     }
 
     // Check for orphaned files (files not in index)
-    const filesOnDisk = readdirSync(actorsDir).filter(f => f.endsWith('.json'));
-    const referencedFiles = actorRefs.map(ref => ref.file.replace('./actors/', ''));
+    const filesOnDisk = readdirSync(actorsDir).filter((f) =>
+      f.endsWith('.json')
+    );
+    const referencedFiles = actorRefs.map((ref) =>
+      ref.file.replace('./actors/', '')
+    );
 
     for (const file of filesOnDisk) {
       if (!referencedFiles.includes(file)) {
-        this.addWarning('ACTORS', `Orphaned file not referenced in index: ${file}`, `actors/${file}`);
+        this.addWarning(
+          'ACTORS',
+          `Orphaned file not referenced in index: ${file}`,
+          `actors/${file}`
+        );
       }
     }
 
-    logger.info(`✓ Validated ${validActorIds.size} actors`, undefined, 'DataValidator');
+    logger.info(
+      `✓ Validated ${validActorIds.size} actors`,
+      undefined,
+      'DataValidator'
+    );
     return validActorIds;
   }
 
   /**
    * Validate all organization files
    */
-  validateOrganizations(orgRefs: z.infer<typeof IndexReferenceSchema>[]): Set<string> {
+  validateOrganizations(
+    orgRefs: z.infer<typeof IndexReferenceSchema>[]
+  ): Set<string> {
     const validOrgIds = new Set<string>();
     const orgsDir = join(this.dataDir, 'organizations');
 
-    logger.info(`Validating ${orgRefs.length} organization files...`, undefined, 'DataValidator');
+    logger.info(
+      `Validating ${orgRefs.length} organization files...`,
+      undefined,
+      'DataValidator'
+    );
 
     if (!existsSync(orgsDir)) {
-      this.addError('ORGANIZATIONS', 'organizations/ directory not found', orgsDir);
+      this.addError(
+        'ORGANIZATIONS',
+        'organizations/ directory not found',
+        orgsDir
+      );
       return validOrgIds;
     }
 
@@ -223,7 +267,11 @@ class DataValidator {
       const filePath = join(this.dataDir, ref.file);
 
       if (!existsSync(filePath)) {
-        this.addError('ORGANIZATIONS', `File not found for org ${ref.id}`, ref.file);
+        this.addError(
+          'ORGANIZATIONS',
+          `File not found for org ${ref.id}`,
+          ref.file
+        );
         continue;
       }
 
@@ -231,7 +279,11 @@ class DataValidator {
       try {
         orgData = JSON.parse(readFileSync(filePath, 'utf-8'));
       } catch (error) {
-        this.addError('ORGANIZATIONS', `Invalid JSON for org ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'ORGANIZATIONS',
+          `Invalid JSON for org ${ref.id}: ${error}`,
+          ref.file
+        );
         continue;
       }
 
@@ -239,31 +291,53 @@ class DataValidator {
         const org = OrganizationSchema.parse(orgData);
 
         if (org.id !== ref.id) {
-          this.addError('ORGANIZATIONS', `Org ID mismatch: file has ${ref.id}, data has ${org.id}`, ref.file);
+          this.addError(
+            'ORGANIZATIONS',
+            `Org ID mismatch: file has ${ref.id}, data has ${org.id}`,
+            ref.file
+          );
         }
 
         const expectedFile = `./organizations/${ref.id}.json`;
         if (ref.file !== expectedFile) {
-          this.addWarning('ORGANIZATIONS', `File path mismatch: expected ${expectedFile}, got ${ref.file}`, ref.file);
+          this.addWarning(
+            'ORGANIZATIONS',
+            `File path mismatch: expected ${expectedFile}, got ${ref.file}`,
+            ref.file
+          );
         }
 
         validOrgIds.add(org.id);
       } catch (error) {
-        this.addError('ORGANIZATIONS', `Schema validation failed for ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'ORGANIZATIONS',
+          `Schema validation failed for ${ref.id}: ${error}`,
+          ref.file
+        );
       }
     }
 
     // Check for orphaned files
-    const filesOnDisk = readdirSync(orgsDir).filter(f => f.endsWith('.json'));
-    const referencedFiles = orgRefs.map(ref => ref.file.replace('./organizations/', ''));
+    const filesOnDisk = readdirSync(orgsDir).filter((f) => f.endsWith('.json'));
+    const referencedFiles = orgRefs.map((ref) =>
+      ref.file.replace('./organizations/', '')
+    );
 
     for (const file of filesOnDisk) {
       if (!referencedFiles.includes(file)) {
-        this.addWarning('ORGANIZATIONS', `Orphaned file not referenced in index: ${file}`, `organizations/${file}`);
+        this.addWarning(
+          'ORGANIZATIONS',
+          `Orphaned file not referenced in index: ${file}`,
+          `organizations/${file}`
+        );
       }
     }
 
-    logger.info(`✓ Validated ${validOrgIds.size} organizations`, undefined, 'DataValidator');
+    logger.info(
+      `✓ Validated ${validOrgIds.size} organizations`,
+      undefined,
+      'DataValidator'
+    );
     return validOrgIds;
   }
 
@@ -275,16 +349,28 @@ class DataValidator {
     validActorIds: Set<string>
   ): number {
     if (!relRefs || relRefs.length === 0) {
-      logger.info('No relationships to validate (optional)', undefined, 'DataValidator');
+      logger.info(
+        'No relationships to validate (optional)',
+        undefined,
+        'DataValidator'
+      );
       return 0;
     }
 
     const relsDir = join(this.dataDir, 'relationships');
 
-    logger.info(`Validating ${relRefs.length} relationship files...`, undefined, 'DataValidator');
+    logger.info(
+      `Validating ${relRefs.length} relationship files...`,
+      undefined,
+      'DataValidator'
+    );
 
     if (!existsSync(relsDir)) {
-      this.addError('RELATIONSHIPS', 'relationships/ directory not found', relsDir);
+      this.addError(
+        'RELATIONSHIPS',
+        'relationships/ directory not found',
+        relsDir
+      );
       return 0;
     }
 
@@ -294,7 +380,11 @@ class DataValidator {
       const filePath = join(this.dataDir, ref.file);
 
       if (!existsSync(filePath)) {
-        this.addError('RELATIONSHIPS', `File not found for relationship ${ref.id}`, ref.file);
+        this.addError(
+          'RELATIONSHIPS',
+          `File not found for relationship ${ref.id}`,
+          ref.file
+        );
         continue;
       }
 
@@ -302,7 +392,11 @@ class DataValidator {
       try {
         relData = JSON.parse(readFileSync(filePath, 'utf-8'));
       } catch (error) {
-        this.addError('RELATIONSHIPS', `Invalid JSON for relationship ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'RELATIONSHIPS',
+          `Invalid JSON for relationship ${ref.id}: ${error}`,
+          ref.file
+        );
         continue;
       }
 
@@ -311,10 +405,18 @@ class DataValidator {
 
         // Verify actor IDs exist
         if (!validActorIds.has(rel.actor1Id)) {
-          this.addError('RELATIONSHIPS', `actor1Id "${rel.actor1Id}" not found in actors`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `actor1Id "${rel.actor1Id}" not found in actors`,
+            ref.file
+          );
         }
         if (!validActorIds.has(rel.actor2Id)) {
-          this.addError('RELATIONSHIPS', `actor2Id "${rel.actor2Id}" not found in actors`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `actor2Id "${rel.actor2Id}" not found in actors`,
+            ref.file
+          );
         }
 
         // Verify alphabetical ordering of filename
@@ -333,7 +435,11 @@ class DataValidator {
         // Verify ID matches filename pattern
         const expectedId = expectedFileName.replace('.json', '');
         if (ref.id !== expectedId) {
-          this.addError('RELATIONSHIPS', `ID mismatch: expected ${expectedId}, got ${ref.id}`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `ID mismatch: expected ${expectedId}, got ${ref.id}`,
+            ref.file
+          );
         }
 
         // Verify actor IDs in file match the alphabetical order
@@ -347,28 +453,45 @@ class DataValidator {
 
         validCount++;
       } catch (error) {
-        this.addError('RELATIONSHIPS', `Schema validation failed for ${ref.id}: ${error}`, ref.file);
+        this.addError(
+          'RELATIONSHIPS',
+          `Schema validation failed for ${ref.id}: ${error}`,
+          ref.file
+        );
       }
     }
 
     // Check for orphaned files
-    const filesOnDisk = readdirSync(relsDir).filter(f => f.endsWith('.json'));
-    const referencedFiles = relRefs.map(ref => ref.file.replace('./relationships/', ''));
+    const filesOnDisk = readdirSync(relsDir).filter((f) => f.endsWith('.json'));
+    const referencedFiles = relRefs.map((ref) =>
+      ref.file.replace('./relationships/', '')
+    );
 
     for (const file of filesOnDisk) {
       if (!referencedFiles.includes(file)) {
-        this.addWarning('RELATIONSHIPS', `Orphaned file not referenced in index: ${file}`, `relationships/${file}`);
+        this.addWarning(
+          'RELATIONSHIPS',
+          `Orphaned file not referenced in index: ${file}`,
+          `relationships/${file}`
+        );
       }
     }
 
-    logger.info(`✓ Validated ${validCount} relationships`, undefined, 'DataValidator');
+    logger.info(
+      `✓ Validated ${validCount} relationships`,
+      undefined,
+      'DataValidator'
+    );
     return validCount;
   }
 
   /**
    * Validate actor affiliations reference valid organizations
    */
-  validateAffiliations(actorRefs: z.infer<typeof IndexReferenceSchema>[], validOrgIds: Set<string>) {
+  validateAffiliations(
+    actorRefs: z.infer<typeof IndexReferenceSchema>[],
+    validOrgIds: Set<string>
+  ) {
     logger.info('Validating actor affiliations...', undefined, 'DataValidator');
 
     let checkedCount = 0;
@@ -379,7 +502,9 @@ class DataValidator {
       if (!existsSync(filePath)) continue;
 
       try {
-        const actor = ActorSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')));
+        const actor = ActorSchema.parse(
+          JSON.parse(readFileSync(filePath, 'utf-8'))
+        );
 
         if (actor.affiliations && Array.isArray(actor.affiliations)) {
           for (const orgId of actor.affiliations) {
@@ -398,7 +523,11 @@ class DataValidator {
       }
     }
 
-    logger.info(`✓ Validated affiliations for ${checkedCount} actors`, undefined, 'DataValidator');
+    logger.info(
+      `✓ Validated affiliations for ${checkedCount} actors`,
+      undefined,
+      'DataValidator'
+    );
   }
 
   /**
@@ -421,7 +550,10 @@ class DataValidator {
       actorIds.add(ref.id);
     }
     if (actorDuplicates.length > 0) {
-      this.addError('UNIQUE_IDS', `Duplicate actor IDs: ${actorDuplicates.join(', ')}`);
+      this.addError(
+        'UNIQUE_IDS',
+        `Duplicate actor IDs: ${actorDuplicates.join(', ')}`
+      );
     }
 
     // Check organization ID uniqueness
@@ -434,7 +566,10 @@ class DataValidator {
       orgIds.add(ref.id);
     }
     if (orgDuplicates.length > 0) {
-      this.addError('UNIQUE_IDS', `Duplicate organization IDs: ${orgDuplicates.join(', ')}`);
+      this.addError(
+        'UNIQUE_IDS',
+        `Duplicate organization IDs: ${orgDuplicates.join(', ')}`
+      );
     }
 
     // Check relationship ID uniqueness
@@ -448,7 +583,10 @@ class DataValidator {
         relIds.add(ref.id);
       }
       if (relDuplicates.length > 0) {
-        this.addError('UNIQUE_IDS', `Duplicate relationship IDs: ${relDuplicates.join(', ')}`);
+        this.addError(
+          'UNIQUE_IDS',
+          `Duplicate relationship IDs: ${relDuplicates.join(', ')}`
+        );
       }
     }
 
@@ -464,7 +602,11 @@ class DataValidator {
   ) {
     if (!relRefs || relRefs.length === 0) return;
 
-    logger.info('Validating relationship consistency...', undefined, 'DataValidator');
+    logger.info(
+      'Validating relationship consistency...',
+      undefined,
+      'DataValidator'
+    );
 
     const relationshipPairs = new Set<string>();
 
@@ -473,28 +615,46 @@ class DataValidator {
       if (!existsSync(filePath)) continue;
 
       try {
-        const rel = RelationshipSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')));
+        const rel = RelationshipSchema.parse(
+          JSON.parse(readFileSync(filePath, 'utf-8'))
+        );
 
         // Check for duplicate relationships (same pair)
         const ids = [rel.actor1Id, rel.actor2Id].sort();
         const pairKey = `${ids[0]}_${ids[1]}`;
 
         if (relationshipPairs.has(pairKey)) {
-          this.addError('RELATIONSHIPS', `Duplicate relationship for pair: ${pairKey}`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Duplicate relationship for pair: ${pairKey}`,
+            ref.file
+          );
         }
         relationshipPairs.add(pairKey);
 
         // Verify both actors exist
         if (!validActorIds.has(rel.actor1Id)) {
-          this.addError('RELATIONSHIPS', `Unknown actor1Id: ${rel.actor1Id}`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Unknown actor1Id: ${rel.actor1Id}`,
+            ref.file
+          );
         }
         if (!validActorIds.has(rel.actor2Id)) {
-          this.addError('RELATIONSHIPS', `Unknown actor2Id: ${rel.actor2Id}`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Unknown actor2Id: ${rel.actor2Id}`,
+            ref.file
+          );
         }
 
         // Verify actor IDs are different (no self-relationships)
         if (rel.actor1Id === rel.actor2Id) {
-          this.addError('RELATIONSHIPS', `Self-relationship detected: ${rel.actor1Id}`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Self-relationship detected: ${rel.actor1Id}`,
+            ref.file
+          );
         }
 
         // Verify valid relationship type
@@ -518,23 +678,38 @@ class DataValidator {
         ];
 
         if (!validTypes.includes(rel.relationshipType)) {
-          this.addWarning('RELATIONSHIPS', `Unknown relationship type: ${rel.relationshipType}`, ref.file);
+          this.addWarning(
+            'RELATIONSHIPS',
+            `Unknown relationship type: ${rel.relationshipType}`,
+            ref.file
+          );
         }
 
         // Validate value ranges
         if (rel.strength < 0 || rel.strength > 1) {
-          this.addError('RELATIONSHIPS', `Invalid strength value: ${rel.strength} (must be 0-1)`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Invalid strength value: ${rel.strength} (must be 0-1)`,
+            ref.file
+          );
         }
         if (rel.sentiment < -1 || rel.sentiment > 1) {
-          this.addError('RELATIONSHIPS', `Invalid sentiment value: ${rel.sentiment} (must be -1 to 1)`, ref.file);
+          this.addError(
+            'RELATIONSHIPS',
+            `Invalid sentiment value: ${rel.sentiment} (must be -1 to 1)`,
+            ref.file
+          );
         }
-
       } catch {
         // Skip relationships that failed schema validation (already reported)
       }
     }
 
-    logger.info('✓ Relationship consistency validated', undefined, 'DataValidator');
+    logger.info(
+      '✓ Relationship consistency validated',
+      undefined,
+      'DataValidator'
+    );
   }
 
   /**
@@ -549,16 +724,28 @@ class DataValidator {
     for (const dir of requiredDirs) {
       const dirPath = join(this.dataDir, dir);
       if (!existsSync(dirPath)) {
-        this.addError('STRUCTURE', `Required directory missing: ${dir}`, dirPath);
+        this.addError(
+          'STRUCTURE',
+          `Required directory missing: ${dir}`,
+          dirPath
+        );
       } else if (!statSync(dirPath).isDirectory()) {
-        this.addError('STRUCTURE', `Expected directory but found file: ${dir}`, dirPath);
+        this.addError(
+          'STRUCTURE',
+          `Expected directory but found file: ${dir}`,
+          dirPath
+        );
       }
     }
 
     for (const dir of optionalDirs) {
       const dirPath = join(this.dataDir, dir);
       if (existsSync(dirPath) && !statSync(dirPath).isDirectory()) {
-        this.addError('STRUCTURE', `Expected directory but found file: ${dir}`, dirPath);
+        this.addError(
+          'STRUCTURE',
+          `Expected directory but found file: ${dir}`,
+          dirPath
+        );
       }
     }
 
@@ -569,9 +756,17 @@ class DataValidator {
    * Run all validations
    */
   async validateAll(): Promise<boolean> {
-    logger.info('====================================', undefined, 'DataValidator');
+    logger.info(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
     logger.info('COMPREHENSIVE DATA VALIDATION', undefined, 'DataValidator');
-    logger.info('====================================', undefined, 'DataValidator');
+    logger.info(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
 
     // 1. Validate file structure
     this.validateFileStructure();
@@ -579,7 +774,11 @@ class DataValidator {
     // 2. Validate index file
     const index = this.validateIndexFile();
     if (!index) {
-      logger.error('❌ Index file validation failed - cannot continue', undefined, 'DataValidator');
+      logger.error(
+        '❌ Index file validation failed - cannot continue',
+        undefined,
+        'DataValidator'
+      );
       return false;
     }
 
@@ -599,47 +798,114 @@ class DataValidator {
     }
 
     // 7. Validate unique IDs
-    this.validateUniqueIds(index.actors, index.organizations, index.relationships);
+    this.validateUniqueIds(
+      index.actors,
+      index.organizations,
+      index.relationships
+    );
 
     // Print summary
-    logger.info('====================================', undefined, 'DataValidator');
+    logger.info(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
     logger.info('VALIDATION SUMMARY', undefined, 'DataValidator');
-    logger.info('====================================', undefined, 'DataValidator');
-    logger.info(`Actors validated: ${validActorIds.size}/${index.actors.length}`, undefined, 'DataValidator');
-    logger.info(`Organizations validated: ${validOrgIds.size}/${index.organizations.length}`, undefined, 'DataValidator');
-    logger.info(`Relationships validated: ${index.relationships?.length || 0}`, undefined, 'DataValidator');
+    logger.info(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
+    logger.info(
+      `Actors validated: ${validActorIds.size}/${index.actors.length}`,
+      undefined,
+      'DataValidator'
+    );
+    logger.info(
+      `Organizations validated: ${validOrgIds.size}/${index.organizations.length}`,
+      undefined,
+      'DataValidator'
+    );
+    logger.info(
+      `Relationships validated: ${index.relationships?.length || 0}`,
+      undefined,
+      'DataValidator'
+    );
     logger.info(`Errors: ${this.errors.length}`, undefined, 'DataValidator');
-    logger.info(`Warnings: ${this.warnings.length}`, undefined, 'DataValidator');
+    logger.info(
+      `Warnings: ${this.warnings.length}`,
+      undefined,
+      'DataValidator'
+    );
 
     if (this.errors.length > 0) {
-      logger.error('====================================', undefined, 'DataValidator');
+      logger.error(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
       logger.error('ERRORS FOUND', undefined, 'DataValidator');
-      logger.error('====================================', undefined, 'DataValidator');
-      this.errors.forEach(err => {
-        logger.error(`[${err.category}] ${err.message}`, { file: err.file }, 'DataValidator');
+      logger.error(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
+      this.errors.forEach((err) => {
+        logger.error(
+          `[${err.category}] ${err.message}`,
+          { file: err.file },
+          'DataValidator'
+        );
       });
     }
 
     if (this.warnings.length > 0) {
-      logger.warn('====================================', undefined, 'DataValidator');
+      logger.warn(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
       logger.warn('WARNINGS', undefined, 'DataValidator');
-      logger.warn('====================================', undefined, 'DataValidator');
-      this.warnings.forEach(warn => {
-        logger.warn(`[${warn.category}] ${warn.message}`, { file: warn.file }, 'DataValidator');
+      logger.warn(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
+      this.warnings.forEach((warn) => {
+        logger.warn(
+          `[${warn.category}] ${warn.message}`,
+          { file: warn.file },
+          'DataValidator'
+        );
       });
     }
 
     if (this.errors.length === 0) {
-      logger.info('====================================', undefined, 'DataValidator');
+      logger.info(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
       logger.info('✅ ALL VALIDATIONS PASSED', undefined, 'DataValidator');
-      logger.info('====================================', undefined, 'DataValidator');
+      logger.info(
+        '====================================',
+        undefined,
+        'DataValidator'
+      );
       return true;
-    } else {
-      logger.error('====================================', undefined, 'DataValidator');
-      logger.error('❌ VALIDATION FAILED', undefined, 'DataValidator');
-      logger.error('====================================', undefined, 'DataValidator');
-      return false;
     }
+    logger.error(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
+    logger.error('❌ VALIDATION FAILED', undefined, 'DataValidator');
+    logger.error(
+      '====================================',
+      undefined,
+      'DataValidator'
+    );
+    return false;
   }
 }
 
@@ -659,4 +925,3 @@ main().catch((error) => {
   logger.error('Validation script failed', { error }, 'DataValidator');
   process.exit(1);
 });
-

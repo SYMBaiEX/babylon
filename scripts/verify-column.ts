@@ -3,7 +3,8 @@
  * Verify column exists in database
  */
 
-const DATABASE_URL = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
+const DATABASE_URL =
+  process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
 
 if (!DATABASE_URL) {
   console.error('❌ DATABASE_URL or DIRECT_DATABASE_URL required');
@@ -16,7 +17,7 @@ async function verifyColumn() {
 
   try {
     await client.connect();
-    
+
     const result = await client.query(`
       SELECT column_name, data_type, is_nullable, column_default
       FROM information_schema.columns
@@ -39,13 +40,17 @@ async function verifyColumn() {
       WHERE table_name = 'User'
       ORDER BY ordinal_position
     `);
-    
-    console.log(`\n📋 All User table columns (${allColumns.rows.length} total):`);
-    allColumns.rows.forEach((col: { column_name: string; data_type: string }) => {
-      const marker = col.column_name === 'pointsAwardedForReferralBonus' ? ' ✅' : '';
-      console.log(`   - ${col.column_name} (${col.data_type})${marker}`);
-    });
 
+    console.log(
+      `\n📋 All User table columns (${allColumns.rows.length} total):`
+    );
+    allColumns.rows.forEach(
+      (col: { column_name: string; data_type: string }) => {
+        const marker =
+          col.column_name === 'pointsAwardedForReferralBonus' ? ' ✅' : '';
+        console.log(`   - ${col.column_name} (${col.data_type})${marker}`);
+      }
+    );
   } catch (error) {
     console.error('❌ Error:', error);
     process.exit(1);
@@ -55,4 +60,3 @@ async function verifyColumn() {
 }
 
 verifyColumn();
-

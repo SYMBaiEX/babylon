@@ -1,0 +1,17 @@
+{
+  "name": "@babylon/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "types": "./deployments.d.ts",
+  "exports": {
+    "./deployments/local": "./deployments/local/latest.json",
+    "./deployments/base-sepolia": "./deployments/base-sepolia/latest.json",
+    "./deployments/base": "./deployments/base/latest.json"
+  },
+  "files": [
+    "deployments",
+    "deployments.d.ts"
+  ]
+}
+

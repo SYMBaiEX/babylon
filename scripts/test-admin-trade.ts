@@ -1,6 +1,6 @@
 /**
  * Test Admin Trade Creation
- * 
+ *
  * Tests creating a trade via admin API and verifying it appears in the public feed
  */
 
@@ -30,13 +30,19 @@ async function testAdminTrade() {
     });
 
     if (!user) {
-      console.error('❌ No users found in database. Please create a user first.');
+      console.error(
+        '❌ No users found in database. Please create a user first.'
+      );
       process.exit(1);
     }
 
-    console.log(`  ✅ Found user: ${user.username || user.displayName || user.id}`);
+    console.log(
+      `  ✅ Found user: ${user.username || user.displayName || user.id}`
+    );
     console.log(`     ID: ${user.id}`);
-    console.log(`     Current Balance: $${Number(user.virtualBalance).toFixed(2)}\n`);
+    console.log(
+      `     Current Balance: $${Number(user.virtualBalance).toFixed(2)}\n`
+    );
 
     // Step 2: Check current trades count
     console.log('📊 Step 2: Checking current trades...\n');
@@ -44,7 +50,13 @@ async function testAdminTrade() {
       where: {
         userId: user.id,
         type: {
-          in: ['pred_buy', 'pred_sell', 'perp_open', 'perp_close', 'perp_liquidation'],
+          in: [
+            'pred_buy',
+            'pred_sell',
+            'perp_open',
+            'perp_close',
+            'perp_liquidation',
+          ],
         },
       },
     });
@@ -52,8 +64,8 @@ async function testAdminTrade() {
 
     // Step 3: Create a test trade via API simulation
     console.log('📊 Step 3: Creating test trade (simulating API call)...\n');
-    
-    const testAmount = 100.50;
+
+    const testAmount = 100.5;
     const testDescription = 'Test trade created by admin script';
     const currentBalance = Number(user.virtualBalance);
     const newBalance = currentBalance + testAmount;
@@ -85,19 +97,27 @@ async function testAdminTrade() {
       return balanceTx;
     });
 
-    console.log(`  ✅ Created balance transaction:`);
+    console.log('  ✅ Created balance transaction:');
     console.log(`     ID: ${transaction.id}`);
     console.log(`     Type: ${transaction.type}`);
     console.log(`     Amount: $${testAmount}`);
-    console.log(`     Balance: $${currentBalance.toFixed(2)} → $${newBalance.toFixed(2)}\n`);
+    console.log(
+      `     Balance: $${currentBalance.toFixed(2)} → $${newBalance.toFixed(2)}\n`
+    );
 
     // Step 4: Verify it appears in public feed
     console.log('📊 Step 4: Verifying trade appears in public feed...\n');
-    
+
     const publicFeedTrades = await db.balanceTransaction.findMany({
       where: {
         type: {
-          in: ['pred_buy', 'pred_sell', 'perp_open', 'perp_close', 'perp_liquidation'],
+          in: [
+            'pred_buy',
+            'pred_sell',
+            'perp_open',
+            'perp_close',
+            'perp_liquidation',
+          ],
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -115,8 +135,8 @@ async function testAdminTrade() {
       },
     });
 
-    const foundTrade = publicFeedTrades.find(t => t.id === transaction.id);
-    
+    const foundTrade = publicFeedTrades.find((t) => t.id === transaction.id);
+
     if (foundTrade) {
       type TradeWithUser = typeof foundTrade & {
         user?: {
@@ -129,13 +149,17 @@ async function testAdminTrade() {
       };
       const tradeWithUser = foundTrade as TradeWithUser;
       const userData = tradeWithUser.user;
-      console.log(`  ✅ Trade found in public feed!`);
-      console.log(`     User: ${userData?.displayName || userData?.username || 'Unknown'}`);
+      console.log('  ✅ Trade found in public feed!');
+      console.log(
+        `     User: ${userData?.displayName || userData?.username || 'Unknown'}`
+      );
       console.log(`     Description: ${foundTrade.description || 'N/A'}`);
       console.log(`     Amount: $${Number(foundTrade.amount).toFixed(2)}\n`);
     } else {
-      console.log(`  ⚠️  Trade not found in top 10 recent trades`);
-      console.log(`     (This might be normal if there are many recent trades)\n`);
+      console.log('  ⚠️  Trade not found in top 10 recent trades');
+      console.log(
+        '     (This might be normal if there are many recent trades)\n'
+      );
     }
 
     // Step 5: Verify user balance was updated
@@ -146,11 +170,15 @@ async function testAdminTrade() {
     });
 
     if (updatedUser && Number(updatedUser.virtualBalance) === newBalance) {
-      console.log(`  ✅ User balance updated correctly: $${Number(updatedUser.virtualBalance).toFixed(2)}\n`);
+      console.log(
+        `  ✅ User balance updated correctly: $${Number(updatedUser.virtualBalance).toFixed(2)}\n`
+      );
     } else {
-      console.log(`  ❌ User balance mismatch!`);
+      console.log('  ❌ User balance mismatch!');
       console.log(`     Expected: $${newBalance.toFixed(2)}`);
-      console.log(`     Actual: $${Number(updatedUser?.virtualBalance || 0).toFixed(2)}\n`);
+      console.log(
+        `     Actual: $${Number(updatedUser?.virtualBalance || 0).toFixed(2)}\n`
+      );
     }
 
     console.log('✅ Test completed successfully!\n');
@@ -159,7 +187,6 @@ async function testAdminTrade() {
     console.log('1. Check the admin dashboard at /admin → Trading Feed tab');
     console.log('2. Check the public feed at /feed → Trades tab');
     console.log(`3. Look for trade ID: ${transaction.id}\n`);
-
   } catch (error) {
     console.error('❌ Test failed:', error);
     if (error instanceof Error) {
@@ -174,10 +201,3 @@ async function testAdminTrade() {
 
 // Run the test
 testAdminTrade().catch(console.error);
-
-
-
-
-
-
-

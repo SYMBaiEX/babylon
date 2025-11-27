@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Pre-Development Setup for Testnet
- * 
+ *
  * Validates testnet deployment before starting dev server:
  * - Checks environment variables
  * - Validates contract deployments
@@ -9,178 +9,218 @@
  * - Starts local database services
  */
 
-import { $ } from 'bun'
-import { logger } from '../../src/lib/logger'
-import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'
-import { validateDeployment, printValidationResult as printDeploymentResult } from '../../src/lib/deployment/validation'
+import { $ } from 'bun';
+import {
+  printValidationResult,
+  validateEnvironment,
+} from '../../src/lib/deployment/env-detection';
+import {
+  printValidationResult as printDeploymentResult,
+  validateDeployment,
+} from '../../src/lib/deployment/validation';
+import { logger } from '../../src/lib/logger';
 
-const BASE_SEPOLIA_RPC_URL = process.env.BASE_SEPOLIA_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'
+const BASE_SEPOLIA_RPC_URL =
+  process.env.BASE_SEPOLIA_RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  'https://sepolia.base.org';
 
-logger.info('Setting up testnet development environment...', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
+logger.info(
+  'Setting up testnet development environment...',
+  undefined,
+  'Script'
+);
+logger.info('='.repeat(60), undefined, 'Script');
 
 // Set environment for testnet
-process.env.DEPLOYMENT_ENV = 'testnet'
-process.env.NEXT_PUBLIC_CHAIN_ID = '84532'
+process.env.DEPLOYMENT_ENV = 'testnet';
+process.env.NEXT_PUBLIC_CHAIN_ID = '84532';
 
 // 1. Validate environment variables
-logger.info('Validating environment...', undefined, 'Script')
-const envValidation = validateEnvironment('testnet')
+logger.info('Validating environment...', undefined, 'Script');
+const envValidation = validateEnvironment('testnet');
 
 if (!envValidation.valid) {
-  logger.error('❌ Environment validation failed', undefined, 'Script')
-  envValidation.errors.forEach(error => {
-    logger.error(`   ${error}`, undefined, 'Script')
-  })
-  logger.info('', undefined, 'Script')
-  logger.info('To fix:', undefined, 'Script')
-  logger.info('  1. Copy .env.testnet.example to .env.testnet', undefined, 'Script')
-  logger.info('  2. Fill in required values', undefined, 'Script')
-  logger.info('  3. Deploy contracts: bun run contracts:deploy:testnet', undefined, 'Script')
-  process.exit(1)
+  logger.error('❌ Environment validation failed', undefined, 'Script');
+  envValidation.errors.forEach((error) => {
+    logger.error(`   ${error}`, undefined, 'Script');
+  });
+  logger.info('', undefined, 'Script');
+  logger.info('To fix:', undefined, 'Script');
+  logger.info(
+    '  1. Copy .env.testnet.example to .env.testnet',
+    undefined,
+    'Script'
+  );
+  logger.info('  2. Fill in required values', undefined, 'Script');
+  logger.info(
+    '  3. Deploy contracts: bun run contracts:deploy:testnet',
+    undefined,
+    'Script'
+  );
+  process.exit(1);
 }
 
-printValidationResult(envValidation)
+printValidationResult(envValidation);
 
 // 2. Validate contract deployment
-logger.info('', undefined, 'Script')
-logger.info('Validating contract deployment...', undefined, 'Script')
+logger.info('', undefined, 'Script');
+logger.info('Validating contract deployment...', undefined, 'Script');
 
-const contractValidation = await validateDeployment('testnet', BASE_SEPOLIA_RPC_URL)
+const contractValidation = await validateDeployment(
+  'testnet',
+  BASE_SEPOLIA_RPC_URL
+);
 
 if (!contractValidation.deployed) {
-  logger.error('❌ Contracts not deployed to testnet', undefined, 'Script')
-  logger.info('', undefined, 'Script')
-  logger.info('Deploy contracts with:', undefined, 'Script')
-  logger.info('  bun run contracts:deploy:testnet', undefined, 'Script')
-  process.exit(1)
+  logger.error('❌ Contracts not deployed to testnet', undefined, 'Script');
+  logger.info('', undefined, 'Script');
+  logger.info('Deploy contracts with:', undefined, 'Script');
+  logger.info('  bun run contracts:deploy:testnet', undefined, 'Script');
+  process.exit(1);
 }
 
 if (!contractValidation.valid) {
-  logger.error('❌ Contract validation failed', undefined, 'Script')
-  contractValidation.errors.forEach(error => {
-    logger.error(`   ${error}`, undefined, 'Script')
-  })
-  process.exit(1)
+  logger.error('❌ Contract validation failed', undefined, 'Script');
+  contractValidation.errors.forEach((error) => {
+    logger.error(`   ${error}`, undefined, 'Script');
+  });
+  process.exit(1);
 }
 
-printDeploymentResult(contractValidation, 'testnet')
+printDeploymentResult(contractValidation, 'testnet');
 
 // 3. Check Agent0 configuration (if enabled)
 if (process.env.AGENT0_ENABLED === 'true') {
-  logger.info('', undefined, 'Script')
-  logger.info('Checking Agent0 configuration...', undefined, 'Script')
+  logger.info('', undefined, 'Script');
+  logger.info('Checking Agent0 configuration...', undefined, 'Script');
 
   if (!process.env.BASE_SEPOLIA_RPC_URL) {
-    logger.warn('⚠️  BASE_SEPOLIA_RPC_URL not set', undefined, 'Script')
+    logger.warn('⚠️  BASE_SEPOLIA_RPC_URL not set', undefined, 'Script');
   }
 
   if (!process.env.BABYLON_GAME_PRIVATE_KEY) {
-    logger.warn('⚠️  BABYLON_GAME_PRIVATE_KEY not set', undefined, 'Script')
-    logger.info('   Agent0 integration may not work', undefined, 'Script')
+    logger.warn('⚠️  BABYLON_GAME_PRIVATE_KEY not set', undefined, 'Script');
+    logger.info('   Agent0 integration may not work', undefined, 'Script');
   }
 
   if (!process.env.AGENT0_SUBGRAPH_URL) {
-    logger.warn('⚠️  AGENT0_SUBGRAPH_URL not set', undefined, 'Script')
-    logger.info('   Agent discovery may not work', undefined, 'Script')
+    logger.warn('⚠️  AGENT0_SUBGRAPH_URL not set', undefined, 'Script');
+    logger.info('   Agent discovery may not work', undefined, 'Script');
   } else {
-    logger.info('✅ Agent0 configured', undefined, 'Script')
+    logger.info('✅ Agent0 configured', undefined, 'Script');
   }
 }
 
 // 4. Start local database services
-logger.info('', undefined, 'Script')
-logger.info('Starting local database services...', undefined, 'Script')
+logger.info('', undefined, 'Script');
+logger.info('Starting local database services...', undefined, 'Script');
 
 await $`docker --version`.quiet().catch(() => {
-  logger.warn('⚠️  Could not start local services', undefined, 'Script')
-  logger.info('   Make sure Docker is running', undefined, 'Script')
-  throw new Error('Docker not available')
-})
+  logger.warn('⚠️  Could not start local services', undefined, 'Script');
+  logger.info('   Make sure Docker is running', undefined, 'Script');
+  throw new Error('Docker not available');
+});
 
-await $`docker info`.quiet()
+await $`docker info`.quiet();
 
 // Start PostgreSQL
-const postgresRunning = await $`docker ps --filter name=babylon-postgres --format "{{.Names}}"`.quiet().text()
+const postgresRunning =
+  await $`docker ps --filter name=babylon-postgres --format "{{.Names}}"`
+    .quiet()
+    .text();
 
 if (postgresRunning.trim() !== 'babylon-postgres') {
-  logger.info('Starting PostgreSQL...', undefined, 'Script')
-  await $`docker-compose up -d postgres`
-  await new Promise(resolve => setTimeout(resolve, 3000))
-  logger.info('✅ PostgreSQL started', undefined, 'Script')
+  logger.info('Starting PostgreSQL...', undefined, 'Script');
+  await $`docker-compose up -d postgres`;
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  logger.info('✅ PostgreSQL started', undefined, 'Script');
 } else {
-  logger.info('✅ PostgreSQL is running', undefined, 'Script')
+  logger.info('✅ PostgreSQL is running', undefined, 'Script');
 }
 
 // Start Redis (optional)
-const redisRunning = await $`docker ps --filter name=babylon-redis --format "{{.Names}}"`.quiet().text()
+const redisRunning =
+  await $`docker ps --filter name=babylon-redis --format "{{.Names}}"`
+    .quiet()
+    .text();
 
 if (redisRunning.trim() !== 'babylon-redis') {
-  await $`docker-compose up -d redis`.then(() => {
-    logger.info('✅ Redis started', undefined, 'Script')
-  }).catch(() => {
-    logger.warn('⚠️  Redis start failed (optional)', undefined, 'Script')
-  })
+  await $`docker-compose up -d redis`
+    .then(() => {
+      logger.info('✅ Redis started', undefined, 'Script');
+    })
+    .catch(() => {
+      logger.warn('⚠️  Redis start failed (optional)', undefined, 'Script');
+    });
 } else {
-  logger.info('✅ Redis is running', undefined, 'Script')
+  logger.info('✅ Redis is running', undefined, 'Script');
 }
 
 // Run database migrations
-import { db, actors, count, closeDatabase, checkDatabaseHealth } from '@/db'
+import { actors, checkDatabaseHealth, closeDatabase, count, db } from '@/db';
 
-const isConnected = await checkDatabaseHealth().catch(() => false)
+const isConnected = await checkDatabaseHealth().catch(() => false);
 if (!isConnected) {
-  logger.info('Database not ready, running migrations...', undefined, 'Script')
+  logger.info('Database not ready, running migrations...', undefined, 'Script');
   await $`bunx drizzle-kit push`.quiet().catch(async () => {
-    await $`bunx drizzle-kit push --force`.quiet()
-  })
+    await $`bunx drizzle-kit push --force`.quiet();
+  });
 }
 
-logger.info('✅ Database connected', undefined, 'Script')
+logger.info('✅ Database connected', undefined, 'Script');
 
-const actorCountResult = await db.select({ count: count() })
+const actorCountResult = await db
+  .select({ count: count() })
   .from(actors)
   .catch(async (error: Error) => {
-    const errorMessage = error.message
-    if (errorMessage.includes('does not exist') || errorMessage.includes('relation')) {
-      logger.info('Running database migrations...', undefined, 'Script')
+    const errorMessage = error.message;
+    if (
+      errorMessage.includes('does not exist') ||
+      errorMessage.includes('relation')
+    ) {
+      logger.info('Running database migrations...', undefined, 'Script');
       await $`bunx drizzle-kit push`.quiet().catch(async () => {
-        await $`bunx drizzle-kit push --force`.quiet()
-      })
+        await $`bunx drizzle-kit push --force`.quiet();
+      });
 
-      logger.info('Running database seed...', undefined, 'Script')
-      await $`bun run db:seed`
-      logger.info('✅ Database ready', undefined, 'Script')
-      return [{ count: 0 }]
+      logger.info('Running database seed...', undefined, 'Script');
+      await $`bun run db:seed`;
+      logger.info('✅ Database ready', undefined, 'Script');
+      return [{ count: 0 }];
     }
-    throw error
-  })
+    throw error;
+  });
 
-const actorCount = Number(actorCountResult[0]?.count ?? 0)
+const actorCount = Number(actorCountResult[0]?.count ?? 0);
 
 if (actorCount === 0) {
-  logger.info('Running database seed...', undefined, 'Script')
-  await $`bun run db:seed`
-  logger.info('✅ Database seeded', undefined, 'Script')
+  logger.info('Running database seed...', undefined, 'Script');
+  await $`bun run db:seed`;
+  logger.info('✅ Database seeded', undefined, 'Script');
 } else if (actorCount > 0) {
-  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
+  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script');
 }
 
-await closeDatabase()
+await closeDatabase();
 
-logger.info('', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
-logger.info('✅ Testnet environment ready!', undefined, 'Script')
-logger.info('', undefined, 'Script')
-logger.info('Network:', undefined, 'Script')
-logger.info('  Chain: Base Sepolia (84532)', undefined, 'Script')
-logger.info('  RPC: ' + BASE_SEPOLIA_RPC_URL, undefined, 'Script')
-logger.info('  Explorer: https://sepolia.basescan.org', undefined, 'Script')
-logger.info('', undefined, 'Script')
+logger.info('', undefined, 'Script');
+logger.info('='.repeat(60), undefined, 'Script');
+logger.info('✅ Testnet environment ready!', undefined, 'Script');
+logger.info('', undefined, 'Script');
+logger.info('Network:', undefined, 'Script');
+logger.info('  Chain: Base Sepolia (84532)', undefined, 'Script');
+logger.info('  RPC: ' + BASE_SEPOLIA_RPC_URL, undefined, 'Script');
+logger.info('  Explorer: https://sepolia.basescan.org', undefined, 'Script');
+logger.info('', undefined, 'Script');
 if (contractValidation.contracts.diamond) {
-  logger.info('Contracts:', undefined, 'Script')
-  logger.info('  Diamond: ' + contractValidation.contracts.diamond, undefined, 'Script')
+  logger.info('Contracts:', undefined, 'Script');
+  logger.info(
+    '  Diamond: ' + contractValidation.contracts.diamond,
+    undefined,
+    'Script'
+  );
 }
-logger.info('', undefined, 'Script')
-logger.info('Starting Next.js...', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
+logger.info('', undefined, 'Script');
+logger.info('Starting Next.js...', undefined, 'Script');
+logger.info('='.repeat(60), undefined, 'Script');

@@ -58,7 +58,9 @@ async function validateManifest(): Promise<void> {
 
     // Check version
     if (manifest.miniapp.version !== '1') {
-      errors.push(`Invalid version: ${manifest.miniapp.version} (should be "1")`);
+      errors.push(
+        `Invalid version: ${manifest.miniapp.version} (should be "1")`
+      );
     }
 
     // Check required fields
@@ -98,8 +100,13 @@ async function validateManifest(): Promise<void> {
     }
 
     // Check screenshot URLs
-    if (manifest.miniapp.screenshotUrls && manifest.miniapp.screenshotUrls.length > 0) {
-      console.log(`\n📸 Screenshots (${manifest.miniapp.screenshotUrls.length}):`);
+    if (
+      manifest.miniapp.screenshotUrls &&
+      manifest.miniapp.screenshotUrls.length > 0
+    ) {
+      console.log(
+        `\n📸 Screenshots (${manifest.miniapp.screenshotUrls.length}):`
+      );
       manifest.miniapp.screenshotUrls.forEach((url, i) => {
         try {
           new URL(url);
@@ -109,7 +116,9 @@ async function validateManifest(): Promise<void> {
         }
       });
     } else {
-      warnings.push('No screenshot URLs provided (recommended: 3-5 screenshots)');
+      warnings.push(
+        'No screenshot URLs provided (recommended: 3-5 screenshots)'
+      );
     }
 
     // Check account association
@@ -126,7 +135,9 @@ async function validateManifest(): Promise<void> {
       }
     } else {
       console.log('   ⚠️  Not present (not eligible for developer rewards yet)');
-      console.log('   💡 Add via: https://farcaster.xyz/~/developers/mini-apps/manifest');
+      console.log(
+        '   💡 Add via: https://farcaster.xyz/~/developers/mini-apps/manifest'
+      );
     }
 
     // Print results
@@ -154,10 +165,14 @@ async function validateManifest(): Promise<void> {
 
     if (errors.length === 0) {
       console.log('1. ✅ Deploy your app');
-      console.log('2. ✅ Test manifest at: https://YOUR-DOMAIN/.well-known/farcaster.json');
+      console.log(
+        '2. ✅ Test manifest at: https://YOUR-DOMAIN/.well-known/farcaster.json'
+      );
       console.log('3. 💰 Add account association for rewards:');
       console.log('   https://farcaster.xyz/~/developers/mini-apps/manifest');
-      console.log('4. 🧪 Test in a Farcaster client (e.g., Warpcast mobile app)');
+      console.log(
+        '4. 🧪 Test in a Farcaster client (e.g., Warpcast mobile app)'
+      );
       console.log('\n🎉 Your manifest is ready for deployment!');
     } else {
       console.log('❌ Fix the errors above before deploying\n');
@@ -169,7 +184,9 @@ async function validateManifest(): Promise<void> {
     console.log('\n🌐 Testing Local Server...\n');
 
     try {
-      const response = await fetch('http://localhost:3000/.well-known/farcaster.json');
+      const response = await fetch(
+        'http://localhost:3000/.well-known/farcaster.json'
+      );
       if (response.ok) {
         await response.json();
         console.log('✅ Manifest accessible at /.well-known/farcaster.json');
@@ -185,7 +202,10 @@ async function validateManifest(): Promise<void> {
 
     console.log('\n' + '='.repeat(60) + '\n');
   } catch (error) {
-    console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+    console.error(
+      '❌ Error:',
+      error instanceof Error ? error.message : String(error)
+    );
     process.exit(1);
   }
 }
@@ -195,4 +215,3 @@ validateManifest().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
-

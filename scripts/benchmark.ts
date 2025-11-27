@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /**
  * Master Benchmark Runner
- * 
+ *
  * Consolidated script for all benchmarking operations.
- * 
+ *
  * Usage:
  *   bun run scripts/benchmark.ts <command> [options]
- * 
+ *
  * Commands:
  *   quick        - Quick 2-minute test
  *   single       - Run single model
@@ -15,7 +15,7 @@
  *   generate     - Generate benchmark data
  *   setup        - Create test agents
  *   verify       - Verify system integrity
- * 
+ *
  * Examples:
  *   bun run scripts/benchmark.ts quick
  *   bun run scripts/benchmark.ts single llama-3.1-8b-instant
@@ -39,10 +39,12 @@ async function runCommand(script: string, args: string[] = []): Promise<void> {
       stdio: 'inherit',
       env: {
         ...process.env,
-        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon',
-      }
+        DATABASE_URL:
+          process.env.DATABASE_URL ||
+          'postgresql://babylon:babylon_dev_password@localhost:5433/babylon',
+      },
     });
-    
+
     proc.on('close', (code) => {
       if (code === 0) resolve();
       else reject(new Error(`Command failed with code ${code}`));
@@ -58,16 +60,18 @@ async function ensureEnv(): Promise<void> {
     console.log('\nOr add to .env.local');
     process.exit(1);
   }
-  
+
   if (!process.env.DATABASE_URL) {
-    console.log('⚠️  DATABASE_URL not set, using default: postgres://babylon:babylon_dev_password@localhost:5433/babylon');
+    console.log(
+      '⚠️  DATABASE_URL not set, using default: postgres://babylon:babylon_dev_password@localhost:5433/babylon'
+    );
   }
 }
 
 async function main() {
   const command = process.argv[2];
   const args = process.argv.slice(3);
-  
+
   if (!command || command === 'help' || command === '--help') {
     console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -122,25 +126,25 @@ For detailed docs, see:
 `);
     process.exit(0);
   }
-  
+
   await ensureEnv();
-  
+
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`🎯 Running: ${command.toUpperCase()}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-  
+
   switch (command) {
     case 'setup':
       console.log('Creating test agents...\n');
       await runCommand('scripts/ensure-test-agents.ts');
       console.log('\n✅ Setup complete! Test agents ready.\n');
       break;
-      
+
     case 'quick':
       console.log('Running quick 2-minute test...\n');
       await runCommand('scripts/test-benchmark-quick.ts');
       break;
-      
+
     case 'single': {
       const model = args[0] || 'llama-3.1-8b-instant';
       const benchmark = args[1] || `benchmarks/${BENCHMARKS.short}`;
@@ -149,7 +153,7 @@ For detailed docs, see:
       await runCommand('scripts/run-quick-baseline.ts', [benchmark, model]);
       break;
     }
-      
+
     case 'compare': {
       const benchmark = args[0] || `benchmarks/${BENCHMARKS.short}`;
       const output = args[1] || 'benchmarks/model-comparison';
@@ -157,81 +161,91 @@ For detailed docs, see:
       await runCommand('scripts/compare-models.ts', [benchmark, output]);
       break;
     }
-      
+
     case 'baselines': {
       const fullWeek = args.includes('--full-week');
       const benchmark = fullWeek ? BENCHMARKS.full : BENCHMARKS.short;
-      const output = args.includes('--output') 
-        ? args[args.indexOf('--output') + 1] 
+      const output = args.includes('--output')
+        ? args[args.indexOf('--output') + 1]
         : 'benchmarks/baselines';
-      
-      console.log(`Running baseline benchmarks...`);
+
+      console.log('Running baseline benchmarks...');
       console.log(`Benchmark: ${benchmark}`);
-      console.log(`Duration: ${fullWeek ? '1 week (2-3 hours)' : '30 min (1 hour)'}\n`);
-      
+      console.log(
+        `Duration: ${fullWeek ? '1 week (2-3 hours)' : '30 min (1 hour)'}\n`
+      );
+
       await runCommand('scripts/run-baseline-benchmarks.ts', [
         `--benchmark=benchmarks/${benchmark}`,
-        `--output=${output}`
+        `--output=${output}`,
       ]);
       break;
     }
-      
+
     case 'generate': {
-      const duration = args.find(a => a.startsWith('--duration='))?.split('=')[1] || '10080';
-      const seed = args.find(a => a.startsWith('--seed='))?.split('=')[1] || '12345';
-      
-      console.log(`Generating benchmark...`);
+      const duration =
+        args.find((a) => a.startsWith('--duration='))?.split('=')[1] || '10080';
+      const seed =
+        args.find((a) => a.startsWith('--seed='))?.split('=')[1] || '12345';
+
+      console.log('Generating benchmark...');
       console.log(`Duration: ${duration} minutes\n`);
-      
+
       await runCommand('scripts/generate-benchmark.ts', [
         `--duration=${duration}`,
-        `--interval=60`,
-        `--markets=10`,
-        `--perpetuals=5`,
-        `--agents=8`,
+        '--interval=60',
+        '--markets=10',
+        '--perpetuals=5',
+        '--agents=8',
         `--seed=${seed}`,
       ]);
       break;
     }
-      
+
     case 'verify': {
       console.log('Running system verification...\n');
-      
+
       // Check test agents exist
       await runCommand('scripts/ensure-test-agents.ts');
-      
+
       // Check benchmark files exist
       const benchmarkDir = path.join(process.cwd(), 'benchmarks');
       const files = await fs.readdir(benchmarkDir);
-      const benchmarkFiles = files.filter(f => f.startsWith('benchmark-week-') && f.endsWith('.json'));
-      
+      const benchmarkFiles = files.filter(
+        (f) => f.startsWith('benchmark-week-') && f.endsWith('.json')
+      );
+
       console.log('\n📊 Benchmark Files:');
-      benchmarkFiles.forEach(f => console.log(`  ✅ ${f}`));
-      
+      benchmarkFiles.forEach((f) => console.log(`  ✅ ${f}`));
+
       // Check baselines exist
       try {
         const baselineDir = path.join(benchmarkDir, 'baselines');
         const baselineFiles = await fs.readdir(baselineDir);
         console.log('\n🎯 Baseline Files:');
-        baselineFiles.filter(f => f.endsWith('.json')).forEach(f => console.log(`  ✅ ${f}`));
+        baselineFiles
+          .filter((f) => f.endsWith('.json'))
+          .forEach((f) => console.log(`  ✅ ${f}`));
       } catch {
-        console.log('\n⚠️  No baselines found. Run: bun run scripts/benchmark.ts baselines');
+        console.log(
+          '\n⚠️  No baselines found. Run: bun run scripts/benchmark.ts baselines'
+        );
       }
-      
+
       // Run quick test
       console.log('\n🧪 Running quick validation test...\n');
       await runCommand('scripts/test-benchmark-quick.ts');
-      
+
       console.log('\n✅ System verification complete!\n');
       break;
     }
-      
+
     default:
       console.error(`❌ Unknown command: ${command}`);
       console.log('Run "bun run scripts/benchmark.ts help" for usage\n');
       process.exit(1);
   }
-  
+
   console.log('');
   process.exit(0);
 }
@@ -240,6 +254,3 @@ main().catch((error) => {
   console.error('\n❌ Error:', error.message);
   process.exit(1);
 });
-
-
-

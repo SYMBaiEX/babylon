@@ -1,0 +1,38 @@
+import { definePrompt } from '../define-prompt';
+
+/**
+ * Prompt for generating normal, mundane baseline events for genesis game.
+ *
+ * Creates everyday events that provide background atmosphere without
+ * major dramatic impact. Used to establish normalcy before major events
+ * occur in the game.
+ *
+ * Returns XML with baseline event description.
+ */
+export const baselineEvent = definePrompt({
+  id: 'baseline-event',
+  version: '2.0.0',
+  category: 'game',
+  description: 'Generates normal, mundane baseline events for genesis game',
+  temperature: 0.7,
+  maxTokens: 5000,
+  template: `{{realityGrounding}}
+
+The current date is {{currentDate}}. Always act as though it is the current date.
+
+{{worldEventExamples}}
+
+Date: {{dateStr}}
+Event type: {{eventType}}
+Involved: {{actorDescriptions}}
+
+Generate a normal, mundane baseline event. One sentence, max 100 chars.
+
+Respond with ONLY this XML format:
+<response>
+  <event>your event description</event>
+</response>
+
+No other text.
+`.trim(),
+});

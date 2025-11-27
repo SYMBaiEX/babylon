@@ -1,15 +1,18 @@
 #!/usr/bin/env bun
 /**
  * Verify Game State in Database
- * 
+ *
  * Connects directly to the database and checks the actual game state
  * to debug why cron might not be seeing isRunning = true
  */
 
-const DATABASE_URL = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
+const DATABASE_URL =
+  process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
 
 if (!DATABASE_URL) {
-  console.error('❌ DATABASE_URL or DIRECT_DATABASE_URL environment variable required');
+  console.error(
+    '❌ DATABASE_URL or DIRECT_DATABASE_URL environment variable required'
+  );
   process.exit(1);
 }
 
@@ -39,8 +42,12 @@ async function verifyGameState() {
     console.log('═'.repeat(80));
     for (const game of allGames) {
       console.log(`\nGame ID: ${game.id}`);
-      console.log(`  isRunning: ${game.isRunning} (type: ${typeof game.isRunning})`);
-      console.log(`  isContinuous: ${game.isContinuous} (type: ${typeof game.isContinuous})`);
+      console.log(
+        `  isRunning: ${game.isRunning} (type: ${typeof game.isRunning})`
+      );
+      console.log(
+        `  isContinuous: ${game.isContinuous} (type: ${typeof game.isContinuous})`
+      );
       console.log(`  currentDay: ${game.currentDay}`);
       console.log(`  startedAt: ${game.startedAt?.toISOString() || 'null'}`);
       console.log(`  pausedAt: ${game.pausedAt?.toISOString() || 'null'}`);
@@ -55,11 +62,15 @@ async function verifyGameState() {
     });
 
     console.log('\n' + '═'.repeat(80));
-    console.log(`CONTINUOUS GAMES (isContinuous = true): ${continuousGames.length}`);
+    console.log(
+      `CONTINUOUS GAMES (isContinuous = true): ${continuousGames.length}`
+    );
     console.log('═'.repeat(80));
 
     if (continuousGames.length === 0) {
-      console.log('\n⚠️  No continuous games found! This is why cron is skipping.');
+      console.log(
+        '\n⚠️  No continuous games found! This is why cron is skipping.'
+      );
       console.log('   The cron query looks for: WHERE isContinuous = true');
     } else if (continuousGames.length > 1) {
       console.log(`\n⚠️  Found ${continuousGames.length} continuous games!`);
@@ -71,25 +82,37 @@ async function verifyGameState() {
         console.log('\n⚠️  Unexpected: array length is 1 but game is undefined');
         return;
       }
-      
-      console.log(`\n✅ Found 1 continuous game:`);
+
+      console.log('\n✅ Found 1 continuous game:');
       console.log(`   ID: ${game.id}`);
       console.log(`   isRunning: ${game.isRunning} (${typeof game.isRunning})`);
-      console.log(`   isContinuous: ${game.isContinuous} (${typeof game.isContinuous})`);
-      
+      console.log(
+        `   isContinuous: ${game.isContinuous} (${typeof game.isContinuous})`
+      );
+
       // Check if isRunning is actually true
       if (game.isRunning === true) {
         console.log('\n✅ isRunning is TRUE - cron should proceed');
         console.log('   If cron is still skipping, check:');
         console.log('   1. Is cron connecting to the same database?');
         console.log('   2. Are there any database connection pool issues?');
-        console.log('   3. Check the cron logs for the detailed game state query result');
+        console.log(
+          '   3. Check the cron logs for the detailed game state query result'
+        );
       } else if (game.isRunning === false) {
         console.log('\n❌ isRunning is FALSE - this is why cron is skipping');
-        console.log('   Run: UPDATE "Game" SET "isRunning" = true WHERE id = \'' + game.id + '\'');
+        console.log(
+          '   Run: UPDATE "Game" SET "isRunning" = true WHERE id = \'' +
+            game.id +
+            "'"
+        );
       } else {
-        console.log(`\n⚠️  isRunning has unexpected value: ${game.isRunning} (${typeof game.isRunning})`);
-        console.log('   This might be a type issue. Expected boolean true/false.');
+        console.log(
+          `\n⚠️  isRunning has unexpected value: ${game.isRunning} (${typeof game.isRunning})`
+        );
+        console.log(
+          '   This might be a type issue. Expected boolean true/false.'
+        );
       }
     }
 
@@ -103,12 +126,15 @@ async function verifyGameState() {
     console.log('═'.repeat(80));
     if (cronQueryResult) {
       console.log(`✅ Found game: ${cronQueryResult.id}`);
-      console.log(`   isRunning: ${cronQueryResult.isRunning} (${typeof cronQueryResult.isRunning})`);
-      console.log(`   Will cron proceed? ${cronQueryResult.isRunning === true ? 'YES ✅' : 'NO ❌'}`);
+      console.log(
+        `   isRunning: ${cronQueryResult.isRunning} (${typeof cronQueryResult.isRunning})`
+      );
+      console.log(
+        `   Will cron proceed? ${cronQueryResult.isRunning === true ? 'YES ✅' : 'NO ❌'}`
+      );
     } else {
       console.log('❌ No game found - cron will skip');
     }
-
   } catch (error) {
     console.error('❌ Error querying database:', error);
     if (error instanceof Error) {
@@ -121,4 +147,3 @@ async function verifyGameState() {
 }
 
 verifyGameState();
-

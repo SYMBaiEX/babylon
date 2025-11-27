@@ -1,14 +1,14 @@
 /**
  * Generate Test Trajectories
- * 
+ *
  * Creates 20 realistic test trajectories to validate the complete system.
  * Tests recording, storage, export, and ART format conversion.
  */
 
 import { db } from '@/db';
-import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
-import { generateSnowflakeId } from '../src/lib/snowflake';
 import type { JsonValue } from '@/types/common';
+import { generateSnowflakeId } from '../src/lib/snowflake';
+import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
 
 async function main() {
   console.log('\n🧪 GENERATING TEST TRAJECTORIES\n');
@@ -16,9 +16,9 @@ async function main() {
 
   // Step 1: Ensure test agent exists
   console.log('📊 Step 1: Creating test agent...\n');
-  
+
   let testAgent = await db.user.findFirst({
-    where: { username: 'rl-test-agent' }
+    where: { username: 'rl-test-agent' },
   });
 
   if (!testAgent) {
@@ -29,7 +29,8 @@ async function main() {
         displayName: 'RL Test Agent',
         isAgent: true,
         isTest: true,
-        agentSystem: 'You are a sophisticated trading agent with a momentum-based strategy. You analyze prediction markets carefully and make data-driven decisions while managing risk.',
+        agentSystem:
+          'You are a sophisticated trading agent with a momentum-based strategy. You analyze prediction markets carefully and make data-driven decisions while managing risk.',
         agentModelTier: 'pro',
         virtualBalance: '10000',
         reputationPoints: 1000,
@@ -37,7 +38,7 @@ async function main() {
         autonomousPosting: true,
         autonomousCommenting: true,
         updatedAt: new Date(),
-      }
+      },
     });
     console.log(`  ✅ Created test agent: ${testAgent.id}\n`);
   } else {
@@ -52,7 +53,7 @@ async function main() {
     'trading-bearish-market',
     'social-engagement',
     'risk-management',
-    'position-taking'
+    'position-taking',
   ];
 
   const createdTrajectories = [];
@@ -60,7 +61,7 @@ async function main() {
   for (let i = 0; i < 20; i++) {
     const scenarioId = scenarios[i % scenarios.length]!;
     const windowId = `2025-01-15T${String(10 + Math.floor(i / 4)).padStart(2, '0')}:00`;
-    
+
     console.log(`  ${i + 1}/20: Creating trajectory for ${scenarioId}...`);
 
     const trajId = await trajectoryRecorder.startTrajectory({
@@ -70,23 +71,23 @@ async function main() {
       metadata: {
         test: true,
         batchGenerated: true,
-        index: i
-      }
+        index: i,
+      },
     });
 
     // Generate 1-3 steps per trajectory
     const numSteps = 1 + Math.floor(Math.random() * 3);
 
     for (let step = 0; step < numSteps; step++) {
-      const balance = 1000 - (i * 50) - (step * 20);
-      const pnl = 50 + (i * 2) - (step * 5);
+      const balance = 1000 - i * 50 - step * 20;
+      const pnl = 50 + i * 2 - step * 5;
 
       trajectoryRecorder.startStep(trajId, {
         agentBalance: balance,
         agentPnL: pnl,
         openPositions: Math.floor(Math.random() * 5),
         activeMarkets: 20 + Math.floor(Math.random() * 10),
-        timestamp: Date.now() + step * 5000
+        timestamp: Date.now() + step * 5000,
       });
 
       // Provider accesses
@@ -94,15 +95,17 @@ async function main() {
         trajectoryRecorder.logProviderAccess(trajId, {
           providerName: 'BABYLON_MARKETS',
           data: {
-            markets: [{
-              id: `btc-test-${i}`,
-              question: `Test prediction ${i}`,
-              yesShares: 300 + Math.random() * 400,
-              noShares: 700 - Math.random() * 400,
-              liquidity: 1000
-            }]
+            markets: [
+              {
+                id: `btc-test-${i}`,
+                question: `Test prediction ${i}`,
+                yesShares: 300 + Math.random() * 400,
+                noShares: 700 - Math.random() * 400,
+                liquidity: 1000,
+              },
+            ],
           },
-          purpose: 'Get current market prices for trading decision'
+          purpose: 'Get current market prices for trading decision',
         });
 
         trajectoryRecorder.logProviderAccess(trajId, {
@@ -110,25 +113,29 @@ async function main() {
           data: {
             balance,
             positions: [],
-            pnl
+            pnl,
           },
-          purpose: 'Check portfolio before trading'
+          purpose: 'Check portfolio before trading',
         });
       } else if (scenarioId.includes('social')) {
         trajectoryRecorder.logProviderAccess(trajId, {
           providerName: 'SOCIAL_FEED',
           data: {
-            recentPosts: [
-              { content: 'Market analysis post', engagement: 45 }
-            ]
+            recentPosts: [{ content: 'Market analysis post', engagement: 45 }],
           },
-          purpose: 'Get feed context'
+          purpose: 'Get feed context',
         });
       }
 
       // LLM call
-      const actionTypes = ['BUY_SHARES', 'SELL_SHARES', 'CREATE_POST', 'COMMENT'];
-      const actionType = actionTypes[Math.floor(Math.random() * actionTypes.length)]!;
+      const actionTypes = [
+        'BUY_SHARES',
+        'SELL_SHARES',
+        'CREATE_POST',
+        'COMMENT',
+      ];
+      const actionType =
+        actionTypes[Math.floor(Math.random() * actionTypes.length)]!;
 
       trajectoryRecorder.logLLMCall(trajId, {
         model: 'llama-3.1-8b',
@@ -140,32 +147,38 @@ async function main() {
         maxTokens: 200,
         latencyMs: 200 + Math.random() * 200,
         purpose: 'action',
-        actionType
+        actionType,
       });
 
       // Action
       const success = Math.random() > 0.1; // 90% success rate
-      const reward = success ? (Math.random() * 2) : -(Math.random() * 0.5);
+      const reward = success ? Math.random() * 2 : -(Math.random() * 0.5);
 
-      trajectoryRecorder.completeStep(trajId, {
-        actionType,
-        parameters: {
-          marketId: `test-${i}`,
-          amount: 100 + Math.random() * 200
+      trajectoryRecorder.completeStep(
+        trajId,
+        {
+          actionType,
+          parameters: {
+            marketId: `test-${i}`,
+            amount: 100 + Math.random() * 200,
+          },
+          success,
+          result: success
+            ? {
+                shares: 90 + Math.random() * 10,
+                avgPrice: 1 + Math.random() * 0.1,
+              }
+            : undefined,
+          error: success ? undefined : 'Insufficient balance',
+          reasoning: 'Expected value positive',
         },
-        success,
-        result: success ? {
-          shares: 90 + Math.random() * 10,
-          avgPrice: 1 + Math.random() * 0.1
-        } : undefined,
-        error: success ? undefined : 'Insufficient balance',
-        reasoning: 'Expected value positive'
-      }, reward);
+        reward
+      );
     }
 
     // End trajectory with varied outcomes
-    const finalBalance = 1000 - (i * 50);
-    const finalPnL = 50 + (i * 3) - (Math.random() * 20);
+    const finalBalance = 1000 - i * 50;
+    const finalPnL = 50 + i * 3 - Math.random() * 20;
 
     await trajectoryRecorder.endTrajectory(trajId, {
       finalBalance,
@@ -173,12 +186,12 @@ async function main() {
       windowId,
       gameKnowledge: {
         trueProbabilities: {
-          [`test-${i}`]: 0.5 + (Math.random() * 0.4) - 0.2
+          [`test-${i}`]: 0.5 + Math.random() * 0.4 - 0.2,
         },
         actualOutcomes: {
-          [`test-${i}`]: Math.random() > 0.5 ? 'YES' : 'NO'
-        }
-      }
+          [`test-${i}`]: Math.random() > 0.5 ? 'YES' : 'NO',
+        },
+      },
     });
 
     createdTrajectories.push(trajId);
@@ -192,8 +205,8 @@ async function main() {
 
   const count = await db.trajectory.count({
     where: {
-      agentId: testAgent.id
-    }
+      agentId: testAgent.id,
+    },
   });
 
   console.log(`  Total trajectories for test agent: ${count}`);
@@ -203,18 +216,20 @@ async function main() {
     _avg: {
       episodeLength: true,
       totalReward: true,
-      durationMs: true
-    }
+      durationMs: true,
+    },
   });
 
   console.log(`  Average steps: ${stats._avg?.episodeLength?.toFixed(1)}`);
   console.log(`  Average reward: ${stats._avg?.totalReward?.toFixed(2)}`);
-  console.log(`  Average duration: ${(stats._avg?.durationMs ? stats._avg.durationMs / 1000 : 0).toFixed(1)}s`);
+  console.log(
+    `  Average duration: ${(stats._avg?.durationMs ? stats._avg.durationMs / 1000 : 0).toFixed(1)}s`
+  );
 
   const llmCount = await db.llmCallLog.count({
     where: {
-      trajectoryId: { in: createdTrajectories }
-    }
+      trajectoryId: { in: createdTrajectories },
+    },
   });
 
   console.log(`  LLM calls logged: ${llmCount}\n`);
@@ -224,7 +239,7 @@ async function main() {
   console.log('📊 Step 4: Sample trajectory...\n');
 
   const sample = await db.trajectory.findFirst({
-    where: { trajectoryId: createdTrajectories[0]! }
+    where: { trajectoryId: createdTrajectories[0]! },
   });
 
   if (sample) {
@@ -247,9 +262,15 @@ async function main() {
     const steps = JSON.parse(sample.stepsJson) as LocalTrajectoryStep[];
     console.log(`  Trajectory: ${sample.trajectoryId.substring(0, 12)}...`);
     console.log(`  Steps: ${steps.length}`);
-    console.log(`  LLM calls: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.llmCalls.length, 0)}`);
-    console.log(`  Provider accesses: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.providerAccesses.length, 0)}`);
-    console.log(`  Actions: ${steps.map((s: LocalTrajectoryStep) => s.action.actionType).join(', ')}`);
+    console.log(
+      `  LLM calls: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.llmCalls.length, 0)}`
+    );
+    console.log(
+      `  Provider accesses: ${steps.reduce((s: number, st: LocalTrajectoryStep) => s + st.providerAccesses.length, 0)}`
+    );
+    console.log(
+      `  Actions: ${steps.map((s: LocalTrajectoryStep) => s.action.actionType).join(', ')}`
+    );
     console.log(`  Reward: ${sample.totalReward}`);
   }
 
@@ -266,10 +287,7 @@ async function main() {
   await db.$disconnect();
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error('\n❌ ERROR:', error);
   process.exit(1);
 });
-
-
-

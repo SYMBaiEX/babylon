@@ -1,23 +1,27 @@
 /**
  * Upload Model to HuggingFace
- * 
+ *
  * Manually upload trained model to HuggingFace Hub with benchmarks.
- * 
+ *
  * Usage:
  *   npx ts-node scripts/upload-model-to-huggingface.ts --model=babylon-agent-v1.0.0 --hf-name=babylonlabs/babylon-agent
  */
 
-import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
 import { db } from '@/db';
+import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
+import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
 import { logger } from '@/lib/logger';
 
 async function main() {
   const args = process.argv.slice(2);
 
-  const modelId = args.find(a => a.startsWith('--model='))?.split('=')[1];
-  const hfModelName = args.find(a => a.startsWith('--hf-name='))?.split('=')[1];
-  const description = args.find(a => a.startsWith('--description='))?.split('=')[1];
+  const modelId = args.find((a) => a.startsWith('--model='))?.split('=')[1];
+  const hfModelName = args
+    .find((a) => a.startsWith('--hf-name='))
+    ?.split('=')[1];
+  const description = args
+    .find((a) => a.startsWith('--description='))
+    ?.split('=')[1];
   const isPrivate = args.includes('--private');
   const includeWeights = !args.includes('--no-weights');
   const benchmark = args.includes('--benchmark');
@@ -26,13 +30,15 @@ async function main() {
   if (!modelId || !hfModelName) {
     console.error('❌ Error: --model and --hf-name arguments are required');
     console.log('\nUsage:');
-    console.log('  npx ts-node scripts/upload-model-to-huggingface.ts --model=babylon-agent-v1.0.0 --hf-name=babylonlabs/babylon-agent');
+    console.log(
+      '  npx ts-node scripts/upload-model-to-huggingface.ts --model=babylon-agent-v1.0.0 --hf-name=babylonlabs/babylon-agent'
+    );
     console.log('\nOptions:');
     console.log('  --model=ID            Model ID from database (required)');
     console.log('  --hf-name=NAME        HuggingFace model name (required)');
     console.log('  --description=DESC    Model description');
     console.log('  --private             Make model private');
-    console.log('  --no-weights          Don\'t upload model weights');
+    console.log("  --no-weights          Don't upload model weights");
     console.log('  --benchmark           Run benchmarks before upload');
     console.log('  --force               Force upload even if exists');
     console.log('\nEnvironment variables:');
@@ -42,17 +48,21 @@ async function main() {
 
   // Check token
   if (!process.env.HUGGING_FACE_TOKEN && !process.env.HF_TOKEN) {
-    console.error('❌ Error: HUGGING_FACE_TOKEN or HF_TOKEN environment variable required');
+    console.error(
+      '❌ Error: HUGGING_FACE_TOKEN or HF_TOKEN environment variable required'
+    );
     console.log('\nSet your token:');
     console.log('  export HUGGING_FACE_TOKEN=your_token_here');
-    console.log('\nOr get a token from: https://huggingface.co/settings/tokens');
+    console.log(
+      '\nOr get a token from: https://huggingface.co/settings/tokens'
+    );
     process.exit(1);
   }
 
   console.log('\n╔════════════════════════════════════════════════════════╗');
   console.log('║       HUGGINGFACE MODEL UPLOADER                       ║');
   console.log('╚════════════════════════════════════════════════════════╝\n');
-  
+
   console.log(`Model ID: ${modelId}`);
   console.log(`HuggingFace Name: ${hfModelName}`);
   console.log(`Private: ${isPrivate ? 'yes' : 'no'}`);
@@ -78,8 +88,9 @@ async function main() {
     if (benchmark) {
       console.log('📊 Running benchmarks...\n');
 
-      const benchmarkPaths = await ModelBenchmarkService.getStandardBenchmarkPaths();
-      
+      const benchmarkPaths =
+        await ModelBenchmarkService.getStandardBenchmarkPaths();
+
       if (benchmarkPaths.length === 0) {
         console.warn('⚠️  No standard benchmarks found, skipping benchmarking');
       } else {
@@ -91,32 +102,49 @@ async function main() {
           saveResults: true,
         });
 
-        console.log(`\n✅ Benchmark complete: ${benchmarkResults.length} runs\n`);
+        console.log(
+          `\n✅ Benchmark complete: ${benchmarkResults.length} runs\n`
+        );
 
         // Show results
         for (const result of benchmarkResults) {
           console.log(`  ${result.benchmarkId}:`);
           console.log(`    P&L: ${result.metrics.totalPnl.toFixed(2)}`);
-          console.log(`    Accuracy: ${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}%`);
-          console.log(`    Optimality: ${result.metrics.optimalityScore.toFixed(1)}`);
-          
+          console.log(
+            `    Accuracy: ${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}%`
+          );
+          console.log(
+            `    Optimality: ${result.metrics.optimalityScore.toFixed(1)}`
+          );
+
           if (result.comparisonToBaseline) {
             const delta = result.comparisonToBaseline.pnlDelta;
             const symbol = delta > 0 ? '📈' : delta < 0 ? '📉' : '➡️';
-            console.log(`    vs Baseline: ${symbol} ${delta > 0 ? '+' : ''}${delta.toFixed(2)}`);
+            console.log(
+              `    vs Baseline: ${symbol} ${delta > 0 ? '+' : ''}${delta.toFixed(2)}`
+            );
           }
           console.log('');
         }
 
         // Compare to baseline
-        const comparison = await ModelBenchmarkService.compareToBaseline(modelId);
+        const comparison =
+          await ModelBenchmarkService.compareToBaseline(modelId);
         console.log('📊 Overall Comparison to Baseline:\n');
-        console.log(`  P&L Delta: ${comparison.improvement.pnlDelta > 0 ? '+' : ''}${comparison.improvement.pnlDelta.toFixed(2)}`);
-        console.log(`  Accuracy Delta: ${comparison.improvement.accuracyDelta > 0 ? '+' : ''}${(comparison.improvement.accuracyDelta * 100).toFixed(1)}%`);
-        console.log(`  Recommendation: ${comparison.recommendation.toUpperCase()}\n`);
+        console.log(
+          `  P&L Delta: ${comparison.improvement.pnlDelta > 0 ? '+' : ''}${comparison.improvement.pnlDelta.toFixed(2)}`
+        );
+        console.log(
+          `  Accuracy Delta: ${comparison.improvement.accuracyDelta > 0 ? '+' : ''}${(comparison.improvement.accuracyDelta * 100).toFixed(1)}%`
+        );
+        console.log(
+          `  Recommendation: ${comparison.recommendation.toUpperCase()}\n`
+        );
 
         if (comparison.recommendation !== 'deploy' && !force) {
-          console.warn(`⚠️  Model recommendation is "${comparison.recommendation}" not "deploy"`);
+          console.warn(
+            `⚠️  Model recommendation is "${comparison.recommendation}" not "deploy"`
+          );
           console.warn('   Use --force to upload anyway\n');
           process.exit(1);
         }
@@ -143,8 +171,10 @@ async function main() {
       console.log('\n🤖 View your model:');
       console.log(`   ${result.modelUrl}`);
       console.log('\n📦 Use in Python:');
-      console.log(`   from transformers import AutoModelForCausalLM`);
-      console.log(`   model = AutoModelForCausalLM.from_pretrained("${hfModelName}")`);
+      console.log('   from transformers import AutoModelForCausalLM');
+      console.log(
+        `   model = AutoModelForCausalLM.from_pretrained("${hfModelName}")`
+      );
     } else {
       console.error('\n❌ MODEL UPLOAD FAILED\n');
       console.error(`Error: ${result.error}`);
@@ -161,11 +191,8 @@ async function main() {
   }
 }
 
-main().catch(async error => {
+main().catch(async (error) => {
   console.error('Fatal error:', error);
   await db.$disconnect();
   process.exit(1);
 });
-
-
-

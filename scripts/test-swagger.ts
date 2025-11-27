@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Test Swagger/OpenAPI Generation
- * 
+ *
  * Verifies that the auto-generator works correctly and finds all documented routes
  */
 
@@ -11,7 +11,7 @@ async function testSwagger() {
   console.log('🧪 Testing Swagger Auto-Generator...\n');
 
   try {
-    const spec = await generateAutoSpec() as {
+    const spec = (await generateAutoSpec()) as {
       openapi?: string;
       paths?: Record<string, unknown>;
       info?: { title?: string; version?: string };
@@ -26,7 +26,9 @@ async function testSwagger() {
     const paths = Object.keys(spec.paths || {}).sort();
     console.log('📋 All paths found:');
     paths.forEach((path) => {
-      const methods = Object.keys((spec.paths?.[path] as Record<string, unknown>) || {});
+      const methods = Object.keys(
+        (spec.paths?.[path] as Record<string, unknown>) || {}
+      );
       console.log(`   ${path} [${methods.join(', ').toUpperCase()}]`);
     });
 
@@ -77,14 +79,16 @@ async function testSwagger() {
       }
     }
 
-    console.log(`\n📊 Summary:`);
+    console.log('\n📊 Summary:');
     console.log(`   Found: ${found.length}/${expectedRoutes.length}`);
     console.log(`   Missing: ${missing.length}/${expectedRoutes.length}`);
 
     if (missing.length > 0) {
-      console.log(`\n⚠️  Missing routes:`);
+      console.log('\n⚠️  Missing routes:');
       missing.forEach((route) => console.log(`   - ${route}`));
-      console.log('\n💡 These routes may need @openapi tags or have formatting issues.');
+      console.log(
+        '\n💡 These routes may need @openapi tags or have formatting issues.'
+      );
       process.exit(1);
     } else {
       console.log('\n✅ All expected routes found!');
@@ -97,4 +101,3 @@ async function testSwagger() {
 }
 
 testSwagger();
-

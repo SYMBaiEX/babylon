@@ -2,11 +2,7 @@
   "compilerOptions": {
     // Language and Environment
     "target": "ES2022",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -41,63 +37,37 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     // Bun-specific
-    "types": [
-      "bun-types"
-    ],
+    "types": ["bun-types"],
     "moduleDetection": "force",
-    // Next.js
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    // Path aliases for shared code and Next.js
+    // Path aliases - pointing to new location
     "baseUrl": ".",
     "paths": {
-      "@/shared/constants": [
-        "./src/shared/constants.ts"
-      ],
-      "@/shared/types": [
-        "./src/shared/types.ts"
-      ],
-      "@/shared/utils": [
-        "./src/shared/utils.ts"
-      ],
-      "@/components/*": [
-        "./src/components/*"
-      ],
-      "@/lib/*": [
-        "./src/lib/*"
-      ],
-      "@/hooks/*": [
-        "./src/hooks/*"
-      ],
-      "@/stores/*": [
-        "./src/stores/*"
-      ],
-      "@/app/*": [
-        "./src/app/*"
-      ],
-      "@/*": [
-        "./src/*"
-      ]
+      "@/shared/constants": ["./apps/web/src/shared/constants.ts"],
+      "@/shared/types": ["./apps/web/src/shared/types.ts"],
+      "@/shared/utils": ["./apps/web/src/shared/utils.ts"],
+      "@/components/*": ["./apps/web/src/components/*"],
+      "@/lib/*": ["./apps/web/src/lib/*"],
+      "@/hooks/*": ["./apps/web/src/hooks/*"],
+      "@/stores/*": ["./apps/web/src/stores/*"],
+      "@/app/*": ["./apps/web/src/app/*"],
+      "@/*": ["./apps/web/src/*"]
     },
     "allowJs": true
   },
   "include": [
-    "src/**/*",
+    "apps/web/src/**/*",
     "scripts/**/*",
-    "tests/**/*",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "types/**/*.d.ts",
-    "tests/**/*.ts"
+    "packages/testing/**/*",
+    "packages/types/**/*",
+    "apps/web/.next/types/**/*.ts",
+    "apps/web/.next/dev/types/**/*.ts",
+    "apps/web/types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.disabled",
-    "examples/**/*",
-    "src/**/__tests__/**/*"
+    "packages/examples/**/*",
+    "apps/web/src/**/__tests__/**/*"
   ]
 }

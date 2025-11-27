@@ -1,24 +1,26 @@
 #!/usr/bin/env bun
 /**
  * Check Migration Status for All Databases
- * 
+ *
  * Checks migration status for dev and local databases
  */
 
-const DEV_DATABASE_URL = 'postgresql://neondb_owner:npg_WjN9wfVRX1LH@ep-orange-bird-ahovv9la.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
-const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
+const DEV_DATABASE_URL =
+  'postgresql://neondb_owner:npg_WjN9wfVRX1LH@ep-orange-bird-ahovv9la.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const LOCAL_DATABASE_URL =
+  'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
 
 async function checkDatabase(name: string, url: string) {
   console.log(`\n${'═'.repeat(60)}`);
   console.log(`📊 ${name.toUpperCase()} DATABASE`);
   console.log('═'.repeat(60));
-  
+
   try {
     const { execSync } = await import('child_process');
-    
+
     // Check migration status
     try {
-      execSync(`bunx drizzle-kit check`, {
+      execSync('bunx drizzle-kit check', {
         stdio: 'pipe',
         env: {
           ...process.env,
@@ -35,7 +37,9 @@ async function checkDatabase(name: string, url: string) {
         console.log('   Run: DATABASE_URL="..." bunx drizzle-kit push');
       } else if (output.includes("Can't reach database")) {
         console.log('❌ Database: Not running or not accessible');
-        console.log(`   URL: ${url.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
+        console.log(
+          `   URL: ${url.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`
+        );
       } else {
         console.log('❌ Error checking migrations:', output);
       }
@@ -46,42 +50,47 @@ async function checkDatabase(name: string, url: string) {
       const { Client } = await import('pg');
       const client = new Client({ connectionString: url });
       await client.connect();
-      
+
       const result = await client.query(`
         SELECT column_name 
         FROM information_schema.columns
         WHERE table_name = 'User' 
         AND column_name = 'pointsAwardedForReferralBonus'
       `);
-      
+
       if (result.rows.length > 0) {
         console.log('✅ Column pointsAwardedForReferralBonus: EXISTS');
       } else {
         console.log('❌ Column pointsAwardedForReferralBonus: MISSING');
         console.log('   Run migrations to add this column');
       }
-      
+
       await client.end();
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      if (errorMsg.includes("Can't reach database") || errorMsg.includes('ECONNREFUSED')) {
+      if (
+        errorMsg.includes("Can't reach database") ||
+        errorMsg.includes('ECONNREFUSED')
+      ) {
         console.log('⚠️  Column check: Skipped (database not accessible)');
       } else {
         console.log('❌ Error checking column:', errorMsg);
       }
     }
-    
   } catch (error) {
-    console.log('❌ Error:', error instanceof Error ? error.message : String(error));
+    console.log(
+      '❌ Error:',
+      error instanceof Error ? error.message : String(error)
+    );
   }
 }
 
 async function main() {
   console.log('🔍 Checking Migration Status for All Databases\n');
-  
+
   await checkDatabase('DEV (Neon)', DEV_DATABASE_URL);
   await checkDatabase('LOCAL', LOCAL_DATABASE_URL);
-  
+
   console.log('\n' + '═'.repeat(60));
   console.log('📝 Summary');
   console.log('═'.repeat(60));
@@ -94,4 +103,3 @@ async function main() {
 }
 
 main();
-

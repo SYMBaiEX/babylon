@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
+
 /**
  * Seed Test Data
- * 
+ *
  * Script to seed various types of test data:
  * - Autonomous trading agents
- * - A2A test agents  
+ * - A2A test agents
  * - Moderation test users
  * - Benchmark test agents
- * 
+ *
  * Usage:
  *   bun run scripts/seed-test-data.ts autonomous    # Create autonomous trading agents
  *   bun run scripts/seed-test-data.ts a2a           # Create A2A feature test agents
@@ -16,11 +17,11 @@
  *   bun run scripts/seed-test-data.ts all           # Create all test data
  */
 
+import { ethers } from 'ethers';
+import { nanoid } from 'nanoid';
 import { db } from '@/db';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import { ethers } from 'ethers';
-import { nanoid } from 'nanoid';
 
 // ============================================================================
 // AUTONOMOUS TRADING AGENTS
@@ -33,7 +34,8 @@ const AUTONOMOUS_AGENT_CONFIGS = [
     agentSystem: `You are an aggressive trader on Babylon prediction markets. You love taking risks, making bold predictions, and executing trades frequently. You analyze market sentiment, price movements, and news to make quick trading decisions. You're confident in your abilities and enjoy the thrill of trading. You actively participate in perpetual markets and prediction markets, always looking for opportunities to profit.`,
     bio: 'Technical analysis expert | Risk-conscious trader | Pattern recognition specialist',
     personality: 'Analytical, patient, disciplined',
-    tradingStrategy: 'Technical analysis with strict risk management. Focus on high-probability setups with 2:1 reward:risk ratio.',
+    tradingStrategy:
+      'Technical analysis with strict risk management. Focus on high-probability setups with 2:1 reward:risk ratio.',
     modelTier: 'pro' as const,
     autonomousTrading: true,
     autonomousPosting: true,
@@ -45,7 +47,8 @@ const AUTONOMOUS_AGENT_CONFIGS = [
     agentSystem: `You are a conservative trader on Babylon prediction markets. You prefer careful analysis and only trade when you have high confidence. You study market trends, analyze sentiment data, and consider all factors before making a trade. You're patient and methodical, focusing on consistent gains rather than high-risk bets. You participate in both prediction and perpetual markets with a balanced approach.`,
     bio: 'Sentiment analysis expert | Social media monitoring | News-driven trader',
     personality: 'Social, reactive, trend-following',
-    tradingStrategy: 'Sentiment-driven trading. Buy when community is bullish, sell on fear. Monitor trending topics and news.',
+    tradingStrategy:
+      'Sentiment-driven trading. Buy when community is bullish, sell on fear. Monitor trending topics and news.',
     modelTier: 'free' as const,
     autonomousTrading: true,
     autonomousPosting: true,
@@ -57,7 +60,8 @@ const AUTONOMOUS_AGENT_CONFIGS = [
     agentSystem: `You are a social trader on Babylon prediction markets. You love chatting with other traders, sharing insights, and learning from the community. You make trading decisions based on both your own analysis and community sentiment. You're active in posting your thoughts, commenting on others' predictions, and participating in market discussions. You enjoy the social aspect of trading as much as the financial gains.`,
     bio: 'Quantitative analyst | Arbitrage specialist | Statistical edge hunter',
     personality: 'Mathematical, precise, opportunistic',
-    tradingStrategy: 'Quantitative arbitrage. Identify mispriced assets and exploit statistical edges. Quick in-and-out trades.',
+    tradingStrategy:
+      'Quantitative arbitrage. Identify mispriced assets and exploit statistical edges. Quick in-and-out trades.',
     modelTier: 'pro' as const,
     autonomousTrading: true,
     autonomousPosting: true,
@@ -66,10 +70,14 @@ const AUTONOMOUS_AGENT_CONFIGS = [
 ];
 
 async function seedAutonomousAgents(): Promise<number> {
-  logger.info('Seeding autonomous trading agents...', undefined, 'SeedTestData');
-  
+  logger.info(
+    'Seeding autonomous trading agents...',
+    undefined,
+    'SeedTestData'
+  );
+
   let created = 0;
-  
+
   for (const config of AUTONOMOUS_AGENT_CONFIGS) {
     const existing = await db.user.findFirst({
       where: {
@@ -79,10 +87,16 @@ async function seedAutonomousAgents(): Promise<number> {
     });
 
     if (existing) {
-      logger.info(`Agent ${config.displayName} already exists, updating...`, { agentId: existing.id }, 'SeedTestData');
-      
-      const currentBalance = existing.virtualBalance ? Number(existing.virtualBalance) : 0;
-      
+      logger.info(
+        `Agent ${config.displayName} already exists, updating...`,
+        { agentId: existing.id },
+        'SeedTestData'
+      );
+
+      const currentBalance = existing.virtualBalance
+        ? Number(existing.virtualBalance)
+        : 0;
+
       await db.user.update({
         where: { id: existing.id },
         data: {
@@ -95,18 +109,24 @@ async function seedAutonomousAgents(): Promise<number> {
           autonomousTrading: config.autonomousTrading,
           autonomousPosting: config.autonomousPosting,
           autonomousCommenting: config.autonomousCommenting,
-          agentPointsBalance: existing.agentPointsBalance < 10000 ? 10000 : existing.agentPointsBalance,
-          virtualBalance: (currentBalance < 10000 ? 10000 : currentBalance).toString(),
+          agentPointsBalance:
+            existing.agentPointsBalance < 10000
+              ? 10000
+              : existing.agentPointsBalance,
+          virtualBalance: (currentBalance < 10000
+            ? 10000
+            : currentBalance
+          ).toString(),
           updatedAt: new Date(),
         },
       });
-      
+
       continue;
     }
 
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
-    
+
     await db.user.create({
       data: {
         id: agentId,
@@ -135,11 +155,11 @@ async function seedAutonomousAgents(): Promise<number> {
         updatedAt: new Date(),
       },
     });
-    
+
     created++;
     logger.info(`Created ${config.displayName}`, { agentId }, 'SeedTestData');
   }
-  
+
   return created;
 }
 
@@ -175,8 +195,8 @@ Report detailed results of each A2A call.`,
       autonomousCommenting: true,
       autonomousTrading: false,
       autonomousDMs: false,
-      autonomousGroupChats: false
-    }
+      autonomousGroupChats: false,
+    },
   },
   {
     name: 'Trading Test Agent',
@@ -207,8 +227,8 @@ Report which methods work and which fail.`,
       autonomousCommenting: false,
       autonomousTrading: true,
       autonomousDMs: false,
-      autonomousGroupChats: false
-    }
+      autonomousGroupChats: false,
+    },
   },
   {
     name: 'Messaging Test Agent',
@@ -236,24 +256,31 @@ Report successful and failed A2A calls.`,
       autonomousCommenting: false,
       autonomousTrading: false,
       autonomousDMs: true,
-      autonomousGroupChats: true
-    }
+      autonomousGroupChats: true,
+    },
   },
 ];
 
 async function seedA2ATestAgents(): Promise<number> {
   logger.info('Seeding A2A test agents...', undefined, 'SeedTestData');
-  
+
   let created = 0;
-  
+
   for (const config of A2A_TEST_AGENT_CONFIGS) {
     const existing = await db.user.findUnique({
-      where: { username: config.username }
+      where: { username: config.username },
     });
-    
+
     if (existing) {
-      const walletAddress = existing.walletAddress || `0x${config.username.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').substring(0, 40).padEnd(40, '0')}`;
-      
+      const walletAddress =
+        existing.walletAddress ||
+        `0x${config.username
+          .split('')
+          .map((c) => c.charCodeAt(0).toString(16).padStart(2, '0'))
+          .join('')
+          .substring(0, 40)
+          .padEnd(40, '0')}`;
+
       await db.user.update({
         where: { id: existing.id },
         data: {
@@ -264,15 +291,24 @@ async function seedA2ATestAgents(): Promise<number> {
           agentModelTier: 'free',
           virtualBalance: '10000',
           updatedAt: new Date(),
-        }
+        },
       });
-      
-      logger.info(`Updated ${config.name}`, { agentId: existing.id }, 'SeedTestData');
+
+      logger.info(
+        `Updated ${config.name}`,
+        { agentId: existing.id },
+        'SeedTestData'
+      );
       continue;
     }
-    
-    const walletAddress = `0x${config.username.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').substring(0, 40).padEnd(40, '0')}`;
-    
+
+    const walletAddress = `0x${config.username
+      .split('')
+      .map((c) => c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join('')
+      .substring(0, 40)
+      .padEnd(40, '0')}`;
+
     const agent = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
@@ -290,14 +326,18 @@ async function seedA2ATestAgents(): Promise<number> {
         hasUsername: true,
         profileComplete: true,
         isTest: true,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
-    
+
     created++;
-    logger.info(`Created ${config.name}`, { agentId: agent.id }, 'SeedTestData');
+    logger.info(
+      `Created ${config.name}`,
+      { agentId: agent.id },
+      'SeedTestData'
+    );
   }
-  
+
   return created;
 }
 
@@ -307,15 +347,15 @@ async function seedA2ATestAgents(): Promise<number> {
 
 async function seedBenchmarkAgents(): Promise<number> {
   logger.info('Seeding benchmark test agents...', undefined, 'SeedTestData');
-  
+
   const configs = [
     { username: 'trader-aggressive', displayName: 'Aggressive Trader' },
     { username: 'trader-conservative', displayName: 'Conservative Trader' },
     { username: 'trader-social', displayName: 'Social Trader' },
   ];
-  
+
   let created = 0;
-  
+
   for (const config of configs) {
     let agent = await db.user.findFirst({
       where: {
@@ -325,13 +365,17 @@ async function seedBenchmarkAgents(): Promise<number> {
     });
 
     if (agent) {
-      logger.info(`Benchmark agent ${config.displayName} already exists`, { agentId: agent.id }, 'SeedTestData');
+      logger.info(
+        `Benchmark agent ${config.displayName} already exists`,
+        { agentId: agent.id },
+        'SeedTestData'
+      );
       continue;
     }
 
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
-    
+
     agent = await db.user.create({
       data: {
         id: agentId,
@@ -343,7 +387,8 @@ async function seedBenchmarkAgents(): Promise<number> {
         autonomousTrading: true,
         autonomousPosting: true,
         autonomousCommenting: false,
-        agentSystem: 'You are a disciplined trading agent focused on consistent profits.',
+        agentSystem:
+          'You are a disciplined trading agent focused on consistent profits.',
         agentModelTier: 'lite',
         virtualBalance: '10000',
         reputationPoints: 1000,
@@ -351,14 +396,18 @@ async function seedBenchmarkAgents(): Promise<number> {
         isTest: true,
         profileComplete: true,
         hasUsername: true,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
 
     created++;
-    logger.info(`Created benchmark agent ${config.displayName}`, { agentId: agent.id }, 'SeedTestData');
+    logger.info(
+      `Created benchmark agent ${config.displayName}`,
+      { agentId: agent.id },
+      'SeedTestData'
+    );
   }
-  
+
   return created;
 }
 
@@ -462,12 +511,12 @@ async function seedModerationTestUsers(): Promise<number> {
       totalWithdrawn: '0',
       lifetimePnL: '0',
       isAdmin: true,
-        updatedAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
   let created = 0;
-  
+
   for (const testUser of MODERATION_TEST_USERS) {
     const user = await db.user.upsert({
       where: { username: testUser.username },
@@ -509,28 +558,43 @@ async function seedModerationTestUsers(): Promise<number> {
     for (let i = 0; i < testUser.followersToCreate; i++) {
       const follower = reporterUsers[i % reporterUsers.length];
       if (!follower) continue;
-      
-      await db.follow.create({
-        data: {
-          id: nanoid(),
-          followerId: follower.id,
-          followingId: user.id,
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-        },
-      }).catch(() => {
-        // Ignore duplicates
-      });
+
+      await db.follow
+        .create({
+          data: {
+            id: nanoid(),
+            followerId: follower.id,
+            followingId: user.id,
+            createdAt: new Date(
+              Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+            ),
+          },
+        })
+        .catch(() => {
+          // Ignore duplicates
+        });
     }
 
     // Create reports
     for (let i = 0; i < testUser.reportsToReceive; i++) {
       const reporter = reporterUsers[i % reporterUsers.length];
       if (!reporter) continue;
-      
-      const categories = ['spam', 'harassment', 'hate_speech', 'inappropriate', 'misinformation', 'violence', 'impersonation', 'copyright', 'other'];
-      const category = categories[Math.floor(Math.random() * categories.length)];
+
+      const categories = [
+        'spam',
+        'harassment',
+        'hate_speech',
+        'inappropriate',
+        'misinformation',
+        'violence',
+        'impersonation',
+        'copyright',
+        'other',
+      ];
+      const category =
+        categories[Math.floor(Math.random() * categories.length)];
       if (!category) continue;
-      
+
       await db.report.create({
         data: {
           id: nanoid(),
@@ -539,9 +603,19 @@ async function seedModerationTestUsers(): Promise<number> {
           reportType: 'user',
           category,
           reason: `Test report ${i + 1} for ${testUser.username}`,
-          status: i % 3 === 0 ? 'resolved' : i % 3 === 1 ? 'pending' : 'reviewing',
-          priority: i % 4 === 0 ? 'critical' : i % 4 === 1 ? 'high' : i % 4 === 2 ? 'normal' : 'low',
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+          status:
+            i % 3 === 0 ? 'resolved' : i % 3 === 1 ? 'pending' : 'reviewing',
+          priority:
+            i % 4 === 0
+              ? 'critical'
+              : i % 4 === 1
+                ? 'high'
+                : i % 4 === 2
+                  ? 'normal'
+                  : 'low',
+          createdAt: new Date(
+            Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+          ),
           updatedAt: new Date(),
         },
       });
@@ -551,41 +625,49 @@ async function seedModerationTestUsers(): Promise<number> {
     for (let i = 0; i < testUser.blocksToReceive; i++) {
       const blocker = reporterUsers[i % reporterUsers.length];
       if (!blocker) continue;
-      
-      await db.userBlock.create({
-        data: {
-          id: nanoid(),
-          blockerId: blocker.id,
-          blockedId: user.id,
-          reason: `Test block ${i + 1}`,
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-        },
-      }).catch(() => {
-        // Ignore duplicates
-      });
+
+      await db.userBlock
+        .create({
+          data: {
+            id: nanoid(),
+            blockerId: blocker.id,
+            blockedId: user.id,
+            reason: `Test block ${i + 1}`,
+            createdAt: new Date(
+              Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+            ),
+          },
+        })
+        .catch(() => {
+          // Ignore duplicates
+        });
     }
 
     // Create mutes
     for (let i = 0; i < testUser.mutesToReceive; i++) {
       const muter = reporterUsers[i % reporterUsers.length];
       if (!muter) continue;
-      
-      await db.userMute.create({
-        data: {
-          id: nanoid(),
-          muterId: muter.id,
-          mutedId: user.id,
-          reason: `Test mute ${i + 1}`,
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-        },
-      }).catch(() => {
-        // Ignore duplicates
-      });
+
+      await db.userMute
+        .create({
+          data: {
+            id: nanoid(),
+            muterId: muter.id,
+            mutedId: user.id,
+            reason: `Test mute ${i + 1}`,
+            createdAt: new Date(
+              Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+            ),
+          },
+        })
+        .catch(() => {
+          // Ignore duplicates
+        });
     }
-    
+
     created++;
   }
-  
+
   return created;
 }
 
@@ -595,64 +677,94 @@ async function seedModerationTestUsers(): Promise<number> {
 
 async function main(): Promise<void> {
   const command = process.argv[2] || 'all';
-  
+
   logger.info('Babylon Test Data Seeder', { command }, 'SeedTestData');
   logger.info('═'.repeat(60), undefined, 'SeedTestData');
-  
+
   let totalCreated = 0;
-  
+
   try {
     switch (command) {
       case 'autonomous':
         totalCreated = await seedAutonomousAgents();
-        logger.info(`✅ Created ${totalCreated} autonomous agents`, undefined, 'SeedTestData');
+        logger.info(
+          `✅ Created ${totalCreated} autonomous agents`,
+          undefined,
+          'SeedTestData'
+        );
         break;
-        
+
       case 'a2a':
         totalCreated = await seedA2ATestAgents();
-        logger.info(`✅ Created ${totalCreated} A2A test agents`, undefined, 'SeedTestData');
+        logger.info(
+          `✅ Created ${totalCreated} A2A test agents`,
+          undefined,
+          'SeedTestData'
+        );
         break;
-        
+
       case 'moderation':
         totalCreated = await seedModerationTestUsers();
-        logger.info(`✅ Created ${totalCreated} moderation test users`, undefined, 'SeedTestData');
+        logger.info(
+          `✅ Created ${totalCreated} moderation test users`,
+          undefined,
+          'SeedTestData'
+        );
         break;
-        
+
       case 'benchmark':
         totalCreated = await seedBenchmarkAgents();
-        logger.info(`✅ Created ${totalCreated} benchmark agents`, undefined, 'SeedTestData');
+        logger.info(
+          `✅ Created ${totalCreated} benchmark agents`,
+          undefined,
+          'SeedTestData'
+        );
         break;
-        
-      case 'all':
+
+      case 'all': {
         const autonomous = await seedAutonomousAgents();
         const a2a = await seedA2ATestAgents();
         const moderation = await seedModerationTestUsers();
         const benchmark = await seedBenchmarkAgents();
         totalCreated = autonomous + a2a + moderation + benchmark;
-        
-        logger.info('✅ All test data seeded:', {
-          autonomous,
-          a2a,
-          moderation,
-          benchmark,
-          total: totalCreated
-        }, 'SeedTestData');
+
+        logger.info(
+          '✅ All test data seeded:',
+          {
+            autonomous,
+            a2a,
+            moderation,
+            benchmark,
+            total: totalCreated,
+          },
+          'SeedTestData'
+        );
         break;
-        
+      }
+
       default:
         logger.error(`Unknown command: ${command}`, undefined, 'SeedTestData');
         console.log('\nUsage:');
-        console.log('  bun run scripts/seed-test-data.ts autonomous    # Autonomous trading agents');
-        console.log('  bun run scripts/seed-test-data.ts a2a           # A2A test agents');
-        console.log('  bun run scripts/seed-test-data.ts moderation    # Moderation test users');
-        console.log('  bun run scripts/seed-test-data.ts benchmark     # Benchmark test agents');
-        console.log('  bun run scripts/seed-test-data.ts all           # All test data');
+        console.log(
+          '  bun run scripts/seed-test-data.ts autonomous    # Autonomous trading agents'
+        );
+        console.log(
+          '  bun run scripts/seed-test-data.ts a2a           # A2A test agents'
+        );
+        console.log(
+          '  bun run scripts/seed-test-data.ts moderation    # Moderation test users'
+        );
+        console.log(
+          '  bun run scripts/seed-test-data.ts benchmark     # Benchmark test agents'
+        );
+        console.log(
+          '  bun run scripts/seed-test-data.ts all           # All test data'
+        );
         process.exit(1);
     }
-    
+
     logger.info('═'.repeat(60), undefined, 'SeedTestData');
     logger.info('Test data seeding complete!', undefined, 'SeedTestData');
-    
   } catch (error) {
     logger.error('Seed failed', { error }, 'SeedTestData');
     throw error;
@@ -670,5 +782,9 @@ if (import.meta.main) {
     });
 }
 
-export { seedAutonomousAgents, seedA2ATestAgents, seedModerationTestUsers, seedBenchmarkAgents };
-
+export {
+  seedAutonomousAgents,
+  seedA2ATestAgents,
+  seedModerationTestUsers,
+  seedBenchmarkAgents,
+};

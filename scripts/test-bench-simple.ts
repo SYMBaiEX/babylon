@@ -17,14 +17,14 @@ const start = Date.now();
 console.log('Calling generate()...');
 
 g.generate()
-  .then(s => {
+  .then((s) => {
     const duration = Date.now() - start;
     console.log(`✅ Generated in ${duration}ms`);
     console.log(`   Ticks: ${s.ticks.length}`);
     console.log(`   Markets: ${s.initialState.predictionMarkets.length}`);
     process.exit(0);
   })
-  .catch(e => {
+  .catch((e) => {
     console.error('❌ Error:', e);
     if (e instanceof Error) {
       console.error('   Message:', e.message);

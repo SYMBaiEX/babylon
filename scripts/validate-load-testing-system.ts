@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Load Testing System Validation
- * 
+ *
  * Proves that the load testing system actually works:
  * - Query monitoring tracks real queries
  * - Performance metrics capture real data
@@ -13,9 +13,9 @@
 
 import { db } from '@/db';
 import { queryMonitor } from '@/lib/db/query-monitor';
+import { logger } from '@/lib/logger';
 import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
 import { redis } from '@/lib/redis';
-import { logger } from '@/lib/logger';
 
 interface ValidationResult {
   test: string;
@@ -29,23 +29,25 @@ const results: ValidationResult[] = [];
 async function main() {
   console.log('╔═══════════════════════════════════════════════════════════╗');
   console.log('║   Load Testing System - Comprehensive Validation         ║');
-  console.log('╚═══════════════════════════════════════════════════════════╝\n');
+  console.log(
+    '╚═══════════════════════════════════════════════════════════╝\n'
+  );
 
   // Test 1: Database Query Monitoring
   console.log('📊 Test 1: Database Query Monitoring\n');
-  
+
   try {
     // Enable query monitoring
     process.env.ENABLE_QUERY_MONITORING = 'true';
-    
+
     // Make a real database query
     console.log('   Executing test query...');
     const startTime = Date.now();
-    
+
     // Manually record since database middleware might not be active in standalone script
     const users = await db.user.findMany({ take: 5 });
     const duration = Date.now() - startTime;
-    
+
     // Manually record the query to prove monitoring works
     queryMonitor.recordQuery({
       query: 'SELECT * FROM User LIMIT 5',
@@ -54,16 +56,16 @@ async function main() {
       model: 'User',
       operation: 'findMany',
     });
-    
+
     console.log(`   ✓ Query executed (${duration}ms, ${users.length} results)`);
-    
+
     // Wait a moment for monitoring to process
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // Check if query was monitored
     const queryStats = queryMonitor.getQueryStats();
     const slowQueries = queryMonitor.getSlowQueryStats();
-    
+
     results.push({
       test: 'Query Monitoring Integration',
       passed: queryStats.totalQueries > 0,
@@ -76,8 +78,9 @@ async function main() {
       },
     });
 
-    console.log(`   ${queryStats.totalQueries > 0 ? '✅' : '❌'} Monitoring captured ${queryStats.totalQueries} queries`);
-    
+    console.log(
+      `   ${queryStats.totalQueries > 0 ? '✅' : '❌'} Monitoring captured ${queryStats.totalQueries} queries`
+    );
   } catch (error) {
     results.push({
       test: 'Query Monitoring Integration',
@@ -89,10 +92,10 @@ async function main() {
 
   // Test 2: Slow Query Detection
   console.log('\n📊 Test 2: Slow Query Detection\n');
-  
+
   try {
     console.log('   Creating intentionally slow query...');
-    
+
     // Manually record a slow query to prove detection works
     const slowQueryDuration = 156;
     queryMonitor.recordQuery({
@@ -102,12 +105,12 @@ async function main() {
       model: 'Post',
       operation: 'findMany',
     });
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     const slowQueries = queryMonitor.getSlowQueryStats();
     const hasSlowQueries = Object.keys(slowQueries).length > 0;
-    
+
     results.push({
       test: 'Slow Query Detection',
       passed: slowQueryDuration >= 100 && hasSlowQueries,
@@ -119,8 +122,9 @@ async function main() {
       },
     });
 
-    console.log(`   ${hasSlowQueries ? '✅' : '⚠️ '} Slow query detection: ${Object.keys(slowQueries).length} slow query types found`);
-    
+    console.log(
+      `   ${hasSlowQueries ? '✅' : '⚠️ '} Slow query detection: ${Object.keys(slowQueries).length} slow query types found`
+    );
   } catch (error) {
     results.push({
       test: 'Slow Query Detection',
@@ -132,20 +136,20 @@ async function main() {
 
   // Test 3: Performance Monitor Integration
   console.log('\n📊 Test 3: Performance Monitor Integration\n');
-  
+
   try {
     console.log('   Simulating requests...');
-    
+
     // Simulate some requests
     for (let i = 0; i < 10; i++) {
       performanceMonitor.startRequest();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       performanceMonitor.endRequest();
     }
-    
+
     // Take snapshot
     const snapshot = performanceMonitor.getStats();
-    
+
     results.push({
       test: 'Performance Monitor',
       passed: snapshot.system.requestsPerSecond > 0,
@@ -158,10 +162,11 @@ async function main() {
       },
     });
 
-    console.log(`   ${snapshot.system.requestsPerSecond > 0 ? '✅' : '❌'} Performance tracking working`);
+    console.log(
+      `   ${snapshot.system.requestsPerSecond > 0 ? '✅' : '❌'} Performance tracking working`
+    );
     console.log(`   Memory: ${snapshot.system.memoryUsageMB.toFixed(2)} MB`);
     console.log(`   RPS: ${snapshot.system.requestsPerSecond.toFixed(2)}`);
-    
   } catch (error) {
     results.push({
       test: 'Performance Monitor',
@@ -173,19 +178,19 @@ async function main() {
 
   // Test 4: Cache Monitoring
   console.log('\n📊 Test 4: Cache Monitoring\n');
-  
+
   try {
     if (redis) {
       console.log('   Testing cache operations...');
-      
+
       // Test cache operations
       performanceMonitor.recordCacheOperation('set', true, 5, 1024);
       performanceMonitor.recordCacheOperation('get', true, 2, 1024);
       performanceMonitor.recordCacheOperation('get', false, 3, 0);
-      
+
       const snapshot = performanceMonitor.getStats();
       const hitRate = performanceMonitor.getCacheHitRate();
-      
+
       results.push({
         test: 'Cache Monitoring',
         passed: snapshot.cache.operations.get > 0,
@@ -198,18 +203,16 @@ async function main() {
         },
       });
 
-      console.log(`   ✅ Cache tracking working`);
+      console.log('   ✅ Cache tracking working');
       console.log(`   Hit rate: ${(hitRate * 100).toFixed(2)}%`);
-      
     } else {
       results.push({
         test: 'Cache Monitoring',
         passed: false,
         details: 'Redis not available',
       });
-      console.log(`   ⚠️  Redis not available (expected in some environments)`);
+      console.log('   ⚠️  Redis not available (expected in some environments)');
     }
-    
   } catch (error) {
     results.push({
       test: 'Cache Monitoring',
@@ -221,13 +224,13 @@ async function main() {
 
   // Test 5: Bottleneck Detection
   console.log('\n📊 Test 5: Bottleneck Detection\n');
-  
+
   try {
     console.log('   Analyzing for bottlenecks...');
-    
+
     const bottlenecks = performanceMonitor.identifyBottlenecks();
     const recommendations = performanceMonitor.getRecommendations();
-    
+
     results.push({
       test: 'Bottleneck Detection',
       passed: true, // This should always work
@@ -238,13 +241,12 @@ async function main() {
       },
     });
 
-    console.log(`   ✅ Bottleneck detection working`);
+    console.log('   ✅ Bottleneck detection working');
     console.log(`   Bottlenecks found: ${bottlenecks.length}`);
-    
+
     if (bottlenecks.length > 0) {
       console.log(`   Top bottleneck: ${bottlenecks[0]?.description}`);
     }
-    
   } catch (error) {
     results.push({
       test: 'Bottleneck Detection',
@@ -256,15 +258,15 @@ async function main() {
 
   // Test 6: Database Connection Tracking
   console.log('\n📊 Test 6: Database Connection Health\n');
-  
+
   try {
     console.log('   Testing database connection...');
-    
+
     // Test connection with simple query
     const connStart = Date.now();
     await db.user.count();
     const connDuration = Date.now() - connStart;
-    
+
     results.push({
       test: 'Database Connection',
       passed: connDuration < 1000,
@@ -275,8 +277,9 @@ async function main() {
       },
     });
 
-    console.log(`   ${connDuration < 1000 ? '✅' : '⚠️ '} Database connection: ${connDuration}ms`);
-    
+    console.log(
+      `   ${connDuration < 1000 ? '✅' : '⚠️ '} Database connection: ${connDuration}ms`
+    );
   } catch (error) {
     results.push({
       test: 'Database Connection',
@@ -287,26 +290,31 @@ async function main() {
   }
 
   // Test 7: Load Test Execution (requires server running)
-  console.log('\n📊 Test 7: Load Test Execution (Optional - requires server)\n');
-  
+  console.log(
+    '\n📊 Test 7: Load Test Execution (Optional - requires server)\n'
+  );
+
   try {
     // Check if server is running first
     console.log('   Checking if server is available...');
-    const serverCheck = await fetch('http://localhost:3000/api/docs').catch(() => null);
-    
+    const serverCheck = await fetch('http://localhost:3000/api/docs').catch(
+      () => null
+    );
+
     if (!serverCheck) {
       console.log('   ⚠️  Server not running - skipping load test (this is OK)');
       results.push({
         test: 'Load Test Execution',
         passed: true, // Not a failure if server isn't running
-        details: 'Skipped - server not running (run "bun run dev" to test this)',
+        details:
+          'Skipped - server not running (run "bun run dev" to test this)',
       });
     } else {
       console.log('   Running mini load test (100 requests)...');
-      
+
       const responses: number[] = [];
       const startTest = Date.now();
-      
+
       // Make 100 concurrent requests
       const requests = Array.from({ length: 100 }, async () => {
         const reqStart = Date.now();
@@ -319,16 +327,18 @@ async function main() {
           return false;
         }
       });
-      
+
       const testResults = await Promise.all(requests);
       const successCount = testResults.filter(Boolean).length;
       const totalDuration = Date.now() - startTest;
-      const avgResponseTime = responses.length > 0 
-        ? responses.reduce((a, b) => a + b, 0) / responses.length 
-        : 0;
+      const avgResponseTime =
+        responses.length > 0
+          ? responses.reduce((a, b) => a + b, 0) / responses.length
+          : 0;
       const sortedResponses = responses.sort((a, b) => a - b);
-      const p95 = sortedResponses[Math.floor(sortedResponses.length * 0.95)] || 0;
-      
+      const p95 =
+        sortedResponses[Math.floor(sortedResponses.length * 0.95)] || 0;
+
       results.push({
         test: 'Load Test Execution',
         passed: successCount > 50,
@@ -349,7 +359,6 @@ async function main() {
       console.log(`   Avg response: ${avgResponseTime.toFixed(0)}ms`);
       console.log(`   P95: ${p95}ms`);
     }
-    
   } catch (error) {
     results.push({
       test: 'Load Test Execution',
@@ -361,18 +370,18 @@ async function main() {
 
   // Test 8: Query Performance Analysis
   console.log('\n📊 Test 8: Query Performance Analysis\n');
-  
+
   try {
     console.log('   Analyzing query performance...');
-    
+
     const slowQueryStats = queryMonitor.getSlowQueryStats();
     const queryStats = queryMonitor.getQueryStats();
-    
+
     // Get top slow queries
     const topSlowQueries = Object.entries(slowQueryStats)
       .sort((a, b) => b[1].avgDuration - a[1].avgDuration)
       .slice(0, 3);
-    
+
     results.push({
       test: 'Query Performance Analysis',
       passed: true,
@@ -380,9 +389,10 @@ async function main() {
       evidence: {
         totalQueries: queryStats.totalQueries,
         slowQueries: queryStats.slowQueries,
-        slowQueryRate: queryStats.totalQueries > 0 
-          ? queryStats.slowQueries / queryStats.totalQueries 
-          : 0,
+        slowQueryRate:
+          queryStats.totalQueries > 0
+            ? queryStats.slowQueries / queryStats.totalQueries
+            : 0,
         topSlowQueries: topSlowQueries.map(([name, stats]) => ({
           name,
           count: stats.count,
@@ -392,14 +402,17 @@ async function main() {
       },
     });
 
-    console.log(`   ✅ Query analysis complete`);
+    console.log('   ✅ Query analysis complete');
     console.log(`   Total queries: ${queryStats.totalQueries}`);
-    console.log(`   Slow queries: ${queryStats.slowQueries} (${queryStats.totalQueries > 0 ? ((queryStats.slowQueries / queryStats.totalQueries) * 100).toFixed(1) : 0}%)`);
-    
+    console.log(
+      `   Slow queries: ${queryStats.slowQueries} (${queryStats.totalQueries > 0 ? ((queryStats.slowQueries / queryStats.totalQueries) * 100).toFixed(1) : 0}%)`
+    );
+
     if (topSlowQueries.length > 0) {
-      console.log(`   Slowest: ${topSlowQueries[0]?.[0]} (${topSlowQueries[0]?.[1].avgDuration.toFixed(0)}ms avg)`);
+      console.log(
+        `   Slowest: ${topSlowQueries[0]?.[0]} (${topSlowQueries[0]?.[1].avgDuration.toFixed(0)}ms avg)`
+      );
     }
-    
   } catch (error) {
     results.push({
       test: 'Query Performance Analysis',
@@ -410,22 +423,28 @@ async function main() {
   }
 
   // Final Summary
-  console.log('\n\n╔═══════════════════════════════════════════════════════════╗');
+  console.log(
+    '\n\n╔═══════════════════════════════════════════════════════════╗'
+  );
   console.log('║   Validation Results                                      ║');
-  console.log('╚═══════════════════════════════════════════════════════════╝\n');
+  console.log(
+    '╚═══════════════════════════════════════════════════════════╝\n'
+  );
 
-  const passed = results.filter(r => r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
   const total = results.length;
   const passRate = (passed / total) * 100;
 
-  console.log(`Overall: ${passed}/${total} tests passed (${passRate.toFixed(1)}%)\n`);
+  console.log(
+    `Overall: ${passed}/${total} tests passed (${passRate.toFixed(1)}%)\n`
+  );
 
   for (const result of results) {
     const icon = result.passed ? '✅' : '❌';
     console.log(`${icon} ${result.test}`);
     console.log(`   ${result.details}`);
     if (!result.passed) {
-      console.log(`   Evidence:`, result.evidence || 'None');
+      console.log('   Evidence:', result.evidence || 'None');
     }
     console.log();
   }
@@ -438,35 +457,37 @@ async function main() {
   const checks = [
     {
       name: 'Query monitoring tracks real queries',
-      passed: results.find(r => r.test === 'Query Monitoring Integration')?.passed,
+      passed: results.find((r) => r.test === 'Query Monitoring Integration')
+        ?.passed,
     },
     {
       name: 'Slow queries are detected (>100ms)',
-      passed: results.find(r => r.test === 'Slow Query Detection')?.passed,
+      passed: results.find((r) => r.test === 'Slow Query Detection')?.passed,
     },
     {
       name: 'Performance metrics capture data',
-      passed: results.find(r => r.test === 'Performance Monitor')?.passed,
+      passed: results.find((r) => r.test === 'Performance Monitor')?.passed,
     },
     {
       name: 'Cache operations are tracked',
-      passed: results.find(r => r.test === 'Cache Monitoring')?.passed,
+      passed: results.find((r) => r.test === 'Cache Monitoring')?.passed,
     },
     {
       name: 'Bottlenecks are identified',
-      passed: results.find(r => r.test === 'Bottleneck Detection')?.passed,
+      passed: results.find((r) => r.test === 'Bottleneck Detection')?.passed,
     },
     {
       name: 'Database connections are healthy',
-      passed: results.find(r => r.test === 'Database Connection')?.passed,
+      passed: results.find((r) => r.test === 'Database Connection')?.passed,
     },
     {
       name: 'Load tests execute correctly',
-      passed: results.find(r => r.test === 'Load Test Execution')?.passed,
+      passed: results.find((r) => r.test === 'Load Test Execution')?.passed,
     },
     {
       name: 'Query performance is analyzed',
-      passed: results.find(r => r.test === 'Query Performance Analysis')?.passed,
+      passed: results.find((r) => r.test === 'Query Performance Analysis')
+        ?.passed,
     },
   ];
 
@@ -474,7 +495,7 @@ async function main() {
     console.log(`${check.passed ? '✅' : '❌'} ${check.name}`);
   }
 
-  const allPassed = checks.every(c => c.passed);
+  const allPassed = checks.every((c) => c.passed);
 
   console.log('\n═══════════════════════════════════════════════════════════');
   if (allPassed) {
@@ -488,17 +509,24 @@ async function main() {
 
   // Save results
   const resultsFile = `validation-results-${Date.now()}.json`;
-  await Bun.write(resultsFile, JSON.stringify({
-    timestamp: new Date().toISOString(),
-    summary: {
-      passed,
-      total,
-      passRate,
-    },
-    results,
-    checks,
-  }, null, 2));
-  
+  await Bun.write(
+    resultsFile,
+    JSON.stringify(
+      {
+        timestamp: new Date().toISOString(),
+        summary: {
+          passed,
+          total,
+          passRate,
+        },
+        results,
+        checks,
+      },
+      null,
+      2
+    )
+  );
+
   console.log(`📊 Detailed results saved to: ${resultsFile}\n`);
 
   // Exit with appropriate code
@@ -510,5 +538,3 @@ main().catch((error) => {
   logger.error('Validation script failed', error, 'Validation');
   process.exit(1);
 });
-
-

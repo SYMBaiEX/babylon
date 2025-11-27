@@ -1,6 +1,6 @@
 /**
  * Test RL Training Dashboard
- * 
+ *
  * Comprehensive test of the RL training admin dashboard.
  * Tests all API endpoints, data loading, and functionality.
  */
@@ -19,22 +19,35 @@ interface TestResult {
 const results: TestResult[] = [];
 const BASE_URL = 'http://localhost:3000';
 
-function addResult(endpoint: string, method: string, passed: boolean, status?: number, data?: unknown, error?: string) {
+function addResult(
+  endpoint: string,
+  method: string,
+  passed: boolean,
+  status?: number,
+  data?: unknown,
+  error?: string
+) {
   results.push({ endpoint, method, passed, status, data, error });
   const icon = passed ? '✅' : '❌';
-  console.log(`${icon} [${method}] ${endpoint}: ${passed ? 'OK' : 'FAILED'}${status ? ` (${status})` : ''}`);
+  console.log(
+    `${icon} [${method}] ${endpoint}: ${passed ? 'OK' : 'FAILED'}${status ? ` (${status})` : ''}`
+  );
   if (error) {
     console.error(`   Error: ${error}`);
   }
 }
 
-async function testEndpoint(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: unknown) {
+async function testEndpoint(
+  endpoint: string,
+  method: 'GET' | 'POST' = 'GET',
+  body?: unknown
+) {
   try {
     const options: RequestInit = {
       method,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     };
-    
+
     if (body) {
       options.body = JSON.stringify(body);
     }
@@ -43,12 +56,25 @@ async function testEndpoint(endpoint: string, method: 'GET' | 'POST' = 'GET', bo
     const data = await res.json();
 
     const passed = res.ok;
-    addResult(endpoint, method, passed, res.status, data, passed ? undefined : data.error);
-    
+    addResult(
+      endpoint,
+      method,
+      passed,
+      res.status,
+      data,
+      passed ? undefined : data.error
+    );
+
     return { passed, status: res.status, data };
   } catch (error) {
-    addResult(endpoint, method, false, undefined, undefined, 
-      error instanceof Error ? error.message : String(error));
+    addResult(
+      endpoint,
+      method,
+      false,
+      undefined,
+      undefined,
+      error instanceof Error ? error.message : String(error)
+    );
     return { passed: false, status: 500, data: null };
   }
 }
@@ -59,7 +85,7 @@ async function testDashboardAPIs() {
   // Test 1: Get models list
   console.log('Testing models API...');
   const modelsTest = await testEndpoint('/api/admin/training/models', 'GET');
-  
+
   if (modelsTest.passed && modelsTest.data) {
     const data = modelsTest.data as { models?: unknown[] };
     console.log(`   Found ${data.models?.length || 0} models`);
@@ -67,19 +93,27 @@ async function testDashboardAPIs() {
 
   // Test 2: Get benchmark summary
   console.log('\nTesting benchmark summary API...');
-  const benchmarkTest = await testEndpoint('/api/admin/training/benchmark', 'GET');
-  
+  const benchmarkTest = await testEndpoint(
+    '/api/admin/training/benchmark',
+    'GET'
+  );
+
   if (benchmarkTest.passed && benchmarkTest.data) {
-    const data = benchmarkTest.data as { summary?: { totalBenchmarked?: number } };
+    const data = benchmarkTest.data as {
+      summary?: { totalBenchmarked?: number };
+    };
     console.log(`   ${data.summary?.totalBenchmarked || 0} models benchmarked`);
   }
 
   // Test 3: Get model selection
   console.log('\nTesting model selection API...');
-  const selectionTest = await testEndpoint('/api/admin/training/model-selection', 'GET');
-  
+  const selectionTest = await testEndpoint(
+    '/api/admin/training/model-selection',
+    'GET'
+  );
+
   if (selectionTest.passed && selectionTest.data) {
-    const data = selectionTest.data as { 
+    const data = selectionTest.data as {
       summary?: { bundleCount?: number; recommendation?: string };
       selection?: { strategy?: string };
     };
@@ -91,9 +125,9 @@ async function testDashboardAPIs() {
   // Test 4: Get training status
   console.log('\nTesting training status API...');
   const statusTest = await testEndpoint('/api/admin/training/trigger', 'GET');
-  
+
   if (statusTest.passed && statusTest.data) {
-    const data = statusTest.data as { 
+    const data = statusTest.data as {
       ready?: boolean;
       reason?: string;
       stats?: { totalTrajectories?: number };
@@ -111,7 +145,7 @@ async function testDashboardAPIs() {
     modelsTest,
     benchmarkTest,
     selectionTest,
-    statusTest
+    statusTest,
   };
 }
 
@@ -128,7 +162,9 @@ async function testDashboardData() {
     console.log(`✅ Models table: ${modelCount} records`);
     passed++;
   } catch (error) {
-    console.error(`❌ Models table: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Models table: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Test 2: Check trajectories table
@@ -136,12 +172,16 @@ async function testDashboardData() {
   try {
     const trajectoryCount = await db.trajectory.count();
     const scoredCount = await db.trajectory.count({
-      where: { aiJudgeReward: { not: null } }
+      where: { aiJudgeReward: { not: null } },
     });
-    console.log(`✅ Trajectories: ${trajectoryCount} total, ${scoredCount} scored`);
+    console.log(
+      `✅ Trajectories: ${trajectoryCount} total, ${scoredCount} scored`
+    );
     passed++;
   } catch (error) {
-    console.error(`❌ Trajectories: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Trajectories: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Test 3: Check training batches
@@ -149,12 +189,16 @@ async function testDashboardData() {
   try {
     const batchCount = await db.trainingBatch.count();
     const completedCount = await db.trainingBatch.count({
-      where: { status: 'completed' }
+      where: { status: 'completed' },
     });
-    console.log(`✅ Training batches: ${batchCount} total, ${completedCount} completed`);
+    console.log(
+      `✅ Training batches: ${batchCount} total, ${completedCount} completed`
+    );
     passed++;
   } catch (error) {
-    console.error(`❌ Training batches: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Training batches: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Test 4: Check data relationships
@@ -162,20 +206,28 @@ async function testDashboardData() {
   try {
     const models = await db.trainedModel.findMany({
       take: 5,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
-    
+
     if (models.length > 0) {
-      console.log(`✅ Model relationships: ${models.length} models with complete data`);
-      models.forEach(m => {
-        console.log(`   - ${m.modelId}: ${m.status}, score: ${m.benchmarkScore?.toFixed(3) || 'N/A'}`);
+      console.log(
+        `✅ Model relationships: ${models.length} models with complete data`
+      );
+      models.forEach((m) => {
+        console.log(
+          `   - ${m.modelId}: ${m.status}, score: ${m.benchmarkScore?.toFixed(3) || 'N/A'}`
+        );
       });
     } else {
-      console.log(`✅ Model relationships: No models yet (expected for new system)`);
+      console.log(
+        '✅ Model relationships: No models yet (expected for new system)'
+      );
     }
     passed++;
   } catch (error) {
-    console.error(`❌ Model relationships: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Model relationships: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   return { passed, total };
@@ -191,12 +243,14 @@ async function testDashboardFeatures() {
   total++;
   try {
     const models = await db.trainedModel.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
     console.log(`✅ Model listing: ${models.length} models available`);
     passed++;
   } catch (error) {
-    console.error(`❌ Model listing: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Model listing: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Feature 2: Benchmark summary
@@ -205,15 +259,21 @@ async function testDashboardFeatures() {
     const benchmarkedModels = await db.trainedModel.findMany({
       where: { benchmarkScore: { not: null } },
       orderBy: { benchmarkScore: 'desc' },
-      take: 5
+      take: 5,
     });
-    console.log(`✅ Benchmark summary: ${benchmarkedModels.length} benchmarked models`);
+    console.log(
+      `✅ Benchmark summary: ${benchmarkedModels.length} benchmarked models`
+    );
     if (benchmarkedModels.length > 0) {
-      console.log(`   Top score: ${benchmarkedModels[0]!.benchmarkScore?.toFixed(3) || 'N/A'}`);
+      console.log(
+        `   Top score: ${benchmarkedModels[0]!.benchmarkScore?.toFixed(3) || 'N/A'}`
+      );
     }
     passed++;
   } catch (error) {
-    console.error(`❌ Benchmark summary: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Benchmark summary: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Feature 3: Training readiness
@@ -223,13 +283,17 @@ async function testDashboardFeatures() {
       where: {
         isTrainingData: true,
         usedInTraining: false,
-        aiJudgeReward: { not: null }
-      }
+        aiJudgeReward: { not: null },
+      },
     });
-    console.log(`✅ Training readiness: ${readyTrajectories} trajectories ready`);
+    console.log(
+      `✅ Training readiness: ${readyTrajectories} trajectories ready`
+    );
     passed++;
   } catch (error) {
-    console.error(`❌ Training readiness: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Training readiness: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   // Feature 4: Model comparison
@@ -237,12 +301,16 @@ async function testDashboardFeatures() {
   try {
     const deployedModels = await db.trainedModel.findMany({
       where: { status: 'deployed' },
-      orderBy: { deployedAt: 'desc' }
+      orderBy: { deployedAt: 'desc' },
     });
-    console.log(`✅ Model comparison: ${deployedModels.length} deployed models`);
+    console.log(
+      `✅ Model comparison: ${deployedModels.length} deployed models`
+    );
     passed++;
   } catch (error) {
-    console.error(`❌ Model comparison: ${error instanceof Error ? error.message : 'Failed'}`);
+    console.error(
+      `❌ Model comparison: ${error instanceof Error ? error.message : 'Failed'}`
+    );
   }
 
   return { passed, total };
@@ -253,16 +321,18 @@ async function printSummary() {
   console.log('📊 RL DASHBOARD TEST SUMMARY');
   console.log('━'.repeat(80) + '\n');
 
-  const apiTests = results.filter(r => r.passed).length;
+  const apiTests = results.filter((r) => r.passed).length;
   const apiTotal = results.length;
   const apiPercentage = apiTotal > 0 ? (apiTests / apiTotal) * 100 : 0;
 
-  console.log(`API Endpoints: ${apiTests}/${apiTotal} passed (${apiPercentage.toFixed(0)}%)`);
-  
-  const failed = results.filter(r => !r.passed);
+  console.log(
+    `API Endpoints: ${apiTests}/${apiTotal} passed (${apiPercentage.toFixed(0)}%)`
+  );
+
+  const failed = results.filter((r) => !r.passed);
   if (failed.length > 0) {
     console.log('\n❌ Failed API Tests:');
-    failed.forEach(r => {
+    failed.forEach((r) => {
       console.log(`   [${r.method}] ${r.endpoint}`);
       if (r.error) {
         console.log(`      Error: ${r.error}`);
@@ -273,8 +343,12 @@ async function printSummary() {
   console.log('\n' + '━'.repeat(80));
 
   if (apiPercentage === 100) {
-    console.log('\n✅ All API endpoints working! Dashboard is fully functional.\n');
-    console.log('🌐 Access dashboard at: http://localhost:3000/admin/rl-training\n');
+    console.log(
+      '\n✅ All API endpoints working! Dashboard is fully functional.\n'
+    );
+    console.log(
+      '🌐 Access dashboard at: http://localhost:3000/admin/rl-training\n'
+    );
     console.log('Dashboard Features:');
     console.log('✅ View all trained models');
     console.log('✅ Compare benchmark scores');
@@ -284,16 +358,24 @@ async function printSummary() {
     console.log('✅ Benchmark models');
     console.log('✅ Auto-refresh every 30s\n');
   } else if (apiPercentage >= 80) {
-    console.log('\n✅ Dashboard mostly working. Some endpoints may need attention.\n');
+    console.log(
+      '\n✅ Dashboard mostly working. Some endpoints may need attention.\n'
+    );
   } else {
     console.log('\n❌ Dashboard has issues. Check failed endpoints.\n');
   }
 }
 
 async function main() {
-  console.log('╔════════════════════════════════════════════════════════════════════════════╗');
-  console.log('║                  RL Training Dashboard - Comprehensive Test                ║');
-  console.log('╚════════════════════════════════════════════════════════════════════════════╝');
+  console.log(
+    '╔════════════════════════════════════════════════════════════════════════════╗'
+  );
+  console.log(
+    '║                  RL Training Dashboard - Comprehensive Test                ║'
+  );
+  console.log(
+    '╚════════════════════════════════════════════════════════════════════════════╝'
+  );
 
   try {
     // Test APIs
@@ -301,21 +383,25 @@ async function main() {
 
     // Test data
     const dataResults = await testDashboardData();
-    console.log(`\nData Tests: ${dataResults.passed}/${dataResults.total} passed`);
+    console.log(
+      `\nData Tests: ${dataResults.passed}/${dataResults.total} passed`
+    );
 
     // Test features
     const featureResults = await testDashboardFeatures();
-    console.log(`\nFeature Tests: ${featureResults.passed}/${featureResults.total} passed`);
+    console.log(
+      `\nFeature Tests: ${featureResults.passed}/${featureResults.total} passed`
+    );
 
     // Print summary
     await printSummary();
 
-    const allPassed = results.every(r => r.passed) && 
-                      dataResults.passed === dataResults.total &&
-                      featureResults.passed === featureResults.total;
+    const allPassed =
+      results.every((r) => r.passed) &&
+      dataResults.passed === dataResults.total &&
+      featureResults.passed === featureResults.total;
 
     process.exit(allPassed ? 0 : 1);
-
   } catch (error) {
     console.error('\n❌ Test suite crashed:', error);
     process.exit(1);
@@ -330,4 +416,3 @@ if (require.main === module) {
 }
 
 export { main };
-
