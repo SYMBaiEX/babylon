@@ -17,10 +17,11 @@ type ExecuteActionFn = (
 // Access private executeAction method for testing
 // Type assertion needed to access private method for testing purposes
 // The executeAction method exists on AutonomousPlanningCoordinator but is private
-type CoordinatorWithExecuteAction = typeof autonomousPlanningCoordinator & {
+// Use 'as unknown as' to bypass TypeScript's intersection type reduction to 'never'
+type CoordinatorWithExecuteAction = {
   executeAction: ExecuteActionFn;
 };
-const coordinator = autonomousPlanningCoordinator as CoordinatorWithExecuteAction;
+const coordinator = autonomousPlanningCoordinator as unknown as CoordinatorWithExecuteAction;
 
 describe('AutonomousPlanningCoordinator executeAction', () => {
   const runtime = {} as IAgentRuntime;

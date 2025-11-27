@@ -93,12 +93,13 @@ class TestableCharacterMappingService extends CharacterMappingService {
   ) {
     // Access private properties for testing
     // Type assertion needed to access private properties for testing purposes
-    type TestableService = CharacterMappingService & {
+    // Use 'as unknown as' to bypass TypeScript's intersection type reduction to 'never'
+    type TestableService = {
       characterMappingsCache: typeof mockCharacterMappings;
       organizationMappingsCache: typeof mockOrganizationMappings;
       lastCacheUpdate: number;
     };
-    const self = this as TestableService;
+    const self = this as unknown as TestableService;
     self.characterMappingsCache = characters;
     self.organizationMappingsCache = organizations;
     self.lastCacheUpdate = Date.now();

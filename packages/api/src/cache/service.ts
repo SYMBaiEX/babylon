@@ -24,11 +24,14 @@ type IORedisInstance = {
   del: (...keys: string[]) => Promise<unknown>;
 };
 
+// Redis client union type
+type RedisClient = UpstashRedis | IORedisInstance | null;
+
 /**
  * Type guard to check if Redis client is IORedisInstance
  */
 function isIORedisInstance(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is IORedisInstance {
   return type === 'standard' && client !== null;
@@ -38,7 +41,7 @@ function isIORedisInstance(
  * Type guard to check if Redis client is UpstashRedis
  */
 function isUpstashRedis(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is UpstashRedis {
   return type === 'upstash' && client !== null;
@@ -278,16 +281,19 @@ export async function setCache<T>(
 
   const serialized = JSON.stringify(value);
 
-  if (isUpstashRedis(redis, redisClientType)) {
-    await redis.set(fullKey, serialized, { ex: ttl });
-    logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
-    return;
-  }
+  if (redis && redisClientType) {
+    const client = redis;
+    if (redisClientType === 'upstash' && isUpstashRedis(client, redisClientType)) {
+      await client.set(fullKey, serialized, { ex: ttl });
+      logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
+      return;
+    }
 
-  if (isIORedisInstance(redis, redisClientType)) {
-    await redis.set(fullKey, serialized, 'EX', ttl);
-    logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
-    return;
+    if (redisClientType === 'standard' && isIORedisInstance(client, redisClientType)) {
+      await client.set(fullKey, serialized, 'EX', ttl);
+      logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
+      return;
+    }
   }
 
   const expiresAt = Date.now() + ttl * 1000;
@@ -310,8 +316,11 @@ export async function invalidateCache(
   const fullKey = options.namespace ? `${options.namespace}:${key}` : key;
 
   if (redis && redisClientType) {
-    await redis.del(fullKey);
-    logger.debug('Cache invalidated (Redis)', { key: fullKey }, 'CacheService');
+    const client = redis;
+    if (isUpstashRedis(client, redisClientType) || isIORedisInstance(client, redisClientType)) {
+      await client.del(fullKey);
+      logger.debug('Cache invalidated (Redis)', { key: fullKey }, 'CacheService');
+    }
   }
 
   memoryCache.delete(fullKey);
@@ -336,32 +345,35 @@ export async function invalidateCachePattern(
     : pattern;
 
   // Invalidate in Redis
-  if (isUpstashRedis(redis, redisClientType)) {
-    logger.warn(
-      'Pattern invalidation not fully supported with Upstash Redis',
-      { pattern: fullPattern },
-      'CacheService'
-    );
-  } else if (isIORedisInstance(redis, redisClientType)) {
-    const stream = redis.scanStream({ match: fullPattern });
-    const keys: string[] = [];
-
-    stream.on('data', (resultKeys: string[]) => {
-      keys.push(...resultKeys);
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      stream.on('end', () => resolve());
-      stream.on('error', reject);
-    });
-
-    if (keys.length > 0) {
-      await redis.del(...keys);
-      logger.info(
-        'Cache pattern invalidated (Redis)',
-        { pattern: fullPattern, count: keys.length },
+  if (redis && redisClientType) {
+    const client = redis;
+    if (redisClientType === 'upstash' && isUpstashRedis(client, redisClientType)) {
+      logger.warn(
+        'Pattern invalidation not fully supported with Upstash Redis',
+        { pattern: fullPattern },
         'CacheService'
       );
+    } else if (redisClientType === 'standard' && isIORedisInstance(client, redisClientType)) {
+      const stream = client.scanStream({ match: fullPattern });
+      const keys: string[] = [];
+
+      stream.on('data', (resultKeys: string[]) => {
+        keys.push(...resultKeys);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        stream.on('end', () => resolve());
+        stream.on('error', reject);
+      });
+
+      if (keys.length > 0) {
+        await client.del(...keys);
+        logger.info(
+          'Cache pattern invalidated (Redis)',
+          { pattern: fullPattern, count: keys.length },
+          'CacheService'
+        );
+      }
     }
   }
 

@@ -4,6 +4,7 @@
  * Validates RL pipeline configuration before execution.
  */
 
+import type { BenchmarkConfig } from '../benchmark/BenchmarkDataGenerator';
 import { logger } from '../utils/logger';
 
 export interface TrainingConfig {
@@ -137,7 +138,7 @@ export class ConfigValidator {
    * Validate full pipeline config
    */
   static validatePipelineConfig(config: {
-    benchmark: unknown;
+    benchmark: BenchmarkConfig | null | undefined;
     training: TrainingConfig;
     agents: { test_agent_count: number };
   }): ValidationResult {
@@ -145,15 +146,13 @@ export class ConfigValidator {
     const warnings: string[] = [];
 
     // Validate benchmark config
-    if (config.benchmark && typeof config.benchmark === 'object') {
-      const benchmarkResult = this.validateBenchmarkConfig(
-        config.benchmark as {
-          duration_minutes: number;
-          tick_interval_seconds: number;
-          num_prediction_markets: number;
-          num_perpetual_markets: number;
-        }
-      );
+    if (config.benchmark) {
+      const benchmarkResult = this.validateBenchmarkConfig({
+        duration_minutes: config.benchmark.durationMinutes,
+        tick_interval_seconds: config.benchmark.tickInterval,
+        num_prediction_markets: config.benchmark.numPredictionMarkets,
+        num_perpetual_markets: config.benchmark.numPerpetualMarkets,
+      });
       errors.push(...benchmarkResult.errors);
       warnings.push(...benchmarkResult.warnings);
     }
@@ -184,7 +183,7 @@ export class ConfigValidator {
    * Validate and log results
    */
   static validateAndLog(config: {
-    benchmark: unknown;
+    benchmark: BenchmarkConfig | null | undefined;
     training: TrainingConfig;
     agents: { test_agent_count: number };
   }): boolean {

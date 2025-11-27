@@ -282,7 +282,7 @@ export async function POST(
         // Use type assertions to access internal SDK structure
         // These properties exist at runtime but aren't in the public types
         const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-          requestHandler: DefaultRequestHandlerType & {
+          requestHandler: {
             taskStore: ExtendedTaskStore;
           };
         };

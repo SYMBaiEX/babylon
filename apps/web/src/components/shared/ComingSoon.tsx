@@ -594,215 +594,8 @@ export function ComingSoon() {
     dbUser?.pointsAwardedForDiscordJoin,
   ]);
 
-  // If user completes onboarding, mark as waitlisted and fetch position
-  useEffect(() => {
-    if (!authenticated || !dbUser || !dbUser.id) return;
-
-    // Only mark as waitlisted if user has completed profile setup (has username)
-    // This ensures onboarding modal completes first
-    if (!dbUser.profileComplete || !dbUser.username) {
-      return;
-    }
-
-    const setupWaitlist = async (userId: string) => {
-      // Check if already on waitlist
-      const existingPosition = await fetchWaitlistPosition(userId);
-      if (existingPosition) {
-        // Already setup, just refresh data
-        // Check if user has been awarded points for Farcaster follow
-        try {
-          const token = await getAccessToken();
-          const response = await fetch(`/api/waitlist/position`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-
-          if (response.ok) {
-            // Check points transactions to see if farcaster_follow was awarded
-            // For now, we'll fetch this status when needed
-          }
-        } catch (error) {
-          logger.error(
-            'Error checking Farcaster follow status',
-            {
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'ComingSoon'
-          );
-        }
-        return;
-      }
-
-      // Mark user as waitlisted (they completed onboarding)
-      const referralCode = searchParams.get('ref') || undefined;
-
-      logger.info(
-        'Marking user as waitlisted',
-        {
-          userId,
-          hasReferralCode: !!referralCode,
-          referralCode,
-        },
-        'ComingSoon'
-      );
-
-      try {
-        // Get access token for authentication
-        const token = await getAccessToken();
-        const response = await fetch('/api/waitlist/mark', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            userId,
-            referralCode,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to mark as waitlisted',
-            {
-              userId,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'User marked as waitlisted',
-          {
-            userId,
-            position: result.waitlistPosition,
-            inviteCode: result.inviteCode,
-            points: result.points,
-            referrerRewarded: result.referrerRewarded,
-          },
-          'ComingSoon'
-        );
-
-        // Fetch position data to get complete info
-        await fetchWaitlistPosition(userId);
-
-        // Award bonuses if available
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(userId, walletAddress);
-        }
-      } catch (error) {
-        logger.error(
-          'Error setting up waitlist',
-          {
-            userId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ComingSoon'
-        );
-      }
-    };
-
-    void setupWaitlist(dbUser.id);
-  }, [
-    authenticated,
-    dbUser?.id,
-    dbUser?.profileComplete,
-    dbUser?.username,
-    privyUser,
-    searchParams,
-    dbUser,
-    getAccessToken,
-  ]);
-
-  // Award wallet bonus when user connects wallet
-  // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
-  useEffect(() => {
-    if (!authenticated || !dbUser?.id) return;
-
-    const checkAndAwardWalletBonus = async () => {
-      try {
-        // Check for wallet bonus
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(dbUser.id, walletAddress);
-        }
-      } catch (error) {
-        logger.error(
-          'Error checking wallet bonus',
-          {
-            userId: dbUser.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ComingSoon'
-        );
-      }
-    };
-
-    // Small delay to ensure privyUser state is stable
-    const timeoutId = setTimeout(() => {
-      void checkAndAwardWalletBonus();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [authenticated, dbUser?.id, privyUser?.wallet?.address]);
-
-  // Periodically refresh waitlist position to show real-time updates
-  // (e.g., when others get referrals and user's rank changes)
-  // Skip leaderboard on polls to save bandwidth - it's fetched separately
-  useEffect(() => {
-    if (!authenticated || !dbUser?.id || !waitlistData) return;
-
-    const refreshInterval = setInterval(() => {
-      void fetchWaitlistPosition(dbUser.id, true); // Skip leaderboard on polls
-    }, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(refreshInterval);
-  }, [authenticated, dbUser?.id, waitlistData]);
-
   const getPointsTypeForTab = useCallback((tab: 'leaderboard' | 'inviters') =>
     tab === 'leaderboard' ? 'total' : 'invite', []);
-
-  // Fetch leaderboard for a specific page
-  const fetchLeaderboardPage = async (
-    page: number,
-    tab: 'leaderboard' | 'inviters' = leaderboardTab
-  ) => {
-    const pointsType = getPointsTypeForTab(tab);
-    try {
-      const response = await fetch(
-        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
-      );
-      if (!response.ok) {
-        logger.warn(
-          'Failed to fetch leaderboard page',
-          { page, status: response.status },
-          'ComingSoon'
-        );
-        return false;
-      }
-
-      const data = await response.json();
-      setTopUsers(data.leaderboard || []);
-      setLeaderboardTotalPages(data.totalPages || 10);
-      setLeaderboardLastFetched(Date.now());
-      return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching leaderboard page',
-        {
-          page,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-      return false;
-    }
-  };
 
   const fetchWaitlistPosition = useCallback(async (
     userId: string,
@@ -1028,6 +821,215 @@ export function ComingSoon() {
       );
     }
   }, [fetchWaitlistPosition]);
+
+  // If user completes onboarding, mark as waitlisted and fetch position
+  useEffect(() => {
+    if (!authenticated || !dbUser || !dbUser.id) return;
+
+    // Only mark as waitlisted if user has completed profile setup (has username)
+    // This ensures onboarding modal completes first
+    if (!dbUser.profileComplete || !dbUser.username) {
+      return;
+    }
+
+    const setupWaitlist = async (userId: string) => {
+      // Check if already on waitlist
+      const existingPosition = await fetchWaitlistPosition(userId);
+      if (existingPosition) {
+        // Already setup, just refresh data
+        // Check if user has been awarded points for Farcaster follow
+        try {
+          const token = await getAccessToken();
+          const response = await fetch(`/api/waitlist/position`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+
+          if (response.ok) {
+            // Check points transactions to see if farcaster_follow was awarded
+            // For now, we'll fetch this status when needed
+          }
+        } catch (error) {
+          logger.error(
+            'Error checking Farcaster follow status',
+            {
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'ComingSoon'
+          );
+        }
+        return;
+      }
+
+      // Mark user as waitlisted (they completed onboarding)
+      const referralCode = searchParams.get('ref') || undefined;
+
+      logger.info(
+        'Marking user as waitlisted',
+        {
+          userId,
+          hasReferralCode: !!referralCode,
+          referralCode,
+        },
+        'ComingSoon'
+      );
+
+      try {
+        // Get access token for authentication
+        const token = await getAccessToken();
+        const response = await fetch('/api/waitlist/mark', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            userId,
+            referralCode,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(
+            'Failed to mark as waitlisted',
+            {
+              userId,
+              status: response.status,
+              errorText,
+            },
+            'ComingSoon'
+          );
+          return;
+        }
+
+        const result = await response.json();
+        logger.info(
+          'User marked as waitlisted',
+          {
+            userId,
+            position: result.waitlistPosition,
+            inviteCode: result.inviteCode,
+            points: result.points,
+            referrerRewarded: result.referrerRewarded,
+          },
+          'ComingSoon'
+        );
+
+        // Fetch position data to get complete info
+        await fetchWaitlistPosition(userId);
+
+        // Award bonuses if available
+        const walletAddress = privyUser?.wallet?.address;
+        if (walletAddress) {
+          await awardWalletBonus(userId, walletAddress);
+        }
+      } catch (error) {
+        logger.error(
+          'Error setting up waitlist',
+          {
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'ComingSoon'
+        );
+      }
+    };
+
+    void setupWaitlist(dbUser.id);
+  }, [
+    authenticated,
+    dbUser?.id,
+    dbUser?.profileComplete,
+    dbUser?.username,
+    privyUser,
+    searchParams,
+    dbUser,
+    getAccessToken,
+    fetchWaitlistPosition,
+    awardWalletBonus,
+  ]);
+
+  // Award wallet bonus when user connects wallet
+  // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
+  useEffect(() => {
+    if (!authenticated || !dbUser?.id) return;
+
+    const checkAndAwardWalletBonus = async () => {
+      try {
+        // Check for wallet bonus
+        const walletAddress = privyUser?.wallet?.address;
+        if (walletAddress) {
+          await awardWalletBonus(dbUser.id, walletAddress);
+        }
+      } catch (error) {
+        logger.error(
+          'Error checking wallet bonus',
+          {
+            userId: dbUser.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'ComingSoon'
+        );
+      }
+    };
+
+    // Small delay to ensure privyUser state is stable
+    const timeoutId = setTimeout(() => {
+      void checkAndAwardWalletBonus();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [authenticated, dbUser?.id, privyUser?.wallet?.address, awardWalletBonus]);
+
+  // Periodically refresh waitlist position to show real-time updates
+  // (e.g., when others get referrals and user's rank changes)
+  // Skip leaderboard on polls to save bandwidth - it's fetched separately
+  useEffect(() => {
+    if (!authenticated || !dbUser?.id || !waitlistData) return;
+
+    const refreshInterval = setInterval(() => {
+      void fetchWaitlistPosition(dbUser.id, true); // Skip leaderboard on polls
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [authenticated, dbUser?.id, waitlistData, fetchWaitlistPosition]);
+
+  // Fetch leaderboard for a specific page
+  const fetchLeaderboardPage = async (
+    page: number,
+    tab: 'leaderboard' | 'inviters' = leaderboardTab
+  ) => {
+    const pointsType = getPointsTypeForTab(tab);
+    try {
+      const response = await fetch(
+        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
+      );
+      if (!response.ok) {
+        logger.warn(
+          'Failed to fetch leaderboard page',
+          { page, status: response.status },
+          'ComingSoon'
+        );
+        return false;
+      }
+
+      const data = await response.json();
+      setTopUsers(data.leaderboard || []);
+      setLeaderboardTotalPages(data.totalPages || 10);
+      setLeaderboardLastFetched(Date.now());
+      return true;
+    } catch (error) {
+      logger.error(
+        'Error fetching leaderboard page',
+        {
+          page,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'ComingSoon'
+      );
+      return false;
+    }
+  };
 
   const handleCopyInviteCode = useCallback(() => {
     if (waitlistData?.inviteCode) {

@@ -16,11 +16,14 @@ type IORedisInstance = {
   xread: (...args: unknown[]) => Promise<unknown>;
 };
 
+// Redis client union type
+type RedisClient = UpstashRedis | IORedisInstance | null;
+
 /**
  * Type guard to check if Redis client is IORedisInstance
  */
 function isIORedisInstance(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is IORedisInstance {
   return type === 'standard' && client !== null;
@@ -30,7 +33,7 @@ function isIORedisInstance(
  * Type guard to check if Redis client is UpstashRedis
  */
 function isUpstashRedis(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is UpstashRedis {
   return type === 'upstash' && client !== null;
@@ -59,11 +62,11 @@ export async function streamAdd(
   payload: Record<string, JsonValue>,
   opts?: { maxlen?: number }
 ): Promise<string | null> {
-  if (!redis) return null;
+  if (!redis || !redisClientType) return null;
 
   const entry = encodeStreamPayload(payload);
 
-  if (isUpstashRedis(redis, redisClientType)) {
+  if (redisClientType === 'upstash' && isUpstashRedis(redis, redisClientType)) {
     const trim =
       opts?.maxlen !== undefined
         ? {
@@ -82,7 +85,7 @@ export async function streamAdd(
     );
   }
 
-  if (isIORedisInstance(redis, redisClientType)) {
+  if (redisClientType === 'standard' && isIORedisInstance(redis, redisClientType)) {
     // Build args in correct Redis XADD order:
     // XADD key [MAXLEN [= | ~] threshold] <* | id> field value [field value ...]
     const args: (string | number)[] = [stream];
@@ -149,10 +152,10 @@ export async function streamRead(
   ids: string[],
   opts?: { count?: number }
 ): Promise<StreamMessage[]> {
-  if (!redis || streams.length === 0 || ids.length === 0) return [];
+  if (!redis || !redisClientType || streams.length === 0 || ids.length === 0) return [];
 
   try {
-    if (isUpstashRedis(redis, redisClientType)) {
+    if (redisClientType === 'upstash' && isUpstashRedis(redis, redisClientType)) {
       // Upstash xread returns complex nested array structure
       const res: unknown = await redis.xread(streams, ids, {
         count: opts?.count,
@@ -181,13 +184,14 @@ export async function streamRead(
       return parsed;
     }
 
-    if (isIORedisInstance(redis, redisClientType)) {
+    if (redis && redisClientType === 'standard' && isIORedisInstance(redis, redisClientType)) {
+      const client = redis;
       const streamArgs = [...streams, ...ids] as string[];
 
       // Call appropriate overload based on whether COUNT is specified
       const res = opts?.count
-        ? await redis.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
-        : await redis.xread('STREAMS', ...streamArgs);
+        ? await client.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
+        : await client.xread('STREAMS', ...streamArgs);
 
       const parsed: StreamMessage[] = [];
       if (Array.isArray(res)) {

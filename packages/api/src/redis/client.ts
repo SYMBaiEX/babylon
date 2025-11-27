@@ -192,14 +192,15 @@ export async function safePublish(
   channel: string,
   message: string
 ): Promise<boolean> {
-  if (!redis) return false;
+  if (!redis || !redisType) return false;
 
-  if (isUpstashRedis(redis, redisType)) {
-    await redis.rpush(channel, message);
-    await redis.expire(channel, 60);
-  } else if (isIORedisInstance(redis, redisType)) {
-    await redis.rpush(channel, message);
-    await redis.expire(channel, 60);
+  const client = redis;
+  if (redisType === 'upstash' && isUpstashRedis(client, redisType)) {
+    await client.rpush(channel, message);
+    await client.expire(channel, 60);
+  } else if (redisType === 'standard' && isIORedisInstance(client, redisType)) {
+    await client.rpush(channel, message);
+    await client.expire(channel, 60);
   }
   return true;
 }
@@ -216,18 +217,19 @@ export async function safePublish(
  * @returns {Promise<string[]>} Array of messages, or empty array if none found/unavailable
  */
 export async function safePoll(channel: string, count = 10): Promise<string[]> {
-  if (!redis) return [];
+  if (!redis || !redisType) return [];
 
   let messages: string[] | string | null = null;
+  const client = redis;
 
-  if (isUpstashRedis(redis, redisType)) {
-    const result = await redis.lpop(channel, count);
+  if (redisType === 'upstash' && isUpstashRedis(client, redisType)) {
+    const result = await client.lpop(channel, count);
     messages = result as string[] | string | null;
-  } else if (isIORedisInstance(redis, redisType)) {
+  } else if (redisType === 'standard' && isIORedisInstance(client, redisType)) {
     const items: string[] = [];
     for (let i = 0; i < count; i++) {
-      const item = await redis.lpop(channel);
-      if (!item) break;
+      const item: string | null = await client.lpop(channel);
+      if (item === null || typeof item !== 'string') break;
       items.push(item);
     }
     messages = items.length > 0 ? items : null;

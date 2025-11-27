@@ -69,6 +69,13 @@ export type AgentActionType =
   | 'join_group'
   | 'send_message';
 
+export type AgentActionResult =
+  | { positionId: string; shares: number } // buy_prediction
+  | { positionId: string } // open_perp
+  | { pnl: number } // close_perp
+  | { success: boolean } // join_group
+  | { postId: string }; // create_post
+
 export interface SimulationResult {
   /** Simulation ID */
   id: string;
@@ -306,10 +313,10 @@ export class SimulationEngine {
   async performAction(
     type: AgentActionType,
     data: Record<string, unknown>
-  ): Promise<{ success: boolean; result?: unknown; error?: string }> {
+  ): Promise<{ success: boolean; result?: AgentActionResult; error?: string }> {
     const actionStart = Date.now();
 
-    let result: unknown;
+    let result: AgentActionResult;
     let correctness: AgentAction['correctness'];
 
     switch (type) {

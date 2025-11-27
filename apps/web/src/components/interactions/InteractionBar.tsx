@@ -116,11 +116,14 @@ export function InteractionBar({
     }
   }, [
     interactionPostId,
+    initialInteractions,
+    // Track individual properties to ensure we catch all changes
+    // Using initialInteractions directly is safe since we check for changes before updating
     initialInteractions?.likeCount,
     initialInteractions?.commentCount,
     initialInteractions?.shareCount,
-    // Removed initialInteractions from deps to prevent infinite loops
-    // Individual properties are already tracked above
+    initialInteractions?.isLiked,
+    initialInteractions?.isShared,
   ]);
 
   const handleCommentClick = () => {

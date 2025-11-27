@@ -24,11 +24,14 @@ type IORedisInstance = {
   del: (...keys: string[]) => Promise<unknown>;
 };
 
+// Redis client union type
+type RedisClient = UpstashRedis | IORedisInstance | null;
+
 /**
  * Type guard to check if Redis client is IORedisInstance
  */
 function isIORedisInstance(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is IORedisInstance {
   return type === 'standard' && client !== null;
@@ -38,7 +41,7 @@ function isIORedisInstance(
  * Type guard to check if Redis client is UpstashRedis
  */
 function isUpstashRedis(
-  client: typeof redis,
+  client: RedisClient,
   type: RedisClientType
 ): client is UpstashRedis {
   return type === 'upstash' && client !== null;
@@ -300,15 +303,16 @@ export async function setCache<T>(
   const ttl = options.ttl || 300;
 
   const serialized = JSON.stringify(value);
+  const redisClient = redis;
 
-  if (isUpstashRedis(redis, redisClientType)) {
-    await redis.set(fullKey, serialized, { ex: ttl });
+  if (!redisClient || !redisClientType) {
+    // Fall through to memory cache
+  } else if (redisClientType === 'upstash' && isUpstashRedis(redisClient, redisClientType)) {
+    await redisClient.set(fullKey, serialized, { ex: ttl });
     logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
     return;
-  }
-
-  if (isIORedisInstance(redis, redisClientType)) {
-    await redis.set(fullKey, serialized, 'EX', ttl);
+  } else if (redisClientType === 'standard' && isIORedisInstance(redisClient, redisClientType)) {
+    await redisClient.set(fullKey, serialized, 'EX', ttl);
     logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
     return;
   }
@@ -371,7 +375,8 @@ export async function invalidateCachePattern(
     : pattern;
 
   // Invalidate in Redis
-  if (isUpstashRedis(redis, redisClientType)) {
+  const redisClient = redis;
+  if (redisClient && redisClientType === 'upstash' && isUpstashRedis(redisClient, redisClientType)) {
     // Upstash Redis doesn't support SCAN, so we'll need to track keys manually
     // For now, log a warning
     logger.warn(
@@ -379,9 +384,9 @@ export async function invalidateCachePattern(
       { pattern: fullPattern },
       'CacheService'
     );
-  } else if (isIORedisInstance(redis, redisClientType)) {
+  } else if (redisClient && redisClientType === 'standard' && isIORedisInstance(redisClient, redisClientType)) {
     // For standard Redis, use SCAN to find matching keys
-    const stream = redis.scanStream({ match: fullPattern });
+    const stream = redisClient.scanStream({ match: fullPattern });
     const keys: string[] = [];
 
     stream.on('data', (resultKeys: string[]) => {
@@ -394,7 +399,7 @@ export async function invalidateCachePattern(
     });
 
     if (keys.length > 0) {
-      await redis.del(...keys);
+      await redisClient.del(...keys);
       logger.info(
         'Cache pattern invalidated (Redis)',
         { pattern: fullPattern, count: keys.length },

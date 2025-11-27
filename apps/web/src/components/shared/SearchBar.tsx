@@ -87,7 +87,6 @@ export function SearchBar({
           />
         </button>
       )}
-        {/* @ts-expect-error - Next.js styled-jsx types */}
       <style jsx>{`
         input::placeholder {
           color: hsl(var(--muted-foreground));

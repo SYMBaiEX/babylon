@@ -67,7 +67,9 @@ export class BenchmarkHistoryService {
       predictionAccuracy: input.metrics.predictionMetrics.accuracy,
       perpWinRate: input.metrics.perpMetrics.winRate,
       optimalityScore: input.metrics.optimalityScore,
-      detailedMetrics: input.metrics satisfies JsonValue,
+      detailedMetrics: JSON.parse(
+        JSON.stringify(input.metrics)
+      ) as JsonValue,
       baselinePnlDelta: input.baselineComparison?.pnlDelta ?? null,
       baselineAccuracyDelta: input.baselineComparison?.accuracyDelta ?? null,
       improved: input.baselineComparison?.improved ?? null,
