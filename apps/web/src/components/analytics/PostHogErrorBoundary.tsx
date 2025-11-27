@@ -51,14 +51,22 @@ export class PostHogErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Track error with PostHog
     if (posthog) {
-      posthog.capture('$exception', {
+      const properties: Record<string, string | boolean> = {
         $exception_type: error.name || 'Error',
         $exception_message: error.message,
-        $exception_stack: error.stack,
-        componentStack: errorInfo.componentStack,
         errorBoundary: true,
         timestamp: new Date().toISOString(),
-      });
+      };
+      
+      if (error.stack) {
+        properties.$exception_stack = error.stack;
+      }
+      
+      if (errorInfo.componentStack) {
+        properties.componentStack = errorInfo.componentStack;
+      }
+      
+      posthog.capture('$exception', properties);
     }
 
     // Also log using logger

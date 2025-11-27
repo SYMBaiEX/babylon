@@ -11,7 +11,7 @@ import {
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
 import { cn } from '@babylon/shared';
-import type { CommentCardProps } from '@babylon/shared';
+import type { CommentCardProps, CommentWithReplies } from '@babylon/shared';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 
@@ -276,7 +276,7 @@ export function CommentCard({
               placeholder={`Reply to ${comment.userName}...`}
               replyingToName={comment.userName}
               autoFocus
-              onSubmit={async (replyComment) => {
+              onSubmit={async (replyComment: CommentData) => {
                 setIsReplying(false);
                 // Call onReplySubmit callback if provided to handle optimistic update
                 if (onReplySubmit && replyComment) {
@@ -291,7 +291,7 @@ export function CommentCard({
         {/* Nested replies */}
         {hasReplies && showReplies && (
           <div className="mt-3 space-y-3">
-            {comment.replies.map((reply) => (
+            {comment.replies.map((reply: CommentWithReplies) => (
               <CommentCard
                 key={reply.id}
                 comment={reply}

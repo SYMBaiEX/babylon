@@ -495,7 +495,7 @@ export function FeedCommentSection({
                     postId={postId || ''}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
-                    onReplySubmit={(replyComment) => {
+                    onReplySubmit={(replyComment: CommentData) => {
                       if (replyComment.parentCommentId) {
                         handleReplySubmit(
                           replyComment,

@@ -439,6 +439,7 @@ export {
   sql,
   sum,
 } from 'drizzle-orm';
+export type { SQL } from 'drizzle-orm';
 // Re-export database service
 export {
   DatabaseService,

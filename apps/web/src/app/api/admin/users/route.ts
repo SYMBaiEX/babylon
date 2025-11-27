@@ -89,7 +89,6 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
-import type { SQL } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import {
@@ -106,6 +105,7 @@ import {
   positions,
   reactions,
   reports,
+  type SQL,
   userBlocks,
   userMutes,
   users,

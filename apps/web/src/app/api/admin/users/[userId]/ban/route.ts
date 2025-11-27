@@ -94,7 +94,8 @@ import { db } from '@babylon/db';
 import { requireAdmin } from '@babylon/api';
 import { BusinessLogicError, NotFoundError } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger, distributePointsToReporters } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { distributePointsToReporters } from '@babylon/api';
 import { syncReputationToERC8004 } from '@babylon/agents';
 import { invalidateReputationCache } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
 

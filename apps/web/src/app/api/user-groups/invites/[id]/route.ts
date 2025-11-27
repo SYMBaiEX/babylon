@@ -119,13 +119,14 @@
  * ```
  */
 
-import { and, eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
 import {
+  and,
   chatParticipants,
   chats,
+  db,
+  eq,
   notifications,
   userGroupInvites,
   userGroupMembers,

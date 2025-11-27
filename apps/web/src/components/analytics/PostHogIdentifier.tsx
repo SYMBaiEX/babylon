@@ -28,30 +28,54 @@ export function PostHogIdentifier() {
 
     // Identify user when authenticated
     if (authenticated && user?.id && user.id !== identifiedUserId.current) {
-      posthog.identify(user.id, {
-        username: user.username,
-        displayName: user.displayName,
-        walletAddress: user.walletAddress,
+      const properties: Record<string, string | number | boolean | null> = {
         hasProfileImage: Boolean(user.profileImageUrl),
         hasBio: Boolean(user.bio),
-        profileComplete: user.profileComplete,
-        onChainRegistered: user.onChainRegistered,
-        hasFarcaster: user.hasFarcaster,
-        hasTwitter: user.hasTwitter,
-        farcasterUsername: user.farcasterUsername,
-        twitterUsername: user.twitterUsername,
-        reputationPoints: user.reputationPoints,
-        // Track when user was created
-        createdAt: user.createdAt,
-      });
+        profileComplete: user.profileComplete ?? false,
+        onChainRegistered: user.onChainRegistered ?? false,
+        hasFarcaster: user.hasFarcaster ?? false,
+        hasTwitter: user.hasTwitter ?? false,
+        authenticated: true,
+      };
+      
+      if (user.username) {
+        properties.username = user.username;
+      }
+      if (user.displayName) {
+        properties.displayName = user.displayName;
+      }
+      if (user.walletAddress) {
+        properties.walletAddress = user.walletAddress;
+      }
+      if (user.farcasterUsername) {
+        properties.farcasterUsername = user.farcasterUsername;
+      }
+      if (user.twitterUsername) {
+        properties.twitterUsername = user.twitterUsername;
+      }
+      if (user.reputationPoints !== undefined) {
+        properties.reputationPoints = user.reputationPoints;
+      }
+      if (user.createdAt) {
+        properties.createdAt = user.createdAt;
+      }
+      
+      posthog.identify(user.id, properties);
       identifiedUserId.current = user.id;
 
-      // Set user properties
-      posthog.people?.set({
-        username: user.username,
-        displayName: user.displayName,
-        authenticated: true,
-      });
+      // Set user properties (people API is optional and may not exist)
+      if ('people' in posthog && posthog.people && typeof posthog.people.set === 'function') {
+        const peopleProperties: Record<string, string | boolean> = {
+          authenticated: true,
+        };
+        if (user.username) {
+          peopleProperties.username = user.username;
+        }
+        if (user.displayName) {
+          peopleProperties.displayName = user.displayName;
+        }
+        posthog.people.set(peopleProperties);
+      }
     }
 
     // Reset on logout

@@ -128,7 +128,7 @@ import { logger } from '@babylon/shared';
 import {
   evaluateReport,
   storeEvaluationResult,
-} from '@babylon/shared';
+} from '@babylon/api';
 import { AdminReportActionSchema } from '@babylon/shared';
 
 /**

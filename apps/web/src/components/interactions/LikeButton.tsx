@@ -118,6 +118,8 @@ export function LikeButton({
   showCount = true,
   className,
 }: LikeButtonProps & { initialReactionType?: ReactionType }) {
+  // Ensure size is properly typed for index access
+  const sizeKey: 'sm' | 'md' | 'lg' = size;
   const [currentReaction, setCurrentReaction] =
     useState<ReactionType>(initialReactionType);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -230,16 +232,16 @@ export function LikeButton({
             'flex items-center transition-all duration-200',
             'bg-transparent hover:opacity-70',
             isLiked ? fallbackReaction.color : 'text-muted-foreground',
-            sizeClasses[size],
+            sizeClasses[sizeKey],
             isLoading && 'cursor-wait opacity-50',
             className
           )}
         >
           {isLoading ? (
-            <Skeleton className={cn('rounded', skeletonSizes[size])} />
+            <Skeleton className={cn('rounded', skeletonSizes[sizeKey])} />
           ) : (
             <FallbackIcon
-              size={iconSizes[size]}
+              size={iconSizes[sizeKey]}
               className="transition-all duration-200"
             />
           )}
@@ -267,17 +269,17 @@ export function LikeButton({
           'flex items-center transition-all duration-200',
           'bg-transparent hover:opacity-70',
           isLiked ? reaction.color : 'text-muted-foreground',
-          sizeClasses[size],
+          sizeClasses[sizeKey],
           isAnimating && 'scale-110',
           isLoading && 'cursor-wait opacity-50',
           className
         )}
       >
         {isLoading ? (
-          <Skeleton className={cn('rounded', skeletonSizes[size])} />
+          <Skeleton className={cn('rounded', skeletonSizes[sizeKey])} />
         ) : (
           <Icon
-            size={iconSizes[size]}
+            size={iconSizes[sizeKey]}
             className={cn(
               'transition-all duration-200',
               isLiked && reaction.fill && 'fill-current',

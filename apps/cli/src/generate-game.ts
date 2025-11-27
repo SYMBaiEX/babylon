@@ -157,6 +157,7 @@ function parseArgs(): CLIOptions {
 
 /**
  * Type guard to validate GameHistory structure from JsonValue
+ * After runtime validation, we can safely assert the type
  */
 function validateGameHistory(value: JsonValue): GameHistory {
   if (
@@ -216,8 +217,16 @@ function validateGameHistory(value: JsonValue): GameHistory {
     }
   }
 
-  // Safe cast after runtime validation of all required fields
-  return obj as unknown as GameHistory;
+  // After runtime validation, we can safely assert the type
+  // The object structure matches GameHistory interface exactly
+  return {
+    gameNumber: obj.gameNumber as number,
+    completedAt: obj.completedAt as string,
+    summary: obj.summary as string,
+    keyOutcomes: obj.keyOutcomes as GameHistory['keyOutcomes'],
+    highlights: obj.highlights as string[],
+    topMoments: obj.topMoments as string[],
+  };
 }
 
 /**

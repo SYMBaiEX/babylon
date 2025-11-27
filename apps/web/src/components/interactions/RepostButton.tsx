@@ -68,6 +68,8 @@ export function RepostButton({
   className,
   postData,
 }: RepostButtonProps) {
+  // Ensure size is properly typed for index access
+  const sizeKey: 'sm' | 'md' | 'lg' = size;
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [quoteComment, setQuoteComment] = useState('');
@@ -182,17 +184,17 @@ export function RepostButton({
           'flex items-center transition-all duration-200',
           'bg-transparent hover:opacity-70',
           isShared ? 'text-green-600' : 'text-muted-foreground',
-          sizeClasses[size],
+          sizeClasses[sizeKey],
           isAnimating && 'scale-110',
           isLoading && 'cursor-wait opacity-50',
           className
         )}
       >
         {isLoading ? (
-          <Skeleton className={cn('rounded', skeletonSizes[size])} />
+          <Skeleton className={cn('rounded', skeletonSizes[sizeKey])} />
         ) : (
           <Repeat2
-            size={iconSizes[size]}
+            size={iconSizes[sizeKey]}
             className={cn(
               'transition-all duration-200',
               isAnimating && 'rotate-180'

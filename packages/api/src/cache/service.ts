@@ -15,12 +15,34 @@
 
 import type { Redis as UpstashRedis } from '@upstash/redis';
 import { logger } from '@babylon/shared';
-import { redis, redisClientType } from '../redis/client';
+import { redis, redisClientType, type RedisClientType } from '../redis/client';
 
 // Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
 type IORedisInstance = {
   set: (key: string, value: string, mode: string, ttl: number) => Promise<string>;
+  scanStream: (opts: { match: string }) => NodeJS.ReadableStream;
+  del: (...keys: string[]) => Promise<unknown>;
 };
+
+/**
+ * Type guard to check if Redis client is IORedisInstance
+ */
+function isIORedisInstance(
+  client: typeof redis,
+  type: RedisClientType
+): client is IORedisInstance {
+  return type === 'standard' && client !== null;
+}
+
+/**
+ * Type guard to check if Redis client is UpstashRedis
+ */
+function isUpstashRedis(
+  client: typeof redis,
+  type: RedisClientType
+): client is UpstashRedis {
+  return type === 'upstash' && client !== null;
+}
 
 /**
  * Cache options
@@ -256,12 +278,14 @@ export async function setCache<T>(
 
   const serialized = JSON.stringify(value);
 
-  if (redis && redisClientType) {
-    if (redisClientType === 'upstash') {
-      await (redis as UpstashRedis).set(fullKey, serialized, { ex: ttl });
-    } else {
-      await (redis as IORedisInstance).set(fullKey, serialized, 'EX', ttl);
-    }
+  if (isUpstashRedis(redis, redisClientType)) {
+    await redis.set(fullKey, serialized, { ex: ttl });
+    logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
+    return;
+  }
+
+  if (isIORedisInstance(redis, redisClientType)) {
+    await redis.set(fullKey, serialized, 'EX', ttl);
     logger.debug('Cache set (Redis)', { key: fullKey, ttl }, 'CacheService');
     return;
   }
@@ -312,19 +336,14 @@ export async function invalidateCachePattern(
     : pattern;
 
   // Invalidate in Redis
-  if (redis && redisClientType === 'upstash') {
+  if (isUpstashRedis(redis, redisClientType)) {
     logger.warn(
       'Pattern invalidation not fully supported with Upstash Redis',
       { pattern: fullPattern },
       'CacheService'
     );
-  } else if (redis && redisClientType === 'standard') {
-    // Type assertion needed because TS can't narrow union based on separate variable
-    const ioRedis = redis as unknown as {
-      scanStream: (opts: { match: string }) => NodeJS.ReadableStream;
-      del: (...keys: string[]) => Promise<unknown>;
-    };
-    const stream = ioRedis.scanStream({ match: fullPattern });
+  } else if (isIORedisInstance(redis, redisClientType)) {
+    const stream = redis.scanStream({ match: fullPattern });
     const keys: string[] = [];
 
     stream.on('data', (resultKeys: string[]) => {
@@ -337,7 +356,7 @@ export async function invalidateCachePattern(
     });
 
     if (keys.length > 0) {
-      await ioRedis.del(...keys);
+      await redis.del(...keys);
       logger.info(
         'Cache pattern invalidated (Redis)',
         { pattern: fullPattern, count: keys.length },

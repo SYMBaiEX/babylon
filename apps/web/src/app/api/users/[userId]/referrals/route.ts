@@ -100,9 +100,9 @@ export const GET = withErrorHandling(
     // Check if the authenticated user has a database record
     if (!authUser.dbUserId) {
       throw new NotFoundError(
-        'User',
-        userId,
-        'User profile not found. Please complete onboarding first.'
+        'User profile not found. Please complete onboarding first.',
+        'USER_NOT_FOUND',
+        { userId }
       );
     }
 

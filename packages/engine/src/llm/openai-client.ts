@@ -272,7 +272,7 @@ export class BabylonLLMClient {
           max_tokens: maxTokens,
           // Disable reasoning for qwen3 models to prevent thinking tokens from consuming output budget
           ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
-        } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+        });
 
         let content = response.choices[0]!.message.content!;
         let finishReason = response.choices[0]!.finish_reason;
@@ -340,7 +340,7 @@ export class BabylonLLMClient {
                 temperature,
                 max_tokens: maxTokens,
                 ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
-              } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+              });
 
             const continuationContent =
               continuationResponse.choices[0]!.message.content!;

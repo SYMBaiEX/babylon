@@ -35,6 +35,26 @@ type IORedisInstance = {
 type RedisClient = UpstashRedis | IORedisInstance | null;
 export type RedisClientType = 'upstash' | 'standard' | null;
 
+/**
+ * Type guard to check if Redis client is IORedisInstance
+ */
+function isIORedisInstance(
+  client: RedisClient,
+  type: RedisClientType
+): client is IORedisInstance {
+  return type === 'standard' && client !== null;
+}
+
+/**
+ * Type guard to check if Redis client is UpstashRedis
+ */
+function isUpstashRedis(
+  client: RedisClient,
+  type: RedisClientType
+): client is UpstashRedis {
+  return type === 'upstash' && client !== null;
+}
+
 // Check if Upstash Redis is configured (Vercel production)
 const hasUpstashConfig = () => {
   return !!(
@@ -174,14 +194,12 @@ export async function safePublish(
 ): Promise<boolean> {
   if (!redis) return false;
 
-  if (redisType === 'upstash') {
-    await (redis as UpstashRedis).rpush(channel, message);
-    await (redis as UpstashRedis).expire(channel, 60);
-  } else if (redisType === 'standard') {
-    // Type assertion needed because TS can't narrow union based on separate variable
-    const ioredis = redis as unknown as IORedisInstance;
-    await ioredis.rpush(channel, message);
-    await ioredis.expire(channel, 60);
+  if (isUpstashRedis(redis, redisType)) {
+    await redis.rpush(channel, message);
+    await redis.expire(channel, 60);
+  } else if (isIORedisInstance(redis, redisType)) {
+    await redis.rpush(channel, message);
+    await redis.expire(channel, 60);
   }
   return true;
 }
@@ -202,15 +220,13 @@ export async function safePoll(channel: string, count = 10): Promise<string[]> {
 
   let messages: string[] | string | null = null;
 
-  if (redisType === 'upstash') {
-    const result = await (redis as UpstashRedis).lpop(channel, count);
+  if (isUpstashRedis(redis, redisType)) {
+    const result = await redis.lpop(channel, count);
     messages = result as string[] | string | null;
-  } else if (redisType === 'standard') {
-    // Type assertion needed because TS can't narrow union based on separate variable
-    const ioredis = redis as unknown as IORedisInstance;
+  } else if (isIORedisInstance(redis, redisType)) {
     const items: string[] = [];
     for (let i = 0; i < count; i++) {
-      const item = await ioredis.lpop(channel);
+      const item = await redis.lpop(channel);
       if (!item) break;
       items.push(item);
     }
@@ -238,14 +254,12 @@ export async function closeRedis(): Promise<void> {
   if (isClosing) return;
   isClosing = true;
 
-  if (redis && redisType === 'standard') {
-    // Type assertion needed because TS can't narrow union based on separate variable
-    const ioRedisClient = redis as unknown as IORedisInstance;
+  if (isIORedisInstance(redis, redisType)) {
     if (
-      ioRedisClient.status === 'ready' ||
-      ioRedisClient.status === 'connect'
+      redis.status === 'ready' ||
+      redis.status === 'connect'
     ) {
-      await ioRedisClient.quit();
+      await redis.quit();
       logger.info('Redis connection closed', undefined, 'Redis');
     }
   }

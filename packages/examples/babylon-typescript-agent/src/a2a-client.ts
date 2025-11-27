@@ -31,22 +31,6 @@ interface A2ACommand {
   params: Record<string, JsonValue>;
 }
 
-/**
- * A2A client with agentCardPromise property (internal SDK type)
- */
-interface A2AClientInternal {
-  agentCardPromise?: Promise<AgentCard>;
-}
-
-/**
- * A2A response result type (from SDK)
- */
-interface A2AResponseResult {
-  kind?: 'task' | 'message';
-  task?: Task;
-  message?: Message;
-}
-
 export interface BabylonA2AClientConfig {
   /** Base URL of Babylon server (e.g., http://localhost:3000) */
   baseUrl: string;
@@ -124,12 +108,10 @@ export class BabylonA2AClient {
    */
   async connect(): Promise<void> {
     // Initialize client
-    const client = await this.getClient();
+    await this.getClient();
 
-    // Get agent card - A2AClient has internal agentCardPromise property
-    // Use type assertion to access internal property
-    const clientInternal = client as unknown as A2AClientInternal;
-    this.agentCard = (await clientInternal.agentCardPromise) || null;
+    // Note: agentCardPromise is private in A2AClient, so we can't access it directly
+    // The agent card will be fetched when needed through other methods
 
     // Verify connection by sending a test message
     await this.sendMessage('ping', { operation: 'stats.system', params: {} });
@@ -193,13 +175,23 @@ export class BabylonA2AClient {
       return response.result.message as Message;
     }
     // Fallback - check if result itself is a Task or Message
-    const result = response.result as unknown as A2AResponseResult;
-    if (result && typeof result === 'object' && 'kind' in result) {
-      if (result.kind === 'task' && result.task) {
-        return result.task as Task;
+    const result = response.result as unknown;
+    if (result && typeof result === 'object') {
+      const resultObj = result as Record<string, unknown>;
+      // Check if it's a Task (has 'status' property)
+      if ('status' in resultObj && 'id' in resultObj) {
+        return resultObj as unknown as Task;
       }
-      if (result.kind === 'message' && result.message) {
-        return result.message as Message;
+      // Check if it's a Message (has 'kind' === 'message' or 'parts' property)
+      if (('kind' in resultObj && resultObj.kind === 'message') || 'parts' in resultObj) {
+        return resultObj as unknown as Message;
+      }
+      // Check if it's wrapped in a result object
+      if ('task' in resultObj && resultObj.task) {
+        return resultObj.task as unknown as Task;
+      }
+      if ('message' in resultObj && resultObj.message) {
+        return resultObj.message as unknown as Message;
       }
     }
     throw new Error('Unexpected response format');
@@ -250,6 +242,169 @@ export class BabylonA2AClient {
     }
 
     throw new Error(`Task ${taskId} did not complete within ${maxWaitMs}ms`);
+  }
+
+  /**
+   * Type guard to check if value is an array of a specific type
+   */
+  private isArrayOf<T>(
+    value: unknown,
+    itemGuard: (item: unknown) => item is T
+  ): value is T[] {
+    return Array.isArray(value) && value.every(itemGuard);
+  }
+
+  /**
+   * Type guard for A2APredictionMarket
+   */
+  private isA2APredictionMarket(value: unknown): value is A2APredictionMarket {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      'question' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string' &&
+      typeof (value as Record<string, JsonValue>).question === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2APerpetualMarket
+   */
+  private isA2APerpetualMarket(value: unknown): value is A2APerpetualMarket {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'ticker' in value &&
+      'currentPrice' in value &&
+      typeof (value as Record<string, JsonValue>).ticker === 'string' &&
+      typeof (value as Record<string, JsonValue>).currentPrice === 'number'
+    );
+  }
+
+  /**
+   * Type guard for A2AFeedPost
+   */
+  private isA2AFeedPost(value: unknown): value is A2AFeedPost {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      'content' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string' &&
+      typeof (value as Record<string, JsonValue>).content === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2AChat
+   */
+  private isA2AChat(value: unknown): value is A2AChat {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2ANotification
+   */
+  private isA2ANotification(value: unknown): value is A2ANotification {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2ALeaderboardEntry
+   */
+  private isA2ALeaderboardEntry(value: unknown): value is A2ALeaderboardEntry {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'userId' in value &&
+      typeof (value as Record<string, JsonValue>).userId === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2ATrendingTag
+   */
+  private isA2ATrendingTag(value: unknown): value is A2ATrendingTag {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'tag' in value &&
+      typeof (value as Record<string, JsonValue>).tag === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2AOrganization
+   */
+  private isA2AOrganization(value: unknown): value is A2AOrganization {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2AUserSearchResult
+   */
+  private isA2AUserSearchResult(value: unknown): value is A2AUserSearchResult {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2AMarketPosition
+   */
+  private isA2AMarketPosition(value: unknown): value is A2AMarketPosition {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      'marketId' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string' &&
+      typeof (value as Record<string, JsonValue>).marketId === 'string'
+    );
+  }
+
+  /**
+   * Type guard for A2APerpPosition
+   */
+  private isA2APerpPosition(value: unknown): value is A2APerpPosition {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'id' in value &&
+      'ticker' in value &&
+      typeof (value as Record<string, JsonValue>).id === 'string' &&
+      typeof (value as Record<string, JsonValue>).ticker === 'string'
+    );
   }
 
   /**
@@ -445,12 +600,18 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        predictions: Array.isArray(result.predictions) ? (result.predictions as unknown as A2APredictionMarket[]) : [],
+        predictions: Array.isArray(result.predictions) && this.isArrayOf(result.predictions, this.isA2APredictionMarket)
+          ? result.predictions
+          : [],
       };
     }
 
     const result = this.extractResult(response);
-      return { predictions: Array.isArray(result.predictions) ? (result.predictions as unknown as A2APredictionMarket[]) : [] };
+    return {
+      predictions: Array.isArray(result.predictions) && this.isArrayOf(result.predictions, this.isA2APredictionMarket)
+        ? result.predictions
+        : [],
+    };
   }
 
   /**
@@ -468,11 +629,19 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { perpetuals: Array.isArray(result.perpetuals) ? (result.perpetuals as unknown as A2APerpetualMarket[]) : [] };
+      return {
+        perpetuals: Array.isArray(result.perpetuals) && this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
+          ? result.perpetuals
+          : [],
+      };
     }
 
     const result = this.extractResult(response);
-    return { perpetuals: Array.isArray(result.perpetuals) ? (result.perpetuals as unknown as A2APerpetualMarket[]) : [] };
+    return {
+      perpetuals: Array.isArray(result.perpetuals) && this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
+        ? result.perpetuals
+        : [],
+    };
   }
 
   /**
@@ -504,11 +673,11 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { balance: (result.balance as number) || 0 };
+      return { balance: typeof result.balance === 'number' ? result.balance : 0 };
     }
 
     const result = this.extractResult(response);
-    return { balance: (result.balance as number) || 0 };
+    return { balance: typeof result.balance === 'number' ? result.balance : 0 };
   }
 
   /**
@@ -535,17 +704,25 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        marketPositions: Array.isArray(result.marketPositions) ? (result.marketPositions as unknown as A2AMarketPosition[]) : [],
-        perpPositions: Array.isArray(result.perpPositions) ? (result.perpPositions as unknown as A2APerpPosition[]) : [],
-        totalPnL: (result.totalPnL as number) || 0,
+        marketPositions: Array.isArray(result.marketPositions) && this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
+          ? result.marketPositions
+          : [],
+        perpPositions: Array.isArray(result.perpPositions) && this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
+          ? result.perpPositions
+          : [],
+        totalPnL: typeof result.totalPnL === 'number' ? result.totalPnL : 0,
       };
     }
 
     const result = this.extractResult(response);
     return {
-      marketPositions: Array.isArray(result.marketPositions) ? (result.marketPositions as unknown as A2AMarketPosition[]) : [],
-      perpPositions: Array.isArray(result.perpPositions) ? (result.perpPositions as unknown as A2APerpPosition[]) : [],
-      totalPnL: (result.totalPnL as number) || 0,
+      marketPositions: Array.isArray(result.marketPositions) && this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
+        ? result.marketPositions
+        : [],
+      perpPositions: Array.isArray(result.perpPositions) && this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
+        ? result.perpPositions
+        : [],
+      totalPnL: typeof result.totalPnL === 'number' ? result.totalPnL : 0,
     };
   }
 
@@ -590,11 +767,19 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { posts: Array.isArray(result.posts) ? (result.posts as unknown as A2AFeedPost[]) : [] };
+      return {
+        posts: Array.isArray(result.posts) && this.isArrayOf(result.posts, this.isA2AFeedPost)
+          ? result.posts
+          : [],
+      };
     }
 
     const result = this.extractResult(response);
-    return { posts: Array.isArray(result.posts) ? (result.posts as unknown as A2AFeedPost[]) : [] };
+    return {
+      posts: Array.isArray(result.posts) && this.isArrayOf(result.posts, this.isA2AFeedPost)
+        ? result.posts
+        : [],
+    };
   }
 
   /**
@@ -738,11 +923,19 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { chats: Array.isArray(result.chats) ? (result.chats as unknown as A2AChat[]) : [] };
+      return {
+        chats: Array.isArray(result.chats) && this.isArrayOf(result.chats, this.isA2AChat)
+          ? result.chats
+          : [],
+      };
     }
 
     const result = this.extractResult(response);
-    return { chats: Array.isArray(result.chats) ? (result.chats as unknown as A2AChat[]) : [] };
+    return {
+      chats: Array.isArray(result.chats) && this.isArrayOf(result.chats, this.isA2AChat)
+        ? result.chats
+        : [],
+    };
   }
 
   /**
@@ -760,12 +953,18 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        notifications: Array.isArray(result.notifications) ? (result.notifications as unknown as A2ANotification[]) : [],
+        notifications: Array.isArray(result.notifications) && this.isArrayOf(result.notifications, this.isA2ANotification)
+          ? result.notifications
+          : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { notifications: Array.isArray(result.notifications) ? (result.notifications as unknown as A2ANotification[]) : [] };
+    return {
+      notifications: Array.isArray(result.notifications) && this.isArrayOf(result.notifications, this.isA2ANotification)
+        ? result.notifications
+        : [],
+    };
   }
 
   /**
@@ -788,12 +987,18 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        leaderboard: Array.isArray(result.leaderboard) ? (result.leaderboard as unknown as A2ALeaderboardEntry[]) : [],
+        leaderboard: Array.isArray(result.leaderboard) && this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
+          ? result.leaderboard
+          : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { leaderboard: Array.isArray(result.leaderboard) ? (result.leaderboard as unknown as A2ALeaderboardEntry[]) : [] };
+    return {
+      leaderboard: Array.isArray(result.leaderboard) && this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
+        ? result.leaderboard
+        : [],
+    };
   }
 
   /**
@@ -894,11 +1099,19 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { tags: Array.isArray(result.tags) ? (result.tags as unknown as A2ATrendingTag[]) : [] };
+      return {
+        tags: Array.isArray(result.tags) && this.isArrayOf(result.tags, this.isA2ATrendingTag)
+          ? result.tags
+          : [],
+      };
     }
 
     const result = this.extractResult(response);
-    return { tags: Array.isArray(result.tags) ? (result.tags as unknown as A2ATrendingTag[]) : [] };
+    return {
+      tags: Array.isArray(result.tags) && this.isArrayOf(result.tags, this.isA2ATrendingTag)
+        ? result.tags
+        : [],
+    };
   }
 
   /**
@@ -919,12 +1132,18 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        organizations: Array.isArray(result.organizations) ? (result.organizations as unknown as A2AOrganization[]) : [],
+        organizations: Array.isArray(result.organizations) && this.isArrayOf(result.organizations, this.isA2AOrganization)
+          ? result.organizations
+          : [],
       };
     }
 
     const result = this.extractResult(response);
-    return { organizations: Array.isArray(result.organizations) ? (result.organizations as unknown as A2AOrganization[]) : [] };
+    return {
+      organizations: Array.isArray(result.organizations) && this.isArrayOf(result.organizations, this.isA2AOrganization)
+        ? result.organizations
+        : [],
+    };
   }
 
   /**
@@ -946,11 +1165,19 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { users: Array.isArray(result.users) ? (result.users as unknown as A2AUserSearchResult[]) : [] };
+      return {
+        users: Array.isArray(result.users) && this.isArrayOf(result.users, this.isA2AUserSearchResult)
+          ? result.users
+          : [],
+      };
     }
 
     const result = this.extractResult(response);
-    return { users: Array.isArray(result.users) ? (result.users as unknown as A2AUserSearchResult[]) : [] };
+    return {
+      users: Array.isArray(result.users) && this.isArrayOf(result.users, this.isA2AUserSearchResult)
+        ? result.users
+        : [],
+    };
   }
 
   /**

@@ -94,7 +94,6 @@ import { FEE_CONFIG } from '@babylon/engine';
 import { asUser } from '@babylon/db';
 import {
   BusinessLogicError,
-  InsufficientFundsError,
   NotFoundError,
 } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
@@ -160,7 +159,15 @@ export const POST = withErrorHandling(
     );
     if (!hasFunds) {
       const balance = await WalletService.getBalance(user.userId);
-      throw new InsufficientFundsError(amount, Number(balance.balance), 'USD');
+      throw new BusinessLogicError(
+        `Insufficient funds. Required: ${amount}, Available: ${Number(balance.balance)}`,
+        'INSUFFICIENT_FUNDS',
+        {
+          required: amount,
+          available: Number(balance.balance),
+          currency: 'USD',
+        }
+      );
     }
 
     // Execute trade with RLS

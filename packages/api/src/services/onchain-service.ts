@@ -6,6 +6,8 @@ import {
   decodeEventLog,
   http,
   type WalletClient,
+  type WriteContractParameters,
+  type Abi,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
@@ -516,10 +518,10 @@ export async function processOnchainRegistration({
     try {
       registrationTxHash = await walletClient.writeContract({
         address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
+        abi: identityRegistryAbi as Abi,
         functionName: 'registerAgent',
         args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-      } as unknown as Parameters<typeof walletClient.writeContract>[0]);
+      } as WriteContractParameters<typeof identityRegistryAbi, 'registerAgent'>);
     } catch (registrationError) {
       const message = extractErrorMessage(
         registrationError as Error | { message?: string }
@@ -681,10 +683,10 @@ export async function processOnchainRegistration({
     );
     const bootstrapTx = await walletClient.writeContract({
       address: REPUTATION_SYSTEM,
-      abi: reputationSystemAbi,
+      abi: reputationSystemAbi as Abi,
       functionName: 'submitFeedback',
       args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
-    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
+    } as WriteContractParameters<typeof reputationSystemAbi, 'submitFeedback'>);
     await publicClient.waitForTransactionReceipt({
       hash: bootstrapTx,
       confirmations: 1,

@@ -158,10 +158,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Track onchain registration event
   trackServerEvent(user.userId, 'onchain_registration_completed', {
-    username: payload.username,
-    tokenId: result.tokenId,
-    wasAlreadyRegistered: result.alreadyRegistered,
-    isAgent: user.isAgent,
+    ...(payload.username && { username: payload.username }),
+    ...(result.tokenId !== undefined && { tokenId: result.tokenId }),
+    wasAlreadyRegistered: result.alreadyRegistered ?? false,
+    isAgent: user.isAgent ?? false,
     hadReferral: Boolean(payload.referralCode),
   }).catch((error) => {
     logger.warn('Failed to track onchain_registration_completed event', {

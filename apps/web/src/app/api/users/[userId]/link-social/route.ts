@@ -271,8 +271,8 @@ export const POST = withErrorHandling(
     // Track social account linked event
     trackServerEvent(canonicalUserId, 'social_account_linked', {
       platform,
-      username: username || undefined,
-      address: address || undefined,
+      ...(username && { username }),
+      ...(address && { address }),
       wasAlreadyLinked: alreadyLinked,
       pointsAwarded: pointsResult?.pointsAwarded || 0,
     }).catch((error) => {

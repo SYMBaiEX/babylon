@@ -98,7 +98,7 @@ import { authenticate, successResponse } from '@babylon/api';
 import { AuthorizationError, BusinessLogicError } from '@babylon/api';
 import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
-import { confirmOnchainProfileUpdate } from '@babylon/shared';
+import { confirmOnchainProfileUpdate } from '@babylon/api';
 import { trackServerEvent } from '@babylon/shared';
 import {
   checkProfileUpdateRateLimit,
@@ -252,8 +252,8 @@ export const POST = withErrorHandling(
 
         backendSignedTxHash = result.txHash;
         // ProfileMetadata is structurally compatible with StringRecord<JsonValue>
-        // (all fields are string | null | undefined, which are JsonValue types)
-        onchainMetadata = result.metadata as StringRecord<JsonValue>;
+        // (all fields are string | null, which are JsonValue types)
+        onchainMetadata = result.metadata as unknown as StringRecord<JsonValue>;
 
         logger.info(
           'Backend-signed profile update successful',

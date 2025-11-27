@@ -330,7 +330,7 @@ export function EntitySearchAutocomplete({
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         input::placeholder {
           color: hsl(var(--muted-foreground));
           opacity: 0.6;

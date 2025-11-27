@@ -3,7 +3,7 @@
  * Blockchain integration for agent identity and reputation
  */
 
-import { ethers } from 'ethers';
+import { ethers, type Contract } from 'ethers';
 import { z } from 'zod';
 import { Logger } from '@babylon/shared';
 import type { AgentProfile, AgentReputation, JsonValue } from '../types/a2a';
@@ -11,6 +11,12 @@ import type {
   IdentityRegistryContract,
   ReputationSystemContract,
 } from '../types/contracts';
+
+/**
+ * Type helper to create a contract that implements our interface
+ * ethers.Contract is dynamically typed, so we assert it implements our interface
+ */
+type TypedContract<T> = Contract & T;
 
 const CapabilitiesSchema = z.object({
   strategies: z.array(z.string()).optional(),
@@ -56,20 +62,21 @@ export class RegistryClient {
     // Initialize all properties in constructor to satisfy strictPropertyInitialization
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl);
 
-    // ethers.Contract doesn't have strong typing, so we cast to our interface types
-    // These contracts implement the methods defined in IdentityRegistryContract and ReputationSystemContract
-    // Cast through unknown since ethers.Contract doesn't overlap with our typed interfaces
-    this.identityRegistry = new ethers.Contract(
+    // ethers.Contract is dynamically typed based on ABI
+    // We assert it implements our interface types since the ABI matches
+    const identityContract = new ethers.Contract(
       config.identityRegistryAddress,
       IDENTITY_ABI,
       this.provider
-    ) as unknown as IdentityRegistryContract;
+    ) as TypedContract<IdentityRegistryContract>;
+    this.identityRegistry = identityContract;
 
-    this.reputationSystem = new ethers.Contract(
+    const reputationContract = new ethers.Contract(
       config.reputationSystemAddress,
       REPUTATION_ABI,
       this.provider
-    ) as unknown as ReputationSystemContract;
+    ) as TypedContract<ReputationSystemContract>;
+    this.reputationSystem = reputationContract;
 
     this.logger = new Logger('info');
   }

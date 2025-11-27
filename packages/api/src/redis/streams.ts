@@ -7,7 +7,7 @@
 
 import { Redis as UpstashRedis } from '@upstash/redis';
 import { logger } from '@babylon/shared';
-import { redis, redisClientType } from './client';
+import { redis, redisClientType, type RedisClientType } from './client';
 import type { JsonValue } from '../types';
 
 // Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
@@ -15,6 +15,26 @@ type IORedisInstance = {
   xadd: (...args: unknown[]) => Promise<string>;
   xread: (...args: unknown[]) => Promise<unknown>;
 };
+
+/**
+ * Type guard to check if Redis client is IORedisInstance
+ */
+function isIORedisInstance(
+  client: typeof redis,
+  type: RedisClientType
+): client is IORedisInstance {
+  return type === 'standard' && client !== null;
+}
+
+/**
+ * Type guard to check if Redis client is UpstashRedis
+ */
+function isUpstashRedis(
+  client: typeof redis,
+  type: RedisClientType
+): client is UpstashRedis {
+  return type === 'upstash' && client !== null;
+}
 
 /**
  * Convert a payload object into Redis stream field/value pairs (stringified).
@@ -43,7 +63,7 @@ export async function streamAdd(
 
   const entry = encodeStreamPayload(payload);
 
-  if (redisClientType === 'upstash') {
+  if (isUpstashRedis(redis, redisClientType)) {
     const trim =
       opts?.maxlen !== undefined
         ? {
@@ -54,7 +74,7 @@ export async function streamAdd(
           }
         : undefined;
 
-    return await (redis as UpstashRedis).xadd(
+    return await redis.xadd(
       stream,
       '*',
       entry,
@@ -62,7 +82,7 @@ export async function streamAdd(
     );
   }
 
-  if (redisClientType === 'standard') {
+  if (isIORedisInstance(redis, redisClientType)) {
     // Build args in correct Redis XADD order:
     // XADD key [MAXLEN [= | ~] threshold] <* | id> field value [field value ...]
     const args: (string | number)[] = [stream];
@@ -77,9 +97,7 @@ export async function streamAdd(
       args.push(key, String(value));
     });
 
-    // Type assertion needed because TS can't narrow union based on separate variable
-    const ioredis = redis as unknown as IORedisInstance;
-    return await ioredis.xadd(...(args as [string, string]));
+    return await redis.xadd(...(args as [string, string]));
   }
 
   return null;
@@ -134,9 +152,9 @@ export async function streamRead(
   if (!redis || streams.length === 0 || ids.length === 0) return [];
 
   try {
-    if (redisClientType === 'upstash') {
+    if (isUpstashRedis(redis, redisClientType)) {
       // Upstash xread returns complex nested array structure
-      const res: unknown = await (redis as UpstashRedis).xread(streams, ids, {
+      const res: unknown = await redis.xread(streams, ids, {
         count: opts?.count,
       });
 
@@ -163,15 +181,13 @@ export async function streamRead(
       return parsed;
     }
 
-    if (redisClientType === 'standard') {
-      // Type assertion needed because TS can't narrow union based on separate variable
-      const ioredis = redis as unknown as IORedisInstance;
+    if (isIORedisInstance(redis, redisClientType)) {
       const streamArgs = [...streams, ...ids] as string[];
 
       // Call appropriate overload based on whether COUNT is specified
       const res = opts?.count
-        ? await ioredis.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
-        : await ioredis.xread('STREAMS', ...streamArgs);
+        ? await redis.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
+        : await redis.xread('STREAMS', ...streamArgs);
 
       const parsed: StreamMessage[] = [];
       if (Array.isArray(res)) {

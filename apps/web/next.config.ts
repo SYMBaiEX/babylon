@@ -126,21 +126,34 @@ const nextConfig: NextConfig = {
       '@react-native-async-storage/async-storage': false,
     };
 
-    // NOTE: Removed electron/electron-fetch stubs - testing if IgnorePlugin is sufficient
-    // If build fails, these stubs may still be needed
-    // const electronStubPath = path.join(process.cwd(), 'webpack-electron-stub.js');
-    // config.resolve.alias = {
-    //   ...config.resolve.alias,
-    //   electron: electronStubPath,
-    // };
-    // const electronFetchStubPath = path.join(
-    //   process.cwd(),
-    //   'webpack-electron-fetch-stub.js'
-    // );
+    // Alias electron to stub module to prevent webpack from trying to resolve it
+    // electron-fetch checks process.versions.electron at runtime, so the stub is safe
+    const electronStubPath = path.join(process.cwd(), 'webpack-electron-stub.js');
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      electron: electronStubPath,
+    };
+
+    // Ignore electron module completely - electron-fetch will handle it at runtime
+    // This prevents webpack from trying to resolve electron during bundling
+    const electronFetchStubPath = path.join(
+      process.cwd(),
+      'webpack-electron-fetch-stub.js'
+    );
     config.plugins = config.plugins || [];
 
-    // Removed NormalModuleReplacementPlugin for electron/electron-fetch
-    // Relying on IgnorePlugin instead (see lines 168, 180-183)
+    // Apply replacements early, before other plugins
+    config.plugins.unshift(
+      // Use NormalModuleReplacementPlugin to replace electron with our stub
+      // This is more reliable than IgnorePlugin for this case
+      new webpack.NormalModuleReplacementPlugin(/^electron$/, electronStubPath),
+      // Replace electron-fetch with our stub to prevent electron dependency
+      // electron-fetch checks process.versions.electron at runtime anyway
+      new webpack.NormalModuleReplacementPlugin(
+        /^electron-fetch$/,
+        electronFetchStubPath
+      )
+    );
 
     // Also use IgnorePlugin as a fallback for any remaining cases
     // CRITICAL: For client builds, completely ignore server-only packages

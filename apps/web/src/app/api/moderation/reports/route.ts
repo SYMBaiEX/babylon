@@ -109,7 +109,7 @@ import { logger } from '@babylon/shared';
 import {
   evaluateReport,
   storeEvaluationResult,
-} from '@babylon/shared';
+} from '@babylon/api';
 import { generateSnowflakeId } from '@babylon/shared';
 import {
   CreateReportSchema,

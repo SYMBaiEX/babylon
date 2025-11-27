@@ -253,7 +253,7 @@ export const POST = withErrorHandling(
       trackServerEvent(user.userId, 'user_followed', {
         targetUserId: targetId,
         targetType: 'user',
-        targetUsername: targetUserDetails?.username,
+        ...(targetUserDetails?.username && { targetUsername: targetUserDetails.username }),
       }).catch((error) => {
         logger.warn('Failed to track user_followed event', { error });
       });
@@ -373,8 +373,8 @@ export const POST = withErrorHandling(
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'actor',
-      actorName: actorDetails?.name,
-      actorTier: actorDetails?.tier,
+      ...(actorDetails?.name && { actorName: actorDetails.name }),
+      ...(actorDetails?.tier && { actorTier: actorDetails.tier }),
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
