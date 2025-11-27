@@ -78,7 +78,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getReputationBreakdown } from '@babylon/api';
+import { getReputationBreakdown } from '@babylon/engine';
 import { requireUserByIdentifier } from '@babylon/api';
 
 interface RouteParams {

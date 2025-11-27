@@ -181,15 +181,15 @@ export async function GET(request: NextRequest) {
   const username = searchParams.get('username');
 
   if (!username) {
-    return errorResponse('Username is required', 400);
+    return errorResponse('Username is required', 'VALIDATION_ERROR', 400);
   }
 
   if (username.length < 3) {
-    return errorResponse('Username must be at least 3 characters', 400);
+    return errorResponse('Username must be at least 3 characters', 'VALIDATION_ERROR', 400);
   }
 
   if (username.length > 20) {
-    return errorResponse('Username must be 20 characters or less', 400);
+    return errorResponse('Username must be 20 characters or less', 'VALIDATION_ERROR', 400);
   }
 
   try {
@@ -220,6 +220,6 @@ export async function GET(request: NextRequest) {
       { error, username },
       'GET /api/onboarding/check-username'
     );
-    return errorResponse('Failed to check username availability', 500);
+    return errorResponse('Failed to check username availability', 'INTERNAL_ERROR', 500);
   }
 }

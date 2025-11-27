@@ -175,23 +175,25 @@ export class BabylonA2AClient {
       return response.result.message as Message;
     }
     // Fallback - check if result itself is a Task or Message
-    const result = response.result as unknown;
+    const result = response.result;
     if (result && typeof result === 'object') {
-      const resultObj = result as Record<string, unknown>;
       // Check if it's a Task (has 'status' property)
-      if ('status' in resultObj && 'id' in resultObj) {
-        return resultObj as unknown as Task;
+      if ('status' in result && 'id' in result && typeof result.id === 'string') {
+        return result as Task;
       }
       // Check if it's a Message (has 'kind' === 'message' or 'parts' property)
-      if (('kind' in resultObj && resultObj.kind === 'message') || 'parts' in resultObj) {
-        return resultObj as unknown as Message;
+      if (
+        ('kind' in result && result.kind === 'message') ||
+        ('parts' in result && Array.isArray(result.parts))
+      ) {
+        return result as Message;
       }
       // Check if it's wrapped in a result object
-      if ('task' in resultObj && resultObj.task) {
-        return resultObj.task as unknown as Task;
+      if ('task' in result && result.task && typeof result.task === 'object' && 'id' in result.task) {
+        return result.task as Task;
       }
-      if ('message' in resultObj && resultObj.message) {
-        return resultObj.message as unknown as Message;
+      if ('message' in result && result.message && typeof result.message === 'object' && 'parts' in result.message) {
+        return result.message as Message;
       }
     }
     throw new Error('Unexpected response format');

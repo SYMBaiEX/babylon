@@ -11,7 +11,11 @@ import {
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
 import { cn } from '@babylon/shared';
-import type { CommentCardProps, CommentWithReplies } from '@babylon/shared';
+import type {
+  CommentCardProps,
+  CommentData,
+  CommentWithReplies,
+} from '@babylon/shared';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 

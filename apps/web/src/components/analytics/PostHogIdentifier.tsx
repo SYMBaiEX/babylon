@@ -64,7 +64,10 @@ export function PostHogIdentifier() {
       identifiedUserId.current = user.id;
 
       // Set user properties (people API is optional and may not exist)
-      if ('people' in posthog && posthog.people && typeof posthog.people.set === 'function') {
+      const posthogWithPeople = posthog as typeof posthog & {
+        people?: { set: (properties: Record<string, string | boolean>) => void };
+      };
+      if (posthogWithPeople.people && typeof posthogWithPeople.people.set === 'function') {
         const peopleProperties: Record<string, string | boolean> = {
           authenticated: true,
         };
@@ -74,7 +77,7 @@ export function PostHogIdentifier() {
         if (user.displayName) {
           peopleProperties.displayName = user.displayName;
         }
-        posthog.people.set(peopleProperties);
+        posthogWithPeople.people.set(peopleProperties);
       }
     }
 

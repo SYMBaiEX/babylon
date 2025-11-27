@@ -104,7 +104,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getReputationLeaderboard } from '@babylon/api';
+import { getReputationLeaderboard } from '@babylon/engine';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

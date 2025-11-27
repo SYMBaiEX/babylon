@@ -2006,7 +2006,6 @@ export function ComingSoon() {
           </div>
         </footer>
 
-        {/* @ts-expect-error - Next.js styled-jsx types */}
         <style jsx>{`
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -3322,7 +3321,6 @@ export function ComingSoon() {
         userId={selectedUserId}
       />
 
-      {/* @ts-expect-error - Next.js styled-jsx types */}
       <style jsx>{`
         @keyframes fadeIn {
           from {

@@ -15,10 +15,12 @@ type ExecuteActionFn = (
 ) => Promise<{ success: boolean; data?: JsonValue; error?: string }>;
 
 // Access private executeAction method for testing
-// Uses unknown cast to bypass TypeScript private access check
-const coordinator = autonomousPlanningCoordinator as unknown as {
+// Type assertion needed to access private method for testing purposes
+// The executeAction method exists on AutonomousPlanningCoordinator but is private
+type CoordinatorWithExecuteAction = typeof autonomousPlanningCoordinator & {
   executeAction: ExecuteActionFn;
 };
+const coordinator = autonomousPlanningCoordinator as CoordinatorWithExecuteAction;
 
 describe('AutonomousPlanningCoordinator executeAction', () => {
   const runtime = {} as IAgentRuntime;

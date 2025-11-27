@@ -275,7 +275,13 @@ export const POST = withErrorHandling(
           throw new BusinessLogicError(
             'Question has expired',
             'QUESTION_EXPIRED',
-            { marketId, resolutionDate: question.resolutionDate }
+            {
+            marketId,
+            resolutionDate:
+              question.resolutionDate instanceof Date
+                ? question.resolutionDate.toISOString()
+                : question.resolutionDate,
+          }
           );
         }
 
@@ -353,7 +359,10 @@ export const POST = withErrorHandling(
       if (new Date() > market.endDate) {
         throw new BusinessLogicError('Market has expired', 'MARKET_EXPIRED', {
           marketId,
-          endDate: market.endDate,
+          endDate:
+            market.endDate instanceof Date
+              ? market.endDate.toISOString()
+              : market.endDate,
         });
       }
 

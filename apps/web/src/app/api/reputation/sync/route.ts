@@ -100,7 +100,7 @@ import {
   periodicReputationSync,
   syncUserReputationNow,
 } from '@babylon/agents';
-import { getReputationBreakdown } from '@babylon/api';
+import { getReputationBreakdown } from '@babylon/engine';
 import { requireUserByIdentifier } from '@babylon/api';
 
 interface SyncRequest {

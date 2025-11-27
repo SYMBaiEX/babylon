@@ -438,9 +438,9 @@ export const POST = withErrorHandling(
 
     trackServerEvent(canonicalUserId, 'post_shared', {
       postId,
-      originalAuthorId: postAuthor?.authorId,
+      ...(postAuthor?.authorId && { originalAuthorId: postAuthor.authorId }),
       shareCount,
-      repostId,
+      ...(repostId && { repostId }),
     });
 
     return successResponse(

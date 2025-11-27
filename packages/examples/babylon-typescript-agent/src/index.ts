@@ -118,6 +118,7 @@ async function main() {
     log('🤔 Making decision...');
 
     // A2A client returns data that matches our DecisionContext interface structure
+    // Convert A2A types to DecisionContext types
     const decision = await decisionMaker.decide({
       portfolio: {
         balance: portfolio.balance,
@@ -125,11 +126,20 @@ async function main() {
         pnl: portfolio.pnl,
       },
       markets: {
-        predictions: markets.predictions as unknown as PredictionMarket[],
-        perps: markets.perps as unknown as PerpMarket[],
+        predictions: markets.predictions.map((m): PredictionMarket => ({
+          question: m.question || '',
+          yesShares: typeof m.yesShares === 'number' ? m.yesShares : 0,
+          noShares: typeof m.noShares === 'number' ? m.noShares : 0,
+        })),
+        perps: markets.perps.map((p): PerpMarket => ({
+          name: p.ticker || '',
+          currentPrice: typeof p.currentPrice === 'number' ? p.currentPrice : 0,
+        })),
       },
       feed: {
-        posts: feed.posts as unknown as FeedPost[],
+        posts: feed.posts.map((p): FeedPost => ({
+          content: p.content || '',
+        })),
       },
       memory: recentMemory,
     });

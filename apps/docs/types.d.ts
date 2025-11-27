@@ -24,3 +24,8 @@ declare module 'swagger-ui-react' {
   const SwaggerUI: ComponentType<SwaggerUIProps>;
   export default SwaggerUI;
 }
+
+// Type declarations for MDX
+declare module 'mdx/types' {
+  export type MDXComponents = Record<string, unknown>;
+}

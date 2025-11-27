@@ -43,7 +43,7 @@
 import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
 import { db } from '@babylon/db';
-import { calculatePortfolioPnL } from '@babylon/shared';
+import { calculatePortfolioPnL } from '@babylon/engine';
 
 // Use Node.js runtime for full database support
 export const runtime = 'nodejs';

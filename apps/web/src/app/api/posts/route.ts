@@ -445,9 +445,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .where(inArray(organizations.id, authorIds))
         : [],
     ]);
-    const userMap = new Map(usersList.map((u: { id: string }) => [u.id, u]));
-    const actorMap = new Map(actorsList.map((a: { id: string }) => [a.id, a]));
-    const orgMap = new Map(orgsList.map((o: { id: string }) => [o.id, o]));
+    const userMap = new Map(usersList.map((u) => [u.id, u]));
+    const actorMap = new Map(actorsList.map((a) => [a.id, a]));
+    const orgMap = new Map(orgsList.map((o) => [o.id, o]));
 
     // Get interaction counts for all filtered posts in parallel
     const postIds = filteredPosts.map((p: Post) => p.id);

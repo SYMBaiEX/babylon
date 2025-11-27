@@ -65,7 +65,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
 import { NPCInvestmentManager } from '@babylon/engine';
-import { getReputationBreakdown } from '@babylon/api';
+import { getReputationBreakdown } from '@babylon/engine';
 
 interface AllocationRequest {
   npcUserId: string;

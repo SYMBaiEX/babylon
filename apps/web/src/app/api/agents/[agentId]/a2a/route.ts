@@ -87,31 +87,7 @@ import {
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 
-// Type guards for accessing SDK internal structure (needed for tasks/list handling)
-// These are needed because the SDK doesn't expose these properties publicly
-function hasRequestHandler(
-  handler: JsonRpcTransportHandler
-): handler is JsonRpcTransportHandler & {
-  requestHandler: DefaultRequestHandlerType;
-} {
-  return (
-    handler !== null &&
-    typeof handler === 'object' &&
-    'requestHandler' in handler
-  );
-}
-
-function hasTaskStore(
-  handler: DefaultRequestHandlerType
-): handler is DefaultRequestHandlerType & {
-  taskStore: ExtendedTaskStore;
-} {
-  return (
-    handler !== null &&
-    typeof handler === 'object' &&
-    'taskStore' in handler
-  );
-}
+// Type assertions are used instead of type guards due to intersection type issues
 
 export const dynamic = 'force-dynamic';
 
@@ -303,19 +279,14 @@ export async function POST(
       if (body.method === 'tasks/list') {
         const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
         
-        // Use type guards to safely access internal SDK structure
-        if (!hasRequestHandler(jsonRpcHandler)) {
-          throw new Error('Invalid JSON-RPC handler structure');
-        }
-        
-        const requestHandler = jsonRpcHandler.requestHandler;
-        if (!hasTaskStore(requestHandler)) {
-          throw new Error(
-            'Invalid request handler structure - missing taskStore'
-          );
-        }
-        
-        const taskStore = requestHandler.taskStore;
+        // Use type assertions to access internal SDK structure
+        // These properties exist at runtime but aren't in the public types
+        const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+          requestHandler: DefaultRequestHandlerType & {
+            taskStore: ExtendedTaskStore;
+          };
+        };
+        const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
 
         const params = (body.params || {}) as {
           contextId?: string;

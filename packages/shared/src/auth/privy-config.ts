@@ -47,7 +47,7 @@ export interface ExtendedPrivyClientConfig
   };
   externalWallets?: {
     solana?: {
-      connectors?: never[]; // Explicitly disable Solana external wallets
+      connectors?: Array<never>; // Explicitly disable Solana external wallets
     };
   };
 }
@@ -91,12 +91,9 @@ export const privyConfig: {
       },
       // Solana is not configured - we only support Ethereum wallets
     },
-    // Explicitly disable Solana external wallets to prevent warnings
-    externalWallets: {
-      solana: {
-        connectors: [], // Empty array disables Solana external wallet connectors
-      },
-    },
+    // Solana external wallets are disabled by omitting the configuration
+    // Including an empty connectors array causes runtime errors
+    // externalWallets is omitted entirely to disable Solana support
     defaultChain: CHAIN,
     // Wallet configuration - supports all chains including Base L2 and Localnet
     supportedChains: [CHAIN, base, baseSepolia, mainnet, sepolia],
