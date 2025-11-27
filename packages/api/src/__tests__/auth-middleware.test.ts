@@ -1,6 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import type { NextRequest } from 'next/server';
-import { authenticate } from '../auth-middleware';
 
 // Type for mock request
 interface MockNextRequest {
@@ -15,9 +14,6 @@ interface MockNextRequest {
 const mockVerifyAgentSession = mock();
 const mockVerifyAuthToken = mock();
 const mockSelect = mock();
-const mockPrivyClient = mock(() => ({
-  verifyAuthToken: mockVerifyAuthToken,
-}));
 
 // Mock the local agent-auth module
 mock.module('../agent-auth', () => ({
@@ -37,9 +33,15 @@ mock.module('@babylon/db', () => ({
   },
 }));
 
+// Mock @privy-io/server-auth - PrivyClient is a class that gets instantiated
 mock.module('@privy-io/server-auth', () => ({
-  PrivyClient: mockPrivyClient,
+  PrivyClient: class MockPrivyClient {
+    verifyAuthToken = mockVerifyAuthToken;
+  },
 }));
+
+// Import after mocks are set up
+import { authenticate } from '../auth-middleware';
 
 const createRequest = (token: string): NextRequest =>
   ({
