@@ -218,8 +218,5 @@ export class PredictionMarketService {
   }
 }
 
-// Re-export legacy class names for backward compatibility
-export { PredictionMarketService as PredictionMarketEventService };
-export { PredictionMarketService as PredictionPriceHistoryService };
 
 

@@ -13,7 +13,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
-import { GroupChatSweep, NPCGroupDynamicsService } from '@babylon/engine';
+import { GroupChatService, NPCGroupDynamicsService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Test data cleanup tracking
@@ -412,7 +412,7 @@ describe('Group Chat Dynamics Integration Tests', () => {
       }
 
       // Calculate kick chance - user has never posted
-      const decision = await GroupChatSweep.calculateKickChance(
+      const decision = await GroupChatService.calculateKickChance(
         user.id,
         chat.id
       );

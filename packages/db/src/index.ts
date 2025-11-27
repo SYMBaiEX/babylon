@@ -452,9 +452,7 @@ export {
   $disconnect,
   $executeRaw,
   $queryRaw,
-  generateId,
   isRetryableError,
-  now,
   withRetry,
 } from './helpers';
 // Re-export snowflake utilities from @babylon/shared

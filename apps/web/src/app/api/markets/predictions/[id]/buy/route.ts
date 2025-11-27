@@ -102,8 +102,7 @@ import { trackServerEvent } from '@babylon/shared';
 import { PredictionPricing } from '@babylon/engine';
 import { FeeService } from '@babylon/engine';
 import {
-  PredictionMarketEventService,
-  PredictionPriceHistoryService,
+  PredictionMarketService,
 } from '@babylon/engine';
 import { WalletService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
@@ -487,7 +486,7 @@ export const POST = withErrorHandling(
       logger.warn('Failed to track prediction_bought event', { error });
     });
 
-    await PredictionPriceHistoryService.recordSnapshot({
+    await PredictionMarketService.recordSnapshot({
       marketId,
       yesPrice: calculation.newYesPrice,
       noPrice: calculation.newNoPrice,
@@ -512,7 +511,7 @@ export const POST = withErrorHandling(
       );
     });
 
-    PredictionMarketEventService.emitTradeUpdate({
+    PredictionMarketService.emitTradeUpdate({
       marketId,
       yesPrice: calculation.newYesPrice,
       noPrice: calculation.newNoPrice,

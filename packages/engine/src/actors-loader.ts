@@ -25,28 +25,11 @@ import type {
 } from './types/shared';
 
 /**
- * Relationship data structure (legacy - relationships are now database-backed)
- * Simpler structure than the full ActorRelationship interface
- * Note: Relationships are dynamic and stored in the database, not files
- */
-export interface RelationshipFileData {
-  actor1Id: string;
-  actor2Id: string;
-  relationshipType: string;
-  strength: number; // 0.0 to 1.0
-  sentiment: number; // -1.0 to 1.0
-  history: string;
-  actor1FollowsActor2: boolean;
-  actor2FollowsActor1: boolean;
-}
-
-/**
  * Options for selective data loading
  */
 export interface LoadActorsOptions {
   includeActors?: boolean;
   includeOrganizations?: boolean;
-  includeRelationships?: boolean;
 }
 
 /**
@@ -56,13 +39,11 @@ export interface LoadActorsOptions {
 const dataCache: {
   actors: Map<string, ActorData>;
   organizations: Map<string, Organization>;
-  relationships: Map<string, RelationshipFileData>;
   allActors: ActorData[] | null;
   allOrganizations: Organization[] | null;
 } = {
   actors: new Map(),
   organizations: new Map(),
-  relationships: new Map(),
   allActors: null,
   allOrganizations: null,
 };
@@ -73,7 +54,6 @@ const dataCache: {
 export function clearDataCache(): void {
   dataCache.actors.clear();
   dataCache.organizations.clear();
-  dataCache.relationships.clear();
   dataCache.allActors = null;
   dataCache.allOrganizations = null;
 }
@@ -122,14 +102,13 @@ export function loadActorsData(options?: LoadActorsOptions): ActorsDatabase {
   // Default to loading everything if no options provided
   const includeActors = options?.includeActors !== false;
   const includeOrganizations = options?.includeOrganizations !== false;
-  const includeRelationships = options?.includeRelationships !== false;
 
   return {
     actors: includeActors ? [...(dataCache.allActors ?? [])] : [],
     organizations: includeOrganizations
       ? [...(dataCache.allOrganizations ?? [])]
       : [],
-    relationships: includeRelationships ? [] : [], // Relationships are now dynamic, stored in DB
+    relationships: [], // Relationships are now dynamic, stored in DB
   };
 }
 
@@ -170,34 +149,6 @@ export function loadOrganizationById(orgId: string): Organization | null {
     return dataCache.organizations.get(orgId)!;
   }
 
-  return null;
-}
-
-/**
- * Loads a relationship between two actors - OPTIMIZED with caching
- * Checks cache first, then loads from individual file (if relationships are stored as files)
- *
- * **Performance:** Only reads file once, subsequent calls use cache
- *
- * @param actor1Id First actor ID (will be sorted alphabetically)
- * @param actor2Id Second actor ID (will be sorted alphabetically)
- * @returns Relationship data or null if not found
- */
-export function loadRelationship(
-  actor1Id: string,
-  actor2Id: string
-): RelationshipFileData | null {
-  // Sort IDs alphabetically (relationships are stored with sorted names)
-  const [id1, id2] = [actor1Id, actor2Id].sort();
-  const relId = `${id1}_${id2}`;
-
-  // Check cache first (fastest - no I/O)
-  if (dataCache.relationships.has(relId)) {
-    return dataCache.relationships.get(relId)!;
-  }
-
-  // Relationships are now dynamic and stored in the database
-  // This function is kept for backwards compatibility but returns null
   return null;
 }
 

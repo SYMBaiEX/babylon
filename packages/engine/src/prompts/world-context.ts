@@ -101,7 +101,6 @@ export function generateWorldActors(maxActors?: number): string {
   const actorsData = loadActorsData({
     includeActors: true,
     includeOrganizations: false,
-    includeRelationships: false,
   });
   const actors = actorsData.actors as ActorData[];
 
@@ -410,7 +409,6 @@ export function getParodyActorNames(): string[] {
   const actorsData = loadActorsData({
     includeActors: true,
     includeOrganizations: false,
-    includeRelationships: false,
   });
   const actors = actorsData.actors as ActorData[];
   return actors.map((actor) => actor.name);
@@ -429,7 +427,6 @@ export function getForbiddenRealNames(): string[] {
   const actorsData = loadActorsData({
     includeActors: true,
     includeOrganizations: false,
-    includeRelationships: false,
   });
   const actors = actorsData.actors as ActorData[];
   return actors.map((actor) => actor.realName);

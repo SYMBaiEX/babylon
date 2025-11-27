@@ -19,7 +19,7 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
-import { GroupChatService as GroupChatInvite } from './group-chat-service';
+import { GroupChatService } from './group-chat-service';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -191,7 +191,7 @@ export class ActorSocialActions {
             chatId = existingChat.id;
             chatName = existingChat.name || chatName;
           }
-          await GroupChatInvite.recordInvite(
+          await GroupChatService.recordInvite(
             userId,
             actor.id,
             chatId,

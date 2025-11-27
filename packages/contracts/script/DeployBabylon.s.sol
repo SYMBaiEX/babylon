@@ -2,29 +2,29 @@
 pragma solidity ^0.8.27;
 
 import "forge-std/Script.sol";
-import "../contracts/core/Diamond.sol";
-import "../contracts/core/DiamondCutFacet.sol";
-import "../contracts/core/DiamondLoupeFacet.sol";
-import "../contracts/core/PredictionMarketFacet.sol";
-import "../contracts/core/OracleFacet.sol";
-import "../contracts/core/LiquidityPoolFacet.sol";
-import "../contracts/core/PerpetualMarketFacet.sol";
-import "../contracts/core/ReferralSystemFacet.sol";
-import "../contracts/core/PriceStorageFacet.sol";
-import "../contracts/identity/ERC8004IdentityRegistry.sol";
-import "../contracts/identity/ERC8004ReputationSystem.sol";
-import "../contracts/oracles/ChainlinkOracleMock.sol";
-import "../contracts/oracles/UMAOracleMock.sol";
-import "../contracts/libraries/LibDiamond.sol";
+import "../core/Diamond.sol";
+import "../core/DiamondCutFacet.sol";
+import "../core/DiamondLoupeFacet.sol";
+import "../core/PredictionMarketFacet.sol";
+import "../core/OracleFacet.sol";
+import "../core/LiquidityPoolFacet.sol";
+import "../core/PerpetualMarketFacet.sol";
+import "../core/ReferralSystemFacet.sol";
+import "../core/PriceStorageFacet.sol";
+import "../identity/ERC8004IdentityRegistry.sol";
+import "../identity/ERC8004ReputationSystem.sol";
+import "../oracles/ChainlinkOracleMock.sol";
+import "../oracles/UMAOracleMock.sol";
+import "../libraries/LibDiamond.sol";
 
 // Oracle system imports
-import {BabylonGameOracle} from "../contracts/src/game/BabylonGameOracle.sol";
-import {Predimarket} from "../contracts/src/prediction-markets/Predimarket.sol";
-import {MarketFactory} from "../contracts/src/prediction-markets/MarketFactory.sol";
-import {Contest} from "../contracts/src/game/Contest.sol";
-import {BanManager} from "../contracts/src/moderation/BanManager.sol";
-import {ReportingSystem} from "../contracts/src/moderation/ReportingSystem.sol";
-import {ReputationLabelManager} from "../contracts/src/moderation/ReputationLabelManager.sol";
+import {BabylonGameOracle} from "../src/game/BabylonGameOracle.sol";
+import {Predimarket} from "../src/prediction-markets/Predimarket.sol";
+import {MarketFactory} from "../src/prediction-markets/MarketFactory.sol";
+import {Contest} from "../src/game/Contest.sol";
+import {BanManager} from "../src/moderation/BanManager.sol";
+import {ReportingSystem} from "../src/moderation/ReportingSystem.sol";
+import {ReputationLabelManager} from "../src/moderation/ReputationLabelManager.sol";
 
 // Mock ERC20 for testing
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";

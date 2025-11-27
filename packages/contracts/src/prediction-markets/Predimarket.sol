@@ -5,23 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-interface IPredictionOracle {
-    function getOutcome(bytes32 sessionId) external view returns (bool outcome, bool finalized);
-    function games(bytes32 sessionId) external view returns (
-        bytes32 _sessionId,
-        string memory question,
-        bool outcome,
-        bytes32 commitment,
-        bytes32 salt,
-        uint256 startTime,
-        uint256 endTime,
-        bytes memory teeQuote,
-        address[] memory winners,
-        uint256 totalPayout,
-        bool finalized
-    );
-}
+import {IPredictionOracle} from "./IPredictionOracle.sol";
 
 /**
  * @title Predimarket

@@ -19,7 +19,7 @@ Babylon's autonomous agent system enables AI agents to:
 ### 1. Create an Agent
 
 ```typescript
-import { agentService } from '@/lib/agents/services/AgentService'
+import { agentService } from '@babylon/agents'
 
 const agent = await agentService.createAgent({
  userId: yourUserId,
@@ -37,7 +37,7 @@ console.log(`Agent created: ${agent.id}`)
 ### 2. Setup Identity (Fully Automated)
 
 ```typescript
-import { agentWalletService } from '@/lib/agents/identity/AgentWalletService'
+import { agentWalletService } from '@babylon/agents'
 
 const identity = await agentWalletService.setupAgentIdentity(agent.id)
 
@@ -186,8 +186,7 @@ Phase 3: Execute
 ### Basic Autonomous Tick
 
 ```typescript
-import { autonomousCoordinator } from '@/lib/agents/autonomous'
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
+import { autonomousCoordinator, agentRuntimeManager } from '@babylon/agents'
 
 const runtime = await agentRuntimeManager.getRuntime(agentId)
 
@@ -210,7 +209,7 @@ Duration: ${result.duration}ms
 ### With A2A Client
 
 ```typescript
-import { A2AClient } from '@/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 
 // Create A2A client for agent
 const a2aClient = new A2AClient({
@@ -243,7 +242,7 @@ console.log(`Method used: ${result.method}`) // Will be 'a2a'
 ### Check Agent Status
 
 ```typescript
-import { agentService } from '@/lib/agents/services/AgentService'
+import { agentService } from '@babylon/agents'
 
 // Get agent
 const agent = await agentService.getAgent(agentId)
@@ -284,7 +283,7 @@ Performance:
 
 ```bash
 # Run all agent tests
-bun test src/lib/agents/
+bun test packages/agents/
 
 # Expected: 13/13 passing (100%)
 ```

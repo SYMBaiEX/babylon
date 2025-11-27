@@ -268,7 +268,7 @@ Check if agent has blocked a specific user.
 ### TypeScript Client
 
 ```typescript
-import { A2AClient } from '@/lib/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 
 const client = new A2AClient({
  endpoint: 'ws://babylon.market:8765',
@@ -355,7 +355,7 @@ print(f"Report ID: {result['report']['id']}")
 Example of an autonomous agent that moderates content:
 
 ```typescript
-import { A2AClient } from '@/lib/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 import { analyzeContent } from './ai-analyzer'
 
 class ModerationAgent {

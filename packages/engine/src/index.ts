@@ -109,9 +109,7 @@ export {
   loadActorById,
   loadActorsData,
   loadOrganizationById,
-  loadRelationship,
   type LoadActorsOptions,
-  type RelationshipFileData,
 } from './actors-loader';
 
 // World Facts Service
@@ -270,20 +268,16 @@ export {
 } from './services/market-impact-service';
 
 export {
-  PredictionMarketService as PredictionPriceHistoryService,
+  PredictionMarketService,
+  type BroadcasterFn,
   type PredictionHistoryEventType,
   type PredictionHistorySource,
   type PredictionPriceSnapshot,
-} from './services/prediction-market-service';
-
-export { EarnedPointsService } from './services/earned-points-service';
-
-export {
-  PredictionMarketService as PredictionMarketEventService,
-  type BroadcasterFn,
   type PredictionResolutionEvent,
   type PredictionTradeEvent,
 } from './services/prediction-market-service';
+
+export { EarnedPointsService } from './services/earned-points-service';
 
 export {
   RSSFeedService,

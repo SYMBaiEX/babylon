@@ -64,7 +64,7 @@ export async function GET() {
       openapi?: string;
       swagger?: string;
       [key: string]: unknown;
-    }; // Now automated!
+    };
 
     // Ensure openapi version field is present (required by Swagger UI)
     if (!spec.openapi && !spec.swagger) {

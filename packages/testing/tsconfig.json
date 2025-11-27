@@ -56,7 +56,7 @@
     "shared/**/*",
     "src/**/*"
   ],
-  "exclude": ["node_modules", "manual/**/*", "dist"],
+  "exclude": ["node_modules", "manual/**/*", "dist", "verification/**/*"],
   "references": [
     { "path": "../shared" },
     { "path": "../db" },

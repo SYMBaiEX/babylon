@@ -11,7 +11,7 @@ import { db } from '@babylon/db';
  * Check if database is available and properly configured
  */
 export async function ensureDatabaseReady(): Promise<boolean> {
-  const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
     return false;
@@ -41,8 +41,9 @@ export async function setupTestEnvironment(options?: {
   }
 
   // Ensure DATABASE_URL is available
-  if (!process.env.DATABASE_URL && process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.DATABASE_URL;
+  if (!process.env.DATABASE_URL) {
+    console.warn('⚠️  DATABASE_URL not set - database-dependent tests will be skipped');
+    return;
   }
 
   // Check database readiness
@@ -80,7 +81,7 @@ export async function cleanupTestEnvironment() {
  * Helper to check if tests should skip based on database availability
  */
 export function shouldSkipDatabaseTests(): boolean {
-  const hasDatabase = !!(process.env.DATABASE_URL || process.env.DATABASE_URL);
+  const hasDatabase = !!process.env.DATABASE_URL;
   const skipRequested = process.env.SKIP_DATABASE_TESTS === 'true';
 
   return !hasDatabase || skipRequested;

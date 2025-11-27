@@ -1,8 +1,8 @@
 /**
  * A2A Protocol Endpoint
  *
- * Implements the standard A2A protocol using @a2a-js/sdk
- * Replaces custom methods with official message/send, tasks/get, etc.
+ * Implements the standard A2A protocol using @a2a-js/sdk.
+ * Handles Agent-to-Agent JSON-RPC 2.0 requests over HTTP.
  *
  * @openapi
  * /api/a2a:
@@ -88,7 +88,7 @@ import {
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 
-// Initialize A2A components with full executor (all 63 handlers)
+// Initialize A2A protocol components
 const taskStore = new ExtendedTaskStore();
 const executor = new BabylonAgentExecutor();
 const eventBusManager = new DefaultExecutionEventBusManager();
@@ -103,7 +103,10 @@ const jsonRpcHandler = new JsonRpcTransportHandler(requestHandler);
 export const dynamic = 'force-dynamic';
 
 /**
- * Helper to check API key and return NextResponse on error
+ * Validates API key from request headers.
+ *
+ * @param request - Next.js request object
+ * @returns NextResponse with error if authentication fails, null if valid
  */
 function checkApiKey(request: NextRequest): NextResponse | null {
   const authResult = validateApiKey(
@@ -132,8 +135,13 @@ function checkApiKey(request: NextRequest): NextResponse | null {
 }
 
 /**
- * POST - Handle all A2A methods
- * Methods: message/send, message/stream, tasks/get, tasks/cancel, tasks/list
+ * POST /api/a2a
+ *
+ * Handles A2A protocol JSON-RPC 2.0 requests.
+ * Supports methods: message/send, message/stream, tasks/get, tasks/cancel, tasks/list
+ *
+ * @param request - Next.js request containing JSON-RPC payload
+ * @returns JSON-RPC response with result or error
  */
 export async function POST(request: NextRequest) {
   try {
@@ -173,7 +181,12 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET - Return AgentCard for discovery
+ * GET /api/a2a
+ *
+ * Returns the Babylon agent card for A2A protocol discovery.
+ *
+ * @param request - Next.js request object
+ * @returns Agent card JSON with service information
  */
 export async function GET(request: NextRequest) {
   const authError = checkApiKey(request);

@@ -1,6 +1,6 @@
 # Trajectory Logging for Agent Training
 
-Complete system for recording agent decisions for reinforcement learning training (ART/GRPO/RULER).
+Complete system for recording agent decisions for reinforcement learning training (Atropos/GRPO).
 
 ## Overview
 
@@ -8,7 +8,7 @@ The trajectory logging system captures every decision an autonomous agent makes,
 - **Reinforcement Learning**: Train agents on successful strategies
 - **Decision Analysis**: Understand why agents make specific choices
 - **Performance Optimization**: Identify winning vs losing patterns
-- **Model Training**: Generate datasets for ART, GRPO, and RULER training
+- **Model Training**: Generate datasets for Atropos GRPO training
 
 **Status**: **Production Ready** - 43 automated tests
 
@@ -54,7 +54,7 @@ graph LR
 Add trajectory tables to your database schema:
 
 ```bash
-# Tables are already included in src/db/schema/training.ts
+# Tables are already included in packages/db/src/schema/training.ts
 bun run db:push
 ```
 
@@ -65,7 +65,7 @@ import {
  wrapActionWithLogging,
  logLLMCallFromAction,
  logProviderFromAction
-} from '@elizaos/plugin-trajectory-logger'
+} from '@babylon/agents'
 
 const BUY_SHARES = wrapActionWithLogging({
  name: 'BUY_SHARES',
@@ -107,7 +107,7 @@ const BUY_SHARES = wrapActionWithLogging({
 Define how to score agent decisions:
 
 ```typescript
-import { defineRewardFunction } from '@elizaos/plugin-trajectory-logger'
+import { defineRewardFunction } from '@babylon/agents'
 
 export const tradingReward = defineRewardFunction({
  name: 'trading_performance',
@@ -128,7 +128,7 @@ export const tradingReward = defineRewardFunction({
 ### 4. Export for Training
 
 ```typescript
-import { exportToHuggingFace } from '@elizaos/plugin-trajectory-logger'
+import { exportToHuggingFace } from '@babylon/agents'
 
 const dataset = await exportToHuggingFace({
  minReward: 0.5,
@@ -145,8 +145,8 @@ await dataset.upload('your-org/babylon-trading-trajectories')
 ### Run Comprehensive Tests
 
 ```bash
-cd eliza/plugin-trajectory-logger
-npm test
+cd packages/agents
+bun test
 ```
 
 **Expected**: 43 tests passing
@@ -233,19 +233,23 @@ const dataset = await exportToHuggingFace({
 }
 ```
 
-### Training with ART
+### Training with Atropos
 
 ```python
-from art import ARTTrainer
+from training.atropos_trainer import BabylonAtroposTrainer, AtroposTrainingConfig
 
-trainer = ARTTrainer(
- dataset="your-org/babylon-trading-trajectories",
- base_model="Qwen/Qwen2.5-0.5B-Instruct",
- iterations=1000
+config = AtroposTrainingConfig(
+ model_name="Qwen/Qwen2.5-3B-Instruct",
+ database_url="postgresql://user:pass@host/babylon",
+ api_url="http://localhost:8000",
+ vllm_port=9001,
+ learning_rate=1e-5,
+ judge_model="gpt-4o-mini"
 )
 
-# Train on successful decisions
-model = trainer.train(min_reward=0.7)
+trainer = BabylonAtroposTrainer(config)
+trainer.setup()
+trainer.train()
 ```
 
 ## Best Practices
@@ -295,7 +299,7 @@ const reward = success ? 1 : 0
 ### Example: Trading Agent
 
 ```typescript
-import { wrapActionWithLogging } from '@elizaos/plugin-trajectory-logger'
+import { wrapActionWithLogging } from '@babylon/agents'
 
 const BABYLON_TRADE = wrapActionWithLogging({
  name: 'BABYLON_TRADE',
@@ -375,7 +379,7 @@ export const multiFactorReward = defineRewardFunction({
 ### Data Quality Checks
 
 ```typescript
-import { validateTrajectory } from '@elizaos/plugin-trajectory-logger'
+import { validateTrajectory } from '@babylon/agents'
 
 const isValid = validateTrajectory(trajectory)
 
@@ -390,11 +394,9 @@ if (!isValid.valid) {
 
 ## Resources
 
-- **Plugin Source**: `eliza/plugin-trajectory-logger/`
-- **Complete Guide**: `eliza/plugin-trajectory-logger/README.md`
-- **Example Action**: `eliza/plugin-trajectory-logger/EXAMPLE_ACTION.md`
-- **Data Requirements**: `eliza/plugin-trajectory-logger/DATA_REQUIREMENTS.md`
-- **Testing Checklist**: `eliza/plugin-trajectory-logger/TESTING_CHECKLIST.md`
+- **Plugin Source**: `packages/agents/src/plugins/plugin-trajectory-logger/`
+- **Trajectory Recorder**: `packages/training/src/training/TrajectoryRecorder.ts`
+- **Database Schema**: `packages/db/src/schema/training.ts`
 
 ## Next Steps
 

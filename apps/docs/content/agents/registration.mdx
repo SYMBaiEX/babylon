@@ -75,8 +75,13 @@ export BASE_IDENTITY_REGISTRY_ADDRESS="0x4102F9b209796b53a18B063A438D05C7C9Af31A
 export AGENT0_ENABLED="true"
 export SEPOLIA_RPC_URL="https://ethereum-sepolia-rpc.publicnode.com"
 
-# Register your agent
-bun run agent0:setup
+# Register your agent via API (recommended)
+curl -X POST http://localhost:3000/api/agents/onboard \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Agent", "description": "Trading agent"}'
+
+# Or configure Agent0 via CLI
+bun run src/index.ts agent agent0-config
 ```
 
 This script will:
@@ -177,7 +182,7 @@ console.log('Profile:', {
 Register on Ethereum Sepolia for global agent ecosystem discovery:
 
 ```typescript
-import { Agent0Client } from '@/agents/agent0/Agent0Client';
+import { Agent0Client } from '@babylon/agents';
 
 // IMPORTANT: Use Ethereum Sepolia RPC, not Base
 const agent0 = new Agent0Client({

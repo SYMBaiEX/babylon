@@ -19,11 +19,10 @@ import type {
   RequestContext,
 } from '@a2a-js/sdk/server';
 import { v4 as uuidv4 } from 'uuid';
-import { and, db, eq, follows, or, reports, userBlocks, userMutes } from '@babylon/db';
+import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
-import type { JsonRpcRequest } from '../types/a2a';
-import type { JsonValue } from '../shared/types';
+import type { JsonRpcRequest, JsonValue } from '../types/a2a';
 import {
   handleAppealBanWithEscrow,
   handleCreateEscrowPayment,
@@ -535,47 +534,42 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Check if already blocked
-    const [existingBlock] = await db
-      .select()
-      .from(userBlocks)
-      .where(
-        and(
-          eq(userBlocks.blockerId, agentId),
-          eq(userBlocks.blockedId, targetUserId)
-        )
-      )
-      .limit(1);
+    const existingBlock = await db.userBlock.findFirst({
+      where: {
+        blockerId: agentId,
+        blockedId: targetUserId,
+      },
+    });
 
     if (existingBlock) {
       return { success: false, message: 'User is already blocked' };
     }
 
     // Create block
-    const [block] = await db
-      .insert(userBlocks)
-      .values({
+    const block = await db.userBlock.create({
+      data: {
         id: await generateSnowflakeId(),
         blockerId: agentId,
         blockedId: targetUserId,
         reason: reason || null,
-      })
-      .returning();
+      },
+    });
 
-    // Unfollow if following
-    await db
-      .delete(follows)
-      .where(
-        or(
-          and(
-            eq(follows.followerId, agentId),
-            eq(follows.followingId, targetUserId)
-          ),
-          and(
-            eq(follows.followerId, targetUserId),
-            eq(follows.followingId, agentId)
-          )
-        )
-      );
+    // Unfollow if following (bidirectional - delete both directions)
+    await Promise.all([
+      db.follow.deleteMany({
+        where: {
+          followerId: agentId,
+          followingId: targetUserId,
+        },
+      }),
+      db.follow.deleteMany({
+        where: {
+          followerId: targetUserId,
+          followingId: agentId,
+        },
+      }),
+    ]);
 
     return { success: true, message: 'User blocked successfully', block };
   }
@@ -620,28 +614,26 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Check if already muted
-    const [existingMute] = await db
-      .select()
-      .from(userMutes)
-      .where(
-        and(eq(userMutes.muterId, agentId), eq(userMutes.mutedId, targetUserId))
-      )
-      .limit(1);
+    const existingMute = await db.userMute.findFirst({
+      where: {
+        muterId: agentId,
+        mutedId: targetUserId,
+      },
+    });
 
     if (existingMute) {
       return { success: false, message: 'User is already muted' };
     }
 
     // Create mute
-    const [mute] = await db
-      .insert(userMutes)
-      .values({
+    const mute = await db.userMute.create({
+      data: {
         id: await generateSnowflakeId(),
         muterId: agentId,
         mutedId: targetUserId,
         reason: reason || null,
-      })
-      .returning();
+      },
+    });
 
     return { success: true, message: 'User muted successfully', mute };
   }
@@ -696,9 +688,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Create report
-    const [report] = await db
-      .insert(reports)
-      .values({
+    const report = await db.report.create({
+      data: {
         id: await generateSnowflakeId(),
         reporterId: agentId,
         reportedUserId: targetUserId,
@@ -709,8 +700,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
         priority,
         status: 'pending',
         updatedAt: new Date(),
-      })
-      .returning();
+      },
+    });
 
     return { success: true, message: 'Report submitted successfully', report };
   }
@@ -744,9 +735,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
     }
 
     // Create report
-    const [report] = await db
-      .insert(reports)
-      .values({
+    const report = await db.report.create({
+      data: {
         id: await generateSnowflakeId(),
         reporterId: agentId,
         reportedPostId: postId,
@@ -757,8 +747,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
         priority,
         status: 'pending',
         updatedAt: new Date(),
-      })
-      .returning();
+      },
+    });
 
     return { success: true, message: 'Report submitted successfully', report };
   }
@@ -850,20 +840,17 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 
-    const [block] = await db
-      .select({
-        id: userBlocks.id,
-        createdAt: userBlocks.createdAt,
-        reason: userBlocks.reason,
-      })
-      .from(userBlocks)
-      .where(
-        and(
-          eq(userBlocks.blockerId, agentId),
-          eq(userBlocks.blockedId, targetUserId)
-        )
-      )
-      .limit(1);
+    const block = await db.userBlock.findFirst({
+      where: {
+        blockerId: agentId,
+        blockedId: targetUserId,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        reason: true,
+      },
+    });
 
     return {
       isBlocked: !!block,
@@ -878,17 +865,17 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 
-    const [mute] = await db
-      .select({
-        id: userMutes.id,
-        createdAt: userMutes.createdAt,
-        reason: userMutes.reason,
-      })
-      .from(userMutes)
-      .where(
-        and(eq(userMutes.muterId, agentId), eq(userMutes.mutedId, targetUserId))
-      )
-      .limit(1);
+    const mute = await db.userMute.findFirst({
+      where: {
+        muterId: agentId,
+        mutedId: targetUserId,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        reason: true,
+      },
+    });
 
     return {
       isMuted: !!mute,

@@ -1,6 +1,18 @@
-import { z } from 'zod';
-import { JsonValueSchema } from './shared/types';
+/**
+ * A2A Protocol Validation Schemas
+ *
+ * Zod schemas for validating A2A protocol method parameters.
+ * All schemas follow the A2A Protocol v0.3.0 specification.
+ *
+ * @public
+ */
 
+import { z } from 'zod';
+import { JsonValueSchema } from '@babylon/shared';
+
+/**
+ * Parameters for agent discovery requests
+ */
 export const DiscoverParamsSchema = z.object({
   filters: z
     .object({
@@ -37,7 +49,9 @@ export const PaymentReceiptParamsSchema = z.object({
   txHash: z.string(),
 });
 
-// ==================== Market Operations ====================
+/**
+ * Parameters for listing prediction markets
+ */
 export const GetPredictionsParamsSchema = z.object({
   userId: z.string().optional(),
   status: z.enum(['active', 'resolved']).optional(),
@@ -71,7 +85,9 @@ export const GetPositionsParamsSchema = z.object({
   userId: z.string().optional(),
 });
 
-// ==================== Social Features ====================
+/**
+ * Parameters for retrieving social feed
+ */
 export const GetFeedParamsSchema = z.object({
   limit: z.number().optional().default(20),
   offset: z.number().optional().default(0),
@@ -119,7 +135,9 @@ export const LikeCommentParamsSchema = z.object({
   commentId: z.string(),
 });
 
-// ==================== User Management ====================
+/**
+ * Parameters for retrieving user profile
+ */
 export const GetUserProfileParamsSchema = z.object({
   userId: z.string(),
 });
@@ -160,7 +178,9 @@ export const SearchUsersParamsSchema = z.object({
   limit: z.number().optional().default(20),
 });
 
-// ==================== Trades ====================
+/**
+ * Parameters for retrieving trades
+ */
 export const GetTradesParamsSchema = z.object({
   limit: z.number().optional().default(50),
   marketId: z.string().optional(),
@@ -171,7 +191,9 @@ export const GetTradeHistoryParamsSchema = z.object({
   limit: z.number().optional().default(50),
 });
 
-// ==================== Chats & Messaging ====================
+/**
+ * Parameters for retrieving chats
+ */
 export const GetChatsParamsSchema = z.object({
   filter: z.enum(['all', 'dms', 'groups']).optional(),
 });
@@ -199,7 +221,9 @@ export const LeaveChatParamsSchema = z.object({
 
 export const GetUnreadCountParamsSchema = z.object({});
 
-// ==================== Notifications ====================
+/**
+ * Parameters for retrieving notifications
+ */
 export const GetNotificationsParamsSchema = z.object({
   limit: z.number().optional().default(100),
 });
@@ -218,7 +242,9 @@ export const DeclineGroupInviteParamsSchema = z.object({
   inviteId: z.string(),
 });
 
-// ==================== Leaderboard & Stats ====================
+/**
+ * Parameters for retrieving leaderboard
+ */
 export const GetLeaderboardParamsSchema = z.object({
   page: z.number().optional().default(1),
   pageSize: z.number().optional().default(100),
@@ -232,14 +258,18 @@ export const GetUserStatsParamsSchema = z.object({
 
 export const GetSystemStatsParamsSchema = z.object({});
 
-// ==================== Rewards & Referrals ====================
+/**
+ * Parameters for retrieving referrals
+ */
 export const GetReferralsParamsSchema = z.object({});
 
 export const GetReferralStatsParamsSchema = z.object({});
 
 export const GetReferralCodeParamsSchema = z.object({});
 
-// ==================== Reputation ====================
+/**
+ * Parameters for retrieving reputation
+ */
 export const GetReputationParamsSchema = z.object({
   userId: z.string().optional(),
 });
@@ -248,7 +278,9 @@ export const GetReputationBreakdownParamsSchema = z.object({
   userId: z.string(),
 });
 
-// ==================== Trending & Discovery ====================
+/**
+ * Parameters for retrieving trending tags
+ */
 export const GetTrendingTagsParamsSchema = z.object({
   limit: z.number().optional().default(20),
 });
@@ -259,19 +291,25 @@ export const GetPostsByTagParamsSchema = z.object({
   offset: z.number().optional().default(0),
 });
 
-// ==================== Organizations ====================
+/**
+ * Parameters for retrieving organizations
+ */
 export const GetOrganizationsParamsSchema = z.object({
   limit: z.number().optional().default(50),
 });
 
-// ==================== Points Transfer ====================
+/**
+ * Parameters for transferring points
+ */
 export const TransferPointsParamsSchema = z.object({
   recipientId: z.string().min(1),
   amount: z.number().int().positive(),
   message: z.string().max(200).optional(),
 });
 
-// ==================== Favorites ====================
+/**
+ * Parameters for favoriting a profile
+ */
 export const FavoriteProfileParamsSchema = z.object({
   userId: z.string().min(1),
 });

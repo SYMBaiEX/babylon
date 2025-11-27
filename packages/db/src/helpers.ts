@@ -37,13 +37,6 @@ export async function $executeRaw(
 }
 
 /**
- * Generate a random UUID
- */
-export function generateId(): string {
-  return crypto.randomUUID();
-}
-
-/**
  * Export withRetry and isRetryableError for backward compatibility
  */
 export async function withRetry<T>(
@@ -105,13 +98,6 @@ export function isRetryableError(error: DatabaseErrorType): boolean {
     );
   }
   return false;
-}
-
-/**
- * Get current timestamp
- */
-export function now(): Date {
-  return new Date();
 }
 
 /**

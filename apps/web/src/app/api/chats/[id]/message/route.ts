@@ -87,8 +87,6 @@
  * const { message, quality } = await response.json();
  * ```
  *
- * @see {@link /lib/services/message-quality-checker} Quality checker
- * @see {@link /lib/services/group-chat-service} Group chat service
  */
 
 import type { NextRequest } from 'next/server';
@@ -105,8 +103,7 @@ import {
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 import {
-  GroupChatInvite,
-  GroupChatSweep,
+  GroupChatService,
   type SweepDecision,
   MessageQualityChecker,
 } from '@babylon/engine';
@@ -120,7 +117,12 @@ import { ChatMessageCreateSchema } from '@babylon/shared';
 
 /**
  * POST /api/chats/[id]/message
- * Send message to group chat
+ *
+ * Sends a message to a group chat or DM with quality checks and rate limiting.
+ *
+ * @param request - Next.js request containing message content
+ * @param context - Route context with chat ID parameter
+ * @returns Created message with quality metrics and sweep results
  */
 export const POST = withErrorHandling(
   async (
@@ -310,7 +312,7 @@ export const POST = withErrorHandling(
       }
       // For group chats, check GroupChatMembership
       else if (isGroupChat) {
-        isMember = await GroupChatInvite.isInChat(user.userId, chatId);
+        isMember = await GroupChatService.isInChat(user.userId, chatId);
         if (!isMember) {
           throw new AuthorizationError(
             'You are not a member of this group chat',
@@ -325,7 +327,7 @@ export const POST = withErrorHandling(
     let sweepDecision: SweepDecision | null = null;
 
     if (isGroupChat) {
-      sweepDecision = await GroupChatSweep.calculateKickChance(
+      sweepDecision = await GroupChatService.calculateKickChance(
         user.userId,
         chatId
       );
@@ -377,7 +379,7 @@ export const POST = withErrorHandling(
 
         // 8. Update user's quality score in group chat (not DMs)
         if (isGroupChat) {
-          await GroupChatSweep.updateQualityScore(
+          await GroupChatService.updateQualityScore(
             user.userId,
             chatId,
             qualityResult.score

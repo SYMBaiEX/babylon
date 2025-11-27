@@ -367,7 +367,7 @@ async function learning(runtime: BabylonRuntime) {
 
 ```typescript
 import { describe, test, expect } from 'bun:test'
-import { autonomousCoordinator } from '@/lib/agents/autonomous'
+import { autonomousCoordinator } from '@babylon/agents'
 
 describe('Agent Workflows', () => {
  test('trading workflow executes all steps', async () => {
@@ -394,5 +394,5 @@ All workflow examples are:
 - Fully documented
 - Using real A2A methods
 
-See `/src/lib/agents/plugins/babylon/multi-action-examples.ts` for complete implementations.
+See `packages/agents/src/plugins/babylon/` for complete implementations.
 

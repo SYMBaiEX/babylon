@@ -2,7 +2,8 @@
  * Contract Address Loader
  *
  * Loads deployed contract addresses based on current network
- * Supports: localnet (Hardhat), Base Sepolia, Base mainnet
+ * Supports: localnet (Hardhat), Base Sepolia
+ * Note: Base mainnet support will be added when contracts are deployed
  */
 
 import baseSepoliaDeployment from '@babylon/contracts/deployments/base-sepolia';
@@ -59,6 +60,13 @@ export function getContractAddresses(): DeployedContracts {
     };
   }
 
+  // Base mainnet (not yet deployed - will throw if accessed)
+  if (chainId === 8453) {
+    throw new Error(
+      'Base mainnet contracts are not yet deployed. Use localnet or base-sepolia.'
+    );
+  }
+
   // Default to localnet
   return {
     diamond: localDeployment.contracts.diamond as Address,
@@ -93,6 +101,10 @@ export function getRpcUrl(): string {
 
   if (chainId === 84532) {
     return process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org';
+  }
+
+  if (chainId === 8453) {
+    return process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
   }
 
   return process.env.NEXT_PUBLIC_RPC_URL || 'http://localhost:8545';

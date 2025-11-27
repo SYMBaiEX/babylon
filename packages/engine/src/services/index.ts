@@ -28,8 +28,6 @@ export * from './reply-rate-limiter';
 // Group Chat Service (consolidated from group-chat-invite + group-chat-sweep)
 export {
   GroupChatService,
-  GroupChatService as GroupChatInvite, // Backward compatibility
-  GroupChatService as GroupChatSweep, // Backward compatibility
   type InviteChance,
   type SweepDecision,
 } from './group-chat-service';
@@ -53,8 +51,6 @@ export * from './trajectory-market-engine';
 // Prediction Market Service (consolidated from prediction-market-event + prediction-price-history)
 export {
   PredictionMarketService,
-  PredictionMarketService as PredictionMarketEventService, // Backward compatibility
-  PredictionMarketService as PredictionPriceHistoryService, // Backward compatibility
   type PredictionTradeEvent,
   type PredictionResolutionEvent,
   type BroadcasterFn,

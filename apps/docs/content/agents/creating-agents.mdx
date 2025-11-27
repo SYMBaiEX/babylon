@@ -41,8 +41,13 @@ Register your agent on-chain with ERC-8004:
 export BABYLON_GAME_PRIVATE_KEY="0x..."
 export BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
 
-# Register agent
-bun run agent0:setup
+# Register agent via API (recommended)
+curl -X POST http://localhost:3000/api/agents/onboard \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Agent", "description": "Trading agent"}'
+
+# Or use CLI
+bun run src/index.ts agent register
 ```
 
 This creates:

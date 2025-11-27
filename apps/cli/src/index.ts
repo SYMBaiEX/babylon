@@ -1,30 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * @fileoverview Babylon CLI
+ * @fileoverview Babylon CLI - Unified command-line interface for Babylon operations
  *
- * Unified command-line interface for Babylon operations.
+ * Provides a comprehensive CLI for managing database, admin users, game state,
+ * training pipelines, models, agents, contract deployment, and system status.
  *
- * Usage:
- *   babylon <domain> <command> [options]
- *
- * Domains:
- *   db      - Database management
- *   admin   - Admin user management
- *   status  - System status
- *   train   - Training operations
- *   model   - Model management
- *   game    - Game generation and simulation
- *   agent   - Agent management
- *
- * Examples:
- *   babylon db start
- *   babylon admin grant alice
- *   babylon status game
- *   babylon train archetype --archetype scammer
- *   babylon model upload --model v1 --hf-name babylonlabs/agent
- *   babylon game generate --verbose
- *   babylon agent spawn --count 5
+ * @module cli/index
+ * @packageDocumentation
  */
 
 // Load environment variables from project root before any other imports
@@ -45,6 +28,11 @@ import { runTestCommand } from './commands/test.js';
 
 const VERSION = '0.2.0';
 
+/**
+ * Prints the main CLI help text with all available domains and commands.
+ *
+ * @internal
+ */
 function printHelp(): void {
   console.log(`
 Babylon CLI v${VERSION}
@@ -58,7 +46,7 @@ DOMAINS:
   status    System status (game, wallet, agent0, all)
   train     Training operations (list, pipeline, archetype, collect)
   model     Model management (list, upload, collect-data)
-  game      Game control (start, pause, status, generate, simulate)
+  game      Game control (start, pause, status, generate, simulate, validate)
   agent     Agent management (spawn, list, enable, disable)
   deploy    Contract deployment (local, testnet, mainnet, setup)
   test      Load & stress testing (load, a2a)
@@ -82,16 +70,28 @@ Run 'babylon <domain> --help' for domain-specific help.
 `);
 }
 
+/**
+ * Prints the CLI version number.
+ *
+ * @internal
+ */
 function printVersion(): void {
   console.log(`babylon v${VERSION}`);
 }
 
+/**
+ * Main entry point for the Babylon CLI.
+ *
+ * Parses command-line arguments and routes to the appropriate domain handler.
+ * Handles global flags (--help, --version) and delegates to domain-specific commands.
+ *
+ * @throws Exits process with code 1 on error, 0 on success
+ */
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const domain = args[0];
   const commandArgs = args.slice(1);
 
-  // Handle global flags
   if (!domain || domain === '-h' || domain === '--help') {
     printHelp();
     process.exit(0);
@@ -102,7 +102,6 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Route to domain handler
   try {
     switch (domain) {
       case 'db':
@@ -146,7 +145,6 @@ async function main(): Promise<void> {
         console.log("\nRun 'babylon --help' for usage information.");
         process.exit(1);
     }
-    // Ensure clean exit after successful command
     process.exit(0);
   } catch (error) {
     if (error instanceof Error) {
@@ -161,7 +159,6 @@ async function main(): Promise<void> {
   }
 }
 
-// Run if called directly
 if (import.meta.main) {
   main();
 }

@@ -1,8 +1,14 @@
 import { type Plugin } from '@elizaos/core';
 
-// Note: TrajectoryLoggerService is exported below but not registered as a service
-// since it doesn't fully implement the Service interface yet (placeholder implementation)
-
+/**
+ * Trajectory Logger Plugin
+ *
+ * Collects complete agent interaction trajectories for RL training.
+ * Records LLM calls, provider access, actions, environment state, and computes rewards.
+ *
+ * @remarks TrajectoryLoggerService is exported but not registered as a service
+ * since it doesn't fully implement the Service interface. Use the exported functions directly.
+ */
 export const trajectoryLoggerPlugin: Plugin = {
   name: '@elizaos/plugin-trajectory-logger',
   description:
@@ -41,13 +47,13 @@ export * from './game-rewards';
 // - recomputeTrajectoryRewards()
 
 // ==========================================
-// ART FORMAT CONVERSION
-// Converts rich trajectories to ART message format
+// TRAJECTORY FORMAT CONVERSION
+// Converts rich trajectories to training-compatible message format
 // ==========================================
 export * from './art-format';
 // Exports:
 // - toARTMessages() - Convert to message array
-// - toARTTrajectory() - Convert to ART format
+// - toARTTrajectory() - Convert to training format
 // - groupTrajectories() - Group by scenario
 // - prepareForRULER() - Format for LLM judge
 // - validateARTCompatibility() - Check convertibility
@@ -59,7 +65,7 @@ export * from './export';
 // Exports:
 // - exportToHuggingFace()
 // - exportGroupedByScenario()
-// - exportForOpenPipeART()
+// - exportForTrainingFormat()
 // - exportGroupedForGRPO() - Groups for RULER ranking
 
 // ==========================================

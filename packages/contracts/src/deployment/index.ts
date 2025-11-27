@@ -8,5 +8,3 @@ export * from './addresses';
 export * from './env-detection';
 export * from './validation';
 
-
-

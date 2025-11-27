@@ -78,7 +78,7 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { PredictionPriceHistoryService } from '@babylon/engine';
+import { PredictionMarketService } from '@babylon/engine';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 
 const QuerySchema = z.object({
@@ -102,7 +102,7 @@ export const GET = withErrorHandling(
     const { searchParams } = new URL(request.url);
     const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
 
-    const history = await PredictionPriceHistoryService.getHistory(
+    const history = await PredictionMarketService.getHistory(
       marketId,
       limit
     );

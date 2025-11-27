@@ -7,17 +7,9 @@
 // Common types (JsonValue, etc.)
 export * from './common';
 
-// Error types (interfaces for error handling)
-// Note: Error classes are exported from ./errors/index to avoid duplicates
-export type {
-  AppError,
-  // Rename interfaces to avoid conflict with classes from errors/index
-  AuthenticationError as AuthenticationErrorInterface,
-  DatabaseError as DatabaseErrorInterface,
-  NetworkError,
-  ValidationError as ValidationErrorInterface,
-  LLMError as LLMErrorInterface,
-} from './errors';
+// Error types (interfaces and type guards)
+// Error classes are exported from ./errors/index.ts
+export type { AppError, NetworkError } from './errors';
 export {
   isAuthenticationError,
   isDatabaseError,
@@ -26,9 +18,6 @@ export {
   isValidationError,
   extractErrorMessage,
 } from './errors';
-
-// Domain-specific error classes are exported from errors/index.ts
-// Do not re-export here to avoid duplicate exports
 
 // Social interaction types
 export * from './interactions';

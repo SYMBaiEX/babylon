@@ -24,26 +24,28 @@ export class AgentRegistry {
   /**
    * Search for agents based on filters
    *
-   * @description Implements Agent0 SDK IAgentDiscoveryService interface.
-   * Currently returns agents from database. For more advanced filtering,
+   * Implements Agent0 SDK IAgentDiscoveryService interface.
+   * Returns empty array for synchronous compatibility. For async search with full filtering,
    * use AgentRegistryService.discoverAgents() instead.
+   *
+   * @param _params - Search parameters (unused, maintained for interface compatibility)
+   * @returns Empty array - AgentDiscoveryService uses getAllAgents() for actual search
    */
   search(_params: SearchParams): AgentResult[] {
-    // Note: This is synchronous for Agent0 SDK compatibility, but limits functionality
-    // For async search with full filtering, use AgentRegistryService.discoverAgents()
-    // For now, return empty array - AgentDiscoveryService will use getAllAgents() instead
     return [];
   }
 
   /**
    * Get a single agent by ID
    *
-   * @description Implements Agent0 SDK IAgentDiscoveryService interface.
-   * Currently returns null. Use AgentRegistryService.getAgentById() for actual lookups.
+   * Implements Agent0 SDK IAgentDiscoveryService interface.
+   * Returns null for synchronous compatibility. Use AgentRegistryService.getAgentById()
+   * for actual async lookups.
+   *
+   * @param _agentId - Agent ID to lookup (unused, maintained for interface compatibility)
+   * @returns null - Use AgentRegistryService.getAgentById() for actual lookups
    */
   getAgent(_agentId: string): AgentResult | null {
-    // Note: This is synchronous for Agent0 SDK compatibility, but limits functionality
-    // For async lookups, use AgentRegistryService.getAgentById() instead
     return null;
   }
 

@@ -129,8 +129,8 @@ export class AutonomousTradingService {
     const contextString = formatRandomContext(marketContext);
 
     // Build trading decision prompt
-    // Note: NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
-    // and will appear in agent context automatically via providers
+    // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
+    // and appear in agent context automatically via providers
     const prompt = `${agent.agentSystem}
 
 You are ${agent.displayName}, an autonomous trading agent.
@@ -193,7 +193,7 @@ ${contextString}`;
 
     // Use large model (qwen3-32b or trained W&B model) for trading decisions
     // Add timeout to prevent hanging (30 seconds max)
-    // NOTE: Trajectory logging is auto-extracted from runtime in callGroqDirect
+    // Trajectory logging is auto-extracted from runtime in callGroqDirect
     const decision = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,

@@ -1,6 +1,10 @@
 /**
- * A2A Agent Card for Babylon
- * Compliant with @a2a-js/sdk and A2A Protocol v0.3.0
+ * Babylon A2A Agent Card
+ *
+ * Defines the agent card for Babylon's A2A protocol implementation.
+ * Compliant with A2A Protocol v0.3.0 and @a2a-js/sdk specifications.
+ *
+ * @public
  */
 
 import type { AgentCard } from '@a2a-js/sdk';
@@ -35,7 +39,7 @@ export const babylonAgentCard: AgentCard = {
   documentationUrl: `${BASE_URL}/docs`,
 
   capabilities: {
-    streaming: false, // Streaming not yet implemented (message/stream, tasks/resubscribe)
+    streaming: false,
     pushNotifications: false,
     stateTransitionHistory: true,
   },

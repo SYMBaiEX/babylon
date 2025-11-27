@@ -1,51 +1,38 @@
 /**
- * A2A Protocol Exports
+ * @packageDocumentation
+ * @module @babylon/a2a
  *
- * Babylon implements the official A2A protocol using @a2a-js/sdk
- * All A2A operations use the standard message/send, tasks/get, etc. methods
+ * A2A Protocol Implementation for Babylon
  *
- * Endpoint: /api/a2a
+ * Babylon implements the official A2A (Agent-to-Agent) protocol using @a2a-js/sdk.
+ * All A2A operations use the standard message/send, tasks/get, and related methods
+ * as defined in the A2A Protocol specification.
  *
- * For client usage, use A2AClient from @a2a-js/sdk/client
- * See examples/a2a-agent0/ for usage examples
+ * @example
+ * ```typescript
+ * import { babylonAgentCard, BabylonAgentExecutor } from '@babylon/a2a';
+ * import { A2AClient } from '@a2a-js/sdk/client';
+ *
+ * const client = new A2AClient({
+ *   endpoint: 'https://babylon.game/api/a2a',
+ *   agentCard: babylonAgentCard
+ * });
+ * ```
+ *
+ * @see {@link https://github.com/a2a-js/sdk | A2A SDK Documentation}
  */
 
-// A2A Protocol Implementation (using @a2a-js/sdk)
 export { babylonAgentCard } from './babylon-agent-card';
-
-// Blockchain integration
 export * from './blockchain';
-
-// Executor
-export {
-  BabylonAgentExecutor,
-  BabylonAgentExecutor as BabylonExecutor,
-} from './executors/babylon-executor';
-
-// Task store
+export { BabylonAgentExecutor } from './executors/babylon-executor';
 export type { ListTasksParams, ListTasksResult } from './extended-task-store';
 export { ExtendedTaskStore } from './extended-task-store';
-
-// Handlers (escrow operations)
 export * from './handlers/escrow-handlers';
-
-// Payment handling
 export * from './payments';
-
-// Agent card generator for per-agent cards
 export {
   generateAgentCard,
   generateAgentCardSync,
 } from './sdk/agent-card-generator';
-
-// Types (includes JsonValue, JsonRpcParams, etc. re-exported from shared/types)
 export * from './types';
-
-// Utilities (auth, rate limiting)
 export * from './utils';
-
-// Validation schemas
 export * from './validation';
-
-// Note: For client usage, use A2AClient from @a2a-js/sdk/client
-// See examples/a2a-agent0/ for usage examples

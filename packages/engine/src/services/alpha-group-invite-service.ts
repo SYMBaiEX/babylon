@@ -22,7 +22,7 @@ import {
   gte,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { GroupChatService as GroupChatInvite } from './group-chat-service';
+import { GroupChatService } from './group-chat-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
 
 export interface AlphaInviteResult {
@@ -206,7 +206,7 @@ export class AlphaGroupInviteService {
         const chatId = `${npcId}-alpha-chat`;
         const chatName = `${npcName}'s Alpha Group`;
 
-        await GroupChatInvite.recordInvite(
+        await GroupChatService.recordInvite(
           userScore.userId,
           npcId,
           chatId,

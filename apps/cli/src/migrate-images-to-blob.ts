@@ -30,31 +30,7 @@ import { list, put } from '@vercel/blob';
 import { config } from 'dotenv';
 import { readdir, readFile } from 'fs/promises';
 import { extname, join } from 'path';
-
-// Simple logger for CLI
-const logger = {
-  info: (msg: string, data?: Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.log(`[INFO] ${msg}`, data);
-    } else {
-      console.log(`[INFO] ${msg}`);
-    }
-  },
-  error: (msg: string, data?: string | Error | Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.error(`[ERROR] ${msg}`, data);
-    } else {
-      console.error(`[ERROR] ${msg}`);
-    }
-  },
-  warn: (msg: string, data?: string[], _ctx?: string) => {
-    if (data) {
-      console.warn(`[WARN] ${msg}`, data);
-    } else {
-      console.warn(`[WARN] ${msg}`);
-    }
-  },
-};
+import { logger } from './lib/logger.js';
 
 // Load environment variables
 config();
@@ -168,15 +144,11 @@ async function processQueue(
       await uploadImage(job)
         .then((result) => {
           uploaded++;
-          logger.info(
-            `✅ Uploaded ${job.blobPath}`,
-            { url: result.url },
-            'CLI'
-          );
+          logger.info(`✅ Uploaded ${job.blobPath}`, { url: result.url });
         })
         .catch((error: Error) => {
           failed++;
-          logger.error(`❌ Failed ${job.blobPath}`, error, 'CLI');
+          logger.error(`❌ Failed ${job.blobPath}`, error);
         });
     })();
 
@@ -189,14 +161,10 @@ async function processQueue(
 }
 
 async function main() {
-  logger.info('Starting image migration to Vercel Blob...', undefined, 'CLI');
+  logger.info('Starting image migration to Vercel Blob...');
 
   if (!BLOB_TOKEN) {
-    logger.error(
-      'Error: BLOB_READ_WRITE_TOKEN not found in environment variables',
-      undefined,
-      'CLI'
-    );
+    logger.error('Error: BLOB_READ_WRITE_TOKEN not found in environment variables');
     process.exit(1);
   }
 
@@ -210,7 +178,7 @@ async function main() {
     try {
       files = await readdir(sourcePath);
     } catch {
-      logger.warn(`Directory not found: ${sourcePath}`, undefined, 'CLI');
+      logger.warn(`Directory not found: ${sourcePath}`);
       continue;
     }
 
@@ -218,11 +186,7 @@ async function main() {
       ['.jpg', '.jpeg', '.png', '.webp'].includes(extname(f).toLowerCase())
     );
 
-    logger.info(
-      `Found ${imageFiles.length} images in ${dir.source}`,
-      undefined,
-      'CLI'
-    );
+    logger.info(`Found ${imageFiles.length} images in ${dir.source}`);
 
     for (const filename of imageFiles) {
       jobs.push({
@@ -233,36 +197,28 @@ async function main() {
     }
   }
 
-  logger.info(`Total images to process: ${jobs.length}`, undefined, 'CLI');
+  logger.info(`Total images to process: ${jobs.length}`);
 
   if (jobs.length === 0) {
-    logger.info('No images found to migrate', undefined, 'CLI');
+    logger.info('No images found to migrate');
     return;
   }
 
   // Process with concurrency
-  logger.info('Starting upload (max 10 concurrent)...', undefined, 'CLI');
+  logger.info('Starting upload (max 10 concurrent)...');
   const result = await processQueue(jobs, 10);
 
-  logger.info(
-    'Migration complete!',
-    {
-      uploaded: result.uploaded,
-      failed: result.failed,
-      skipped: result.skipped,
-      total: jobs.length,
-    },
-    'CLI'
-  );
+  logger.info('Migration complete!', {
+    uploaded: result.uploaded,
+    failed: result.failed,
+    skipped: result.skipped,
+    total: jobs.length,
+  });
 
   // List what was uploaded for verification
-  logger.info('Verifying uploaded images...', undefined, 'CLI');
+  logger.info('Verifying uploaded images...');
   const { blobs } = await list({ prefix: 'images/' });
-  logger.info(
-    `Total images in blob storage: ${blobs.length}`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Total images in blob storage: ${blobs.length}`);
 
   if (result.failed > 0) {
     process.exit(1);

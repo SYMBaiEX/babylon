@@ -1606,12 +1606,11 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
 
   const $disconnect = async (): Promise<void> => {
     // Access global state directly to avoid circular dependency
-    // Import Database type from index.ts (type-only to avoid circular dependency)
-    type Database = PostgresJsDatabase<typeof schema>;
+    // This implementation matches helpers.ts but must be duplicated due to circular dependency constraints
     type PostgresClient = ReturnType<typeof postgres>;
     const globalForDb = globalThis as typeof globalThis & {
       postgresClient: PostgresClient | undefined;
-      drizzleDb: Database | undefined;
+      drizzleDb: SchemaDatabase | undefined;
       db: DrizzleClient | undefined;
     };
 

@@ -78,43 +78,9 @@ import { loadActorsData } from '@babylon/engine';
 import { fal } from '@fal-ai/client';
 import { config } from 'dotenv';
 import { access, mkdir, writeFile } from 'fs/promises';
-// readFile - not used
 import { join } from 'path';
 import { z } from 'zod';
-
-// Simple logger for CLI
-const logger = {
-  info: (msg: string, data?: Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.log(`[INFO] ${msg}`, data);
-    } else {
-      console.log(`[INFO] ${msg}`);
-    }
-  },
-  error: (msg: string, data?: string | Error | Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.error(`[ERROR] ${msg}`, data);
-    } else {
-      console.error(`[ERROR] ${msg}`);
-    }
-  },
-  debug: (msg: string, data?: Record<string, unknown>, _ctx?: string) => {
-    if (process.env.DEBUG) {
-      if (data) {
-        console.log(`[DEBUG] ${msg}`, data);
-      } else {
-        console.log(`[DEBUG] ${msg}`);
-      }
-    }
-  },
-  warn: (msg: string, data?: string[], _ctx?: string) => {
-    if (data) {
-      console.warn(`[WARN] ${msg}`, data);
-    } else {
-      console.warn(`[WARN] ${msg}`);
-    }
-  },
-};
+import { logger } from './lib/logger.js';
 
 // Load environment variables
 config();
@@ -296,11 +262,7 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
  * ```
  */
 async function generateActorImage(actor: Actor): Promise<string> {
-  logger.info(
-    `Generating profile picture for ${actor.name}...`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Generating profile picture for ${actor.name}...`);
 
   const descriptionParts = actor.description.split('.').slice(0, 3).join('. ');
 
@@ -323,23 +285,19 @@ async function generateActorImage(actor: Actor): Promise<string> {
       if (update.status === 'IN_PROGRESS') {
         update.logs
           .map((log) => log.message)
-          .forEach((msg) => logger.debug(msg, undefined, 'CLI'));
+          .forEach((msg) => logger.debug(msg));
       }
     },
   })) as FalResponse;
 
   const imageUrl = result.data.images[0]!.url;
-  logger.info(
-    `Generated profile picture for ${actor.name}: ${imageUrl}`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Generated profile picture for ${actor.name}: ${imageUrl}`);
 
   return imageUrl;
 }
 
 async function generateActorBanner(actor: Actor): Promise<string> {
-  logger.info(`Generating banner for ${actor.name}...`, undefined, 'CLI');
+  logger.info(`Generating banner for ${actor.name}...`);
 
   if (!actor.profileBanner) {
     throw new Error(`Actor ${actor.name} is missing profileBanner field`);
@@ -364,7 +322,7 @@ async function generateActorBanner(actor: Actor): Promise<string> {
       if (update.status === 'IN_PROGRESS') {
         update.logs
           .map((log) => log.message)
-          .forEach((msg) => logger.debug(msg, undefined, 'CLI'));
+          .forEach((msg) => logger.debug(msg));
       }
     },
   })) as FalResponse;
@@ -383,17 +341,13 @@ async function generateActorBanner(actor: Actor): Promise<string> {
     );
   }
 
-  logger.info(
-    `Generated banner for ${actor.name}: ${firstImage.url}`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Generated banner for ${actor.name}: ${firstImage.url}`);
 
   return firstImage.url;
 }
 
 async function generateOrganizationImage(org: Organization): Promise<string> {
-  logger.info(`Generating logo for ${org.name}...`, undefined, 'CLI');
+  logger.info(`Generating logo for ${org.name}...`);
 
   if (!org.pfpDescription) {
     throw new Error(`Organization ${org.name} is missing pfpDescription field`);
@@ -423,7 +377,7 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
       if (update.status === 'IN_PROGRESS') {
         update.logs
           .map((log) => log.message)
-          .forEach((msg) => logger.debug(msg, undefined, 'CLI'));
+          .forEach((msg) => logger.debug(msg));
       }
     },
   })) as FalResponse;
@@ -442,17 +396,13 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
     );
   }
 
-  logger.info(
-    `Generated logo for ${org.name}: ${firstImage.url}`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Generated logo for ${org.name}: ${firstImage.url}`);
 
   return firstImage.url;
 }
 
 async function generateOrganizationBanner(org: Organization): Promise<string> {
-  logger.info(`Generating banner for ${org.name}...`, undefined, 'CLI');
+  logger.info(`Generating banner for ${org.name}...`);
 
   if (!org.bannerDescription) {
     throw new Error(
@@ -482,7 +432,7 @@ async function generateOrganizationBanner(org: Organization): Promise<string> {
       if (update.status === 'IN_PROGRESS') {
         update.logs
           .map((log) => log.message)
-          .forEach((msg) => logger.debug(msg, undefined, 'CLI'));
+          .forEach((msg) => logger.debug(msg));
       }
     },
   })) as FalResponse;
@@ -501,11 +451,7 @@ async function generateOrganizationBanner(org: Organization): Promise<string> {
     );
   }
 
-  logger.info(
-    `Generated banner for ${org.name}: ${firstImage.url}`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Generated banner for ${org.name}: ${firstImage.url}`);
 
   return firstImage.url;
 }
@@ -515,7 +461,7 @@ async function downloadImage(url: string, filepath: string): Promise<void> {
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   await writeFile(filepath, buffer);
-  logger.info(`Saved image to ${filepath}`, undefined, 'CLI');
+  logger.info(`Saved image to ${filepath}`);
 }
 
 interface ImageJob {
@@ -570,25 +516,17 @@ async function processQueue(
     }
 
     const jobPromise = (async () => {
-      logger.info(
-        `Generating ${job.type} for ${job.name}...`,
-        undefined,
-        'CLI'
-      );
+      logger.info(`Generating ${job.type} for ${job.name}...`);
       await job
         .generator()
         .then(async (imageUrl) => {
           await downloadImage(imageUrl, job.outputPath);
           generated++;
-          logger.info(
-            `✅ Generated ${job.type} for ${job.name}`,
-            undefined,
-            'CLI'
-          );
+          logger.info(`✅ Generated ${job.type} for ${job.name}`);
         })
         .catch((error: Error) => {
           failed++;
-          logger.error(`❌ Failed ${job.type} for ${job.name}`, error, 'CLI');
+          logger.error(`❌ Failed ${job.type} for ${job.name}`, error);
         });
     })();
 
@@ -634,16 +572,12 @@ async function processQueue(
  * ```
  */
 async function main() {
-  logger.info('Checking actor and organization images...', undefined, 'CLI');
+  logger.info('Checking actor and organization images...');
 
   // Check for FAL_KEY
   if (!process.env.FAL_KEY) {
-    logger.error(
-      'Error: FAL_KEY not found in environment variables',
-      undefined,
-      'CLI'
-    );
-    logger.error('Please add FAL_KEY to your .env file', undefined, 'CLI');
+    logger.error('Error: FAL_KEY not found in environment variables');
+    logger.error('Please add FAL_KEY to your .env file');
     process.exit(1);
   }
 
@@ -675,11 +609,7 @@ async function main() {
   const jobs: ImageJob[] = [];
 
   // Build job queue for actor profile pictures
-  logger.info(
-    `Checking ${actorsDb.actors.length} actor profile pictures...`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Checking ${actorsDb.actors.length} actor profile pictures...`);
   for (const actor of actorsDb.actors) {
     const imagePath = join(actorsImagesDir, `${actor.id}.jpg`);
 
@@ -697,11 +627,7 @@ async function main() {
   }
 
   // Build job queue for actor banners
-  logger.info(
-    `Checking ${actorsDb.actors.length} actor banners...`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Checking ${actorsDb.actors.length} actor banners...`);
   for (const actor of actorsDb.actors) {
     const bannerPath = join(actorsBannersDir, `${actor.id}.jpg`);
 
@@ -719,11 +645,7 @@ async function main() {
   }
 
   // Build job queue for organization logos
-  logger.info(
-    `Checking ${actorsDb.organizations.length} organization logos...`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Checking ${actorsDb.organizations.length} organization logos...`);
   for (const org of actorsDb.organizations) {
     const imagePath = join(orgsImagesDir, `${org.id}.jpg`);
 
@@ -741,11 +663,7 @@ async function main() {
   }
 
   // Build job queue for organization banners
-  logger.info(
-    `Checking ${actorsDb.organizations.length} organization banners...`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Checking ${actorsDb.organizations.length} organization banners...`);
   for (const org of actorsDb.organizations) {
     const bannerPath = join(orgsBannersDir, `${org.id}.jpg`);
 
@@ -762,38 +680,26 @@ async function main() {
     }
   }
 
-  logger.info(
-    `Found ${jobs.length} images to generate (${skippedCount} already exist)`,
-    undefined,
-    'CLI'
-  );
+  logger.info(`Found ${jobs.length} images to generate (${skippedCount} already exist)`);
 
   if (jobs.length === 0) {
-    logger.info('All images already exist!', undefined, 'CLI');
+    logger.info('All images already exist!');
     return;
   }
 
   // Process jobs with up to 10 concurrent operations
-  logger.info(
-    'Starting concurrent generation (max 10 at a time)...',
-    undefined,
-    'CLI'
-  );
+  logger.info('Starting concurrent generation (max 10 at a time)...');
   const result = await processQueue(jobs, 10);
 
-  logger.info(
-    'Complete!',
-    {
-      generated: result.generated,
-      failed: result.failed,
-      skipped: skippedCount,
-      totalActors: actorsDb.actors.length,
-      totalOrganizations: actorsDb.organizations.length,
-      totalPossibleImages:
-        actorsDb.actors.length * 2 + actorsDb.organizations.length * 2,
-    },
-    'CLI'
-  );
+  logger.info('Complete!', {
+    generated: result.generated,
+    failed: result.failed,
+    skipped: skippedCount,
+    totalActors: actorsDb.actors.length,
+    totalOrganizations: actorsDb.organizations.length,
+    totalPossibleImages:
+      actorsDb.actors.length * 2 + actorsDb.organizations.length * 2,
+  });
 }
 
 main()
@@ -801,6 +707,6 @@ main()
     process.exit(0);
   })
   .catch((error: Error) => {
-    logger.error('Fatal error:', error, 'CLI');
+    logger.error('Fatal error:', error);
     process.exit(1);
   });

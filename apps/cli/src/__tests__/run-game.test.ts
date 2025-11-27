@@ -7,12 +7,12 @@ import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'bun';
 import { existsSync, unlinkSync } from 'fs';
 
-const CLI_PATH = 'src/run-game.ts';
+const CLI_PATH = 'src/index.ts';
 
 describe('CLI Game Runner', () => {
   describe('Basic Execution', () => {
     test('runs complete game simulation', () => {
-      const result = spawnSync(['bun', 'run', CLI_PATH, '--fast'], {
+      const result = spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast'], {
         cwd: process.cwd(),
       });
 
@@ -21,7 +21,7 @@ describe('CLI Game Runner', () => {
     });
 
     test('exits with code 0 on success', () => {
-      const result = spawnSync(['bun', 'run', CLI_PATH, '--fast'], {
+      const result = spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast'], {
         cwd: process.cwd(),
       });
 
@@ -30,7 +30,7 @@ describe('CLI Game Runner', () => {
 
     test('completes quickly in fast mode', () => {
       const start = Date.now();
-      spawnSync(['bun', 'run', CLI_PATH, '--fast'], {
+      spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast'], {
         cwd: process.cwd(),
       });
       const duration = Date.now() - start;
@@ -42,7 +42,7 @@ describe('CLI Game Runner', () => {
   describe('Outcome Flag', () => {
     test('respects --outcome=YES flag', () => {
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, '--outcome=YES', '--fast', '--json'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', '--outcome=YES', '--fast', '--json'],
         { cwd: process.cwd() }
       );
 
@@ -52,7 +52,7 @@ describe('CLI Game Runner', () => {
 
     test('respects --outcome=NO flag', () => {
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, '--outcome=NO', '--fast', '--json'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', '--outcome=NO', '--fast', '--json'],
         { cwd: process.cwd() }
       );
 
@@ -61,7 +61,7 @@ describe('CLI Game Runner', () => {
     });
 
     test('defaults to random outcome without flag', () => {
-      const result = spawnSync(['bun', 'run', CLI_PATH, '--fast', '--json'], {
+      const result = spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast', '--json'], {
         cwd: process.cwd(),
       });
 
@@ -78,7 +78,7 @@ describe('CLI Game Runner', () => {
       if (existsSync(testFile)) unlinkSync(testFile);
 
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, `--save=${testFile}`, '--fast'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', `--save=${testFile}`, '--fast'],
         { cwd: process.cwd() }
       );
 
@@ -92,7 +92,7 @@ describe('CLI Game Runner', () => {
     test('saved file contains valid game data', async () => {
       if (existsSync(testFile)) unlinkSync(testFile);
 
-      spawnSync(['bun', 'run', CLI_PATH, `--save=${testFile}`, '--fast'], {
+      spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', `--save=${testFile}`, '--fast'], {
         cwd: process.cwd(),
       });
 
@@ -115,7 +115,7 @@ describe('CLI Game Runner', () => {
   describe('Batch Mode', () => {
     test('runs multiple games with --count flag', () => {
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, '--count=5', '--fast'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', '--count=5', '--fast'],
         {
           cwd: process.cwd(),
         }
@@ -128,7 +128,7 @@ describe('CLI Game Runner', () => {
     test('batch mode completes quickly', () => {
       const start = Date.now();
 
-      spawnSync(['bun', 'run', CLI_PATH, '--count=10', '--fast'], {
+      spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--count=10', '--fast'], {
         cwd: process.cwd(),
       });
 
@@ -138,7 +138,7 @@ describe('CLI Game Runner', () => {
 
     test('batch mode provides statistics', () => {
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, '--count=10', '--fast'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', '--count=10', '--fast'],
         {
           cwd: process.cwd(),
         }
@@ -153,7 +153,7 @@ describe('CLI Game Runner', () => {
 
   describe('JSON Output', () => {
     test('produces parseable JSON with --json flag', () => {
-      const result = spawnSync(['bun', 'run', CLI_PATH, '--fast', '--json'], {
+      const result = spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast', '--json'], {
         cwd: process.cwd(),
       });
 
@@ -161,7 +161,7 @@ describe('CLI Game Runner', () => {
     });
 
     test('JSON output contains all required fields', () => {
-      const result = spawnSync(['bun', 'run', CLI_PATH, '--fast', '--json'], {
+      const result = spawnSync(['bun', 'run', CLI_PATH, 'game', 'simulate', '--fast', '--json'], {
         cwd: process.cwd(),
       });
 
@@ -179,7 +179,7 @@ describe('CLI Game Runner', () => {
   describe('Error Handling', () => {
     test('handles invalid flags gracefully', () => {
       const result = spawnSync(
-        ['bun', 'run', CLI_PATH, '--invalid-flag', '--fast'],
+        ['bun', 'run', CLI_PATH, 'game', 'simulate', '--invalid-flag', '--fast'],
         { cwd: process.cwd() }
       );
 

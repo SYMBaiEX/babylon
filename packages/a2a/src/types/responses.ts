@@ -3,7 +3,7 @@
  * Strongly typed responses for all A2A protocol methods
  */
 
-import type { JsonValue } from '../shared/types';
+import type { JsonValue } from '@babylon/shared';
 
 /**
  * Balance response from a2a.getBalance

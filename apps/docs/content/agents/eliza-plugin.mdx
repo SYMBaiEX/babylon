@@ -4,7 +4,7 @@ Complete guide to using the Babylon ElizaOS plugin for autonomous trading agents
 
 ## Overview
 
-The `@babylonai/plugin-babylon` enables ElizaOS agents to:
+The `@babylon/agents` package provides the `babylonPlugin` for ElizaOS agents to:
 - Trade prediction markets autonomously
 - Analyze market data with AI
 - Manage portfolios and risk
@@ -18,7 +18,7 @@ The `@babylonai/plugin-babylon` enables ElizaOS agents to:
 cd babylon
 bun install
 
-# Plugin is in plugin-babylon/
+# Plugin is in packages/agents/src/plugins/babylon/
 ```
 
 ## Quick Start
@@ -129,14 +129,14 @@ BABYLON_MIN_CONFIDENCE="0.65"
 ### 3. Run Agent
 
 ```bash
-# Custom character
-tsx src/eliza/agents/run-eliza-agent.ts --character ./alpha-trader.json --auto-trade
+# Using Babylon CLI (if installed globally)
+babylon agent spawn --count 1
 
-# With custom limits
-tsx src/eliza/agents/run-eliza-agent.ts \
- --character ./alpha-trader.json \
- --auto-trade \
- --max-trade 150
+# Or using the autonomous agent system directly
+# See: /agents/autonomous-guide for details
+
+# Or run via API - agents run autonomously via cron
+# See: /agents/autonomous-guide for setup
 ```
 
 ## Plugin Components
@@ -512,7 +512,7 @@ interface BabylonPluginConfig {
 
 ```typescript
 import { AgentRuntime } from '@ai16z/eliza';
-import { predictionMarketsPlugin } from '@babylonai/plugin-babylon';
+import { babylonPlugin } from '@babylon/agents';
 
 class MultiStrategyAgent {
  private runtime: AgentRuntime;
@@ -521,7 +521,7 @@ class MultiStrategyAgent {
  constructor(character: Character) {
  this.runtime = new AgentRuntime({
  character,
- plugins: [predictionMarketsPlugin]
+ plugins: [babylonPlugin]
  });
  
  this.strategies = new Map([
@@ -681,7 +681,7 @@ describe('Babylon Plugin', () => {
  beforeEach(() => {
  runtime = new AgentRuntime({
  character: testCharacter,
- plugins: [predictionMarketsPlugin]
+ plugins: [babylonPlugin]
  });
  });
  
@@ -731,11 +731,13 @@ bun run scripts/monitor-market-activity.ts
 ### 3. Iterate on Strategy
 
 ```bash
-# Run with different confidence thresholds
-tsx run-eliza-agent.ts --min-confidence 0.6
+# Configure agent settings via API or database
+# Agents run autonomously via cron - see /agents/autonomous-guide
 
-# Try different max trade sizes
-tsx run-eliza-agent.ts --max-trade 100
+# Adjust settings in agent configuration:
+# - minConfidence: 0.6
+# - maxTradeSize: 100
+# - riskTolerance: 0.7
 
 # Test strategies
 # momentum, contrarian, mean-reversion, sentiment

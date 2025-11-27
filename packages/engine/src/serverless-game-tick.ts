@@ -70,7 +70,7 @@ import { getDbInstance as dbService } from '@babylon/db';
 import { logger, generateSnowflakeId, PREDICTION_MARKET_ABI } from '@babylon/shared';
 import { characterMappingService } from './services/character-mapping-service';
 import { MarketContextService } from './services/market-context-service';
-import { PredictionMarketService as PredictionPriceHistoryService } from './services/prediction-market-service';
+import { PredictionMarketService } from './services/prediction-market-service';
 import { worldFactsService } from './world-facts-service';
 import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
@@ -84,7 +84,6 @@ import { getOracleService } from './services/oracle/oracle-service';
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
-import { PredictionMarketService as PredictionMarketEventService } from './services/prediction-market-service';
 import { rssFeedService } from './services/rss-feed-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import {
@@ -2748,7 +2747,7 @@ export async function resolveQuestionPayouts(
     noPrice = winningSide ? 0 : 1;
   }
 
-  await PredictionPriceHistoryService.recordSnapshot({
+  await PredictionMarketService.recordSnapshot({
     marketId: marketId,
     yesPrice,
     noPrice,
@@ -2773,7 +2772,7 @@ export async function resolveQuestionPayouts(
     );
   });
 
-  PredictionMarketEventService.emitResolution({
+  PredictionMarketService.emitResolution({
     marketId: marketId,
     winningSide: winningSide ? 'yes' : 'no',
     yesShares: Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0),

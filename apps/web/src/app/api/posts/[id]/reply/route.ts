@@ -106,7 +106,7 @@ import { logger } from '@babylon/shared';
 import { parsePostId } from '@babylon/engine';
 import {
   FollowingMechanics,
-  GroupChatInvite,
+  GroupChatService,
   MessageQualityChecker,
   ReplyRateLimiter,
 } from '@babylon/engine';
@@ -263,7 +263,7 @@ export const POST = withErrorHandling(
       followed ||
       (await FollowingMechanics.isFollowing(canonicalUserId, npcId))
     ) {
-      const inviteChance = await GroupChatInvite.calculateInviteChance(
+      const inviteChance = await GroupChatService.calculateInviteChance(
         canonicalUserId,
         npcId
       );
@@ -273,7 +273,7 @@ export const POST = withErrorHandling(
         inviteChance.chatId &&
         inviteChance.chatName
       ) {
-        await GroupChatInvite.recordInvite(
+        await GroupChatService.recordInvite(
           canonicalUserId,
           npcId,
           inviteChance.chatId,

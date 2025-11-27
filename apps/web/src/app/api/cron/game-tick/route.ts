@@ -45,8 +45,6 @@
  * });
  * ```
  *
- * @see {@link /lib/serverless-game-tick} Game tick service
- * @see {@link /lib/services/generation-lock-service} Generation lock service
  */
 
 import type { NextRequest } from 'next/server';
@@ -66,16 +64,18 @@ import {
   generateAheadIfNeeded,
 } from '@babylon/engine';
 
-// Vercel function configuration
-// Note: vercel.json overrides this with 800 seconds (13.3 minutes)
-export const maxDuration = 800; // 13.3 minutes max for game tick (matches vercel.json)
+export const maxDuration = 800;
 
-// Verify this is a legitimate Vercel Cron request
+/**
+ * Verifies that the request is a legitimate Vercel Cron invocation.
+ *
+ * @param request - Next.js request object
+ * @returns true if request is authenticated, false otherwise
+ */
 function verifyVercelCronRequest(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // In development, allow without secret for easy testing
   if (process.env.NODE_ENV === 'development') {
     if (!cronSecret) {
       logger.info(
@@ -85,7 +85,6 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
       );
       return true;
     }
-    // If secret is set in dev, check it (but also allow 'development' keyword)
     if (
       authHeader === 'Bearer development' ||
       authHeader === `Bearer ${cronSecret}`
@@ -94,7 +93,6 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
     }
   }
 
-  // If CRON_SECRET is not configured, allow but warn (fail-open for missing config)
   if (!cronSecret) {
     logger.warn(
       '⚠️  CRON_SECRET not configured! Cron endpoint is accessible without authentication. ' +

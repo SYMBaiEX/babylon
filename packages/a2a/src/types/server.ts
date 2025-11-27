@@ -4,7 +4,7 @@
  * Types for A2A server configuration and dependencies
  */
 
-import type { JsonValue } from '../shared/types';
+import type { JsonValue } from '@babylon/shared';
 import type {
   PaymentVerificationParams,
   PaymentVerificationResult,

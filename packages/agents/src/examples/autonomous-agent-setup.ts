@@ -125,8 +125,8 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
   logger.info(`Registering babylonPlugin...`, undefined, 'AgentSetup');
   await runtime.registerPlugin(babylonPlugin);
 
-  // Note: Not calling runtime.initialize() since we don't use SQL plugin
-  // We have our own database setup
+  // Not calling runtime.initialize() since we don't use SQL plugin
+  // Database setup is handled separately
 
   logger.info(`Runtime fully initialized and ready`, undefined, 'AgentSetup');
 

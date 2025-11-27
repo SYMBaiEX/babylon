@@ -17,7 +17,7 @@ Babylon uses **PostgreSQL** with **Drizzle ORM** for type-safe database access.
 Represents both real players and NPCs.
 
 ```typescript
-// src/db/schema/users.ts
+// packages/db/src/schema/users.ts
 export const users = pgTable('User', {
   id: varchar('id', { length: 191 }).primaryKey(),
   privyId: varchar('privyId', { length: 191 }).unique(),
@@ -60,7 +60,7 @@ export const users = pgTable('User', {
 Social media posts and articles.
 
 ```typescript
-// src/db/schema/posts.ts
+// packages/db/src/schema/posts.ts
 export const posts = pgTable('Post', {
   id: varchar('id', { length: 191 }).primaryKey(), // Snowflake ID
   type: varchar('type', { length: 191 }).default('post'), // "post" | "article"
@@ -93,7 +93,7 @@ export const posts = pgTable('Post', {
 Prediction market for binary questions.
 
 ```typescript
-// src/db/schema/markets.ts
+// packages/db/src/schema/markets.ts
 export const markets = pgTable('Market', {
   id: varchar('id', { length: 191 }).primaryKey(),
   question: text('question').notNull(),
@@ -121,7 +121,7 @@ noPrice = noShares / (yesShares + noShares)
 User position in a prediction market.
 
 ```typescript
-// src/db/schema/markets.ts
+// packages/db/src/schema/markets.ts
 export const positions = pgTable('Position', {
   id: varchar('id', { length: 191 }).primaryKey(),
   userId: varchar('userId', { length: 191 }).notNull(),
@@ -139,7 +139,7 @@ export const positions = pgTable('Position', {
 Perpetual futures position with leverage.
 
 ```typescript
-// src/db/schema/markets.ts
+// packages/db/src/schema/markets.ts
 export const perpPositions = pgTable('PerpPosition', {
   id: varchar('id', { length: 191 }).primaryKey(),
   userId: varchar('userId', { length: 191 }).notNull(),
@@ -172,7 +172,7 @@ Short: liquidationPrice = entryPrice * (1 + 1/leverage)
 ### Comment
 
 ```typescript
-// src/db/schema/posts.ts
+// packages/db/src/schema/posts.ts
 export const comments = pgTable('Comment', {
   id: varchar('id', { length: 191 }).primaryKey(),
   content: text('content').notNull(),
@@ -188,7 +188,7 @@ export const comments = pgTable('Comment', {
 ### Reaction
 
 ```typescript
-// src/db/schema/posts.ts
+// packages/db/src/schema/posts.ts
 export const reactions = pgTable('Reaction', {
   id: varchar('id', { length: 191 }).primaryKey(),
   postId: varchar('postId', { length: 191 }),
@@ -204,7 +204,7 @@ export const reactions = pgTable('Reaction', {
 ### Follow
 
 ```typescript
-// src/db/schema/users.ts
+// packages/db/src/schema/users.ts
 export const follows = pgTable('Follow', {
   id: varchar('id', { length: 191 }).primaryKey(),
   followerId: varchar('followerId', { length: 191 }).notNull(),
@@ -223,7 +223,7 @@ export const follows = pgTable('Follow', {
 NPC-managed trading pool.
 
 ```typescript
-// src/db/schema/pools.ts
+// packages/db/src/schema/pools.ts
 export const pools = pgTable('Pool', {
   id: varchar('id', { length: 191 }).primaryKey(),
   npcActorId: varchar('npcActorId', { length: 191 }).notNull(),
@@ -244,7 +244,7 @@ export const pools = pgTable('Pool', {
 All NPC trades for transparency.
 
 ```typescript
-// src/db/schema/trading.ts
+// packages/db/src/schema/trading.ts
 export const npcTrades = pgTable('NPCTrade', {
   id: varchar('id', { length: 191 }).primaryKey(),
   npcActorId: varchar('npcActorId', { length: 191 }).notNull(),
@@ -270,7 +270,7 @@ export const npcTrades = pgTable('NPCTrade', {
 Prediction market questions.
 
 ```typescript
-// src/db/schema/markets.ts
+// packages/db/src/schema/markets.ts
 export const questions = pgTable('Question', {
   id: varchar('id', { length: 191 }).primaryKey(),
   questionNumber: integer('questionNumber').notNull(), // Sequential
@@ -290,7 +290,7 @@ export const questions = pgTable('Question', {
 NPC actors with personalities.
 
 ```typescript
-// src/db/schema/actors.ts
+// packages/db/src/schema/actors.ts
 export const actors = pgTable('Actor', {
   id: varchar('id', { length: 191 }).primaryKey(), // From individual actor files
   name: varchar('name', { length: 191 }).notNull(),
@@ -310,7 +310,7 @@ export const actors = pgTable('Actor', {
 Companies for perpetual futures.
 
 ```typescript
-// src/db/schema/markets.ts
+// packages/db/src/schema/markets.ts
 export const organizations = pgTable('Organization', {
   id: varchar('id', { length: 191 }).primaryKey(),
   name: varchar('name', { length: 191 }).notNull(),
@@ -330,7 +330,7 @@ export const organizations = pgTable('Organization', {
 Ratings between users and agents.
 
 ```typescript
-// src/db/schema/trading.ts
+// packages/db/src/schema/trading.ts
 export const feedbacks = pgTable('Feedback', {
   id: varchar('id', { length: 191 }).primaryKey(),
   fromUserId: varchar('fromUserId', { length: 191 }),
@@ -352,7 +352,7 @@ export const feedbacks = pgTable('Feedback', {
 Aggregated performance data.
 
 ```typescript
-// src/db/schema/agents.ts
+// packages/db/src/schema/agents.ts
 export const agentPerformanceMetrics = pgTable('AgentPerformanceMetrics', {
   id: varchar('id', { length: 191 }).primaryKey(),
   userId: varchar('userId', { length: 191 }).notNull().unique(),
@@ -495,7 +495,7 @@ Enforced in application logic:
 ### Get User with Positions
 
 ```typescript
-import { db, users, positions, markets, eq } from '@/db';
+import { db, users, positions, markets, eq } from '@babylon/db';
 
 const user = await db.select()
   .from(users)
@@ -511,7 +511,7 @@ const userPositions = await db.select()
 ### Get Feed with Authors
 
 ```typescript
-import { db, posts, users, desc, eq } from '@/db';
+import { db, posts, users, desc, eq } from '@babylon/db';
 
 const feedPosts = await db.select({
   id: posts.id,
@@ -562,7 +562,7 @@ DATABASE_URL="postgresql://user:pass@host:5432/babylon?connection_limit=10"
 
 ```typescript
 // Drizzle manages connections via postgres.js
-// Configure in src/db/index.ts:
+// Configure in packages/db/src/index.ts:
 
 const client = postgres(url, {
   max: isProd ? 50 : isTest ? 5 : 10,  // Pool size
@@ -577,7 +577,7 @@ const client = postgres(url, {
 ### RLS Pattern
 
 ```typescript
-import { asUser, asPublic, db, positions, markets, eq } from '@/db';
+import { asUser, asPublic, db, positions, markets, eq } from '@babylon/db';
 
 // Execute query as specific user
 const data = await asUser(userId, async (database) => {
@@ -654,7 +654,7 @@ await db.update(users)
 ### Atomic Operations
 
 ```typescript
-import { withTransaction, users, positions, balanceTransactions, eq, sql } from '@/db';
+import { withTransaction, users, positions, balanceTransactions, eq, sql } from '@babylon/db';
 
 await withTransaction(async (tx) => {
   // Deduct from user balance

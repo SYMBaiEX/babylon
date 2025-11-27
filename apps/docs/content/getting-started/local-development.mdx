@@ -101,24 +101,26 @@ bun run typecheck
 
 ```
 babylon/
- src/
- app/ # Next.js App Router
- api/ # API routes
- (routes)/ # Page routes
- layout.tsx # Root layout
- components/ # React components
- db/ # Drizzle database schema
- schema/ # Table definitions
- lib/ # Utility libraries
- engine/ # Game engine logic
- agents/ # Agent system
- a2a/ # A2A protocol
- types/ # TypeScript types
- contracts/ # Solidity smart contracts
- drizzle/ # Database migrations
- public/ # Static assets
- scripts/ # Utility scripts
- tests/ # Test files
+ apps/
+  web/              # Next.js web application
+   src/
+    app/            # Next.js App Router
+    components/     # React components
+    lib/            # Utility libraries
+  cli/              # CLI tool
+   src/
+    commands/       # CLI commands
+  docs/             # Documentation site
+ packages/
+  agents/           # Agent system (@babylon/agents)
+  a2a/              # A2A protocol (@babylon/a2a)
+  api/              # API utilities (@babylon/api)
+  contracts/        # Smart contracts (@babylon/contracts)
+  db/               # Database schema (@babylon/db)
+  engine/           # Game engine (@babylon/engine)
+  shared/            # Shared utilities (@babylon/shared)
+  training/          # RL training (@babylon/training)
+  testing/           # Testing utilities (@babylon/testing)
 ```
 
 ## Real-Time Features
@@ -162,7 +164,7 @@ await client.connect();
 
 ### Creating a New API Endpoint
 
-1. Create route file: `src/app/api/your-endpoint/route.ts`
+1. Create route file: `apps/web/src/app/api/your-endpoint/route.ts`
 
 ```typescript
 import { NextRequest } from 'next/server';
@@ -178,16 +180,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 });
 ```
 
-2. Add validation schema in `src/lib/validation/schemas.ts`
+2. Add validation schema in `apps/web/src/lib/validation/schemas.ts`
 3. Update API documentation
-4. Write tests in `tests/integration/`
+4. Write tests in `packages/testing/integration/`
 
 ### Adding a New Database Model
 
-1. Create schema in `src/db/schema/`:
+1. Create schema in `packages/db/src/schema/`:
 
 ```typescript
-// src/db/schema/my-model.ts
+// packages/db/src/schema/my-model.ts
 import { pgTable, text, timestamp, index } from 'drizzle-orm/pg-core';
 
 export const myModels = pgTable('my_models', {
@@ -199,7 +201,7 @@ export const myModels = pgTable('my_models', {
 }));
 ```
 
-2. Export from `src/db/schema/index.ts`
+2. Export from `packages/db/src/schema/index.ts`
 
 3. Generate and apply migration:
 
@@ -208,13 +210,13 @@ bun run db:generate
 bun run db:migrate
 ```
 
-4. Update TypeScript types in `src/types/` if needed
+4. Update TypeScript types in `packages/shared/src/types/` if needed
 
 ### Creating a New Component
 
 ```bash
 # Create component file
-touch src/components/MyComponent.tsx
+touch apps/web/src/components/MyComponent.tsx
 ```
 
 ```tsx
@@ -267,7 +269,7 @@ Create `.vscode/launch.json`:
 ### Logging
 
 ```typescript
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 
 logger.info('Message', { context: 'value' });
 logger.error('Error occurred', { error });

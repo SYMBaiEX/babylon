@@ -86,7 +86,7 @@ export async function syncReputationToERC8004(
   );
 
   // Update local AgentPerformanceMetrics with system-calculated reputation
-  // Note: This does NOT submit feedback to Agent0 network (that's handled separately)
+  // Feedback submission to Agent0 network is handled separately
 
   // Check if metrics exist
   const [existingMetrics] = await db

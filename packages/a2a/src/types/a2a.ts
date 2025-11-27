@@ -9,7 +9,7 @@ import {
   type JsonRpcResult,
   type JsonValue,
   JsonValueSchema,
-} from '../shared/types';
+} from '@babylon/shared';
 import type { AgentCapabilities, GameNetworkInfo } from '@babylon/shared';
 import { AgentCapabilitiesSchema, GameNetworkInfoSchema } from '@babylon/shared';
 

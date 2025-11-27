@@ -174,7 +174,7 @@ bun run db:push
 // Update database URL with connection limits
 DATABASE_URL="postgresql://user:pass@localhost:5432/babylon?connection_limit=10"
 
-// Connection pooling is configured in src/db/index.ts
+// Connection pooling is configured in packages/db/src/index.ts
 // Adjust max connections based on environment:
 // - Production: 50
 // - Development: 10
@@ -193,7 +193,7 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/babylon?connection_limit=10"
 bun run dev
 
 # Check for missing indexes in schema
-# Add indexes to frequently queried fields in src/db/schema/
+# Add indexes to frequently queried fields in packages/db/src/schema/
 ```
 
 ---
@@ -382,7 +382,7 @@ cat packages/contracts/deployments/base-sepolia/index.json
 
 ```bash
 # Check API route exists
-ls src/app/api/path/to/route.ts
+ls apps/web/src/app/api/path/to/route.ts
 
 # Verify server running
 curl http://localhost:3000/api/stats
@@ -409,7 +409,7 @@ bun run dev
 # Look for slow queries in console output
 
 # Check database indexes
-# Add indexes to frequently queried fields in src/db/schema/
+# Add indexes to frequently queried fields in packages/db/src/schema/
 
 # Increase timeout (if needed)
 export API_TIMEOUT=30000
@@ -585,7 +585,7 @@ DATABASE_URL="...?connection_limit=10"
 // vercel.json
 {
  "functions": {
- "src/app/api/cron/game-tick/route.ts": {
+ "apps/web/src/app/api/cron/game-tick/route.ts": {
  "maxDuration": 60 // Increase to 60s
  }
  }

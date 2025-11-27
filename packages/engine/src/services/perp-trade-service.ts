@@ -22,7 +22,9 @@ import {
   BusinessLogicError,
   InternalServerError,
   NotFoundError,
+  generateSnowflakeId,
 } from '@babylon/shared';
+import type { PerpPosition } from '@babylon/shared';
 import { FEE_CONFIG } from '@babylon/engine';
 import { asUser } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
@@ -48,9 +50,6 @@ async function applyPerpTradeImpacts(_trades: TradeImpactInput[]): Promise<void>
     'PerpTradeService'
   );
 }
-import { generateSnowflakeId } from '@babylon/shared';
-
-import type { PerpPosition } from '@babylon/shared';
 
 /**
  * Trade side type

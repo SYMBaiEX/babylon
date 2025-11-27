@@ -56,11 +56,3 @@ export const swaggerDefinition = {
     },
   },
 };
-
-/**
- * Swagger UI options
- */
-export const swaggerOptions = {
-  swaggerDefinition,
-  apis: ['./src/app/api/**/*.ts'],
-};

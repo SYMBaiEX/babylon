@@ -29,7 +29,7 @@ npm run test:a2a
 
 ```bash
 # Run agent tests
-bun test src/lib/agents/
+bun test packages/agents/
 
 # Expected output:
 # Autonomous Coordinator: 8/8 passing
@@ -41,7 +41,7 @@ bun test src/lib/agents/
 
 ```bash
 # Run all A2A + Agent tests
-bun test ./src/a2a/tests/ ./src/lib/agents/
+bun test packages/a2a/ packages/agents/
 
 # Expected: 18/18 passing (100%)
 ```
@@ -88,7 +88,7 @@ bun test ./src/a2a/tests/ ./src/lib/agents/
 ### 1. Test A2A Connection
 
 ```typescript
-import { A2AClient } from '@/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 
 const client = new A2AClient({
  endpoint: 'http://localhost:3000/a2a',
@@ -117,8 +117,7 @@ assert(typeof balance.balance === 'number')
 ### 2. Test Agent Creation
 
 ```typescript
-import { agentService } from '@/lib/agents/services/AgentService'
-import { agentWalletService } from '@/lib/agents/identity/AgentWalletService'
+import { agentService, agentWalletService } from '@babylon/agents'
 
 // Create agent
 const agent = await agentService.createAgent({
@@ -138,8 +137,7 @@ assert(identity.walletAddress.startsWith('0x'))
 ### 3. Test Autonomous Execution
 
 ```typescript
-import { autonomousCoordinator } from '@/lib/agents/autonomous'
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
+import { autonomousCoordinator, agentRuntimeManager } from '@babylon/agents'
 
 const runtime = await agentRuntimeManager.getRuntime(agentId)
 
@@ -286,7 +284,7 @@ jobs:
  run: npm run test:a2a
  
  - name: Run Agent tests
- run: bun test src/lib/agents/
+ run: bun test packages/agents/
 ```
 
 ## Test Utilities

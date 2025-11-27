@@ -641,7 +641,4 @@ export class GroupChatService {
   }
 }
 
-// Re-export legacy class names for backward compatibility
-export { GroupChatService as GroupChatInvite };
-export { GroupChatService as GroupChatSweep };
 

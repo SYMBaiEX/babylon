@@ -1,10 +1,17 @@
 /**
  * Error Type Definitions
  *
- * Proper error types to replace all 'unknown' and 'any' error types
+ * Error types and utilities for error handling.
+ * Error classes are exported from ./errors/index.ts
  */
 
 import type { JsonValue } from './common';
+import {
+  AuthenticationError,
+  DatabaseError,
+  LLMError,
+  ValidationError,
+} from '../errors';
 
 /**
  * Base error interface for all application errors
@@ -16,35 +23,8 @@ export interface AppError {
 }
 
 /**
- * Authentication error
- */
-export interface AuthenticationError extends Error {
-  code: 'AUTH_FAILED' | 'AUTH_TOKEN_INVALID' | 'AUTH_TOKEN_EXPIRED';
-  userId?: string;
-}
-
-/**
- * Database error
- */
-export interface DatabaseError extends Error {
-  code: string;
-  pgCode?: string;
-  table?: string;
-  constraint?: string;
-}
-
-/**
- * LLM/API error
- */
-export interface LLMError extends Error {
-  code: 'LLM_GENERATION_FAILED' | 'LLM_RATE_LIMIT' | 'LLM_INVALID_RESPONSE';
-  provider?: string;
-  attempt?: number;
-  maxRetries?: number;
-}
-
-/**
- * Network/HTTP error
+ * Network/HTTP error interface
+ * Note: There's no NetworkError class, only this interface
  */
 export interface NetworkError extends Error {
   status?: number;
@@ -53,63 +33,40 @@ export interface NetworkError extends Error {
 }
 
 /**
- * Validation error
- */
-export interface ValidationError extends Error {
-  field?: string;
-  value?: JsonValue;
-  constraint?: string;
-}
-
-/**
- * Type guard to check if error is AuthenticationError
+ * Type guard to check if error is AuthenticationError class
  */
 export function isAuthenticationError(
   error: Error
 ): error is AuthenticationError {
-  return (
-    'code' in error &&
-    typeof (error as AuthenticationError).code === 'string' &&
-    ['AUTH_FAILED', 'AUTH_TOKEN_INVALID', 'AUTH_TOKEN_EXPIRED'].includes(
-      (error as AuthenticationError).code
-    )
-  );
+  return error instanceof AuthenticationError;
 }
 
 /**
- * Type guard to check if error is DatabaseError
+ * Type guard to check if error is DatabaseError class
  */
 export function isDatabaseError(error: Error): error is DatabaseError {
-  return 'code' in error && ('pgCode' in error || 'constraint' in error);
+  return error instanceof DatabaseError;
 }
 
 /**
- * Type guard to check if error is LLMError
+ * Type guard to check if error is LLMError class
  */
 export function isLLMError(error: Error): error is LLMError {
-  return (
-    'code' in error &&
-    typeof (error as LLMError).code === 'string' &&
-    [
-      'LLM_GENERATION_FAILED',
-      'LLM_RATE_LIMIT',
-      'LLM_INVALID_RESPONSE',
-    ].includes((error as LLMError).code)
-  );
+  return error instanceof LLMError;
 }
 
 /**
- * Type guard to check if error is NetworkError
+ * Type guard to check if error is NetworkError interface
  */
 export function isNetworkError(error: Error): error is NetworkError {
   return 'status' in error || 'url' in error;
 }
 
 /**
- * Type guard to check if error is ValidationError
+ * Type guard to check if error is ValidationError class
  */
 export function isValidationError(error: Error): error is ValidationError {
-  return 'field' in error || 'constraint' in error;
+  return error instanceof ValidationError;
 }
 
 /**

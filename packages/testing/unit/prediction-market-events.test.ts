@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { PredictionMarketEventService } from '@babylon/engine';
+import { PredictionMarketService } from '@babylon/engine';
 
-describe('PredictionMarketEventService', () => {
+describe('PredictionMarketService', () => {
   const mockBroadcaster = mock<
     (channel: string, data: Record<string, unknown>) => Promise<void>
   >(async () => {});
 
   beforeEach(() => {
     mockBroadcaster.mockClear();
-    PredictionMarketEventService.setBroadcaster(mockBroadcaster);
+    PredictionMarketService.setBroadcaster(mockBroadcaster);
   });
 
   afterEach(() => {
     // Clear broadcaster after each test
-    PredictionMarketEventService.setBroadcaster(async () => {});
+    PredictionMarketService.setBroadcaster(async () => {});
   });
 
   test('emitTradeUpdate broadcasts prediction trade event', () => {
@@ -37,7 +37,7 @@ describe('PredictionMarketEventService', () => {
       },
     };
 
-    PredictionMarketEventService.emitTradeUpdate(payload);
+    PredictionMarketService.emitTradeUpdate(payload);
 
     expect(mockBroadcaster).toHaveBeenCalledWith('markets', {
       type: 'prediction_trade',
@@ -57,7 +57,7 @@ describe('PredictionMarketEventService', () => {
       timestamp: new Date().toISOString(),
     };
 
-    PredictionMarketEventService.emitResolution(payload);
+    PredictionMarketService.emitResolution(payload);
 
     expect(mockBroadcaster).toHaveBeenCalledWith('markets', {
       type: 'prediction_resolution',

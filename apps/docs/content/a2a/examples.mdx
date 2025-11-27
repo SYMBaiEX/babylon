@@ -14,7 +14,7 @@ The A2A protocol provides **60 methods** covering **100% of Babylon features**. 
 ### Connect and Authenticate
 
 ```typescript
-import { A2AClient } from '@/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 import { ethers } from 'ethers'
 
 async function main() {
@@ -75,7 +75,7 @@ main().catch(console.error)
 **Uses 6 A2A methods in sequence:**
 
 ```typescript
-import { A2AClient } from '@/a2a/client/a2a-client'
+import { A2AClient } from '@babylon/a2a'
 
 async function completeTradingWorkflow(client: A2AClient) {
  // Step 1: Get available markets

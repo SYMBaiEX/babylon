@@ -3,16 +3,14 @@ pragma solidity ^0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {IPredictionOracle} from "./IPredictionOracle.sol";
 
 interface IPredimarket {
     function createMarket(bytes32 sessionId, string calldata question, uint256 liquidityParameter) external;
 }
 
-interface IPredictionOracle {
-    function getOutcome(bytes32 sessionId) external view returns (bool outcome, bool finalized);
-    function verifyCommitment(bytes32 commitment) external view returns (bool);
-    
-    // Optional struct for oracle metadata (PredictionOracle.sol and Contest.sol both support this)
+// Extended interface for oracle metadata (PredictionOracle.sol and Contest.sol both support this)
+interface IPredictionOracleExtended is IPredictionOracle {
     function games(bytes32 sessionId) external view returns (
         bytes32 _sessionId,
         string memory question,
@@ -40,7 +38,7 @@ interface IPredictionOracle {
  */
 contract MarketFactory is Ownable, Pausable {
     IPredimarket public immutable predimarket;
-    IPredictionOracle public immutable oracle;
+    IPredictionOracleExtended public immutable oracle;
     
     uint256 public defaultLiquidity;
     

@@ -6,11 +6,11 @@ Complete reinforcement learning training system for Babylon autonomous agents us
 
 The Python RL training system enables continuous learning from live agent gameplay:
 - **Continuous Collection**: Agents generate training data 24/7
-- **Automated Training**: GRPO/RULER training runs automatically
+- **Automated Training**: GRPO training with Atropos runs automatically
 - **Live Deployment**: Updated models deploy without downtime
 - **MMO-Style**: Multiple agents learn together, share experiences
 
-**Based on**: OpenPipe GRPO, Stanford RULER architecture
+**Based on**: Atropos (RLAIF framework by Nous Research) with GRPO training
 
 **Status**: **Production Ready** - Complete automation pipeline
 
@@ -33,7 +33,7 @@ graph TB
 1. **Agents Play**: Autonomous agents interact with Babylon
 2. **Data Collection**: Decisions recorded via trajectory logger
 3. **Windowed Batching**: Group by time windows (1-hour default)
-4. **Training**: GRPO/RULER optimize model on successful decisions
+4. **Training**: GRPO optimizes model on successful decisions (scored via RLAIF)
 5. **Deployment**: New model replaces old without downtime
 6. **Repeat**: Loop continues indefinitely
 
@@ -42,78 +42,83 @@ graph TB
 ### 1. Installation
 
 ```bash
-cd python
+cd packages/training/python
 pip install -r requirements.txt
+
+# Note: Python commands below assume you're in packages/training/python directory
+# or have PYTHONPATH set to include packages/training/python/src
 ```
 
 ### 2. Configuration
 
-Create `.env.training`:
+Set environment variables:
 
 ```env
 # Database
 DATABASE_URL=postgresql://user:pass@host/babylon
 
 # Training
-OPENPIPE_API_KEY=your_key
-MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct
-TRAINING_FREQUENCY_WINDOWS=1
-WINDOW_DURATION_HOURS=1
-
-# Deployment
-DEPLOYMENT_STRATEGY=replace
-LOCAL_ENDPOINT=http://localhost:8000
+BASE_MODEL=unsloth/Qwen3-4B-128K
+JUDGE_MODEL=gpt-4o-mini
+ATROPOS_API_URL=http://localhost:8000
+VLLM_PORT=9001
 ```
 
 ### 3. Start Training
 
-```bash
-# Continuous mode (runs forever)
-python src/training/continuous_trainer.py
+The Atropos training pipeline requires three components running:
 
-# Single window (test)
-python src/training/continuous_trainer.py --mode single
+**Terminal 1 - Atropos API Server:**
+```bash
+run-api
 ```
 
-## Training Modes
-
-### Continuous Mode (Production)
-
-Runs indefinitely, training on new data as it arrives:
-
+**Terminal 2 - Babylon RLAIF Environment:**
 ```bash
-python src/training/continuous_trainer.py \
- --mode continuous \
- --window-hours 1 \
- --frequency 1
+python -m src.training.babylon_env serve --slurm false
 ```
 
-**Process**:
-1. Wait for window to complete
-2. Collect trajectories from that window
-3. Train GRPO model
-4. Deploy new model
-5. Repeat
-
-### Single Window Mode (Testing)
-
-Train on one window and exit:
-
+**Terminal 3 - GRPO Trainer:**
 ```bash
-python src/training/continuous_trainer.py \
- --mode single \
- --window-hours 6
+python -m src.training.atropos_trainer \
+  --model unsloth/Qwen3-4B-128K \
+  --steps 100 \
+  --batch-size 4 \
+  --lr 1e-5
 ```
 
-### Backfill Mode (Catch-up)
+## Architecture
 
-Train on historical data:
+The training pipeline uses three components:
 
-```bash
-python src/training/continuous_trainer.py \
- --mode backfill \
- --backfill-hours 48
+1. **Atropos API Server** (`run-api`): Coordinates batches between environment and trainer
+2. **Babylon RLAIF Environment** (`babylon_env.py`): Loads trajectories, scores with LLM judge
+3. **GRPO Trainer** (`atropos_trainer.py`): Trains the model using Group Relative Policy Optimization
+
 ```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   PostgreSQL    │────▶│  Babylon RLAIF   │────▶│  Atropos API    │
+│   Trajectories  │     │   Environment    │     │    Server       │
+└─────────────────┘     └──────────────────┘     └────────┬────────┘
+                              │                          │
+                              │ LLM Judge               │ Batches
+                              ▼                          ▼
+                       ┌──────────────┐          ┌─────────────────┐
+                       │  GPT-4o-mini │          │   GRPO Trainer  │
+                       │   (RLAIF)    │          │   + vLLM        │
+                       └──────────────┘          └─────────────────┘
+```
+
+## Training Process
+
+The Atropos training loop:
+
+1. **Environment** loads trajectories from PostgreSQL
+2. **LLM Judge** scores trajectories using RLAIF (GPT-4o-mini)
+3. **Atropos API** batches scored trajectories
+4. **GRPO Trainer** trains on batches
+5. **Model checkpoint** saved periodically
+6. **vLLM** restarted with updated model
 
 ## Data Collection
 
@@ -151,209 +156,169 @@ Window: 2024-11-13 10:00 - 11:00
 
 ## Training Configuration
 
-### GRPO Settings
+### Atropos Configuration
 
-```python
-from training.grpo_config import GRPOConfig
+Using YAML config file:
 
-config = GRPOConfig(
- model_name="Qwen/Qwen2.5-0.5B-Instruct",
- batch_size=4,
- gradient_accumulation_steps=2,
- learning_rate=1e-6,
- kl_penalty=0.05,
- iterations_per_window=10,
- reward_threshold=0.5
-)
+```bash
+python -m src.training.babylon_env serve --config config/babylon_atropos.yaml
 ```
 
-### RULER Scoring
+Or CLI arguments:
 
-```python
-from training.ruler_scorer import RULERScorer
-
-scorer = RULERScorer(
- model_path="./checkpoints/latest",
- scoring_method="preference", # or "regression"
- temperature=0.7
-)
-
-scores = scorer.score_trajectories(trajectories)
+```bash
+python -m src.training.babylon_env serve \
+  --env--tokenizer_name Qwen/Qwen2.5-3B-Instruct \
+  --env--group_size 4 \
+  --env--max_token_length 4096 \
+  --env--database_url $DATABASE_URL \
+  --openai--model_name Qwen/Qwen2.5-3B-Instruct \
+  --openai--base_url http://localhost:9001/v1 \
+  --slurm false
 ```
 
-## Deployment
+### Trainer Configuration
 
-### Strategy: Replace
-
-Replace old model with new model atomically:
-
-```python
-deployment = {
- "strategy": "replace",
- "endpoint": "http://localhost:8000",
- "model_path": "./checkpoints/window_123",
- "validation": True # Test before deploying
-}
+```bash
+python -m src.training.atropos_trainer \
+  --model Qwen/Qwen2.5-3B-Instruct \
+  --steps 100 \
+  --batch-size 4 \
+  --lr 1e-5 \
+  --save-path ./trained_models \
+  --api-url http://localhost:8000 \
+  --vllm-port 9001
 ```
 
-### Strategy: A/B Test
+### Key Configuration Options
 
-Run two models simultaneously:
+| Option | Default | Description |
+|--------|---------|-------------|
+| `group_size` | 4 | Trajectories compared per GRPO group |
+| `max_token_length` | 4096 | Maximum sequence length |
+| `lookback_hours` | 72 | Hours to look back for trajectories |
+| `min_agents_per_window` | 2 | Minimum agents required per window |
+| `judge_model` | gpt-4o-mini | LLM model for RLAIF scoring |
 
-```python
-deployment = {
- "strategy": "ab_test",
- "model_a": "./checkpoints/baseline",
- "model_b": "./checkpoints/window_123",
- "split": 0.5 # 50/50 split
-}
-```
+## Supported Models
+
+### Recommended for Training
+
+| Model | VRAM | Notes |
+|-------|------|-------|
+| `unsloth/Qwen3-4B-128K` | ~10GB | **Default** - 4B params, 128K context, ideal for fine-tuning |
+| `Qwen/Qwen2.5-3B-Instruct` | ~8GB | Fast, good quality |
+| `Qwen/Qwen2.5-7B-Instruct` | ~16GB | Better quality |
+| `Qwen/Qwen2.5-14B-Instruct` | ~32GB | Best quality |
+
+### For Apple Silicon (MLX)
+
+| Model | RAM | Notes |
+|-------|-----|-------|
+| `mlx-community/Qwen2.5-3B-Instruct-4bit` | ~4GB | Fast |
+| `mlx-community/Qwen2.5-7B-Instruct-4bit` | ~8GB | Good balance |
 
 ## Monitoring
 
 ### Training Metrics
 
-Track key metrics:
+Training metrics are logged to `./logs/training_metrics.jsonl`:
 
-```python
+```json
 {
- "window_id": 123,
- "agents": 5,
- "trajectories": 47,
- "avg_reward": 0.73,
- "training_loss": 0.21,
- "kl_divergence": 0.03,
- "deployment_success": True,
- "duration_minutes": 15
+  "step": 100,
+  "loss": 0.21,
+  "grad_norm": 0.45,
+  "pos_logp": -2.3,
+  "neg_logp": -3.1,
+  "total_pos": 12,
+  "total_neg": 8
 }
 ```
 
-### Performance Tracking
-
-Monitor agent performance:
-
-```python
-# Before training
-baseline_win_rate = 0.52
-
-# After training
-improved_win_rate = 0.67
-
-# Improvement
-delta = +0.15 # 15% better!
-```
-
-## Advanced Features
-
-### Custom Reward Functions
-
-```python
-class TradingRewardFunction:
- def compute(self, trajectory):
- # Extract metrics
- pnl = trajectory['result']['pnl']
- hold_time = trajectory['result']['hold_time_minutes']
- win_rate = trajectory['agent_stats']['win_rate']
- 
- # Compute components
- pnl_reward = pnl / trajectory['result']['investment']
- speed_reward = 1.0 if hold_time < 60 else 0.5
- consistency_reward = win_rate
- 
- # Weighted combination
- return (
- 0.5 * pnl_reward +
- 0.2 * speed_reward +
- 0.3 * consistency_reward
- )
-```
-
-### Multi-Agent Learning
-
-```python
-# Collect from multiple agents
-agents = ["agent-1", "agent-2", "agent-3"]
-
-trajectories = []
-for agent in agents:
- agent_data = collect_trajectories(agent, window)
- trajectories.extend(agent_data)
-
-# Train on combined experience
-model = train_grpo(trajectories)
-```
-
-### Transfer Learning
-
-```python
-# Fine-tune on Babylon-specific strategies
-trainer = GRPOTrainer(
- base_model="Qwen/Qwen2.5-0.5B-Instruct", # General model
- babylon_data="./trajectories/", # Babylon-specific
- transfer_layers=["attention", "ffn"] # What to fine-tune
-)
-```
-
-## Production Setup
-
-### CoreWeave Deployment
-
-```yaml
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
- name: babylon-training
-spec:
- replicas: 1
- template:
- spec:
- containers:
- - name: trainer
- image: babylon/rl-training:latest
- env:
- - name: DATABASE_URL
- valueFrom:
- secretKeyRef:
- name: db-credentials
- key: url
- resources:
- limits:
- nvidia.com/gpu: 1
-```
-
-### Automation
+### Local Debugging
 
 ```bash
-# Cron job for continuous training
-0 * * * * cd /app/python && python src/training/continuous_trainer.py --mode single
+# View rollouts in browser
+view-run
+
+# Generate offline data
+python -m src.training.babylon_env process \
+  --env--data_path_to_save_groups output/rollouts.jsonl \
+  --env--total_steps 10
 ```
+
+## RLAIF Scoring
+
+The environment uses an LLM judge to score trajectories:
+
+1. **Group Formation**: Trajectories grouped by window/scenario
+2. **Context Injection**: P&L, episode length, actions provided to judge
+3. **Relative Comparison**: Judge compares trajectories within group
+4. **Score Normalization**: Scores normalized to mean 0 for GRPO
+
+### Custom Scoring Rubric
+
+Edit the `scoring_rubric` in your config:
+
+```yaml
+env:
+  scoring_rubric: |
+    You are evaluating trading agent performance.
+    
+    Score from 0.0 to 1.0 based on:
+    - Profitability (50%)
+    - Risk management (30%)  
+    - Decision quality (20%)
+    
+    Compare trajectories RELATIVE to each other.
+```
+
+## Files
+
+### Core Training Files
+
+- `packages/training/python/src/training/babylon_env.py` - RLAIF environment for Atropos
+- `packages/training/python/src/training/atropos_trainer.py` - GRPO trainer
+- `packages/training/python/src/training/rewards.py` - Reward functions
+- `packages/training/python/config/babylon_atropos.yaml` - Default configuration
+
+### Data Bridge
+
+- `packages/training/python/src/data_bridge/reader.py` - PostgreSQL trajectory reader
+- `packages/training/python/src/data_bridge/converter.py` - Trajectory format conversion
 
 ## Troubleshooting
 
-### No Trajectories Collected
+### No trajectories found
 
-**Check**:
-- Agents are running
-- Trajectory logger is enabled
-- Database connection works
-- Actions are wrapped with logging
+```bash
+# Check database connection
+python -c "import asyncpg; print('asyncpg OK')"
 
-### Training Fails
+# Verify trajectories exist
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM trajectories WHERE \"stepsJson\" IS NOT NULL"
+```
 
-**Common Issues**:
-- Insufficient trajectories (need 5+ per agent)
-- Missing required fields
-- Invalid reward scores
-- GPU out of memory
+### vLLM not starting
 
-### Model Doesn't Improve
+```bash
+# Check GPU availability
+python -c "import torch; print(torch.cuda.is_available())"
 
-**Try**:
-- Increase training iterations
-- Adjust learning rate
-- Filter low-reward trajectories
-- Increase batch size
+# Check vLLM installation
+python -c "import vllm; print(vllm.__version__)"
+```
+
+### Environment not connecting to API
+
+```bash
+# Verify API server is running
+curl http://localhost:8000/
+
+# Check registration
+curl http://localhost:8000/status
+```
 
 ## HuggingFace Dataset
 
@@ -395,10 +360,10 @@ npm run hf:offline -- --month=2025-11 --agent=my-agent
 
 ## Resources
 
-- **Full Documentation**: `python/README.md`
-- **Quick Start**: `python/START_HERE.md`
-- **Scorer Implementation**: `python/src/training/ruler_scorer.py`
-- **Automation Pipeline**: `src/lib/training/AutomationPipeline.ts`
+- **Full Documentation**: `packages/training/python/README.md`
+- **Atropos Trainer**: `packages/training/python/src/training/atropos_trainer.py`
+- **Babylon Environment**: `packages/training/python/src/training/babylon_env.py`
+- **Automation Pipeline**: `packages/training/src/training/AutomationPipeline.ts`
 - **HuggingFace Dataset**: https://huggingface.co/datasets/elizaos/babylon-game-data
 
 ## Next Steps

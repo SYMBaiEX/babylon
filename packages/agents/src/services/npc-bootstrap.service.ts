@@ -334,7 +334,7 @@ export class NPCBootstrapService {
       domains: oasfDomains,
 
       // A2A Communication Endpoints (Agent0 SDK v0.31.0)
-      // Note: These will be set when A2A endpoints are implemented
+      // Set when A2A endpoints are implemented
       a2aEndpoint: undefined,
       mcpEndpoint: undefined,
     };
@@ -380,7 +380,7 @@ export class NPCBootstrapService {
     // Clear runtime from cache
     await agentRuntimeManager.clearRuntime(actorId);
 
-    // Note: We don't delete from AgentRegistry to preserve history
+    // AgentRegistry entry is preserved for history
     // Status will be set to TERMINATED by clearRuntimeInstance
 
     logger.info(

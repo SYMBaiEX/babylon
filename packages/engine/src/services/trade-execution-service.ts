@@ -33,8 +33,7 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import {
-  PredictionMarketService as PredictionMarketEventService,
-  PredictionMarketService as PredictionPriceHistoryService,
+  PredictionMarketService,
 } from './prediction-market-service';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
@@ -568,7 +567,7 @@ export class TradeExecutionService {
     const liquidityAfter =
       Number(market.liquidity ?? 0) + calculation.netAmount;
 
-    await PredictionPriceHistoryService.recordSnapshot({
+    await PredictionMarketService.recordSnapshot({
       marketId: decision.marketId!.toString(),
       yesPrice: calculation.newYesPrice,
       noPrice: calculation.newNoPrice,
@@ -593,7 +592,7 @@ export class TradeExecutionService {
       );
     });
 
-    PredictionMarketEventService.emitTradeUpdate({
+    PredictionMarketService.emitTradeUpdate({
       marketId: decision.marketId!.toString(),
       yesPrice: calculation.newYesPrice,
       noPrice: calculation.newNoPrice,
@@ -774,7 +773,7 @@ export class TradeExecutionService {
         });
       });
 
-      await PredictionPriceHistoryService.recordSnapshot({
+      await PredictionMarketService.recordSnapshot({
         marketId: position.marketId,
         yesPrice: calculation.newYesPrice,
         noPrice: calculation.newNoPrice,
@@ -799,7 +798,7 @@ export class TradeExecutionService {
         );
       });
 
-      PredictionMarketEventService.emitTradeUpdate({
+      PredictionMarketService.emitTradeUpdate({
         marketId: position.marketId,
         yesPrice: calculation.newYesPrice,
         noPrice: calculation.newNoPrice,

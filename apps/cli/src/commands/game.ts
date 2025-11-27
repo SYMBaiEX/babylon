@@ -1,14 +1,12 @@
 #!/usr/bin/env bun
 
 /**
- * Game Commands
+ * @fileoverview Game management commands
  *
- * Commands:
- *   start      - Start the continuous game
- *   pause      - Pause the continuous game
- *   status     - Show game runtime status
- *   generate   - Generate a new game with scenarios and questions
- *   simulate   - Run game simulation
+ * Provides commands for controlling game state, generating game content,
+ * running simulations, and validating actor data.
+ *
+ * @module cli/commands/game
  */
 
 import { db, eq, games, generateSnowflakeId as dbGenerateSnowflakeId, closeDatabase } from '@babylon/db';
@@ -33,6 +31,7 @@ COMMANDS:
   status      Show game runtime status
   generate    Generate a new game with scenarios and questions
   simulate    Run game simulation
+  validate    Validate actor data integrity
 
 OPTIONS (generate):
   -v, --verbose    Enable detailed logging
@@ -50,21 +49,31 @@ EXAMPLES:
   babylon game status             Check if game is running
   babylon game generate           Generate new game content
   babylon game simulate --count=10
+  babylon game validate           Validate actor affiliations
 `);
 }
 
+/**
+ * Generates a unique snowflake ID for game entities.
+ *
+ * @returns A 21-character nanoid string
+ * @internal
+ */
 async function generateSnowflakeId(): Promise<string> {
   return nanoid(21);
 }
 
-// ============================================================================
-// Game Control Commands (start, pause, status)
-// ============================================================================
-
+/**
+ * Controls game state by starting or pausing the continuous game.
+ *
+ * Creates a new continuous game if none exists, or updates the existing game state.
+ *
+ * @param action - Either 'start' to start the game or 'pause' to pause it
+ * @internal
+ */
 async function controlGame(action: 'start' | 'pause'): Promise<void> {
   logger.header(action === 'start' ? 'Starting Game' : 'Pausing Game');
 
-  // Get the continuous game
   const result = await db
     .select()
     .from(games)
@@ -74,7 +83,6 @@ async function controlGame(action: 'start' | 'pause'): Promise<void> {
   let game = result[0];
 
   if (!game) {
-    // Create the game if it doesn't exist
     const gameId = await dbGenerateSnowflakeId();
     const created = await db
       .insert(games)
@@ -91,7 +99,6 @@ async function controlGame(action: 'start' | 'pause'): Promise<void> {
     logger.success(`Game created and ${action === 'start' ? 'started' : 'paused'}`);
     console.log(`  Game ID: ${game.id}`);
   } else {
-    // Update the existing game
     const isRunning = action === 'start';
     const updateData: Record<string, Date | boolean | null> = {
       isRunning,
@@ -113,6 +120,11 @@ async function controlGame(action: 'start' | 'pause'): Promise<void> {
   }
 }
 
+/**
+ * Displays the current game status including running state, day, and metadata.
+ *
+ * @internal
+ */
 async function showGameStatus(): Promise<void> {
   logger.header('Game Status');
 
@@ -509,6 +521,11 @@ export async function runGameCommand(args: string[]): Promise<void> {
 
       case 'simulate':
         await runSimulation(parsed);
+        break;
+
+      case 'validate':
+        await validateActorsData();
+        logger.success('All actor affiliations are valid!');
         break;
 
       default:

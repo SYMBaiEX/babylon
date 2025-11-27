@@ -224,10 +224,6 @@
  * });
  * ```
  *
- * @see {@link /lib/cached-database-service} Caching layer
- * @see {@link /lib/sse/event-broadcaster} Real-time broadcasts
- * @see {@link /lib/services/notification-service} Mention notifications
- * @see {@link /src/components/feed} Feed UI components
  */
 
 import type { NextRequest } from 'next/server';

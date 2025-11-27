@@ -2,13 +2,13 @@
 pragma solidity ^0.8.27;
 
 import "forge-std/Script.sol";
-import "../contracts/core/Diamond.sol";
-import "../contracts/core/DiamondCutFacet.sol";
-import "../contracts/core/LiquidityPoolFacet.sol";
-import "../contracts/core/PerpetualMarketFacet.sol";
-import "../contracts/core/ReferralSystemFacet.sol";
-import "../contracts/libraries/LibDiamond.sol";
-import "../contracts/interfaces/IDiamondLoupe.sol";
+import "../core/Diamond.sol";
+import "../core/DiamondCutFacet.sol";
+import "../core/LiquidityPoolFacet.sol";
+import "../core/PerpetualMarketFacet.sol";
+import "../core/ReferralSystemFacet.sol";
+import "../libraries/LibDiamond.sol";
+import "../interfaces/IDiamondLoupe.sol";
 
 /// @title UpgradeDiamond
 /// @notice Upgrade script to add new facets to existing Diamond deployment

@@ -5,7 +5,7 @@
  * Helps identify optimization opportunities under load.
  */
 
-import { logger } from '@babylon/shared';
+import { logger } from './logger';
 
 interface QueryMetrics {
   query: string;
@@ -46,17 +46,13 @@ class QueryMonitor {
       this.recordSlowQuery(metrics);
 
       // Log slow query immediately
-      logger.warn(
-        'Slow query detected',
-        {
-          model: metrics.model,
-          operation: metrics.operation,
-          duration: `${metrics.duration}ms`,
-          threshold: `${this.SLOW_QUERY_THRESHOLD_MS}ms`,
-          query: this.sanitizeQuery(metrics.query),
-        },
-        'QueryMonitor'
-      );
+      logger.warn('Slow query detected', {
+        model: metrics.model,
+        operation: metrics.operation,
+        duration: `${metrics.duration}ms`,
+        threshold: `${this.SLOW_QUERY_THRESHOLD_MS}ms`,
+        query: this.sanitizeQuery(metrics.query),
+      });
     }
   }
 
@@ -209,22 +205,18 @@ class QueryMonitor {
     const slowQueryStats = this.getSlowQueryStats();
     const slowQueryCount = Object.keys(slowQueryStats).length;
 
-    logger.info(
-      'Query performance summary',
-      {
-        totalQueries: stats.totalQueries,
-        slowQueries: stats.slowQueries,
-        slowQueryPercentage:
-          stats.totalQueries > 0
-            ? `${((stats.slowQueries / stats.totalQueries) * 100).toFixed(2)}%`
-            : '0%',
-        avgDuration: `${stats.avgDuration.toFixed(2)}ms`,
-        p95Duration: `${stats.p95Duration.toFixed(2)}ms`,
-        p99Duration: `${stats.p99Duration.toFixed(2)}ms`,
-        uniqueSlowQueries: slowQueryCount,
-      },
-      'QueryMonitor'
-    );
+    logger.info('Query performance summary', {
+      totalQueries: stats.totalQueries,
+      slowQueries: stats.slowQueries,
+      slowQueryPercentage:
+        stats.totalQueries > 0
+          ? `${((stats.slowQueries / stats.totalQueries) * 100).toFixed(2)}%`
+          : '0%',
+      avgDuration: `${stats.avgDuration.toFixed(2)}ms`,
+      p95Duration: `${stats.p95Duration.toFixed(2)}ms`,
+      p99Duration: `${stats.p99Duration.toFixed(2)}ms`,
+      uniqueSlowQueries: slowQueryCount,
+    });
 
     // Log top 5 slowest query types
     if (slowQueryCount > 0) {
@@ -232,18 +224,14 @@ class QueryMonitor {
         .sort((a, b) => b[1].avgDuration - a[1].avgDuration)
         .slice(0, 5);
 
-      logger.info(
-        'Top 5 slowest query types',
-        {
-          queries: sortedSlowQueries.map(([key, value]) => ({
-            query: key,
-            count: value.count,
-            avgDuration: `${value.avgDuration.toFixed(2)}ms`,
-            maxDuration: `${value.maxDuration.toFixed(2)}ms`,
-          })),
-        },
-        'QueryMonitor'
-      );
+      logger.info('Top 5 slowest query types', {
+        queries: sortedSlowQueries.map(([key, value]) => ({
+          query: key,
+          count: value.count,
+          avgDuration: `${value.avgDuration.toFixed(2)}ms`,
+          maxDuration: `${value.maxDuration.toFixed(2)}ms`,
+        })),
+      });
     }
   }
 }

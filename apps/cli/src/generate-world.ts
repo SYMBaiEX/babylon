@@ -64,33 +64,7 @@
 
 import { GameWorld } from '@babylon/engine';
 import { writeFile } from 'fs/promises';
-
-// Simple logger for CLI
-const logger = {
-  info: (msg: string, data?: Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.log(`[INFO] ${msg}`, data);
-    } else {
-      console.log(`[INFO] ${msg}`);
-    }
-  },
-  error: (msg: string, data?: string | Error | Record<string, unknown>, _ctx?: string) => {
-    if (data) {
-      console.error(`[ERROR] ${msg}`, data);
-    } else {
-      console.error(`[ERROR] ${msg}`);
-    }
-  },
-  debug: (msg: string, data?: Record<string, unknown>, _ctx?: string) => {
-    if (process.env.DEBUG) {
-      if (data) {
-        console.log(`[DEBUG] ${msg}`, data);
-      } else {
-        console.log(`[DEBUG] ${msg}`);
-      }
-    }
-  },
-};
+import { logger } from './lib/logger.js';
 
 /**
  * Command-line options for world generation
@@ -204,47 +178,43 @@ async function main() {
   });
 
   if (options.verbose && !options.json) {
-    logger.info('GENERATING BABYLON GAME WORLD', undefined, 'CLI');
-    logger.info('=================================', undefined, 'CLI');
+    logger.info('GENERATING BABYLON GAME WORLD');
+    logger.info('=================================');
 
     world.on('world:started', (event) => {
-      logger.info(`Question: ${event.data.question}`, undefined, 'CLI');
-      logger.info(
-        `True Outcome: ${outcomeValue ? 'SUCCESS' : 'FAILURE'}`,
-        undefined,
-        'CLI'
-      );
-      logger.info(`NPCs in world: ${event.data.npcs}`, undefined, 'CLI');
-      logger.info('--- TIMELINE ---', undefined, 'CLI');
+      logger.info(`Question: ${event.data.question}`);
+      logger.info(`True Outcome: ${outcomeValue ? 'SUCCESS' : 'FAILURE'}`);
+      logger.info(`NPCs in world: ${event.data.npcs}`);
+      logger.info('--- TIMELINE ---');
     });
 
     world.on('day:begins', (event) => {
-      logger.info(`DAY ${event.data.day}`, undefined, 'CLI');
-      logger.info('─'.repeat(50), undefined, 'CLI');
+      logger.info(`DAY ${event.data.day}`);
+      logger.info('─'.repeat(50));
     });
 
     world.on('npc:action', (event) => {
-      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
+      logger.info(`${event.npc}: ${event.description}`);
     });
 
     world.on('npc:conversation', (event) => {
-      logger.info(event.description, undefined, 'CLI');
+      logger.info(event.description);
     });
 
     world.on('news:published', (event) => {
-      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
+      logger.info(`${event.npc}: ${event.description}`);
     });
 
     world.on('rumor:spread', (event) => {
-      logger.info(`Rumor: ${event.description}`, undefined, 'CLI');
+      logger.info(`Rumor: ${event.description}`);
     });
 
     world.on('clue:revealed', (event) => {
-      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
+      logger.info(`${event.npc}: ${event.description}`);
     });
 
     world.on('development:occurred', (event) => {
-      logger.info(`DEVELOPMENT: ${event.description}`, undefined, 'CLI');
+      logger.info(`DEVELOPMENT: ${event.description}`);
     });
 
     world.on('feed:post', (post) => {
@@ -258,29 +228,17 @@ async function main() {
               : '📢';
 
       const prefix = post.replyTo ? '    ↳' : '  ';
-      logger.info(
-        `${prefix}${emoji} ${post.author}: ${post.content}`,
-        undefined,
-        'CLI'
-      );
+      logger.info(`${prefix}${emoji} ${post.author}: ${post.content}`);
 
       if (post.clueStrength > 0.5) {
-        logger.debug(
-          `${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`,
-          undefined,
-          'CLI'
-        );
+        logger.debug(`${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`);
       }
     });
 
     world.on('outcome:revealed', (event) => {
-      logger.info('='.repeat(50), undefined, 'CLI');
-      logger.info(
-        `FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`,
-        undefined,
-        'CLI'
-      );
-      logger.info('='.repeat(50), undefined, 'CLI');
+      logger.info('='.repeat(50));
+      logger.info(`FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`);
+      logger.info('='.repeat(50));
     });
   }
 
@@ -291,23 +249,19 @@ async function main() {
     await writeFile(options.save, json);
 
     if (!options.json) {
-      logger.info(`World saved to: ${options.save}`, undefined, 'CLI');
+      logger.info(`World saved to: ${options.save}`);
     }
   }
 
   if (!options.json) {
-    logger.info(
-      'World generation complete',
-      {
-        totalEvents: finalWorld.events.length,
-        npcs: finalWorld.npcs.length,
-        daysSimulated: finalWorld.timeline.length,
-        finalOutcome: finalWorld.outcome ? 'SUCCESS' : 'FAILURE',
-      },
-      'CLI'
-    );
+    logger.info('World generation complete', {
+      totalEvents: finalWorld.events.length,
+      npcs: finalWorld.npcs.length,
+      daysSimulated: finalWorld.timeline.length,
+      finalOutcome: finalWorld.outcome ? 'SUCCESS' : 'FAILURE',
+    });
   } else {
-    logger.info(JSON.stringify(finalWorld, null, 2), undefined, 'CLI');
+    logger.info(JSON.stringify(finalWorld, null, 2));
   }
 
   process.exit(0);
@@ -315,7 +269,7 @@ async function main() {
 
 if (import.meta.main) {
   main().catch((error) => {
-    logger.error('Error:', error, 'CLI');
+    logger.error('Error:', error);
     process.exit(1);
   });
 }

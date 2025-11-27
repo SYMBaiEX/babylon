@@ -600,7 +600,7 @@ export function getAgent0Client(): Agent0Client {
     }
 
     // Support localnet RPC URL
-    // Note: Agent0 operates on Ethereum, not Base, so we use Ethereum RPC URLs
+    // Agent0 operates on Ethereum, not Base, so we use Ethereum RPC URLs
     const rpcUrl =
       process.env.AGENT0_RPC_URL ||
       (network === 'localnet'

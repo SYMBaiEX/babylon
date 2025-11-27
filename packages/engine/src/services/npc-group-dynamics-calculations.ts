@@ -125,20 +125,22 @@ export class NPCGroupDynamicsService {
     if (userMessageCount < thresholds.idealMin && totalMessages > 20) {
       // Linear scale from 0.2 (just under minimum) to 0.5 (at 1 message)
       const ratio =
-        thresholds.idealMin > 0 ? userMessageCount / thresholds.idealMin : 0;
-      const kickProbability = 0.5 - 0.3 * ratio;
+        thresholds.idealMin > 1
+          ? (userMessageCount - 1) / (thresholds.idealMin - 1)
+          : 0;
+      const lowProbability = 0.5 - 0.3 * ratio;
 
       return {
-        probability: kickProbability,
-        reason: `Low participation: ${userMessageCount} messages (ideal min: ${thresholds.idealMin})`,
+        probability: Math.max(0.2, lowProbability),
+        reason: `Low participation: ${userMessageCount} messages (minimum ideal: ${thresholds.idealMin})`,
         category: 'low',
       };
     }
 
-    // Case 5: Safe - good participation
+    // Case 5: Good participation - safe zone!
     return {
       probability: 0,
-      reason: 'Good participation level',
+      reason: '', // No reason needed for safe category
       category: 'safe',
     };
   }

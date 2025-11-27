@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
 import {
   AlphaGroupInviteService,
-  GroupChatSweep,
+  GroupChatService,
   NPCGroupDynamicsService,
 } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
@@ -606,11 +606,11 @@ describe('Group Chat Gameplay Mechanics', () => {
       });
 
       // Calculate kick chances
-      const inactiveDecision = await GroupChatSweep.calculateKickChance(
+      const inactiveDecision = await GroupChatService.calculateKickChance(
         inactiveUser.id,
         chat.id
       );
-      const activeDecision = await GroupChatSweep.calculateKickChance(
+      const activeDecision = await GroupChatService.calculateKickChance(
         activeUser.id,
         chat.id
       );
