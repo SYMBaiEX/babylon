@@ -53,6 +53,7 @@ class SimulatorConfig:
     
     # Speed settings
     max_concurrent_agents: int = 8
+    batch_size: int = 4  # Number of agents to process per batch
     
     # Tick settings
     ticks_per_window: int = 60  # Ticks in a 1-hour window

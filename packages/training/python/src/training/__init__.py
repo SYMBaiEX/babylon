@@ -20,17 +20,7 @@ This package provides training infrastructure:
 See README.md for usage instructions.
 """
 
-# Atropos-based trainer (recommended)
-from .atropos_trainer import (
-    BabylonAtroposTrainer,
-    AtroposTrainingConfig,
-)
-
-from .babylon_env import (
-    BabylonRLAIFEnv,
-    BabylonEnvConfig,
-)
-
+# Import non-torch modules directly
 from .rewards import (
     pnl_reward,
     risk_adjusted_reward,
@@ -43,23 +33,7 @@ from .rewards import (
     RewardNormalizer,
 )
 
-# Fast rollout generation
-from .rollout_generator import (
-    FastRolloutGenerator,
-    RolloutConfig,
-    RolloutResult,
-    AgentTickData,
-    RolloutQualityValidator,
-    AgentRunner,
-)
-
-from .fast_simulator import (
-    FastSimulator,
-    SimulatorConfig,
-    SimulatorMetrics,
-    GameState,
-)
-
+# Quality utilities (no torch dependency)
 from .quality_utils import (
     calculate_tick_quality_score,
     calculate_trajectory_quality_score,
@@ -70,6 +44,7 @@ from .quality_utils import (
     ValidationResult,
 )
 
+# Multi-prompt dataset (no torch dependency)
 from .multi_prompt_dataset import (
     MultiPromptDatasetBuilder,
     PromptDataset,
@@ -80,6 +55,7 @@ from .multi_prompt_dataset import (
     validate_trajectory_for_training,
 )
 
+# Tick reward attribution (no torch dependency)
 from .tick_reward_attribution import (
     TickRewardAttributor,
     TickData,
@@ -90,7 +66,7 @@ from .tick_reward_attribution import (
     group_samples_for_grpo,
 )
 
-# Archetype-aware training
+# Archetype training configuration (no torch dependency)
 from .archetype_trainer import (
     ArchetypeTrainer,
     ArchetypeTrainingConfig,
@@ -102,8 +78,66 @@ from .archetype_trainer import (
     DEFAULT_RUBRIC,
 )
 
+# Lazy imports for torch-dependent modules
+def __getattr__(name: str):
+    """Lazy import for torch-dependent modules."""
+    if name in (
+        "BabylonAtroposTrainer",
+        "AtroposTrainingConfig",
+    ):
+        from .atropos_trainer import (
+            BabylonAtroposTrainer,
+            AtroposTrainingConfig,
+        )
+        return locals()[name]
+    
+    if name in (
+        "BabylonRLAIFEnv",
+        "BabylonEnvConfig",
+    ):
+        from .babylon_env import (
+            BabylonRLAIFEnv,
+            BabylonEnvConfig,
+        )
+        return locals()[name]
+    
+    if name in (
+        "FastRolloutGenerator",
+        "RolloutConfig",
+        "RolloutResult",
+        "AgentTickData",
+        "RolloutQualityValidator",
+        "AgentRunner",
+    ):
+        from .rollout_generator import (
+            FastRolloutGenerator,
+            RolloutConfig,
+            RolloutResult,
+            AgentTickData,
+            RolloutQualityValidator,
+            AgentRunner,
+        )
+        return locals()[name]
+    
+    if name in (
+        "FastSimulator",
+        "SimulatorConfig",
+        "SimulatorMetrics",
+        "GameState",
+    ):
+        from .fast_simulator import (
+            FastSimulator,
+            SimulatorConfig,
+            SimulatorMetrics,
+            GameState,
+        )
+        return locals()[name]
+    
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
-    # Atropos trainer (recommended)
+    # Atropos trainer (lazy - requires torch)
     "BabylonAtroposTrainer",
     "AtroposTrainingConfig",
     "BabylonRLAIFEnv",
@@ -118,7 +152,7 @@ __all__ = [
     "ranking_to_scores",
     "pairwise_preferences_to_scores",
     "RewardNormalizer",
-    # Fast rollout generation
+    # Fast rollout generation (lazy - may require torch)
     "FastRolloutGenerator",
     "RolloutConfig",
     "RolloutResult",

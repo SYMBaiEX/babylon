@@ -103,8 +103,8 @@ def sample_trajectory(sample_env_state, sample_action, sample_llm_call):
             llm_calls=[LLMCall(
                 model='gpt-4',
                 system_prompt='You are a trading agent.',
-                user_prompt=f'Market update {i}',
-                response=f'Action {i}',
+                user_prompt=f'Market update for step {i}: price is moving',
+                response=f'I will execute action {i}: buying at current price level',
                 reasoning=f'Reasoning for step {i}',
                 temperature=0.7,
                 max_tokens=100,

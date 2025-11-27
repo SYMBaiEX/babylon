@@ -71,7 +71,7 @@ const nextConfig: NextConfig = {
     ];
   },
   // Externalize packages with native Node.js dependencies for server-side
-  // Also externalize Babylon packages that use Node.js APIs to prevent Edge Runtime errors
+  // Note: @babylon/* packages are in transpilePackages, so they can't be here
   serverExternalPackages: [
     'ipfs-http-client',
     '@helia/unixfs',
@@ -85,13 +85,6 @@ const nextConfig: NextConfig = {
     'drizzle-orm',
     'drizzle-orm/postgres-js',
     'ioredis', // Node.js Redis client - requires tls/net modules not available in edge runtime
-    '@babylon/api',
-    '@babylon/engine',
-    '@babylon/agents',
-    '@babylon/training',
-    '@babylon/db',
-    '@babylon/shared',
-    '@babylon/contracts',
   ],
   images: {
     qualities: [100, 75],

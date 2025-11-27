@@ -15,6 +15,22 @@ from datetime import datetime
 from typing import Dict, List
 from unittest.mock import MagicMock, AsyncMock, patch
 
+# Check for optional dependencies
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+try:
+    import wandb
+    HAS_WANDB = True
+except ImportError:
+    HAS_WANDB = False
+
+requires_torch = pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+requires_wandb = pytest.mark.skipif(not HAS_WANDB, reason="wandb not installed")
+
 
 # Test imports work
 class TestImports:
@@ -60,14 +76,16 @@ class TestImports:
         )
         assert pnl_reward is not None
         assert RewardNormalizer is not None
-        
+    
+    @requires_torch
     def test_import_trainer(self):
         from src.training import (
             BabylonAtroposTrainer,
             AtroposTrainingConfig,
         )
         assert BabylonAtroposTrainer is not None
-        
+    
+    @requires_wandb
     def test_import_environment(self):
         from src.training import (
             BabylonRLAIFEnv,
@@ -259,8 +277,9 @@ class TestConverter:
         assert 30 < dropped_count < 70
 
 
+@requires_torch
 class TestTrainerConfig:
-    """Test trainer configuration"""
+    """Test trainer configuration (requires torch)"""
     
     def test_default_config(self):
         from src.training import AtroposTrainingConfig
@@ -285,8 +304,9 @@ class TestTrainerConfig:
         assert config.learning_rate == 5e-6
 
 
+@requires_wandb
 class TestEnvironmentConfig:
-    """Test environment configuration"""
+    """Test environment configuration (requires wandb)"""
     
     def test_default_config(self):
         from src.training import BabylonEnvConfig

@@ -8,6 +8,8 @@
  *   collect     - Collect trajectories for training
  *   score       - Score collected trajectories
  *   pipeline    - Run full RL training pipeline
+ *   list        - List available archetypes
+ *   run         - Run full training (alias for pipeline)
  */
 
 import {
@@ -25,11 +27,14 @@ import {
   getAvailableArchetypes,
   hasCustomRubric,
   getRubric,
+  getPriorityMetrics,
   trajectoryMetricsExtractor,
 } from '@babylon/training';
 import { agentRuntimeManager, autonomousCoordinator } from '@babylon/agents';
 import { parseArgs, wantsHelp, getOption, getFlag } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
+import { spawn } from 'child_process';
+import { join } from 'path';
 
 function printHelp(): void {
   const archetypes = getAvailableArchetypes();
@@ -41,29 +46,45 @@ USAGE:
   babylon train <command> [options]
 
 COMMANDS:
-  archetype   Train a specific agent archetype
+  list        List available archetypes with details
+  pipeline    Run full RL training pipeline (Python)
+  run         Alias for pipeline
+  archetype   Score & export trajectories for archetype
   collect     Collect trajectories for training
   score       Score collected trajectories
 
-OPTIONS (archetype):
+PIPELINE OPTIONS:
+  -a, --archetype=NAME     Train specific archetype (or 'all')
+  --archetypes=A,B,C       Train multiple archetypes
+  -n, --agents=N           Number of agents (default: 10)
+  -t, --ticks=N            Ticks per agent (default: 30)
+  -o, --output=DIR         Output directory (default: trained_models)
+  --no-benchmark           Skip benchmarking
+  --dry-run                Show what would be done
+
+LIST OPTIONS:
+  -v, --verbose            Show rubric previews
+
+ARCHETYPE OPTIONS:
   -a, --archetype=NAME     Archetype to train (required)
   -m, --min-trajectories=N Minimum trajectories required (default: 20)
   -d, --dry-run            Show what would be done
   -s, --score-only         Only score, don't export
-  -v, --verbose            Verbose output
 
-OPTIONS (collect):
+COLLECT OPTIONS:
   -c, --count=N            Number of trajectories to collect (default: 10)
 
 AVAILABLE ARCHETYPES:
 ${archetypes.map((a) => `  - ${a}`).join('\n')}
 
 EXAMPLES:
-  babylon train archetype -a scammer
-  babylon train archetype -a trader --min-trajectories=50
-  babylon train archetype -a degen --dry-run --verbose
-  babylon train collect --count=100
-  babylon train score
+  babylon train list                          # List all archetypes
+  babylon train list --verbose                # Show rubric previews
+  babylon train pipeline -a trader            # Train trader archetype
+  babylon train pipeline --archetypes=trader,scammer,degen
+  babylon train run -a all                    # Train all archetypes
+  babylon train archetype -a scammer          # Score & export scammer data
+  babylon train collect --count=100           # Collect 100 trajectories
 `);
 }
 
@@ -433,6 +454,145 @@ async function scoreTrajectories(): Promise<void> {
   }
 }
 
+async function listArchetypes(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const verbose = getFlag(args, 'verbose', 'v');
+  const archetypes = getAvailableArchetypes();
+
+  logger.header('Available Archetypes');
+  console.log();
+
+  for (const archetype of archetypes) {
+    const metrics = getPriorityMetrics(archetype);
+    const rubric = getRubric(archetype);
+
+    console.log(`📦 ${archetype.toUpperCase()}`);
+    console.log(`   Priority Metrics: ${metrics.join(', ')}`);
+
+    if (verbose) {
+      const preview = rubric
+        .split('\n')
+        .slice(0, 8)
+        .map((line) => `   ${line}`)
+        .join('\n');
+      console.log(`   Rubric Preview:`);
+      console.log(preview);
+      console.log('   ...');
+    }
+
+    console.log();
+  }
+
+  console.log(`Total: ${archetypes.length} archetypes`);
+  console.log();
+  console.log('To train an archetype:');
+  console.log('  babylon train pipeline -a <archetype>');
+  console.log('  babylon train pipeline --archetypes=trader,scammer,degen');
+  console.log('  babylon train pipeline -a all  # Train all archetypes');
+}
+
+async function runPipeline(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const archetype = getOption(args, 'archetype', 'a');
+  const archetypesArg = getOption(args, 'archetypes', '');
+  const agents = getOption(args, 'agents', 'n') || '10';
+  const ticks = getOption(args, 'ticks', 't') || '30';
+  const output = getOption(args, 'output', 'o') || 'trained_models';
+  const noBenchmark = getFlag(args, 'no-benchmark', '');
+  const dryRun = getFlag(args, 'dry-run', 'd');
+
+  logger.header('Babylon Training Pipeline');
+
+  // Find the Python script
+  const scriptPath = join(
+    process.cwd(),
+    'packages/training/python/scripts/run_full_pipeline.py'
+  );
+
+  // Build command args
+  const pythonArgs = [
+    scriptPath,
+    '--mode', 'full',
+    '--agents', agents,
+    '--ticks', ticks,
+    '--output', output,
+    '--no-wandb',
+  ];
+
+  // Handle archetypes
+  if (archetype === 'all') {
+    pythonArgs.push('--archetypes', ...getAvailableArchetypes());
+  } else if (archetype) {
+    pythonArgs.push('--archetype', archetype);
+  } else if (archetypesArg) {
+    pythonArgs.push('--archetypes', ...archetypesArg.split(',').map((a) => a.trim()));
+  }
+
+  if (noBenchmark) {
+    pythonArgs.push('--skip-benchmark');
+  }
+
+  console.log();
+  console.log('Configuration:');
+  console.log(`  Agents: ${agents}`);
+  console.log(`  Ticks per agent: ${ticks}`);
+  console.log(`  Output: ${output}`);
+  if (archetype) {
+    console.log(`  Archetype: ${archetype}`);
+  } else if (archetypesArg) {
+    console.log(`  Archetypes: ${archetypesArg}`);
+  } else {
+    console.log(`  Archetype: default (general)`);
+  }
+  console.log();
+
+  if (dryRun) {
+    console.log('[DRY RUN] Would execute:');
+    console.log(`  python ${pythonArgs.join(' ')}`);
+    return;
+  }
+
+  logger.step('Starting Python training pipeline...');
+  console.log();
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('python', pythonArgs, {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+      },
+    });
+
+    child.on('error', (error) => {
+      if (error.message.includes('ENOENT')) {
+        logger.fail('Python not found. Please install Python 3.10+');
+        console.log('\nInstall with:');
+        console.log('  brew install python@3.11  # macOS');
+        console.log('  apt install python3       # Ubuntu');
+      } else {
+        logger.fail(`Failed to start: ${error.message}`);
+      }
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      console.log();
+      if (code === 0) {
+        logger.success('Training pipeline completed!');
+        console.log();
+        console.log('Next steps:');
+        console.log(`  1. Check results in ${output}/`);
+        console.log('  2. Upload model: babylon model upload --model <path>');
+        console.log('  3. Run benchmark: babylon train pipeline --benchmark-only');
+        resolve();
+      } else {
+        logger.fail(`Pipeline exited with code ${code}`);
+        reject(new Error(`Pipeline failed with code ${code}`));
+      }
+    });
+  });
+}
+
 export async function runTrainCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -443,6 +603,15 @@ export async function runTrainCommand(args: string[]): Promise<void> {
 
   try {
     switch (parsed.command) {
+      case 'list':
+        await listArchetypes(parsed);
+        break;
+
+      case 'pipeline':
+      case 'run':
+        await runPipeline(parsed);
+        break;
+
       case 'archetype':
         await trainArchetype(parsed);
         break;
