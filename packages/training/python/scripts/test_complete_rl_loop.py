@@ -358,9 +358,9 @@ async def test_complete_rl_loop():
                     print_error("Model missing baseModel")
                     issues_found.append("Model missing baseModel")
                 else:
-                    if latest_model['baseModel'] != 'OpenPipe/Qwen3-14B-Instruct':
+                    if latest_model['baseModel'] != 'unsloth/Qwen3-4B-128K':
                         print_warning(f"Unexpected base model: {latest_model['baseModel']}")
-                        print_warning("Should be: OpenPipe/Qwen3-14B-Instruct")
+                        print_warning("Should be: unsloth/Qwen3-4B-128K")
                     else:
                         print_success(f"Base model: {latest_model['baseModel']}")
                 

@@ -20,9 +20,9 @@ import { getLatestRLModel } from '../training/WandbModelFetcher';
 
 describe('RL Training System', () => {
   describe('Configuration', () => {
-    it('should have correct base model (OpenPipe/Qwen3-14B-Instruct)', () => {
+    it('should have correct base model (unsloth/Qwen3-4B-128K)', () => {
       const config = getRLModelConfig();
-      expect(config.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      expect(config.baseModel).toBe('unsloth/Qwen3-4B-128K');
     });
 
     it('should have W&B configuration if enabled', () => {
@@ -58,11 +58,11 @@ describe('RL Training System', () => {
   });
 
   describe('Context Window Safety', () => {
-    it('should enforce 32K limit for W&B models', async () => {
-      const limit = getModelTokenLimit('OpenPipe/Qwen3-14B-Instruct');
+    it('should enforce 128K limit for unsloth models', async () => {
+      const limit = getModelTokenLimit('unsloth/Qwen3-4B-128K');
 
-      // CRITICAL: Must be 32K for W&B, not 131K
-      expect(limit).toBe(32768);
+      // unsloth/Qwen3-4B-128K has 128K context (131072 tokens)
+      expect(limit).toBe(131072);
     });
 
     it('should have truncation utilities available', async () => {

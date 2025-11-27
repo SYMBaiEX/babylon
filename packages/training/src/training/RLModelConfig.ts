@@ -10,9 +10,8 @@
 
 export interface RLModelConfig {
   enabled: boolean;
-  wandbApiKey?: string;
-  wandbEntity?: string;
-  wandbProject: string;
+  atroposApiUrl?: string;
+  vllmPort?: number;
   modelVersion?: string; // If specified, use this version. Otherwise use latest.
   fallbackToBase: boolean; // If RL model fails, fall back to base model
   baseModel: string;
@@ -35,9 +34,8 @@ export function getRLModelConfig(): RLModelConfig {
 
   return {
     enabled,
-    wandbApiKey: process.env.WANDB_API_KEY,
-    wandbEntity: process.env.WANDB_ENTITY,
-    wandbProject: process.env.WANDB_PROJECT || 'babylon-training',
+    atroposApiUrl: process.env.ATROPOS_API_URL || 'http://localhost:8000',
+    vllmPort: parseInt(process.env.VLLM_PORT || '9001', 10),
     modelVersion: process.env.RL_MODEL_VERSION, // Optional: pin to specific version
     fallbackToBase: process.env.RL_FALLBACK_TO_BASE !== 'false', // Default: true
     baseModel: process.env.BASE_MODEL || 'unsloth/Qwen3-4B-128K', // 4B params, 128K context - ideal for fine-tuning
@@ -54,10 +52,10 @@ export function isRLModelAvailable(): boolean {
     return false;
   }
 
-  // Need W&B credentials to fetch RL models
-  if (!config.wandbApiKey || !config.wandbEntity) {
+  // Need Atropos API URL to fetch RL models
+  if (!config.atroposApiUrl) {
     console.warn(
-      'RL models enabled but W&B credentials missing. Set WANDB_API_KEY and WANDB_ENTITY.'
+      'RL models enabled but Atropos API URL missing. Set ATROPOS_API_URL.'
     );
     return false;
   }
@@ -75,8 +73,8 @@ export function logRLModelConfig(): void {
   console.log('🤖 RL Model Configuration:', {
     enabled: config.enabled,
     available,
-    wandbConfigured: !!(config.wandbApiKey && config.wandbEntity),
-    project: config.wandbProject,
+    atroposConfigured: !!config.atroposApiUrl,
+    vllmPort: config.vllmPort,
     pinnedVersion: config.modelVersion || 'latest',
     fallbackEnabled: config.fallbackToBase,
     baseModel: config.baseModel,

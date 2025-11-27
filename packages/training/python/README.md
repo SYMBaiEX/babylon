@@ -111,6 +111,7 @@ python -m src.training.atropos_trainer \
 
 | Model | VRAM | Notes |
 |-------|------|-------|
+| `unsloth/Qwen3-4B-128K` | ~10GB | **Default** - 4B params, 128K context, ideal for fine-tuning |
 | `Qwen/Qwen2.5-3B-Instruct` | ~8GB | Fast, good quality |
 | `Qwen/Qwen2.5-7B-Instruct` | ~16GB | Better quality |
 | `Qwen/Qwen2.5-14B-Instruct` | ~32GB | Best quality |

@@ -294,7 +294,7 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       dataQualityThreshold: 0.9,
       autoTriggerTraining: true,
       trainingInterval: 12,
-      baseModel: 'OpenPipe/Qwen3-14B-Instruct',
+      baseModel: 'unsloth/Qwen3-4B-128K',
       modelNamePrefix: 'test-model',
       wandbProject: 'test-project',
       modelStoragePath: '/tmp/test-models',
@@ -328,7 +328,7 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       expect(status.minTrajectoriesForTraining).toBe(expectedMinTrajectories);
       expect(status.minGroupSize).toBe(expectedMinGroupSize);
       expect(status.dataQualityThreshold).toBe(0.95);
-      expect(status.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      expect(status.baseModel).toBe('unsloth/Qwen3-4B-128K');
     });
 
     test('should merge custom config with defaults', () => {
@@ -339,14 +339,14 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       expect(config.minTrajectoriesForTraining).toBe(50);
       expect(config.minGroupSize).toBe(3);
       expect(config.dataQualityThreshold).toBe(0.9);
-      expect(config.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      expect(config.baseModel).toBe('unsloth/Qwen3-4B-128K');
     });
 
     test('should use OpenPipe model by default', () => {
       const defaultPipeline = new AutomationPipeline();
       // Access private config property for testing
       const config = asTestAccess(defaultPipeline).config;
-      expect(config.baseModel).toBe('OpenPipe/Qwen3-14B-Instruct');
+      expect(config.baseModel).toBe('unsloth/Qwen3-4B-128K');
     });
 
     test('should allow custom model override', () => {

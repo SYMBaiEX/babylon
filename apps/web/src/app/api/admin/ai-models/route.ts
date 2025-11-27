@@ -143,8 +143,8 @@ export async function GET(_req: NextRequest) {
         wandbModels,
         recommendedModels: [
           {
-            id: 'OpenPipe/Qwen3-14B-Instruct',
-            name: 'Qwen 3 14B (OpenPipe Trained)',
+            id: 'unsloth/Qwen3-4B-128K',
+            name: 'Qwen 3 4B 128K (Unsloth)',
             description: '⭐ Best for agents: Our custom RL-trained model',
           },
           {

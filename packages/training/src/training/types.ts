@@ -173,7 +173,7 @@ export interface AutomationStatus {
   health: {
     database: boolean;
     storage: boolean;
-    wandb: boolean;
+    atropos: boolean;
   };
 }
 
@@ -188,8 +188,8 @@ export interface AutomationConfig {
   modelNamePrefix: string;
   modelStoragePath: string;
   dataStoragePath: string;
-  wandbProject?: string;
-  wandbApiKey?: string;
+  atroposApiUrl?: string;
+  vllmPort?: number;
 }
 
 // Full trajectory with all parsed data

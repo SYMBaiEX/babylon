@@ -5,4 +5,5 @@
  */
 
 export * from './JudgePromptBuilder';
+export * from './ArchetypeScoringService';
 

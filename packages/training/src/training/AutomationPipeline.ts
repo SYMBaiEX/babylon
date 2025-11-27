@@ -78,7 +78,7 @@ export class AutomationPipeline {
       dataQualityThreshold: config.dataQualityThreshold ?? 0.95,
       autoTriggerTraining: config.autoTriggerTraining !== false,
       trainingInterval: config.trainingInterval || 24, // Daily by default
-      baseModel: config.baseModel || 'Qwen/Qwen2.5-14B-Instruct', // Default model for Atropos training
+      baseModel: config.baseModel || 'unsloth/Qwen3-4B-128K', // 4B params, 128K context - ideal for fine-tuning
       modelNamePrefix: config.modelNamePrefix || 'babylon-agent',
       modelStoragePath:
         config.modelStoragePath ||

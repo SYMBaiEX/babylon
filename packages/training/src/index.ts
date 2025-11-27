@@ -5,6 +5,7 @@
  * - Benchmarking and evaluation
  * - Training automation
  * - HuggingFace integration
+ * - Multi-criteria archetype evaluation
  *
  * @packageDocumentation
  */
@@ -38,6 +39,12 @@ export {
 } from './dependencies';
 export * from './huggingface';
 export * from './training';
+
+// Multi-criteria evaluation
+export * from './metrics';
+export * from './rubrics';
+export * from './scoring';
+
 // Utilities
 export { logger } from './utils/logger';
 export { generateSnowflakeId } from './utils/snowflake';

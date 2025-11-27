@@ -7,7 +7,7 @@ environment:
     data_collection_interval_minutes: 60  # Hourly windows
     min_agents_per_window: 3  # Minimum for local testing
     training_frequency_windows: 2  # Train every 2 windows locally
-    model_size: "large"  # Qwen/Qwen2.5-14B-Instruct (14B parameters)
+    model_size: "medium"  # unsloth/Qwen3-4B-128K (4B params, 128K context)
     batch_size: 4
     gradient_accumulation_steps: 2
     max_concurrent_training: 1

@@ -41,7 +41,7 @@ async def train(
     
     db_url = os.getenv('DATABASE_URL')
     judge_model = os.getenv('JUDGE_MODEL', 'gpt-4o-mini')
-    base_model = os.getenv('BASE_MODEL', 'Qwen/Qwen2.5-14B-Instruct')
+    base_model = os.getenv('BASE_MODEL', 'unsloth/Qwen3-4B-128K')
     project = os.getenv('PROJECT_NAME', 'babylon-agents')
     
     if not db_url:
