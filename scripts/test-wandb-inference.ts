@@ -18,7 +18,7 @@ async function testWandbInference() {
   const modelId =
     modelIndex >= 0
       ? args[modelIndex + 1]
-      : process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct';
+      : process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K';
   const apiKey = process.env.WANDB_API_KEY;
 
   if (!apiKey) {

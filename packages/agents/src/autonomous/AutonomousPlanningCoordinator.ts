@@ -244,10 +244,11 @@ export class AutonomousPlanningCoordinator {
       prompt: finalPrompt,
       system: agent.agentSystem || undefined,
       modelSize: 'large', // Uses trained W&B model if available
-      runtime: _runtime, // Pass runtime to access W&B trained models
+      runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
       maxTokens: 1500, // Allow detailed planning
       actionType: 'generate_action_plan',
+      purpose: 'reasoning', // RLAIF: This is a planning/reasoning call
     });
 
     // Parse action plan

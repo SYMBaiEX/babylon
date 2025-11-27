@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RL Training Script - Execute training pipeline
+RL Training Script - Execute training pipeline using Atropos
 
 Usage:
     python scripts/train.py --min-agents 5 --iterations 10
@@ -16,11 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from dotenv import load_dotenv
 import logging
-import art
-from art.serverless.backend import ServerlessBackend
 
-from training.trainer import ContinuousMMOTrainer
-from data_bridge.converter import calculate_dropout_rate
+from training.atropos_trainer import BabylonAtroposTrainer, AtroposTrainingConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,76 +36,61 @@ async def train(
     target_trajectories: int,
     max_dropout: float
 ):
-    """Main training function"""
+    """Main training function using Atropos"""
     load_dotenv()
     
     db_url = os.getenv('DATABASE_URL')
-    wandb_api_key = os.getenv('WANDB_API_KEY')
-    judge_model = os.getenv('JUDGE_MODEL', 'openai/gpt-5-nano')
-    # CRITICAL: Only model available in W&B ART catalog
-    base_model = os.getenv('BASE_MODEL', 'OpenPipe/Qwen3-14B-Instruct')
+    judge_model = os.getenv('JUDGE_MODEL', 'gpt-4o-mini')
+    base_model = os.getenv('BASE_MODEL', 'Qwen/Qwen2.5-14B-Instruct')
     project = os.getenv('PROJECT_NAME', 'babylon-agents')
-    model_name = os.getenv('MODEL_NAME', 'babylon-mmo')
     
     if not db_url:
         raise ValueError("DATABASE_URL required")
-    if not wandb_api_key:
-        raise ValueError(
-            "WANDB_API_KEY is REQUIRED. "
-            "ServerlessBackend only supports W&B remote training (no local GPU fallback). "
-            "Get your key from: https://wandb.ai/settings"
-        )
     
     logger.info("=" * 80)
-    logger.info("BABYLON RL TRAINING")
+    logger.info("BABYLON RL TRAINING (Atropos)")
     logger.info("=" * 80)
-    logger.info(f"Model: {project}/{model_name}")
-    logger.info(f"Base: {base_model}")
+    logger.info(f"Project: {project}")
+    logger.info(f"Base Model: {base_model}")
+    logger.info(f"Judge Model: {judge_model}")
     logger.info("=" * 80)
     
-    model = art.TrainableModel(name=model_name, project=project, base_model=base_model)
-    backend = ServerlessBackend(api_key=wandb_api_key)
-    
-    await model.register(backend)
-    current_step = await model.get_step()
-    logger.info(f"Starting from step {current_step}")
-    
-    async with ContinuousMMOTrainer(
-        db_url=db_url,
+    # Create Atropos trainer config
+    config = AtroposTrainingConfig(
+        model_name=base_model,
+        database_url=db_url,
+        api_url=os.getenv('ATROPOS_API_URL', 'http://localhost:8000'),
+        vllm_port=int(os.getenv('VLLM_PORT', '9001')),
+        learning_rate=learning_rate,
         judge_model=judge_model,
-        dropout_rate=0.0,
-        max_per_window=8
-    ) as trainer:
+        min_agents_per_window=min_agents,
+        lookback_hours=lookback_hours,
+    )
+    
+    trainer = BabylonAtroposTrainer(config)
+    
+    for iteration in range(iterations):
+        logger.info(f"\nITERATION {iteration + 1}/{iterations}")
         
-        for iteration in range(iterations):
-            logger.info(f"\nITERATION {iteration + 1}/{iterations}")
-            
-            # Dynamic dropout
-            available = await trainer.get_training_windows(min_agents, lookback_hours, None)
-            dropout_rate = calculate_dropout_rate(len(available) * min_agents, target_trajectories, max_dropout)
-            
-            if dropout_rate > 0:
-                logger.info(f"Applying dropout: {dropout_rate:.1%}")
-                trainer.converter.dropout_rate = dropout_rate
-            
-            # Prepare batch
-            groups = await trainer.prepare_training_batch(
-                min_agents, lookback_hours, windows_per_iteration, min_actions
+        try:
+            # Run training iteration
+            result = await trainer.train(
+                steps=windows_per_iteration,
+                batch_size=4,
             )
             
-            summary = trainer.get_training_summary(groups)
-            logger.info(f"Training on {summary.windows} windows, {summary.total_trajectories} trajectories")
+            logger.info(f"✅ Iteration {iteration + 1} complete!")
+            logger.info(f"   Steps: {result.get('steps', 'N/A')}")
             
-            # Train
-            await model.train(groups, config=art.TrainConfig(learning_rate=learning_rate))
-            
-            new_step = await model.get_step()
-            logger.info(f"✅ Iteration {iteration + 1} complete! Step: {new_step}\n")
+        except Exception as e:
+            logger.error(f"❌ Iteration {iteration + 1} failed: {e}")
+            if iteration < iterations - 1:
+                logger.info("   Continuing with next iteration...")
+            continue
     
+    logger.info("\n" + "=" * 80)
     logger.info("TRAINING COMPLETE")
-    logger.info(f"Final step: {await model.get_step()}")
-    
-    await backend.close()
+    logger.info("=" * 80)
 
 
 if __name__ == "__main__":
@@ -127,4 +109,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     asyncio.run(train(**vars(args)))
-

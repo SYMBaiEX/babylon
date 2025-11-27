@@ -3,6 +3,11 @@
  *
  * Supports both Groq models and W&B trained RL models.
  * All LLM calls are automatically logged to trajectory logger if available.
+ * 
+ * IMPORTANT FOR RL TRAINING:
+ * - When runtime is provided, trajectory context is automatically extracted
+ * - Every LLM call is logged with EXACT input/output for training data
+ * - Purpose field tracks call type: action, reasoning, evaluation, response
  */
 
 import { createGroq } from '@ai-sdk/groq';
@@ -11,6 +16,7 @@ import { generateText } from 'ai';
 import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 
 export async function callGroqDirect(params: {
   prompt: string;
@@ -24,6 +30,19 @@ export async function callGroqDirect(params: {
   actionType?: string;
   runtime?: IAgentRuntime; // Pass runtime to access W&B trained models
 }): Promise<string> {
+  // Auto-extract trajectory context from runtime if not explicitly provided
+  // This ensures ALL LLM calls are logged for RL training
+  let trajectoryLogger = params.trajectoryLogger;
+  let trajectoryId = params.trajectoryId;
+  
+  if (!trajectoryLogger && !trajectoryId && params.runtime) {
+    const context = getTrajectoryContext(params.runtime);
+    if (context) {
+      trajectoryLogger = context.logger;
+      trajectoryId = context.trajectoryId;
+    }
+  }
+  
   // Check for W&B trained model from runtime
   let model: string;
   let baseURL: string;
@@ -67,14 +86,13 @@ export async function callGroqDirect(params: {
 
       const latencyMs = Date.now() - startTime;
 
-      // Log to trajectory if available
-      if (params.trajectoryLogger && params.trajectoryId) {
-        const stepId = params.trajectoryLogger.getCurrentStepId(
-          params.trajectoryId
-        );
+      // Log to trajectory if available (CRITICAL for RL training data collection)
+      if (trajectoryLogger && trajectoryId) {
+        const stepId = trajectoryLogger.getCurrentStepId(trajectoryId);
         if (stepId) {
-          params.trajectoryLogger.logLLMCall(stepId, {
+          trajectoryLogger.logLLMCall(stepId, {
             model,
+            modelVersion: wandbModel, // Track which RL model version was used
             systemPrompt: params.system || '',
             userPrompt: params.prompt,
             response: result.text,
@@ -149,13 +167,11 @@ export async function callGroqDirect(params: {
 
   const latencyMs = Date.now() - startTime;
 
-  // Log to trajectory if available
-  if (params.trajectoryLogger && params.trajectoryId) {
-    const stepId = params.trajectoryLogger.getCurrentStepId(
-      params.trajectoryId
-    );
+  // Log to trajectory if available (CRITICAL for RL training data collection)
+  if (trajectoryLogger && trajectoryId) {
+    const stepId = trajectoryLogger.getCurrentStepId(trajectoryId);
     if (stepId) {
-      params.trajectoryLogger.logLLMCall(stepId, {
+      trajectoryLogger.logLLMCall(stepId, {
         model,
         systemPrompt: params.system || '',
         userPrompt: params.prompt,

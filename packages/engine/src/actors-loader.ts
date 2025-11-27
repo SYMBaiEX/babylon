@@ -1,38 +1,43 @@
 /**
  * Actors Data Loader
  *
- * Loads actors, organizations, and relationships from individual JSON files.
- * Uses actors.json as an index to find all entity files.
+ * Loads actors, organizations, and relationships from TypeScript data files.
+ * Uses direct imports for optimal performance and type safety.
  *
  * **Architecture:**
- * - Individual files for each actor, org, and relationship
- * - Index file (actors.json) contains references to all files
+ * - Individual TypeScript files for each actor and org
+ * - Index files export all entities
  * - In-memory caching for performance
- * - Direct file reads for single-entity lookups
+ * - Direct imports for single-entity lookups
  *
  * **Performance:**
- * - First load: ~8ms (reads files and caches)
+ * - First load: <1ms (direct imports, no file I/O)
  * - Subsequent loads: <1ms (uses cache)
- * - Single entity loads: Direct file read (fastest)
+ * - Single entity loads: Direct import (fastest)
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { actors } from './data/actors';
+import { organizations } from './data/organizations';
 import type {
   ActorData,
   ActorsDatabase,
   Organization,
 } from './types/shared';
 
-interface IndexReference {
-  id: string;
-  file: string;
-}
-
-interface ActorsIndex {
-  actors: IndexReference[];
-  organizations: IndexReference[];
-  relationships?: IndexReference[];
+/**
+ * Relationship data structure (legacy - relationships are now database-backed)
+ * Simpler structure than the full ActorRelationship interface
+ * Note: Relationships are dynamic and stored in the database, not files
+ */
+export interface RelationshipFileData {
+  actor1Id: string;
+  actor2Id: string;
+  relationshipType: string;
+  strength: number; // 0.0 to 1.0
+  sentiment: number; // -1.0 to 1.0
+  history: string;
+  actor1FollowsActor2: boolean;
+  actor2FollowsActor1: boolean;
 }
 
 /**
@@ -52,12 +57,14 @@ const dataCache: {
   actors: Map<string, ActorData>;
   organizations: Map<string, Organization>;
   relationships: Map<string, RelationshipFileData>;
-  index: ActorsIndex | null;
+  allActors: ActorData[] | null;
+  allOrganizations: Organization[] | null;
 } = {
   actors: new Map(),
   organizations: new Map(),
   relationships: new Map(),
-  index: null,
+  allActors: null,
+  allOrganizations: null,
 };
 
 /**
@@ -67,242 +74,80 @@ export function clearDataCache(): void {
   dataCache.actors.clear();
   dataCache.organizations.clear();
   dataCache.relationships.clear();
-  dataCache.index = null;
+  dataCache.allActors = null;
+  dataCache.allOrganizations = null;
 }
 
 /**
- * Load the actors.json index file (cached)
- * 
- * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
- * For edge runtime, use environment variables or API routes to access this data.
+ * Initialize cache from imported data
  */
-function loadIndex(): ActorsIndex {
-  if (dataCache.index) {
-    return dataCache.index;
+function initializeCache(): void {
+  if (dataCache.allActors === null) {
+    // Convert readonly arrays to mutable arrays and populate cache
+    // The actors array contains readonly objects, so we need to create new objects
+    dataCache.allActors = actors.map((actor) => {
+      // Create a mutable copy of the actor data
+      const actorData = { ...actor } as ActorData;
+      dataCache.actors.set(actorData.id, actorData);
+      return actorData;
+    });
   }
 
-  // Check if we're in a Node.js environment with file system access
-  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    throw new Error(
-      'loadIndex requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
-    );
+  if (dataCache.allOrganizations === null) {
+    // Convert readonly arrays to mutable arrays and populate cache
+    // The organizations array contains readonly objects, so we need to create new objects
+    dataCache.allOrganizations = organizations.map((org) => {
+      // Create a mutable copy of the organization data
+      const orgData = { ...org } as Organization;
+      dataCache.organizations.set(orgData.id, orgData);
+      return orgData;
+    });
   }
-
-  const dataDir = join(process.cwd(), 'public', 'data');
-  const actorsJsonPath = join(dataDir, 'actors.json');
-
-  if (!existsSync(actorsJsonPath)) {
-    throw new Error('actors.json index file not found. This file is required.');
-  }
-
-  const indexData = JSON.parse(
-    readFileSync(actorsJsonPath, 'utf-8')
-  ) as ActorsIndex;
-  dataCache.index = indexData;
-  return indexData;
 }
 
 /**
- * Relationship data as stored in individual JSON files
- * Simpler structure than the full ActorRelationship interface
- */
-export interface RelationshipFileData {
-  actor1Id: string;
-  actor2Id: string;
-  relationshipType: string;
-  strength: number; // 0.0 to 1.0
-  sentiment: number; // -1.0 to 1.0
-  history: string;
-  actor1FollowsActor2: boolean;
-  actor2FollowsActor1: boolean;
-}
-
-/**
- * Loads all actors data from individual files via actors.json index
+ * Loads all actors data from TypeScript imports
  *
  * **Features:**
  * - Caching: Data is cached in memory after first load
  * - Selective: Can choose to load only actors, orgs, or relationships
- * - Fast: Direct file reads with caching
+ * - Fast: Direct imports, no file I/O
  *
  * @param options Optional configuration for selective loading
  * @returns ActorsDatabase with requested data
  */
 export function loadActorsData(options?: LoadActorsOptions): ActorsDatabase {
-  // Check if we're in a Node.js environment with file system access
-  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    throw new Error(
-      'loadActorsData requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
-    );
-  }
-
-  const dataDir = join(process.cwd(), 'public', 'data');
-  const indexData = loadIndex();
+  initializeCache();
 
   // Default to loading everything if no options provided
   const includeActors = options?.includeActors !== false;
   const includeOrganizations = options?.includeOrganizations !== false;
   const includeRelationships = options?.includeRelationships !== false;
 
-  // Check if this is an index file (has references with "file" property)
-  if (indexData.actors?.[0] && 'file' in indexData.actors[0]) {
-    // Load actors from individual files (with caching)
-    const actors: ActorData[] = [];
-    if (includeActors) {
-      for (const ref of indexData.actors) {
-        // Check cache first
-        if (dataCache.actors.has(ref.id)) {
-          actors.push(dataCache.actors.get(ref.id)!);
-          continue;
-        }
-
-        // Load from file
-        const actorPath = join(dataDir, ref.file);
-        if (!existsSync(actorPath)) {
-          throw new Error(
-            `Actor file not found: ${ref.file} (referenced in actors.json)`
-          );
-        }
-        const actorData = JSON.parse(
-          readFileSync(actorPath, 'utf-8')
-        ) as ActorData;
-
-        // Cache it
-        dataCache.actors.set(ref.id, actorData);
-        actors.push(actorData);
-      }
-    }
-
-    // Load organizations from individual files (with caching)
-    const organizations: Organization[] = [];
-    if (includeOrganizations) {
-      for (const ref of indexData.organizations) {
-        // Check cache first
-        if (dataCache.organizations.has(ref.id)) {
-          organizations.push(dataCache.organizations.get(ref.id)!);
-          continue;
-        }
-
-        // Load from file
-        const orgPath = join(dataDir, ref.file);
-        if (!existsSync(orgPath)) {
-          throw new Error(
-            `Organization file not found: ${ref.file} (referenced in actors.json)`
-          );
-        }
-        const orgData = JSON.parse(
-          readFileSync(orgPath, 'utf-8')
-        ) as Organization;
-
-        // Cache it
-        dataCache.organizations.set(ref.id, orgData);
-        organizations.push(orgData);
-      }
-    }
-
-    // Load relationships from individual files (with caching)
-    const relationships: RelationshipFileData[] = [];
-    if (includeRelationships && indexData.relationships) {
-      for (const ref of indexData.relationships) {
-        // Check cache first
-        if (dataCache.relationships.has(ref.id)) {
-          relationships.push(dataCache.relationships.get(ref.id)!);
-          continue;
-        }
-
-        // Load from file
-        const relPath = join(dataDir, ref.file);
-        if (existsSync(relPath)) {
-          const relData = JSON.parse(
-            readFileSync(relPath, 'utf-8')
-          ) as RelationshipFileData;
-
-          // Cache it
-          dataCache.relationships.set(ref.id, relData);
-          relationships.push(relData);
-        }
-      }
-    }
-
-    return {
-      actors,
-      organizations,
-      relationships,
-    };
-  }
-
-  // If it's already a full structure (no "file" property), return it directly
-  // This handles legacy actors.json format if someone is using it
-  // Type guard to check if data is already in full format
-  const isFullFormat = (
-    data: IndexReference | ActorData
-  ): data is ActorData => {
-    return typeof data === 'object' && data !== null && !('file' in data);
+  return {
+    actors: includeActors ? [...(dataCache.allActors ?? [])] : [],
+    organizations: includeOrganizations
+      ? [...(dataCache.allOrganizations ?? [])]
+      : [],
+    relationships: includeRelationships ? [] : [], // Relationships are now dynamic, stored in DB
   };
-
-  // Cast to union type for proper type guard narrowing (runtime check validates)
-  const actorsUnion = indexData.actors as (IndexReference | ActorData)[];
-
-  if (actorsUnion?.[0] && isFullFormat(actorsUnion[0])) {
-    // Verify all arrays match expected types
-    const actors = actorsUnion.filter(isFullFormat);
-    const organizations = (indexData.organizations?.filter(
-      (org) => typeof org === 'object' && org !== null && !('file' in org)
-    ) ?? []) as Organization[];
-    const relationships = (indexData.relationships?.filter(
-      (rel) => typeof rel === 'object' && rel !== null && !('file' in rel)
-    ) ?? []) as RelationshipFileData[];
-
-    return {
-      actors,
-      organizations,
-      relationships,
-    };
-  }
-
-  throw new Error(
-    'Invalid actors.json format. Expected index with references to individual files.'
-  );
 }
 
 /**
  * Loads a single actor by ID - OPTIMIZED with caching
- * Checks cache first, then loads from individual file
+ * Checks cache first, then looks up from imported data
  *
- * **Performance:** Only reads file once, subsequent calls use cache
+ * **Performance:** Direct cache lookup, no I/O
  *
  * @param actorId The ID of the actor to load
  * @returns Actor data or null if not found
  */
 export function loadActorById(actorId: string): ActorData | null {
+  initializeCache();
+
   // Check cache first (fastest - no I/O)
   if (dataCache.actors.has(actorId)) {
     return dataCache.actors.get(actorId)!;
-  }
-
-  // Check if we're in a Node.js environment with file system access
-  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    throw new Error(
-      'loadActorById requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
-    );
-  }
-
-  const dataDir = join(process.cwd(), 'public', 'data');
-  const actorFilePath = join(dataDir, 'actors', `${actorId}.json`);
-
-  // Load from individual file
-  if (existsSync(actorFilePath)) {
-    try {
-      const actorData = JSON.parse(
-        readFileSync(actorFilePath, 'utf-8')
-      ) as ActorData;
-      // Cache it for future calls
-      dataCache.actors.set(actorId, actorData);
-      return actorData;
-    } catch (error) {
-      console.warn(`Failed to load actor ${actorId}:`, error);
-      return null;
-    }
   }
 
   return null;
@@ -310,42 +155,19 @@ export function loadActorById(actorId: string): ActorData | null {
 
 /**
  * Loads a single organization by ID - OPTIMIZED with caching
- * Checks cache first, then loads from individual file
+ * Checks cache first, then looks up from imported data
  *
- * **Performance:** Only reads file once, subsequent calls use cache
+ * **Performance:** Direct cache lookup, no I/O
  *
  * @param orgId The ID of the organization to load
  * @returns Organization data or null if not found
  */
 export function loadOrganizationById(orgId: string): Organization | null {
+  initializeCache();
+
   // Check cache first (fastest - no I/O)
   if (dataCache.organizations.has(orgId)) {
     return dataCache.organizations.get(orgId)!;
-  }
-
-  // Check if we're in a Node.js environment with file system access
-  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    throw new Error(
-      'loadOrganizationById requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
-    );
-  }
-
-  const dataDir = join(process.cwd(), 'public', 'data');
-  const orgFilePath = join(dataDir, 'organizations', `${orgId}.json`);
-
-  // Load from individual file
-  if (existsSync(orgFilePath)) {
-    try {
-      const orgData = JSON.parse(
-        readFileSync(orgFilePath, 'utf-8')
-      ) as Organization;
-      // Cache it for future calls
-      dataCache.organizations.set(orgId, orgData);
-      return orgData;
-    } catch (error) {
-      console.warn(`Failed to load organization ${orgId}:`, error);
-      return null;
-    }
   }
 
   return null;
@@ -353,7 +175,7 @@ export function loadOrganizationById(orgId: string): Organization | null {
 
 /**
  * Loads a relationship between two actors - OPTIMIZED with caching
- * Checks cache first, then loads from individual file
+ * Checks cache first, then loads from individual file (if relationships are stored as files)
  *
  * **Performance:** Only reads file once, subsequent calls use cache
  *
@@ -374,52 +196,29 @@ export function loadRelationship(
     return dataCache.relationships.get(relId)!;
   }
 
-  // Check if we're in a Node.js environment with file system access
-  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    throw new Error(
-      'loadRelationship requires Node.js environment with file system access. Not available in edge runtime. Use API routes or environment variables instead.'
-    );
-  }
-
-  const dataDir = join(process.cwd(), 'public', 'data');
-  const relationshipFilePath = join(dataDir, 'relationships', `${relId}.json`);
-
-  // Load from individual file
-  if (existsSync(relationshipFilePath)) {
-    try {
-      const relData = JSON.parse(
-        readFileSync(relationshipFilePath, 'utf-8')
-      ) as RelationshipFileData;
-      // Cache it for future calls
-      dataCache.relationships.set(relId, relData);
-      return relData;
-    } catch (error) {
-      console.warn(`Failed to load relationship ${relId}:`, error);
-      return null;
-    }
-  }
-
+  // Relationships are now dynamic and stored in the database
+  // This function is kept for backwards compatibility but returns null
   return null;
 }
 
 /**
- * Get all actor IDs from the index without loading the full actor data
+ * Get all actor IDs from the imported data
  * Useful when you only need IDs for lookups
  *
  * @returns Array of actor IDs
  */
 export function getActorIds(): string[] {
-  const indexData = loadIndex();
-  return indexData.actors.map((ref) => ref.id);
+  initializeCache();
+  return dataCache.allActors?.map((actor) => actor.id) ?? [];
 }
 
 /**
- * Get all organization IDs from the index without loading the full org data
+ * Get all organization IDs from the imported data
  * Useful when you only need IDs for lookups
  *
  * @returns Array of organization IDs
  */
 export function getOrganizationIds(): string[] {
-  const indexData = loadIndex();
-  return indexData.organizations.map((ref) => ref.id);
+  initializeCache();
+  return dataCache.allOrganizations?.map((org) => org.id) ?? [];
 }

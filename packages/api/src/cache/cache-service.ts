@@ -20,6 +20,7 @@ import { redis, redisClientType, type RedisClientType } from '../redis';
 // Type for ioredis instance (avoid importing at top level to prevent bundling in edge runtime)
 type IORedisInstance = {
   set: (key: string, value: string, mode: string, ttl: number) => Promise<string>;
+  get: (key: string) => Promise<string | null>;
   scanStream: (opts: { match: string }) => NodeJS.ReadableStream;
   del: (...keys: string[]) => Promise<unknown>;
 };
@@ -170,9 +171,16 @@ export async function getCache<T>(
   const fullKey = options.namespace ? `${options.namespace}:${key}` : key;
 
   if (redis && redisClientType) {
-    const cached = await redis.get(fullKey);
+    const redisClient = redis;
+    let cached: string | null | unknown = null;
+    
+    if (redisClientType === 'upstash' && isUpstashRedis(redisClient, redisClientType)) {
+      cached = await redisClient.get(fullKey);
+    } else if (redisClientType === 'standard' && isIORedisInstance(redisClient, redisClientType)) {
+      cached = await redisClient.get(fullKey);
+    }
 
-    if (cached) {
+    if (cached !== null && cached !== undefined) {
       try {
         // Handle cached value based on its type
         // Upstash Redis REST API may return objects directly if the value was JSON
@@ -343,8 +351,11 @@ export async function invalidateCache(
   const fullKey = options.namespace ? `${options.namespace}:${key}` : key;
 
   if (redis && redisClientType) {
-    await redis.del(fullKey);
-    logger.debug('Cache invalidated (Redis)', { key: fullKey }, 'CacheService');
+    const redisClient = redis;
+    if (isUpstashRedis(redisClient, redisClientType) || isIORedisInstance(redisClient, redisClientType)) {
+      await redisClient.del(fullKey);
+      logger.debug('Cache invalidated (Redis)', { key: fullKey }, 'CacheService');
+    }
   }
 
   memoryCache.delete(fullKey);

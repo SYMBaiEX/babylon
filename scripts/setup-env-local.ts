@@ -77,20 +77,20 @@ const rlTrainingVars: EnvVar[] = [
   },
   {
     key: 'WANDB_MODEL',
-    value: 'OpenPipe/Qwen3-14B-Instruct',
+    value: 'unsloth/Qwen3-4B-128K',
     required: false,
     description:
       'W&B model for inference (CRITICAL: Only this model available in ART catalog)',
   },
   {
     key: 'BASE_MODEL',
-    value: 'OpenPipe/Qwen3-14B-Instruct',
+    value: 'unsloth/Qwen3-4B-128K',
     required: false,
     description: 'Base model for RL training',
   },
   {
     key: 'MODEL_NAME',
-    value: 'OpenPipe/Qwen3-14B-Instruct',
+    value: 'unsloth/Qwen3-4B-128K',
     required: false,
     description: 'Model name for training',
   },

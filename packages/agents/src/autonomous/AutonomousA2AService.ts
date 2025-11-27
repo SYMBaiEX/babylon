@@ -222,10 +222,11 @@ Your JSON response:`;
       prompt,
       system: agent.agentSystem || undefined,
       modelSize: 'large',
-      runtime, // Pass runtime to access W&B trained models
+      runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
       maxTokens: 400,
       actionType: 'evaluate_a2a_trade',
+      purpose: 'action', // RLAIF: This is a trading action decision
     });
 
     // Parse decision

@@ -30,7 +30,7 @@ export interface PromptSection {
  */
 export function buildSafePrompt(
   sections: PromptSection[],
-  model = 'OpenPipe/Qwen3-14B-Instruct',
+  model = 'unsloth/Qwen3-4B-128K',
   safetyMargin = 2000
 ): {
   prompt: string;
@@ -124,7 +124,7 @@ export function buildSafePrompt(
 export function buildPrompt(
   systemPrompt: string,
   userPrompt: string,
-  model = 'OpenPipe/Qwen3-14B-Instruct'
+  model = 'unsloth/Qwen3-4B-128K'
 ): string {
   const result = buildSafePrompt(
     [
@@ -148,7 +148,7 @@ export function buildPrompt(
  */
 export function willPromptFit(
   prompt: string,
-  model = 'OpenPipe/Qwen3-14B-Instruct',
+  model = 'unsloth/Qwen3-4B-128K',
   safetyMargin = 2000
 ): { fits: boolean; tokens: number; limit: number } {
   const tokens = countTokensSync(prompt);

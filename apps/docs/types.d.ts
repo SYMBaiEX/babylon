@@ -29,3 +29,9 @@ declare module 'swagger-ui-react' {
 declare module 'mdx/types' {
   export type MDXComponents = Record<string, unknown>;
 }
+
+// Type declarations for SVG imports
+declare module '*.svg' {
+  const content: string;
+  export default content;
+}

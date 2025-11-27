@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 
 // import logo_full.svg directly, its next.js
-import logo_full from '../logo_full.svg';
+import logo_full from '@/app/logo_full.svg';
 
 const footer = <Footer>MIT {new Date().getFullYear()} © Babylon.</Footer>;
 

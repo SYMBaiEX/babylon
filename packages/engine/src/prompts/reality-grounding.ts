@@ -7,8 +7,38 @@
  * Facts are loaded directly from src/data/reality-grounding.md
  */
 
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+
+/**
+ * Find the data directory by checking multiple possible locations
+ * Checks: packages/engine/src/data, src/data
+ */
+function findDataDir(): string {
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'findDataDir requires Node.js environment with file system access.'
+    );
+  }
+
+  const cwd = process.cwd();
+  const possiblePaths = [
+    join(cwd, 'packages', 'engine', 'src', 'data'),
+    join(cwd, 'src', 'data'),
+  ];
+
+  for (const dataDir of possiblePaths) {
+    const realityGroundingPath = join(dataDir, 'reality-grounding.md');
+    if (existsSync(realityGroundingPath)) {
+      return dataDir;
+    }
+  }
+
+  throw new Error(
+    `reality-grounding.md not found. Checked: ${possiblePaths.join(', ')}`
+  );
+}
 
 /**
  * Get current date and time context for prompts.
@@ -61,7 +91,8 @@ export function getCurrentDateContext(): {
  */
 export async function getWorldEventExamples(): Promise<string> {
   try {
-    const filePath = join(process.cwd(), 'src/data', 'world-event-examples.md');
+    const dataDir = findDataDir();
+    const filePath = join(dataDir, 'world-event-examples.md');
     const content = readFileSync(filePath, 'utf-8');
     return `=== WORLD EVENT EXAMPLES (FOR STYLE AND TONE) ===\n\n${content}`;
   } catch (error) {
@@ -75,7 +106,8 @@ export async function getWorldEventExamples(): Promise<string> {
  */
 function getRealityGroundingContent(): string {
   try {
-    const filePath = join(process.cwd(), 'src/data', 'reality-grounding.md');
+    const dataDir = findDataDir();
+    const filePath = join(dataDir, 'reality-grounding.md');
     return readFileSync(filePath, 'utf-8');
   } catch (error) {
     console.error('Failed to read reality-grounding.md', error);

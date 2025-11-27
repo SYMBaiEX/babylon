@@ -50,7 +50,7 @@ export class NameReplacer {
     // Load from new split structure if no path provided
     if (!actorsJsonPath) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { loadActorsData } = require('../src/lib/data/actors-loader');
+      const { loadActorsData } = require('@babylon/engine');
       this.actorsData = loadActorsData();
     } else {
       this.actorsData = JSON.parse(fs.readFileSync(actorsJsonPath, 'utf-8'));

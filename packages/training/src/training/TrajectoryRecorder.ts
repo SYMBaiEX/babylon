@@ -1,7 +1,7 @@
 /**
  * Production Trajectory Recorder
  *
- * Records agent decisions with EVERYTHING needed for ART/GRPO/RULER.
+ * Records agent decisions with EVERYTHING needed for GRPO.
  * Integrates directly with Babylon's autonomous agents.
  */
 

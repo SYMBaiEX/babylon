@@ -147,11 +147,12 @@ export type PartialPositionsResponse = {
 };
 
 // ============================================================================
-// Actors Index Types (for public/data/actors.json)
+// Actors Index Types (legacy - kept for backwards compatibility)
+// Note: Data is now stored in TypeScript files, not JSON
 // ============================================================================
 
 /**
- * Reference to an actor JSON file in the actors index
+ * Reference to an actor file (legacy type, kept for compatibility)
  */
 export interface ActorFileRef {
   id: string;
@@ -159,7 +160,7 @@ export interface ActorFileRef {
 }
 
 /**
- * Reference to an organization JSON file in the actors index
+ * Reference to an organization file (legacy type, kept for compatibility)
  */
 export interface OrganizationFileRef {
   id: string;
@@ -167,7 +168,7 @@ export interface OrganizationFileRef {
 }
 
 /**
- * Structure of the actors.json index file
+ * Structure of the actors index (legacy type, kept for compatibility)
  */
 export interface ActorsIndexFile {
   actors: ActorFileRef[];

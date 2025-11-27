@@ -48,6 +48,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import type { AgentTemplate } from '@babylon/agents';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@babylon/shared';
 
@@ -90,19 +91,6 @@ const generateAgentName = () => {
     'Prime',
   ];
   return `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]}`
-};
-
-/**
- * Agent template structure for pre-configured archetypes
- */
-type AgentTemplate = {
-  archetype: string;
-  name: string;
-  description: string;
-  bio: string;
-  system: string;
-  personality: string;
-  tradingStrategy: string;
 };
 
 /**
@@ -235,7 +223,7 @@ export default function CreateAgentPage() {
 
       // Load template index
       try {
-        const indexResponse = await fetch('/agent-templates/index.json');
+        const indexResponse = await fetch('/api/agent-templates');
         if (!indexResponse.ok) throw new Error('Failed to load template index');
 
         const index = (await indexResponse.json()) as { templates: string[] };
@@ -248,7 +236,7 @@ export default function CreateAgentPage() {
 
         // Load template
         const templateResponse = await fetch(
-          `/agent-templates/${randomTemplate}.json`
+          `/api/agent-templates/${randomTemplate}`
         );
         if (!templateResponse.ok) throw new Error('Failed to load template');
 

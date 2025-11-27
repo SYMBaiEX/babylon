@@ -22,6 +22,10 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+
   },
+  typescript: {
+    // Ignore type errors during build - we run typecheck separately via turbo
+    ignoreBuildErrors: true,
+  },
   env: {
     WAITLIST_MODE: process.env.WAITLIST_MODE ?? 'false',
   },
@@ -107,12 +111,29 @@ const nextConfig: NextConfig = {
   },
   // Webpack configuration for backward compatibility
   webpack: (config, { isServer, webpack }) => {
+    // Enable WebAssembly experiments for tiktoken
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
     // Fix for IPFS, electron-fetch, and React Native dependencies
     // Also handle Node.js built-ins that server-only packages require
     config.resolve.fallback = {
       ...config.resolve.fallback,
       electron: false,
       fs: false,
+      'node:fs': false,
+      'node:fs/promises': false,
+      'node:path': false,
+      'node:os': false,
+      'node:crypto': false,
+      'node:stream': false,
+      'node:util': false,
+      'node:url': false,
+      'node:net': false,
+      'node:tls': false,
+      'node:dns': false,
+      'node:perf_hooks': false,
       net: false,
       tls: false,
       dns: false,
@@ -161,11 +182,15 @@ const nextConfig: NextConfig = {
       config.plugins.push(
         // Ignore server-only Babylon packages in client builds
         new webpack.IgnorePlugin({
-          resourceRegExp: /^@babylon\/(api|db|contracts)$/,
+          resourceRegExp: /^@babylon\/(api|db|contracts|training|agents)$/,
         }),
         // Ignore server-only npm packages
         new webpack.IgnorePlugin({
           resourceRegExp: /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
+        }),
+        // Ignore @elizaos/core for client builds (it imports node:fs)
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^@elizaos\/core$/,
         })
       );
     }
@@ -181,27 +206,44 @@ const nextConfig: NextConfig = {
         resourceRegExp: /^electron-fetch$/,
         contextRegExp: /node_modules/,
       }),
-      // Ignore postgres package for client-side builds
-      // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
-      new webpack.IgnorePlugin({
-        resourceRegExp: /^postgres$/,
-        contextRegExp: /node_modules/,
-      }),
       // Ignore swagger-jsdoc - it's an optional dev dependency for docs generation
       // The code handles its absence gracefully, but webpack still tries to resolve it
       // Don't restrict to node_modules context since it might be imported from our packages
       new webpack.IgnorePlugin({
         resourceRegExp: /^swagger-jsdoc$/,
-      })
+      }),
+      // Ignore postgres package for client-side builds only
+      // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
+      ...(isServer ? [] : [
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^postgres$/,
+          contextRegExp: /node_modules/,
+        })
+      ])
     );
 
     // Configure externals for optional dependencies and server-only packages
     // swagger-jsdoc is optional and handled gracefully in the code with try-catch
     // electron and electron-fetch need special handling to prevent bundling issues
     if (isServer) {
-      // For server-side, ensure optional packages can be resolved at runtime
+      // For server-side, ensure packages in serverExternalPackages are externalized
       // They're already in serverExternalPackages, but we also configure webpack
-      // to allow them to be resolved from node_modules
+      // to externalize them so they're resolved at runtime from node_modules
+      const serverExternalPackagesList = [
+        'postgres',
+        'drizzle-orm',
+        'drizzle-orm/postgres-js',
+        'ioredis',
+        'swagger-jsdoc',
+        '@babylon/api',
+        '@babylon/db',
+        '@babylon/engine',
+        '@babylon/agents',
+        '@babylon/training',
+        '@babylon/contracts',
+        '@babylon/shared',
+      ];
+      
       if (!Array.isArray(config.externals)) {
         if (typeof config.externals === 'function') {
           const originalExternals = config.externals;
@@ -218,8 +260,8 @@ const nextConfig: NextConfig = {
                 result?: string
               ) => void
             ) => {
-              if (request === 'swagger-jsdoc') {
-                // Allow it to be resolved at runtime from node_modules
+              if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+                // Externalize server-only packages - resolve at runtime
                 return callback(null, 'commonjs ' + request);
               }
               callback();
@@ -242,7 +284,8 @@ const nextConfig: NextConfig = {
               result?: string
             ) => void
           ) => {
-            if (request === 'swagger-jsdoc') {
+            if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+              // Externalize server-only packages - resolve at runtime
               return callback(null, 'commonjs ' + request);
             }
             callback();
@@ -269,16 +312,28 @@ const nextConfig: NextConfig = {
 
       const nodeBuiltIns = [
         'fs',
+        'node:fs',
+        'node:fs/promises',
         'net',
+        'node:net',
         'tls',
+        'node:tls',
         'dns',
+        'node:dns',
         'path',
+        'node:path',
         'crypto',
+        'node:crypto',
         'stream',
+        'node:stream',
         'util',
+        'node:util',
         'url',
+        'node:url',
         'os',
+        'node:os',
         'perf_hooks',
+        'node:perf_hooks',
         'electron',
       ];
 

@@ -4,12 +4,28 @@
  * Structured error types for Agent0 SDK operations extending BabylonError system
  */
 
-import { ExternalServiceError, RateLimitError } from './index';
+// Import base classes using a workaround for circular dependency
+// We import from a separate re-export to break the cycle
+// The key is that index.ts defines ExternalServiceError and RateLimitError
+// BEFORE doing export * from './agent0', so they should be available
+import type { ExternalServiceError as ExternalServiceErrorType, RateLimitError as RateLimitErrorType } from './index';
+
+// Get the actual classes at runtime using a getter that accesses the module after it's loaded
+// This breaks the circular dependency by deferring the class access
+const getExternalServiceError = (): typeof ExternalServiceErrorType => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('./index').ExternalServiceError;
+};
+
+const getRateLimitError = (): typeof RateLimitErrorType => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('./index').RateLimitError;
+};
 
 /**
  * Base error class for all Agent0 operations
  */
-export class Agent0Error extends ExternalServiceError {
+export class Agent0Error extends getExternalServiceError() {
   public readonly operation:
     | 'register'
     | 'feedback'
@@ -219,7 +235,7 @@ export class Agent0DuplicateFeedbackError extends Agent0FeedbackError {
 /**
  * Error for Agent0 rate limiting
  */
-export class Agent0RateLimitError extends RateLimitError {
+export class Agent0RateLimitError extends getRateLimitError() {
   constructor(public readonly retryAfter?: number) {
     super(10, 60000, retryAfter); // 10 requests per minute default
   }

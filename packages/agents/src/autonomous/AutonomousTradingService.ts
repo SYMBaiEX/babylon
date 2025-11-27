@@ -193,15 +193,17 @@ ${contextString}`;
 
     // Use large model (qwen3-32b or trained W&B model) for trading decisions
     // Add timeout to prevent hanging (30 seconds max)
+    // NOTE: Trajectory logging is auto-extracted from runtime in callGroqDirect
     const decision = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
         system: agent.agentSystem || undefined,
         modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
-        runtime: _runtime, // Pass runtime to access W&B trained models
+        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.7,
         maxTokens: 300,
         actionType: 'evaluate_trading_opportunity',
+        purpose: 'action', // Track this as an ACTION call for RL
       }),
       new Promise<string>((resolve) => {
         setTimeout(() => {

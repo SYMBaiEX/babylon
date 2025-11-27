@@ -374,10 +374,11 @@ Array:`;
         prompt: finalPrompt,
         system: agent.agentSystem || undefined,
         modelSize: 'small', // Free tier: Fast and efficient
-        runtime: _runtime, // Pass runtime to access W&B trained models
+        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.6,
         maxTokens: 16384,
         actionType: 'evaluate_interactions',
+        purpose: 'evaluation', // RLAIF: This is an evaluation/reasoning call
       }),
       new Promise<string>((resolve) => {
         setTimeout(() => {
@@ -499,10 +500,11 @@ Generate ONLY the response text, nothing else.`;
           prompt: finalRespPrompt,
           system: agent.agentSystem || undefined,
           modelSize: 'small', // Free tier: Fast response generation
-          runtime: _runtime, // Pass runtime to access W&B trained models
+          runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: 0.8,
           maxTokens: 16384,
           actionType: 'execute_response',
+          purpose: 'response', // RLAIF: This is a response generation call
         }),
         new Promise<string>((resolve) => {
           setTimeout(() => {

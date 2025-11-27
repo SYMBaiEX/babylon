@@ -1,0 +1,6 @@
+{
+  "model_name": "Qwen/Qwen3-4B",
+  "num_trajectories": 5,
+  "num_samples": 150,
+  "timestamp": "2025-11-27T09:14:50.667238+00:00"
+}

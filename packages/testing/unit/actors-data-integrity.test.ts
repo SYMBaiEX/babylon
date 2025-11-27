@@ -1,5 +1,5 @@
 /**
- * Data integrity tests for actors.json
+ * Data integrity tests for actor/organization TypeScript data
  * Ensures all required fields are present and no unused fields remain
  */
 
@@ -308,8 +308,8 @@ describe('Actors.json Data Integrity', () => {
   });
 
   describe('Counts', () => {
-    it('should have 142 actors', () => {
-      expect(actorsData.actors).toHaveLength(142);
+    it('should have 144 actors', () => {
+      expect(actorsData.actors).toHaveLength(144);
     });
 
     it('should have 61 organizations', () => {

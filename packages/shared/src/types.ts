@@ -171,7 +171,7 @@ export interface Organization {
   ticker?: string; // 4-6 character trading ticker (e.g., METAI, NVDAI, AINDRL)
   description: string;
   profileDescription?: string; // What the organization says about itself on its profile
-  type: 'company' | 'media' | 'government';
+  type: 'company' | 'media' | 'government' | 'vc' | 'organization' | 'financial';
   canBeInvolved: boolean;
   postStyle?: string;
   postExample?: string[];
@@ -183,6 +183,9 @@ export interface Organization {
   // Name replacement fields (for data files)
   originalName?: string; // For name replacement
   originalHandle?: string; // For name replacement
+  username?: string; // Organization username/handle
+  pfpDescription?: string; // For image generation only
+  bannerDescription?: string; // For image generation only
 }
 
 /**
@@ -333,8 +336,8 @@ export interface ElizaCharacter {
 
 /**
  * Extended Actor definition for data files
- * Includes all fields from individual actor JSON files
- * (stored in public/data/actors/*.json)
+ * Includes all fields from individual actor TypeScript files
+ * (stored in packages/engine/src/data/actors/*.ts)
  */
 export interface ActorData extends Actor {
   realName: string;
@@ -344,6 +347,8 @@ export interface ActorData extends Actor {
   originalFirstName: string; // For name replacement
   originalLastName: string; // For name replacement
   originalHandle: string; // For name replacement
+  firstName?: string; // Current first name (for name replacement)
+  lastName?: string; // Current last name (for name replacement)
 }
 
 /**
@@ -523,10 +528,10 @@ export interface GeneratedGame {
 
 /**
  * Actors database structure
- * Used for loading actor/organization data from split file structure
- * - Individual files in public/data/actors/*.json
- * - Individual files in public/data/organizations/*.json
- * - Loaded via loadActorsData() utility
+ * Used for loading actor/organization data from TypeScript files
+ * - Individual files in packages/engine/src/data/actors/*.ts
+ * - Individual files in packages/engine/src/data/organizations/*.ts
+ * - Loaded via loadActorsData() utility (direct TypeScript imports)
  */
 export interface ActorsDatabase {
   actors: ActorData[];

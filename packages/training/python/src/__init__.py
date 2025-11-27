@@ -1,31 +1,36 @@
 """
-Babylon RL Training System
+Babylon RL Training System - Atropos Framework
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 # Import and re-export main components
 from .models import (
     BabylonTrajectory,
     MarketOutcomes,
     WindowStatistics,
-    TrainingBatchSummary
+    TrainingBatchSummary,
+    AtroposScoredGroup,
+    JudgeResponse,
 )
 
 from .data_bridge import (
     PostgresTrajectoryReader,
-    BabylonToARTConverter,
-    calculate_dropout_rate
+    BabylonToAtroposConverter,
+    ScoredGroupResult,
+    calculate_dropout_rate,
 )
 
 from .training import (
-    BabylonTrainer,
-    detect_hardware,
-    check_mlx_available,
-    BACKEND_CUDA,
-    BACKEND_MLX,
-    BACKEND_CPU,
-    BACKEND_SERVERLESS,
+    # Atropos trainer (recommended)
+    BabylonAtroposTrainer,
+    AtroposTrainingConfig,
+    BabylonRLAIFEnv,
+    BabylonEnvConfig,
+    # Reward functions
+    pnl_reward,
+    composite_reward,
+    RewardNormalizer,
 )
 
 __all__ = [
@@ -34,18 +39,21 @@ __all__ = [
     "MarketOutcomes",
     "WindowStatistics",
     "TrainingBatchSummary",
+    "AtroposScoredGroup",
+    "JudgeResponse",
     
     # Data Bridge
     "PostgresTrajectoryReader",
-    "BabylonToARTConverter",
+    "BabylonToAtroposConverter",
+    "ScoredGroupResult",
     "calculate_dropout_rate",
     
-    # Training
-    "BabylonTrainer",
-    "detect_hardware",
-    "check_mlx_available",
-    "BACKEND_CUDA",
-    "BACKEND_MLX",
-    "BACKEND_CPU",
-    "BACKEND_SERVERLESS",
+    # Atropos Training (recommended)
+    "BabylonAtroposTrainer",
+    "AtroposTrainingConfig",
+    "BabylonRLAIFEnv",
+    "BabylonEnvConfig",
+    "pnl_reward",
+    "composite_reward",
+    "RewardNormalizer",
 ]

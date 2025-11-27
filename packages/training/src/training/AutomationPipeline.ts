@@ -78,7 +78,7 @@ export class AutomationPipeline {
       dataQualityThreshold: config.dataQualityThreshold ?? 0.95,
       autoTriggerTraining: config.autoTriggerTraining !== false,
       trainingInterval: config.trainingInterval || 24, // Daily by default
-      baseModel: config.baseModel || 'OpenPipe/Qwen3-14B-Instruct', // ONLY model available in W&B ART (32K context)
+      baseModel: config.baseModel || 'Qwen/Qwen2.5-14B-Instruct', // Default model for Atropos training
       modelNamePrefix: config.modelNamePrefix || 'babylon-agent',
       modelStoragePath:
         config.modelStoragePath ||
@@ -86,8 +86,8 @@ export class AutomationPipeline {
       dataStoragePath:
         config.dataStoragePath ||
         path.resolve(process.cwd(), 'storage/training-data'),
-      wandbProject: config.wandbProject || process.env.WANDB_PROJECT,
-      wandbApiKey: config.wandbApiKey || process.env.WANDB_API_KEY,
+      atroposApiUrl: config.atroposApiUrl || process.env.ATROPOS_API_URL || 'http://localhost:8000',
+      vllmPort: config.vllmPort || parseInt(process.env.VLLM_PORT || '9001', 10),
     };
   }
 
@@ -402,14 +402,13 @@ export class AutomationPipeline {
 
     const batch = batchResult[0]!;
 
-    // Trigger Python training script
+    // Trigger Python training script (Atropos trainer)
     const pythonScript = path.resolve(
       process.cwd(),
-      'python/src/training/babylon_trainer.py'
+      'python/src/training/atropos_trainer.py'
     );
 
     // Set environment variables for Python script
-    // If WANDB_API_KEY is set, will use remote training; otherwise falls back to local
     const env = {
       ...process.env,
       MODE: 'single',
@@ -418,44 +417,23 @@ export class AutomationPipeline {
       WINDOW_ID: windowId,
       BASE_MODEL: modelSelection.modelPath, // Use selected model from ModelSelectionService
       MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000', // CRITICAL: Hard limit to prevent 200GB usage
-      WANDB_PROJECT: this.config.wandbProject || 'babylon-training',
-      WANDB_ENTITY: process.env.WANDB_ENTITY || 'elizaos', // Default to personal account (has write access)
       DATABASE_URL: process.env.DATABASE_URL || '',
-      // Training logic:
-      // - If WANDB_API_KEY is set: Use remote training (preferred)
-      // - If WANDB_API_KEY is NOT set: Check TRAIN_RL_LOCAL (with resource checks)
-      // - Large models require FORCE_LOCAL_TRAINING=true if training locally
-      TRAIN_RL_LOCAL: process.env.TRAIN_RL_LOCAL || 'false',
-      WANDB_API_KEY: process.env.WANDB_API_KEY || '', // Explicitly pass W&B key
-      FORCE_LOCAL_TRAINING: process.env.FORCE_LOCAL_TRAINING || 'false', // Allow forcing local training for large models
+      ATROPOS_API_URL: this.config.atroposApiUrl || 'http://localhost:8000',
+      VLLM_PORT: String(this.config.vllmPort || 9001),
       // Allow forcing training with minimal data for testing
       FORCE_TRAINING: options.force ? 'true' : 'false',
       MIN_AGENTS_PER_WINDOW: '1', // Lower minimum for testing
     };
 
-    if (process.env.WANDB_API_KEY) {
-      logger.info(
-        'WANDB_API_KEY set - training will use W&B remote backend',
-        undefined,
-        'AutomationPipeline'
-      );
-    } else {
-      const trainLocal = process.env.TRAIN_RL_LOCAL === 'true';
-      const forceLocal = process.env.FORCE_LOCAL_TRAINING === 'true';
-      if (trainLocal || forceLocal) {
-        logger.warn(
-          'WANDB_API_KEY not set - training will fall back to local GPU/CPU (with resource checks)',
-          undefined,
-          'AutomationPipeline'
-        );
-      } else {
-        logger.warn(
-          'WANDB_API_KEY not set - training will use W&B remote backend (requires WANDB_API_KEY)',
-          undefined,
-          'AutomationPipeline'
-        );
-      }
-    }
+    logger.info(
+      'Training will use Atropos GRPO with vLLM',
+      { 
+        atroposUrl: env.ATROPOS_API_URL, 
+        vllmPort: env.VLLM_PORT,
+        model: env.BASE_MODEL,
+      },
+      'AutomationPipeline'
+    );
 
     // Use python3 if available, fallback to python
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
@@ -1024,7 +1002,7 @@ export class AutomationPipeline {
       storageHealthy = false;
     }
 
-    const wandbHealthy = !!this.config.wandbApiKey;
+    const atroposHealthy = !!this.config.atroposApiUrl;
 
     return {
       dataCollection: {
@@ -1050,7 +1028,7 @@ export class AutomationPipeline {
       health: {
         database: dbHealthy,
         storage: storageHealthy,
-        wandb: wandbHealthy,
+        atropos: atroposHealthy,
       },
     };
   }

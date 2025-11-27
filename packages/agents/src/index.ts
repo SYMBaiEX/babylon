@@ -51,6 +51,9 @@ export * from './services';
 // Core types
 export * from './types';
 export * from './types/goals';
+export * from './types/agent-template';
+// Templates loader
+export * from './templates-loader';
 
 // Utils
 export * from './utils/createTestAgent';

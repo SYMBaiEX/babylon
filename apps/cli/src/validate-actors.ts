@@ -18,10 +18,10 @@
  * - 1: Validation errors found (details printed to stderr)
  *
  * **Data Source:**
- * Loads from split actor/organization structure:
- * - `public/data/actors.json` (index file with references)
- * - `public/data/actors/*.json` (individual actor files)
- * - `public/data/organizations/*.json` (individual organization files)
+ * Loads from TypeScript actor/organization data:
+ * - `packages/engine/src/data/actors/*.ts` (individual actor TypeScript files)
+ * - `packages/engine/src/data/organizations/*.ts` (individual organization TypeScript files)
+ * - Uses `loadActorsData()` from `@babylon/engine` (direct TypeScript imports)
  *
  * @module cli/validate-actors
  * @category CLI - Validation

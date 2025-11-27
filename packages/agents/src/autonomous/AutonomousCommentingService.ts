@@ -105,10 +105,11 @@ Generate ONLY the comment text, nothing else.`;
       prompt,
       system: agent.agentSystem || undefined,
       modelSize: 'small', // Free tier: Frequent operation, use fast model
-      runtime: _runtime, // Pass runtime to access W&B trained models
+      runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.8,
       maxTokens: 80,
       actionType: 'generate_comment',
+      purpose: 'response', // RLAIF: This is a response generation call
     });
 
     const cleanContent = commentContent.trim().replace(/^["']|["']$/g, '');

@@ -1,5 +1,5 @@
 """
-Comprehensive tests for continuous RL training pipeline
+Comprehensive tests for continuous RL training pipeline (Atropos)
 """
 
 import os
@@ -27,11 +27,11 @@ def db_url():
 
 
 @pytest.fixture
-def openpipe_api_key():
-    """Get OpenPipe API key"""
-    key = os.getenv("OPENPIPE_API_KEY")
+def openai_api_key():
+    """Get OpenAI API key for judge model"""
+    key = os.getenv("OPENAI_API_KEY")
     if not key:
-        pytest.skip("No OpenPipe API key configured")
+        pytest.skip("No OpenAI API key configured")
     return key
 
 
@@ -48,11 +48,11 @@ async def data_collector(db_url):
 
 
 @pytest.fixture
-async def ruler_scorer(db_url, openpipe_api_key):
+async def ruler_scorer(db_url, openai_api_key):
     """Create RULER scorer instance"""
     scorer = RulerScoringService(
         db_url=db_url,
-        openpipe_api_key=openpipe_api_key,
+        openai_api_key=openai_api_key,
         batch_size=3
     )
     return scorer
@@ -63,7 +63,7 @@ async def grpo_trainer(db_url):
     """Create GRPO trainer instance"""
     trainer = GRPOTrainingService(
         db_url=db_url,
-        model_name="OpenPipe/Qwen3-14B-Instruct",  # Only model in W&B ART catalog
+        model_name="Qwen/Qwen2.5-3B-Instruct",
         batch_size=2,
         iterations_per_window=2  # Lower for testing
     )
@@ -81,11 +81,11 @@ async def model_deployer():
 
 
 @pytest.fixture
-async def orchestrator(db_url, openpipe_api_key):
+async def orchestrator(db_url, openai_api_key):
     """Create orchestrator instance"""
     orch = TrainingOrchestrator(
         db_url=db_url,
-        openpipe_api_key=openpipe_api_key,
+        openai_api_key=openai_api_key,
         environment="local",
         min_agents_per_window=2,
         training_frequency_windows=1
@@ -183,7 +183,7 @@ class TestRulerScorer:
             }]
         }
         
-        with patch.object(ruler_scorer, '_call_ruler', return_value=mock_response):
+        with patch.object(ruler_scorer, '_call_judge', return_value=mock_response):
             # Create mock window data
             window_id = "2025-01-15T10:00"
             
@@ -204,7 +204,7 @@ class TestRulerScorer:
     
     @pytest.mark.asyncio
     async def test_fallback_scoring(self, ruler_scorer):
-        """Test fallback scoring when RULER fails"""
+        """Test fallback scoring when judge fails"""
         
         contexts = [
             {
@@ -382,12 +382,12 @@ class TestEndToEndPipeline:
     
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_full_pipeline_mock(self, db_url, openpipe_api_key):
+    async def test_full_pipeline_mock(self, db_url, openai_api_key):
         """Test full pipeline with mocked external services"""
         
         orchestrator = TrainingOrchestrator(
             db_url=db_url,
-            openpipe_api_key=openpipe_api_key,
+            openai_api_key=openai_api_key,
             environment="local",
             min_agents_per_window=2,
             training_frequency_windows=1
@@ -397,8 +397,8 @@ class TestEndToEndPipeline:
         
         # This tests the full flow but with mocked external APIs
         # Real database calls but mocked ML/API calls
-        with patch.object(orchestrator.ruler_scorer, '_call_ruler'):
-            with patch.object(orchestrator.grpo_trainer.model, 'train'):
+        with patch.object(orchestrator.ruler_scorer, '_call_judge'):
+            with patch.object(orchestrator.grpo_trainer, 'train'):
                 with patch.object(orchestrator.model_deployer, '_deploy_local'):
                     # This should not error
                     try:
@@ -462,20 +462,6 @@ class TestLocalEnvironment:
         assert os.getenv("TRAINING_ENV") == "local"
 
 
-class TestCoreweaveEnvironment:
-    """Tests specific to CoreWeave environment"""
-    
-    @pytest.mark.skipif(
-        os.getenv("TRAINING_ENV") != "coreweave",
-        reason="CoreWeave tests only run in CoreWeave environment"
-    )
-    @pytest.mark.asyncio
-    async def test_coreweave_config(self):
-        """Test CoreWeave configuration"""
-        assert os.getenv("TRAINING_ENV") == "coreweave"
-        # Add more CoreWeave-specific tests
-
-
 # Utility function tests
 def test_window_id_format():
     """Test window ID format is consistent"""
@@ -492,6 +478,3 @@ def test_window_id_format():
 if __name__ == "__main__":
     # Run tests
     pytest.main([__file__, "-v", "-s"])
-
-
-

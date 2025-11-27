@@ -54,23 +54,26 @@ class PostgresTrajectoryReader:
         if not self.pool:
             raise RuntimeError("Not connected - call connect() first")
         
+        # Calculate cutoff time
+        cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
+        
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT window_id
+                SELECT "windowId"
                 FROM trajectories
                 WHERE 
-                    window_id IS NOT NULL
-                    AND created_at > NOW() - $1::interval
-                GROUP BY window_id
-                HAVING COUNT(DISTINCT agent_id) >= $2
-                ORDER BY window_id DESC
+                    "windowId" IS NOT NULL
+                    AND "createdAt" > $1
+                GROUP BY "windowId"
+                HAVING COUNT(DISTINCT "agentId") >= $2
+                ORDER BY "windowId" DESC
                 """,
-                f"{lookback_hours} hours",
+                cutoff_time,
                 min_agents
             )
             
-        return [row['window_id'] for row in rows]
+        return [row['windowId'] for row in rows]
     
     async def get_trajectories_by_window(
         self,
@@ -89,14 +92,14 @@ class PostgresTrajectoryReader:
             rows = await conn.fetch(
                 """
                 SELECT 
-                    id, trajectory_id, agent_id, window_id,
-                    start_time, end_time, duration_ms,
-                    scenario_id, episode_id,
-                    steps_json, total_reward, final_pnl, final_balance,
-                    trades_executed, posts_created, episode_length, final_status
+                    id, "trajectoryId", "agentId", "windowId",
+                    "startTime", "endTime", "durationMs",
+                    "scenarioId", "episodeId",
+                    "stepsJson", "totalReward", "finalPnL", "finalBalance",
+                    "tradesExecuted", "postsCreated", "episodeLength", "finalStatus"
                 FROM trajectories
-                WHERE window_id = $1
-                ORDER BY created_at
+                WHERE "windowId" = $1
+                ORDER BY "createdAt"
                 """,
                 window_id
             )
@@ -104,53 +107,89 @@ class PostgresTrajectoryReader:
         trajectories = []
         for row in rows:
             # Parse steps JSON
-            steps_data = json.loads(row['steps_json'])
+            steps_data = json.loads(row['stepsJson'] or '[]')
+            
+            if not steps_data:
+                continue
             
             # Validate and convert steps
-            steps = [
-                TrajectoryStep(
-                    step_number=s['stepNumber'],
-                    timestamp=s['timestamp'],
-                    environment_state=EnvironmentState(**s['environmentState']),
-                    provider_accesses=[ProviderAccess(**p) for p in s.get('providerAccesses', [])],
-                    llm_calls=[LLMCall(
-                        model=llm['model'],
-                        system_prompt=llm['systemPrompt'],
-                        user_prompt=llm['userPrompt'],
-                        response=llm['response'],
-                        reasoning=llm.get('reasoning'),
-                        temperature=llm['temperature'],
-                        max_tokens=llm['maxTokens'],
-                        latency_ms=llm.get('latencyMs'),
-                        purpose=llm['purpose'],
-                        action_type=llm.get('actionType')
-                    ) for llm in s['llmCalls']],
-                    action=Action(**s['action']),
-                    reward=s['reward']
+            steps = []
+            for s in steps_data:
+                # Handle both snake_case and camelCase keys in step data
+                step_num = s.get('stepNumber', s.get('step_number', 0))
+                ts = s.get('timestamp', 0)
+                env_state_data = s.get('environmentState', s.get('environment_state', {}))
+                
+                # Build environment state with flexible key access
+                env_state = EnvironmentState(
+                    agent_balance=env_state_data.get('agentBalance', env_state_data.get('agent_balance', 0)),
+                    agent_pnl=env_state_data.get('agentPnL', env_state_data.get('agent_pnl', 0)),
+                    open_positions=env_state_data.get('openPositions', env_state_data.get('open_positions', 0)),
+                    active_markets=env_state_data.get('activeMarkets', env_state_data.get('active_markets', 0)),
                 )
-                for s in steps_data
-            ]
+                
+                # Provider accesses
+                provider_data = s.get('providerAccesses', s.get('provider_accesses', []))
+                provider_accesses = [ProviderAccess(**p) for p in provider_data] if provider_data else []
+                
+                # LLM calls
+                llm_data = s.get('llmCalls', s.get('llm_calls', []))
+                llm_calls = []
+                for llm in llm_data:
+                    llm_calls.append(LLMCall(
+                        model=llm.get('model', ''),
+                        system_prompt=llm.get('systemPrompt', llm.get('system_prompt', '')),
+                        user_prompt=llm.get('userPrompt', llm.get('user_prompt', '')),
+                        response=llm.get('response', ''),
+                        reasoning=llm.get('reasoning'),
+                        temperature=llm.get('temperature', 0.7),
+                        max_tokens=llm.get('maxTokens', llm.get('max_tokens', 100)),
+                        latency_ms=llm.get('latencyMs', llm.get('latency_ms')),
+                        purpose=llm.get('purpose', 'action'),
+                        action_type=llm.get('actionType', llm.get('action_type'))
+                    ))
+                
+                # Action
+                action_data = s.get('action', {})
+                action = Action(
+                    action_type=action_data.get('actionType', action_data.get('action_type', 'wait')),
+                    parameters=action_data.get('parameters', {}),
+                    success=action_data.get('success', True),
+                    result=action_data.get('result'),
+                    error=action_data.get('error'),
+                    reasoning=action_data.get('reasoning'),
+                )
+                
+                steps.append(TrajectoryStep(
+                    step_number=step_num,
+                    timestamp=ts,
+                    environment_state=env_state,
+                    provider_accesses=provider_accesses,
+                    llm_calls=llm_calls,
+                    action=action,
+                    reward=s.get('reward', 0.0)
+                ))
             
             # Only include if meets minimum actions
             if len(steps) >= min_actions:
                 trajectories.append(BabylonTrajectory(
                     id=row['id'],
-                    trajectory_id=row['trajectory_id'],
-                    agent_id=row['agent_id'],
-                    window_id=row['window_id'],
-                    start_time=row['start_time'],
-                    end_time=row['end_time'],
-                    duration_ms=row['duration_ms'],
-                    scenario_id=row['scenario_id'],
-                    episode_id=row['episode_id'],
+                    trajectory_id=row['trajectoryId'],
+                    agent_id=row['agentId'],
+                    window_id=row['windowId'],
+                    start_time=row['startTime'],
+                    end_time=row['endTime'],
+                    duration_ms=row['durationMs'] or 0,
+                    scenario_id=row['scenarioId'],
+                    episode_id=row['episodeId'],
                     steps=steps,
-                    total_reward=float(row['total_reward']),
-                    final_pnl=float(row['final_pnl']),
-                    final_balance=float(row['final_balance']) if row['final_balance'] else None,
-                    trades_executed=row['trades_executed'],
-                    posts_created=row['posts_created'],
-                    episode_length=row['episode_length'],
-                    final_status=row['final_status']
+                    total_reward=float(row['totalReward'] or 0),
+                    final_pnl=float(row['finalPnL'] or 0),
+                    final_balance=float(row['finalBalance']) if row['finalBalance'] else None,
+                    trades_executed=row['tradesExecuted'],
+                    posts_created=row['postsCreated'],
+                    episode_length=row['episodeLength'] or len(steps),
+                    final_status=row['finalStatus'] or 'unknown'
                 ))
         
         return trajectories
@@ -164,10 +203,10 @@ class PostgresTrajectoryReader:
             rows = await conn.fetch(
                 """
                 SELECT 
-                    stock_ticker, start_price, end_price,
-                    change_percent, sentiment, news_events
+                    "stockTicker", "startPrice", "endPrice",
+                    "changePercent", sentiment, "newsEvents"
                 FROM market_outcomes
-                WHERE window_id = $1 AND stock_ticker IS NOT NULL
+                WHERE "windowId" = $1 AND "stockTicker" IS NOT NULL
                 """,
                 window_id
             )
@@ -181,13 +220,13 @@ class PostgresTrajectoryReader:
         
         stocks = {}
         for row in rows:
-            stocks[row['stock_ticker']] = StockOutcome(
-                ticker=row['stock_ticker'],
-                start_price=float(row['start_price']),
-                end_price=float(row['end_price']),
-                change_percent=float(row['change_percent']),
+            stocks[row['stockTicker']] = StockOutcome(
+                ticker=row['stockTicker'],
+                start_price=float(row['startPrice']),
+                end_price=float(row['endPrice']),
+                change_percent=float(row['changePercent']),
                 sentiment=row['sentiment'],
-                news_events=row['news_events'] if row['news_events'] else []
+                news_events=row['newsEvents'] if row['newsEvents'] else []
             )
         
         return MarketOutcomes(
@@ -206,18 +245,18 @@ class PostgresTrajectoryReader:
             row = await conn.fetchrow(
                 """
                 SELECT 
-                    window_id,
-                    COUNT(DISTINCT agent_id) as agent_count,
+                    "windowId",
+                    COUNT(DISTINCT "agentId") as agent_count,
                     COUNT(*) as trajectory_count,
-                    COALESCE(SUM(episode_length), 0) as total_actions,
-                    COALESCE(AVG(final_pnl), 0) as avg_pnl,
-                    COALESCE(MIN(final_pnl), 0) as min_pnl,
-                    COALESCE(MAX(final_pnl), 0) as max_pnl,
-                    MIN(start_time) as start_time,
-                    MAX(end_time) as end_time
+                    COALESCE(SUM("episodeLength"), 0) as total_actions,
+                    COALESCE(AVG("finalPnL"), 0) as avg_pnl,
+                    COALESCE(MIN("finalPnL"), 0) as min_pnl,
+                    COALESCE(MAX("finalPnL"), 0) as max_pnl,
+                    MIN("startTime") as start_time,
+                    MAX("endTime") as end_time
                 FROM trajectories
-                WHERE window_id = $1
-                GROUP BY window_id
+                WHERE "windowId" = $1
+                GROUP BY "windowId"
                 """,
                 window_id
             )
@@ -226,7 +265,7 @@ class PostgresTrajectoryReader:
             return None
         
         return WindowStatistics(
-            window_id=row['window_id'],
+            window_id=row['windowId'],
             agent_count=row['agent_count'],
             trajectory_count=row['trajectory_count'],
             total_actions=row['total_actions'],

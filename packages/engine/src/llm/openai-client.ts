@@ -630,7 +630,7 @@ export class BabylonLLMClient {
       case 'wandb':
         // Use configured model or default to our trained Qwen model
         // Content generation code explicitly specifies moonshotai/Kimi-K2-Instruct-0905 when needed
-        return this.wandbModel || 'OpenPipe/Qwen3-14B-Instruct';
+        return this.wandbModel || 'unsloth/Qwen3-4B-128K';
       case 'groq':
         // Use qwen3-32b as workhorse model for most operations
         return 'qwen/qwen3-32b';

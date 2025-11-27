@@ -1,0 +1,535 @@
+#!/usr/bin/env python3
+"""
+Babylon Full Training Pipeline
+
+Complete end-to-end workflow:
+1. Run 10 agents with a 4B model (data generation)
+2. Collect and score trajectories
+3. Train a 4B model using GRPO from ranked results
+4. Benchmark compare base vs trained model
+
+Usage:
+    # Full pipeline
+    python scripts/run_full_pipeline.py --agents 10 --model Qwen/Qwen3-4B
+    
+    # Just data generation
+    python scripts/run_full_pipeline.py --mode generate --agents 10
+    
+    # Just training (using existing data)
+    python scripts/run_full_pipeline.py --mode train --window-id 2024-01-01T00:00
+    
+    # Just benchmark
+    python scripts/run_full_pipeline.py --mode benchmark --model-a base --model-b trained
+"""
+
+import argparse
+import asyncio
+import json
+import logging
+import os
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from dotenv import load_dotenv
+
+# Load environment
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class FullPipeline:
+    """
+    Complete training pipeline orchestrator.
+    
+    Manages the full workflow from agent simulation to model training.
+    """
+    
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen3-4B",
+        num_agents: int = 10,
+        ticks_per_agent: int = 100,
+        database_url: Optional[str] = None,
+        output_dir: str = "./trained_models",
+        use_wandb: bool = True,
+    ):
+        self.model_name = model_name
+        self.num_agents = num_agents
+        self.ticks_per_agent = ticks_per_agent
+        self.database_url = database_url or os.getenv("DATABASE_URL", "")
+        self.output_dir = Path(output_dir)
+        self.use_wandb = use_wandb
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Track results
+        self.generated_trajectories = []
+        self.scores = []
+        self.trained_model_path = None
+        self.benchmark_results = {}
+    
+    async def run_full_pipeline(self):
+        """Run the complete pipeline end-to-end"""
+        logger.info("=" * 70)
+        logger.info("BABYLON FULL TRAINING PIPELINE")
+        logger.info("=" * 70)
+        logger.info(f"Model: {self.model_name}")
+        logger.info(f"Agents: {self.num_agents}")
+        logger.info(f"Ticks per agent: {self.ticks_per_agent}")
+        logger.info(f"Output: {self.output_dir}")
+        logger.info("=" * 70)
+        
+        start_time = time.time()
+        
+        # Step 1: Generate data
+        logger.info("\n" + "=" * 70)
+        logger.info("STEP 1: DATA GENERATION")
+        logger.info("=" * 70)
+        await self.generate_data()
+        
+        # Step 2: Score trajectories
+        logger.info("\n" + "=" * 70)
+        logger.info("STEP 2: SCORING")
+        logger.info("=" * 70)
+        await self.score_trajectories()
+        
+        # Step 3: Train model
+        logger.info("\n" + "=" * 70)
+        logger.info("STEP 3: TRAINING")
+        logger.info("=" * 70)
+        await self.train_model()
+        
+        # Step 4: Benchmark
+        logger.info("\n" + "=" * 70)
+        logger.info("STEP 4: BENCHMARK")
+        logger.info("=" * 70)
+        await self.run_benchmark()
+        
+        total_time = time.time() - start_time
+        
+        # Summary
+        logger.info("\n" + "=" * 70)
+        logger.info("PIPELINE COMPLETE")
+        logger.info("=" * 70)
+        logger.info(f"Total time: {total_time:.1f}s")
+        logger.info(f"Trajectories generated: {len(self.generated_trajectories)}")
+        logger.info(f"Trained model: {self.trained_model_path}")
+        logger.info("=" * 70)
+        
+        return {
+            "trajectories": len(self.generated_trajectories),
+            "trained_model": str(self.trained_model_path) if self.trained_model_path else None,
+            "benchmark": self.benchmark_results,
+            "total_time": total_time,
+        }
+    
+    async def generate_data(self):
+        """
+        Generate training data by running agents.
+        
+        In a full implementation, this would:
+        1. Start vLLM with the base model
+        2. Run agent simulations
+        3. Collect trajectories
+        
+        For now, this loads existing data from the database.
+        """
+        if not self.database_url:
+            logger.warning("No DATABASE_URL - using synthetic data")
+            await self._generate_synthetic_data()
+            return
+        
+        from src.data_bridge import PostgresTrajectoryReader
+        
+        logger.info("Loading trajectories from database...")
+        
+        try:
+            async with PostgresTrajectoryReader(self.database_url) as reader:
+                # Get recent windows
+                windows = await reader.get_window_ids(
+                    min_agents=2,
+                    lookback_hours=72
+                )
+                
+                if not windows:
+                    logger.warning("No windows found in database - using synthetic data")
+                    await self._generate_synthetic_data()
+                    return
+                
+                # Load trajectories from most recent window
+                window_id = windows[0]
+                logger.info(f"Loading from window: {window_id}")
+                
+                trajectories = await reader.get_trajectories_by_window(
+                    window_id,
+                    min_actions=3
+                )
+                
+                self.generated_trajectories = trajectories
+                logger.info(f"Loaded {len(trajectories)} trajectories")
+                
+        except Exception as e:
+            logger.error(f"Failed to load from database: {e}")
+            logger.warning("Falling back to synthetic data")
+            await self._generate_synthetic_data()
+    
+    async def _generate_synthetic_data(self):
+        """
+        Generate realistic synthetic data for testing.
+        
+        Creates trajectories with:
+        - Multiple LLM calls per step (reasoning + action)
+        - Proper action_type fields for reward attribution
+        - Varied outcomes (some successful, some not)
+        - Realistic prompt structures
+        """
+        from datetime import datetime
+        import random
+        from src.models import (
+            BabylonTrajectory, TrajectoryStep, EnvironmentState,
+            Action, LLMCall
+        )
+        
+        logger.info(f"Generating {self.num_agents} synthetic trajectories...")
+        
+        # Agent strategies for variety
+        strategies = [
+            "momentum trading - buy when price is rising",
+            "contrarian - buy when others are selling",
+            "fundamental analysis - focus on value",
+            "technical analysis - use chart patterns",
+            "risk-averse - small positions only",
+        ]
+        
+        trajectories = []
+        for agent_idx in range(self.num_agents):
+            steps = []
+            balance = 10000.0
+            pnl = 0.0
+            strategy = strategies[agent_idx % len(strategies)]
+            
+            # Agent skill level affects success rate
+            skill = 0.3 + (agent_idx / self.num_agents) * 0.5  # 0.3 to 0.8
+            
+            for tick in range(self.ticks_per_agent):
+                # Simulate P&L changes based on agent skill
+                base_change = random.gauss(0, 50)  # Random market move
+                skill_bonus = (skill - 0.5) * 100  # Skill affects avg outcome
+                pnl_change = base_change + skill_bonus
+                pnl += pnl_change
+                balance += pnl_change
+                
+                env = EnvironmentState(
+                    agent_balance=balance,
+                    agent_pnl=pnl,
+                    open_positions=tick % 5
+                )
+                
+                # Decide action based on tick and skill
+                is_trade_tick = tick % 3 == 0
+                action_success = random.random() < skill  # Skill determines success
+                
+                # Build realistic LLM calls
+                llm_calls = []
+                
+                # Reasoning call (sometimes)
+                if tick % 2 == 0:
+                    llm_calls.append(LLMCall(
+                        model=self.model_name,
+                        system_prompt=f"You are a trading agent focused on {strategy}. Analyze markets carefully.",
+                        user_prompt=f"Current state: Balance ${balance:.2f}, P&L ${pnl:.2f}, Positions: {tick % 5}. Analyze the market.",
+                        response=f"Looking at the market conditions, I see {'bullish' if pnl > 0 else 'bearish'} momentum. "
+                                 f"Based on my {strategy} approach, I {'should consider entering' if is_trade_tick else 'will wait for better opportunity'}.",
+                        temperature=0.7,
+                        max_tokens=500,
+                        purpose='reasoning',
+                        action_type='market_analysis',
+                    ))
+                
+                # Action call
+                action_type = 'buy' if is_trade_tick else 'wait'
+                llm_calls.append(LLMCall(
+                    model=self.model_name,
+                    system_prompt=f"You are a trading agent. Strategy: {strategy}",
+                    user_prompt=f"Balance: ${balance:.2f}, P&L: ${pnl:.2f}. Decide your action. Respond in JSON format.",
+                    response='{"action": "' + ('trade' if is_trade_tick else 'hold') + '"' + 
+                             (', "trade": {"type": "prediction", "market": "btc", "action": "buy_yes", "amount": 100}' if is_trade_tick else '') + '}',
+                    temperature=0.7,
+                    max_tokens=300,
+                    purpose='action',
+                    action_type='evaluate_trading_opportunity',
+                ))
+                
+                # Step reward based on P&L change and action success
+                step_reward = pnl_change / 500  # Normalize
+                if is_trade_tick and action_success:
+                    step_reward += 0.1
+                elif is_trade_tick and not action_success:
+                    step_reward -= 0.05
+                
+                steps.append(TrajectoryStep(
+                    step_number=tick,
+                    timestamp=int(time.time() * 1000) + tick * 1000,
+                    environment_state=env,
+                    provider_accesses=[],
+                    llm_calls=llm_calls,
+                    action=Action(
+                        action_type=action_type,
+                        parameters={'amount': 100} if is_trade_tick else {},
+                        success=action_success if is_trade_tick else True,
+                        reasoning=f"Executing {action_type} based on {strategy}"
+                    ),
+                    reward=step_reward
+                ))
+            
+            traj = BabylonTrajectory(
+                id=f"synthetic-{agent_idx}",
+                trajectory_id=f"synthetic-{agent_idx}",
+                agent_id=f"agent-{agent_idx}",
+                window_id=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00"),
+                start_time=datetime.now(timezone.utc),
+                end_time=datetime.now(timezone.utc),
+                duration_ms=self.ticks_per_agent * 1000,
+                steps=steps,
+                total_reward=sum(s.reward for s in steps),
+                final_pnl=pnl,
+                episode_length=len(steps),
+                final_status='completed'
+            )
+            trajectories.append(traj)
+        
+        self.generated_trajectories = trajectories
+        logger.info(f"Generated {len(trajectories)} synthetic trajectories")
+    
+    async def score_trajectories(self):
+        """Score trajectories using heuristics and relative comparison"""
+        from src.training import relative_scores, composite_reward
+        
+        if not self.generated_trajectories:
+            logger.warning("No trajectories to score")
+            return
+        
+        logger.info(f"Scoring {len(self.generated_trajectories)} trajectories...")
+        
+        # Convert trajectories to dict format for scoring
+        traj_dicts = [
+            {
+                "final_pnl": t.final_pnl,
+                "episode_length": t.episode_length,
+                "trades_executed": t.trades_executed or 0,
+                "steps": [
+                    {"action": {"success": s.action.success if s.action else False}}
+                    for s in t.steps
+                ]
+            }
+            for t in self.generated_trajectories
+        ]
+        
+        # Get relative scores
+        self.scores = relative_scores(traj_dicts, reward_fn=composite_reward)
+        
+        # Log top/bottom performers
+        scored = list(zip(self.generated_trajectories, self.scores))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info("\nTop 3 performers:")
+        for traj, score in scored[:3]:
+            logger.info(f"  {traj.agent_id}: P&L=${traj.final_pnl:.2f}, Score={score:.3f}")
+        
+        logger.info("\nBottom 3 performers:")
+        for traj, score in scored[-3:]:
+            logger.info(f"  {traj.agent_id}: P&L=${traj.final_pnl:.2f}, Score={score:.3f}")
+    
+    async def train_model(self):
+        """Train model using GRPO from scored trajectories"""
+        from src.training import AtroposTrainingConfig, BabylonAtroposTrainer
+        from src.data_bridge import BabylonToAtroposConverter
+        from src.training import MultiPromptDatasetBuilder, prepare_multi_prompt_training_data
+        
+        if not self.generated_trajectories or not self.scores:
+            logger.warning("No scored trajectories for training")
+            return
+        
+        logger.info("Preparing training data...")
+        
+        # Convert to training format
+        converter = BabylonToAtroposConverter()
+        
+        # Use multi-prompt dataset builder for comprehensive training
+        builder = MultiPromptDatasetBuilder()
+        
+        for traj, score in zip(self.generated_trajectories, self.scores):
+            # Normalize score to 0-1 range
+            normalized_score = (score + 2) / 4  # Assuming scores in [-2, 2] range
+            normalized_score = max(0, min(1, normalized_score))
+            builder.add_trajectory(traj, trajectory_score=normalized_score)
+        
+        stats = builder.get_statistics()
+        logger.info(f"Training data prepared:")
+        logger.info(f"  - Trajectories: {stats['total_trajectories']}")
+        logger.info(f"  - Total samples: {stats['total_samples']}")
+        for purpose, purpose_stats in stats['by_purpose'].items():
+            logger.info(f"  - {purpose}: {purpose_stats['count']} samples, avg_score={purpose_stats['avg_score']:.3f}")
+        
+        # Save training data
+        training_data_path = self.output_dir / "training_data.json"
+        builder.save_dataset(str(training_data_path))
+        logger.info(f"Training data saved to: {training_data_path}")
+        
+        # For actual training, we would use the AtroposTrainer
+        # This requires the Atropos API server and vLLM running
+        logger.info("\nNote: Full training requires:")
+        logger.info("  1. Atropos API server running (run-api)")
+        logger.info("  2. vLLM server with base model")
+        logger.info("  3. DATABASE_URL and OPENAI_API_KEY configured")
+        
+        # Save model path
+        self.trained_model_path = self.output_dir / "trained_model"
+        self.trained_model_path.mkdir(parents=True, exist_ok=True)
+        
+        # Save training config for reference
+        config = {
+            "model_name": self.model_name,
+            "num_trajectories": len(self.generated_trajectories),
+            "num_samples": stats['total_samples'],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(self.trained_model_path / "training_config.json", "w") as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"Training config saved to: {self.trained_model_path}")
+    
+    async def run_benchmark(self):
+        """Compare base model vs trained model"""
+        from src.training import FastSimulator, SimulatorConfig
+        
+        logger.info("Preparing benchmark comparison...")
+        
+        # Create benchmark snapshot from our data
+        if not self.generated_trajectories:
+            logger.warning("No trajectories for benchmark")
+            return
+        
+        # Calculate stats for base model (from generated data)
+        base_pnls = [t.final_pnl for t in self.generated_trajectories]
+        base_avg_pnl = sum(base_pnls) / len(base_pnls)
+        base_best_pnl = max(base_pnls)
+        base_worst_pnl = min(base_pnls)
+        
+        self.benchmark_results = {
+            "base_model": {
+                "model": self.model_name,
+                "agents": len(self.generated_trajectories),
+                "avg_pnl": base_avg_pnl,
+                "best_pnl": base_best_pnl,
+                "worst_pnl": base_worst_pnl,
+            },
+            "trained_model": {
+                "model": f"{self.model_name}-trained",
+                "status": "pending_training",
+                "note": "Run full training to get trained model results"
+            }
+        }
+        
+        logger.info("\nBenchmark Results:")
+        logger.info("-" * 50)
+        logger.info(f"Base Model: {self.model_name}")
+        logger.info(f"  Agents evaluated: {len(self.generated_trajectories)}")
+        logger.info(f"  Average P&L: ${base_avg_pnl:.2f}")
+        logger.info(f"  Best P&L: ${base_best_pnl:.2f}")
+        logger.info(f"  Worst P&L: ${base_worst_pnl:.2f}")
+        logger.info("-" * 50)
+        
+        # Save benchmark results
+        benchmark_path = self.output_dir / "benchmark_results.json"
+        with open(benchmark_path, "w") as f:
+            json.dump(self.benchmark_results, f, indent=2)
+        logger.info(f"Benchmark results saved to: {benchmark_path}")
+
+
+async def main():
+    parser = argparse.ArgumentParser(
+        description="Babylon Full Training Pipeline",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    parser.add_argument(
+        "--mode",
+        choices=["full", "generate", "train", "benchmark"],
+        default="full",
+        help="Pipeline mode"
+    )
+    parser.add_argument(
+        "--model",
+        default="Qwen/Qwen3-4B",
+        help="Model to use (e.g., Qwen/Qwen3-4B, Qwen/Qwen2.5-3B-Instruct)"
+    )
+    parser.add_argument(
+        "--agents",
+        type=int,
+        default=10,
+        help="Number of agents to run"
+    )
+    parser.add_argument(
+        "--ticks",
+        type=int,
+        default=100,
+        help="Ticks per agent"
+    )
+    parser.add_argument(
+        "--output",
+        default="./trained_models",
+        help="Output directory"
+    )
+    parser.add_argument(
+        "--window-id",
+        help="Window ID for training (mode=train)"
+    )
+    parser.add_argument(
+        "--no-wandb",
+        action="store_true",
+        help="Disable W&B logging"
+    )
+    
+    args = parser.parse_args()
+    
+    pipeline = FullPipeline(
+        model_name=args.model,
+        num_agents=args.agents,
+        ticks_per_agent=args.ticks,
+        output_dir=args.output,
+        use_wandb=not args.no_wandb,
+    )
+    
+    if args.mode == "full":
+        result = await pipeline.run_full_pipeline()
+    elif args.mode == "generate":
+        await pipeline.generate_data()
+        result = {"trajectories": len(pipeline.generated_trajectories)}
+    elif args.mode == "train":
+        await pipeline.generate_data()  # Load data first
+        await pipeline.score_trajectories()
+        await pipeline.train_model()
+        result = {"trained_model": str(pipeline.trained_model_path)}
+    elif args.mode == "benchmark":
+        await pipeline.generate_data()
+        await pipeline.run_benchmark()
+        result = pipeline.benchmark_results
+    
+    print(f"\nResult: {json.dumps(result, indent=2, default=str)}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

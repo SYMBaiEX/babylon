@@ -50,13 +50,12 @@ Exit code: 1
 
 ## Data Source
 
-Reads from `public/data/actors.json` (index file) and individual actor/organization files:
+Reads from TypeScript data files in `packages/engine/src/data/`:
 
 ```
-public/data/
-├── actors.json              # Index with references
-├── actors/                  # Individual actor JSON files
-│   ├── actor1.json
+packages/engine/src/data/
+├── actors/                  # Individual actor TypeScript files
+│   ├── actor1.ts
 │   └── ...
 └── organizations/           # Individual organization JSON files
     ├── org1.json

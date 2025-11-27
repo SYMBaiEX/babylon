@@ -404,7 +404,7 @@ export async function POST(_req: NextRequest) {
       }
 
       const modelUsed = process.env.WANDB_API_KEY
-        ? process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct'
+        ? process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K'
         : 'qwen/qwen3-32b';
 
       // Log tick for USER agents only (NPCs don't have agentService logs yet)

@@ -50,10 +50,9 @@ export async function generateAutoSpec() {
   // swagger-jsdoc is an optional dev dependency for docs generation
   let swaggerJsdoc: SwaggerJsdocFunction | null = null;
   try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error - swagger-jsdoc is an optional dev dependency for docs generation
     const swaggerModule = await import('swagger-jsdoc');
-    swaggerJsdoc = swaggerModule.default as SwaggerJsdocFunction;
+    // Cast through unknown to handle type mismatch between swagger-jsdoc types and our interface
+    swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
   } catch {
     // swagger-jsdoc not installed, will fall back to manual spec only
   }

@@ -80,7 +80,7 @@ export class ModelStorageService {
       version: options.version,
       baseModel:
         (options.metadata?.baseModel as string) ||
-        'OpenPipe/Qwen3-14B-Instruct',
+        'unsloth/Qwen3-4B-128K',
       storagePath: blob.url,
       wandbRunId: (options.metadata?.wandbRunId as string) || null,
       accuracy: (options.metadata?.accuracy as number) || null,
@@ -94,7 +94,7 @@ export class ModelStorageService {
       version: options.version,
       baseModel:
         (options.metadata?.baseModel as string) ||
-        'OpenPipe/Qwen3-14B-Instruct',
+        'unsloth/Qwen3-4B-128K',
       blobUrl: blob.url,
       size: (blob as { size?: number }).size || 0,
       uploadedAt: new Date(),

@@ -1,0 +1,28 @@
+#!/usr/bin/expect -f
+set timeout 120
+spawn bunx drizzle-kit push --force
+expect {
+    "truncate User table" {
+        sleep 1
+        send "\r"
+        exp_continue
+    }
+    "Pushing schema" {
+        exp_continue
+    }
+    "✓ Pushing schema" {
+        exp_continue
+    }
+    "✓" {
+        exp_continue
+    }
+    eof {
+        catch wait result
+        exit [lindex $result 3]
+    }
+    timeout {
+        puts "Timeout waiting for prompt"
+        exit 1
+    }
+}
+

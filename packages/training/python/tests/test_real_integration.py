@@ -13,9 +13,7 @@ import httpx
 pytestmark = pytest.mark.skipif(
     not all([
         os.getenv("DATABASE_URL"),
-        os.getenv("OPENPIPE_API_KEY"),
-        os.getenv("WANDB_API_KEY"),
-        os.getenv("WANDB_ENTITY")
+        os.getenv("OPENAI_API_KEY"),
     ]),
     reason="Missing credentials for real integration tests"
 )
@@ -72,29 +70,29 @@ class TestRealDatabase:
         await reader.close()
 
 
-class TestRealOpenPipeRULER:
-    """Test actual OpenPipe RULER API"""
+class TestRealJudgeModel:
+    """Test actual LLM judge API"""
     
     @pytest.mark.asyncio
-    async def test_ruler_api_connection(self):
-        """Test OpenPipe RULER API connectivity"""
-        api_key = os.getenv("OPENPIPE_API_KEY")
+    async def test_judge_api_connection(self):
+        """Test OpenAI API connectivity for judge model"""
+        api_key = os.getenv("OPENAI_API_KEY")
         
         client = httpx.AsyncClient(timeout=30.0)
         
         try:
             response = await client.post(
-                "https://app.openpipe.ai/api/v1/chat/completions",
+                "https://api.openai.com/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "openpipe:ruler-2025-01-15",
+                    "model": "gpt-4o-mini",
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are RULER, a test judge."
+                            "content": "You are a test judge."
                         },
                         {
                             "role": "user",
@@ -109,7 +107,7 @@ class TestRealOpenPipeRULER:
             assert response.status_code == 200
             data = response.json()
             assert 'choices' in data
-            print(f"✓ RULER API works: {data['choices'][0]['message']['content'][:50]}...")
+            print(f"✓ Judge API works: {data['choices'][0]['message']['content'][:50]}...")
             
         finally:
             await client.aclose()
@@ -120,11 +118,11 @@ class TestRealOpenPipeRULER:
         from src.training.ruler_scorer import RulerScoringService
         
         db_url = os.getenv("DATABASE_URL")
-        api_key = os.getenv("OPENPIPE_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         
         scorer = RulerScoringService(
             db_url=db_url,
-            openpipe_api_key=api_key
+            openai_api_key=api_key
         )
         
         # Test fallback scoring (doesn't need API)
@@ -145,69 +143,6 @@ class TestRealOpenPipeRULER:
         assert len(scores) == 2
         assert all(0.0 <= s.score <= 1.0 for s in scores)
         print(f"✓ RULER scoring service works (fallback)")
-
-
-class TestRealWandB:
-    """Test actual W&B API"""
-    
-    @pytest.mark.asyncio
-    async def test_wandb_login(self):
-        """Test W&B authentication"""
-        import wandb
-        
-        api_key = os.getenv("WANDB_API_KEY")
-        
-        # Login
-        wandb.login(key=api_key)
-        
-        # Test API
-        api = wandb.Api()
-        user = api.viewer
-        
-        print(f"✓ W&B login works: {user.username}")
-    
-    @pytest.mark.asyncio
-    async def test_wandb_artifact_upload(self):
-        """Test uploading artifact to W&B"""
-        import wandb
-        import tempfile
-        import json
-        
-        api_key = os.getenv("WANDB_API_KEY")
-        entity = os.getenv("WANDB_ENTITY")
-        project = "babylon-test"
-        
-        wandb.login(key=api_key)
-        
-        # Create test run
-        run = wandb.init(
-            project=project,
-            entity=entity,
-            job_type="test-upload"
-        )
-        
-        # Create test artifact
-        artifact = wandb.Artifact(
-            name="test-dataset",
-            type="dataset",
-            metadata={'test': True}
-        )
-        
-        # Add test file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump({'test': 'data'}, f)
-            test_file = f.name
-        
-        artifact.add_file(test_file)
-        
-        # Log artifact
-        run.log_artifact(artifact)
-        run.finish()
-        
-        # Cleanup
-        os.unlink(test_file)
-        
-        print(f"✓ W&B artifact upload works")
 
 
 class TestRealDataCollection:
@@ -268,7 +203,7 @@ class TestEndToEndFlow:
         from src.training.ruler_scorer import RulerScoringService
         
         db_url = os.getenv("DATABASE_URL")
-        openpipe_key = os.getenv("OPENPIPE_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
         
         # Step 1: Data Collection
         print("\n=== Step 1: Data Collection ===")
@@ -293,7 +228,7 @@ class TestEndToEndFlow:
         print("\n=== Step 2: RULER Scoring ===")
         scorer = RulerScoringService(
             db_url=db_url,
-            openpipe_api_key=openpipe_key
+            openai_api_key=openai_key
         )
         
         try:
@@ -304,31 +239,17 @@ class TestEndToEndFlow:
         except Exception as e:
             print(f"⚠ RULER scoring failed (expected if already scored): {e}")
         
-        # Step 3: W&B Training (skipped in test, just verify we could prepare data)
-        print("\n=== Step 3: Training Data Prep (W&B) ===")
-        from src.training.wandb_training_service import WandbTrainingService
+        # Step 3: Training Data Prep
+        print("\n=== Step 3: Training Data Prep (Atropos) ===")
+        from src.training.atropos_trainer import BabylonAtroposTrainer, AtroposTrainingConfig
         
-        wandb_key = os.getenv("WANDB_API_KEY")
-        wandb_entity = os.getenv("WANDB_ENTITY")
+        config = AtroposTrainingConfig(
+            model_name="Qwen/Qwen2.5-3B-Instruct",
+            database_url=db_url,
+        )
         
-        if wandb_key and wandb_entity:
-            trainer = WandbTrainingService(
-                db_url=db_url,
-                wandb_api_key=wandb_key,
-                wandb_entity=wandb_entity,
-                base_model="OpenPipe/Qwen3-14B-Instruct"  # Only model in W&B ART catalog
-            )
-            
-            training_data = await trainer._prepare_training_data(window_id)
-            
-            if training_data:
-                print(f"✓ Prepared training data:")
-                print(f"  - Trajectories: {len(training_data['trajectories'])}")
-                print(f"  - Avg reward: {training_data['avg_reward']:.2f}")
-            else:
-                print("⚠ No training data (need RULER scores first)")
-        else:
-            print("⚠ Skipping W&B (no credentials)")
+        trainer = BabylonAtroposTrainer(config)
+        print(f"✓ Atropos trainer configured")
         
         print("\n=== Pipeline Test Complete ===")
 
@@ -378,10 +299,12 @@ def test_environment_variables():
     """Test that all required environment variables are set"""
     required = {
         'DATABASE_URL': 'PostgreSQL connection',
-        'OPENPIPE_API_KEY': 'OpenPipe RULER API',
-        'WANDB_API_KEY': 'W&B Training API',
-        'WANDB_ENTITY': 'W&B username/team',
-        'TRAIN_RL_LOCAL': 'Feature flag'
+        'OPENAI_API_KEY': 'OpenAI API (for judge model)',
+    }
+    
+    optional = {
+        'ATROPOS_API_URL': 'Atropos API server URL',
+        'VLLM_PORT': 'vLLM server port',
     }
     
     missing = []
@@ -390,12 +313,20 @@ def test_environment_variables():
             missing.append(f"{var} ({description})")
     
     if missing:
-        print("\n⚠ Missing environment variables:")
+        print("\n⚠ Missing required environment variables:")
         for var in missing:
             print(f"  - {var}")
         print("\nSet these in .env.training")
     else:
-        print("✓ All environment variables set")
+        print("✓ All required environment variables set")
+    
+    # Check optional
+    print("\nOptional environment variables:")
+    for var, description in optional.items():
+        if os.getenv(var):
+            print(f"  ✓ {var}: {os.getenv(var)}")
+        else:
+            print(f"  - {var} (not set)")
     
     # Just check, don't fail
     assert True
@@ -404,6 +335,3 @@ def test_environment_variables():
 if __name__ == "__main__":
     # Run tests with: pytest tests/test_real_integration.py -v -s
     pytest.main([__file__, "-v", "-s"])
-
-
-

@@ -204,6 +204,7 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
 
   // Current Strategy Models - INPUT CONTEXT LIMITS (output is separate!)
   'qwen/qwen3-32b': 131072, // 131k INPUT, 40,960 OUTPUT (separate) - Groq
+  'unsloth/Qwen3-4B-128K': 131072, // 128K context - Unsloth optimized for fine-tuning
   'OpenPipe/Qwen3-14B-Instruct': 32768, // 32,768 native INPUT via W&B API (NOT 131K extended!)
   'Qwen/Qwen2.5-32B-Instruct': 131072, // 131k INPUT, 40,960 OUTPUT (separate)
 

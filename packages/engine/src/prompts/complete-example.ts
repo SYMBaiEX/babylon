@@ -9,7 +9,7 @@
  * - src/engine/FeedGenerator.ts (production feed generation)
  *
  * This demonstrates the full workflow:
- * 1. Generate world context from actors.json
+ * 1. Generate world context from actor/organization TypeScript data
  * 2. Render prompt with context
  * 3. Generate content (MOCK - replace with real AI in production)
  * 4. Validate output

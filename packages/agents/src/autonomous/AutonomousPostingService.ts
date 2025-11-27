@@ -134,10 +134,11 @@ Generate ONLY the post text, nothing else.`;
       prompt: finalPrompt,
       system: agent.agentSystem || undefined,
       modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
-      runtime: _runtime, // Pass runtime to access W&B trained models
+      runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.8,
       maxTokens: 100,
       actionType: 'generate_autonomous_post',
+      purpose: 'action', // RLAIF: This is a content generation action
     });
 
     // Clean up the response

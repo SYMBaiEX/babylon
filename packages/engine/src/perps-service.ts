@@ -20,12 +20,13 @@ import type { Organization } from './types/shared';
  * Valid organization types for perp markets
  */
 const VALID_ORG_TYPES = ['company', 'media', 'government'] as const;
+type ValidOrgType = (typeof VALID_ORG_TYPES)[number];
 
 /**
- * Type guard to check if organization type is valid
+ * Type guard to check if organization type is valid for perp markets
  */
-function isValidOrgType(type: string): type is Organization['type'] {
-  return VALID_ORG_TYPES.includes(type as Organization['type']);
+function isValidOrgType(type: string): type is ValidOrgType {
+  return VALID_ORG_TYPES.includes(type as ValidOrgType);
 }
 
 let perpsEngineInstance: PerpetualsEngine | null = null;

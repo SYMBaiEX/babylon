@@ -100,10 +100,11 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
         prompt,
         system: agent.agentSystem || undefined,
         modelSize: 'large', // Important social content
-        runtime: _runtime, // Pass runtime to access W&B trained models
+        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.8,
         maxTokens: 80,
         actionType: 'generate_group_chat_response',
+        purpose: 'response', // RLAIF: This is a response generation call
       });
 
       const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');

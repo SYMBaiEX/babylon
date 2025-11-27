@@ -1,0 +1,14 @@
+{
+  "base_model": {
+    "model": "Qwen/Qwen3-4B",
+    "agents": 5,
+    "avg_pnl": 169.8623510081143,
+    "best_pnl": 532.2006150046611,
+    "worst_pnl": -273.1195826932212
+  },
+  "trained_model": {
+    "model": "Qwen/Qwen3-4B-trained",
+    "status": "pending_training",
+    "note": "Run full training to get trained model results"
+  }
+}

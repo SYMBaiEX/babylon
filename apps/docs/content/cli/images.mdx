@@ -147,10 +147,12 @@ Error: Fal.ai API returned no images
 Error: Actor Actor1 is missing pfpDescription field
 ```
 
-**Solution:** Add required fields to the actor's individual file in `public/data/actors/actor1.json`:
+**Solution:** Add required fields to the actor's individual TypeScript file in `packages/engine/src/data/actors/actor1.ts`:
 
-```json
-{
+```typescript
+import type { ActorData } from '../../types/shared';
+
+export const data = {
  "id": "actor1",
  "name": "Actor 1",
  "pfpDescription": "Description here", // Required for profile pic

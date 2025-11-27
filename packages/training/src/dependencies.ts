@@ -58,21 +58,23 @@ export type ExportToHuggingFaceFn = (options: {
 }) => Promise<{ success: boolean; url?: string; error?: string }>;
 
 /**
- * Convert trajectory to ART format messages
+ * Convert trajectory to training format messages
  */
-export type ToARTMessagesFn = (trajectory: TrajectoryForART) => ARTMessage[];
+export type ToTrainingMessagesFn = (
+  trajectory: TrajectoryForTraining
+) => TrainingMessage[];
 
 /**
- * Rich trajectory type for ART conversion and RULER scoring
+ * Rich trajectory type for training and RLAIF scoring
  */
-export interface TrajectoryForART {
+export interface TrajectoryForTraining {
   trajectoryId: string;
   agentId: string;
   startTime: number;
   endTime: number;
   durationMs: number;
   scenarioId?: string;
-  steps: TrajectoryStepForART[];
+  steps: TrajectoryStepForTraining[];
   totalReward: number;
   rewardComponents: Record<string, number>;
   metrics: {
@@ -86,7 +88,7 @@ export interface TrajectoryForART {
   };
 }
 
-export interface TrajectoryStepForART {
+export interface TrajectoryStepForTraining {
   stepId: string;
   stepNumber: number;
   timestamp: number;
@@ -134,7 +136,7 @@ export interface TrajectoryStepForART {
   metadata: Record<string, unknown>;
 }
 
-export interface ARTMessage {
+export interface TrainingMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
@@ -147,7 +149,7 @@ let _agentRuntimeManager: IAgentRuntimeManager | null = null;
 let _llmCaller: ILLMCaller | null = null;
 let _exportGroupedForGRPO: ExportGroupedForGRPOFn | null = null;
 let _exportToHuggingFace: ExportToHuggingFaceFn | null = null;
-let _toARTMessages: ToARTMessagesFn | null = null;
+let _toTrainingMessages: ToTrainingMessagesFn | null = null;
 
 /**
  * Configure external dependencies
@@ -157,7 +159,7 @@ export function configureTrainingDependencies(config: {
   llmCaller?: ILLMCaller;
   exportGroupedForGRPO?: ExportGroupedForGRPOFn;
   exportToHuggingFace?: ExportToHuggingFaceFn;
-  toARTMessages?: ToARTMessagesFn;
+  toTrainingMessages?: ToTrainingMessagesFn;
 }): void {
   if (config.agentRuntimeManager) {
     _agentRuntimeManager = config.agentRuntimeManager;
@@ -171,8 +173,8 @@ export function configureTrainingDependencies(config: {
   if (config.exportToHuggingFace) {
     _exportToHuggingFace = config.exportToHuggingFace;
   }
-  if (config.toARTMessages) {
-    _toARTMessages = config.toARTMessages;
+  if (config.toTrainingMessages) {
+    _toTrainingMessages = config.toTrainingMessages;
   }
 }
 
@@ -229,16 +231,16 @@ export function getExportToHuggingFace(): ExportToHuggingFaceFn {
 }
 
 /**
- * Get the toARTMessages function
+ * Get the toTrainingMessages function
  * @throws Error if not configured
  */
-export function getToARTMessages(): ToARTMessagesFn {
-  if (!_toARTMessages) {
+export function getToTrainingMessages(): ToTrainingMessagesFn {
+  if (!_toTrainingMessages) {
     throw new Error(
-      'toARTMessages not configured. Call configureTrainingDependencies() first.'
+      'toTrainingMessages not configured. Call configureTrainingDependencies() first.'
     );
   }
-  return _toARTMessages;
+  return _toTrainingMessages;
 }
 
 /**

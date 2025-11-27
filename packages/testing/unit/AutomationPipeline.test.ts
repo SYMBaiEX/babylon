@@ -234,6 +234,22 @@ mock.module('@babylon/shared', () => ({
   logger: mockLogger,
 }));
 
+// Mock the training package logger
+// AutomationPipeline imports from '../utils/logger' relative to its location
+// We need to mock it using the package export path
+mock.module('@babylon/training/utils/logger', () => ({
+  logger: mockLogger,
+}));
+
+// Mock fs module for health checks
+const mockMkdir = mock(() => Promise.resolve(undefined));
+mock.module('node:fs/promises', () => ({
+  default: {
+    mkdir: mockMkdir,
+  },
+  mkdir: mockMkdir,
+}));
+
 describeTests('AutomationPipeline - Unit Tests', () => {
   let AutomationPipeline: new (
     config?: Partial<AutomationConfig>
@@ -281,6 +297,8 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       baseModel: 'OpenPipe/Qwen3-14B-Instruct',
       modelNamePrefix: 'test-model',
       wandbProject: 'test-project',
+      modelStoragePath: '/tmp/test-models',
+      dataStoragePath: '/tmp/test-data',
     };
 
     pipeline = new AutomationPipeline(mockConfig);
@@ -630,35 +648,40 @@ describeTests('AutomationPipeline - Unit Tests', () => {
     });
 
     test('should handle database errors gracefully', async () => {
-      // Make db.select throw an error
+      // Make db.select throw an error on first call (database connectivity check)
       mockDb.select.mockImplementationOnce(() => {
         throw new Error('DB Error');
       });
 
-      // Access private method for testing via bracket notation to bypass TypeScript's private check
-      const pipelineWithPrivate = asTestAccess(pipeline);
-      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
-      if (runHealthChecks) {
-        await runHealthChecks();
-      }
+      // Access private method for testing - call it directly on the pipeline instance
+      // Using type assertion to access private method
+      const runHealthChecks = (pipeline as never as { runHealthChecks: () => Promise<void> }).runHealthChecks;
+      await runHealthChecks.call(pipeline);
 
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
     test('should warn on low data collection rate', async () => {
+      // Clear previous calls
+      mockLogger.warn.mockClear();
+      
       mockSelectResultsQueue = [
         [{ count: 1 }], // users count (db connectivity check)
         [{ count: 0 }], // trajectories last hour (low rate)
       ];
 
-      // Access private method for testing via bracket notation to bypass TypeScript's private check
-      const pipelineWithPrivate = asTestAccess(pipeline);
-      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
-      if (runHealthChecks) {
-        await runHealthChecks();
-      }
+      // Access private method for testing - call it directly on the pipeline instance
+      // Using type assertion to access private method
+      const runHealthChecks = (pipeline as never as { runHealthChecks: () => Promise<void> }).runHealthChecks;
+      await runHealthChecks.call(pipeline);
 
+      // The warning should be logged when trajectoriesLastHour < 1
       expect(mockLogger.warn).toHaveBeenCalled();
+      const warnCalls = mockLogger.warn.mock.calls;
+      const hasLowDataRateWarning = warnCalls.some(
+        (call) => call[0] === 'Low data collection rate'
+      );
+      expect(hasLowDataRateWarning).toBe(true);
     });
   });
 });

@@ -47,7 +47,7 @@ export interface ModelCardData {
   version: string;
   baseModel: string;
   trainedAt: Date;
-  wandbRunId?: string;
+  trainingRunId?: string;
   benchmarkResults: ModelBenchmarkResult[];
   metrics: {
     avgPnl: number;
@@ -113,7 +113,7 @@ export class HuggingFaceModelUploader {
         version: model.version,
         baseModel: model.baseModel,
         trainedAt: model.createdAt,
-        wandbRunId: model.wandbRunId || undefined,
+        trainingRunId: model.trainingBatch || undefined,
         benchmarkResults: modelBenchmarks,
         metrics: this.calculateAverageMetrics(modelBenchmarks),
       };
@@ -138,7 +138,7 @@ export class HuggingFaceModelUploader {
             version: model.version,
             baseModel: model.baseModel,
             storagePath: model.storagePath,
-            wandbRunId: model.wandbRunId,
+            trainingBatch: model.trainingBatch,
             trainedAt: model.createdAt.toISOString(),
             benchmarkScore: model.benchmarkScore,
             avgReward: model.avgReward,
@@ -335,7 +335,7 @@ Autonomous trading agent trained on Babylon prediction markets using reinforceme
 - **Base Model:** ${data.baseModel}
 - **Training Date:** ${data.trainedAt.toISOString().split('T')[0]}
 - **Model ID:** ${data.modelId}
-${data.wandbRunId ? `- **W&B Run:** ${data.wandbRunId}` : ''}
+${data.trainingRunId ? `- **Training Run:** ${data.trainingRunId}` : ''}
 
 ## Performance Metrics
 
@@ -363,21 +363,21 @@ ${this.generateBenchmarkTable(data.benchmarkResults)}
 
 - **Source:** Babylon autonomous agent trajectories
 - **Collection Method:** Live agent gameplay on prediction markets
-- **Training Framework:** OpenPipe ART (GRPO)
+- **Training Framework:** Atropos GRPO
 - **Base Model:** ${data.baseModel}
 
 ### Training Procedure
 
-This model was trained using Group Relative Policy Optimization (GRPO) on trajectories collected from autonomous agents playing Babylon prediction markets. The training process:
+This model was trained using Group Relative Policy Optimization (GRPO) via the Atropos framework on trajectories collected from autonomous agents playing Babylon prediction markets. The training process:
 
 1. Agents generate trajectories through market interactions
-2. Trajectories are scored based on P&L, prediction accuracy, and decision quality
+2. Trajectories are scored using RLAIF with an LLM judge based on P&L, prediction accuracy, and decision quality
 3. GRPO training optimizes policy to maximize expected rewards
 4. Model checkpoints are evaluated on standardized benchmarks
 
 ### Compute Infrastructure
 
-- **Platform:** ${data.wandbRunId ? 'Weights & Biases' : 'Local training'}
+- **Platform:** ${data.trainingRunId ? 'Atropos GRPO Training' : 'Local training'}
 - **Training Time:** Continuous learning with hourly updates
 
 ## Intended Use

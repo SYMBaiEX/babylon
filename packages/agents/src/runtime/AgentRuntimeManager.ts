@@ -217,7 +217,7 @@ export class AgentRuntimeManager {
           wandbModel =
             aiConfig.wandbModel ||
             process.env.WANDB_MODEL ||
-            'OpenPipe/Qwen3-14B-Instruct';
+            'unsloth/Qwen3-4B-128K';
           useWandb = true;
           logger.info(
             `Agent will use configured WANDB model: ${wandbModel}`,
@@ -318,12 +318,12 @@ export class AgentRuntimeManager {
         LARGE_GROQ_MODEL: useWandb
           ? wandbModel ||
             process.env.WANDB_MODEL ||
-            'OpenPipe/Qwen3-14B-Instruct'
+            'unsloth/Qwen3-4B-128K'
           : 'qwen/qwen3-32b',
         SMALL_GROQ_MODEL: useWandb
           ? wandbModel ||
             process.env.WANDB_MODEL ||
-            'OpenPipe/Qwen3-14B-Instruct'
+            'unsloth/Qwen3-4B-128K'
           : 'llama-3.1-8b-instant',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
@@ -684,7 +684,7 @@ export class AgentRuntimeManager {
           wandbModel =
             aiConfig.wandbModel ||
             process.env.WANDB_MODEL ||
-            'OpenPipe/Qwen3-14B-Instruct';
+            'unsloth/Qwen3-4B-128K';
           useWandb = true;
           logger.info(
             `Agent will use configured WANDB model: ${wandbModel}`,
@@ -763,10 +763,10 @@ export class AgentRuntimeManager {
       // GROQ fallback (always available)
       GROQ_API_KEY: process.env.GROQ_API_KEY || '',
       LARGE_GROQ_MODEL: useWandb
-        ? wandbModel || process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct'
+        ? wandbModel || process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K'
         : 'qwen/qwen3-32b',
       SMALL_GROQ_MODEL: useWandb
-        ? wandbModel || process.env.WANDB_MODEL || 'OpenPipe/Qwen3-14B-Instruct'
+        ? wandbModel || process.env.WANDB_MODEL || 'unsloth/Qwen3-4B-128K'
         : 'llama-3.1-8b-instant',
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     };

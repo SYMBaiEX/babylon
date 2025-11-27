@@ -40,7 +40,7 @@ export function getRLModelConfig(): RLModelConfig {
     wandbProject: process.env.WANDB_PROJECT || 'babylon-training',
     modelVersion: process.env.RL_MODEL_VERSION, // Optional: pin to specific version
     fallbackToBase: process.env.RL_FALLBACK_TO_BASE !== 'false', // Default: true
-    baseModel: process.env.BASE_MODEL || 'OpenPipe/Qwen3-14B-Instruct', // ONLY model in W&B ART catalog (32K context)
+    baseModel: process.env.BASE_MODEL || 'unsloth/Qwen3-4B-128K', // 4B params, 128K context - ideal for fine-tuning
   };
 }
 

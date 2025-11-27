@@ -5,8 +5,8 @@
  * @access Public
  *
  * @description
- * Returns all actors and organizations data from the game world. Uses the split
- * file structure loader for efficient data loading. Includes NPCs, organizations,
+ * Returns all actors and organizations data from the game world. Uses TypeScript
+ * imports for optimal performance and type safety. Includes NPCs, organizations,
  * and their metadata.
  *
  * @openapi
@@ -62,7 +62,7 @@
  * console.log(data.actors); // Array of all actors
  * ```
  *
- * @see {@link /lib/data/actors-loader} Actors data loader
+ * @see {@link @babylon/engine#loadActorsData} Actors data loader (TypeScript imports)
  */
 
 import { NextResponse } from 'next/server';

@@ -41,7 +41,7 @@ export interface TrainingBundle {
 }
 
 export class ModelSelectionService {
-  private readonly BASE_MODEL = 'OpenPipe/Qwen3-14B-Instruct'; // ONLY model available in W&B ART catalog
+  private readonly BASE_MODEL = 'unsloth/Qwen3-4B-128K'; // 4B params, 128K context - ideal for fine-tuning
   private readonly BUNDLE_THRESHOLD = 1000;
   private readonly MIN_BUNDLES_FOR_TRAINING = 100;
   private readonly MAX_TRAINING_EXAMPLES = 2000;
