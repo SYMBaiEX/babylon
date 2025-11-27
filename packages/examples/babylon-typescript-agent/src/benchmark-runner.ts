@@ -11,10 +11,21 @@ dotenv.config({ path: '.env.local' });
 
 import fs from 'fs';
 import path from 'path';
-import type { BenchmarkGameSnapshot } from '../../../src/lib/benchmark/BenchmarkDataGenerator';
-import type { SimulationResult } from '../../../src/lib/benchmark/SimulationEngine';
-import type { A2APerpPosition } from '../../../src/types/a2a-responses';
-import type { JsonValue } from '../../../src/types/common';
+import type { A2APerpPosition, JsonValue } from '@babylon/a2a';
+
+// Benchmark types (defined locally for examples)
+interface BenchmarkGameSnapshot {
+  markets: unknown[];
+  posts: unknown[];
+  timestamp: number;
+}
+
+interface SimulationResult {
+  totalTrades: number;
+  totalPnL: number;
+  winRate: number;
+  avgROI: number;
+}
 import { type A2AActionClient, executeAction } from './actions';
 import {
   AgentDecisionMaker,

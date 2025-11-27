@@ -32,8 +32,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
+import { authenticate } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export async function GET(request: NextRequest) {
   const user = await authenticate(request);

@@ -2,7 +2,7 @@
 
 import { Wallet } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Login button component for wallet connection.

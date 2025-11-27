@@ -80,8 +80,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /api/actors/[actorId]/historical-stats

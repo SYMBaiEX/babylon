@@ -4,13 +4,13 @@
  */
 
 import { create } from 'zustand';
-import type { A2AReputationResponse } from '@/types/a2a-responses';
+import type { A2AReputationResponse } from '@babylon/agents';
 import type {
   PerpPositionFromAPI,
   PredictionPosition,
   UserBalanceData,
   UserProfileStats,
-} from '@/types/profile';
+} from '@babylon/shared';
 
 /**
  * Trending item structure for trending panel (supports grouped trends).

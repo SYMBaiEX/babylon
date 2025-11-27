@@ -58,10 +58,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { X402Manager } from '@/lib/a2a/payments/x402-manager';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { X402Manager } from '@babylon/a2a';
+import { requireAdmin } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 // Initialize x402 manager
 const x402Manager = new X402Manager({

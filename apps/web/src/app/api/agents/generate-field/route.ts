@@ -100,13 +100,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { isPromptLoggingEnabled, logPrompt } from '@/lib/debug/prompt-logger';
-import { logger } from '@/lib/logger';
+import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { authenticateUser } from '@/lib/server-auth';
+} from '@babylon/api';
+import { authenticateUser } from '@babylon/api';
 
 export async function POST(req: NextRequest) {
   try {

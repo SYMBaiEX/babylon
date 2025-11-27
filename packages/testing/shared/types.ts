@@ -6,8 +6,7 @@
  */
 
 import type { Page, Route } from '@playwright/test';
-import type { Database } from '@/db';
-import type { JsonValue } from '@/types/common';
+import type { Database, JsonValue } from '@babylon/db';
 
 /**
  * Experience record from queryExperiences

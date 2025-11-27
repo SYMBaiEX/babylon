@@ -64,15 +64,15 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db, users } from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { cachedDb } from '@/lib/cached-database-service';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { convertBalanceToStrings } from '@/lib/utils/decimal-converter';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { db, users } from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
+import { AuthorizationError, BusinessLogicError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { findUserByIdentifier } from '@babylon/api';
+import { convertBalanceToStrings } from '@babylon/shared';
+import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET Handler for User Balance

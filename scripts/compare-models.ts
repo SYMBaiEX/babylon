@@ -15,20 +15,18 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
+import { db } from '@babylon/db';
+import { agentRuntimeManager } from '@babylon/agents';
 import {
   BenchmarkChartGenerator,
-  type ModelComparisonData,
-} from '@/lib/benchmark/BenchmarkChartGenerator';
-import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import {
+  BenchmarkRunner,
   getBaselineModels,
   getModelById,
   getModelByModelId,
   MODEL_REGISTRY,
+  type ModelComparisonData,
   type ModelConfig,
-} from '@/lib/benchmark/ModelRegistry';
+} from '@babylon/training';
 
 /**
  * Parse model selection from command line args

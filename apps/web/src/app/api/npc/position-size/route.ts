@@ -63,9 +63,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager';
-import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
+import { logger } from '@babylon/shared';
+import { NPCInvestmentManager } from '@babylon/engine';
+import { getReputationBreakdown } from '@babylon/api';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

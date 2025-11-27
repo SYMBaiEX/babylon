@@ -2,7 +2,7 @@
  * Test to debug paragraph formatting in LLM responses
  */
 
-import { BabylonLLMClient } from '../../src/generator/llm/openai-client';
+import { BabylonLLMClient } from '../../src/engine/llm/openai-client';
 
 async function testParagraphFormatting() {
   console.log('🔍 Testing Paragraph Formatting\n');

@@ -113,13 +113,13 @@ import {
   toDatabaseErrorType,
   userMutes,
   users,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { MuteUserSchema } from '@/lib/validation/schemas/moderation';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { MuteUserSchema } from '@babylon/shared';
 
 export const POST = withErrorHandling(
   async (

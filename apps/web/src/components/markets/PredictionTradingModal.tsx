@@ -7,8 +7,8 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from '@/lib/prediction-pricing';
-import { cn } from '@/lib/utils';
+} from '@babylon/engine';
+import { cn } from '@babylon/shared';
 
 /**
  * Represents a prediction market question.

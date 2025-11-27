@@ -120,16 +120,16 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   evaluateReport,
   storeEvaluationResult,
-} from '@/lib/moderation/report-evaluation';
-import { AdminReportActionSchema } from '@/lib/validation/schemas/moderation';
+} from '@babylon/shared';
+import { AdminReportActionSchema } from '@babylon/shared';
 
 /**
  * GET /api/admin/reports/[reportId]

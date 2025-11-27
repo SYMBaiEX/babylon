@@ -4,7 +4,7 @@
  * Run this script to set up the storage system for local development
  */
 
-import { getStorageClient } from '../src/lib/storage/s3-client';
+import { getStorageClient } from '@babylon/shared';
 
 async function initStorage() {
   console.log('🚀 Initializing storage system...\n');

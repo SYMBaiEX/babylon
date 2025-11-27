@@ -60,9 +60,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { db } from '@babylon/db';
+import { NPCInvestmentManager } from '@babylon/engine';
+import { requireUserByIdentifier } from '@babylon/api';
 
 interface RouteParams {
   params: Promise<{

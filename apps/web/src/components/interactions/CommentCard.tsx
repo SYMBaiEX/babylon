@@ -1,16 +1,19 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { MoreVertical, Reply, Trash2, Edit2 } from 'lucide-react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { Edit2, MoreVertical, Reply, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
-import { VerifiedBadge, isNpcIdentifier } from '@/components/shared/VerifiedBadge';
-import { LikeButton } from './LikeButton';
+import {
+  isNpcIdentifier,
+  VerifiedBadge,
+} from '@/components/shared/VerifiedBadge';
+import { cn } from '@babylon/shared';
+import type { CommentCardProps } from '@babylon/shared';
 import { CommentInput } from './CommentInput';
-import type { CommentCardProps } from '@/types/interactions';
+import { LikeButton } from './LikeButton';
 
 /**
  * Maximum nesting depth for comment replies.
@@ -19,14 +22,14 @@ const MAX_DEPTH = 5; // Maximum nesting depth for replies
 
 /**
  * Comment card component for displaying comments and nested replies.
- * 
+ *
  * Displays a comment with user avatar, content, timestamp, and actions
  * (like, reply, edit, delete). Supports nested replies up to a maximum depth.
  * Includes inline editing and reply functionality.
- * 
+ *
  * @param props - CommentCard component props
  * @returns Comment card element
- * 
+ *
  * @example
  * ```tsx
  * <CommentCard
@@ -96,7 +99,7 @@ export function CommentCard({
     <div
       className={cn(
         'flex gap-3',
-        depth > 0 && 'ml-8 pl-4 border-l-2 border-border',
+        depth > 0 && 'ml-8 border-border border-l-2 pl-4',
         className
       )}
     >
@@ -112,22 +115,24 @@ export function CommentCard({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         {/* Header: Username/handle on left, timestamp and actions on right */}
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="font-semibold text-sm truncate">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate font-semibold text-sm">
               {comment.userName}
             </span>
             {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <span className="text-xs text-muted-foreground truncate">
+            <span className="truncate text-muted-foreground text-xs">
               @{comment.userUsername || comment.userName}
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Timestamp - Right aligned */}
-            <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+            <span className="text-muted-foreground text-xs">
+              {formatDistanceToNow(new Date(comment.createdAt), {
+                addSuffix: true,
+              })}
             </span>
 
             {/* Actions menu */}
@@ -136,9 +141,9 @@ export function CommentCard({
                 type="button"
                 onClick={() => setShowActions(!showActions)}
                 className={cn(
-                  'p-1 rounded-md',
+                  'rounded-md p-1',
                   'text-muted-foreground hover:text-foreground',
-                  'hover:bg-muted transition-colors'
+                  'transition-colors hover:bg-muted'
                 )}
               >
                 <MoreVertical size={16} />
@@ -153,11 +158,11 @@ export function CommentCard({
                   />
 
                   {/* Dropdown */}
-                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[120px] bg-popover border border-border rounded-md shadow-lg py-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="fade-in slide-in-from-top-2 absolute top-full right-0 z-20 mt-1 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150">
                     <button
                       type="button"
                       onClick={handleEdit}
-                      className="w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
                     >
                       <Edit2 size={14} />
                       Edit
@@ -165,7 +170,7 @@ export function CommentCard({
                     <button
                       type="button"
                       onClick={handleDelete}
-                      className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors flex items-center gap-2"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive text-sm transition-colors hover:bg-muted"
                     >
                       <Trash2 size={14} />
                       Delete
@@ -179,9 +184,11 @@ export function CommentCard({
 
         {/* Replying to indicator */}
         {comment.parentCommentId && comment.parentCommentAuthorName && (
-          <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
+          <div className="mb-1 flex items-center gap-1 text-muted-foreground text-xs">
             <span>Replying to</span>
-            <span className="text-primary font-medium">@{comment.parentCommentAuthorName}</span>
+            <span className="font-medium text-primary">
+              @{comment.parentCommentAuthorName}
+            </span>
           </div>
         )}
 
@@ -191,33 +198,33 @@ export function CommentCard({
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="w-full p-2 text-sm bg-muted rounded-md border border-border focus:outline-none focus:border-border resize-none min-h-[60px]"
+              className="min-h-[60px] w-full resize-none rounded-md border border-border bg-muted p-2 text-sm focus:border-border focus:outline-none"
               autoFocus
             />
-            <div className="flex gap-2 mt-2">
+            <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={handleSaveEdit}
                 disabled={!editContent.trim()}
-                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="rounded-md bg-primary px-3 py-1 text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 Save
               </button>
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="px-3 py-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
               >
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words mb-2">
+          <p className="mb-2 whitespace-pre-wrap break-words text-foreground text-sm">
             <TaggedText
               text={comment.content}
               onTagClick={(tag) => {
-                router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                router.push(`/feed?search=${encodeURIComponent(tag)}`);
               }}
             />
           </p>
@@ -240,7 +247,7 @@ export function CommentCard({
             <button
               type="button"
               onClick={handleReply}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
             >
               <Reply size={14} />
               <span>Reply</span>
@@ -252,9 +259,10 @@ export function CommentCard({
             <button
               type="button"
               onClick={() => setShowReplies(!showReplies)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground text-xs transition-colors hover:text-foreground"
             >
-              {showReplies ? 'Hide' : 'Show'} {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+              {showReplies ? 'Hide' : 'Show'} {comment.replies.length}{' '}
+              {comment.replies.length === 1 ? 'reply' : 'replies'}
             </button>
           )}
         </div>

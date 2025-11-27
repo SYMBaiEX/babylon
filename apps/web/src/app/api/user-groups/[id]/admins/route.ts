@@ -87,10 +87,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
 
 const addAdminSchema = z.object({
   userId: z.string(),

@@ -89,11 +89,11 @@
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { ApiError } from '@/lib/errors/api-errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { ApiError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const PromoteAdminSchema = z.object({
   userId: z.string(),

@@ -8,8 +8,8 @@
  * 4. When was the last game tick?
  */
 
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
 
 async function main() {
   logger.info('=== TRADING SYSTEM DIAGNOSTIC ===', undefined, 'Diagnostic');

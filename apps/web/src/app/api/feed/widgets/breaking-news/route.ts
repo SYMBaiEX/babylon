@@ -98,13 +98,13 @@ import {
   posts,
   stockPrices,
   worldEvents,
-} from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { BreakingNewsQuerySchema } from '@/lib/validation/schemas';
-import { FEED_WIDGET_CONFIG } from '@/shared/constants';
+} from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { BreakingNewsQuerySchema } from '@babylon/shared';
+import { FEED_WIDGET_CONFIG } from '@babylon/shared';
 
 interface BreakingNewsItem {
   id: string;

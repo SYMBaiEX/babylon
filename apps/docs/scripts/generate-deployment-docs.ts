@@ -18,7 +18,10 @@ interface DeploymentInfo {
 }
 
 async function loadDeployments() {
-  const deploymentsDir = path.join(process.cwd(), '../packages/contracts/deployments');
+  const deploymentsDir = path.join(
+    process.cwd(),
+    '../packages/contracts/deployments'
+  );
   const deployments: DeploymentInfo[] = [];
 
   const networks = await fs.readdir(deploymentsDir);

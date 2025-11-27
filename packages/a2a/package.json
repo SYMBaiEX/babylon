@@ -1,0 +1,88 @@
+{
+  "name": "@babylon/a2a",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Babylon A2A Protocol - Agent-to-Agent communication",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./src/index.ts"
+    },
+    "./types": {
+      "types": "./src/types/index.ts",
+      "import": "./src/types/index.ts",
+      "require": "./src/types/index.ts"
+    },
+    "./validation": {
+      "types": "./src/validation.ts",
+      "import": "./src/validation.ts",
+      "require": "./src/validation.ts"
+    },
+    "./blockchain": {
+      "types": "./src/blockchain/index.ts",
+      "import": "./src/blockchain/index.ts",
+      "require": "./src/blockchain/index.ts"
+    },
+    "./executors": {
+      "types": "./src/executors/index.ts",
+      "import": "./src/executors/index.ts",
+      "require": "./src/executors/index.ts"
+    },
+    "./handlers": {
+      "types": "./src/handlers/index.ts",
+      "import": "./src/handlers/index.ts",
+      "require": "./src/handlers/index.ts"
+    },
+    "./payments": {
+      "types": "./src/payments/index.ts",
+      "import": "./src/payments/index.ts",
+      "require": "./src/payments/index.ts"
+    },
+    "./sdk": {
+      "types": "./src/sdk/index.ts",
+      "import": "./src/sdk/index.ts",
+      "require": "./src/sdk/index.ts"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "import": "./src/services/index.ts",
+      "require": "./src/services/index.ts"
+    },
+    "./shared": {
+      "types": "./src/shared/index.ts",
+      "import": "./src/shared/index.ts",
+      "require": "./src/shared/index.ts"
+    },
+    "./utils": {
+      "types": "./src/utils/index.ts",
+      "import": "./src/utils/index.ts",
+      "require": "./src/utils/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babylon/contracts": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "uuid": "^11.1.0"
+  },
+  "peerDependencies": {
+    "@a2a-js/sdk": "^0.8.2",
+    "@babylon/db": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "ethers": "^6.15.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/uuid": "^10.0.0",
+    "bun-types": "^1.3.2",
+    "typescript": "^5.9.3"
+  }
+}

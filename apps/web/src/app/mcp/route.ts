@@ -8,9 +8,9 @@
 import { verifyMessage } from 'ethers';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db, eq, users } from '@/db';
-import { verifyAgentSession } from '@/lib/auth/agent-auth';
-import { logger } from '@/lib/logger';
+import { db, eq, users } from '@babylon/db';
+import { verifyAgentSession } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /mcp - Get MCP server info and available tools

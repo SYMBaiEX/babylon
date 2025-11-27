@@ -21,7 +21,7 @@ class MockA2AClient {
   static fromCardUrl = sdkFromCardMock;
 }
 
-mock.module('@/db', () => ({
+mock.module('@babylon/db', () => ({
   db: {
     user: {
       findUnique: findUniqueMock,
@@ -46,7 +46,7 @@ mock.module('@/db', () => ({
   asc: () => ({}),
 }));
 
-mock.module('@/lib/agents/identity/AgentWalletService', () => ({
+mock.module('@babylon/agents', () => ({
   agentWalletService: {
     createAgentEmbeddedWallet: createWalletMock,
   },
@@ -72,9 +72,7 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       walletAddress: null,
     });
 
-    const { initializeAgentA2AClient } = await import(
-      '@/lib/agents/plugins/babylon/integration-a2a-sdk'
-    );
+    const { initializeAgentA2AClient } = await import('@babylon/agents');
     await initializeAgentA2AClient('agent-1');
 
     expect(createWalletMock).toHaveBeenCalledTimes(1);
@@ -88,9 +86,7 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       walletAddress: '0xexisting',
     });
 
-    const { initializeAgentA2AClient } = await import(
-      '@/lib/agents/plugins/babylon/integration-a2a-sdk'
-    );
+    const { initializeAgentA2AClient } = await import('@babylon/agents');
     await initializeAgentA2AClient('agent-2');
 
     // Wallet service should not be called if wallet already exists

@@ -49,9 +49,9 @@ import {
   starWars,
   uniqueNamesGenerator,
 } from 'unique-names-generator';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { successResponse } from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
+import { BabylonLLMClient } from '@babylon/engine';
+import { successResponse } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 interface ProfileData {
   name: string;

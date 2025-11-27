@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { NextRequest } from 'next/server';
-import { NotFoundError } from '@/lib/errors/base.errors';
+import { NotFoundError } from '@babylon/agents';
 import type { MockUserRecord, UserFindUniqueArgs } from '../types/test-types';
 
 // Mock result storage - will be set by tests
@@ -31,14 +31,16 @@ mock.module('@privy-io/server-auth', () => ({
   },
 }));
 
-// Mock agent auth
-mock.module('@/lib/auth/agent-auth', () => ({
+// Mock agent auth - use the package path
+mock.module('@babylon/api', () => ({
   verifyAgentSession: mockVerifyAgentSession,
+  authenticate: mock(() => Promise.resolve({})),
+  authenticateWithDbUser: mock(() => Promise.resolve({})),
 }));
 
 // Mock database (auth-middleware uses Drizzle query builder)
 // Include all exports that may be needed by dependencies
-mock.module('@/db', () => ({
+mock.module('@babylon/db', () => ({
   db: {
     select: mockSelect,
     user: {
@@ -109,7 +111,7 @@ describe('User Not Found Handling', () => {
     it('should return Privy DID when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
 
-      const { authenticate } = await import('@/lib/api/auth-middleware');
+      const { authenticate } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -132,7 +134,7 @@ describe('User Not Found Handling', () => {
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      const { authenticate } = await import('@/lib/api/auth-middleware');
+      const { authenticate } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -156,9 +158,7 @@ describe('User Not Found Handling', () => {
     it('should throw error when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
 
-      const { authenticateWithDbUser } = await import(
-        '@/lib/api/auth-middleware'
-      );
+      const { authenticateWithDbUser } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -178,9 +178,7 @@ describe('User Not Found Handling', () => {
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      const { authenticateWithDbUser } = await import(
-        '@/lib/api/auth-middleware'
-      );
+      const { authenticateWithDbUser } = await import('@babylon/api');
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {

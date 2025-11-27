@@ -1,0 +1,34 @@
+{
+  "name": "@babylon/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Babylon CLI - Game generation, simulation, and utilities",
+  "type": "module",
+  "scripts": {
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit",
+    "generate": "bun run src/generate-game.ts",
+    "generate:verbose": "bun run src/generate-game.ts --verbose",
+    "world": "bun run src/generate-world.ts",
+    "world:verbose": "bun run src/generate-world.ts --verbose",
+    "simulate": "bun run src/run-game.ts",
+    "simulate:batch": "bun run src/run-game.ts --count=100 --fast",
+    "validate": "bun run src/validate-actors.ts",
+    "images": "bun run src/generate-actor-images.ts",
+    "images:migrate": "bun run src/migrate-images-to-blob.ts"
+  },
+  "dependencies": {
+    "@babylon/db": "workspace:*",
+    "@babylon/engine": "workspace:*",
+    "@fal-ai/client": "^1.7.2",
+    "@vercel/blob": "^2.0.0",
+    "dotenv": "^16.4.5",
+    "nanoid": "^5.1.6",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "bun-types": "^1.3.2",
+    "typescript": "^5.9.3"
+  }
+}

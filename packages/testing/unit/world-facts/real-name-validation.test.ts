@@ -9,8 +9,10 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { validateNoRealNames } from '@/lib/prompts/validate-output';
-import { getForbiddenRealNames } from '@/prompts';
+import {
+  getForbiddenRealNames,
+  validateNoRealNames,
+} from '@babylon/engine';
 
 describe('Real Name Validation System', () => {
   describe('Pattern-Based Detection', () => {

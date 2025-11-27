@@ -11,11 +11,11 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { logger } from '@babylon/engine';
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
-} from '@/lib/benchmark/BenchmarkDataGenerator';
-import { logger } from '@/lib/logger';
+} from '@babylon/training';
 
 interface StandardBenchmark {
   name: string;

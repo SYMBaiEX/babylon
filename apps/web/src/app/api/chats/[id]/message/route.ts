@@ -92,31 +92,31 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { hasBlocked } from '@/lib/moderation/filters';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { AuthorizationError, BusinessLogicError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { hasBlocked } from '@babylon/db';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { GroupChatInvite } from '@/lib/services/group-chat-invite';
+} from '@babylon/api';
 import {
+  GroupChatInvite,
   GroupChatSweep,
   type SweepDecision,
-} from '@/lib/services/group-chat-sweep';
-import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
+  MessageQualityChecker,
+} from '@babylon/engine';
 import {
   notifyDMMessage,
   notifyGroupChatMessage,
-} from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
-import { ChatMessageCreateSchema } from '@/lib/validation/schemas';
+} from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { broadcastChatMessage } from '@babylon/api';
+import { ChatMessageCreateSchema } from '@babylon/shared';
 
 /**
  * POST /api/chats/[id]/message

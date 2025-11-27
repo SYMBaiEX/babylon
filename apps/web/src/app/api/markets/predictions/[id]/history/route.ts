@@ -77,9 +77,9 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
-import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { PredictionPriceHistoryService } from '@babylon/engine';
+import { PredictionMarketIdSchema } from '@babylon/shared';
 
 const QuerySchema = z.object({
   limit: z

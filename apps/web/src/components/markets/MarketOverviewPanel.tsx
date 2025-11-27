@@ -10,7 +10,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Perpetual market structure for market overview.

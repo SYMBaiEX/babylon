@@ -13,8 +13,8 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { db } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -36,7 +36,7 @@ describe('Admin Agents Reputation Integration', () => {
         serverAvailable = true;
         console.log('✅ Server available for testing');
       }
-    } catch (error) {
+    } catch (_error) {
       console.warn('⚠️  Server not available, some tests may be skipped');
     }
 

@@ -1,4 +1,4 @@
-import { BenchmarkDataGenerator } from '@/lib/benchmark/BenchmarkDataGenerator';
+import { BenchmarkDataGenerator } from '@babylon/training';
 
 const config = {
   durationMinutes: 1,

@@ -141,13 +141,13 @@
  */
 
 import type { NextRequest } from 'next/server';
-import type { DrizzleClient } from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { ReputationService } from '@/lib/services/reputation-service';
-import { RegistryQuerySchema } from '@/lib/validation/schemas';
+import type { DrizzleClient } from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { ReputationService } from '@babylon/api';
+import { RegistryQuerySchema } from '@babylon/shared';
 /**
  * GET /api/registry
  * Fetch all registered users with optional filtering

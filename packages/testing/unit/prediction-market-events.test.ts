@@ -1,17 +1,19 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
-import * as broadcaster from '@/lib/sse/event-broadcaster';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { PredictionMarketEventService } from '@babylon/engine';
 
 describe('PredictionMarketEventService', () => {
-  let broadcastSpy: ReturnType<typeof spyOn>;
+  const mockBroadcaster = mock<
+    (channel: string, data: Record<string, unknown>) => Promise<void>
+  >(async () => {});
 
   beforeEach(() => {
-    broadcastSpy = spyOn(broadcaster, 'broadcastToChannel');
-    broadcastSpy.mockResolvedValue(undefined);
+    mockBroadcaster.mockClear();
+    PredictionMarketEventService.setBroadcaster(mockBroadcaster);
   });
 
   afterEach(() => {
-    broadcastSpy.mockRestore();
+    // Clear broadcaster after each test
+    PredictionMarketEventService.setBroadcaster(async () => {});
   });
 
   test('emitTradeUpdate broadcasts prediction trade event', () => {
@@ -37,7 +39,7 @@ describe('PredictionMarketEventService', () => {
 
     PredictionMarketEventService.emitTradeUpdate(payload);
 
-    expect(broadcastSpy).toHaveBeenCalledWith('markets', {
+    expect(mockBroadcaster).toHaveBeenCalledWith('markets', {
       type: 'prediction_trade',
       version: 'v1',
       ...payload,
@@ -57,7 +59,7 @@ describe('PredictionMarketEventService', () => {
 
     PredictionMarketEventService.emitResolution(payload);
 
-    expect(broadcastSpy).toHaveBeenCalledWith('markets', {
+    expect(mockBroadcaster).toHaveBeenCalledWith('markets', {
       type: 'prediction_resolution',
       version: 'v1',
       ...payload,

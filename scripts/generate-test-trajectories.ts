@@ -5,10 +5,9 @@
  * Tests recording, storage, export, and ART format conversion.
  */
 
-import { db } from '@/db';
-import type { JsonValue } from '@/types/common';
-import { generateSnowflakeId } from '../src/lib/snowflake';
-import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
+import { db, generateSnowflakeId } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
+import { trajectoryRecorder } from '@babylon/training';
 
 async function main() {
   console.log('\n🧪 GENERATING TEST TRAJECTORIES\n');

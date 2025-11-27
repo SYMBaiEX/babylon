@@ -96,13 +96,13 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { JsonValue } from '@/db';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
-import { submitFeedbackToAgent0 } from '@/lib/reputation/agent0-reputation-sync';
-import { updateFeedbackMetrics } from '@/lib/reputation/reputation-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import { submitFeedbackToAgent0 } from '@babylon/agents';
+import { updateFeedbackMetrics } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
 
 const UserToAgentFeedbackSchema = z.object({
   fromUserId: z.string().min(1, 'fromUserId is required'),

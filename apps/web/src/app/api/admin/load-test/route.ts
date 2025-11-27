@@ -76,18 +76,18 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/api/admin-middleware';
+import { requireAdmin } from '@babylon/api';
 import {
   errorResponse,
   successResponse,
   withErrorHandling,
-} from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import type { LoadTestResult } from '@/lib/testing/load-test-simulator';
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { LoadTestResult } from '@babylon/testing';
 import {
   LoadTestSimulator,
   TEST_SCENARIOS,
-} from '@/lib/testing/load-test-simulator';
+} from '@babylon/testing';
 
 const LoadTestRequestSchema = z.object({
   scenario: z.enum(['LIGHT', 'NORMAL', 'HEAVY', 'STRESS']),
@@ -151,7 +151,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Handle test completion
   testPromise
-    .then((result) => {
+    .then((result: LoadTestResult) => {
       lastTestResult = result;
       activeTest = null;
 
@@ -165,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         'LoadTest'
       );
     })
-    .catch((error) => {
+    .catch((error: Error) => {
       logger.error('Load test failed', error, 'LoadTest');
       activeTest = null;
     });

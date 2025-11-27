@@ -6,8 +6,7 @@
  */
 
 import { ethers } from 'ethers';
-import { db } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db, generateSnowflakeId } from '@babylon/db';
 
 interface TestAgentConfig {
   username: string;

@@ -101,10 +101,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * GET - List agent's goals

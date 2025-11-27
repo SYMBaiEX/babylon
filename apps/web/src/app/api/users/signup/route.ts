@@ -89,23 +89,23 @@
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, follows, referrals, users, withTransaction } from '@/db';
-import { isRetryableError, withRetry } from '@/db/helpers';
-import { toDatabaseErrorType } from '@/db/types';
-import { authenticate, getPrivyClient } from '@/lib/api/auth-middleware';
-import { POINTS } from '@/lib/constants/points';
-import { ConflictError, InternalServerError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { notifyNewAccount } from '@/lib/services/notification-service';
-import { PointsService } from '@/lib/services/points-service';
-import { getOrCreateReferralCode } from '@/lib/services/referral-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { getHashedClientIp } from '@/lib/utils/ip-utils';
-import { OnboardingProfileSchema } from '@/lib/validation/schemas';
-import type { JsonValue } from '@/types/common';
+import { and, db, eq, follows, referrals, users, withTransaction } from '@babylon/db';
+import { isRetryableError, withRetry } from '@babylon/db';
+import { toDatabaseErrorType } from '@babylon/db';
+import { authenticate, getPrivyClient } from '@babylon/api';
+import { POINTS } from '@babylon/shared';
+import { ConflictError, InternalServerError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
+import { notifyNewAccount } from '@babylon/api';
+import { PointsService } from '@babylon/api';
+import { getOrCreateReferralCode } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { getHashedClientIp } from '@babylon/shared';
+import { OnboardingProfileSchema } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 interface SignupRequestBody {
   username: string;
@@ -150,7 +150,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const walletAddress = authUser.walletAddress?.toLowerCase() ?? null;
 
   // Capture and hash IP address for self-referral detection
-  const registrationIpHash = getHashedClientIp(request);
+  const registrationIpHash = getHashedClientIp(request.headers);
 
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;

@@ -1,12 +1,13 @@
 'use client';
 
+import { Check, Loader2, Users, X } from 'lucide-react';
 /**
  * Group invite notification component for displaying group invitations in notifications.
- * 
+ *
  * Displays a notification card for group invitations with inviter information
  * and accept/decline actions. Shows group details and member count. Handles
  * API calls and hides after response.
- * 
+ *
  * Features:
  * - Inviter display
  * - Group information
@@ -14,10 +15,10 @@
  * - Decline functionality
  * - Loading states
  * - Auto-hide after response
- * 
+ *
  * @param props - GroupInviteNotification component props
  * @returns Group invite notification element or null if responded
- * 
+ *
  * @example
  * ```tsx
  * <GroupInviteNotification
@@ -29,9 +30,8 @@
  * ```
  */
 import { useState } from 'react';
-import { Avatar } from '@/components/shared/Avatar';
-import { Users, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Avatar } from '@/components/shared/Avatar';
 
 interface GroupInviteNotificationProps {
   inviteId: string;
@@ -100,7 +100,7 @@ export function GroupInviteNotification({
   }
 
   return (
-    <div className="p-4 bg-sidebar border border-border rounded-lg shadow-sm">
+    <div className="rounded-lg border border-border bg-sidebar p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <Avatar
           imageUrl={inviterImage || undefined}
@@ -108,26 +108,26 @@ export function GroupInviteNotification({
           size="md"
         />
 
-        <div className="flex-1 min-w-0 space-y-3">
+        <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="mb-1 flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">Group Invitation</span>
             </div>
-            
-            <p className="text-sm mb-2">
-              <span className="font-medium">{inviterName}</span> invited you to join{' '}
-              <span className="font-medium">{groupName}</span>
+
+            <p className="mb-2 text-sm">
+              <span className="font-medium">{inviterName}</span> invited you to
+              join <span className="font-medium">{groupName}</span>
             </p>
 
             {groupDescription && (
-              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+              <p className="mb-2 line-clamp-2 text-muted-foreground text-sm">
                 {groupDescription}
               </p>
             )}
 
             {memberCount !== undefined && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </p>
             )}
@@ -137,13 +137,13 @@ export function GroupInviteNotification({
             <button
               onClick={handleAccept}
               disabled={isLoading}
-              className="flex-1 px-4 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm"
+              className="flex-1 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 inline animate-spin" />
+                <Loader2 className="inline h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <Check className="h-4 w-4 inline mr-1" />
+                  <Check className="mr-1 inline h-4 w-4" />
                   Accept
                 </>
               )}
@@ -151,13 +151,13 @@ export function GroupInviteNotification({
             <button
               onClick={handleDecline}
               disabled={isLoading}
-              className="flex-1 px-4 py-2 rounded-lg font-medium bg-background border border-border hover:bg-accent transition-colors disabled:opacity-50 text-sm"
+              className="flex-1 rounded-lg border border-border bg-background px-4 py-2 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 inline animate-spin" />
+                <Loader2 className="inline h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <X className="h-4 w-4 inline mr-1" />
+                  <X className="mr-1 inline h-4 w-4" />
                   Decline
                 </>
               )}
@@ -168,4 +168,3 @@ export function GroupInviteNotification({
     </div>
   );
 }
-

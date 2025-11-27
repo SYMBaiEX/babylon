@@ -29,8 +29,8 @@ import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { FEE_CONFIG } from '@/lib/config/fees';
-import { cn } from '@/lib/utils';
+import { FEE_CONFIG } from '@babylon/engine';
+import { cn } from '@babylon/shared';
 
 interface PerpMarket {
   ticker: string;

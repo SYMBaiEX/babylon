@@ -1,10 +1,10 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { useInteractionStore } from '@/stores/interactionStore';
-import type { CommentInputProps } from '@/types/interactions';
 import { Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { cn } from '@babylon/shared';
+import { useInteractionStore } from '@/stores/interactionStore';
+import type { CommentInputProps } from '@babylon/shared';
 
 /**
  * Maximum allowed length for comment content.
@@ -13,15 +13,15 @@ const MAX_COMMENT_LENGTH = 5000;
 
 /**
  * Comment input component for writing and submitting comments.
- * 
+ *
  * Provides a textarea input for writing comments with auto-resize,
  * character limit validation, and optimistic updates. Supports
  * both top-level comments and replies. Includes submit and cancel
  * actions with keyboard shortcuts (Enter to submit, Escape to cancel).
- * 
+ *
  * @param props - CommentInput component props
  * @returns Comment input element
- * 
+ *
  * @example
  * ```tsx
  * <CommentInput
@@ -45,7 +45,9 @@ export function CommentInput({
   const [content, setContent] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [optimisticComment, setOptimisticComment] = useState<string | null>(null);
+  const [optimisticComment, setOptimisticComment] = useState<string | null>(
+    null
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { addComment } = useInteractionStore();
@@ -63,7 +65,7 @@ export function CommentInput({
       textarea.style.height = 'auto';
       textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [content]);
+  }, []);
 
   const handleSubmit = async () => {
     const trimmedContent = content.trim();
@@ -77,10 +79,10 @@ export function CommentInput({
     }
 
     setIsSubmitting(true);
-    
+
     // Show optimistic comment immediately
     setOptimisticComment(trimmedContent);
-    
+
     // Clear input optimistically
     const originalContent = content;
     setContent('');
@@ -101,7 +103,7 @@ export function CommentInput({
       setContent(originalContent);
       setOptimisticComment(null);
     }
-    
+
     setIsSubmitting(false);
   };
 
@@ -135,19 +137,19 @@ export function CommentInput({
     <>
       {/* Replying to indicator */}
       {replyingToName && (
-        <div className="flex items-center gap-1 mb-2 text-sm text-muted-foreground">
+        <div className="mb-2 flex items-center gap-1 text-muted-foreground text-sm">
           <span>Replying to</span>
-          <span className="text-primary font-medium">@{replyingToName}</span>
+          <span className="font-medium text-primary">@{replyingToName}</span>
         </div>
       )}
 
       {/* Optimistic comment preview */}
       {optimisticComment && (
-        <div className="p-3 rounded-lg border border-primary/50 bg-muted/30 mb-2 opacity-60">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-muted-foreground">Posting...</span>
+        <div className="mb-2 rounded-lg border border-primary/50 bg-muted/30 p-3 opacity-60">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-muted-foreground text-xs">Posting...</span>
           </div>
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+          <p className="whitespace-pre-wrap break-words text-foreground text-sm">
             {optimisticComment}
           </p>
         </div>
@@ -155,88 +157,90 @@ export function CommentInput({
 
       <div
         className={cn(
-          'flex flex-col gap-2 p-3 rounded-lg border transition-colors',
+          'flex flex-col gap-2 rounded-lg border p-3 transition-colors',
           isFocused
             ? 'border-primary bg-muted/50'
             : 'border-border bg-background',
           className
         )}
       >
-      {/* Textarea */}
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onFocus={() => setIsFocused(true)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className={cn(
-          'w-full resize-none bg-transparent',
-          'text-sm placeholder:text-muted-foreground',
-          'focus:outline-none',
-          'min-h-[60px] max-h-[200px]'
-        )}
-        disabled={isSubmitting}
-      />
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className={cn(
+            'w-full resize-none bg-transparent',
+            'text-sm placeholder:text-muted-foreground',
+            'focus:outline-none',
+            'max-h-[200px] min-h-[60px]'
+          )}
+          disabled={isSubmitting}
+        />
 
-      {/* Footer - Shows when focused or has content */}
-      {(isFocused || content.length > 0) && (
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
-          {/* Character count */}
-          <div className="flex-1 text-xs text-muted-foreground">
-            {showCharCount && (
-              <span className={cn(isOverLimit && 'text-destructive font-medium')}>
-                {remainingChars} characters remaining
-              </span>
-            )}
-          </div>
+        {/* Footer - Shows when focused or has content */}
+        {(isFocused || content.length > 0) && (
+          <div className="flex items-center justify-between gap-2 border-border border-t pt-2">
+            {/* Character count */}
+            <div className="flex-1 text-muted-foreground text-xs">
+              {showCharCount && (
+                <span
+                  className={cn(isOverLimit && 'font-medium text-destructive')}
+                >
+                  {remainingChars} characters remaining
+                </span>
+              )}
+            </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            {/* Cancel button - only show for replies */}
-            {parentCommentId && onCancel && (
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              {/* Cancel button - only show for replies */}
+              {parentCommentId && onCancel && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={isSubmitting}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-sm',
+                    'text-muted-foreground hover:text-foreground',
+                    'transition-colors hover:bg-muted',
+                    'disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                >
+                  <X size={16} />
+                </button>
+              )}
+
+              {/* Submit button */}
               <button
                 type="button"
-                onClick={handleCancel}
-                disabled={isSubmitting}
+                onClick={handleSubmit}
+                disabled={!content.trim() || isSubmitting || isOverLimit}
                 className={cn(
-                  'px-3 py-1.5 rounded-md text-sm',
-                  'text-muted-foreground hover:text-foreground',
-                  'hover:bg-muted transition-colors',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                  'flex items-center gap-2 rounded-md px-4 py-1.5',
+                  'bg-primary text-primary-foreground',
+                  'transition-colors hover:bg-primary/90',
+                  'font-medium text-sm',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
-                <X size={16} />
+                {isSubmitting ? (
+                  <>
+                    <span>Posting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    <span>Post</span>
+                  </>
+                )}
               </button>
-            )}
-
-            {/* Submit button */}
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!content.trim() || isSubmitting || isOverLimit}
-              className={cn(
-                'flex items-center gap-2 px-4 py-1.5 rounded-md',
-                'bg-primary text-primary-foreground',
-                'hover:bg-primary/90 transition-colors',
-                'text-sm font-medium',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-            >
-              {isSubmitting ? (
-                <>
-                  <span>Posting...</span>
-                </>
-              ) : (
-                <>
-                  <Send size={16} />
-                  <span>Post</span>
-                </>
-              )}
-            </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </>
   );

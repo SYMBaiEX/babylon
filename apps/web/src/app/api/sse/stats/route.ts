@@ -47,9 +47,9 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { connections } from '@/lib/realtime/connection-registry';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { connections } from '@babylon/api';
 
 export const dynamic = 'force-dynamic';
 

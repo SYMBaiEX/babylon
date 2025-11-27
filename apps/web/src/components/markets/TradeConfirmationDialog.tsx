@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Trade type discriminator for confirmation dialog.

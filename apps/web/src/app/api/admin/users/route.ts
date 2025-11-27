@@ -109,10 +109,10 @@ import {
   userBlocks,
   userMutes,
   users,
-} from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -167,13 +167,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (params.search) {
-    conditions.push(
-      or(
-        ilike(users.username, `%${params.search}%`),
-        ilike(users.displayName, `%${params.search}%`),
-        ilike(users.walletAddress, `%${params.search}%`)
-      )!
+    const searchCondition = or(
+      ilike(users.username, `%${params.search}%`),
+      ilike(users.displayName, `%${params.search}%`),
+      ilike(users.walletAddress, `%${params.search}%`)
     );
+    if (searchCondition) {
+      conditions.push(searchCondition);
+    }
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

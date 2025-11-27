@@ -11,10 +11,12 @@
  * - AutomationPipeline integration
  */
 
-import { db } from '@/db';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
-import { benchmarkService } from '@/lib/training/BenchmarkService';
-import { modelSelectionService } from '@/lib/training/ModelSelectionService';
+import { db } from '@babylon/db';
+import {
+  automationPipeline,
+  benchmarkService,
+  modelSelectionService,
+} from '@babylon/training';
 
 interface TestResult {
   category: string;
@@ -159,7 +161,7 @@ async function testBenchmarking() {
           true,
           `Should deploy: ${comparison.shouldDeploy}, Reason: ${comparison.reason}`
         );
-      } catch (error) {
+      } catch (_error) {
         // This is okay if model hasn't been benchmarked yet
         addResult(
           'Benchmarking',

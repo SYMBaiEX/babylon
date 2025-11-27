@@ -62,8 +62,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
 
 /**
  * GET /api/organizations

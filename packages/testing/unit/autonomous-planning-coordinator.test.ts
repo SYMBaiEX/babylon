@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { IAgentRuntime } from '@elizaos/core';
-import { autonomousCommentingService } from '@/lib/agents/autonomous/AutonomousCommentingService';
-import { autonomousDMService } from '@/lib/agents/autonomous/AutonomousDMService';
-import type { PlannedAction } from '@/lib/agents/autonomous/AutonomousPlanningCoordinator';
-import { autonomousPlanningCoordinator } from '@/lib/agents/autonomous/AutonomousPlanningCoordinator';
-import type { JsonValue } from '@/types/common';
+import {
+  autonomousCommentingService,
+  autonomousDMService,
+  autonomousPlanningCoordinator,
+  type PlannedAction,
+} from '@babylon/agents';
+import type { JsonValue } from '@babylon/api';
 
 type ExecuteActionFn = (
   agentUserId: string,

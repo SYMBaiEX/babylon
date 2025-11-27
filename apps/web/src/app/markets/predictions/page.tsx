@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 interface PredictionUserPosition {
   id: string;

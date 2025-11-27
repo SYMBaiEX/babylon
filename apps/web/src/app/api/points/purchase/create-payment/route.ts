@@ -66,10 +66,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { X402Manager } from '@/lib/a2a/payments/x402-manager';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { X402Manager } from '@babylon/a2a';
+import { authenticate } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
 
 // Initialize x402 manager (you'll need to configure RPC URL)
 const x402Manager = new X402Manager({

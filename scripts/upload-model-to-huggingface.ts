@@ -7,10 +7,12 @@
  *   npx ts-node scripts/upload-model-to-huggingface.ts --model=babylon-agent-v1.0.0 --hf-name=babylonlabs/babylon-agent
  */
 
-import { db } from '@/db';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
+import {
+  HuggingFaceModelUploader,
+  ModelBenchmarkService,
+} from '@babylon/training';
 
 async function main() {
   const args = process.argv.slice(2);

@@ -50,21 +50,21 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { asSystem } from '@/lib/db/context';
-import { AuthorizationError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { executeGameTick } from '@/lib/serverless-game-tick';
-import { relayCronToStaging } from '@/lib/services/cron-relay-service';
+import { BabylonLLMClient } from '@babylon/engine';
+import { asSystem } from '@babylon/db';
+import { AuthorizationError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { executeGameTick } from '@babylon/engine';
+import { relayCronToStaging } from '@babylon/api';
 import {
   acquireGenerationLock,
   releaseGenerationLock,
-} from '@/lib/services/generation-lock-service';
+} from '@babylon/shared';
 import {
   checkLookaheadStatus,
   generateAheadIfNeeded,
-} from '@/lib/services/lookahead-generation-service';
+} from '@babylon/engine';
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)

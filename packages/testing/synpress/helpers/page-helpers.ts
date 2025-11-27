@@ -91,7 +91,7 @@ export async function waitForPageLoad(
 
     // Small delay to let any async components finish loading
     await page.waitForTimeout(500);
-  } catch (e) {
+  } catch (_e) {
     console.log('⚠️ Page load wait timed out, continuing...');
   }
 }

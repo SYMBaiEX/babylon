@@ -1,10 +1,24 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "../..",
-    "noEmit": true
+    "baseUrl": ".",
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "strict": false,
+    "paths": {
+      "@/shared/constants": ["../../apps/web/src/shared/constants.ts"],
+      "@/shared/types": ["../../apps/web/src/shared/types.ts"],
+      "@/shared/utils": ["../../apps/web/src/shared/utils.ts"],
+      "@/components/*": ["../../apps/web/src/components/*"],
+      "@/lib/*": ["../../apps/web/src/lib/*"],
+      "@/hooks/*": ["../../apps/web/src/hooks/*"],
+      "@/stores/*": ["../../apps/web/src/stores/*"],
+      "@/app/*": ["../../apps/web/src/app/*"],
+      "@/*": ["../../apps/web/src/*"]
+    }
   },
   "include": ["./**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "manual/**/*"]
 }
-

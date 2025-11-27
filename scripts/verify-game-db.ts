@@ -18,7 +18,7 @@ if (!DATABASE_URL) {
 
 async function verifyGameState() {
   // Use Drizzle client
-  const { db } = await import('@/db');
+  const { db } = await import('@babylon/db');
 
   try {
     console.log('🔍 Checking game state in database...\n');

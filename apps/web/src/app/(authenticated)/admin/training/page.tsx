@@ -37,7 +37,7 @@ import {
   PlayCircle,
   TrendingUp,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -127,13 +127,7 @@ export default function TrainingDashboard() {
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
 
-  useEffect(() => {
-    loadStatus();
-    const interval = setInterval(loadStatus, 5000); // Refresh every 5s
-    return () => clearInterval(interval);
-  }, [loadStatus]);
-
-  async function loadStatus() {
+  const loadStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/training/status');
 
@@ -149,7 +143,13 @@ export default function TrainingDashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadStatus();
+    const interval = setInterval(loadStatus, 5000); // Refresh every 5s
+    return () => clearInterval(interval);
+  }, [loadStatus]);
 
   async function triggerTraining() {
     setTraining(true);

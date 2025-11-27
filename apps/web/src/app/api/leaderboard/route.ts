@@ -122,10 +122,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PointsService } from '@/lib/services/points-service';
-import { LeaderboardQuerySchema } from '@/lib/validation/schemas/common';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PointsService } from '@babylon/api';
+import { LeaderboardQuerySchema } from '@babylon/shared';
 
 /**
  * GET /api/leaderboard

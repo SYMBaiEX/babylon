@@ -80,7 +80,7 @@ async function killProcessTree(pid: number): Promise<void> {
     } catch {
       // Process might already be dead
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback: try direct kill
     try {
       process.kill(pid, 'SIGTERM');
@@ -138,7 +138,7 @@ export async function killPort(
       try {
         await killProcessTree(pid);
         killedCount++;
-      } catch (error) {
+      } catch (_error) {
         // Process might already be dead or we don't have permission
         // Continue with other processes
       }
@@ -179,7 +179,7 @@ export async function killPort(
     }
 
     return killedCount;
-  } catch (error) {
+  } catch (_error) {
     // lsof might not be available or no processes found
     // This is fine, just return 0
     return 0;

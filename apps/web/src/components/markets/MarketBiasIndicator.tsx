@@ -29,7 +29,7 @@
 
 import { Activity, Clock, TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Bias adjustment structure for market bias indicator.

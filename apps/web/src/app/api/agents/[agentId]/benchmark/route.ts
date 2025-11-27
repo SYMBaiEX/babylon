@@ -104,19 +104,21 @@ import { promises as fs } from 'fs';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import * as path from 'path';
-import { db } from '@/db';
-import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import type { BenchmarkGameSnapshot } from '@/lib/benchmark/BenchmarkDataGenerator';
-import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
-import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
+import { db } from '@babylon/db';
+import {
+  agentRuntimeManager,
+  AutonomousCoordinator,
+} from '@babylon/agents';
+import type { BenchmarkGameSnapshot } from '@babylon/training';
+import { MetricsVisualizer } from '@babylon/training';
+import { SimulationA2AInterface } from '@babylon/training';
 import {
   type SimulationConfig,
   SimulationEngine,
   type SimulationResult,
-} from '@/lib/benchmark/SimulationEngine';
-import { logger } from '@/lib/logger';
-import { authenticateUser } from '@/lib/server-auth';
+} from '@babylon/training';
+import { logger } from '@babylon/shared';
+import { authenticateUser } from '@babylon/api';
 
 export async function POST(
   req: NextRequest,

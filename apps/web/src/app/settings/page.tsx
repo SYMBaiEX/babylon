@@ -1,35 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-import { useTheme } from 'next-themes';
-import { useRouter } from 'next/navigation';
-
 import { ArrowLeft, Palette, Save, Shield, User } from 'lucide-react';
-
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
-import { Skeleton } from '@/components/shared/Skeleton';
-import { PageContainer } from '@/components/shared/PageContainer';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
-
-import { logger } from '@/lib/logger';
-import { cn } from '@/lib/utils';
-
+import { PageContainer } from '@/components/shared/PageContainer';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-
+import { logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
-import { useSearchParams } from 'next/navigation';
 
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const {
-    ready,
-    authenticated,
-    refresh,
-    getAccessToken,
-  } = useAuth();
+  const { ready, authenticated, refresh, getAccessToken } = useAuth();
   const { user, setUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState(() => {
     // Check for tab parameter in URL
@@ -123,7 +111,7 @@ export default function SettingsPage() {
     // Backend now handles ALL signing automatically - no user popups!
     // This includes username changes, bio updates, display name changes.
     // The server signs the transaction on-chain for a seamless UX.
-    
+
     const token = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -144,14 +132,18 @@ export default function SettingsPage() {
             bio: trimmedBio,
           }),
         }
-      )
+      );
 
-      const payload = await response.json().catch(() => ({}))
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message = payload?.error || 'Unable to save your changes.'
-        setErrorMessage(message)
-        logger.error('Failed to save profile settings', { error: message }, 'SettingsPage')
-        return
+        const message = payload?.error || 'Unable to save your changes.';
+        setErrorMessage(message);
+        logger.error(
+          'Failed to save profile settings',
+          { error: message },
+          'SettingsPage'
+        );
+        return;
       }
 
       if (payload.user) {
@@ -164,25 +156,32 @@ export default function SettingsPage() {
           referralCode: payload.user.referralCode,
           onChainRegistered:
             payload.user.onChainRegistered ?? user.onChainRegistered,
-        })
+        });
       }
 
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      await refresh().catch(() => undefined)
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      await refresh().catch(() => undefined);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save profile settings'
-      setErrorMessage(message)
-      logger.error('Failed to save profile settings', { error }, 'SettingsPage')
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to save profile settings';
+      setErrorMessage(message);
+      logger.error(
+        'Failed to save profile settings',
+        { error },
+        'SettingsPage'
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   };
 
   if (!ready) {
     return (
       <PageContainer>
-        <div className="w-full max-w-2xl mx-auto space-y-6 px-4 sm:px-0">
+        <div className="mx-auto w-full max-w-2xl space-y-6 px-4 sm:px-0">
           <div className="space-y-2">
             <Skeleton className="h-8 w-32 max-w-full" />
             <Skeleton className="h-4 w-64 max-w-full" />
@@ -190,15 +189,15 @@ export default function SettingsPage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-4"
+              className="space-y-4 rounded-lg border border-border bg-card/50 px-4 py-3 backdrop-blur sm:px-6 sm:py-4"
             >
-              <Skeleton className="h-6 w-40 max-w-full mb-4" />
+              <Skeleton className="mb-4 h-6 w-40 max-w-full" />
               {Array.from({ length: 2 }).map((_, j) => (
                 <div
                   key={j}
-                  className="flex items-center justify-between gap-3 py-3 border-b border-border/5 last:border-0"
+                  className="flex items-center justify-between gap-3 border-border/5 border-b py-3 last:border-0"
                 >
-                  <div className="space-y-2 flex-1 min-w-0">
+                  <div className="min-w-0 flex-1 space-y-2">
                     <Skeleton className="h-4 w-32 max-w-full" />
                     <Skeleton className="h-3 w-48 max-w-full" />
                   </div>
@@ -215,9 +214,9 @@ export default function SettingsPage() {
   if (!authenticated) {
     return (
       <PageContainer>
-        <div className="max-w-2xl mx-auto text-center py-12">
-          <h1 className="text-3xl font-bold mb-4">Settings</h1>
-          <p className="text-muted-foreground mb-8">
+        <div className="mx-auto max-w-2xl py-12 text-center">
+          <h1 className="mb-4 font-bold text-3xl">Settings</h1>
+          <p className="mb-8 text-muted-foreground">
             Please sign in to access your settings.
           </p>
           <LoginButton />
@@ -235,21 +234,21 @@ export default function SettingsPage() {
 
   return (
     <PageContainer>
-      <div className="max-w-4xl mx-auto pb-24">
+      <div className="mx-auto max-w-4xl pb-24">
         {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors mb-4"
+            className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
             <span>Back</span>
           </button>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="font-bold text-3xl">Settings</h1>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
+        <div className="mb-8 flex gap-1 overflow-x-auto border-border border-b">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -257,13 +256,13 @@ export default function SettingsPage() {
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 border-b-2 transition-all whitespace-nowrap',
+                  'flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 transition-all',
                   activeTab === tab.id
                     ? 'border-[#0066FF] text-[#0066FF]'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 )}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="h-4 w-4" />
                 <span className="font-medium">{tab.label}</span>
               </button>
             );
@@ -277,7 +276,7 @@ export default function SettingsPage() {
               <div>
                 <label
                   htmlFor="displayName"
-                  className="block text-sm font-medium mb-2"
+                  className="mb-2 block font-medium text-sm"
                 >
                   Display Name
                 </label>
@@ -286,7 +285,7 @@ export default function SettingsPage() {
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
+                  className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   placeholder="Enter your display name"
                 />
               </div>
@@ -294,7 +293,7 @@ export default function SettingsPage() {
               <div>
                 <label
                   htmlFor="username"
-                  className="block text-sm font-medium mb-2"
+                  className="mb-2 block font-medium text-sm"
                 >
                   Username
                 </label>
@@ -306,17 +305,17 @@ export default function SettingsPage() {
                   disabled={Boolean(
                     usernameChangeLimit && !usernameChangeLimit.canChange
                   )}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF] disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Enter your username"
                 />
                 {usernameChangeLimit && !usernameChangeLimit.canChange ? (
-                  <p className="text-xs text-yellow-500 mt-1">
+                  <p className="mt-1 text-xs text-yellow-500">
                     Username can only be changed once every 24 hours. Please
                     wait {usernameChangeLimit.hours}h{' '}
                     {usernameChangeLimit.minutes}m before changing again.
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 text-muted-foreground text-xs">
                     Username can be changed once every 24 hours. Changing your
                     username will update your referral code.
                   </p>
@@ -324,7 +323,7 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label htmlFor="bio" className="block text-sm font-medium mb-2">
+                <label htmlFor="bio" className="mb-2 block font-medium text-sm">
                   Bio
                 </label>
                 <textarea
@@ -332,7 +331,7 @@ export default function SettingsPage() {
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] resize-none"
+                  className="w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -342,7 +341,7 @@ export default function SettingsPage() {
           {activeTab === 'theme' && (
             <div className="space-y-6">
               <div>
-                <h3 className="font-medium mb-4">Theme Preference</h3>
+                <h3 className="mb-4 font-medium">Theme Preference</h3>
                 {!mounted ? (
                   <div className="flex items-center justify-center py-8">
                     <Skeleton className="h-32 w-full" />
@@ -352,7 +351,7 @@ export default function SettingsPage() {
                     {['light', 'dark', 'system'].map((themeOption) => (
                       <label
                         key={themeOption}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors"
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted"
                       >
                         <input
                           type="radio"
@@ -360,13 +359,13 @@ export default function SettingsPage() {
                           value={themeOption}
                           checked={theme === themeOption}
                           onChange={() => setTheme(themeOption)}
-                          className="w-4 h-4 text-[#0066FF]"
+                          className="h-4 w-4 text-[#0066FF]"
                         />
                         <div>
                           <p className="font-medium capitalize">
                             {themeOption}
                           </p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-muted-foreground text-sm">
                             {themeOption === 'light' &&
                               'Light background with dark text'}
                             {themeOption === 'dark' &&
@@ -391,9 +390,9 @@ export default function SettingsPage() {
 
           {/* Save Button - Only show for profile tab (theme saves automatically) */}
           {activeTab === 'profile' && (
-            <div className="pt-6 border-t border-border">
+            <div className="border-border border-t pt-6">
               {errorMessage && (
-                <p className="mb-4 text-sm text-red-500">{errorMessage}</p>
+                <p className="mb-4 text-red-500 text-sm">{errorMessage}</p>
               )}
               {user?.onChainRegistered !== true && !errorMessage && (
                 <p className="mb-4 text-sm text-yellow-500">
@@ -405,12 +404,12 @@ export default function SettingsPage() {
                 onClick={handleSave}
                 disabled={saving || user?.onChainRegistered !== true}
                 className={cn(
-                  'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+                  'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
                   'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                  'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
-                <Save className="w-4 h-4" />
+                <Save className="h-4 w-4" />
                 <span>
                   {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
                 </span>
@@ -420,8 +419,8 @@ export default function SettingsPage() {
 
           {/* Theme saves automatically, show confirmation */}
           {activeTab === 'theme' && mounted && (
-            <div className="pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
+            <div className="border-border border-t pt-6">
+              <p className="text-muted-foreground text-sm">
                 Theme preference is saved automatically and applied immediately.
               </p>
             </div>

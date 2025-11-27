@@ -1,14 +1,14 @@
 import { useCallback } from 'react';
 
 import { encodeFunctionData } from 'viem';
-import { CHAIN } from '@/constants/chains';
 import {
   CAPABILITIES_HASH,
+  CHAIN,
   getIdentityRegistryAddress,
   identityRegistryAbi,
-} from '@/constants/identity';
+} from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Metadata for updating an agent profile on-chain.

@@ -44,12 +44,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { SubgraphClient } from '@/agents/agent0/SubgraphClient';
-import type { DrizzleClient } from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { SubgraphClient } from '@babylon/agents';
+import type { DrizzleClient } from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { asPublic } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /api/registry/all

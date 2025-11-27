@@ -93,15 +93,15 @@
 import { readFileSync } from 'fs';
 import type { NextRequest } from 'next/server';
 import { join } from 'path';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { characterMappingService } from '@/lib/services/character-mapping-service';
-import { createParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
-import { rssFeedService } from '@/lib/services/rss-feed-service';
-import { worldFactsService } from '@/lib/services/world-facts-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { characterMappingService } from '@babylon/engine';
+import { createParodyHeadlineGenerator } from '@babylon/engine';
+import { rssFeedService } from '@babylon/engine';
+import { worldFactsService } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * GET /api/admin/world-facts - Get all world facts and related data

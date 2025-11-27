@@ -4,8 +4,8 @@ import { Flame } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
-import { logger } from '@/lib/logger';
-import { cn } from '@/lib/utils';
+import { logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /**
  * Prediction market summary structure for trending panel.

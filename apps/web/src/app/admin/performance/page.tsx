@@ -1,29 +1,83 @@
 /**
  * Admin Performance Dashboard
- * 
+ *
  * Displays network statistics, database performance, and allows running load tests
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { logger } from '@/lib/logger';
+import { useCallback, useEffect, useState } from 'react';
+import { logger } from '@babylon/shared';
 
 // Simple replacement components
-const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`border rounded-lg p-4 ${className}`}>{children}</div>
+const Card = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={`rounded-lg border p-4 ${className}`}>{children}</div>;
+const CardHeader = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={`mb-4 ${className}`}>{children}</div>;
+const CardTitle = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <h3 className={`font-semibold text-lg ${className}`}>{children}</h3>;
+const CardDescription = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-muted-foreground text-sm">{children}</p>
 );
-const CardHeader = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => <div className={`mb-4 ${className}`}>{children}</div>;
-const CardTitle = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => <h3 className={`text-lg font-semibold ${className}`}>{children}</h3>;
-const CardDescription = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-muted-foreground">{children}</p>;
-const CardContent = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>;
-const Badge = ({ children, variant = 'default' }: { children: React.ReactNode; variant?: string }) => (
-  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-    variant === 'destructive' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-  }`}>{children}</span>
+const CardContent = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={className}>{children}</div>;
+const Badge = ({
+  children,
+  variant = 'default',
+}: {
+  children: React.ReactNode;
+  variant?: string;
+}) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-medium text-xs ${
+      variant === 'destructive'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-blue-100 text-blue-800'
+    }`}
+  >
+    {children}
+  </span>
 );
-const Button = ({ children, onClick, disabled, className = '' }: { children: React.ReactNode; onClick?: () => void | Promise<void>; disabled?: boolean; className?: string; variant?: string; size?: string }) => (
-  <button onClick={onClick} disabled={disabled} className={`px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50 ${className}`}>{children}</button>
+const Button = ({
+  children,
+  onClick,
+  disabled,
+  className = '',
+}: {
+  children: React.ReactNode;
+  onClick?: () => void | Promise<void>;
+  disabled?: boolean;
+  className?: string;
+  variant?: string;
+  size?: string;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50 ${className}`}
+  >
+    {children}
+  </button>
 );
 
 interface NetworkStats {
@@ -87,54 +141,80 @@ interface LoadTestStatus {
 }
 
 const SCENARIOS = [
-  { value: 'LIGHT', label: 'Light (100 users, 1 min)', description: 'Basic load testing' },
-  { value: 'NORMAL', label: 'Normal (500 users, 2 min)', description: 'Typical production load' },
-  { value: 'HEAVY', label: 'Heavy (1000 users, 5 min)', description: 'High load scenario' },
-  { value: 'STRESS', label: 'Stress (2000+ users, 5 min)', description: 'Extreme load test' },
+  {
+    value: 'LIGHT',
+    label: 'Light (100 users, 1 min)',
+    description: 'Basic load testing',
+  },
+  {
+    value: 'NORMAL',
+    label: 'Normal (500 users, 2 min)',
+    description: 'Typical production load',
+  },
+  {
+    value: 'HEAVY',
+    label: 'Heavy (1000 users, 5 min)',
+    description: 'High load scenario',
+  },
+  {
+    value: 'STRESS',
+    label: 'Stress (2000+ users, 5 min)',
+    description: 'Extreme load test',
+  },
 ];
 
 export default function AdminPerformancePage() {
   const [stats, setStats] = useState<NetworkStats | null>(null);
-  const [loadTestStatus, setLoadTestStatus] = useState<LoadTestStatus | null>(null);
+  const [loadTestStatus, setLoadTestStatus] = useState<LoadTestStatus | null>(
+    null
+  );
   const [selectedScenario, setSelectedScenario] = useState<string>('NORMAL');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Fetch network stats
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/network-stats');
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch stats');
       }
-      
+
       const data = await response.json();
       setStats(data);
       setError(null);
     } catch (err) {
-      logger.error('Failed to fetch network stats', err, 'AdminPerformancePage');
+      logger.error(
+        'Failed to fetch network stats',
+        err,
+        'AdminPerformancePage'
+      );
       setError(err instanceof Error ? err.message : 'Failed to fetch stats');
     }
-  };
+  }, []);
 
   // Fetch load test status
-  const fetchLoadTestStatus = async () => {
+  const fetchLoadTestStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/load-test/status');
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch load test status');
       }
-      
+
       const data = await response.json();
       setLoadTestStatus(data);
     } catch (err) {
-      logger.error('Failed to fetch load test status', err, 'AdminPerformancePage');
+      logger.error(
+        'Failed to fetch load test status',
+        err,
+        'AdminPerformancePage'
+      );
       // Fail silently - status is optional
     }
-  };
+  }, []);
 
   // Start load test
   const startLoadTest = async () => {
@@ -155,7 +235,9 @@ export default function AdminPerformancePage() {
 
       await fetchLoadTestStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start load test');
+      setError(
+        err instanceof Error ? err.message : 'Failed to start load test'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -174,23 +256,28 @@ export default function AdminPerformancePage() {
 
       return () => clearInterval(interval);
     }
-    
-    return undefined;
-  }, [autoRefresh]);
 
-  const getHealthBadgeVariant = (health: 'healthy' | 'warning' | 'critical'): 'default' | 'secondary' | 'destructive' => {
+    return undefined;
+  }, [autoRefresh, fetchLoadTestStatus, fetchStats]);
+
+  const getHealthBadgeVariant = (
+    health: 'healthy' | 'warning' | 'critical'
+  ): 'default' | 'secondary' | 'destructive' => {
     switch (health) {
-      case 'healthy': return 'default';
-      case 'warning': return 'secondary';
-      case 'critical': return 'destructive';
+      case 'healthy':
+        return 'default';
+      case 'warning':
+        return 'secondary';
+      case 'critical':
+        return 'destructive';
     }
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Performance Dashboard</h1>
-        <div className="flex gap-2 items-center">
+    <div className="container mx-auto space-y-6 py-8">
+      <div className="flex items-center justify-between">
+        <h1 className="font-bold text-3xl">Performance Dashboard</h1>
+        <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -207,17 +294,19 @@ export default function AdminPerformancePage() {
       </div>
 
       {error && (
-        <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded">
+        <div className="rounded border border-destructive bg-destructive/10 px-4 py-3 text-destructive">
           {error}
         </div>
       )}
 
       {/* System Health Overview */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Overall Health</CardTitle>
+              <CardTitle className="font-medium text-sm">
+                Overall Health
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
@@ -230,14 +319,14 @@ export default function AdminPerformancePage() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Database</CardTitle>
+              <CardTitle className="font-medium text-sm">Database</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
                 <Badge variant={getHealthBadgeVariant(stats.health.database)}>
                   {stats.health.database.toUpperCase()}
                 </Badge>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   {stats.database.queries.slowRate.toFixed(1)}% slow
                 </span>
               </div>
@@ -246,15 +335,16 @@ export default function AdminPerformancePage() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Memory</CardTitle>
+              <CardTitle className="font-medium text-sm">Memory</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
                 <Badge variant={getHealthBadgeVariant(stats.health.memory)}>
                   {stats.health.memory.toUpperCase()}
                 </Badge>
-                <span className="text-sm text-muted-foreground">
-                  {stats.server.memory.heapUsed.toFixed(0)}MB / {stats.server.memory.heapTotal.toFixed(0)}MB
+                <span className="text-muted-foreground text-sm">
+                  {stats.server.memory.heapUsed.toFixed(0)}MB /{' '}
+                  {stats.server.memory.heapTotal.toFixed(0)}MB
                 </span>
               </div>
             </CardContent>
@@ -267,50 +357,81 @@ export default function AdminPerformancePage() {
         <Card>
           <CardHeader>
             <CardTitle>Database Performance</CardTitle>
-            <CardDescription>Query metrics from the last 60 seconds</CardDescription>
+            <CardDescription>
+              Query metrics from the last 60 seconds
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.total.toLocaleString()}</div>
-                <div className="text-xs text-muted-foreground">Total Queries</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.total.toLocaleString()}
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  Total Queries
+                </div>
               </div>
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.slow}</div>
-                <div className="text-xs text-muted-foreground">Slow Queries</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.slow}
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  Slow Queries
+                </div>
               </div>
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.avgDuration.toFixed(1)}ms</div>
-                <div className="text-xs text-muted-foreground">Avg Duration</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.avgDuration.toFixed(1)}ms
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  Avg Duration
+                </div>
               </div>
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.p95Duration.toFixed(1)}ms</div>
-                <div className="text-xs text-muted-foreground">95th Percentile</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.p95Duration.toFixed(1)}ms
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  95th Percentile
+                </div>
               </div>
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.p99Duration.toFixed(1)}ms</div>
-                <div className="text-xs text-muted-foreground">99th Percentile</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.p99Duration.toFixed(1)}ms
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  99th Percentile
+                </div>
               </div>
               <div>
-                <div className="text-2xl font-bold">{stats.database.queries.slowRate.toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground">Slow Rate</div>
+                <div className="font-bold text-2xl">
+                  {stats.database.queries.slowRate.toFixed(1)}%
+                </div>
+                <div className="text-muted-foreground text-xs">Slow Rate</div>
               </div>
             </div>
 
             {/* Top Slow Queries */}
             {stats.database.topSlowQueries.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-2">Top Slow Queries</h3>
+                <h3 className="mb-2 font-semibold">Top Slow Queries</h3>
                 <div className="space-y-2">
                   {stats.database.topSlowQueries.map((query, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm border-b pb-2">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between border-b pb-2 text-sm"
+                    >
                       <div className="flex-1">
                         <div className="font-mono">{query.query}</div>
-                        <div className="text-xs text-muted-foreground">Count: {query.count}</div>
+                        <div className="text-muted-foreground text-xs">
+                          Count: {query.count}
+                        </div>
                       </div>
                       <div className="text-right">
                         <div>Avg: {query.avgDuration.toFixed(1)}ms</div>
-                        <div className="text-xs text-muted-foreground">Max: {query.maxDuration.toFixed(1)}ms</div>
+                        <div className="text-muted-foreground text-xs">
+                          Max: {query.maxDuration.toFixed(1)}ms
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -325,27 +446,32 @@ export default function AdminPerformancePage() {
       <Card>
         <CardHeader>
           <CardTitle>Load Testing</CardTitle>
-          <CardDescription>Simulate concurrent users and test system performance</CardDescription>
+          <CardDescription>
+            Simulate concurrent users and test system performance
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {loadTestStatus?.status === 'running' ? (
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded">
+            <div className="rounded border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
               <div className="font-semibold">Load test running...</div>
               <div className="text-sm">
-                Scenario: {loadTestStatus.scenario} | Running for: {loadTestStatus.runningTimeSeconds}s
+                Scenario: {loadTestStatus.scenario} | Running for:{' '}
+                {loadTestStatus.runningTimeSeconds}s
               </div>
             </div>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium mb-2">Select Scenario</label>
+                <label className="mb-2 block font-medium text-sm">
+                  Select Scenario
+                </label>
                 <select
                   value={selectedScenario}
                   onChange={(e) => setSelectedScenario(e.target.value)}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full rounded border px-3 py-2"
                   disabled={isLoading}
                 >
-                  {SCENARIOS.map(scenario => (
+                  {SCENARIOS.map((scenario) => (
                     <option key={scenario.value} value={scenario.value}>
                       {scenario.label} - {scenario.description}
                     </option>
@@ -361,25 +487,41 @@ export default function AdminPerformancePage() {
 
           {loadTestStatus?.lastResult && (
             <div>
-              <h3 className="font-semibold mb-2">Last Test Results</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <h3 className="mb-2 font-semibold">Last Test Results</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                 <div>
-                  <div className="text-lg font-bold">{loadTestStatus.lastResult.totalRequests.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Total Requests</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold">{(loadTestStatus.lastResult.successRate * 100).toFixed(2)}%</div>
-                  <div className="text-xs text-muted-foreground">Success Rate</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold">{loadTestStatus.lastResult.avgResponseTime.toFixed(1)}ms</div>
-                  <div className="text-xs text-muted-foreground">Avg Response Time</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold">
-                    {new Date(loadTestStatus.lastResult.endTime).toLocaleTimeString()}
+                  <div className="font-bold text-lg">
+                    {loadTestStatus.lastResult.totalRequests.toLocaleString()}
                   </div>
-                  <div className="text-xs text-muted-foreground">Completed At</div>
+                  <div className="text-muted-foreground text-xs">
+                    Total Requests
+                  </div>
+                </div>
+                <div>
+                  <div className="font-bold text-lg">
+                    {(loadTestStatus.lastResult.successRate * 100).toFixed(2)}%
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    Success Rate
+                  </div>
+                </div>
+                <div>
+                  <div className="font-bold text-lg">
+                    {loadTestStatus.lastResult.avgResponseTime.toFixed(1)}ms
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    Avg Response Time
+                  </div>
+                </div>
+                <div>
+                  <div className="font-bold text-lg">
+                    {new Date(
+                      loadTestStatus.lastResult.endTime
+                    ).toLocaleTimeString()}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    Completed At
+                  </div>
                 </div>
               </div>
             </div>
@@ -394,7 +536,7 @@ export default function AdminPerformancePage() {
             <CardTitle>Server Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
               <div>
                 <div className="font-semibold">Uptime</div>
                 <div>{stats.server.uptime.formatted}</div>
@@ -418,4 +560,3 @@ export default function AdminPerformancePage() {
     </div>
   );
 }
-

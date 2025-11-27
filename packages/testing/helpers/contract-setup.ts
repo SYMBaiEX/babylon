@@ -12,7 +12,7 @@ import { join } from 'path';
 import {
   isContractDeployed,
   loadDeployment,
-} from '@/lib/deployment/validation';
+} from '@babylon/contracts';
 
 const HARDHAT_RPC_URL = process.env.HARDHAT_RPC_URL || 'http://localhost:8545';
 

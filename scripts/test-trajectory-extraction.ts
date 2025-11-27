@@ -8,8 +8,8 @@
  * 3. Trajectories contain expected data structure
  */
 
-import { db } from '@/db';
-import { exportGroupedForGRPO } from '@/lib/agents/plugins/plugin-trajectory-logger/src/export';
+import { exportGroupedForGRPO } from '@babylon/agents';
+import { db } from '@babylon/db';
 
 async function testTrajectoryExtraction() {
   console.log('╔════════════════════════════════════════════════════════╗');

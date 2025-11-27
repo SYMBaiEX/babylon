@@ -15,12 +15,12 @@
  *   bun run scripts/load-test/extreme-stress-test.ts [environment]
  */
 
-import { logger } from '@/lib/logger';
-import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
+import { logger } from '@babylon/shared';
+import { performanceMonitor } from '@babylon/shared/monitoring/performance-monitor';
 import {
   type EnhancedLoadTestConfig,
   EnhancedLoadTestSimulator,
-} from '@/lib/testing/enhanced-load-test-simulator';
+} from '@babylon/testing/load-test';
 
 // Parse arguments
 const args = process.argv.slice(2);
@@ -117,7 +117,7 @@ async function main() {
   try {
     const response = await fetch(baseUrl);
     console.log(`✅ Server responding (status: ${response.status})\n`);
-  } catch (error) {
+  } catch (_error) {
     console.error('❌ Could not connect to server');
     console.error(`   Make sure the server is running at ${baseUrl}`);
     process.exit(1);
@@ -170,7 +170,7 @@ async function main() {
       const duration = (Date.now() - startTime) / 1000;
 
       const criticalBottlenecks =
-        result.bottlenecks?.filter((b) => b.severity === 'critical').length ||
+        result.bottlenecks?.filter((b: { severity: string }) => b.severity === 'critical').length ||
         0;
       const breakdown =
         result.throughput.successRate < 0.5 || result.responseTime.p95 > 10000;

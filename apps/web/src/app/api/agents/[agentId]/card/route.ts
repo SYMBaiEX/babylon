@@ -63,9 +63,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-import type { AgentCard } from '@/types/agent-registry.types';
+import { logger } from '@babylon/shared';
+import { agentRegistry } from '@babylon/agents';
+import type { AgentCard } from '@babylon/agents';
 
 export const dynamic = 'force-dynamic';
 

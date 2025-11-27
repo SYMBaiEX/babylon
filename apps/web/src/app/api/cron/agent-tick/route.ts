@@ -52,19 +52,21 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import type { User } from '@/db';
-import { db } from '@/db';
-import { autonomousCoordinator } from '@/lib/agents/autonomous';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { agentService } from '@/lib/agents/services/AgentService';
-import { logger } from '@/lib/logger';
+import type { User } from '@babylon/db';
+import { db } from '@babylon/db';
+import {
+  agentRuntimeManager,
+  agentService,
+  autonomousCoordinator,
+} from '@babylon/agents';
+import { logger } from '@babylon/shared';
 import {
   acquireAgentLock,
   releaseAgentLock,
-} from '@/lib/services/agent-lock-service';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-import { relayCronToStaging } from '@/lib/services/cron-relay-service';
-import { AgentStatus, AgentType } from '@/types/agent-registry.types';
+} from '@babylon/agents';
+import { agentRegistry } from '@babylon/agents';
+import { relayCronToStaging } from '@babylon/api';
+import { AgentStatus, AgentType } from '@babylon/agents';
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)

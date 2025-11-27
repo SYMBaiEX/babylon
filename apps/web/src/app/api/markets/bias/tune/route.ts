@@ -78,8 +78,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { biasEngine } from '@/lib/feedback/bias-engine';
-import { logger } from '@/lib/logger';
+import { biasEngine } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 const TuneBiasSchema = z.object({
   entityId: z.string().min(1, 'entityId is required'),

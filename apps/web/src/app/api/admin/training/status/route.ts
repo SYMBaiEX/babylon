@@ -55,8 +55,8 @@
  */
 
 import { NextResponse } from 'next/server';
-// import { db } from '@/db';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
+// import { db } from '@babylon/db';
+import { automationPipeline } from '@babylon/training';
 
 export const dynamic = 'force-dynamic';
 

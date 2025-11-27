@@ -8,7 +8,7 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LanguageModelV1 } from '@ai-sdk/provider';
+import type { LanguageModel } from '@ai-sdk/provider';
 import { generateText } from 'ai';
 import type { MemoryEntry } from './memory';
 
@@ -30,8 +30,7 @@ export interface FeedPost {
   [key: string]: JsonValue | undefined;
 }
 
-import type { A2APerpPosition } from '../../../src/types/a2a-responses';
-import type { JsonValue } from '../../../src/types/common';
+import type { A2APerpPosition, JsonValue } from '@babylon/a2a';
 
 export interface DecisionContext {
   portfolio: { balance: number; positions: A2APerpPosition[]; pnl: number };
@@ -80,7 +79,7 @@ const MAX_RESULT_LENGTH = 60;
 
 export class AgentDecisionMaker {
   private config: DecisionMakerConfig;
-  private model: LanguageModelV1;
+  private model: LanguageModel;
   private providerName: string;
 
   constructor(config: DecisionMakerConfig) {
@@ -89,7 +88,7 @@ export class AgentDecisionMaker {
     // Initialize provider in order: Groq -> Claude -> OpenAI
     if (config.groqApiKey) {
       const groq = createGroq({ apiKey: config.groqApiKey });
-      this.model = groq.languageModel('llama-3.1-8b-instant'); // Free tier: Fast and efficient
+      this.model = groq('llama-3.1-8b-instant'); // Free tier: Fast and efficient
       this.providerName = 'Groq (llama-3.1-8b-instant)';
     } else if (config.anthropicApiKey) {
       const anthropic = createAnthropic({ apiKey: config.anthropicApiKey });

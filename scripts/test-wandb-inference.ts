@@ -10,7 +10,7 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import { generateText } from 'ai';
-import { isPromptLoggingEnabled, logPrompt } from '@/lib/debug/prompt-logger';
+import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 
 async function testWandbInference() {
   const args = process.argv.slice(2);

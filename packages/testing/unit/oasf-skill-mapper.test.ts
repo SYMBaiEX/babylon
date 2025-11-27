@@ -13,8 +13,8 @@ import {
   suggestSkillsFromKeywords,
   validateOASFDomainPath,
   validateOASFSkillPath,
-} from '@/lib/utils/oasf-skill-mapper';
-import type { ActorData } from '@/shared/types';
+} from '@babylon/shared/utils/oasf-skill-mapper';
+import type { ActorData } from '@babylon/shared';
 
 describe('OASF Skill Mapper', () => {
   describe('mapActorToOASFSkills', () => {

@@ -74,14 +74,14 @@ import type { NextRequest } from 'next/server';
 import { type Address, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
-import type { JsonValue } from '@/db';
-import { db } from '@/db';
-import { callClaudeDirect } from '@/lib/agents/llm/direct-claude';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { createNotification } from '@/lib/services/notification-service';
-import { WalletService } from '@/lib/services/wallet-service';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { callClaudeDirect } from '@babylon/agents';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { createNotification } from '@babylon/api';
+import { WalletService } from '@babylon/engine';
 
 const AppealSchema = z.object({
   reason: z.string().min(10).max(2000),

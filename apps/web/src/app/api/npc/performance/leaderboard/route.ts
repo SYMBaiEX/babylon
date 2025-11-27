@@ -65,7 +65,7 @@ import {
   isNull,
   poolPositions,
   pools,
-} from '@/db';
+} from '@babylon/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

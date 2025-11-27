@@ -1,7 +1,7 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 
 /**
  * SSE channel names for different event types.
@@ -605,7 +605,10 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   // not just when the array reference changes
   // Used to memoize channels - key creation for dependency tracking
   void initialChannels.join(',');
-  const memoizedInitialChannels = useMemo(() => initialChannels, [initialChannels]);
+  const memoizedInitialChannels = useMemo(
+    () => initialChannels,
+    [initialChannels]
+  );
 
   useEffect(() => {
     // Subscribe to initial channels provided in options

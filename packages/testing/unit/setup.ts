@@ -14,13 +14,12 @@ import type {
 // Mock database client for all unit tests
 beforeAll(() => {
   // Set test environment variables
-  // @ts-expect-error - Need to override NODE_ENV for testing
   process.env.NODE_ENV = 'test';
   process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test';
   process.env.REDIS_URL = 'redis://localhost:6379';
 
   // Mock the database module entirely
-  mock.module('@/db', () => {
+  mock.module('@babylon/db', () => {
     const mockDatabase = createMockDatabase();
     return {
       db: mockDatabase,

@@ -63,11 +63,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { WaitlistService } from '@/lib/services/waitlist-service';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { WaitlistService } from '@babylon/api';
+import { ensureUserForAuth } from '@babylon/api';
 
 const MarkSchema = z.object({
   referralCode: z.string().optional(),

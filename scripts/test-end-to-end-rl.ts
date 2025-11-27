@@ -9,11 +9,13 @@
  * 5. Trajectory recording
  */
 
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
-import { modelSelectionService } from '@/lib/training/ModelSelectionService';
-import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
+import { agentRuntimeManager } from '@babylon/agents';
+import { db } from '@babylon/db';
+import {
+  automationPipeline,
+  getLatestRLModel,
+  modelSelectionService,
+} from '@babylon/training';
 
 interface TestResult {
   test: string;

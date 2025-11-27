@@ -29,9 +29,8 @@
  * - Overall learnability score
  */
 
-import { GameGenerator } from '@/generator/GameGenerator';
-import { logger } from '@/lib/logger';
-import type { Actor, GeneratedGame, WorldEvent } from '@/shared/types';
+import { GameGenerator, logger } from '@babylon/engine';
+import type { Actor, GeneratedGame, WorldEvent } from '@babylon/shared';
 
 // Helper to calculate certainty from events
 function calculateCertainty(

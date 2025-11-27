@@ -1,15 +1,15 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@babylon/shared';
 
 /**
  * Visual indicator component for pull-to-refresh gesture.
- * 
+ *
  * Displays pull progress with arrow icon and text feedback. Shows spinner
  * during refresh. Smoothly animates height and opacity based on pull distance.
  * Pushes content down as user pulls.
- * 
+ *
  * @param props - PullToRefreshIndicator component props
  * @returns Pull-to-refresh indicator element or null when not active
- * 
+ *
  * @example
  * ```tsx
  * <PullToRefreshIndicator
@@ -20,9 +20,9 @@ import { cn } from '@/lib/utils'
  * ```
  */
 interface PullToRefreshIndicatorProps {
-  pullDistance: number
-  isRefreshing: boolean
-  threshold?: number
+  pullDistance: number;
+  isRefreshing: boolean;
+  threshold?: number;
 }
 
 export function PullToRefreshIndicator({
@@ -31,17 +31,19 @@ export function PullToRefreshIndicator({
   threshold = 80,
 }: PullToRefreshIndicatorProps) {
   // Fully hide when not pulling and not refreshing
-  if (pullDistance === 0 && !isRefreshing) return null
+  if (pullDistance === 0 && !isRefreshing) return null;
 
-  const opacity = Math.min(pullDistance / threshold, 1)
-  const isReady = pullDistance >= threshold
+  const opacity = Math.min(pullDistance / threshold, 1);
+  const isReady = pullDistance >= threshold;
 
   return (
     <div
       className={cn(
-        'flex items-center justify-center bg-background w-full overflow-hidden',
+        'flex w-full items-center justify-center overflow-hidden bg-background',
         // Smooth collapse when refreshing ends
-        !isRefreshing && pullDistance > 0 ? 'transition-all duration-300 ease-out' : 'transition-opacity duration-100'
+        !isRefreshing && pullDistance > 0
+          ? 'transition-all duration-300 ease-out'
+          : 'transition-opacity duration-100'
       )}
       style={{
         height: `${pullDistance}px`,
@@ -62,7 +64,7 @@ export function PullToRefreshIndicator({
         >
           {isRefreshing ? (
             // Spinner during refresh
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
               <circle
                 className="opacity-25"
                 cx="12"
@@ -80,7 +82,12 @@ export function PullToRefreshIndicator({
             </svg>
           ) : (
             // Down arrow when pulling
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -90,15 +97,14 @@ export function PullToRefreshIndicator({
             </svg>
           )}
         </div>
-        <span className="text-xs font-medium whitespace-nowrap">
+        <span className="whitespace-nowrap font-medium text-xs">
           {isRefreshing
             ? 'Refreshing...'
             : isReady
-            ? 'Release to refresh'
-            : 'Pull to refresh'}
+              ? 'Release to refresh'
+              : 'Pull to refresh'}
         </span>
       </div>
     </div>
-  )
+  );
 }
-

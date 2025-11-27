@@ -78,14 +78,14 @@ import {
   reactions,
   shares,
   users,
-} from '@/db';
-import { authenticate, optionalAuth } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { gameService } from '@/lib/game-service';
-import { logger } from '@/lib/logger';
-import { PostIdParamSchema } from '@/lib/validation/schemas';
-import type { JsonValue } from '@/types/common';
+} from '@babylon/db';
+import { authenticate, optionalAuth } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { gameService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import { PostIdParamSchema } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 /**
  * GET /api/posts/[id]

@@ -69,14 +69,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { balanceTransactions, Decimal, db, desc, eq, sql, users } from '@/db';
-import { successResponse } from '@/lib/api/auth-middleware';
-import { BusinessLogicError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { AwardPointsSchema, UserIdParamSchema } from '@/lib/validation/schemas';
+import { balanceTransactions, Decimal, db, desc, eq, sql, users } from '@babylon/db';
+import { successResponse } from '@babylon/api';
+import { BusinessLogicError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
+import { AwardPointsSchema, UserIdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/users/points/award

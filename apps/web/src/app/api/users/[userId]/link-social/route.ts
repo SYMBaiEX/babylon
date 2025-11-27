@@ -70,15 +70,15 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, ne, users } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError, ConflictError, NotFoundError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PointsService } from '@/lib/services/points-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { and, db, eq, ne, users } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError, ConflictError, NotFoundError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
+import { PointsService } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 // Link social schema (extending the one in schemas/game.ts)
 const LinkSocialRequestSchema = z.object({

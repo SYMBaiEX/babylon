@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { NPCGroupDynamicsService } from '../../src/lib/services/npc-group-dynamics-service';
+import { NPCGroupDynamicsService } from '@babylon/engine';
 
 describe('Group Chat Probabilities - Mathematical Verification', () => {
   // Constants from the implementation

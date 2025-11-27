@@ -101,22 +101,22 @@
  * console.log(`Uploaded to: ${url} (${size} bytes)`);
  * ```
  *
- * @see {@link /lib/storage/s3-client} S3 storage client
+ * @see {@link @babylon/shared} S3 storage client
  * @see {@link /lib/validation/schemas} Upload validation
  */
 
 import { mkdir, writeFile } from 'fs/promises';
 import type { NextRequest } from 'next/server';
 import { join } from 'path';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { getStorageClient } from '@/lib/storage/s3-client';
-import { ImageUploadSchema } from '@/lib/validation/schemas';
+} from '@babylon/api';
+import { getStorageClient } from '@babylon/shared';
+import { ImageUploadSchema } from '@babylon/shared';
 
 // Map MIME types to file extensions
 const MIME_TO_EXT: Record<string, string> = {

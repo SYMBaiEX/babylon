@@ -74,12 +74,12 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { createNotification } from '@/lib/services/notification-service';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { createNotification } from '@babylon/api';
 
 const CreateNotificationSchema = z.object({
   userId: z.string().optional(), // If not provided, send to all users

@@ -9,7 +9,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import type { AgentCapabilities } from '@/types/a2a';
+import type { AgentCapabilities } from '@babylon/agents';
 import type { DiscoveredAgent } from '../types/test-types';
 
 // Base URL for API calls

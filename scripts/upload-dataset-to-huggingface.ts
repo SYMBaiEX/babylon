@@ -8,8 +8,8 @@
  *   npx ts-node scripts/upload-dataset-to-huggingface.ts --dataset=babylonlabs/agent-benchmarks --version=2025.01.15
  */
 
-import { HuggingFaceDatasetUploader } from '@/lib/huggingface/HuggingFaceDatasetUploader';
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/engine';
+import { HuggingFaceDatasetUploader } from '@babylon/training';
 
 async function main() {
   const args = process.argv.slice(2);

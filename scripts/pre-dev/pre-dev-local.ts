@@ -55,7 +55,7 @@ try {
     unlinkSync(nextLockPath);
     logger.info('✅ Next.js lock file removed', undefined, 'Script');
   }
-} catch (error) {
+} catch (_error) {
   logger.warn(
     'Could not remove Next.js lock file (may not exist)',
     undefined,

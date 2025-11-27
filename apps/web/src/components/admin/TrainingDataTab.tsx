@@ -1,57 +1,63 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useCallback } from 'react'
-import { Database, RefreshCw, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react'
-import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
+import {
+  AlertCircle,
+  CheckCircle,
+  Database,
+  RefreshCw,
+  TrendingUp,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /**
  * Training data statistics structure for training data tab.
  */
 interface TrainingDataStats {
   summary: {
-    totalTrajectories: number
-    totalWindows: number
-    readyWindows: number
-    minAgentsRequired: number
-  }
+    totalTrajectories: number;
+    totalWindows: number;
+    readyWindows: number;
+    minAgentsRequired: number;
+  };
   windows: Array<{
-    windowId: string
-    trajectoryCount: number
-    avgSteps: number
-    avgPnl: number
-  }>
+    windowId: string;
+    trajectoryCount: number;
+    avgSteps: number;
+    avgPnl: number;
+  }>;
   readyWindows: Array<{
-    windowId: string
-    trajectoryCount: number
-    avgSteps: number
-    avgPnl: number
-  }>
+    windowId: string;
+    trajectoryCount: number;
+    avgSteps: number;
+    avgPnl: number;
+  }>;
   recentTrajectories: Array<{
-    id: string
-    trajectoryId: string
-    agentId: string
-    windowId: string
-    episodeLength: number
-    finalPnL: number | null
-    tradesExecuted: number | null
-    createdAt: string
-  }>
+    id: string;
+    trajectoryId: string;
+    agentId: string;
+    windowId: string;
+    episodeLength: number;
+    finalPnL: number | null;
+    tradesExecuted: number | null;
+    createdAt: string;
+  }>;
   qualityMetrics: {
-    avgEpisodeLength: number
-    avgPnl: number
-    trainingDataQuality: string
-  }
+    avgEpisodeLength: number;
+    avgPnl: number;
+    trainingDataQuality: string;
+  };
 }
 
 /**
  * Training data tab component for monitoring training data statistics.
- * 
+ *
  * Displays comprehensive training data statistics including trajectory counts,
  * window information, quality metrics, and recent trajectories. Shows data
  * quality assessment and readiness indicators.
- * 
+ *
  * Features:
  * - Training data summary
  * - Window statistics
@@ -60,54 +66,63 @@ interface TrainingDataStats {
  * - Quality color coding
  * - Loading states
  * - Error handling
- * 
+ *
  * @returns Training data tab element
  */
 export function TrainingDataTab() {
-  const [data, setData] = useState<TrainingDataStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<TrainingDataStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
       if (!token) {
-        throw new Error('Not authenticated')
+        throw new Error('Not authenticated');
       }
 
       const response = await fetch('/api/admin/training-data', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
-      if (!response.ok) throw new Error('Failed to fetch training data')
+      if (!response.ok) throw new Error('Failed to fetch training data');
 
       let result;
       try {
-        result = await response.json()
+        result = await response.json();
       } catch (parseError) {
-        logger.error('Failed to parse training data response', { error: parseError }, 'TrainingDataTab')
-        throw new Error('Failed to parse response')
+        logger.error(
+          'Failed to parse training data response',
+          { error: parseError },
+          'TrainingDataTab'
+        );
+        throw new Error('Failed to parse response');
       }
-      setData(result.data)
-      setLoading(false)
+      setData(result.data);
+      setLoading(false);
     } catch (error) {
-      logger.error('Failed to load training data', { error }, 'TrainingDataTab')
-      toast.error('Failed to load training data')
-      setLoading(false)
+      logger.error(
+        'Failed to load training data',
+        { error },
+        'TrainingDataTab'
+      );
+      toast.error('Failed to load training data');
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-primary border-b-2" />
       </div>
-    )
+    );
   }
 
   if (!data) {
@@ -115,91 +130,126 @@ export function TrainingDataTab() {
       <div className="flex items-center justify-center py-12 text-muted-foreground">
         Failed to load training data statistics
       </div>
-    )
+    );
   }
 
   const getQualityColor = (quality: string) => {
     switch (quality) {
-      case 'good': return 'text-green-500'
-      case 'fair': return 'text-yellow-500'
-      case 'low': return 'text-red-500'
-      default: return 'text-muted-foreground'
+      case 'good':
+        return 'text-green-500';
+      case 'fair':
+        return 'text-yellow-500';
+      case 'low':
+        return 'text-red-500';
+      default:
+        return 'text-muted-foreground';
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Training Data Status</h2>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="font-bold text-2xl">Training Data Status</h2>
+          <p className="mt-1 text-muted-foreground">
             Monitor collected trajectories and training readiness
           </p>
         </div>
         <button
-          onClick={() => { setLoading(true); fetchData(); }}
+          onClick={() => {
+            setLoading(true);
+            fetchData();
+          }}
           disabled={loading}
-          className="p-2 rounded-lg hover:bg-accent transition-colors"
+          className="rounded-lg p-2 transition-colors hover:bg-accent"
         >
-          <RefreshCw className={cn('w-5 h-5', loading && 'animate-spin')} />
+          <RefreshCw className={cn('h-5 w-5', loading && 'animate-spin')} />
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <Database className="w-5 h-5 text-blue-500" />
-            <span className="text-2xl font-bold">{data.summary.totalTrajectories}</span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <Database className="h-5 w-5 text-blue-500" />
+            <span className="font-bold text-2xl">
+              {data.summary.totalTrajectories}
+            </span>
           </div>
-          <div className="text-sm text-muted-foreground">Total Trajectories</div>
+          <div className="text-muted-foreground text-sm">
+            Total Trajectories
+          </div>
         </div>
 
-        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-5 h-5 text-purple-500" />
-            <span className="text-2xl font-bold">{data.summary.totalWindows}</span>
+        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <TrendingUp className="h-5 w-5 text-purple-500" />
+            <span className="font-bold text-2xl">
+              {data.summary.totalWindows}
+            </span>
           </div>
-          <div className="text-sm text-muted-foreground">Time Windows</div>
+          <div className="text-muted-foreground text-sm">Time Windows</div>
         </div>
 
-        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <span className="text-2xl font-bold">{data.summary.readyWindows}</span>
+        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <span className="font-bold text-2xl">
+              {data.summary.readyWindows}
+            </span>
           </div>
-          <div className="text-sm text-muted-foreground">Ready for Training</div>
-          <div className="text-xs text-muted-foreground mt-1">
+          <div className="text-muted-foreground text-sm">
+            Ready for Training
+          </div>
+          <div className="mt-1 text-muted-foreground text-xs">
             (≥{data.summary.minAgentsRequired} agents)
           </div>
         </div>
 
-        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <AlertCircle className={cn('w-5 h-5', getQualityColor(data.qualityMetrics.trainingDataQuality))} />
-            <span className={cn('text-2xl font-bold capitalize', getQualityColor(data.qualityMetrics.trainingDataQuality))}>
+        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <AlertCircle
+              className={cn(
+                'h-5 w-5',
+                getQualityColor(data.qualityMetrics.trainingDataQuality)
+              )}
+            />
+            <span
+              className={cn(
+                'font-bold text-2xl capitalize',
+                getQualityColor(data.qualityMetrics.trainingDataQuality)
+              )}
+            >
               {data.qualityMetrics.trainingDataQuality}
             </span>
           </div>
-          <div className="text-sm text-muted-foreground">Data Quality</div>
+          <div className="text-muted-foreground text-sm">Data Quality</div>
         </div>
       </div>
 
       {/* Quality Metrics */}
-      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-        <h3 className="text-lg font-semibold mb-4">Quality Metrics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+        <h3 className="mb-4 font-semibold text-lg">Quality Metrics</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <div className="text-sm text-muted-foreground mb-1">Avg Episode Length</div>
-            <div className="text-2xl font-mono">{data.qualityMetrics.avgEpisodeLength.toFixed(1)} steps</div>
+            <div className="mb-1 text-muted-foreground text-sm">
+              Avg Episode Length
+            </div>
+            <div className="font-mono text-2xl">
+              {data.qualityMetrics.avgEpisodeLength.toFixed(1)} steps
+            </div>
           </div>
           <div>
-            <div className="text-sm text-muted-foreground mb-1">Avg P&L</div>
-            <div className={cn(
-              'text-2xl font-mono',
-              data.qualityMetrics.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
-            )}>
+            <div className="mb-1 text-muted-foreground text-sm">Avg P&L</div>
+            <div
+              className={cn(
+                'font-mono text-2xl',
+                data.qualityMetrics.avgPnl >= 0
+                  ? 'text-green-500'
+                  : 'text-red-500'
+              )}
+            >
               ${data.qualityMetrics.avgPnl.toFixed(2)}
             </div>
           </div>
@@ -208,29 +258,34 @@ export function TrainingDataTab() {
 
       {/* Ready Windows */}
       {data.readyWindows.length > 0 && (
-        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-          <h3 className="text-lg font-semibold mb-4">Ready for Training ({data.readyWindows.length})</h3>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+          <h3 className="mb-4 font-semibold text-lg">
+            Ready for Training ({data.readyWindows.length})
+          </h3>
+          <div className="max-h-64 space-y-2 overflow-y-auto">
             {data.readyWindows.slice(0, 10).map((window) => (
               <div
                 key={window.windowId}
-                className="p-3 rounded-lg bg-green-500/10 border border-green-500/20"
+                className="rounded-lg border border-green-500/20 bg-green-500/10 p-3"
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-mono text-sm">{window.windowId}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {window.trajectoryCount} agents • {window.avgSteps.toFixed(0)} avg steps
+                    <div className="mt-1 text-muted-foreground text-xs">
+                      {window.trajectoryCount} agents •{' '}
+                      {window.avgSteps.toFixed(0)} avg steps
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={cn(
-                      'text-sm font-mono',
-                      window.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
-                    )}>
+                    <div
+                      className={cn(
+                        'font-mono text-sm',
+                        window.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
+                      )}
+                    >
                       {window.avgPnl >= 0 ? '+' : ''}${window.avgPnl.toFixed(2)}
                     </div>
-                    <div className="text-xs text-muted-foreground">avg P&L</div>
+                    <div className="text-muted-foreground text-xs">avg P&L</div>
                   </div>
                 </div>
               </div>
@@ -240,43 +295,48 @@ export function TrainingDataTab() {
       )}
 
       {/* Recent Trajectories */}
-      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
-        <h3 className="text-lg font-semibold mb-4">Recent Trajectories</h3>
+      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+        <h3 className="mb-4 font-semibold text-lg">Recent Trajectories</h3>
         {data.recentTrajectories.length > 0 ? (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="max-h-96 space-y-2 overflow-y-auto">
             {data.recentTrajectories.map((traj) => (
               <div
                 key={traj.id}
-                className="p-3 rounded-lg bg-accent/50 border border-border"
+                className="rounded-lg border border-border bg-accent/50 p-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs text-muted-foreground">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="font-mono text-muted-foreground text-xs">
                         {traj.windowId}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">
+                      <span className="rounded bg-primary/20 px-2 py-0.5 text-primary text-xs">
                         {traj.episodeLength} steps
                       </span>
                     </div>
-                    <div className="text-sm font-mono truncate">
+                    <div className="truncate font-mono text-sm">
                       {traj.trajectoryId.substring(0, 20)}...
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Agent: {traj.agentId.substring(0, 12)}... • 
-                      {traj.tradesExecuted ? ` ${traj.tradesExecuted} trades` : ' No trades'}
+                    <div className="mt-1 text-muted-foreground text-xs">
+                      Agent: {traj.agentId.substring(0, 12)}... •
+                      {traj.tradesExecuted
+                        ? ` ${traj.tradesExecuted} trades`
+                        : ' No trades'}
                     </div>
                   </div>
                   <div className="text-right">
                     {traj.finalPnL !== null && (
-                      <div className={cn(
-                        'text-sm font-mono',
-                        traj.finalPnL >= 0 ? 'text-green-500' : 'text-red-500'
-                      )}>
-                        {traj.finalPnL >= 0 ? '+' : ''}${traj.finalPnL.toFixed(2)}
+                      <div
+                        className={cn(
+                          'font-mono text-sm',
+                          traj.finalPnL >= 0 ? 'text-green-500' : 'text-red-500'
+                        )}
+                      >
+                        {traj.finalPnL >= 0 ? '+' : ''}$
+                        {traj.finalPnL.toFixed(2)}
                       </div>
                     )}
-                    <div className="text-xs text-muted-foreground mt-1">
+                    <div className="mt-1 text-muted-foreground text-xs">
                       {new Date(traj.createdAt).toLocaleString()}
                     </div>
                   </div>
@@ -285,7 +345,7 @@ export function TrainingDataTab() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="py-8 text-center text-muted-foreground">
             No trajectories recorded yet
           </div>
         )}
@@ -293,57 +353,61 @@ export function TrainingDataTab() {
 
       {/* Status Messages */}
       {data.summary.totalTrajectories === 0 && (
-        <div className="p-6 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-6">
           <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
             <div className="text-sm">
-              <p className="font-medium mb-2 text-yellow-200">
+              <p className="mb-2 font-medium text-yellow-200">
                 No Training Data Collected
               </p>
-              <p className="text-yellow-200/80 mb-3">
+              <p className="mb-3 text-yellow-200/80">
                 Enable trajectory recording to collect training data:
               </p>
-              <code className="block p-3 rounded bg-black/30 text-xs font-mono text-yellow-100">
+              <code className="block rounded bg-black/30 p-3 font-mono text-xs text-yellow-100">
                 RECORD_AGENT_TRAJECTORIES=true
               </code>
-              <p className="text-yellow-200/80 mt-3">
-                Then run agents through benchmarks or wait for game ticks to collect data.
+              <p className="mt-3 text-yellow-200/80">
+                Then run agents through benchmarks or wait for game ticks to
+                collect data.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {data.summary.readyWindows === 0 && data.summary.totalTrajectories > 0 && (
-        <div className="p-6 rounded-lg bg-blue-500/10 border border-blue-500/20">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium mb-2 text-blue-200">
-                Not Ready for Training
-              </p>
-              <p className="text-blue-200/80">
-                Need at least {data.summary.minAgentsRequired} trajectories per window for GRPO training.
-                Current windows have fewer agents. Run more benchmarks or wait for more game ticks.
-              </p>
+      {data.summary.readyWindows === 0 &&
+        data.summary.totalTrajectories > 0 && (
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-6">
+            <div className="flex gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
+              <div className="text-sm">
+                <p className="mb-2 font-medium text-blue-200">
+                  Not Ready for Training
+                </p>
+                <p className="text-blue-200/80">
+                  Need at least {data.summary.minAgentsRequired} trajectories
+                  per window for GRPO training. Current windows have fewer
+                  agents. Run more benchmarks or wait for more game ticks.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {data.summary.readyWindows > 0 && (
-        <div className="p-6 rounded-lg bg-green-500/10 border border-green-500/20">
+        <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-6">
           <div className="flex gap-3">
-            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" />
             <div className="text-sm">
-              <p className="font-medium mb-2 text-green-200">
+              <p className="mb-2 font-medium text-green-200">
                 Ready for Training!
               </p>
-              <p className="text-green-200/80 mb-3">
-                {data.summary.readyWindows} window{data.summary.readyWindows > 1 ? 's' : ''} ready with sufficient data.
-                You can now run RL training:
+              <p className="mb-3 text-green-200/80">
+                {data.summary.readyWindows} window
+                {data.summary.readyWindows > 1 ? 's' : ''} ready with sufficient
+                data. You can now run RL training:
               </p>
-              <code className="block p-3 rounded bg-black/30 text-xs font-mono text-green-100">
+              <code className="block rounded bg-black/30 p-3 font-mono text-green-100 text-xs">
                 cd python{'\n'}
                 MODE=single python -m src.training.babylon_trainer
               </code>
@@ -352,6 +416,5 @@ export function TrainingDataTab() {
         </div>
       )}
     </div>
-  )
+  );
 }
-

@@ -24,12 +24,12 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import { ShareEarnModal } from '@/components/shared/ShareEarnModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@/lib/constants/points';
-import { getProfileUrl } from '@/lib/profile-utils';
+import { POINTS } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared';
 import {
   getReferralShareText,
   getReferralUrl,
-} from '@/lib/referral/referral-utils';
+} from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 interface ReferredUser {

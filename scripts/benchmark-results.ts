@@ -16,10 +16,10 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import {
   BenchmarkChartGenerator,
+  getModelDisplayName,
   type ModelComparisonData,
-} from '@/lib/benchmark/BenchmarkChartGenerator';
-import { getModelDisplayName } from '@/lib/benchmark/ModelRegistry';
-import type { SimulationMetrics } from '@/lib/benchmark/SimulationEngine';
+  type SimulationMetrics,
+} from '@babylon/training';
 
 interface BenchmarkResultFile {
   modelId?: string;

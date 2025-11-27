@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { POINTS } from '@/lib/constants/points';
-import { getProfileUrl } from '@/lib/profile-utils';
+import { POINTS } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared';
 
 /**
  * Referred user structure for rewards widget.

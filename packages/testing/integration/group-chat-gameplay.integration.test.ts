@@ -13,11 +13,13 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
-import { AlphaGroupInviteService } from '@/lib/services/alpha-group-invite-service';
-import { GroupChatSweep } from '@/lib/services/group-chat-sweep';
-import { NPCGroupDynamicsService } from '@/lib/services/npc-group-dynamics-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import {
+  AlphaGroupInviteService,
+  GroupChatSweep,
+  NPCGroupDynamicsService,
+} from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Test data cleanup tracking
 const testIds = {

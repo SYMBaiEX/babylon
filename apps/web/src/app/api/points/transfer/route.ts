@@ -64,12 +64,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { createNotification } from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { createNotification } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
 
 const TransferPointsSchema = z.object({
   recipientId: z.string().min(1, 'Recipient ID is required'),

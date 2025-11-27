@@ -10,9 +10,9 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import type { User } from '@/db';
-import { db } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import type { User } from '@babylon/db';
+import { db } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 let testUser1: User;
 let testUser2: User;
@@ -395,7 +395,7 @@ describe('Points Transfer - Transaction Atomicity', () => {
         // Simulate error
         throw new Error('Simulated transaction error');
       });
-    } catch (err) {
+    } catch (_err) {
       // Expected to fail
     }
 

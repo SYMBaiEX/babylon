@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { FeedPost } from '@/shared/types';
+import type { FeedPost } from '@babylon/shared';
 
 interface FeedStoreState {
   // Callbacks for feed updates

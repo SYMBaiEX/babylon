@@ -18,7 +18,7 @@
 
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 const command = process.argv[2] || 'all';
 
@@ -262,7 +262,7 @@ async function checkRegistration() {
       console.log('\n⚠️  No registration found in database');
       console.log('   Run: bun run agent0:setup');
     }
-  } catch (error) {
+  } catch (_error) {
     console.log(
       '⚠️  Database not available (this is OK for checking on-chain status)'
     );

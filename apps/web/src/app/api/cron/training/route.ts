@@ -50,8 +50,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
+import { logger } from '@babylon/shared';
+import { automationPipeline } from '@babylon/training';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 1 minute

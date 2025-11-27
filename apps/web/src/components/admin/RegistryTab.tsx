@@ -1,30 +1,30 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
 import {
   AlertCircle,
+  Ban,
   Bot,
   Building2,
   ExternalLink,
+  Flag,
   Search,
   Shield,
+  Star,
   TrendingUp,
   UserCircle,
   Users,
   Wallet,
   X,
-  Star,
-  Ban,
-  Flag,
-} from 'lucide-react'
-import Link from 'next/link'
-import { Avatar } from '@/components/shared/Avatar'
-import { Skeleton } from '@/components/shared/Skeleton'
-import { SearchBar } from '@/components/shared/SearchBar'
-import { FeedbackForm } from '@/components/feedback/FeedbackForm'
-import { cn } from '@/lib/utils'
-import { z } from 'zod'
-import { toast } from 'sonner'
+} from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { FeedbackForm } from '@/components/feedback/FeedbackForm';
+import { Avatar } from '@/components/shared/Avatar';
+import { SearchBar } from '@/components/shared/SearchBar';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { cn } from '@babylon/shared';
 
 /**
  * Registry entity schema for validation.
@@ -58,21 +58,25 @@ const RegistryEntitySchema = z.object({
   role: z.string().optional(),
   domain: z.array(z.string()).optional(),
   capabilities: z.record(z.string(), z.unknown()).optional(),
-  reputation: z.object({
-    trustScore: z.number(),
-    accuracyScore: z.number(),
-    totalBets: z.number(),
-    winningBets: z.number(),
-  }).optional(),
-  stats: z.object({
-    positions: z.number().optional(),
-    comments: z.number().optional(),
-    reactions: z.number().optional(),
-    followers: z.number().optional(),
-    following: z.number().optional(),
-    pools: z.number().optional(),
-    trades: z.number().optional(),
-  }).optional(),
+  reputation: z
+    .object({
+      trustScore: z.number(),
+      accuracyScore: z.number(),
+      totalBets: z.number(),
+      winningBets: z.number(),
+    })
+    .optional(),
+  stats: z
+    .object({
+      positions: z.number().optional(),
+      comments: z.number().optional(),
+      reactions: z.number().optional(),
+      followers: z.number().optional(),
+      following: z.number().optional(),
+      pools: z.number().optional(),
+      trades: z.number().optional(),
+    })
+    .optional(),
   createdAt: z.string().optional(),
   registrationTxHash: z.string().optional(),
   registrationTimestamp: z.string().optional(),
@@ -99,12 +103,12 @@ type RegistryData = z.infer<typeof RegistryDataSchema>;
 
 /**
  * Registry tab component for viewing and managing registry entities.
- * 
+ *
  * Displays all entities in the registry (users, actors, agents, apps) with
  * filtering, search, and on-chain filtering. Shows entity details including
  * reputation, statistics, and on-chain registration status. Includes feedback
  * form integration.
- * 
+ *
  * Features:
  * - Entity list display (users, actors, agents, apps)
  * - Search functionality
@@ -115,44 +119,37 @@ type RegistryData = z.infer<typeof RegistryDataSchema>;
  * - Feedback form integration
  * - Loading states
  * - Error handling
- * 
+ *
  * @returns Registry tab element
  */
 export function RegistryTab() {
-  const [data, setData] = useState<RegistryData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [onChainOnly, setOnChainOnly] = useState(false)
-  const [activeTab, setActiveTab] = useState<'all' | 'users' | 'actors' | 'agents' | 'apps'>('all')
-  const [selectedEntity, setSelectedEntity] = useState<RegistryEntity | null>(null)
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
-  const [showBanModal, setShowBanModal] = useState(false)
-  const [banReason, setBanReason] = useState('')
-  const [isScammer, setIsScammer] = useState(false)
-  const [isCSAM, setIsCSAM] = useState(false)
-  const [isBanning, setIsBanning] = useState(false)
+  const [data, setData] = useState<RegistryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [onChainOnly, setOnChainOnly] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    'all' | 'users' | 'actors' | 'agents' | 'apps'
+  >('all');
+  const [selectedEntity, setSelectedEntity] = useState<RegistryEntity | null>(
+    null
+  );
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [isScammer, setIsScammer] = useState(false);
+  const [isCSAM, setIsCSAM] = useState(false);
+  const [isBanning, setIsBanning] = useState(false);
 
-  useEffect(() => {
-    fetchRegistry()
-  }, [onChainOnly])
+  const fetchRegistry = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (onChainOnly) params.set('onChainOnly', 'true');
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchRegistry()
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [search])
-
-  const fetchRegistry = async () => {
-    setLoading(true)
-    setError(null)
-    const params = new URLSearchParams()
-    if (search) params.set('search', search)
-    if (onChainOnly) params.set('onChainOnly', 'true')
-
-    const response = await fetch(`/api/registry/all?${params}`)
-    const result = await response.json()
+    const response = await fetch(`/api/registry/all?${params}`);
+    const result = await response.json();
 
     if (result.success && result.data) {
       const validation = RegistryDataSchema.safeParse(result.data);
@@ -162,98 +159,143 @@ export function RegistryTab() {
         setError('Invalid data structure for registry');
       }
     } else {
-      setError(result.error?.message || 'Failed to fetch registry data')
+      setError(result.error?.message || 'Failed to fetch registry data');
     }
-    setLoading(false)
-  }
+    setLoading(false);
+  }, [search, onChainOnly]);
 
-  const renderBadge = (_type: string, label: string, icon: React.ReactNode, color: string) => {
+  useEffect(() => {
+    fetchRegistry();
+  }, [fetchRegistry]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchRegistry();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchRegistry]);
+
+  const renderBadge = (
+    _type: string,
+    label: string,
+    icon: React.ReactNode,
+    color: string
+  ) => {
     return (
       <span
         className={cn(
-          'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold',
+          'inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold text-xs',
           color
         )}
       >
         {icon}
         {label}
       </span>
-    )
-  }
+    );
+  };
 
   const renderEntityCard = (entity: RegistryEntity) => {
     const getBadgeColor = () => {
       switch (entity.type) {
         case 'user':
-          return 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+          return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
         case 'actor':
-          return 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+          return 'bg-purple-500/10 text-purple-500 border border-purple-500/20';
         case 'agent':
-          return 'bg-green-500/10 text-green-500 border border-green-500/20'
+          return 'bg-green-500/10 text-green-500 border border-green-500/20';
         case 'app':
-          return 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+          return 'bg-orange-500/10 text-orange-500 border border-orange-500/20';
         default:
-          return 'bg-muted text-muted-foreground'
+          return 'bg-muted text-muted-foreground';
       }
-    }
+    };
 
     const getProfileUrl = () => {
       if (entity.type === 'user' && entity.username) {
-        return `/profile/${entity.username}`
+        return `/profile/${entity.username}`;
       }
-      return null
-    }
+      return null;
+    };
 
-    const profileUrl = getProfileUrl()
+    const profileUrl = getProfileUrl();
 
     const cardContent = (
       <>
-        <div className="px-4 py-3 border-b border-border bg-muted/30">
+        <div className="border-border border-b bg-muted/30 px-4 py-3">
           <div className="flex items-start gap-3">
-            <Avatar src={entity.imageUrl} name={entity.name} size="lg" className="shrink-0" />
-            <div className="flex-1 min-w-0">
+            <Avatar
+              src={entity.imageUrl}
+              name={entity.name}
+              size="lg"
+              className="shrink-0"
+            />
+            <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg truncate text-foreground">{entity.name}</h3>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-bold text-foreground text-lg">
+                    {entity.name}
+                  </h3>
                   {entity.username && (
-                    <p className="text-sm text-muted-foreground">@{entity.username}</p>
+                    <p className="text-muted-foreground text-sm">
+                      @{entity.username}
+                    </p>
                   )}
                 </div>
                 <div className="shrink-0">
                   {entity.type === 'user' &&
-                    renderBadge('user', 'User', <UserCircle className="h-3 w-3" />, getBadgeColor())}
+                    renderBadge(
+                      'user',
+                      'User',
+                      <UserCircle className="h-3 w-3" />,
+                      getBadgeColor()
+                    )}
                   {entity.type === 'actor' &&
-                    renderBadge('actor', 'Actor', <Users className="h-3 w-3" />, getBadgeColor())}
+                    renderBadge(
+                      'actor',
+                      'Actor',
+                      <Users className="h-3 w-3" />,
+                      getBadgeColor()
+                    )}
                   {entity.type === 'agent' &&
-                    renderBadge('agent', 'Agent', <Bot className="h-3 w-3" />, getBadgeColor())}
+                    renderBadge(
+                      'agent',
+                      'Agent',
+                      <Bot className="h-3 w-3" />,
+                      getBadgeColor()
+                    )}
                   {entity.type === 'app' &&
-                    renderBadge('app', 'App', <Building2 className="h-3 w-3" />, getBadgeColor())}
+                    renderBadge(
+                      'app',
+                      'App',
+                      <Building2 className="h-3 w-3" />,
+                      getBadgeColor()
+                    )}
                 </div>
               </div>
 
               {(entity.bio || entity.description) && (
-                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
                   {entity.bio || entity.description}
                 </p>
               )}
 
               {/* Moderation Flags */}
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="mt-2 flex flex-wrap gap-1">
                 {entity.isBanned && (
-                  <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-500 flex items-center gap-1">
-                    <Ban className="w-3 h-3" />
+                  <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-red-500 text-xs">
+                    <Ban className="h-3 w-3" />
                     Banned
                   </span>
                 )}
                 {entity.isScammer && (
-                  <span className="px-2 py-0.5 text-xs rounded bg-orange-500/20 text-orange-500 flex items-center gap-1">
-                    <Flag className="w-3 h-3" />
+                  <span className="flex items-center gap-1 rounded bg-orange-500/20 px-2 py-0.5 text-orange-500 text-xs">
+                    <Flag className="h-3 w-3" />
                     Scammer
                   </span>
                 )}
                 {entity.isCSAM && (
-                  <span className="px-2 py-0.5 text-xs rounded bg-red-600/20 text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
+                  <span className="flex items-center gap-1 rounded bg-red-600/20 px-2 py-0.5 text-red-600 text-xs">
+                    <AlertCircle className="h-3 w-3" />
                     CSAM
                   </span>
                 )}
@@ -262,13 +304,15 @@ export function RegistryTab() {
           </div>
         </div>
 
-        <div className="px-4 py-3 space-y-3">
+        <div className="space-y-3 px-4 py-3">
           {entity.onChainRegistered && (
-            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2">
-              <Shield className="h-4 w-4 text-green-500 shrink-0" />
-              <span className="text-green-500 font-medium flex-1">On-chain registered</span>
+            <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/5 px-3 py-2 text-sm">
+              <Shield className="h-4 w-4 shrink-0 text-green-500" />
+              <span className="flex-1 font-medium text-green-500">
+                On-chain registered
+              </span>
               {entity.nftTokenId && (
-                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded-lg">
+                <span className="rounded-lg bg-green-500/10 px-2 py-0.5 font-mono text-xs">
                   #{entity.nftTokenId}
                 </span>
               )}
@@ -276,10 +320,12 @@ export function RegistryTab() {
           )}
 
           {entity.agent0TokenId && (
-            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2">
-              <Bot className="h-4 w-4 text-blue-500 shrink-0" />
-              <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
-              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded-lg">
+            <div className="flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-sm">
+              <Bot className="h-4 w-4 shrink-0 text-blue-500" />
+              <span className="flex-1 font-medium text-blue-500">
+                Agent0 Token
+              </span>
+              <span className="rounded-lg bg-blue-500/10 px-2 py-0.5 font-mono text-xs">
                 #{entity.agent0TokenId}
               </span>
             </div>
@@ -287,16 +333,17 @@ export function RegistryTab() {
 
           {entity.walletAddress && (
             <div className="flex items-center gap-2 text-sm">
-              <Wallet className="h-4 w-4 text-blue-400 shrink-0" />
-              <code className="text-xs text-muted-foreground font-mono truncate flex-1">
-                {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
+              <Wallet className="h-4 w-4 shrink-0 text-blue-400" />
+              <code className="flex-1 truncate font-mono text-muted-foreground text-xs">
+                {entity.walletAddress.slice(0, 6)}...
+                {entity.walletAddress.slice(-4)}
               </code>
               <button
                 onClick={(e) => {
-                  e.preventDefault()
-                  navigator.clipboard.writeText(entity.walletAddress!)
+                  e.preventDefault();
+                  navigator.clipboard.writeText(entity.walletAddress!);
                 }}
-                className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                className="text-blue-500 text-xs transition-colors hover:text-blue-400"
               >
                 Copy
               </button>
@@ -305,94 +352,144 @@ export function RegistryTab() {
 
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
-              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2">
-                <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Balance</div>
-                  <div className="font-semibold truncate text-foreground">
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm">
+                <TrendingUp className="h-4 w-4 shrink-0 text-emerald-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-muted-foreground text-xs">Balance</div>
+                  <div className="truncate font-semibold text-foreground">
                     {parseFloat(entity.balance).toLocaleString()} BAB
                   </div>
                 </div>
               </div>
             )}
-            {(entity.reputationScore !== undefined || entity.reputationPoints !== undefined) && (
-              <div className={cn(
-                "flex items-center gap-2 text-sm rounded-xl px-3 py-2 border",
-                entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'bg-green-500/5 border-green-500/20' :
-                entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'bg-yellow-500/5 border-yellow-500/20' :
-                entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'bg-orange-500/5 border-orange-500/20' :
-                entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'bg-red-500/5 border-red-500/20' :
-                'bg-purple-500/5 border-purple-500/20'
-              )}>
-                <Star className={cn(
-                  "h-4 w-4 shrink-0",
-                  entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'text-green-500' :
-                  entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'text-yellow-500' :
-                  entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'text-orange-500' :
-                  entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'text-red-500' :
-                  'text-purple-500'
-                )} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Reputation</div>
-                  <div className={cn(
-                    "font-semibold truncate",
-                    entity.reputationScore !== undefined && entity.reputationScore >= 80 ? 'text-green-500' :
-                    entity.reputationScore !== undefined && entity.reputationScore >= 60 ? 'text-yellow-500' :
-                    entity.reputationScore !== undefined && entity.reputationScore >= 40 ? 'text-orange-500' :
-                    entity.reputationScore !== undefined && entity.reputationScore < 40 ? 'text-red-500' :
-                    'text-foreground'
-                  )}>
-                    {entity.reputationScore !== undefined 
+            {(entity.reputationScore !== undefined ||
+              entity.reputationPoints !== undefined) && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm',
+                  entity.reputationScore !== undefined &&
+                    entity.reputationScore >= 80
+                    ? 'border-green-500/20 bg-green-500/5'
+                    : entity.reputationScore !== undefined &&
+                        entity.reputationScore >= 60
+                      ? 'border-yellow-500/20 bg-yellow-500/5'
+                      : entity.reputationScore !== undefined &&
+                          entity.reputationScore >= 40
+                        ? 'border-orange-500/20 bg-orange-500/5'
+                        : entity.reputationScore !== undefined &&
+                            entity.reputationScore < 40
+                          ? 'border-red-500/20 bg-red-500/5'
+                          : 'border-purple-500/20 bg-purple-500/5'
+                )}
+              >
+                <Star
+                  className={cn(
+                    'h-4 w-4 shrink-0',
+                    entity.reputationScore !== undefined &&
+                      entity.reputationScore >= 80
+                      ? 'text-green-500'
+                      : entity.reputationScore !== undefined &&
+                          entity.reputationScore >= 60
+                        ? 'text-yellow-500'
+                        : entity.reputationScore !== undefined &&
+                            entity.reputationScore >= 40
+                          ? 'text-orange-500'
+                          : entity.reputationScore !== undefined &&
+                              entity.reputationScore < 40
+                            ? 'text-red-500'
+                            : 'text-purple-500'
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-muted-foreground text-xs">
+                    Reputation
+                  </div>
+                  <div
+                    className={cn(
+                      'truncate font-semibold',
+                      entity.reputationScore !== undefined &&
+                        entity.reputationScore >= 80
+                        ? 'text-green-500'
+                        : entity.reputationScore !== undefined &&
+                            entity.reputationScore >= 60
+                          ? 'text-yellow-500'
+                          : entity.reputationScore !== undefined &&
+                              entity.reputationScore >= 40
+                            ? 'text-orange-500'
+                            : entity.reputationScore !== undefined &&
+                                entity.reputationScore < 40
+                              ? 'text-red-500'
+                              : 'text-foreground'
+                    )}
+                  >
+                    {entity.reputationScore !== undefined
                       ? `${Math.round(entity.reputationScore)}/100`
                       : `${entity.reputationPoints?.toLocaleString() || 0} pts`}
                   </div>
-                  {entity.totalFeedbackCount !== undefined && entity.totalFeedbackCount > 0 && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {entity.totalFeedbackCount} reviews
-                    </div>
-                  )}
+                  {entity.totalFeedbackCount !== undefined &&
+                    entity.totalFeedbackCount > 0 && (
+                      <div className="mt-0.5 text-muted-foreground text-xs">
+                        {entity.totalFeedbackCount} reviews
+                      </div>
+                    )}
                 </div>
               </div>
             )}
           </div>
 
           {entity.reputation && (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+            <div className="grid grid-cols-2 gap-2 border-border border-t pt-2">
               <div className="text-sm">
-                <div className="text-xs text-muted-foreground mb-1">Trust Score</div>
-                <div className="font-semibold text-foreground">{entity.reputation.trustScore.toFixed(2)}</div>
+                <div className="mb-1 text-muted-foreground text-xs">
+                  Trust Score
+                </div>
+                <div className="font-semibold text-foreground">
+                  {entity.reputation.trustScore.toFixed(2)}
+                </div>
               </div>
               <div className="text-sm">
-                <div className="text-xs text-muted-foreground mb-1">Accuracy</div>
-                <div className="font-semibold text-foreground">{entity.reputation.accuracyScore.toFixed(2)}%</div>
+                <div className="mb-1 text-muted-foreground text-xs">
+                  Accuracy
+                </div>
+                <div className="font-semibold text-foreground">
+                  {entity.reputation.accuracyScore.toFixed(2)}%
+                </div>
               </div>
             </div>
           )}
 
           {entity.stats && Object.keys(entity.stats).length > 0 && (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border text-sm">
+            <div className="grid grid-cols-2 gap-2 border-border border-t pt-2 text-sm">
               {entity.stats.followers !== undefined && (
                 <div>
                   <span className="text-muted-foreground">Followers:</span>{' '}
-                  <span className="font-semibold text-foreground">{entity.stats.followers}</span>
+                  <span className="font-semibold text-foreground">
+                    {entity.stats.followers}
+                  </span>
                 </div>
               )}
               {entity.stats.positions !== undefined && (
                 <div>
                   <span className="text-muted-foreground">Positions:</span>{' '}
-                  <span className="font-semibold text-foreground">{entity.stats.positions}</span>
+                  <span className="font-semibold text-foreground">
+                    {entity.stats.positions}
+                  </span>
                 </div>
               )}
               {entity.stats.pools !== undefined && (
                 <div>
                   <span className="text-muted-foreground">Pools:</span>{' '}
-                  <span className="font-semibold text-foreground">{entity.stats.pools}</span>
+                  <span className="font-semibold text-foreground">
+                    {entity.stats.pools}
+                  </span>
                 </div>
               )}
               {entity.stats.trades !== undefined && (
                 <div>
                   <span className="text-muted-foreground">Trades:</span>{' '}
-                  <span className="font-semibold text-foreground">{entity.stats.trades}</span>
+                  <span className="font-semibold text-foreground">
+                    {entity.stats.trades}
+                  </span>
                 </div>
               )}
             </div>
@@ -400,7 +497,7 @@ export function RegistryTab() {
 
           {entity.tier && (
             <div className="pt-2">
-              <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-xs font-bold">
+              <span className="inline-block rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-bold text-amber-500 text-xs">
                 {entity.tier}
               </span>
             </div>
@@ -409,12 +506,15 @@ export function RegistryTab() {
           {entity.domain && entity.domain.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-2">
               {entity.domain.slice(0, 3).map((d: string) => (
-                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span
+                  key={d}
+                  className="rounded-lg bg-muted px-2 py-1 text-muted-foreground text-xs"
+                >
                   {d}
                 </span>
               ))}
               {entity.domain.length > 3 && (
-                <span className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span className="rounded-lg bg-muted px-2 py-1 text-muted-foreground text-xs">
                   +{entity.domain.length - 3} more
                 </span>
               )}
@@ -422,16 +522,18 @@ export function RegistryTab() {
           )}
 
           {(entity.a2aEndpoint || entity.mcpEndpoint) && (
-            <div className="space-y-1 pt-2 border-t border-border text-xs">
+            <div className="space-y-1 border-border border-t pt-2 text-xs">
               {entity.a2aEndpoint && (
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-medium">A2A:</span>
+                  <span className="font-medium text-muted-foreground">
+                    A2A:
+                  </span>
                   <a
                     href={entity.a2aEndpoint}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="flex items-center gap-1 truncate text-blue-500 transition-colors hover:text-blue-400"
                   >
                     <span className="truncate">{entity.a2aEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -440,13 +542,15 @@ export function RegistryTab() {
               )}
               {entity.mcpEndpoint && (
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-medium">MCP:</span>
+                  <span className="font-medium text-muted-foreground">
+                    MCP:
+                  </span>
                   <a
                     href={entity.mcpEndpoint}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="flex items-center gap-1 truncate text-blue-500 transition-colors hover:text-blue-400"
                   >
                     <span className="truncate">{entity.mcpEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -458,45 +562,45 @@ export function RegistryTab() {
 
           {/* Admin Actions */}
           {entity.type === 'user' && !entity.isActor && (
-            <div className="pt-3 border-t border-border flex gap-2">
+            <div className="flex gap-2 border-border border-t pt-3">
               {entity.agent0TokenId && (
                 <button
                   onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setSelectedEntity(entity)
-                    setShowFeedbackModal(true)
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedEntity(entity);
+                    setShowFeedbackModal(true);
                   }}
-                  className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-1"
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-500/20 px-3 py-2 font-medium text-blue-500 text-sm transition-colors hover:bg-blue-500/30"
                   title="Give feedback"
                 >
-                  <Star className="w-4 h-4" />
+                  <Star className="h-4 w-4" />
                   Feedback
                 </button>
               )}
               <button
                 onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setSelectedEntity(entity)
-                  setShowBanModal(true)
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedEntity(entity);
+                  setShowBanModal(true);
                 }}
                 className={cn(
-                  "flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1",
+                  'flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 font-medium text-sm transition-colors',
                   entity.isBanned
-                    ? "bg-green-500/20 text-green-500 hover:bg-green-500/30"
-                    : "bg-red-500/20 text-red-500 hover:bg-red-500/30"
+                    ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30'
+                    : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'
                 )}
-                title={entity.isBanned ? "Unban user" : "Ban user"}
+                title={entity.isBanned ? 'Unban user' : 'Ban user'}
               >
-                <Ban className="w-4 h-4" />
+                <Ban className="h-4 w-4" />
                 {entity.isBanned ? 'Unban' : 'Ban'}
               </button>
             </div>
           )}
         </div>
       </>
-    )
+    );
 
     if (profileUrl) {
       return (
@@ -504,39 +608,43 @@ export function RegistryTab() {
           key={entity.id}
           href={profileUrl}
           className={cn(
-            'block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200',
-            'hover:shadow-lg hover:border-primary/50 cursor-pointer'
+            'block overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200',
+            'cursor-pointer hover:border-primary/50 hover:shadow-lg'
           )}
         >
           {cardContent}
         </Link>
-      )
+      );
     }
 
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:border-primary/50"
+        className="block overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:border-primary/50 hover:shadow-lg"
       >
         {cardContent}
       </div>
-    )
-  }
+    );
+  };
 
-  const handleBanUser = async (entity: RegistryEntity, action: 'ban' | 'unban') => {
+  const handleBanUser = async (
+    entity: RegistryEntity,
+    action: 'ban' | 'unban'
+  ) => {
     if (action === 'ban' && !banReason.trim()) {
-      toast.error('Please provide a reason for banning')
-      return
+      toast.error('Please provide a reason for banning');
+      return;
     }
 
-    setIsBanning(true)
+    setIsBanning(true);
     try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
       const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           action,
@@ -544,59 +652,67 @@ export function RegistryTab() {
           isScammer: action === 'ban' ? isScammer : false,
           isCSAM: action === 'ban' ? isCSAM : false,
         }),
-      })
+      });
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update user')
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update user');
       }
 
-      toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully')
-      setShowBanModal(false)
-      setBanReason('')
-      setIsScammer(false)
-      setIsCSAM(false)
-      setSelectedEntity(null)
-      fetchRegistry()
+      toast.success(
+        action === 'ban'
+          ? 'User banned successfully'
+          : 'User unbanned successfully'
+      );
+      setShowBanModal(false);
+      setBanReason('');
+      setIsScammer(false);
+      setIsCSAM(false);
+      setSelectedEntity(null);
+      fetchRegistry();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update user')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update user'
+      );
     } finally {
-      setIsBanning(false)
+      setIsBanning(false);
     }
-  }
+  };
 
   const allEntities = data
     ? [...data.users, ...data.actors, ...data.agents, ...data.apps]
-    : []
+    : [];
 
   const getActiveEntities = () => {
-    if (!data) return []
+    if (!data) return [];
     switch (activeTab) {
       case 'users':
-        return data.users
+        return data.users;
       case 'actors':
-        return data.actors
+        return data.actors;
       case 'agents':
-        return data.agents
+        return data.agents;
       case 'apps':
-        return data.apps
+        return data.apps;
       default:
-        return allEntities
+        return allEntities;
     }
-  }
+  };
 
-  const activeEntities = getActiveEntities()
+  const activeEntities = getActiveEntities();
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold mb-2 text-foreground">ERC8004 Registry</h2>
+        <h2 className="mb-2 font-bold text-3xl text-foreground">
+          ERC8004 Registry
+        </h2>
         <p className="text-muted-foreground">
           Browse all registered entities in the Babylon ecosystem
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row">
         <div className="flex-1">
           <SearchBar
             value={search}
@@ -607,10 +723,10 @@ export function RegistryTab() {
         <button
           onClick={() => setOnChainOnly(!onChainOnly)}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all duration-200 whitespace-nowrap',
+            'flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition-all duration-200',
             onChainOnly
               ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
+              : 'border border-border bg-muted text-muted-foreground hover:bg-muted/80'
           )}
         >
           <Shield className="h-4 w-4" />
@@ -620,47 +736,57 @@ export function RegistryTab() {
       </div>
 
       {data && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-card border border-border rounded-2xl px-4 py-3">
-            <div className="text-sm text-muted-foreground mb-1">Total</div>
-            <div className="text-3xl font-bold text-foreground">{data.totals.total}</div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 text-muted-foreground text-sm">Total</div>
+            <div className="font-bold text-3xl text-foreground">
+              {data.totals.total}
+            </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl px-4 py-3">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 flex items-center gap-1 text-muted-foreground text-sm">
               <UserCircle className="h-4 w-4" />
               <span>Users</span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{data.totals.users}</div>
+            <div className="font-bold text-3xl text-foreground">
+              {data.totals.users}
+            </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl px-4 py-3">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 flex items-center gap-1 text-muted-foreground text-sm">
               <Users className="h-4 w-4" />
               <span>Actors</span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{data.totals.actors}</div>
+            <div className="font-bold text-3xl text-foreground">
+              {data.totals.actors}
+            </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl px-4 py-3">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 flex items-center gap-1 text-muted-foreground text-sm">
               <Bot className="h-4 w-4" />
               <span>Agents</span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{data.totals.agents}</div>
+            <div className="font-bold text-3xl text-foreground">
+              {data.totals.agents}
+            </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl px-4 py-3">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 flex items-center gap-1 text-muted-foreground text-sm">
               <Building2 className="h-4 w-4" />
               <span>Apps</span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{data.totals.apps}</div>
+            <div className="font-bold text-3xl text-foreground">
+              {data.totals.apps}
+            </div>
           </div>
         </div>
       )}
 
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <div className="text-center space-y-4 w-full max-w-2xl">
-            <Skeleton className="h-8 w-48 mx-auto" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="w-full max-w-2xl space-y-4 text-center">
+            <Skeleton className="mx-auto h-8 w-48" />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <Skeleton className="h-48 w-full" />
               <Skeleton className="h-48 w-full" />
               <Skeleton className="h-48 w-full" />
@@ -671,13 +797,15 @@ export function RegistryTab() {
 
       {error && !loading && (
         <div className="flex items-center justify-center py-20">
-          <div className="text-center max-w-md">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Failed to load registry</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
+          <div className="max-w-md text-center">
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+            <h3 className="mb-2 font-semibold text-foreground text-lg">
+              Failed to load registry
+            </h3>
+            <p className="mb-4 text-muted-foreground">{error}</p>
             <button
               onClick={fetchRegistry}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Try Again
             </button>
@@ -687,11 +815,11 @@ export function RegistryTab() {
 
       {!loading && !error && data && (
         <>
-          <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
+          <div className="mb-2 flex gap-2 overflow-x-auto pb-2">
             <button
               onClick={() => setActiveTab('all')}
               className={cn(
-                'px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                'whitespace-nowrap rounded-lg px-4 py-3 font-semibold transition-all duration-200',
                 activeTab === 'all'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -702,7 +830,7 @@ export function RegistryTab() {
             <button
               onClick={() => setActiveTab('users')}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                'flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-3 font-semibold transition-all duration-200',
                 activeTab === 'users'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -714,7 +842,7 @@ export function RegistryTab() {
             <button
               onClick={() => setActiveTab('actors')}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                'flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-3 font-semibold transition-all duration-200',
                 activeTab === 'actors'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -726,7 +854,7 @@ export function RegistryTab() {
             <button
               onClick={() => setActiveTab('agents')}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                'flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-3 font-semibold transition-all duration-200',
                 activeTab === 'agents'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -738,7 +866,7 @@ export function RegistryTab() {
             <button
               onClick={() => setActiveTab('apps')}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                'flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-3 font-semibold transition-all duration-200',
                 activeTab === 'apps'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -750,14 +878,18 @@ export function RegistryTab() {
           </div>
 
           {activeEntities.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {activeEntities.map((entity) => renderEntityCard(entity))}
             </div>
           ) : (
-            <div className="text-center py-20">
-              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No entities found</h3>
-              <p className="text-muted-foreground">Try adjusting your search or filters</p>
+            <div className="py-20 text-center">
+              <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 font-semibold text-foreground text-lg">
+                No entities found
+              </h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or filters
+              </p>
             </div>
           )}
         </>
@@ -765,25 +897,25 @@ export function RegistryTab() {
 
       {/* Feedback Modal */}
       {showFeedbackModal && selectedEntity && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Give Feedback</h2>
-            <p className="text-muted-foreground mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
+            <h2 className="mb-4 font-bold text-xl">Give Feedback</h2>
+            <p className="mb-4 text-muted-foreground">
               Rate <strong>{selectedEntity.name}</strong>
             </p>
-            
+
             <FeedbackForm
               toUserId={selectedEntity.id}
               toUserName={selectedEntity.name}
               category="general"
               onSuccess={() => {
-                setShowFeedbackModal(false)
-                setSelectedEntity(null)
-                fetchRegistry()
+                setShowFeedbackModal(false);
+                setSelectedEntity(null);
+                fetchRegistry();
               }}
               onCancel={() => {
-                setShowFeedbackModal(false)
-                setSelectedEntity(null)
+                setShowFeedbackModal(false);
+                setSelectedEntity(null);
               }}
             />
           </div>
@@ -792,28 +924,28 @@ export function RegistryTab() {
 
       {/* Ban Modal */}
       {showBanModal && selectedEntity && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
+            <h2 className="mb-4 font-bold text-xl">
               {selectedEntity.isBanned ? 'Unban User' : 'Ban User'}
             </h2>
-            <p className="text-muted-foreground mb-4">
-              {selectedEntity.isBanned 
+            <p className="mb-4 text-muted-foreground">
+              {selectedEntity.isBanned
                 ? `Are you sure you want to unban ${selectedEntity.name}?`
                 : `Are you sure you want to ban ${selectedEntity.name}?`}
             </p>
-            
+
             {!selectedEntity.isBanned && (
               <>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="mb-2 block font-medium text-sm">
                     Reason for ban <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
                     placeholder="Explain why this user is being banned..."
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-border resize-none"
+                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 focus:border-border focus:outline-none"
                     rows={3}
                   />
                 </div>
@@ -825,12 +957,16 @@ export function RegistryTab() {
                       id="isScammer"
                       checked={isScammer}
                       onChange={(e) => setIsScammer(e.target.checked)}
-                      className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                      className="mt-1 h-4 w-4 rounded border-border text-red-500 focus:ring-red-500"
                     />
-                    <label htmlFor="isScammer" className="text-sm font-medium cursor-pointer">
+                    <label
+                      htmlFor="isScammer"
+                      className="cursor-pointer font-medium text-sm"
+                    >
                       Mark as Scammer
-                      <p className="text-xs text-muted-foreground mt-1">
-                        This user is engaging in fraudulent or deceptive behavior
+                      <p className="mt-1 text-muted-foreground text-xs">
+                        This user is engaging in fraudulent or deceptive
+                        behavior
                       </p>
                     </label>
                   </div>
@@ -841,12 +977,16 @@ export function RegistryTab() {
                       id="isCSAM"
                       checked={isCSAM}
                       onChange={(e) => setIsCSAM(e.target.checked)}
-                      className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                      className="mt-1 h-4 w-4 rounded border-border text-red-500 focus:ring-red-500"
                     />
-                    <label htmlFor="isCSAM" className="text-sm font-medium cursor-pointer">
+                    <label
+                      htmlFor="isCSAM"
+                      className="cursor-pointer font-medium text-sm"
+                    >
                       Mark as CSAM (Child Sexual Abuse Material)
-                      <p className="text-xs text-muted-foreground mt-1">
-                        This user is sharing or promoting child sexual abuse material
+                      <p className="mt-1 text-muted-foreground text-xs">
+                        This user is sharing or promoting child sexual abuse
+                        material
                       </p>
                     </label>
                   </div>
@@ -857,33 +997,44 @@ export function RegistryTab() {
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowBanModal(false)
-                  setBanReason('')
-                  setIsScammer(false)
-                  setIsCSAM(false)
-                  setSelectedEntity(null)
+                  setShowBanModal(false);
+                  setBanReason('');
+                  setIsScammer(false);
+                  setIsCSAM(false);
+                  setSelectedEntity(null);
                 }}
-                className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                className="flex-1 rounded-lg bg-muted px-4 py-2 text-foreground transition-colors hover:bg-muted/80"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleBanUser(selectedEntity, selectedEntity.isBanned ? 'unban' : 'ban')}
-                disabled={isBanning || (!selectedEntity.isBanned && !banReason.trim())}
+                onClick={() =>
+                  handleBanUser(
+                    selectedEntity,
+                    selectedEntity.isBanned ? 'unban' : 'ban'
+                  )
+                }
+                disabled={
+                  isBanning || (!selectedEntity.isBanned && !banReason.trim())
+                }
                 className={cn(
-                  "flex-1 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50",
+                  'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 transition-colors disabled:opacity-50',
                   selectedEntity.isBanned
-                    ? "bg-green-500 text-white hover:bg-green-600"
-                    : "bg-red-500 text-white hover:bg-red-600"
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-red-500 text-white hover:bg-red-600'
                 )}
               >
-                <Ban className="w-4 h-4" />
-                {isBanning ? 'Processing...' : selectedEntity.isBanned ? 'Unban User' : 'Ban User'}
+                <Ban className="h-4 w-4" />
+                {isBanning
+                  ? 'Processing...'
+                  : selectedEntity.isBanned
+                    ? 'Unban User'
+                    : 'Ban User'}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

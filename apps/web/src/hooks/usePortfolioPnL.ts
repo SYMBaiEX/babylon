@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl';
+import type { PortfolioPnLSnapshot } from '@babylon/shared';
 
 // Re-export for components that import from this hook
-export type { PortfolioPnLSnapshot } from '@/lib/portfolio/calculate-pnl';
+export type { PortfolioPnLSnapshot } from '@babylon/shared';
 
 /**
  * Return type for the usePortfolioPnL hook.

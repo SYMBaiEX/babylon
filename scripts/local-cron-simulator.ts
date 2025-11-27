@@ -163,7 +163,7 @@ async function waitForServer(
         );
         return true;
       }
-    } catch (error) {
+    } catch (_error) {
       // Server not ready yet, continue waiting
       if (attempt < maxAttempts) {
         logger.info(

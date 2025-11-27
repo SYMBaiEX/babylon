@@ -6,16 +6,8 @@
  * Implements all Babylon features as official A2A Skills.
  */
 
-import type {
-  AgentCard,
-  DataPart,
-  Message,
-  SendMessageResponse,
-  Task,
-  TextPart,
-} from '@a2a-js/sdk';
+import type { AgentCard, DataPart, Message, Task, TextPart } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
-import type { JsonValue } from '../../../src/types/a2a';
 import type {
   A2AChat,
   A2AFeedPost,
@@ -25,13 +17,10 @@ import type {
   A2APerpetualMarket,
   A2APerpPosition,
   A2APredictionMarket,
-  A2AReferral,
-  A2AReferralCodeResponse,
-  A2AReferralStatsResponse,
-  A2AReputationResponse,
   A2ATrendingTag,
   A2AUserSearchResult,
-} from '../../../src/types/a2a-responses';
+  JsonValue,
+} from '@babylon/a2a';
 
 /**
  * A2A command with operation and params
@@ -39,7 +28,6 @@ import type {
 interface A2ACommand {
   operation: string;
   params: Record<string, JsonValue>;
-  [key: string]: JsonValue;
 }
 
 /**
@@ -684,10 +672,11 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Send message to chat ${chatId}: ${content}`,
       {
-        skill: 'direct-messenger',
-        action: 'send_message',
-        chatId,
-        content,
+        operation: 'chats.send_message',
+        params: {
+          chatId,
+          content,
+        },
       }
     );
 
@@ -716,8 +705,6 @@ export class BabylonA2AClient {
     const response = await this.sendMessage('What are my chats?', {
       operation: 'chats.get_chats',
       params: { filter },
-      skill: 'direct-messenger',
-      action: 'get_chats',
     });
 
     if ('status' in response) {
@@ -790,9 +777,10 @@ export class BabylonA2AClient {
     const response = await this.sendMessage(
       `Show me user ${userId}'s profile`,
       {
-        skill: 'profile-manager',
-        action: 'get_user_profile',
-        userId,
+        operation: 'users.get_user_profile',
+        params: {
+          userId,
+        },
       }
     );
 
@@ -847,8 +835,8 @@ export class BabylonA2AClient {
         ? `What is user ${userId}'s reputation?`
         : 'What is my reputation?',
       {
-        skill: 'stats-researcher',
-        action: 'get_reputation',
+        operation: 'stats.get_reputation',
+        params: {
         userId,
       }
     );
@@ -876,8 +864,6 @@ export class BabylonA2AClient {
     const response = await this.sendMessage('What topics are trending?', {
       operation: 'stats.get_trending_tags',
       params: { limit },
-      skill: 'stats-researcher',
-      action: 'get_trending_tags',
     });
 
     if ('status' in response) {
@@ -949,9 +935,10 @@ export class BabylonA2AClient {
    */
   async followUser(userId: string): Promise<Record<string, JsonValue>> {
     const response = await this.sendMessage(`Follow user ${userId}`, {
-      skill: 'user-relationship-manager',
-      action: 'follow_user',
-      userId,
+      operation: 'users.follow_user',
+      params: {
+        userId,
+      },
     });
 
     if (response.kind === 'task') {
@@ -975,9 +962,10 @@ export class BabylonA2AClient {
    */
   async unfollowUser(userId: string): Promise<Record<string, JsonValue>> {
     const response = await this.sendMessage(`Unfollow user ${userId}`, {
-      skill: 'user-relationship-manager',
-      action: 'unfollow_user',
-      userId,
+      operation: 'users.unfollow_user',
+      params: {
+        userId,
+      },
     });
 
     if (response.kind === 'task') {

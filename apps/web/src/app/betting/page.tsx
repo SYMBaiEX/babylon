@@ -22,8 +22,8 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnChainBetting } from '@/hooks/useOnChainBetting';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { getContractAddresses } from '@/lib/deployment/addresses';
-import { cn } from '@/lib/utils';
+import { getContractAddresses } from '@babylon/contracts';
+import { cn } from '@babylon/shared';
 
 interface Question {
   id: number | string;

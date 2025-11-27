@@ -13,9 +13,10 @@
  * Run this at server startup to initialize NPC agents.
  */
 
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
-import { npcBootstrapService } from '@/lib/services/npc-bootstrap.service';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
+// TODO: npcBootstrapService needs to be migrated to a package
+import { npcBootstrapService } from '@babylon/agents/services/npc-bootstrap.service';
 
 async function main() {
   logger.info('🤖 Bootstrapping NPC agents...', undefined, 'Bootstrap');

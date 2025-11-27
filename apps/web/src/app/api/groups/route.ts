@@ -149,10 +149,10 @@
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),

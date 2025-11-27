@@ -106,8 +106,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentService } from '@/lib/agents/services/AgentService';
-import { authenticateUser } from '@/lib/server-auth';
+import { agentService } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,

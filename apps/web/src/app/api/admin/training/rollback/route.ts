@@ -51,8 +51,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { modelDeployer } from '@/lib/training/ModelDeployer';
+import { db } from '@babylon/db';
+import { modelDeployer } from '@babylon/training';
 
 export async function POST(request: NextRequest) {
   try {

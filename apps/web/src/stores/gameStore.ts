@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { GeneratedGame } from '@/generator/GameGenerator';
+import type { GeneratedGame } from '@babylon/engine';
 
 interface TimelineDay {
   day: number;

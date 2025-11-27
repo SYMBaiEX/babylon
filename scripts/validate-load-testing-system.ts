@@ -11,11 +11,10 @@
  * - Recommendations are actionable
  */
 
-import { db } from '@/db';
-import { queryMonitor } from '@/lib/db/query-monitor';
-import { logger } from '@/lib/logger';
-import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
-import { redis } from '@/lib/redis';
+import { db, queryMonitor } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import { performanceMonitor } from '@babylon/shared';
+import { redis } from '@babylon/api';
 
 interface ValidationResult {
   test: string;

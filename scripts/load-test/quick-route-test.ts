@@ -14,7 +14,7 @@
 import {
   ENHANCED_TEST_SCENARIOS,
   EnhancedLoadTestSimulator,
-} from '@/lib/testing/enhanced-load-test-simulator';
+} from '@babylon/testing/load-test';
 
 // Parse arguments
 const args = process.argv.slice(2);
@@ -47,7 +47,7 @@ async function main() {
   try {
     const response = await fetch(baseUrl);
     console.log(`✅ Server responding (status: ${response.status})\n`);
-  } catch (error) {
+  } catch (_error) {
     console.error('❌ Could not connect to server');
     console.error(`   Make sure the server is running at ${baseUrl}`);
     process.exit(1);

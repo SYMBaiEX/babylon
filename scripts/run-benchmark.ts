@@ -16,12 +16,12 @@
 
 import type { IAgentRuntime } from '@elizaos/core';
 import * as path from 'path';
+import { logger } from '@babylon/engine';
 import {
   type BenchmarkRunConfig,
   BenchmarkRunner,
-} from '@/lib/benchmark/BenchmarkRunner';
-import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
-import { logger } from '@/lib/logger';
+  MetricsVisualizer,
+} from '@babylon/training';
 
 // This is a simplified version - in production you'd load actual agent runtime
 class MockAgentRuntime implements Partial<IAgentRuntime> {

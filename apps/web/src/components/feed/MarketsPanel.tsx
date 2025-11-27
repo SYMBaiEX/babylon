@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Prediction market structure for markets panel.

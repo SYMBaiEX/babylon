@@ -13,9 +13,8 @@ import type {
 describe('Actors.json Data Integrity', () => {
   let actorsData: ActorsDataFile;
 
-  beforeAll(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { loadActorsData } = require('../../src/lib/data/actors-loader');
+  beforeAll(async () => {
+    const { loadActorsData } = await import('@babylon/engine');
     actorsData = loadActorsData() as ActorsDataFile;
   });
 

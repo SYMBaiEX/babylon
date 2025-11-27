@@ -77,11 +77,11 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PerpTradeService } from '@/lib/services/perp-trade-service';
-import { ClosePerpPositionSchema } from '@/lib/validation/schemas';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { trackServerEvent } from '@babylon/shared';
+import { PerpTradeService } from '@babylon/engine';
+import { ClosePerpPositionSchema } from '@babylon/shared';
 
 const IdParamSchema = z.object({
   id: z.string(),

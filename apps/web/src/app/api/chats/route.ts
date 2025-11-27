@@ -179,14 +179,14 @@ import {
   inArray,
   messages,
   users,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asSystem, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PointsService } from '@/lib/services/points-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { asSystem, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PointsService } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { ChatCreateSchema, ChatQuerySchema } from '@babylon/shared';
 
 /**
  * GET /api/chats

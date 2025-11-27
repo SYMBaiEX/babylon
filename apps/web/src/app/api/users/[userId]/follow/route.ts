@@ -95,25 +95,25 @@ import {
   userActorFollows,
   users,
   withTransaction,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { cachedDb } from '@/lib/cached-database-service';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
 import {
   BusinessLogicError,
   InternalServerError,
   NotFoundError,
-} from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { trackServerEvent } from '@/lib/posthog/server';
+} from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { notifyFollow } from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+} from '@babylon/api';
+import { notifyFollow } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { findUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * POST Handler - Follow User or Actor

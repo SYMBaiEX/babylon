@@ -19,27 +19,25 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { autonomousCoordinator } from '@/lib/agents/autonomous';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
 import {
+  agentRuntimeManager,
+  autonomousCoordinator,
   createTestAgent,
   ensureTestAgents,
-} from '@/lib/agents/utils/createTestAgent';
+} from '@babylon/agents';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
-} from '@/lib/benchmark/BenchmarkDataGenerator';
-import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
-import {
+  BenchmarkRunner,
+  ConfigValidator,
+  SimulationA2AInterface,
   type SimulationConfig,
   SimulationEngine,
-} from '@/lib/benchmark/SimulationEngine';
-import { logger } from '@/lib/logger';
-import { ConfigValidator } from '@/lib/training/ConfigValidator';
-import { ModelUsageVerifier } from '@/lib/training/ModelUsageVerifier';
-import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
+  getLatestRLModel,
+  ModelUsageVerifier,
+} from '@babylon/training';
 
 interface PipelineConfig {
   benchmark: {

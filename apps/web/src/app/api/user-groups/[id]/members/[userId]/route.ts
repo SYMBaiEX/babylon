@@ -63,9 +63,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling } from '@/lib/errors/error-handler';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
 
 /**
  * DELETE /api/user-groups/[id]/members/[userId]

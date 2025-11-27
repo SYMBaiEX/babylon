@@ -37,7 +37,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Position structure for NPC portfolio.

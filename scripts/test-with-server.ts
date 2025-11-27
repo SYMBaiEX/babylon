@@ -211,7 +211,7 @@ async function killProcessTree(pid: number): Promise<void> {
     } catch {
       // Process might already be dead
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback: try direct kill
     try {
       process.kill(pid, 'SIGTERM');

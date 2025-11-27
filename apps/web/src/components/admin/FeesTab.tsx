@@ -1,12 +1,20 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useTransition } from 'react'
-import { DollarSign, TrendingUp, Users, Award, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Avatar } from '@/components/shared/Avatar'
-import { Skeleton } from '@/components/shared/Skeleton'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Award, DollarSign, RefreshCw, TrendingUp, Users } from 'lucide-react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { z } from 'zod';
+import { Avatar } from '@/components/shared/Avatar';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { cn } from '@babylon/shared';
 
 /**
  * Fee statistics schema for validation.
@@ -20,58 +28,68 @@ const FeeStatsSchema = z.object({
     totalReferrerFees: z.number(),
     totalTrades: z.number(),
   }),
-  feesByType: z.array(z.object({
-    tradeType: z.string(),
-    totalFees: z.number(),
-    platformFees: z.number(),
-    referrerFees: z.number(),
-    tradeCount: z.number(),
-  })),
-  topFeePayers: z.array(z.object({
-    userId: z.string(),
-    username: z.string(),
-    displayName: z.string(),
-    profileImageUrl: z.string().nullable(),
-    isNPC: z.boolean(),
-    totalFees: z.number(),
-    tradeCount: z.number(),
-  })),
-  topReferralEarners: z.array(z.object({
-    userId: z.string(),
-    username: z.string(),
-    displayName: z.string(),
-    profileImageUrl: z.string().nullable(),
-    totalEarned: z.number(),
-    referralCount: z.number(),
-  })),
-  recentFees: z.array(z.object({
-    id: z.string(),
-    userId: z.string(),
-    username: z.string(),
-    displayName: z.string(),
-    profileImageUrl: z.string().nullable(),
-    isNPC: z.boolean(),
-    tradeType: z.string(),
-    feeAmount: z.number(),
-    platformFee: z.number(),
-    referrerFee: z.number(),
-    createdAt: z.string(),
-  })),
-  feeTrend: z.array(z.object({
-    date: z.string(),
-    totalFees: z.number(),
-    tradeCount: z.number(),
-  })),
+  feesByType: z.array(
+    z.object({
+      tradeType: z.string(),
+      totalFees: z.number(),
+      platformFees: z.number(),
+      referrerFees: z.number(),
+      tradeCount: z.number(),
+    })
+  ),
+  topFeePayers: z.array(
+    z.object({
+      userId: z.string(),
+      username: z.string(),
+      displayName: z.string(),
+      profileImageUrl: z.string().nullable(),
+      isNPC: z.boolean(),
+      totalFees: z.number(),
+      tradeCount: z.number(),
+    })
+  ),
+  topReferralEarners: z.array(
+    z.object({
+      userId: z.string(),
+      username: z.string(),
+      displayName: z.string(),
+      profileImageUrl: z.string().nullable(),
+      totalEarned: z.number(),
+      referralCount: z.number(),
+    })
+  ),
+  recentFees: z.array(
+    z.object({
+      id: z.string(),
+      userId: z.string(),
+      username: z.string(),
+      displayName: z.string(),
+      profileImageUrl: z.string().nullable(),
+      isNPC: z.boolean(),
+      tradeType: z.string(),
+      feeAmount: z.number(),
+      platformFee: z.number(),
+      referrerFee: z.number(),
+      createdAt: z.string(),
+    })
+  ),
+  feeTrend: z.array(
+    z.object({
+      date: z.string(),
+      totalFees: z.number(),
+      tradeCount: z.number(),
+    })
+  ),
 });
 type FeeStats = z.infer<typeof FeeStatsSchema>;
 
 /**
  * Fees tab component for displaying fee collection statistics.
- * 
+ *
  * Displays comprehensive fee statistics including platform fees, user fees,
  * NPC fees, referrer fees, and fee trends. Shows top fee payers, top referral
  * earners, and recent fees. Includes charts for fee trends over time.
- * 
+ *
  * Features:
  * - Fee statistics dashboard
  * - Fee breakdown by type
@@ -81,20 +99,16 @@ type FeeStats = z.infer<typeof FeeStatsSchema>;
  * - Fee trend charts
  * - Loading states
  * - Error handling
- * 
+ *
  * @returns Fees tab element
  */
 export function FeesTab() {
-  const [stats, setStats] = useState<FeeStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<FeeStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRefreshing, startRefresh] = useTransition();
 
-  useEffect(() => {
-    fetchStats()
-  }, [])
-
-  const fetchStats = () => {
+  const fetchStats = useCallback(() => {
     startRefresh(async () => {
       const response = await fetch('/api/admin/fees');
       if (!response.ok) {
@@ -109,46 +123,50 @@ export function FeesTab() {
       setError(null);
       setLoading(false);
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const formatCurrency = (value: number) => {
-    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
-    if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`
-    return `$${value.toFixed(2)}`
-  }
+    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+    if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+  };
 
   const formatNumber = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(2)}K`
-    return value.toLocaleString()
-  }
+    if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(2)}K`;
+    return value.toLocaleString();
+  };
 
   const formatTradeType = (type: string) => {
     const typeMap: Record<string, string> = {
-      'pred_buy': 'Prediction Buy',
-      'pred_sell': 'Prediction Sell',
-      'perp_open': 'Perp Open',
-      'perp_close': 'Perp Close',
-      'npc_pred_buy': 'NPC Prediction Buy',
-      'npc_pred_sell': 'NPC Prediction Sell',
-      'npc_perp_open': 'NPC Perp Open',
-      'npc_perp_close': 'NPC Perp Close',
-    }
-    return typeMap[type] || type
-  }
+      pred_buy: 'Prediction Buy',
+      pred_sell: 'Prediction Sell',
+      perp_open: 'Perp Open',
+      perp_close: 'Perp Close',
+      npc_pred_buy: 'NPC Prediction Buy',
+      npc_pred_sell: 'NPC Prediction Sell',
+      npc_perp_open: 'NPC Perp Open',
+      npc_perp_close: 'NPC Perp Close',
+    };
+    return typeMap[type] || type;
+  };
 
-  const StatCard = ({ 
-    icon: Icon, 
-    label, 
+  const StatCard = ({
+    icon: Icon,
+    label,
     value,
     subtitle,
-    color = 'primary' 
-  }: { 
-    icon: React.ComponentType<{ className?: string }>
-    label: string
-    value: string | number
-    subtitle?: string
-    color?: 'primary' | 'green' | 'blue' | 'orange' | 'purple'
+    color = 'primary',
+  }: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    value: string | number;
+    subtitle?: string;
+    color?: 'primary' | 'green' | 'blue' | 'orange' | 'purple';
   }) => {
     const colorClasses = {
       primary: 'text-primary',
@@ -156,21 +174,21 @@ export function FeesTab() {
       blue: 'text-blue-500',
       orange: 'text-orange-500',
       purple: 'text-purple-500',
-    }
+    };
 
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="flex items-center gap-3 mb-2">
-          <Icon className={cn('w-5 h-5', colorClasses[color])} />
-          <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-2 flex items-center gap-3">
+          <Icon className={cn('h-5 w-5', colorClasses[color])} />
+          <span className="text-muted-foreground text-sm">{label}</span>
         </div>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="font-bold text-2xl">{value}</div>
         {subtitle && (
-          <div className="text-xs text-muted-foreground mt-1">{subtitle}</div>
+          <div className="mt-1 text-muted-foreground text-xs">{subtitle}</div>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   if (loading) {
     return (
@@ -179,15 +197,15 @@ export function FeesTab() {
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
-    )
+    );
   }
 
   if (error || !stats) {
     return (
-      <div className="text-center text-red-500 p-8">
+      <div className="p-8 text-center text-red-500">
         {error || 'Failed to load fee statistics'}
       </div>
-    )
+    );
   }
 
   return (
@@ -195,21 +213,25 @@ export function FeesTab() {
       {/* Header with Refresh Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Fee Statistics</h2>
-          <p className="text-sm text-muted-foreground">Platform-wide trading fee analytics</p>
+          <h2 className="font-bold text-2xl">Fee Statistics</h2>
+          <p className="text-muted-foreground text-sm">
+            Platform-wide trading fee analytics
+          </p>
         </div>
         <button
           onClick={fetchStats}
           disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
-          <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+          <RefreshCw
+            className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
+          />
           Refresh
         </button>
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={DollarSign}
           label="Total Fees Collected"
@@ -236,7 +258,8 @@ export function FeesTab() {
           label="Average Fee/Trade"
           value={formatCurrency(
             stats.platformStats.totalTrades > 0
-              ? stats.platformStats.totalFeesCollected / stats.platformStats.totalTrades
+              ? stats.platformStats.totalFeesCollected /
+                  stats.platformStats.totalTrades
               : 0
           )}
           subtitle="0.1% fee rate"
@@ -245,31 +268,42 @@ export function FeesTab() {
       </div>
 
       {/* Fee Trend Chart */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Fee Trend (Last 30 Days)</h3>
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h3 className="mb-4 font-semibold text-lg">Fee Trend (Last 30 Days)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={stats.feeTrend}>
             <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-            <XAxis 
-              dataKey="date" 
+            <XAxis
+              dataKey="date"
               stroke="#888"
               fontSize={12}
-              tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              tickFormatter={(date) =>
+                new Date(date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              }
             />
-            <YAxis 
+            <YAxis
               stroke="#888"
               fontSize={12}
               tickFormatter={(value) => `$${value}`}
             />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1a1a1a',
+                border: '1px solid #333',
+              }}
               labelFormatter={(date) => new Date(date).toLocaleDateString()}
-              formatter={(value: number | string) => [`$${Number(value).toFixed(2)}`, 'Fees']}
+              formatter={(value: number | string) => [
+                `$${Number(value).toFixed(2)}`,
+                'Fees',
+              ]}
             />
-            <Line 
-              type="monotone" 
-              dataKey="totalFees" 
-              stroke="#22c55e" 
+            <Line
+              type="monotone"
+              dataKey="totalFees"
+              stroke="#22c55e"
               strokeWidth={2}
               dot={{ fill: '#22c55e', r: 4 }}
             />
@@ -278,17 +312,19 @@ export function FeesTab() {
       </div>
 
       {/* Fee Breakdown by Type */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Fees by Trade Type</h3>
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h3 className="mb-4 font-semibold text-lg">Fees by Trade Type</h3>
         <div className="space-y-3">
           {stats.feesByType.map((item) => (
             <div
               key={item.tradeType}
-              className="flex items-center justify-between p-3 bg-accent/20 rounded-lg"
+              className="flex items-center justify-between rounded-lg bg-accent/20 p-3"
             >
               <div className="flex-1">
-                <div className="font-medium">{formatTradeType(item.tradeType)}</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="font-medium">
+                  {formatTradeType(item.tradeType)}
+                </div>
+                <div className="text-muted-foreground text-sm">
                   {formatNumber(item.tradeCount)} trades
                 </div>
               </div>
@@ -296,7 +332,7 @@ export function FeesTab() {
                 <div className="font-bold text-green-500">
                   {formatCurrency(item.totalFees)}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   Platform: {formatCurrency(item.platformFees)}
                 </div>
               </div>
@@ -306,17 +342,17 @@ export function FeesTab() {
       </div>
 
       {/* Top Fee Payers & Referral Earners */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Top Fee Payers */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Top Fee Payers</h3>
+        <div className="rounded-lg border border-border bg-card p-6">
+          <h3 className="mb-4 font-semibold text-lg">Top Fee Payers</h3>
           <div className="space-y-3">
             {stats.topFeePayers.map((user, index) => (
               <div
                 key={user.userId}
-                className="flex items-center gap-3 p-2 hover:bg-accent/50 rounded-lg transition-colors"
+                className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/50"
               >
-                <div className="text-sm font-bold text-muted-foreground w-6">
+                <div className="w-6 font-bold text-muted-foreground text-sm">
                   #{index + 1}
                 </div>
                 <Avatar
@@ -324,16 +360,16 @@ export function FeesTab() {
                   alt={user.displayName}
                   size="sm"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate text-sm flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 truncate font-medium text-sm">
                     {user.displayName}
                     {user.isNPC && (
-                      <span className="px-1.5 py-0.5 text-xs rounded bg-purple-500/20 text-purple-500">
+                      <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-purple-500 text-xs">
                         NPC
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {formatNumber(user.tradeCount)} trades
                   </div>
                 </div>
@@ -348,16 +384,16 @@ export function FeesTab() {
         </div>
 
         {/* Top Referral Earners */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Top Referral Earners</h3>
+        <div className="rounded-lg border border-border bg-card p-6">
+          <h3 className="mb-4 font-semibold text-lg">Top Referral Earners</h3>
           <div className="space-y-3">
             {stats.topReferralEarners.length > 0 ? (
               stats.topReferralEarners.map((user, index) => (
                 <div
                   key={user.userId}
-                  className="flex items-center gap-3 p-2 hover:bg-accent/50 rounded-lg transition-colors"
+                  className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/50"
                 >
-                  <div className="text-sm font-bold text-muted-foreground w-6">
+                  <div className="w-6 font-bold text-muted-foreground text-sm">
                     #{index + 1}
                   </div>
                   <Avatar
@@ -365,11 +401,11 @@ export function FeesTab() {
                     alt={user.displayName}
                     size="sm"
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-sm">
                       {user.displayName}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-muted-foreground text-xs">
                       {formatNumber(user.referralCount)} referral trades
                     </div>
                   </div>
@@ -381,7 +417,7 @@ export function FeesTab() {
                 </div>
               ))
             ) : (
-              <div className="text-center text-muted-foreground py-8">
+              <div className="py-8 text-center text-muted-foreground">
                 No referral earnings yet
               </div>
             )}
@@ -390,39 +426,41 @@ export function FeesTab() {
       </div>
 
       {/* Recent Fee Transactions */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Fee Transactions</h3>
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h3 className="mb-4 font-semibold text-lg">Recent Fee Transactions</h3>
         <div className="space-y-2">
           {stats.recentFees.map((fee) => (
             <div
               key={fee.id}
-              className="flex items-center gap-3 p-3 hover:bg-accent/50 rounded-lg transition-colors"
+              className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent/50"
             >
               <Avatar
                 src={fee.profileImageUrl ?? undefined}
                 alt={fee.displayName}
                 size="sm"
               />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 font-medium text-sm">
                   {fee.displayName}
                   {fee.isNPC && (
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-purple-500/20 text-purple-500">
+                    <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-purple-500 text-xs">
                       NPC
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {formatTradeType(fee.tradeType)} • {new Date(fee.createdAt).toLocaleString()}
+                <div className="text-muted-foreground text-xs">
+                  {formatTradeType(fee.tradeType)} •{' '}
+                  {new Date(fee.createdAt).toLocaleString()}
                 </div>
               </div>
               <div className="text-right">
                 <div className="font-bold text-red-500 text-sm">
                   {formatCurrency(fee.feeAmount)}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   Platform: {formatCurrency(fee.platformFee)}
-                  {fee.referrerFee > 0 && ` • Referrer: ${formatCurrency(fee.referrerFee)}`}
+                  {fee.referrerFee > 0 &&
+                    ` • Referrer: ${formatCurrency(fee.referrerFee)}`}
                 </div>
               </div>
             </div>
@@ -430,6 +468,5 @@ export function FeesTab() {
         </div>
       </div>
     </div>
-  )
+  );
 }
-

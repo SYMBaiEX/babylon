@@ -115,26 +115,26 @@ import {
   posts,
   shares,
   users,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { cachedDb } from '@/lib/cached-database-service';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { hasBlocked } from '@/lib/moderation/filters';
-import { parsePostId } from '@/lib/post-id-parser';
-import { trackServerEvent } from '@/lib/posthog/server';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { hasBlocked } from '@babylon/db';
+import { parsePostId } from '@babylon/engine';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { notifyShare } from '@/lib/services/notification-service';
-import { NPCInteractionTracker } from '@/lib/services/npc-interaction-tracker';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
-import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
-import { PostIdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
-import type { JsonValue } from '@/types/common';
+} from '@babylon/api';
+import { notifyShare } from '@babylon/api';
+import { NPCInteractionTracker } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
+import { broadcastToChannel } from '@babylon/api';
+import { ensureUserForAuth, getCanonicalUserId } from '@babylon/api';
+import { PostIdParamSchema, SharePostSchema } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 /**
  * POST /api/posts/[id]/share

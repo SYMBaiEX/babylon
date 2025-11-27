@@ -82,11 +82,11 @@
 
 import type { NextRequest } from 'next/server';
 
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PerpTradeService } from '@/lib/services/perp-trade-service';
-import { PerpOpenPositionSchema } from '@/lib/validation/schemas/trade';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { trackServerEvent } from '@babylon/shared';
+import { PerpTradeService } from '@babylon/engine';
+import { PerpOpenPositionSchema } from '@babylon/shared';
 
 /**
  * POST /api/markets/perps/open

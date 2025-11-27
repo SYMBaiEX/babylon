@@ -9,8 +9,8 @@
  * 5. Shows sample outputs
  */
 
-import { db } from '@/db';
-import { BabylonLLMClient } from '../../src/generator/llm/openai-client';
+import { db } from '@babylon/db';
+import { BabylonLLMClient } from '../../src/engine/llm/openai-client';
 
 async function testArticleGeneration() {
   console.log('🔬 Testing Article Generation - Longform Verification\n');

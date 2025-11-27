@@ -4,14 +4,13 @@
  * This file is loaded before all unit tests to set up the test environment.
  * It mocks external dependencies like Redis connections.
  *
- * NOTE: Database (@/db) is NOT mocked here - tests should mock it themselves
+ * NOTE: Database (@babylon/db) is NOT mocked here - tests should mock it themselves
  * because the db module has many exports that tests need to control individually.
  */
 
 import { mock } from 'bun:test';
 
 // Set test environment
-// @ts-expect-error - Need to override NODE_ENV for testing
 process.env.NODE_ENV = 'test';
 process.env.BUN_ENV = 'test';
 process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test';
@@ -134,7 +133,7 @@ mock.module('ioredis', () => {
 // Note: Logger is NOT mocked - it's a simple console wrapper with no side effects
 // Keeping real logger helps debug failing tests
 
-// Note: @/db is NOT mocked here - individual tests should mock it as needed
+// Note: @babylon/db is NOT mocked here - individual tests should mock it as needed
 // This is because:
 // 1. The db module has many named exports (tables, operators) that tests need
 // 2. Tests may need to control mock return values differently

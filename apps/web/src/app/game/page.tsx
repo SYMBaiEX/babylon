@@ -1,9 +1,9 @@
 'use client';
 
 import { Activity } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 interface GameStats {
   totalPosts: number;
@@ -26,7 +26,7 @@ export default function GamePage() {
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadGameData = async () => {
+  const loadGameData = useCallback(async () => {
     setRefreshing(true);
     try {
       const response = await fetch('/api/stats');
@@ -43,7 +43,7 @@ export default function GamePage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   // Initial load
   useEffect(() => {

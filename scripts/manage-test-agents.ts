@@ -15,10 +15,12 @@
  *   bun run scripts/manage-test-agents.ts resume     # Resume paused agents
  */
 
-import { db, eq, sql, users } from '@/db';
-import { autonomousCoordinator } from '@/lib/agents/autonomous';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { logger } from '@/lib/logger';
+import {
+  agentRuntimeManager,
+  autonomousCoordinator,
+} from '@babylon/agents';
+import { db, eq, sql, users } from '@babylon/db';
+import { logger } from '@babylon/engine';
 
 async function showStatus(): Promise<void> {
   console.log('\n🔍 Test Agent Status\n');

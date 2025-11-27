@@ -17,14 +17,14 @@
  * Environments: local, staging, production
  */
 
-import { logger } from '@/lib/logger';
-import { performanceMonitor } from '@/lib/monitoring/performance-monitor';
-import type { EnhancedLoadTestResult } from '@/lib/testing/enhanced-load-test-simulator';
+import { logger } from '@babylon/shared';
+import { performanceMonitor } from '@babylon/shared/monitoring/performance-monitor';
+import type { EnhancedLoadTestResult } from '@babylon/testing/load-test';
 import {
   ENHANCED_TEST_SCENARIOS,
   EnhancedLoadTestSimulator,
   generateAllRoutesScenario,
-} from '@/lib/testing/enhanced-load-test-simulator';
+} from '@babylon/testing/load-test';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -95,7 +95,7 @@ async function main() {
       process.exit(1);
     }
     console.log('✅ Server is responding\n');
-  } catch (error) {
+  } catch (_error) {
     console.error('❌ Could not connect to server');
     console.error(`   Make sure the server is running at ${baseUrl}`);
     process.exit(1);

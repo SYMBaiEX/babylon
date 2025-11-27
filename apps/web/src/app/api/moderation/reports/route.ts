@@ -101,20 +101,20 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   evaluateReport,
   storeEvaluationResult,
-} from '@/lib/moderation/report-evaluation';
-import { generateSnowflakeId } from '@/lib/snowflake';
+} from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
 import {
   CreateReportSchema,
   GetReportsSchema,
-} from '@/lib/validation/schemas/moderation';
+} from '@babylon/shared';
 
 /**
  * POST /api/moderation/reports

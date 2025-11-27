@@ -51,7 +51,7 @@ interface SqlCondition {
 let mockGame: MockGame | null = null;
 
 // Create a complete mock that includes schema exports
-mock.module('@/db', () => {
+mock.module('@babylon/db', () => {
   const createModelMock = (overrides: Partial<MockModel> = {}): MockModel => ({
     findFirst: mock(async () => mockGame),
     findUnique: mock(async () => null),

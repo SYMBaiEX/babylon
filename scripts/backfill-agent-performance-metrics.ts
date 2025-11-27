@@ -6,7 +6,7 @@
  * Usage: bun run scripts/backfill-agent-performance-metrics.ts [--dry-run]
  */
 
-import { agentPerformanceMetrics, db, eq, isNull, users } from '@/db';
+import { agentPerformanceMetrics, db, eq, isNull, users } from '@babylon/db';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 
 async function main() {

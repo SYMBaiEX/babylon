@@ -4,22 +4,19 @@
  * Production-ready types to replace all 'any' and 'unknown' usage
  */
 
-import type { TrainedModel, TrainingBatch, Trajectory } from '@/db';
+import type { TrainedModel, TrainingBatch, Trajectory } from '@babylon/db';
 
 // ============================================================================
 // Actors Data Types
 // ============================================================================
 
-// Note: ActorData, Organization, and ActorsDatabase are now exported from @/shared/types
-// Import them from there instead of redefining:
-// import type { ActorData, Organization, ActorsDatabase } from '@/shared/types';
-
+// Note: ActorData, Organization, and ActorsDatabase are now exported from @babylon/shared
 // Legacy alias for backward compatibility in tests
 export type {
   ActorData,
   ActorsDatabase as ActorsDataFile,
   Organization as OrganizationData,
-} from '@/shared/types';
+} from '@babylon/shared';
 
 // ============================================================================
 // Database Mock Types

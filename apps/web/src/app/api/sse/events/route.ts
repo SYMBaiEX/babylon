@@ -1,13 +1,13 @@
 import type { NextRequest } from 'next/server';
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 import {
   generateConnectionId,
   type RealtimeChannel,
   toStreamKey,
   verifyRealtimeToken,
-} from '@/lib/realtime';
-import { connections } from '@/lib/realtime/connection-registry';
-import { redis, streamRead } from '@/lib/redis';
+} from '@babylon/api';
+import { connections } from '@babylon/api';
+import { redis, streamRead } from '@babylon/api';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for SSE connections

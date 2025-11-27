@@ -9,10 +9,10 @@ const rootDir = resolve(__dirname, '../..');
 config({ path: resolve(rootDir, '.env.local') });
 config({ path: resolve(rootDir, '.env') });
 
-const SEED_PHRASE =
+const _SEED_PHRASE =
   process.env.WALLET_SEED_PHRASE ||
   'test test test test test test test test test test test junk';
-const PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
+const _PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
 
 // Verify Privy test credentials are loaded (for debugging)
 if (process.env.PRIVY_TEST_EMAIL) {
@@ -96,4 +96,3 @@ export default defineConfig({
         stderr: 'pipe',
       },
 });
-

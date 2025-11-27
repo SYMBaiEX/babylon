@@ -19,10 +19,12 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { db } from '@/db';
-import { NPCGroupDynamicsService } from '@/lib/services/npc-group-dynamics-service';
-import { NPCInteractionTracker } from '@/lib/services/npc-interaction-tracker';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import {
+  NPCGroupDynamicsService,
+  NPCInteractionTracker,
+} from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Test data cleanup tracking
 const testIds = {

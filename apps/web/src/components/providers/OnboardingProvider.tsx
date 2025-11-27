@@ -9,17 +9,17 @@ import {
 } from '@/components/onboarding/OnboardingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
-import { apiFetch } from '@/lib/api/fetch';
-import { POINTS } from '@/lib/constants/points';
-import { logger } from '@/lib/logger';
-import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
+import { apiFetch } from '@babylon/api';
+import { POINTS } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import type { OnboardingProfilePayload } from '@babylon/shared';
 import {
   getWalletErrorMessage,
   WALLET_ERROR_MESSAGES,
-} from '@/lib/wallet-utils';
+} from '@babylon/shared';
 
 import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
-import type { JsonValue } from '@/types/common';
+import type { JsonValue } from '@babylon/api';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
@@ -225,13 +225,13 @@ export function OnboardingProvider({
       setHasProgressedPastSocialImport(false);
     }
   }, [
-    authenticated, 
-    loadingProfile, 
-    needsOnboarding, 
-    needsOnchain, 
-    user, 
-    submittedProfile, 
-    stage
+    authenticated,
+    loadingProfile,
+    needsOnboarding,
+    needsOnchain,
+    user,
+    submittedProfile,
+    stage,
   ]);
 
   // Automatically extract social profile data from Privy user when authenticating

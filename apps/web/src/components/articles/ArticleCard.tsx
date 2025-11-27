@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { memo } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Article card post schema for validation.

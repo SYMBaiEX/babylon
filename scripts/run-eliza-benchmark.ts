@@ -15,22 +15,20 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
+import { AutonomousCoordinator } from '@babylon/agents';
 // @ts-expect-error - initializeAgentRuntime may not be exported yet
-import { initializeAgentRuntime } from '@/lib/agents/plugins/babylon/integration';
+import { initializeAgentRuntime } from '@babylon/agents';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
-} from '@/lib/benchmark/BenchmarkDataGenerator';
-import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
-import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
-import {
+  MetricsVisualizer,
+  SimulationA2AInterface,
   type SimulationConfig,
   SimulationEngine,
   type SimulationResult,
-} from '@/lib/benchmark/SimulationEngine';
-import { logger } from '@/lib/logger';
+} from '@babylon/training';
 
 interface ElizaBenchmarkConfig {
   benchmarkPath?: string;
@@ -47,7 +45,7 @@ async function loadBenchmark(benchmarkPath: string) {
 
   // Validate benchmark data
   const { BenchmarkValidator } = await import(
-    '@/lib/benchmark/BenchmarkValidator'
+    '@babylon/training/benchmark/BenchmarkValidator'
   );
   const validator: typeof BenchmarkValidator = BenchmarkValidator;
   validator.validateOrThrow(snapshot);

@@ -77,8 +77,8 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { PostIdParamSchema } from '@/lib/validation/schemas';
+import { db } from '@babylon/db';
+import { PostIdParamSchema } from '@babylon/shared';
 
 export async function GET(
   _request: NextRequest,

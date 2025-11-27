@@ -8,7 +8,7 @@
  */
 
 import * as path from 'path';
-import { BenchmarkDataViewer } from '@/lib/benchmark/BenchmarkDataViewer';
+import { BenchmarkDataViewer } from '@babylon/training';
 
 async function main() {
   const args = process.argv.slice(2);

@@ -6,14 +6,14 @@
  */
 
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
-import { getCachedAgent0ReputationScore } from '@/lib/reputation/agent0-reputation-cache';
+import { db } from '@babylon/db';
+import { getCachedAgent0ReputationScore } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
 import {
   batchSyncReputationsToERC8004,
   syncAllReputationsToERC8004,
   syncUserReputationToERC8004,
-} from '@/lib/reputation/erc8004-reputation-sync';
-import { generateSnowflakeId } from '@/lib/snowflake';
+} from '@babylon/agents/agent0/reputation/erc8004-reputation-sync';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -35,7 +35,7 @@ describe('ERC-8004 Reputation Sync Integration', () => {
         serverAvailable = true;
         console.log('✅ Server available for testing');
       }
-    } catch (error) {
+    } catch (_error) {
       console.warn('⚠️  Server not available, some tests may be skipped');
     }
 

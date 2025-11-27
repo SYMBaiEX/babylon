@@ -8,7 +8,7 @@ import {
   calculateTradeScore,
   type GameMetrics,
   type TradeMetrics,
-} from '@/lib/reputation/reputation-service';
+} from '@babylon/engine';
 
 describe('Feedback Calculations', () => {
   describe('calculateTradeScore', () => {

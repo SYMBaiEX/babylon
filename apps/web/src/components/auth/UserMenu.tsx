@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   getDisplayReferralUrl,
   getReferralUrl,
-} from '@/lib/referral/referral-utils';
+} from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

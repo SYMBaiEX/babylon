@@ -56,11 +56,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { FeeService } from '@/lib/services/fee-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { FeeService } from '@babylon/engine';
+import { requireUserByIdentifier } from '@babylon/api';
 
 export const GET = withErrorHandling(
   async (

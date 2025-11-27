@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
-import { cn } from '@/lib/utils';
-import { calculateUnrealizedPnL } from '@/shared/perps-types';
+import { cn } from '@babylon/shared';
+import { calculateUnrealizedPnL } from '@babylon/shared';
 import {
   type ClosePerpDetails,
   TradeConfirmationDialog,

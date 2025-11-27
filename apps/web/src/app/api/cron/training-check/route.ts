@@ -42,9 +42,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
-import { rulerScoringService } from '@/lib/training/RulerScoringService';
+import { logger } from '@babylon/shared';
+import { automationPipeline, rulerScoringService } from '@babylon/training';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes

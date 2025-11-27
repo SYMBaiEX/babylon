@@ -107,19 +107,19 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { and, comments, count, db, eq, reactions } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { and, comments, count, db, eq, reactions } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { notifyReactionOnComment } from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
-import { IdParamSchema } from '@/lib/validation/schemas';
+} from '@babylon/api';
+import { notifyReactionOnComment } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { ensureUserForAuth } from '@babylon/api';
+import { IdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/comments/[id]/like

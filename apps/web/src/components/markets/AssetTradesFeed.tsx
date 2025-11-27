@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Page size for pagination in trades feed.

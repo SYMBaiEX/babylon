@@ -108,17 +108,17 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { and, db, eq, follows, or, userBlocks, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
+import { and, db, eq, follows, or, userBlocks, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
 import {
   BusinessLogicError,
   InternalServerError,
   NotFoundError,
-} from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { BlockUserSchema } from '@/lib/validation/schemas/moderation';
+} from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { BlockUserSchema } from '@babylon/shared';
 
 export const POST = withErrorHandling(
   async (

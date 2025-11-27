@@ -122,7 +122,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import {
   chatParticipants,
   chats,
@@ -131,10 +131,10 @@ import {
   userGroupMembers,
   userGroups,
   users,
-} from '@/db/schema';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { generateSnowflakeId } from '@/lib/snowflake';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * POST /api/user-groups/invites/[id]

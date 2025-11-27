@@ -89,11 +89,11 @@ import type { NextRequest } from 'next/server';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const OnChainBuySchema = z.object({
   side: z.enum(['yes', 'no']),

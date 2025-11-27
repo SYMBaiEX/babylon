@@ -11,9 +11,8 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { db } from '@/db';
-import { benchmarkService } from '@/lib/training/BenchmarkService';
-import { modelSelectionService } from '@/lib/training/ModelSelectionService';
+import { db } from '@babylon/db';
+import { benchmarkService, modelSelectionService } from '@babylon/training';
 
 interface CheckResult {
   check: string;
@@ -180,7 +179,7 @@ async function checkGitHubWorkflow() {
         ? 'Configured'
         : 'Not configured (optional but recommended)'
     );
-  } catch (error) {
+  } catch (_error) {
     addCheck(
       'GitHub Workflow',
       'fail',
@@ -263,7 +262,7 @@ async function checkPythonTrainer() {
       hasART ? 'pass' : 'fail',
       hasART ? 'Using ART framework' : 'Missing ART framework'
     );
-  } catch (error) {
+  } catch (_error) {
     addCheck(
       'Python Trainer',
       'fail',

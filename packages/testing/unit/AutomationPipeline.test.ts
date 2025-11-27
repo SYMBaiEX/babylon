@@ -10,11 +10,11 @@ import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 const describeTests = describe;
 
 // Import types used in type assertions for repository mocks
-import type { TrainedModel, TrainingBatch } from '@/db';
+import type { TrainedModel, TrainingBatch } from '@babylon/db';
 import type {
   AutomationConfig,
   AutomationPipeline as AutomationPipelineType,
-} from '@/lib/training/AutomationPipeline';
+} from '@babylon/training/training';
 
 // Type for pipeline with private properties/methods exposed for testing
 // Uses a structural type to access private members in tests
@@ -130,9 +130,9 @@ const mockLogger = {
   error: mock(),
 };
 
-// Mock modules - using @/db since AutomationPipeline imports from there
+// Mock modules - using @babylon/db since AutomationPipeline imports from there
 // Include all exports that may be imported by AutomationPipeline and its dependencies
-mock.module('@/db', () => ({
+mock.module('@babylon/db', () => ({
   db: mockDb,
   // Tables (as empty objects since we're mocking db methods)
   // Core tables
@@ -230,7 +230,7 @@ mock.module('@/db', () => ({
   TrainedModel: {},
 }));
 
-mock.module('@/lib/logger', () => ({
+mock.module('@babylon/shared', () => ({
   logger: mockLogger,
 }));
 
@@ -248,7 +248,7 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       process.env.DATABASE_URL || 'postgresql://mock:mock@localhost:5432/mock';
 
     // Dynamic import to ensure env var is set and mocks are applied
-    const module = await import('@/lib/training/AutomationPipeline');
+    const module = await import('@babylon/training/training');
     AutomationPipeline = module.AutomationPipeline;
   });
 

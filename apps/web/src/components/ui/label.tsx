@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Label component for form field labels.

@@ -102,7 +102,7 @@ async function main() {
       `   Date Range: ${summary.dateRange?.start || 'N/A'} to ${summary.dateRange?.end || 'N/A'}`
     );
     results.push({ step: 'Verify Data', success: true });
-  } catch (error) {
+  } catch (_error) {
     console.error('❌ Summary file not found or invalid');
     results.push({ step: 'Verify Data', success: false });
     process.exit(1);
@@ -147,7 +147,7 @@ async function main() {
         output: 'Skipped - no data',
       });
     }
-  } catch (error) {
+  } catch (_error) {
     console.log('⏭️  Offline simulation test skipped');
     results.push({
       step: 'Offline Simulation',

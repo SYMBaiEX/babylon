@@ -10,9 +10,11 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { CommunicationHub } from '@/lib/agents/communication/CommunicationHub';
-import { getEventBus } from '@/lib/agents/communication/EventBus';
-import { ExternalAgentAdapter } from '@/lib/agents/external/ExternalAgentAdapter';
+import {
+  CommunicationHub,
+  ExternalAgentAdapter,
+  getEventBus,
+} from '@babylon/agents';
 import type { AgentCapabilities } from '@/types/a2a';
 
 // Performance thresholds

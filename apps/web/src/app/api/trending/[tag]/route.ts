@@ -58,9 +58,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { getPostsByTag } from '@/lib/services/tag-storage-service';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { getPostsByTag } from '@babylon/engine';
 
 export async function GET(
   request: NextRequest,

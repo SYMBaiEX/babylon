@@ -73,10 +73,10 @@ import {
   messages,
   userGroups,
   users,
-} from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { asSystem } from '@/lib/db/context';
-import { withErrorHandling } from '@/lib/errors/error-handler';
+} from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { asSystem } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/admin/groups

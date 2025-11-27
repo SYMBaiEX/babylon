@@ -12,12 +12,14 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'fs';
-import { db } from '@/db';
-import { autonomousCoordinator } from '@/lib/agents/autonomous';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { createTestAgent } from '@/lib/agents/utils/createTestAgent';
-import { WalletService } from '@/lib/services/wallet-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import {
+  agentRuntimeManager,
+  autonomousCoordinator,
+  createTestAgent,
+} from '@babylon/agents';
+import { WalletService } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Load environment variables from .env files if they exist (for CI and local environments)
 // Priority: process.env > .env.test > .env.local
@@ -283,7 +285,7 @@ describe('Agent Actions Persistence Integration', () => {
         await db.message.deleteMany({ where: { senderId: testAgentId } });
         // Delete agent
         await db.user.delete({ where: { id: testAgentId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }
@@ -310,7 +312,7 @@ describe('Agent Actions Persistence Integration', () => {
             .delete({ where: { id: testMarketId } })
             .catch(() => {});
         }
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical - market may have been deleted already
       }
     }
@@ -318,7 +320,7 @@ describe('Agent Actions Persistence Integration', () => {
     if (testPostId) {
       try {
         await db.post.delete({ where: { id: testPostId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }

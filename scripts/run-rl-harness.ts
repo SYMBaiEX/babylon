@@ -13,17 +13,16 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { db, sql, users } from '@/db';
-import { agentWalletService } from '@/lib/agents/identity/AgentWalletService';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
+import { agentRuntimeManager, agentWalletService } from '@babylon/agents';
+import { db, sql, users } from '@babylon/db';
 import {
+  automationPipeline,
   type BenchmarkConfig,
   BenchmarkDataGenerator,
-} from '@/lib/benchmark/BenchmarkDataGenerator';
-import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import type { SimulationResult } from '@/lib/benchmark/SimulationEngine';
-import { automationPipeline } from '@/lib/training/AutomationPipeline';
-import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
+  BenchmarkRunner,
+  getLatestRLModel,
+  type SimulationResult,
+} from '@babylon/training';
 
 type HarnessOptions = {
   agentCount: number;

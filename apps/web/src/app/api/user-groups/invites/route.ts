@@ -52,9 +52,9 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/user-groups/invites

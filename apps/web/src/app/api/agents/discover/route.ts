@@ -91,10 +91,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-import type { AgentDiscoveryFilter } from '@/types/agent-registry.types';
-import { AgentStatus, AgentType } from '@/types/agent-registry.types';
+import { logger } from '@babylon/shared';
+import { agentRegistry } from '@babylon/agents';
+import type { AgentDiscoveryFilter } from '@babylon/agents';
+import { AgentStatus, AgentType } from '@babylon/agents';
 
 export const dynamic = 'force-dynamic';
 

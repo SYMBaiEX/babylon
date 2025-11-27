@@ -1,16 +1,16 @@
-import { cn } from '@/lib/utils'
-import type { ReactNode } from 'react'
-import { forwardRef } from 'react'
+import type { ReactNode } from 'react';
+import { forwardRef } from 'react';
+import { cn } from '@babylon/shared';
 
 /**
  * Page container component for consistent page layout.
- * 
+ *
  * Provides a standardized container with consistent padding and responsive
  * behavior. Supports optional padding removal and custom className.
- * 
+ *
  * @param props - PageContainer component props
  * @returns Page container element
- * 
+ *
  * @example
  * ```tsx
  * <PageContainer noPadding>
@@ -19,9 +19,9 @@ import { forwardRef } from 'react'
  * ```
  */
 interface PageContainerProps {
-  children: ReactNode
-  className?: string
-  noPadding?: boolean
+  children: ReactNode;
+  className?: string;
+  noPadding?: boolean;
 }
 
 export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(
@@ -31,7 +31,7 @@ export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(
         ref={ref}
         className={cn(
           // Sharp corners, simple boxy layout
-          'bg-background overflow-hidden',
+          'overflow-hidden bg-background',
           'h-full min-h-full w-full',
           // Desktop: Simple container - use full height
           'md:h-full',
@@ -42,8 +42,8 @@ export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(
       >
         {children}
       </div>
-    )
+    );
   }
-)
+);
 
-PageContainer.displayName = 'PageContainer'
+PageContainer.displayName = 'PageContainer';

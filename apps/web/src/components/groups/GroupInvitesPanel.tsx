@@ -2,22 +2,23 @@
 
 /**
  * Group invites panel component for displaying all pending group invitations.
- * 
+ *
  * Fetches and displays all pending group invitations for the current user.
  * Shows invitation count and renders individual invite notifications.
  * Automatically reloads after invite responses.
- * 
+ *
  * Features:
  * - Pending invitations list
  * - Invitation count display
  * - Auto-reload after response
  * - Loading states
  * - Empty state handling
- * 
+ *
  * @returns Group invites panel element or null if no invites
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { GroupInviteNotification } from './GroupInviteNotification';
+
 // import { toast } from 'sonner';
 
 /**
@@ -45,7 +46,7 @@ export function GroupInvitesPanel() {
   const [invites, setInvites] = useState<GroupInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadInvites = async () => {
+  const loadInvites = useCallback(async () => {
     const response = await fetch('/api/user-groups/invites');
     const data = await response.json();
 
@@ -55,11 +56,11 @@ export function GroupInvitesPanel() {
 
     setInvites(data.data.invites);
     setIsLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     loadInvites();
-  }, []);
+  }, [loadInvites]);
 
   const handleInviteResponse = () => {
     loadInvites(); // Reload invites after response
@@ -67,8 +68,10 @@ export function GroupInvitesPanel() {
 
   if (isLoading) {
     return (
-      <div className="p-6 bg-background border border-border rounded-xl shadow-sm">
-        <div className="text-center text-muted-foreground">Loading invites...</div>
+      <div className="rounded-xl border border-border bg-background p-6 shadow-sm">
+        <div className="text-center text-muted-foreground">
+          Loading invites...
+        </div>
       </div>
     );
   }
@@ -78,11 +81,13 @@ export function GroupInvitesPanel() {
   }
 
   return (
-    <div className="bg-background border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-border">
-        <h3 className="text-lg font-bold">Pending Invitations ({invites.length})</h3>
+    <div className="overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+      <div className="border-border border-b p-6">
+        <h3 className="font-bold text-lg">
+          Pending Invitations ({invites.length})
+        </h3>
       </div>
-      <div className="p-6 space-y-3">
+      <div className="space-y-3 p-6">
         {invites.map((invite) => (
           <GroupInviteNotification
             key={invite.id}
@@ -100,4 +105,3 @@ export function GroupInvitesPanel() {
     </div>
   );
 }
-

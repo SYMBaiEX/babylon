@@ -5,8 +5,8 @@
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@/db';
-import { getOrCreateReferralCode } from '@/lib/services/referral-service';
+import { db } from '@babylon/db';
+import { getOrCreateReferralCode } from '@babylon/api';
 
 interface PageProps {
   params: Promise<{

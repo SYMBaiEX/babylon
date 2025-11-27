@@ -8,6 +8,10 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
+import { setPointsService } from '@babylon/shared/moderation';
+import { setNotificationService } from '@babylon/shared/moderation';
+import { PointsService } from '@babylon/api/services/points-service';
+import { createNotification } from '@babylon/api/services/notification-service';
 
 const sentryDisabled =
   process.env.DISABLE_SENTRY === 'true' ||
@@ -18,6 +22,19 @@ export async function register() {
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     return;
   }
+
+  // Initialize shared moderation services with web app implementations
+  setPointsService({
+    awardPoints: async (userId, amount, reason, metadata) => {
+      return await PointsService.awardPoints(userId, amount, reason as never, metadata);
+    },
+  });
+
+  setNotificationService({
+    createNotification: async (params) => {
+      return await createNotification(params);
+    },
+  });
 
   if (sentryDisabled && process.env.NODE_ENV === 'development') {
     console.info('[Sentry] Disabled via DISABLE_SENTRY flag');
@@ -36,7 +53,7 @@ export async function register() {
     process.env.NODE_ENV === 'production' // Only in production to avoid blocking dev
   ) {
     const { registerBabylonGame } = await import(
-      './src/lib/babylon-registry-init'
+      '@babylon/agents/agent0'
     );
     await registerBabylonGame().catch((error: Error) => {
       // Don't fail startup if registration fails - log and continue

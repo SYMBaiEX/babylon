@@ -44,9 +44,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export async function POST(req: NextRequest) {
   try {

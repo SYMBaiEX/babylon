@@ -13,15 +13,15 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { nanoid } from 'nanoid';
-import type { User } from '@/db';
-import { db } from '@/db';
+import type { User } from '@babylon/db';
+import { db } from '@babylon/db';
 import {
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
   hasBlocked,
   hasMuted,
-} from '@/lib/moderation/filters';
+} from '@babylon/db';
 
 let testUser1: User;
 let testUser2: User;

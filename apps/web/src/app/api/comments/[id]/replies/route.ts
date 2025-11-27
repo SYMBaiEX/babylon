@@ -84,14 +84,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { comments, eq, posts, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { CreateCommentSchema, IdParamSchema } from '@/lib/validation/schemas';
+import { comments, eq, posts, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { CreateCommentSchema, IdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/comments/[id]/replies

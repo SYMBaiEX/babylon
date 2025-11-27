@@ -5,7 +5,7 @@
  * Handles database initialization, database readiness checks, and test isolation.
  */
 
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 /**
  * Check if database is available and properly configured
@@ -21,7 +21,7 @@ export async function ensureDatabaseReady(): Promise<boolean> {
     // Simple connection test using db.$queryRaw
     await db.$queryRaw`SELECT 1`;
     return true;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 }
@@ -71,7 +71,7 @@ export async function setupTestEnvironment(options?: {
 export async function cleanupTestEnvironment() {
   try {
     await db.$disconnect();
-  } catch (error) {
+  } catch (_error) {
     // Ignore disconnection errors in tests
   }
 }

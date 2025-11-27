@@ -13,7 +13,7 @@
  */
 
 import { nanoid } from 'nanoid';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { logger } from '../src/lib/logger';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 

@@ -75,17 +75,17 @@ import {
 } from '@a2a-js/sdk/server';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { BabylonAgentExecutor } from '@/lib/a2a/executors/babylon-executor';
+import { db } from '@babylon/db';
 import {
+  BabylonAgentExecutor,
   ExtendedTaskStore,
   type ListTasksParams,
-} from '@/lib/a2a/extended-task-store';
-import { generateAgentCardSync } from '@/lib/a2a/sdk/agent-card-generator';
-import { RateLimiter } from '@/lib/a2a/utils/rate-limiter';
-import { logger } from '@/lib/logger';
-import type { JsonRpcRequest } from '@/types/a2a';
-import { ErrorCode } from '@/types/a2a';
+  generateAgentCardSync,
+  RateLimiter,
+  type JsonRpcRequest,
+  ErrorCode,
+} from '@babylon/a2a';
+import { logger } from '@babylon/shared';
 
 // Interface for accessing private SDK properties (needed for tasks/list handling)
 interface JsonRpcHandlerWithRequestHandler {

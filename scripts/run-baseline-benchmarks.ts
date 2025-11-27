@@ -10,11 +10,10 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
-import { getBaselineModels } from '@/lib/benchmark/ModelRegistry';
-import { logger } from '@/lib/logger';
+import { db, generateSnowflakeId } from '@babylon/db';
+import { agentRuntimeManager } from '@babylon/agents';
+import { BenchmarkRunner, getBaselineModels } from '@babylon/training';
+import { logger } from '@babylon/shared';
 
 interface BaselineConfig {
   benchmarkPath: string;
@@ -135,9 +134,8 @@ async function ensureTestAgent(): Promise<string> {
 
   if (!agent) {
     const { ethers } = await import('ethers');
-    const { generateSnowflakeId } = await import('@/lib/snowflake');
 
-    const agentId = await generateSnowflakeId();
+    const agentId = generateSnowflakeId();
     agent = await db.user.create({
       data: {
         id: agentId,

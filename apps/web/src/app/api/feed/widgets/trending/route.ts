@@ -71,20 +71,20 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { desc, eq, posts, postTags } from '@/db';
+import { desc, eq, posts, postTags } from '@babylon/db';
 import {
   type AuthenticatedUser,
   optionalAuth,
-} from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service';
+} from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { getCurrentTrendingTags } from '@babylon/engine';
 import {
   generateTrendingSummary,
   groupTrendingTags,
   type TrendingTag,
-} from '@/lib/services/trending-grouping-service';
+} from '@babylon/engine';
 
 // Server-side cache with longer TTL
 interface CachedTrendingData {

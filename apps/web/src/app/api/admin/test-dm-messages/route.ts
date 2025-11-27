@@ -63,14 +63,14 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { broadcastChatMessage } from '@babylon/api';
+import { findUserByIdentifier } from '@babylon/api';
 
 const TestDMMessagesSchema = z.object({
   senderId: z.string().min(1),

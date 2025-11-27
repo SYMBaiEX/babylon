@@ -52,7 +52,7 @@ async function authenticateWithPrivy(
       // If redirected, wait for the new URL to be ready
       return page.waitForLoadState('domcontentloaded');
     });
-  } catch (e) {
+  } catch (_e) {
     // Continue if URL check times out - page might have redirected
     await page.waitForLoadState('domcontentloaded');
   }
@@ -90,7 +90,7 @@ async function authenticateWithPrivy(
   // In CI, networkidle can be flaky if there are background requests
   try {
     await page.waitForLoadState('networkidle', { timeout: 30000 });
-  } catch (e) {
+  } catch (_e) {
     console.log('⚠️  Network idle timed out, continuing...');
   }
 
@@ -143,7 +143,7 @@ async function authenticateWithPrivy(
       { timeout: 45000 }
     );
     console.log('✅ Privy SDK detected');
-  } catch (e) {
+  } catch (_e) {
     console.log('❌ Privy SDK check timed out');
 
     // Diagnostic code - wrap in try-catch to handle case where page is already closed
@@ -256,7 +256,7 @@ async function authenticateWithPrivy(
       { timeout: 45000 }
     );
     console.log('✅ Login button is enabled (Privy ready)');
-  } catch (e) {
+  } catch (_e) {
     console.log('❌ Login button enabled check timed out');
     // Log what buttons we found
     const buttons = await page.evaluate(() => {
@@ -574,7 +574,7 @@ async function authenticateWithPrivy(
       timeout: 30000,
     });
     console.log('✅ Authentication successful - user menu visible');
-  } catch (error) {
+  } catch (_error) {
     // Fallback: check for Privy token in localStorage as secondary verification
     type WindowWithPrivyToken = Window & {
       __privyAccessToken?: unknown;

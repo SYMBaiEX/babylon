@@ -63,9 +63,9 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { WaitlistService } from '@/lib/services/waitlist-service';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { WaitlistService } from '@babylon/api';
 
 const WalletBonusSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),

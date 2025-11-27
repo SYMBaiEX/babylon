@@ -72,14 +72,14 @@
  * console.log(stats.followers); // Total follower count
  * ```
  *
- * @see {@link /lib/errors/error-handler} Error handling utilities
+ * @see {@link @babylon/api} Error handling utilities
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { BusinessLogicError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { BusinessLogicError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /api/actors/[actorId]/stats

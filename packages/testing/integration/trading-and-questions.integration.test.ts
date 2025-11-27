@@ -11,10 +11,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
-import { asSystem } from '@/lib/db/context';
-import { executeGameTick } from '@/lib/serverless-game-tick';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { asSystem } from '@babylon/db';
+import { executeGameTick } from '@babylon/engine/serverless-game-tick';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Helper to check if we should skip due to rate limiting or API issues
 let apiAvailable = true;

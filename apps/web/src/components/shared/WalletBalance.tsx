@@ -1,25 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
-
 import { TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-
-import { cn } from '@/lib/utils';
-
+import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { cn } from '@babylon/shared';
 
 /**
  * Wallet balance component displaying user balance and lifetime PnL.
- * 
+ *
  * Shows current available balance and lifetime profit/loss in a compact
  * card format. Automatically refreshes when refreshTrigger changes.
  * Only displays when user is authenticated. Color-codes balance based on
  * starting balance ($1000) and shows profit/loss indicators.
- * 
+ *
  * @param props - WalletBalance component props
  * @returns Wallet balance element or null if not authenticated
- * 
+ *
  * @example
  * ```tsx
  * <WalletBalance refreshTrigger={Date.now()} />
@@ -58,14 +55,14 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
   const startingBalance = 1000;
 
   return (
-    <div className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 bg-muted/30 rounded overflow-x-auto">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+    <div className="flex items-center gap-3 overflow-x-auto rounded bg-muted/30 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <Wallet className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
         <div>
-          <div className="text-xs text-muted-foreground">Balance</div>
+          <div className="text-muted-foreground text-xs">Balance</div>
           <div
             className={cn(
-              'text-base sm:text-lg font-bold whitespace-nowrap',
+              'whitespace-nowrap font-bold text-base sm:text-lg',
               balance > startingBalance
                 ? 'text-green-600'
                 : balance < startingBalance
@@ -78,19 +75,19 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
         </div>
       </div>
 
-      <div className="h-8 w-px bg-border flex-shrink-0" />
+      <div className="h-8 w-px flex-shrink-0 bg-border" />
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center gap-2">
         {isProfit ? (
-          <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" />
+          <TrendingUp className="h-3.5 w-3.5 text-green-600 sm:h-4 sm:w-4" />
         ) : (
-          <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600" />
+          <TrendingDown className="h-3.5 w-3.5 text-red-600 sm:h-4 sm:w-4" />
         )}
         <div>
-          <div className="text-xs text-muted-foreground">Lifetime PnL</div>
+          <div className="text-muted-foreground text-xs">Lifetime PnL</div>
           <div
             className={cn(
-              'text-sm font-bold whitespace-nowrap',
+              'whitespace-nowrap font-bold text-sm',
               isProfit ? 'text-green-600' : 'text-red-600'
             )}
           >

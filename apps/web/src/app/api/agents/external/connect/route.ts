@@ -12,8 +12,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { verifyApiKey } from '@/lib/crypto/api-keys';
+import { db } from '@babylon/db';
+import { verifyApiKey } from '@babylon/shared';
 
 // Validation schema for connection request
 const ConnectSchema = z.object({

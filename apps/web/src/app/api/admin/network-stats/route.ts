@@ -45,10 +45,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { queryMonitor } from '@/lib/db/query-monitor';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { requireAdmin } from '@babylon/api';
+import { queryMonitor } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /api/admin/network-stats

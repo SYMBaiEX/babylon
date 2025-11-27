@@ -56,13 +56,13 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, ConflictError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { processOnchainRegistration } from '@/lib/onboarding/onchain-service';
-import type { JsonValue } from '@/types/common';
+import { db, eq, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError, ConflictError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { processOnchainRegistration } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 interface OnchainRequestBody {
   walletAddress?: string | null;

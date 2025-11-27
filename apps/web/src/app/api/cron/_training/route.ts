@@ -42,7 +42,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 
 export async function GET() {
   logger.info('Training cron endpoint called (currently disabled)');

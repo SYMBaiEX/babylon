@@ -142,11 +142,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@/db';
-import { authenticate, getPrivyClient } from '@/lib/api/auth-middleware';
-import { cachedDb } from '@/lib/cached-database-service';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db, eq, users } from '@babylon/db';
+import { authenticate, getPrivyClient } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const userSelectFields = {
   id: users.id,

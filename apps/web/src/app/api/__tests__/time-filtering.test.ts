@@ -6,10 +6,9 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { cachedDb } from '@/lib/cached-database-service';
-import db from '@/lib/database-service';
-import { MarketContextService } from '@/lib/services/market-context-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db, generateSnowflakeId, getDbInstance } from '@babylon/db';
+import { cachedDb } from '@babylon/api';
+import { MarketContextService } from '@babylon/engine';
 
 describe('Time Filtering - API Endpoints', () => {
   let testActorId: string;
@@ -130,7 +129,7 @@ describe('Time Filtering - API Endpoints', () => {
       );
 
       // Now test the filtering
-      const posts = await db().getRecentPosts(100);
+      const posts = await getDbInstance().getRecentPosts(100);
       const postIds = posts.map((p) => p.id);
 
       // Past and current posts should appear (if they're not filtered out by test user check)
@@ -151,7 +150,7 @@ describe('Time Filtering - API Endpoints', () => {
       expect(actor).toBeTruthy();
       expect(actor?.isTest).toBe(false);
 
-      const posts = await db().getPostsByActor(testActorId, 100);
+      const posts = await getDbInstance().getPostsByActor(testActorId, 100);
       const postIds = posts.map((p) => p.id);
 
       // Verify the time filtering is working - future post should NOT appear
@@ -475,7 +474,7 @@ describe('Time Filtering - API Endpoints', () => {
     it('should handle posts exactly at current time', async () => {
       // Re-query with fresh timestamp to ensure we're checking against current time
       const freshNow = new Date();
-      const posts = await db().getRecentPosts(100);
+      const posts = await getDbInstance().getRecentPosts(100);
       const postIds = posts.map((p) => p.id);
 
       // Current post (timestamp = now) should appear if it's <= current time
@@ -505,7 +504,7 @@ describe('Time Filtering - API Endpoints', () => {
         },
       });
 
-      const posts = await db().getRecentPosts(100);
+      const posts = await getDbInstance().getRecentPosts(100);
       const postIds = posts.map((p) => p.id);
 
       // Even 1ms in the future should be filtered out
@@ -530,7 +529,7 @@ describe('Time Filtering - API Endpoints', () => {
         },
       });
 
-      const posts = await db().getRecentPosts(100);
+      const posts = await getDbInstance().getRecentPosts(100);
       const postIds = posts.map((p) => p.id);
 
       expect(postIds).not.toContain(farFuturePost.id);

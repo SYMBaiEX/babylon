@@ -11,7 +11,7 @@
  */
 
 import { execSync } from 'child_process';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 interface WandbRun {
   id: string;
@@ -33,7 +33,7 @@ async function checkWandbCLI(): Promise<boolean> {
     const version = execSync('wandb --version', { encoding: 'utf-8' }).trim();
     console.log(`✅ W&B CLI installed: ${version}`);
     return true;
-  } catch (error) {
+  } catch (_error) {
     console.error('❌ W&B CLI not found. Install with: pip install wandb');
     return false;
   }
@@ -305,7 +305,7 @@ async function checkDatabaseModels(): Promise<void> {
         `   Error: ${dbError instanceof Error ? dbError.message : String(dbError)}`
       );
     }
-  } catch (error) {
+  } catch (_error) {
     console.log(
       '⚠️  Could not check database (this is okay for W&B verification)'
     );

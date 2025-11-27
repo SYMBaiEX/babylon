@@ -6,7 +6,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
-import { NameReplacer } from '../../scripts/name-replacer';
+import { NameReplacer } from '../../../scripts/name-replacer';
 import type {
   ActorData,
   ActorsDataFile,
@@ -17,11 +17,10 @@ describe('Name Replacement System', () => {
   let replacer: NameReplacer;
   let actorsData: ActorsDataFile;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // Use new loader (no path needed)
     replacer = new NameReplacer();
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { loadActorsData } = require('../../src/lib/data/actors-loader');
+    const { loadActorsData } = await import('@babylon/engine');
     actorsData = loadActorsData() as ActorsDataFile;
   });
 
@@ -284,12 +283,11 @@ describe('Name Replacement System', () => {
 });
 
 describe('Validation: No Original Names Leaked', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     // Initialize replacer and actors data for validation
     // Note: _replacer and _actorsData are intentionally unused in this test suite
     const _replacer = new NameReplacer();
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { loadActorsData } = require('../../src/lib/data/actors-loader');
+    const { loadActorsData } = await import('@babylon/engine');
     const _actorsData = loadActorsData() as ActorsDataFile;
     // Variables are used implicitly for validation - ensure data is loaded
     expect(_replacer).toBeDefined();

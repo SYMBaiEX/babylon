@@ -7,8 +7,8 @@
  * This uses the proper RULER implementation - not simple heuristics!
  */
 
-import { db } from '@/db';
-import { rulerScoringService } from '@/lib/training/RulerScoringService';
+import { db } from '@babylon/db';
+import { rulerScoringService } from '@babylon/training';
 
 async function main() {
   console.log('━━━ RULER SCORING (LLM-as-judge) ━━━\n');

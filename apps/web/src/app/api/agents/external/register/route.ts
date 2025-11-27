@@ -12,10 +12,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { generateApiKey, hashApiKey } from '@/lib/crypto/api-keys';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-import type { ExternalAgentConnectionParams } from '@/types/agent-registry.types';
+import { authenticate } from '@babylon/api';
+import { generateApiKey, hashApiKey } from '@babylon/shared';
+import { agentRegistry } from '@babylon/agents';
+import type { ExternalAgentConnectionParams } from '@babylon/agents';
 
 // Validation schema for external agent registration
 const ExternalAgentRegisterSchema = z.object({

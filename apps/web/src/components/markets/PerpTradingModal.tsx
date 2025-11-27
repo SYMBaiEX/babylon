@@ -12,8 +12,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { FEE_CONFIG } from '@/lib/config/fees';
-import { cn } from '@/lib/utils';
+import { FEE_CONFIG } from '@babylon/engine';
+import { cn } from '@babylon/shared';
 
 /**
  * Perpetual market structure for trading modal.

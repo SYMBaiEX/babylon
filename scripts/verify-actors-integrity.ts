@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { ActorData } from '@/shared/types';
+import type { ActorData } from '@babylon/shared';
 import type {
   ActorFileRef,
   ActorsIndexFile,

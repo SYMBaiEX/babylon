@@ -87,32 +87,30 @@
  * });
  * ```
  *
- * @see {@link /lib/profile/rate-limiter} Rate limiter
+ * @see {@link @babylon/api} Profile rate limiter
  * @see {@link /lib/services/points-service} Points service
  */
 
 import type { NextRequest } from 'next/server';
 import type { Address } from 'viem';
-import { and, db, eq, ne, users } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { confirmOnchainProfileUpdate } from '@/lib/onboarding/onchain-service';
-import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  isBackendSigningEnabled,
-  updateProfileBackendSigned,
-} from '@/lib/profile/backend-signer';
+import { and, db, eq, ne, users } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError, BusinessLogicError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { confirmOnchainProfileUpdate } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkProfileUpdateRateLimit,
+  isBackendSigningEnabled,
   logProfileUpdate,
-} from '@/lib/profile/rate-limiter';
-import { notifyProfileComplete } from '@/lib/services/notification-service';
-import { PointsService } from '@/lib/services/points-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { UpdateUserSchema, UserIdParamSchema } from '@/lib/validation/schemas';
-import type { JsonValue } from '@/types/common';
+  updateProfileBackendSigned,
+} from '@babylon/api';
+import { notifyProfileComplete } from '@babylon/api';
+import { PointsService } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
+import { UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 /**
  * POST /api/users/[userId]/update-profile

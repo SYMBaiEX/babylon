@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import { cn } from '@/lib/utils'
+import { cn } from '@babylon/shared';
 
 /**
  * Tagged text component for parsing and highlighting social tags.
- * 
+ *
  * Parses and highlights @mentions, #hashtags, and $cashtags in text.
  * Tags are clickable and styled in blue with hover effects. Handles
  * edge cases like null/undefined text and empty strings gracefully.
- * 
+ *
  * @param props - TaggedText component props
  * @returns Tagged text element with highlighted tags
- * 
+ *
  * @example
  * ```tsx
  * <TaggedText
@@ -21,33 +21,37 @@ import { cn } from '@/lib/utils'
  * ```
  */
 interface TaggedTextProps {
-  text: string
-  onTagClick?: (tag: string) => void
-  className?: string
+  text: string;
+  onTagClick?: (tag: string) => void;
+  className?: string;
 }
 
 export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
   // Handle null, undefined, or non-string text - return plain text
   if (!text || typeof text !== 'string') {
-    return <span className={className}>{text || ''}</span>
+    return <span className={className}>{text || ''}</span>;
   }
 
   // Handle empty string
   if (text.length === 0) {
-    return <span className={className}></span>
+    return <span className={className}></span>;
   }
 
   // Regex to match @mentions, #hashtags, and $cashtags
   // Matches: @username, #hashtag, $cashtag, $19.99
   // Captures everything until a space (allows periods, hyphens, numbers, etc.)
-  const tagRegex = /(@|#|\$)([^\s]+)/g
+  const tagRegex = /(@|#|\$)([^\s]+)/g;
 
-  const parts: Array<{ text: string; isTag: boolean; tagType?: '@' | '#' | '$' }> = []
-  let lastIndex = 0
-  let match
+  const parts: Array<{
+    text: string;
+    isTag: boolean;
+    tagType?: '@' | '#' | '$';
+  }> = [];
+  let lastIndex = 0;
+  let match;
 
   // Reset regex lastIndex to start from beginning
-  tagRegex.lastIndex = 0
+  tagRegex.lastIndex = 0;
 
   while ((match = tagRegex.exec(text)) !== null) {
     // Add text before the tag
@@ -55,19 +59,19 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
       parts.push({
         text: text.slice(lastIndex, match.index),
         isTag: false,
-      })
+      });
     }
 
     // Add the tag
-    const fullTag = match[0] // e.g., "@username" or "#hashtag" or "$cashtag"
-    const tagType = match[1] as '@' | '#' | '$'
+    const fullTag = match[0]; // e.g., "@username" or "#hashtag" or "$cashtag"
+    const tagType = match[1] as '@' | '#' | '$';
     parts.push({
       text: fullTag,
       isTag: true,
       tagType,
-    })
+    });
 
-    lastIndex = match.index + fullTag.length
+    lastIndex = match.index + fullTag.length;
   }
 
   // Add remaining text after last tag (or all text if no tags found)
@@ -75,12 +79,12 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
     parts.push({
       text: text.slice(lastIndex),
       isTag: false,
-    })
+    });
   }
 
   // If no tags found, return plain text
   if (parts.length === 0 || (parts.length === 1 && !parts[0]?.isTag)) {
-    return <span className={className}>{text}</span>
+    return <span className={className}>{text}</span>;
   }
 
   return (
@@ -91,13 +95,13 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
             <span
               key={index}
               onClick={(e) => {
-                e.stopPropagation()
+                e.stopPropagation();
                 if (onTagClick) {
-                  onTagClick(part.text)
+                  onTagClick(part.text);
                 }
               }}
               className={cn(
-                'text-[#0066FF] hover:text-[#2952d9] cursor-pointer font-medium',
+                'cursor-pointer font-medium text-[#0066FF] hover:text-[#2952d9]',
                 'transition-colors duration-150',
                 'underline decoration-[#0066FF]/30 hover:decoration-[#0066FF]/50'
               )}
@@ -105,11 +109,10 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
             >
               {part.text}
             </span>
-          )
+          );
         }
-        return <span key={index}>{part.text}</span>
+        return <span key={index}>{part.text}</span>;
       })}
     </span>
-  )
+  );
 }
-

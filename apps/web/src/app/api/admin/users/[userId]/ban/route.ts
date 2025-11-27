@@ -90,11 +90,11 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const BanUserSchema = z.object({
   action: z.enum(['ban', 'unban']),
@@ -190,9 +190,7 @@ export const POST = withErrorHandling(
     // Sync with ERC-8004 reputation system via Agent0
     if (action === 'ban' && updatedUser.agent0TokenId) {
       try {
-        const { syncReputationToERC8004 } = await import(
-          '@/lib/reputation/erc8004-sync'
-        );
+        const { syncReputationToERC8004 } = await import('@babylon/agents');
         await syncReputationToERC8004(userId, {
           reputationScore: 0, // Banned users get 0 reputation
           isBanned: true,
@@ -217,7 +215,7 @@ export const POST = withErrorHandling(
     if (action === 'ban') {
       try {
         const { invalidateReputationCache } = await import(
-          '@/lib/reputation/agent0-reputation-cache'
+          '@babylon/agents/agent0/reputation/agent0-reputation-cache'
         );
         await invalidateReputationCache(userId);
       } catch (error) {
@@ -231,9 +229,7 @@ export const POST = withErrorHandling(
       // Distribute points to successful reporters if CSAM/scammer
       if ((isScammer ?? false) || (isCSAM ?? false)) {
         try {
-          const { distributePointsToReporters } = await import(
-            '@/lib/moderation/points-distribution'
-          );
+          const { distributePointsToReporters } = await import('@babylon/shared');
           const reason = isCSAM ? 'csam' : 'scammer';
           await distributePointsToReporters(userId, reason);
         } catch (error) {

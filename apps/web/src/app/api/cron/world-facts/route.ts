@@ -48,11 +48,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { AuthorizationError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { createParodyHeadlineGenerator } from '@/lib/services/parody-headline-generator';
-import { rssFeedService } from '@/lib/services/rss-feed-service';
+import { AuthorizationError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { createParodyHeadlineGenerator } from '@babylon/engine';
+import { rssFeedService } from '@babylon/engine';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max

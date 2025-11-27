@@ -7,9 +7,7 @@
  * Run with: bun run tests/manual/test-worldevent-validation.ts
  */
 
-import { db } from '@/db';
-import dbService from '@/lib/database-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db, generateSnowflakeId, getDbInstance } from '@babylon/db';
 
 async function testWorldEventValidation() {
   console.log('🧪 Testing WorldEvent INT4 Validation\n');
@@ -17,7 +15,7 @@ async function testWorldEventValidation() {
   try {
     // Test 1: Valid values should work
     console.log('Test 1: Creating event with valid INT4 values...');
-    const validEvent = await dbService().createEvent({
+    const validEvent = await getDbInstance().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with valid values',
@@ -42,7 +40,7 @@ async function testWorldEventValidation() {
     console.log('  Would overflow?', bigNumber > 2147483647);
 
     try {
-      const invalidEvent = await dbService().createEvent({
+      const invalidEvent = await getDbInstance().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid relatedQuestion',
@@ -79,7 +77,7 @@ async function testWorldEventValidation() {
       '\nTest 3: Attempting to create event with overflow dayNumber...'
     );
     try {
-      const invalidDayEvent = await dbService().createEvent({
+      const invalidDayEvent = await getDbInstance().createEvent({
         id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid dayNumber',
@@ -110,7 +108,7 @@ async function testWorldEventValidation() {
 
     // Test 4: Edge case - exactly INT4 max
     console.log('\nTest 4: Creating event with INT4 maximum value...');
-    const maxInt4Event = await dbService().createEvent({
+    const maxInt4Event = await getDbInstance().createEvent({
       id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with INT4 max',

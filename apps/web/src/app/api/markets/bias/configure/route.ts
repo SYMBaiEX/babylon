@@ -112,7 +112,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { biasEngine } from '@/lib/feedback/bias-engine';
+import { biasEngine } from '@babylon/engine';
 
 const SetBiasSchema = z.object({
   action: z.literal('set'),

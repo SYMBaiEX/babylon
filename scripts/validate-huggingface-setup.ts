@@ -10,9 +10,11 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { huggingFaceIntegration } from '@/lib/huggingface/HuggingFaceIntegrationService';
+import { db } from '@babylon/db';
+import {
+  huggingFaceIntegration,
+  ModelBenchmarkService,
+} from '@babylon/training';
 
 interface ValidationIssue {
   severity: 'error' | 'warning' | 'info';
@@ -103,7 +105,7 @@ async function validateDatabase(): Promise<void> {
           'Run: bun run hf:benchmark --model=MODEL_ID'
         );
       }
-    } catch (error) {
+    } catch (_error) {
       addIssue(
         'error',
         'Database',

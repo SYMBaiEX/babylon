@@ -50,8 +50,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { modelStorage } from '@/lib/training/storage/ModelStorageService';
+import { db } from '@babylon/db';
+import { modelStorage } from '@babylon/training';
 
 export const dynamic = 'force-dynamic';
 

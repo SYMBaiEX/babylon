@@ -101,12 +101,12 @@ import {
   posts,
   reactions,
   shares,
-} from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PostFeedQuerySchema } from '@/lib/validation/schemas';
+} from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PostFeedQuerySchema } from '@babylon/shared';
 
 /**
  * GET /api/posts/feed/favorites

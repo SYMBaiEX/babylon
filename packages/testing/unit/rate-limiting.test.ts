@@ -7,15 +7,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   checkDuplicate,
-  clearAllDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-} from '@/lib/rate-limiting/duplicate-detector';
-import {
   checkRateLimit,
+  clearAllDuplicates,
   clearAllRateLimits,
+  DUPLICATE_DETECTION_CONFIGS,
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting/user-rate-limiter';
+} from '@babylon/engine';
 
 describe('Rate Limiting', () => {
   beforeEach(() => {

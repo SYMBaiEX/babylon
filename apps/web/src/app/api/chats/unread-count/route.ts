@@ -47,9 +47,9 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/chats/unread-count

@@ -5,15 +5,15 @@ import {
   encodeFunctionData,
   http,
 } from 'viem';
-import { CHAIN } from '@/constants/chains';
 import {
   CAPABILITIES_HASH,
+  CHAIN,
   getIdentityRegistryAddress,
   identityRegistryAbi,
-} from '@/constants/identity';
+} from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
-import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Hook for registering an agent on-chain via the identity registry.

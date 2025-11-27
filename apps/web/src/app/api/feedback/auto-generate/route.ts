@@ -76,13 +76,13 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { logger } from '@/lib/logger';
-import { submitFeedbackToAgent0 } from '@/lib/reputation/agent0-reputation-sync';
+import { logger } from '@babylon/shared';
+import { submitFeedbackToAgent0 } from '@babylon/agents';
 import {
-  CompletionFormat,
   generateGameCompletionFeedback,
-} from '@/lib/reputation/reputation-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+  generateTradeCompletionFeedback,
+} from '@babylon/engine';
+import { requireUserByIdentifier } from '@babylon/api';
 
 const GameMetricsSchema = z.object({
   won: z.boolean(),
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   }
-  const feedback = await CompletionFormat(agent.id, body.tradeId, body.metrics);
+  const feedback = await generateTradeCompletionFeedback(agent.id, body.tradeId, body.metrics);
 
   if (!feedback) {
     throw new Error('Failed to create trade feedback');

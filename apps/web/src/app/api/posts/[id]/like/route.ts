@@ -51,23 +51,23 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { and, count, db, eq, posts, reactions } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { CACHE_KEYS, invalidateCache } from '@/lib/cache-service';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { parsePostId } from '@/lib/post-id-parser';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { and, count, db, eq, posts, reactions } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { CACHE_KEYS, invalidateCache } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { parsePostId } from '@babylon/engine';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { notifyReactionOnPost } from '@/lib/services/notification-service';
-import { NPCInteractionTracker } from '@/lib/services/npc-interaction-tracker';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
-import { PostIdParamSchema } from '@/lib/validation/schemas';
+} from '@babylon/api';
+import { notifyReactionOnPost } from '@babylon/api';
+import { NPCInteractionTracker } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
+import { ensureUserForAuth } from '@babylon/api';
+import { PostIdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/posts/[id]/like

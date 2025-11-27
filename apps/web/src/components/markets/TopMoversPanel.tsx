@@ -4,8 +4,8 @@ import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
-import { logger } from '@/lib/logger';
-import { cn } from '@/lib/utils';
+import { logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /**
  * Top mover market structure for top movers panel.

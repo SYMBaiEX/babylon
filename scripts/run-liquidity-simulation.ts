@@ -39,14 +39,14 @@ import {
   runScenarioComparison,
   SCENARIOS,
   type ScenarioName,
-} from '../src/lib/simulation/liquidity-simulation';
+} from '@babylon/testing/simulation';
 import {
   compareScenarios,
   exportTimeSeriesCSV,
   exportToJSON,
   formatReportForConsole,
   generateReport,
-} from '../src/lib/simulation/simulation-report';
+} from '@babylon/testing/simulation';
 
 interface CLIOptions {
   scenario: string;

@@ -160,13 +160,12 @@ import { ModelType } from '@elizaos/core';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { agentService } from '@/lib/agents/services/AgentService';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { authenticateUser } from '@/lib/server-auth';
-import { checkAgentOutput, checkUserInput } from '@/lib/utils/content-safety';
+import { db } from '@babylon/db';
+import { agentRuntimeManager, agentService } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { authenticateUser } from '@babylon/api';
+import { checkAgentOutput, checkUserInput } from '@babylon/shared';
 
 export const POST = withErrorHandling(
   async (

@@ -9,10 +9,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
-import { InteractionTracker } from '@/lib/services/InteractionTracker';
-import type { Actor, Organization } from '@/shared/types';
+import { InteractionTracker } from '@babylon/engine';
+import type { Actor, Organization } from '@babylon/shared';
 
 // Test data
 const testActors: Actor[] = [

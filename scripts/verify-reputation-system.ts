@@ -11,7 +11,7 @@
  * Run: bun run scripts/verify-reputation-system.ts
  */
 
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { getCachedAgent0ReputationScore } from '../src/lib/reputation/agent0-reputation-cache';
 import {
   batchSyncReputationsToERC8004,

@@ -31,7 +31,7 @@ async function verifyUpload(): Promise<boolean> {
       await fs.access(filePath);
       const stats = await fs.stat(filePath);
       console.log(`✅ ${file} (${Math.round(stats.size / 1024)}KB)`);
-    } catch (error) {
+    } catch (_error) {
       console.error(`❌ ${file} - NOT FOUND`);
       allExist = false;
     }
@@ -46,7 +46,7 @@ async function verifyUpload(): Promise<boolean> {
     for (const monthFile of monthFiles) {
       console.log(`   - ${monthFile}`);
     }
-  } catch (error) {
+  } catch (_error) {
     console.warn('⚠️  by-month/ directory empty or missing');
   }
 

@@ -77,8 +77,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 /**
  * GET /api/admin/ai-models
@@ -240,7 +240,7 @@ export async function PUT(req: NextRequest) {
     );
 
     // Clear the cache so the new config is picked up
-    const { clearAIModelConfigCache } = await import('@/lib/ai-model-config');
+    const { clearAIModelConfigCache } = await import('@babylon/engine');
     clearAIModelConfigCache();
 
     // Also update the environment variable for immediate effect

@@ -9,7 +9,7 @@
  * 5. Article detail pages display fullContent correctly
  */
 
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 async function verifyArticleGeneration() {
   console.log('🔍 Starting Article Generation Verification...\n');

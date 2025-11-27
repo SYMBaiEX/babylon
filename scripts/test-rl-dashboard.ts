@@ -5,7 +5,7 @@
  * Tests all API endpoints, data loading, and functionality.
  */
 
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 interface TestResult {
   endpoint: string;

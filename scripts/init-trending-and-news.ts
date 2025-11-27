@@ -11,7 +11,7 @@
  */
 
 import { nanoid } from 'nanoid';
-import { db, eq, gte, posts, postTags } from '@/db';
+import { db, eq, gte, posts, postTags } from '@babylon/db';
 import { logger } from '../src/lib/logger';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 

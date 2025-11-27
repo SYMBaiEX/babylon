@@ -7,8 +7,8 @@ import { CategoryPnLShareCard } from '@/components/markets/CategoryPnLShareCard'
 import { PortfolioPnLShareCard } from '@/components/markets/PortfolioPnLShareCard';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 import { useTwitterAuth } from '@/hooks/useTwitterAuth';
-import { getReferralUrl } from '@/lib/referral/referral-utils';
-import { trackExternalShare } from '@/lib/share/trackExternalShare';
+import { getReferralUrl } from '@babylon/shared';
+import { trackExternalShare } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
 
 /**

@@ -6,13 +6,11 @@
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
-} from '@/lib/benchmark/BenchmarkDataGenerator';
-import { BenchmarkDataViewer } from '@/lib/benchmark/BenchmarkDataViewer';
-import { BenchmarkValidator } from '@/lib/benchmark/BenchmarkValidator';
-import {
+  BenchmarkDataViewer,
+  BenchmarkValidator,
   createRulerContext,
   extractMarketOutcomesFromBenchmark,
-} from '@/lib/benchmark/RulerBenchmarkIntegration';
+} from '@babylon/training';
 
 async function testGeneration() {
   console.log('🧪 Testing Benchmark Generation...\n');

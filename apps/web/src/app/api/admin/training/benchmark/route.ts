@@ -65,8 +65,8 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { benchmarkService } from '@/lib/training/BenchmarkService';
+import { logger } from '@babylon/shared';
+import { benchmarkService } from '@babylon/training';
 
 export const maxDuration = 300; // 5 minutes for benchmarking
 

@@ -84,10 +84,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   // Optional auth - game assets are public but RLS still applies

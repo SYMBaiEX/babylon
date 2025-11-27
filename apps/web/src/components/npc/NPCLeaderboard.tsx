@@ -36,7 +36,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Performance metrics structure for NPC leaderboard.

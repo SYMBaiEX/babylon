@@ -5,7 +5,7 @@
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 interface PageProps {
   params: Promise<{

@@ -112,15 +112,15 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   getOnchainRegistrationStatus,
   processOnchainRegistration,
-} from '@/lib/onboarding/onchain-service';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { OnChainRegistrationSchema } from '@/lib/validation/schemas/user';
+} from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
+import { OnChainRegistrationSchema } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);

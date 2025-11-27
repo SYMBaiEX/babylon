@@ -12,10 +12,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
-import { GroupChatSweep } from '../../src/lib/services/group-chat-sweep';
-import { NPCGroupDynamicsService } from '../../src/lib/services/npc-group-dynamics-service';
-import { generateSnowflakeId } from '../../src/lib/snowflake';
+import { db } from '@babylon/db';
+import { GroupChatSweep, NPCGroupDynamicsService } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Test data cleanup tracking
 const testIds: {

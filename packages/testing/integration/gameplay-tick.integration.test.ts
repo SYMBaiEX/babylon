@@ -11,12 +11,12 @@
  */
 
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import type { MockJSONSchema } from '../types/test-types';
 
 // Mock LLM client BEFORE importing serverless-game-tick
 // This ensures executeGameTick uses the mock
-mock.module('@/generator/llm/openai-client', () => {
+mock.module('@/engine/llm/openai-client', () => {
   return {
     BabylonLLMClient: {
       forGameTick: () => ({
@@ -385,9 +385,9 @@ mock.module('@/generator/llm/openai-client', () => {
   };
 });
 
-import { asSystem } from '@/lib/db/context';
-import { executeGameTick } from '@/lib/serverless-game-tick';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { asSystem } from '@babylon/db';
+import { executeGameTick } from '@babylon/engine/serverless-game-tick';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -495,7 +495,7 @@ describe('Gameplay Tick Integration', () => {
     if (testQuestionId) {
       try {
         await db.question.delete({ where: { id: testQuestionId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }
@@ -503,7 +503,7 @@ describe('Gameplay Tick Integration', () => {
     if (testMarketId) {
       try {
         await db.market.delete({ where: { id: testMarketId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }
@@ -723,7 +723,7 @@ describe('Gameplay Tick Integration', () => {
     // Cleanup
     try {
       await db.question.delete({ where: { id: pastQuestionId } });
-    } catch (error) {
+    } catch (_error) {
       // Cleanup errors not critical
     }
   }, 60000);

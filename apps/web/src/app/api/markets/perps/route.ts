@@ -134,19 +134,19 @@
  */
 
 import type { NextRequest } from 'next/server';
-import type { Organization, StockPrice } from '@/db';
+import type { Organization, StockPrice } from '@babylon/db';
+import { getDbInstance } from '@babylon/db';
 import {
   type AuthenticatedUser,
   optionalAuth,
-} from '@/lib/api/auth-middleware';
-import db from '@/lib/database-service';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get ONLY companies (not media, government, think tanks)
-  const companies = await db().getCompanies();
+  const companies = await getDbInstance().getCompanies();
 
   // Optional auth - markets are public but RLS still applies
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(
@@ -165,7 +165,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         Number(company.currentPrice) || Number(company.initialPrice) || 100;
 
       // Get last 24 hours of price history (1440 minutes)
-      const priceHistory = await db().getPriceHistory(company.id, 1440);
+      const priceHistory = await getDbInstance().getPriceHistory(company.id, 1440);
 
       let change24h = 0;
       let changePercent24h = 0;

@@ -19,9 +19,8 @@
 
 import { ethers } from 'ethers';
 import { nanoid } from 'nanoid';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db, generateSnowflakeId } from '@babylon/db';
+import { logger } from '@babylon/engine';
 
 // ============================================================================
 // AUTONOMOUS TRADING AGENTS

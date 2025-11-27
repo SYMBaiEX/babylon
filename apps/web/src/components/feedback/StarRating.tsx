@@ -30,7 +30,7 @@
 
 import { Star } from 'lucide-react';
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 interface StarRatingProps {
   value?: number; // 0-100 score

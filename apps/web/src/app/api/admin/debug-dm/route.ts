@@ -52,11 +52,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { chatParticipants, chats, db, desc, inArray, messages } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { asSystem } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { chatParticipants, chats, db, desc, inArray, messages } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { asSystem } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication

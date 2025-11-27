@@ -6,9 +6,9 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { BenchmarkRunner } from '@/lib/benchmark/BenchmarkRunner';
+import { agentRuntimeManager } from '@babylon/agents';
+import { db } from '@babylon/db';
+import { BenchmarkRunner } from '@babylon/training';
 
 async function main() {
   const benchmarkPath =

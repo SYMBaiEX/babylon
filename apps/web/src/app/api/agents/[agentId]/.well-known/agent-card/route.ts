@@ -53,9 +53,9 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { generateAgentCardSync } from '@/lib/a2a/sdk/agent-card-generator';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { generateAgentCardSync } from '@babylon/a2a';
+import { logger } from '@babylon/shared';
 
 export const dynamic = 'force-dynamic';
 

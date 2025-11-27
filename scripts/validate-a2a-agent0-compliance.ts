@@ -14,7 +14,7 @@
 import type { AgentCard } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 import { SDK } from 'agent0-sdk';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const AGENT_CARD_URL = `${BASE_URL}/.well-known/agent-card.json`;
@@ -229,7 +229,7 @@ async function validateA2AProtocol() {
               'Task cancellation working',
               true
             );
-          } catch (error) {
+          } catch (_error) {
             // Might fail if already completed - that's OK
             addResult(
               'A2A',

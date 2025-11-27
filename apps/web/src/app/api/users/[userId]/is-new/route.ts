@@ -47,12 +47,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { findUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET /api/users/[userId]/is-new

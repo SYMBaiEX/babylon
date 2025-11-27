@@ -42,11 +42,11 @@ import { NextResponse } from 'next/server';
 import {
   type AuthenticatedUser,
   optionalAuth,
-} from '@/lib/api/auth-middleware';
-import { CACHE_KEYS, DEFAULT_TTLS, getCacheOrFetch } from '@/lib/cache-service';
-import db from '@/lib/database-service';
-import { asPublic, asUser } from '@/lib/db/context';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { getDbInstance } from '@babylon/db';
+import { CACHE_KEYS, DEFAULT_TTLS, getCacheOrFetch } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 // Disable static generation for this route - it requires database access
 export const dynamic = 'force-dynamic';
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       const formattedMarkets = await getCacheOrFetch(
         'markets-widget-v2', // v2 to invalidate old cache without price changes
         async () => {
-          const questions = await db().getActiveQuestions();
+          const questions = await getDbInstance().getActiveQuestions();
 
           if (questions.length === 0) {
             return [];
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
     }
 
     // For authenticated users, bypass cache (user-specific data)
-    const questions = await db().getActiveQuestions();
+    const questions = await getDbInstance().getActiveQuestions();
 
     if (questions.length === 0) {
       return NextResponse.json({

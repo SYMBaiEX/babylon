@@ -69,15 +69,15 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db, eq, shareActions, users } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { POINTS } from '@/lib/constants/points';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PointsService } from '@/lib/services/points-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { SnowflakeIdSchema, UserIdParamSchema } from '@/lib/validation/schemas';
+import { db, eq, shareActions, users } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { POINTS } from '@babylon/shared';
+import { AuthorizationError, BusinessLogicError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PointsService } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
+import { SnowflakeIdSchema, UserIdParamSchema } from '@babylon/shared';
 
 const VerifyShareRequestSchema = z.object({
   shareId: SnowflakeIdSchema,

@@ -70,9 +70,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { authenticate } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
 
 export async function POST(request: NextRequest) {
   const authUser = await authenticate(request);

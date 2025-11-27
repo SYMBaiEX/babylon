@@ -79,21 +79,20 @@ import {
   decodeEventLog,
   type Hash,
   http,
-  parseAbi,
   parseEther,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { getAgent0Client } from '@/agents/agent0/Agent0Client';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { AuthorizationError, InternalServerError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { AgentOnboardSchema } from '@/lib/validation/schemas/agent';
-import type { AgentCapabilities } from '@/types/a2a';
+import { getAgent0Client } from '@babylon/agents';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { AuthorizationError, InternalServerError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { syncAfterAgent0Registration } from '@babylon/agents';
+import { generateSnowflakeId } from '@babylon/shared';
+import { AgentOnboardSchema } from '@babylon/shared';
+import type { AgentCapabilities } from '@babylon/agents';
 
 // Helper to validate and get environment variables
 function getRequiredEnvVar(name: string): string {
@@ -105,46 +104,13 @@ function getRequiredEnvVar(name: string): string {
 }
 
 // Identity Registry ABI (minimal for registration)
-const IDENTITY_REGISTRY_ABI = [
-  {
-    type: 'function',
-    name: 'registerAgent',
-    inputs: [
-      { name: 'name', type: 'string' },
-      { name: 'endpoint', type: 'string' },
-      { name: 'capabilitiesHash', type: 'bytes32' },
-      { name: 'metadataURI', type: 'string' },
-    ],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'isRegistered',
-    inputs: [{ name: '_address', type: 'address' }],
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getTokenId',
-    inputs: [{ name: '_address', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'event',
-    name: 'AgentRegistered',
-    inputs: [
-      { name: 'tokenId', type: 'uint256', indexed: true },
-      { name: 'owner', type: 'address', indexed: true },
-      { name: 'name', type: 'string', indexed: false },
-      { name: 'endpoint', type: 'string', indexed: false },
-    ],
-  },
-] as const;
+import { IDENTITY_REGISTRY_ABI } from '@babylon/shared';
+import { parseAbi } from 'viem';
 
-import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis';
+// Parse human-readable ABI format to JSON format for viem
+const IDENTITY_REGISTRY_ABI_PARSED = parseAbi(IDENTITY_REGISTRY_ABI);
+
+import { REPUTATION_SYSTEM_ABI } from '@babylon/shared';
 
 /**
  * POST /api/agents/onboard
@@ -263,7 +229,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Call registerAgent on Identity Registry (server wallet is msg.sender)
   const txHash: Hash = await walletClient.writeContract({
     address: IDENTITY_REGISTRY,
-    abi: IDENTITY_REGISTRY_ABI,
+    abi: IDENTITY_REGISTRY_ABI_PARSED,
     functionName: 'registerAgent',
     args: [name, uniqueEndpoint, capabilitiesHash, metadataURI],
   });
@@ -281,7 +247,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 
   if (receipt.status !== 'success') {
-    throw new InternalServerError('Agent registration transaction failed', {
+    throw new InternalServerError('Agent registration transaction failed', 'TRANSACTION_FAILED', {
       txHash,
       receipt: receipt.status,
     });
@@ -289,7 +255,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const agentRegisteredLog = receipt.logs.find((log) => {
     const decodedLog = decodeEventLog({
-      abi: IDENTITY_REGISTRY_ABI,
+      abi: IDENTITY_REGISTRY_ABI_PARSED,
       data: log.data,
       topics: log.topics,
     });
@@ -299,6 +265,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (!agentRegisteredLog) {
     throw new InternalServerError(
       'AgentRegistered event not found in transaction receipt',
+      'EVENT_NOT_FOUND',
       {
         txHash,
         logCount: receipt.logs.length,
@@ -307,7 +274,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const decodedLog = decodeEventLog({
-    abi: IDENTITY_REGISTRY_ABI,
+    abi: IDENTITY_REGISTRY_ABI_PARSED,
     data: agentRegisteredLog.data,
     topics: agentRegisteredLog.topics,
   });
@@ -317,9 +284,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (!tokenId || isNaN(tokenId)) {
     throw new InternalServerError(
       'Invalid tokenId received from registration event',
+      'INVALID_TOKEN_ID',
       {
         txHash,
-        tokenIdRaw: decodedLog.args.tokenId,
+        tokenIdRaw: String(decodedLog.args.tokenId),
       }
     );
   }

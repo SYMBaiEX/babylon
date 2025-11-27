@@ -65,13 +65,13 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { authenticate, successResponse } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { IdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/profiles/[id]/favorite

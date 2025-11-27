@@ -79,15 +79,15 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { and, comments, count, db, eq, posts, reactions, shares } from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { CACHE_KEYS, getCacheOrFetch } from '@/lib/cache-service';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { and, comments, count, db, eq, posts, reactions, shares } from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { CACHE_KEYS, getCacheOrFetch } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   PostIdParamSchema,
   PostInteractionsQuerySchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * GET /api/posts/[id]/interactions

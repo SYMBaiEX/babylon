@@ -44,14 +44,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
 import {
   errorResponse,
   successResponse,
   withErrorHandling,
-} from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
 export const DELETE = withErrorHandling(
   async (
     request: NextRequest,

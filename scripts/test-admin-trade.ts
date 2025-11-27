@@ -4,7 +4,7 @@
  * Tests creating a trade via admin API and verifying it appears in the public feed
  */
 
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 async function testAdminTrade() {
   console.log('\n🧪 Testing Admin Trade Creation\n');

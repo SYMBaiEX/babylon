@@ -80,9 +80,10 @@ export function usePredictionHistory(
   useEffect(() => {
     seedRef.current = options?.seed;
   }, [
-    options?.seed?.yesShares, 
-    options?.seed?.noShares, 
-    options?.seed?.liquidity, options?.seed
+    options?.seed?.yesShares,
+    options?.seed?.noShares,
+    options?.seed?.liquidity,
+    options?.seed,
   ]);
 
   const formatHistory = useCallback(

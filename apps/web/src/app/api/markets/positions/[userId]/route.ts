@@ -77,15 +77,15 @@
 
 import type { NextRequest } from 'next/server';
 
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PredictionPricing } from '@/lib/prediction-pricing';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PredictionPricing } from '@babylon/engine';
 import {
   UserIdParamSchema,
   UserPositionsQuerySchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * GET /api/markets/positions/[userId]

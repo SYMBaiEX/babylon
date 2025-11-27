@@ -1,11 +1,20 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { Users, Activity, TrendingUp, DollarSign, ShoppingCart, Award, UserCheck, Shield } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Avatar } from '@/components/shared/Avatar'
-import { Skeleton } from '@/components/shared/Skeleton'
-import { z } from 'zod'
+import {
+  Activity,
+  Award,
+  DollarSign,
+  Shield,
+  ShoppingCart,
+  TrendingUp,
+  UserCheck,
+  Users,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { z } from 'zod';
+import { Avatar } from '@/components/shared/Avatar';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { cn } from '@babylon/shared';
 
 /**
  * User stats schema for validation.
@@ -65,21 +74,27 @@ const SystemStatsSchema = z.object({
     pointsTransactions: z.number(),
   }),
   topUsers: z.object({
-    byBalance: z.array(UserStatsSchema.extend({
-      virtualBalance: z.string(),
-      lifetimePnL: z.string(),
-    })),
-    byReputation: z.array(UserStatsSchema.extend({
-      reputationPoints: z.number(),
-    })),
+    byBalance: z.array(
+      UserStatsSchema.extend({
+        virtualBalance: z.string(),
+        lifetimePnL: z.string(),
+      })
+    ),
+    byReputation: z.array(
+      UserStatsSchema.extend({
+        reputationPoints: z.number(),
+      })
+    ),
   }),
-  recentSignups: z.array(UserStatsSchema.extend({
-    walletAddress: z.string().nullable(),
-    createdAt: z.string(),
-    onChainRegistered: z.boolean(),
-    hasFarcaster: z.boolean(),
-    hasTwitter: z.boolean(),
-  })),
+  recentSignups: z.array(
+    UserStatsSchema.extend({
+      walletAddress: z.string().nullable(),
+      createdAt: z.string(),
+      onChainRegistered: z.boolean(),
+      hasFarcaster: z.boolean(),
+      hasTwitter: z.boolean(),
+    })
+  ),
 });
 type SystemStats = z.infer<typeof SystemStatsSchema>;
 
@@ -98,11 +113,11 @@ type FeeStats = z.infer<typeof FeeStatsSchema>;
 
 /**
  * Stats tab component for displaying comprehensive system statistics.
- * 
+ *
  * Displays detailed system-wide statistics including user metrics, market
  * statistics, trading activity, social engagement, financial data, and
  * fee collection. Shows top users and recent signups.
- * 
+ *
  * Features:
  * - User statistics (total, actors, real users, admins)
  * - Market statistics
@@ -114,79 +129,79 @@ type FeeStats = z.infer<typeof FeeStatsSchema>;
  * - Recent signups
  * - Loading states
  * - Error handling
- * 
+ *
  * @returns Stats tab element
  */
 export function StatsTab() {
-  const [stats, setStats] = useState<SystemStats | null>(null)
-  const [feeStats, setFeeStats] = useState<FeeStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [feeStats, setFeeStats] = useState<FeeStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        await fetchStats()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load stats')
-        setLoading(false)
-      }
-      fetchFeeStats() // This one fails silently
-    }
-    
-    loadData()
-    const interval = setInterval(() => {
-      loadData()
-    }, 30000) // Refresh every 30s
-    return () => clearInterval(interval)
-  }, [])
-
-  const fetchStats = async () => {
-    const response = await fetch('/api/admin/stats')
-    if (!response.ok) throw new Error('Failed to fetch stats')
-    const data = await response.json()
+  const fetchStats = useCallback(async () => {
+    const response = await fetch('/api/admin/stats');
+    if (!response.ok) throw new Error('Failed to fetch stats');
+    const data = await response.json();
     const validation = SystemStatsSchema.safeParse(data);
     if (!validation.success) {
       throw new Error('Invalid system stats data structure');
     }
-    setStats(validation.data)
-    setError(null)
-    setLoading(false)
-  }
+    setStats(validation.data);
+    setError(null);
+    setLoading(false);
+  }, []);
 
-  const fetchFeeStats = async () => {
-    const response = await fetch('/api/admin/fees')
-    if (!response.ok) return // Fail silently for fees
-    const data = await response.json()
+  const fetchFeeStats = useCallback(async () => {
+    const response = await fetch('/api/admin/fees');
+    if (!response.ok) return; // Fail silently for fees
+    const data = await response.json();
     const validation = FeeStatsSchema.safeParse(data.platformStats);
     if (validation.success) {
       setFeeStats(validation.data);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await fetchStats();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load stats');
+        setLoading(false);
+      }
+      fetchFeeStats(); // This one fails silently
+    };
+
+    loadData();
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [fetchStats, fetchFeeStats]);
 
   const formatCurrency = (value: string) => {
-    const num = parseFloat(value)
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`
-    return `$${num.toFixed(2)}`
-  }
+    const num = parseFloat(value);
+    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
+    return `$${num.toFixed(2)}`;
+  };
 
   const formatNumber = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(2)}K`
-    return value.toLocaleString()
-  }
+    if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(2)}K`;
+    return value.toLocaleString();
+  };
 
-  const StatItem = ({ 
-    icon: Icon, 
-    label, 
+  const StatItem = ({
+    icon: Icon,
+    label,
     value,
-    color = 'primary' 
-  }: { 
-    icon: React.ComponentType<{ className?: string }>
-    label: string
-    value: string | number
-    color?: 'primary' | 'green' | 'blue' | 'orange' | 'red' | 'purple'
+    color = 'primary',
+  }: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    value: string | number;
+    color?: 'primary' | 'green' | 'blue' | 'orange' | 'red' | 'purple';
   }) => {
     const colorClasses = {
       primary: 'text-primary',
@@ -195,45 +210,47 @@ export function StatsTab() {
       orange: 'text-orange-500',
       red: 'text-red-500',
       purple: 'text-purple-500',
-    }
+    };
 
     return (
       <div className="flex items-center gap-3">
-        <Icon className={cn('w-4 h-4 flex-shrink-0', colorClasses[color])} />
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-muted-foreground">{label}</div>
-          <div className="text-xl font-bold">{value}</div>
+        <Icon className={cn('h-4 w-4 flex-shrink-0', colorClasses[color])} />
+        <div className="min-w-0 flex-1">
+          <div className="text-muted-foreground text-sm">{label}</div>
+          <div className="font-bold text-xl">{value}</div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="space-y-4 w-full">
+      <div className="flex h-64 items-center justify-center">
+        <div className="w-full space-y-4">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       </div>
-    )
+    );
   }
 
   if (error || !stats) {
     return (
-      <div className="text-center text-red-500 p-8">
+      <div className="p-8 text-center text-red-500">
         {error || 'Failed to load statistics'}
       </div>
-    )
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Overview Stats - Cleaner, less boxy design */}
-      <div className="bg-gradient-to-br from-card to-accent/20 border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-6 text-muted-foreground uppercase tracking-wide">Platform Overview</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="rounded-lg border border-border bg-gradient-to-br from-card to-accent/20 p-6">
+        <h2 className="mb-6 font-semibold text-lg text-muted-foreground uppercase tracking-wide">
+          Platform Overview
+        </h2>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {/* Users Column */}
           <div className="space-y-4">
             <StatItem
@@ -296,7 +313,11 @@ export function StatsTab() {
               icon={TrendingUp}
               label="Lifetime P&L"
               value={formatCurrency(stats.financial.totalLifetimePnL)}
-              color={parseFloat(stats.financial.totalLifetimePnL) >= 0 ? 'green' : 'red'}
+              color={
+                parseFloat(stats.financial.totalLifetimePnL) >= 0
+                  ? 'green'
+                  : 'red'
+              }
             />
           </div>
 
@@ -326,110 +347,160 @@ export function StatsTab() {
 
       {/* Fee Stats (if available) */}
       {feeStats && (
-        <div className="bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-muted-foreground uppercase tracking-wide">Trading Fees (0.1%)</h2>
-            <DollarSign className="w-6 h-6 text-green-500" />
+        <div className="rounded-lg border border-green-500/20 bg-gradient-to-br from-green-500/10 to-blue-500/10 p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-muted-foreground uppercase tracking-wide">
+              Trading Fees (0.1%)
+            </h2>
+            <DollarSign className="h-6 w-6 text-green-500" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Total Collected</div>
-              <div className="text-2xl font-bold text-green-500">{formatCurrency(feeStats.totalFeesCollected.toString())}</div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Total Collected
+              </div>
+              <div className="font-bold text-2xl text-green-500">
+                {formatCurrency(feeStats.totalFeesCollected.toString())}
+              </div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Platform Revenue</div>
-              <div className="text-xl font-bold">{formatCurrency(feeStats.totalPlatformFees.toString())}</div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Platform Revenue
+              </div>
+              <div className="font-bold text-xl">
+                {formatCurrency(feeStats.totalPlatformFees.toString())}
+              </div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Referral Payouts</div>
-              <div className="text-xl font-bold">{formatCurrency(feeStats.totalReferrerFees.toString())}</div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Referral Payouts
+              </div>
+              <div className="font-bold text-xl">
+                {formatCurrency(feeStats.totalReferrerFees.toString())}
+              </div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Trades with Fees</div>
-              <div className="text-xl font-bold">{formatNumber(feeStats.totalTrades)}</div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Trades with Fees
+              </div>
+              <div className="font-bold text-xl">
+                {formatNumber(feeStats.totalTrades)}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* Secondary Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-muted-foreground">User Signups</h3>
-            <UserCheck className="w-4 h-4 text-green-500" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-muted-foreground text-sm">
+              User Signups
+            </h3>
+            <UserCheck className="h-4 w-4 text-green-500" />
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Today</span>
-              <span className="text-lg font-bold">{formatNumber(stats.users.signups.today)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">Today</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.users.signups.today)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">This Week</span>
-              <span className="text-lg font-bold">{formatNumber(stats.users.signups.thisWeek)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">This Week</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.users.signups.thisWeek)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">This Month</span>
-              <span className="text-lg font-bold">{formatNumber(stats.users.signups.thisMonth)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">This Month</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.users.signups.thisMonth)}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-muted-foreground">Trading Activity</h3>
-            <Activity className="w-4 h-4 text-purple-500" />
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-muted-foreground text-sm">
+              Trading Activity
+            </h3>
+            <Activity className="h-4 w-4 text-purple-500" />
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">NPC Trades</span>
-              <span className="text-lg font-bold">{formatNumber(stats.trading.npcTrades)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">NPC Trades</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.trading.npcTrades)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Balance Txns</span>
-              <span className="text-lg font-bold">{formatNumber(stats.trading.balanceTransactions)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">
+                Balance Txns
+              </span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.trading.balanceTransactions)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Pool Deposits</span>
-              <span className="text-lg font-bold">{formatNumber(stats.pools.deposits)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">
+                Pool Deposits
+              </span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.pools.deposits)}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-muted-foreground">Moderation</h3>
-            <Shield className="w-4 h-4 text-orange-500" />
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-muted-foreground text-sm">
+              Moderation
+            </h3>
+            <Shield className="h-4 w-4 text-orange-500" />
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Admins</span>
-              <span className="text-lg font-bold">{formatNumber(stats.users.admins)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">Admins</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.users.admins)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Banned Users</span>
-              <span className="text-lg font-bold text-red-500">{formatNumber(stats.users.banned)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">
+                Banned Users
+              </span>
+              <span className="font-bold text-lg text-red-500">
+                {formatNumber(stats.users.banned)}
+              </span>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-muted-foreground">Referrals</span>
-              <span className="text-lg font-bold">{formatNumber(stats.engagement.referrals)}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">Referrals</span>
+              <span className="font-bold text-lg">
+                {formatNumber(stats.engagement.referrals)}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Top Users & Recent Signups */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Top by Balance */}
         <div>
-          <h2 className="text-lg font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Top Users by Balance</h2>
-          <div className="bg-card border border-border rounded-lg divide-y divide-border">
+          <h2 className="mb-3 font-semibold text-lg text-muted-foreground uppercase tracking-wide">
+            Top Users by Balance
+          </h2>
+          <div className="divide-y divide-border rounded-lg border border-border bg-card">
             {stats.topUsers.byBalance.map((user, index) => (
               <div
                 key={user.id}
-                className="flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors"
+                className="flex items-center gap-3 p-3 transition-colors hover:bg-accent/50"
               >
-                <div className="text-sm font-bold text-muted-foreground w-6">
+                <div className="w-6 font-bold text-muted-foreground text-sm">
                   #{index + 1}
                 </div>
                 <Avatar
@@ -437,12 +508,12 @@ export function StatsTab() {
                   alt={user.displayName || user.username || 'User'}
                   size="sm"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-sm">
                     {user.displayName || user.username || 'Anonymous'}
                   </div>
                   {user.username && user.displayName !== user.username && (
-                    <div className="text-xs text-muted-foreground truncate">
+                    <div className="truncate text-muted-foreground text-xs">
                       @{user.username}
                     </div>
                   )}
@@ -451,10 +522,14 @@ export function StatsTab() {
                   <div className="font-bold text-green-600 text-sm">
                     {formatCurrency(user.virtualBalance)}
                   </div>
-                  <div className={cn(
-                    "text-xs",
-                    parseFloat(user.lifetimePnL) >= 0 ? "text-green-600" : "text-red-600"
-                  )}>
+                  <div
+                    className={cn(
+                      'text-xs',
+                      parseFloat(user.lifetimePnL) >= 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    )}
+                  >
                     P&L: {formatCurrency(user.lifetimePnL)}
                   </div>
                 </div>
@@ -465,39 +540,41 @@ export function StatsTab() {
 
         {/* Recent Signups */}
         <div>
-          <h2 className="text-lg font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Recent Signups</h2>
-          <div className="bg-card border border-border rounded-lg divide-y divide-border">
+          <h2 className="mb-3 font-semibold text-lg text-muted-foreground uppercase tracking-wide">
+            Recent Signups
+          </h2>
+          <div className="divide-y divide-border rounded-lg border border-border bg-card">
             {stats.recentSignups.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors"
+                className="flex items-center gap-3 p-3 transition-colors hover:bg-accent/50"
               >
                 <Avatar
                   src={user.profileImageUrl ?? undefined}
                   alt={user.displayName || user.username || 'User'}
                   size="sm"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-sm">
                     {user.displayName || user.username || 'Anonymous'}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex gap-1">
                   {user.onChainRegistered && (
-                    <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-500">
+                    <span className="rounded bg-green-500/20 px-2 py-0.5 text-green-500 text-xs">
                       On-chain
                     </span>
                   )}
                   {user.hasFarcaster && (
-                    <span className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-500">
+                    <span className="rounded bg-purple-500/20 px-2 py-0.5 text-purple-500 text-xs">
                       FC
                     </span>
                   )}
                   {user.hasTwitter && (
-                    <span className="px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-500">
+                    <span className="rounded bg-blue-500/20 px-2 py-0.5 text-blue-500 text-xs">
                       X
                     </span>
                   )}
@@ -508,5 +585,5 @@ export function StatsTab() {
         </div>
       </div>
     </div>
-  )
+  );
 }

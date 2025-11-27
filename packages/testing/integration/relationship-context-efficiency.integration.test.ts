@@ -5,10 +5,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { FeedGenerator } from '@/engine/FeedGenerator';
+import { BabylonLLMClient } from '@/engine/llm/openai-client';
 import { RelationshipEvolutionEngine } from '@/engine/RelationshipEvolutionEngine';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
 
 describe('Relationship Context Efficiency', () => {
   let llmClient: BabylonLLMClient;

@@ -232,7 +232,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import type { Post } from '@/db';
+import type { Post } from '@babylon/db';
 import {
   actors,
   and,
@@ -253,27 +253,27 @@ import {
   shares,
   userActorFollows,
   users,
-} from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { getCacheOrFetch } from '@/lib/cache-service';
-import { cachedDb } from '@/lib/cached-database-service';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { getCacheOrFetch } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
-} from '@/lib/moderation/filters';
-import { trackServerEvent } from '@/lib/posthog/server';
+} from '@babylon/db';
+import { trackServerEvent } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { notifyMention } from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
+} from '@babylon/api';
+import { notifyMention } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { broadcastToChannel } from '@babylon/api';
+import { ensureUserForAuth } from '@babylon/api';
 
 // Type for posts with included original post relation
 type PostWithOriginal = Post & {
@@ -313,7 +313,7 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
-export const GET = withErrorHandling(async (request: Request) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const limit = Number.parseInt(searchParams.get('limit') || '100');
   const cursor = searchParams.get('cursor') || undefined; // Cursor-based pagination
@@ -404,10 +404,10 @@ export const GET = withErrorHandling(async (request: Request) => {
     );
 
     // Get user data for filtered posts
-    const authorIds = [
+    const authorIds: string[] = [
       ...new Set(
         filteredPosts
-          .map((p) => p.authorId)
+          .map((p: Post) => p.authorId)
           .filter((id): id is string => id !== undefined)
       ),
     ];
@@ -445,12 +445,12 @@ export const GET = withErrorHandling(async (request: Request) => {
             .where(inArray(organizations.id, authorIds))
         : [],
     ]);
-    const userMap = new Map(usersList.map((u) => [u.id, u]));
-    const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-    const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+    const userMap = new Map(usersList.map((u: { id: string }) => [u.id, u]));
+    const actorMap = new Map(actorsList.map((a: { id: string }) => [a.id, a]));
+    const orgMap = new Map(orgsList.map((o: { id: string }) => [o.id, o]));
 
     // Get interaction counts for all filtered posts in parallel
-    const postIds = filteredPosts.map((p) => p.id);
+    const postIds = filteredPosts.map((p: Post) => p.id);
     const [reactionCounts, commentCounts] = await Promise.all([
       postIds.length > 0
         ? db
@@ -489,7 +489,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 
     // Format following posts synchronously using lookup maps
     // Note: filteredPosts already includes originalPost via the include in the query above
-    const formattedFollowingPosts = filteredPosts.map((post) => {
+    const formattedFollowingPosts = filteredPosts.map((post: Post) => {
       const postsWithOriginal = post as PostWithOriginal;
       const user = post.authorId ? userMap.get(post.authorId) : undefined;
 

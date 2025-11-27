@@ -52,11 +52,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PaginationSchema } from '@/lib/validation/schemas';
+import { authenticate, successResponse } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PaginationSchema } from '@babylon/shared';
 
 /**
  * GET /api/profiles/favorites

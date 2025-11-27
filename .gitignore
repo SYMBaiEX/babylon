@@ -33,7 +33,8 @@ apps/*/.env.local
 next-env.d.ts
 
 # Foundry
-cache/
+/cache/
+packages/contracts/cache/
 out/
 broadcast/
 
@@ -53,7 +54,7 @@ build/
 training_data/trajectories/
 training_data/datasets/
 training_recording/
-storage/
+/storage/
 
 # Weights & Biases
 wandb/

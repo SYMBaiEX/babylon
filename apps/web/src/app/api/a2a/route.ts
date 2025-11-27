@@ -79,11 +79,14 @@ import {
 } from '@a2a-js/sdk/server';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { babylonAgentCard } from '@/lib/a2a/babylon-agent-card';
-import { BabylonAgentExecutor } from '@/lib/a2a/executors/babylon-executor';
-import { ExtendedTaskStore } from '@/lib/a2a/extended-task-store';
-import { ensureA2AApiKey } from '@/lib/a2a/utils/api-key-auth';
-import { logger } from '@/lib/logger';
+import {
+  babylonAgentCard,
+  BabylonAgentExecutor,
+  ExtendedTaskStore,
+  validateApiKey,
+  getRequiredApiKey,
+} from '@babylon/a2a';
+import { logger } from '@babylon/shared';
 
 // Initialize A2A components with full executor (all 63 handlers)
 const taskStore = new ExtendedTaskStore();
@@ -100,12 +103,41 @@ const jsonRpcHandler = new JsonRpcTransportHandler(requestHandler);
 export const dynamic = 'force-dynamic';
 
 /**
+ * Helper to check API key and return NextResponse on error
+ */
+function checkApiKey(request: NextRequest): NextResponse | null {
+  const authResult = validateApiKey(
+    {
+      headers: {
+        get: (name: string) => request.headers.get(name),
+      },
+      host: request.headers.get('host') ?? undefined,
+    },
+    { requiredApiKey: getRequiredApiKey() }
+  );
+
+  if (!authResult.authenticated) {
+    return NextResponse.json(
+      { error: authResult.error },
+      {
+        status: authResult.statusCode || 401,
+        headers: authResult.statusCode === 401
+          ? { 'WWW-Authenticate': 'ApiKey realm="Babylon", header="X-Babylon-Api-Key"' }
+          : undefined,
+      }
+    );
+  }
+
+  return null;
+}
+
+/**
  * POST - Handle all A2A methods
  * Methods: message/send, message/stream, tasks/get, tasks/cancel, tasks/list
  */
 export async function POST(request: NextRequest) {
   try {
-    const authError = ensureA2AApiKey(request, { endpoint: '/api/a2a' });
+    const authError = checkApiKey(request);
     if (authError) return authError;
 
     const body = await request.json();
@@ -144,7 +176,7 @@ export async function POST(request: NextRequest) {
  * GET - Return AgentCard for discovery
  */
 export async function GET(request: NextRequest) {
-  const authError = ensureA2AApiKey(request, { endpoint: '/api/a2a' });
+  const authError = checkApiKey(request);
   if (authError) return authError;
 
   return NextResponse.json(babylonAgentCard, {

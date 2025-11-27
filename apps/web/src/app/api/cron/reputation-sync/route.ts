@@ -49,14 +49,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { AuthorizationError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { AuthorizationError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   batchSyncReputationsToERC8004,
   syncAllReputationsToERC8004,
-} from '@/lib/reputation/erc8004-reputation-sync';
-import { relayCronToStaging } from '@/lib/services/cron-relay-service';
+} from '@babylon/agents';
+import { relayCronToStaging } from '@babylon/api';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max

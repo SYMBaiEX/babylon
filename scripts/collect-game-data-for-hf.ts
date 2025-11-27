@@ -13,7 +13,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { logger } from '../src/lib/logger';
 
 interface GameDataCollection {

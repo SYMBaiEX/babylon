@@ -267,7 +267,7 @@ async function runOfflineSimulation(
 }
 
 async function getTestAgent(): Promise<string> {
-  const { db } = await import('@/db');
+  const { db } = await import('@babylon/db');
   const { generateSnowflakeId } = await import('../src/lib/snowflake');
   const { ethers } = await import('ethers');
 

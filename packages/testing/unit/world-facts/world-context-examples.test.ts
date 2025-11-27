@@ -8,7 +8,7 @@ import {
   getMinimalRealityGrounding,
   getRealityGrounding,
   getWorldEventExamples,
-} from '@/prompts/reality-grounding';
+} from '@babylon/engine';
 
 describe('World Context Examples Integration', () => {
   test('getWorldEventExamples should return formatted examples string', async () => {

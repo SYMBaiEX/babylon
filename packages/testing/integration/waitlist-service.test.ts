@@ -16,14 +16,14 @@ import {
   expect,
   it,
 } from 'bun:test';
-import { db, eq, inArray, pointsTransactions, referrals, users } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db, eq, inArray, pointsTransactions, referrals, users } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 // Skip tests if DATABASE_URL is not set
 const shouldSkip = !process.env.DATABASE_URL;
 const describeWaitlist = shouldSkip ? describe.skip : describe;
 
-type WaitlistServiceModule = typeof import('@/lib/services/waitlist-service');
+type WaitlistServiceModule = typeof import('@babylon/api/services/waitlist-service');
 
 describeWaitlist('WaitlistService', () => {
   // Test data cleanup
@@ -47,7 +47,7 @@ describeWaitlist('WaitlistService', () => {
       }
       throw error;
     }
-    ({ WaitlistService } = await import('@/lib/services/waitlist-service'));
+    ({ WaitlistService } = await import('@babylon/api/services/waitlist-service'));
   });
 
   beforeEach(() => {

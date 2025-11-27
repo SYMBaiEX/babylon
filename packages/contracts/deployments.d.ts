@@ -108,4 +108,3 @@ declare module '@babylon/contracts/deployments/base' {
   const deployment: Deployment;
   export default deployment;
 }
-

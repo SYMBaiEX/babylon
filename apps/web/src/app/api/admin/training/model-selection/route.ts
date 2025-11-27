@@ -44,8 +44,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { modelSelectionService } from '@/lib/training/ModelSelectionService';
+import { logger } from '@babylon/shared';
+import { modelSelectionService } from '@babylon/training';
 
 export async function GET() {
   try {

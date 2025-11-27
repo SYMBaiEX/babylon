@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { retryIfRetryable } from '@/lib/retry';
+import { retryIfRetryable } from '@babylon/shared';
 import type {
   CommentData,
   CommentInteraction,
@@ -14,7 +14,7 @@ import type {
   InteractionError,
   PendingInteraction,
   PostInteraction,
-} from '@/types/interactions';
+} from '@babylon/shared';
 
 interface RepostPost {
   id: string;

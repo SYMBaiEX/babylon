@@ -1,29 +1,32 @@
 /**
  * Profile Loading Component
- * 
+ *
  * @description Loading skeleton for the user profile page, displaying skeleton
  * loaders for the profile header and feed sections. Supports both desktop and
  * mobile layouts.
- * 
+ *
  * @returns {JSX.Element} Profile loading skeleton
  */
-import { PageContainer } from '@/components/shared/PageContainer'
-import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
+import { PageContainer } from '@/components/shared/PageContainer';
+import {
+  FeedSkeleton,
+  ProfileHeaderSkeleton,
+} from '@/components/shared/Skeleton';
 
 export default function ProfileLoading() {
   return (
-    <PageContainer noPadding className="flex flex-col min-h-screen">
+    <PageContainer noPadding className="flex min-h-screen flex-col">
       {/* Desktop */}
-      <div className="hidden lg:flex flex-1">
+      <div className="hidden flex-1 lg:flex">
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
+        <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.5)] border-r border-l">
           <div className="flex-1 overflow-y-auto">
-            <div className="w-full max-w-[700px] mx-auto">
+            <div className="mx-auto w-full max-w-[700px]">
               {/* Profile Header */}
               <ProfileHeaderSkeleton />
-              
+
               {/* Posts */}
-              <div className="border-t border-border/5 mt-4">
+              <div className="mt-4 border-border/5 border-t">
                 <FeedSkeleton count={5} />
               </div>
             </div>
@@ -31,33 +34,21 @@ export default function ProfileLoading() {
         </div>
 
         {/* Right: Widget placeholder */}
-        <div className="w-80 xl:w-96 shrink-0 border-l border-border/5 bg-background" />
+        <div className="w-80 shrink-0 border-border/5 border-l bg-background xl:w-96" />
       </div>
 
       {/* Mobile/Tablet */}
-      <div className="flex lg:hidden flex-1 overflow-y-auto">
+      <div className="flex flex-1 overflow-y-auto lg:hidden">
         <div className="w-full">
           {/* Profile Header */}
           <ProfileHeaderSkeleton />
-          
+
           {/* Posts */}
-          <div className="border-t border-border/5 mt-4">
+          <div className="mt-4 border-border/5 border-t">
             <FeedSkeleton count={4} />
           </div>
         </div>
       </div>
     </PageContainer>
-  )
+  );
 }
-
-
-
-
-
-
-
-
-
-
-
-

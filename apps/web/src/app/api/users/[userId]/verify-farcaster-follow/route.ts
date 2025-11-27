@@ -44,14 +44,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PointsService } from '@/lib/services/points-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { db, eq, users } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError, BusinessLogicError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PointsService } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 // Babylon Farcaster FID (playbabylon)
 const BABYLON_FARCASTER_FID = '1521916'; // playbabylon FID

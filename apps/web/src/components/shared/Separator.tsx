@@ -1,15 +1,15 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@babylon/shared';
 
 /**
  * Separator component for visual division between content sections.
- * 
+ *
  * Provides a styled separator line with gradient effect. Supports both
  * horizontal and vertical orientations. Uses a subtle blue gradient with
  * shadow for visual depth.
- * 
+ *
  * @param props - Separator component props
  * @returns Separator element
- * 
+ *
  * @example
  * ```tsx
  * <Separator orientation="horizontal" />
@@ -17,23 +17,27 @@ import { cn } from '@/lib/utils'
  * ```
  */
 interface SeparatorProps {
-  className?: string
-  orientation?: 'horizontal' | 'vertical'
+  className?: string;
+  orientation?: 'horizontal' | 'vertical';
 }
 
-export function Separator({ className, orientation = 'horizontal' }: SeparatorProps) {
+export function Separator({
+  className,
+  orientation = 'horizontal',
+}: SeparatorProps) {
   if (orientation === 'vertical') {
     return (
-      <div className={cn('w-px h-full', className)}>
+      <div className={cn('h-full w-px', className)}>
         <div
-          className="w-px h-full rounded-full"
+          className="h-full w-px rounded-full"
           style={{
-            background: 'linear-gradient(180deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-            boxShadow: '1px 0 2px rgba(0, 0, 0, 0.1)'
+            background:
+              'linear-gradient(180deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
+            boxShadow: '1px 0 2px rgba(0, 0, 0, 0.1)',
           }}
         />
       </div>
-    )
+    );
   }
 
   return (
@@ -41,11 +45,11 @@ export function Separator({ className, orientation = 'horizontal' }: SeparatorPr
       <div
         className="h-px w-full rounded-full"
         style={{
-          background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+          background:
+            'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
+          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
         }}
       />
     </div>
-  )
+  );
 }
-

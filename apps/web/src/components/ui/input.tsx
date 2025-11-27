@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * Input component for text input fields.

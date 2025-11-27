@@ -29,8 +29,8 @@
 'use client';
 
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@babylon/shared';
 
 interface ScoreSliderProps {
   value?: number; // 0-100
@@ -79,7 +79,7 @@ export function ScoreSlider({
     return { label: 'Poor', Icon: TrendingDown };
   };
 
-  const updateValue = (clientX: number) => {
+  const updateValue = useCallback((clientX: number) => {
     if (!sliderRef.current || readonly || !onChange) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
@@ -90,7 +90,7 @@ export function ScoreSlider({
     const newValue = Math.max(min, Math.min(max, steppedValue));
 
     onChange(newValue);
-  };
+  }, [readonly, onChange, min, max, step]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readonly) return;
@@ -98,14 +98,14 @@ export function ScoreSlider({
     updateValue(e.clientX);
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     updateValue(e.clientX);
-  };
+  }, [isDragging, updateValue]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (isDragging) {

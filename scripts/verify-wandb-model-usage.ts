@@ -15,13 +15,10 @@
  */
 
 import type { AgentRuntime } from '@elizaos/core';
-import { db } from '@/db';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { ensureTestAgents } from '@/lib/agents/utils/createTestAgent';
-import { ModelUsageVerifier } from '@/lib/training/ModelUsageVerifier';
-import { getLatestRLModel } from '@/lib/training/WandbModelFetcher';
-
-import type { JsonValue } from '@/types/common';
+import { agentRuntimeManager, ensureTestAgents } from '@babylon/agents';
+import { db } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
+import { getLatestRLModel, ModelUsageVerifier } from '@babylon/training';
 
 // Extended AgentRuntime with Babylon-specific properties (mirrors AgentRuntimeManager)
 interface ExtendedAgentRuntime extends AgentRuntime {

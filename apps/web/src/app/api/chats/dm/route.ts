@@ -126,15 +126,15 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { hasBlocked } from '@/lib/moderation/filters';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { DMChatCreateSchema } from '@/lib/validation/schemas';
+import { authenticate } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { hasBlocked } from '@babylon/db';
+import { trackServerEvent } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { DMChatCreateSchema } from '@babylon/shared';
 
 /**
  * POST /api/chats/dm

@@ -158,7 +158,7 @@ if (redisRunning.trim() !== 'babylon-redis') {
 }
 
 // Run database migrations
-import { actors, checkDatabaseHealth, closeDatabase, count, db } from '@/db';
+import { actors, checkDatabaseHealth, closeDatabase, count, db } from '@babylon/db';
 
 const isConnected = await checkDatabaseHealth().catch(() => false);
 if (!isConnected) {

@@ -1,34 +1,34 @@
 'use client';
 
-import { cn } from '@/lib/utils';
 import { MessageCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { LikeButton } from './LikeButton';
-import { RepostButton } from './RepostButton';
-import { DeleteButton } from './DeleteButton';
+import { useEffect, useState } from 'react';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
-import { useInteractionStore } from '@/stores/interactionStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
-import type { InteractionBarProps } from '@/types/interactions';
+import { cn } from '@babylon/shared';
+import { useInteractionStore } from '@/stores/interactionStore';
+import type { InteractionBarProps } from '@babylon/shared';
+import { DeleteButton } from './DeleteButton';
+import { LikeButton } from './LikeButton';
+import { RepostButton } from './RepostButton';
 
 /**
  * Interaction bar component for post interactions.
- * 
+ *
  * Displays like, comment, and share buttons with counts. Manages
  * interaction state via Zustand store with polling for real-time
  * updates. Opens comment section or login modal based on auth state.
- * 
+ *
  * Features:
  * - Like button with reaction picker
  * - Comment button with count
  * - Share/repost button
  * - Delete button (for post author)
  * - Real-time count updates via polling
- * 
+ *
  * @param props - InteractionBar component props
  * @returns Interaction bar element
- * 
+ *
  * @example
  * ```tsx
  * <InteractionBar
@@ -56,20 +56,27 @@ export function InteractionBar({
   // Determine if this is a simple repost (no quote commentary)
   // Simple repost: has originalPostId but no quote commentary
   // Quote post: has originalPostId AND has quote commentary (isQuote or quoteComment)
-  const isSimpleRepost = postData?.originalPostId && !postData?.isQuote && !postData?.quoteComment;
-  
+  const isSimpleRepost =
+    postData?.originalPostId && !postData?.isQuote && !postData?.quoteComment;
+
   // For SIMPLE reposts only, use the original post ID for tracking interactions
   // This ensures interactions on a simple repost affect the original post
   // For QUOTE posts, use the quote post's own ID (they have independent interactions)
-  const interactionPostId = (isSimpleRepost && postData?.originalPostId) ? postData.originalPostId : postId;
+  const interactionPostId =
+    isSimpleRepost && postData?.originalPostId
+      ? postData.originalPostId
+      : postId;
 
   // Get interaction data from store (synced via polling) or fall back to initial values
   const storeData = postInteractions.get(interactionPostId);
   const likeCount = storeData?.likeCount ?? initialInteractions?.likeCount ?? 0;
-  const commentCount = storeData?.commentCount ?? initialInteractions?.commentCount ?? 0;
-  const shareCount = storeData?.shareCount ?? initialInteractions?.shareCount ?? 0;
+  const commentCount =
+    storeData?.commentCount ?? initialInteractions?.commentCount ?? 0;
+  const shareCount =
+    storeData?.shareCount ?? initialInteractions?.shareCount ?? 0;
   const isLiked = storeData?.isLiked ?? initialInteractions?.isLiked ?? false;
-  const isShared = storeData?.isShared ?? initialInteractions?.isShared ?? false;
+  const isShared =
+    storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
   // Update store with latest counts from API, but preserve isLiked/isShared from store
   useEffect(() => {
@@ -77,7 +84,7 @@ export function InteractionBar({
       const store = useInteractionStore.getState();
       const currentStoreData = store.postInteractions.get(interactionPostId);
       const updatedInteractions = new Map(store.postInteractions);
-      
+
       updatedInteractions.set(interactionPostId, {
         postId: interactionPostId,
         // Use fresh counts from API
@@ -85,12 +92,21 @@ export function InteractionBar({
         commentCount: initialInteractions.commentCount ?? 0,
         shareCount: initialInteractions.shareCount ?? 0,
         // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
-        isLiked: currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
-        isShared: currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
+        isLiked:
+          currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+        isShared:
+          currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
       });
       useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
-  }, [interactionPostId, initialInteractions?.likeCount, initialInteractions?.commentCount, initialInteractions?.shareCount]);
+  }, [
+    interactionPostId,
+    initialInteractions?.likeCount,
+    initialInteractions?.commentCount,
+    initialInteractions?.shareCount,
+    initialInteractions?.isLiked,
+    initialInteractions,
+  ]);
 
   const handleCommentClick = () => {
     if (!authenticated) {
@@ -113,7 +129,7 @@ export function InteractionBar({
       <div
         className={cn(
           className,
-          'flex items-center justify-between mt-3 w-full text-muted-foreground gap-6',
+          'mt-3 flex w-full items-center justify-between gap-6 text-muted-foreground'
         )}
       >
         {/* Comment button */}
@@ -124,9 +140,9 @@ export function InteractionBar({
             handleCommentClick();
           }}
           className={cn(
-            'flex items-center gap-1 h-8 px-2',
-            'bg-transparent hover:opacity-70 transition-all duration-200',
-            'text-xs text-muted-foreground cursor-pointer'
+            'flex h-8 items-center gap-1 px-2',
+            'bg-transparent transition-all duration-200 hover:opacity-70',
+            'cursor-pointer text-muted-foreground text-xs'
           )}
         >
           <MessageCircle size={18} />
@@ -143,15 +159,19 @@ export function InteractionBar({
             initialShared={isShared}
             size="sm"
             showCount
-            postData={postData ? {
-              id: postData.id,
-              content: postData.content,
-              authorId: postData.authorId,
-              authorName: postData.authorName,
-              authorUsername: postData.authorUsername,
-              authorProfileImageUrl: postData.authorProfileImageUrl,
-              timestamp: postData.timestamp,
-            } : undefined}
+            postData={
+              postData
+                ? {
+                    id: postData.id,
+                    content: postData.content,
+                    authorId: postData.authorId,
+                    authorName: postData.authorName,
+                    authorUsername: postData.authorUsername,
+                    authorProfileImageUrl: postData.authorProfileImageUrl,
+                    timestamp: postData.timestamp,
+                  }
+                : undefined
+            }
           />
         </div>
 

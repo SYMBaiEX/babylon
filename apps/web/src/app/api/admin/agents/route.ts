@@ -67,11 +67,11 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentLogs, and, count, db, eq, gte } from '@/db';
-import { getExternalAgentAdapter } from '@/lib/agents/external/ExternalAgentAdapter';
-import { logger } from '@/lib/logger';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-import { AgentType } from '@/types/agent-registry.types';
+import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
+import { getExternalAgentAdapter } from '@babylon/agents';
+import { logger } from '@babylon/shared';
+import { agentRegistry } from '@babylon/agents';
+import { AgentType } from '@babylon/agents';
 
 /**
  * GET /api/admin/agents

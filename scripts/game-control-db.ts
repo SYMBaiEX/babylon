@@ -11,9 +11,14 @@
  *   bun run scripts/game-control-db.ts status  - Check game status
  */
 
-import { closeDatabase, db, eq, games } from '@/db';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import {
+  closeDatabase,
+  db,
+  eq,
+  games,
+  generateSnowflakeId,
+} from '@babylon/db';
+import { logger } from '@babylon/engine';
 
 async function controlGame(action: 'start' | 'pause') {
   // Get the continuous game

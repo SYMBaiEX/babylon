@@ -33,7 +33,7 @@
 import { Loader2, Send } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 import { ScoreSlider } from './ScoreSlider';
 import { StarRatingInput } from './StarRating';
 

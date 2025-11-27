@@ -47,9 +47,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const TwitterCallbackQuerySchema = z.object({
   code: z.string().optional(),

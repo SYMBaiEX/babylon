@@ -4,9 +4,8 @@
  * Creates enough trajectories to trigger training (100+ scored needed)
  */
 
-import { db } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
+import { db, generateSnowflakeId } from '@babylon/db';
+import { trajectoryRecorder } from '@babylon/training';
 
 async function main() {
   console.log('\n━━━ GENERATING 100+ TRAJECTORIES ━━━\n');

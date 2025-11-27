@@ -10,12 +10,12 @@ import {
   calculatePositionFunding,
   FUNDING_DEFAULTS,
   getFundingRateTier,
-} from '@/lib/perps/funding-rate-calculator';
+} from '@babylon/engine';
 import {
   type LiquidityScenarioConfig,
   LiquiditySimulator,
   SCENARIOS,
-} from '@/lib/simulation/liquidity-simulation';
+} from '@babylon/testing/simulation';
 
 describe('Funding Rate Calculator', () => {
   it('should return base rate when market is balanced', () => {

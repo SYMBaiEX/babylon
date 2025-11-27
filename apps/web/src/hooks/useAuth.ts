@@ -11,8 +11,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { toast } from 'sonner';
 
-import { apiFetch } from '@/lib/api/fetch';
-import { logger } from '@/lib/logger';
+import { apiFetch } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 import { type User, useAuthStore } from '@/stores/authStore';
 
@@ -473,7 +473,8 @@ export function useAuth(): UseAuthReturn {
       // Only link wallet if it's different from the stored wallet address
       if (
         wallet?.address &&
-        currentUser.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()
+        currentUser.walletAddress?.toLowerCase() !==
+          wallet.address.toLowerCase()
       ) {
         const walletKey = `${privyUser.id}:wallet:${wallet.address.toLowerCase()}`;
 
@@ -640,8 +641,7 @@ export function useAuth(): UseAuthReturn {
   // The wallet linking logic checks if the address changed before making API calls
   useEffect(() => {
     void linkSocialAccounts();
-  }, [linkSocialAccounts
-  ]);
+  }, [linkSocialAccounts]);
 
   const refresh = async () => {
     if (!authenticated || !privyUser) return;

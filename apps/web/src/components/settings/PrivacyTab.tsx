@@ -10,8 +10,8 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { apiFetch } from '@/lib/api/fetch';
-import { logger } from '@/lib/logger';
+import { apiFetch } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 /**
  * Privacy tab component for managing user privacy and data rights.

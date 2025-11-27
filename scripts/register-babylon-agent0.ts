@@ -14,7 +14,7 @@
  */
 
 import { SDK } from 'agent0-sdk';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game';
@@ -92,7 +92,7 @@ async function registerBabylonOnAgent0() {
         console.log(`   Active: ${agent.active}`);
         console.log(`   Skills: ${a2aSkills?.join(', ') || 'None'}`);
       }
-    } catch (error) {
+    } catch (_error) {
       console.log('   (Could not fetch current registration details)');
     }
 
@@ -248,7 +248,7 @@ async function registerBabylonOnAgent0() {
         console.log('⏳ Not yet indexed (this is normal)');
         console.log('   Check again in a few minutes');
       }
-    } catch (error) {
+    } catch (_error) {
       console.log('⏳ Subgraph not indexed yet (this is normal)');
       console.log('   Try again in a few minutes:');
       console.log('   bun run scripts/verify-agent0-registration.ts');

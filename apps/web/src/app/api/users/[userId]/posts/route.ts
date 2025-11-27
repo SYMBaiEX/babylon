@@ -97,15 +97,15 @@ import {
   reactions,
   shares,
   users,
-} from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
+} from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { findUserByIdentifier } from '@babylon/api';
 import {
   UserIdParamSchema,
   UserPostsQuerySchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * GET /api/users/[userId]/posts

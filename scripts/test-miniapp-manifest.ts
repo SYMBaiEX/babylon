@@ -195,7 +195,7 @@ async function validateManifest(): Promise<void> {
         console.log('⚠️  Local server returned:', response.status);
         console.log('💡 Make sure dev server is running: bun run dev');
       }
-    } catch (error) {
+    } catch (_error) {
       console.log('ℹ️  Local server not running (this is OK for production)');
       console.log('💡 To test locally: bun run dev');
     }

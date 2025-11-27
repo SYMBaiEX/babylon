@@ -11,9 +11,8 @@
  * - Tick counter progression
  */
 
-import { db } from '@/db';
-import { BenchmarkDataGenerator } from '@/lib/benchmark/BenchmarkDataGenerator';
-import { SimulationEngine } from '@/lib/benchmark/SimulationEngine';
+import { db } from '@babylon/db';
+import { BenchmarkDataGenerator, SimulationEngine } from '@babylon/training';
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

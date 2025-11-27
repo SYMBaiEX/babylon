@@ -16,13 +16,7 @@ dotenv.config({ path: '.env.local' });
 import fs from 'fs';
 import { BabylonA2AClient } from './a2a-client';
 import { executeAction } from './actions';
-import {
-  AgentDecisionMaker,
-  type DecisionContext,
-  type FeedPost,
-  type PerpMarket,
-  type PredictionMarket,
-} from './decision';
+import { AgentDecisionMaker } from './decision';
 import { AgentMemory } from './memory';
 import { registerAgent } from './registration';
 

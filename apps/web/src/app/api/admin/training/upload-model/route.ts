@@ -60,8 +60,8 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import os from 'os';
 import path from 'path';
-import { logger } from '@/lib/logger';
-import { modelStorage } from '@/lib/training/storage/ModelStorageService';
+import { logger } from '@babylon/shared';
+import { modelStorage } from '@babylon/training';
 
 export const maxDuration = 300; // 5 minutes for large uploads
 

@@ -36,8 +36,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { huggingFaceIntegration } from '@/lib/huggingface/HuggingFaceIntegrationService';
-import { logger } from '@/lib/logger';
+import { huggingFaceIntegration } from '@babylon/training';
+import { logger } from '@babylon/shared';
 
 export async function GET() {
   try {

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { EarnedPointsService } from '../../src/lib/services/earned-points-service';
+import { EarnedPointsService } from '@babylon/engine';
 
 describe('EarnedPointsService', () => {
   describe('pnlToPoints', () => {

@@ -95,14 +95,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import type { DrizzleClient } from '@/db';
+import type { DrizzleClient } from '@babylon/db';
 import {
   errorResponse,
   optionalAuth,
   successResponse,
-} from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 interface UsernameCheckResult {
   available: boolean;

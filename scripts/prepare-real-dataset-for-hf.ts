@@ -7,7 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 async function main() {
   console.log('\n╔════════════════════════════════════════════════════════╗');
@@ -57,7 +57,7 @@ async function main() {
     }
 
     console.log(`   ✅ Found ${trajectories.length} REAL trajectories\n`);
-  } catch (error) {
+  } catch (_error) {
     console.log('   ⚠️  Database not available, using 0 trajectories\n');
   }
 

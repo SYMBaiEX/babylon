@@ -129,14 +129,13 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import type { Market, Position } from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import db from '@/lib/database-service';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { PredictionPricing } from '@/lib/prediction-pricing';
-import { MarketQuerySchema } from '@/lib/validation/schemas';
+import { getDbInstance, type Market, type Position } from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { PredictionPricing } from '@babylon/engine';
+import { MarketQuerySchema } from '@babylon/shared';
 
 const FALLBACK_PROBABILITY = 0.5;
 
@@ -204,7 +203,7 @@ function buildPositionSnapshot(p: PositionWithMarket, market?: Market | null) {
  * Get active prediction questions with optional user positions
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const questions = await db().getActiveQuestions();
+  const questions = await getDbInstance().getActiveQuestions();
   const { searchParams } = new URL(request.url);
 
   const queryParse = MarketQuerySchema.merge(

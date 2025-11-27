@@ -3,8 +3,8 @@
 import * as React from 'react';
 import * as RechartsPrimitive from 'recharts';
 
-import { cn } from '@/lib/utils';
-import type { JsonValue } from '@/types/common';
+import { cn } from '@babylon/shared';
+import type { JsonValue } from '@babylon/api';
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const;
@@ -254,13 +254,14 @@ function ChartTooltipContent({
 
     return <div className={cn('font-medium', labelClassName)}>{value}</div>;
   }, [
-    label, 
-    labelFormatter, 
-    payload, 
-    hideLabel, 
-    labelClassName, 
-    config, 
-    labelKey, filteredPayload
+    label,
+    labelFormatter,
+    payload,
+    hideLabel,
+    labelClassName,
+    config,
+    labelKey,
+    filteredPayload,
   ]);
 
   if (!active || filteredPayload.length === 0) {

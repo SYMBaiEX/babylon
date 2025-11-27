@@ -103,14 +103,14 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, desc, eq, shareActions } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { and, db, desc, eq, shareActions } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 const ShareRequestSchema = z.object({
   platform: z.enum(['twitter', 'farcaster', 'link', 'telegram', 'discord']),

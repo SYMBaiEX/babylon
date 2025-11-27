@@ -1,112 +1,131 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { X, User, Trophy, Calendar, Wallet, TrendingUp, MessageSquare, Heart, Users, FileText } from 'lucide-react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { logger } from '@/lib/logger'
-import Image from 'next/image'
+import {
+  Calendar,
+  FileText,
+  Heart,
+  MessageSquare,
+  TrendingUp,
+  Trophy,
+  User,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { logger } from '@babylon/shared';
 
 interface UserProfile {
-  id: string
-  username: string | null
-  displayName: string | null
-  bio: string | null
-  profileImageUrl: string | null
-  coverImageUrl: string | null
-  walletAddress: string | null
-  virtualBalance: number
-  lifetimePnL: number
-  reputationPoints: number
-  referralCount: number
-  invitePoints: number
-  createdAt: string
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  bio: string | null;
+  profileImageUrl: string | null;
+  coverImageUrl: string | null;
+  walletAddress: string | null;
+  virtualBalance: number;
+  lifetimePnL: number;
+  reputationPoints: number;
+  referralCount: number;
+  invitePoints: number;
+  createdAt: string;
   stats: {
-    positions: number
-    comments: number
-    reactions: number
-    followers: number
-    following: number
-    posts: number
-  }
+    positions: number;
+    comments: number;
+    reactions: number;
+    followers: number;
+    following: number;
+    posts: number;
+  };
 }
 
 interface PlayerStatsModalProps {
-  isOpen: boolean
-  onClose: () => void
-  userId: string | null
+  isOpen: boolean;
+  onClose: () => void;
+  userId: string | null;
 }
 
-export function PlayerStatsModal({ isOpen, onClose, userId }: PlayerStatsModalProps) {
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function PlayerStatsModal({
+  isOpen,
+  onClose,
+  userId,
+}: PlayerStatsModalProps) {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !userId) {
-      setProfile(null)
-      setError(null)
-      return
+      setProfile(null);
+      setError(null);
+      return;
     }
 
     const fetchProfile = async () => {
-      setLoading(true)
-      setError(null)
-      
+      setLoading(true);
+      setError(null);
+
       try {
-        const response = await fetch(`/api/users/${userId}/profile`)
-        
+        const response = await fetch(`/api/users/${userId}/profile`);
+
         if (!response.ok) {
-          throw new Error('Failed to fetch profile')
+          throw new Error('Failed to fetch profile');
         }
 
-        const data = await response.json()
-        
+        const data = await response.json();
+
         if (!data.user) {
-          throw new Error('User not found')
+          throw new Error('User not found');
         }
 
-        setProfile(data.user)
+        setProfile(data.user);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile')
-        logger.error('Failed to fetch user profile', { userId, error: err }, 'PlayerStatsModal')
+        setError(err instanceof Error ? err.message : 'Failed to load profile');
+        logger.error(
+          'Failed to fetch user profile',
+          { userId, error: err },
+          'PlayerStatsModal'
+        );
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchProfile()
-  }, [isOpen, userId])
+    fetchProfile();
+  }, [isOpen, userId]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 w-full mx-auto">
+      <DialogContent className="mx-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto p-0">
         <div className="p-4 sm:p-5">
           {/* Header with close button */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg sm:text-xl font-bold">Player Stats</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-bold text-lg sm:text-xl">Player Stats</h2>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-background/50 rounded-lg transition-colors touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center"
+              className="flex min-h-[36px] min-w-[36px] touch-manipulation items-center justify-center rounded-lg p-1.5 transition-colors hover:bg-background/50"
               aria-label="Close modal"
             >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
 
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
+              <div className="h-6 w-6 animate-spin rounded-full border-primary border-b-2 sm:h-8 sm:w-8"></div>
             </div>
           )}
 
           {error && (
-            <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-              <p className="text-red-500 mb-3 text-sm">{error}</p>
+            <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+              <p className="mb-3 text-red-500 text-sm">{error}</p>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors touch-manipulation min-h-[44px] text-sm font-semibold"
+                className="min-h-[44px] touch-manipulation rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground text-sm transition-colors hover:bg-primary/90"
               >
                 Close
               </button>
@@ -119,20 +138,20 @@ export function PlayerStatsModal({ isOpen, onClose, userId }: PlayerStatsModalPr
               <div className="relative">
                 {/* Cover Image */}
                 {profile.coverImageUrl && (
-                  <div className="relative h-20 sm:h-28 w-full rounded-lg overflow-hidden mb-3">
+                  <div className="relative mb-3 h-20 w-full overflow-hidden rounded-lg sm:h-28">
                     <Image
                       src={profile.coverImageUrl}
                       alt="Cover"
                       fill
-                      className="object-cover rounded-lg"
+                      className="rounded-lg object-cover"
                     />
                   </div>
                 )}
-                
+
                 {/* Profile Info */}
                 <div className="flex items-start gap-3">
                   {/* Profile Image */}
-                  <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-background shrink-0">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-background sm:h-16 sm:w-16">
                     {profile.profileImageUrl ? (
                       <Image
                         src={profile.profileImageUrl}
@@ -141,137 +160,189 @@ export function PlayerStatsModal({ isOpen, onClose, userId }: PlayerStatsModalPr
                         className="object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                        <User className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+                      <div className="flex h-full w-full items-center justify-center bg-primary/20">
+                        <User className="h-7 w-7 text-primary sm:h-8 sm:w-8" />
                       </div>
                     )}
                   </div>
 
                   {/* Name and Username */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold truncate">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-bold text-base sm:text-lg">
                       {profile.displayName || profile.username || 'Anonymous'}
                     </h3>
                     {profile.username && (
-                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">@{profile.username}</p>
+                      <p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
+                        @{profile.username}
+                      </p>
                     )}
                     {profile.bio && (
-                      <p className="text-xs mt-1.5 whitespace-pre-wrap break-words line-clamp-2">{profile.bio}</p>
+                      <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap break-words text-xs">
+                        {profile.bio}
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
                 {/* Reputation Points */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Trophy className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">Reputation</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Reputation
+                    </span>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold break-words">{profile.reputationPoints.toLocaleString()}</p>
+                  <p className="break-words font-bold text-lg sm:text-xl">
+                    {profile.reputationPoints.toLocaleString()}
+                  </p>
                 </div>
 
                 {/* Virtual Balance */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">Balance</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Balance
+                    </span>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold break-words">${profile.virtualBalance.toLocaleString()}</p>
+                  <p className="break-words font-bold text-lg sm:text-xl">
+                    ${profile.virtualBalance.toLocaleString()}
+                  </p>
                 </div>
 
                 {/* Lifetime PnL */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <TrendingUp className={`w-3.5 h-3.5 shrink-0 ${profile.lifetimePnL >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-                    <span className="text-xs text-muted-foreground truncate">Lifetime PnL</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <TrendingUp
+                      className={`h-3.5 w-3.5 shrink-0 ${profile.lifetimePnL >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                    />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Lifetime PnL
+                    </span>
                   </div>
-                  <p className={`text-lg sm:text-xl font-bold break-words ${profile.lifetimePnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    ${profile.lifetimePnL >= 0 ? '+' : ''}{profile.lifetimePnL.toLocaleString()}
+                  <p
+                    className={`break-words font-bold text-lg sm:text-xl ${profile.lifetimePnL >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                  >
+                    ${profile.lifetimePnL >= 0 ? '+' : ''}
+                    {profile.lifetimePnL.toLocaleString()}
                   </p>
                 </div>
 
                 {/* Referral Count */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">Referrals</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Referrals
+                    </span>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold">{profile.referralCount}</p>
+                  <p className="font-bold text-lg sm:text-xl">
+                    {profile.referralCount}
+                  </p>
                 </div>
 
                 {/* Invite Points */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Trophy className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">Invite Points</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Invite Points
+                    </span>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold break-words">{profile.invitePoints.toLocaleString()}</p>
+                  <p className="break-words font-bold text-lg sm:text-xl">
+                    {profile.invitePoints.toLocaleString()}
+                  </p>
                 </div>
 
                 {/* Positions */}
-                <div className="bg-background/50 border border-border rounded-lg p-2.5 sm:p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">Positions</span>
+                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate text-muted-foreground text-xs">
+                      Positions
+                    </span>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold">{profile.stats.positions}</p>
+                  <p className="font-bold text-lg sm:text-xl">
+                    {profile.stats.positions}
+                  </p>
                 </div>
               </div>
 
               {/* Activity Stats */}
-              <div className="border-t border-border pt-4">
-                <h4 className="text-sm sm:text-base font-semibold mb-3">Activity</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                  <div className="text-center p-2">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="border-border border-t pt-4">
+                <h4 className="mb-3 font-semibold text-sm sm:text-base">
+                  Activity
+                </h4>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+                  <div className="p-2 text-center">
+                    <div className="mb-1 flex items-center justify-center gap-1">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
-                    <p className="text-lg sm:text-xl font-bold">{profile.stats.posts}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Posts</p>
+                    <p className="font-bold text-lg sm:text-xl">
+                      {profile.stats.posts}
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      Posts
+                    </p>
                   </div>
-                  <div className="text-center p-2">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
+                  <div className="p-2 text-center">
+                    <div className="mb-1 flex items-center justify-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
-                    <p className="text-lg sm:text-xl font-bold">{profile.stats.comments}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Comments</p>
+                    <p className="font-bold text-lg sm:text-xl">
+                      {profile.stats.comments}
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      Comments
+                    </p>
                   </div>
-                  <div className="text-center p-2">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Heart className="w-3.5 h-3.5 text-muted-foreground" />
+                  <div className="p-2 text-center">
+                    <div className="mb-1 flex items-center justify-center gap-1">
+                      <Heart className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
-                    <p className="text-lg sm:text-xl font-bold">{profile.stats.reactions}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Reactions</p>
+                    <p className="font-bold text-lg sm:text-xl">
+                      {profile.stats.reactions}
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      Reactions
+                    </p>
                   </div>
-                  <div className="text-center p-2">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                  <div className="p-2 text-center">
+                    <div className="mb-1 flex items-center justify-center gap-1">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
-                    <p className="text-lg sm:text-xl font-bold">{profile.stats.followers}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Followers</p>
+                    <p className="font-bold text-lg sm:text-xl">
+                      {profile.stats.followers}
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      Followers
+                    </p>
                   </div>
                 </div>
               </div>
 
               {/* Additional Info */}
-              <div className="border-t border-border pt-4 space-y-1.5">
-                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <Calendar className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div className="space-y-1.5 border-border border-t pt-4">
+                <div className="flex items-start gap-2 text-muted-foreground text-xs">
+                  <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="break-words">
-                    Joined {new Date(profile.createdAt).toLocaleDateString('en-US', { 
-                      month: 'long', 
+                    Joined{' '}
+                    {new Date(profile.createdAt).toLocaleDateString('en-US', {
+                      month: 'long',
                       year: 'numeric',
-                      day: 'numeric'
+                      day: 'numeric',
                     })}
                   </span>
                 </div>
                 {profile.walletAddress && (
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <Wallet className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span className="font-mono break-all">{profile.walletAddress}</span>
+                  <div className="flex items-start gap-2 text-muted-foreground text-xs">
+                    <Wallet className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="break-all font-mono">
+                      {profile.walletAddress}
+                    </span>
                   </div>
                 )}
               </div>
@@ -280,6 +351,5 @@ export function PlayerStatsModal({ isOpen, onClose, userId }: PlayerStatsModalPr
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
-

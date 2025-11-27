@@ -113,12 +113,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { cachedDb } from '@/lib/cached-database-service';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { optionalAuth } from '@babylon/api';
+import { cachedDb } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { findUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET Handler for User Profile

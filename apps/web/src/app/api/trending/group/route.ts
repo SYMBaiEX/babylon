@@ -79,14 +79,14 @@ import {
   shares,
   tags,
   users,
-} from '@/db';
+} from '@babylon/db';
 import {
   type AuthenticatedUser,
   optionalAuth,
-} from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);

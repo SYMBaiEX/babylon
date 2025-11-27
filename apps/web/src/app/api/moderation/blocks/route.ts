@@ -54,10 +54,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { GetBlocksSchema } from '@/lib/validation/schemas/moderation';
+import { db } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { GetBlocksSchema } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);

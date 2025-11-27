@@ -6,10 +6,12 @@
  *   DEBUG_PROMPTS=true bun run scripts/test-prompt-debug.ts
  */
 
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { logger } from '@/lib/logger';
-import { getPromptParams, renderPrompt } from '@/prompts';
-import { questionGeneration } from '@/prompts/game/question-generation';
+import { BabylonLLMClient, logger } from '@babylon/engine';
+import {
+  getPromptParams,
+  questionGeneration,
+  renderPrompt,
+} from '@babylon/engine';
 
 async function testPromptDebugLogging() {
   logger.info('Testing prompt debug logging...', {}, 'TestScript');

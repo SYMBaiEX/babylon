@@ -9,8 +9,8 @@
  *   npx tsx scripts/spawn-test-agents.ts --agents=8 --duration=10
  */
 
-import { db } from '@/db';
-import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
+import { db } from '@babylon/db';
+import { trajectoryRecorder } from '@babylon/training';
 
 interface AgentStrategy {
   name: string;

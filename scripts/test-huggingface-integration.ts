@@ -10,10 +10,12 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db } from '@/db';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { HuggingFaceDatasetUploader } from '@/lib/huggingface/HuggingFaceDatasetUploader';
-import { HuggingFaceModelUploader } from '@/lib/huggingface/HuggingFaceModelUploader';
+import { db } from '@babylon/db';
+import {
+  HuggingFaceDatasetUploader,
+  HuggingFaceModelUploader,
+  ModelBenchmarkService,
+} from '@babylon/training';
 
 interface TestResult {
   name: string;
@@ -116,7 +118,7 @@ async function main() {
     try {
       const count = await db.benchmarkResult.count();
       console.log(`   BenchmarkResult table has ${count} records`);
-    } catch (error) {
+    } catch (_error) {
       throw new Error(
         'BenchmarkResult table not found. Run: npx drizzle-kit push'
       );

@@ -54,9 +54,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { getWandbModel } from '@/lib/ai-model-config';
-import { logger } from '@/lib/logger';
+import { BabylonLLMClient } from '@babylon/engine';
+import { getWandbModel } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 /**
  * POST /api/admin/ai-models/test

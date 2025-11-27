@@ -102,15 +102,15 @@ import {
   inArray,
   userActorFollows,
   users,
-} from '@/db';
-import { optionalAuth, successResponse } from '@/lib/api/auth-middleware';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+} from '@babylon/db';
+import { optionalAuth, successResponse } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
 import {
   UserFollowersQuerySchema,
   UserIdParamSchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 interface FollowingResponse {
   id: string;

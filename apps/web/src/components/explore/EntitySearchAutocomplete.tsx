@@ -4,7 +4,7 @@ import { ArrowRight, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 /**
  * API user structure from registry API.
@@ -160,7 +160,7 @@ export function EntitySearchAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const navigateToEntity = (entity: RegistryEntity) => {
+  const navigateToEntity = useCallback((entity: RegistryEntity) => {
     // For users, use username if available, otherwise use ID
     // For actors, always use ID
     const identifier = entity.username || entity.id;
@@ -169,7 +169,7 @@ export function EntitySearchAutocomplete({
     setIsOpen(false);
     setSelectedIndex(-1);
     onChange('');
-  };
+  }, [router, onNavigate, onChange]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

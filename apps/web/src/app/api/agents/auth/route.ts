@@ -85,11 +85,10 @@ import {
   createAgentSession,
   getSessionDuration,
   verifyAgentCredentials,
-} from '@/lib/auth/agent-auth';
-import { AuthorizationError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { AgentAuthSchema } from '@/lib/validation/schemas/agent';
+} from '@babylon/api';
+import { AuthorizationError, successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { AgentAuthSchema } from '@babylon/shared';
 
 /**
  * POST /api/agents/auth

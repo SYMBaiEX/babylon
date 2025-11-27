@@ -176,9 +176,9 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentService } from '@/lib/agents/services/AgentService';
-import { logger } from '@/lib/logger';
-import { authenticateUser } from '@/lib/server-auth';
+import { agentService } from '@babylon/agents';
+import { logger } from '@babylon/shared';
+import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,

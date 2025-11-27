@@ -124,12 +124,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { and, comments, count, db, eq, reactions, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { AuthorizationError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { IdParamSchema, UpdateCommentSchema } from '@/lib/validation/schemas';
+import { and, comments, count, db, eq, reactions, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { AuthorizationError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { IdParamSchema, UpdateCommentSchema } from '@babylon/shared';
 
 /**
  * PATCH /api/comments/[id]

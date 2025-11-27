@@ -4,8 +4,7 @@
  * Comprehensive integration test for the moderation system
  */
 
-import { count, db, reports } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { count, db, generateSnowflakeId, reports } from '@babylon/db';
 
 interface TestResult {
   test: string;

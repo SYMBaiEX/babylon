@@ -12,11 +12,11 @@
  * Scenarios: light, normal, heavy, rate-limit, coalition
  */
 
-import { A2A_TEST_SCENARIOS } from '@/lib/testing/a2a-load-test-scenarios';
+import { A2A_TEST_SCENARIOS } from '@babylon/testing/load-test';
 import {
   type LoadTestResult,
   LoadTestSimulator,
-} from '@/lib/testing/load-test-simulator';
+} from '@babylon/testing/load-test';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

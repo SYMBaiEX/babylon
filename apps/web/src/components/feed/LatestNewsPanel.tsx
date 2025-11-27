@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 // ArticleDetailModal removed - articles now use /post/[id] page
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
 import { useSSEChannel } from '@/hooks/useSSE';
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 
 /**
@@ -57,7 +57,7 @@ export function LatestNewsPanel() {
    * Deduplicate articles about the same event
    * Uses improved heuristics: combines category, title similarity, and publish time proximity
    */
-  const deduplicateArticles = (articles: ArticleItem[]): ArticleItem[] => {
+  const deduplicateArticles = useCallback((articles: ArticleItem[]): ArticleItem[] => {
     if (articles.length <= 1) return articles;
 
     const uniqueArticles: ArticleItem[] = [];
@@ -174,7 +174,7 @@ export function LatestNewsPanel() {
     );
 
     return uniqueArticles;
-  };
+  }, []);
 
   const fetchArticles = useCallback(
     async (skipCache = false) => {

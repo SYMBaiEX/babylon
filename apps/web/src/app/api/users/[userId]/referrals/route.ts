@@ -72,16 +72,16 @@ import {
   sum,
   tradingFees,
   users,
-} from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError, NotFoundError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+} from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError, NotFoundError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { requireUserByIdentifier } from '@babylon/api';
 import {
   ReferralQuerySchema,
   UserIdParamSchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * GET /api/users/[userId]/referrals

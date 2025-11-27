@@ -12,11 +12,11 @@
  * Scenarios: light, normal, heavy, stress
  */
 
-import { queryMonitor } from '@/lib/db/query-monitor';
+import { queryMonitor } from '@babylon/db';
 import {
   LoadTestSimulator,
   TEST_SCENARIOS,
-} from '@/lib/testing/load-test-simulator';
+} from '@babylon/testing/load-test';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

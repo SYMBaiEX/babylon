@@ -43,10 +43,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asSystem } from '@/lib/db/context';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { SignalExtractionService } from '@/lib/services/signal-extraction-service';
+import { authenticate } from '@babylon/api';
+import { asSystem } from '@babylon/db';
+import { withErrorHandling } from '@babylon/api';
+import { SignalExtractionService } from '@babylon/engine';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);

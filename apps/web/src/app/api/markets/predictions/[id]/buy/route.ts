@@ -88,26 +88,28 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
-import { FEE_CONFIG } from '@/lib/config/fees';
-import { asUser } from '@/lib/db/context';
+import { authenticate } from '@babylon/api';
+import { invalidateAfterPredictionTrade } from '@babylon/engine';
+import { FEE_CONFIG } from '@babylon/engine';
+import { asUser } from '@babylon/db';
 import {
   BusinessLogicError,
   InsufficientFundsError,
   NotFoundError,
-} from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PredictionPricing } from '@/lib/prediction-pricing';
-import { FeeService } from '@/lib/services/fee-service';
-import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
-import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
-import { WalletService } from '@/lib/services/wallet-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
-import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
+} from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
+import { PredictionPricing } from '@babylon/engine';
+import { FeeService } from '@babylon/engine';
+import {
+  PredictionMarketEventService,
+  PredictionPriceHistoryService,
+} from '@babylon/engine';
+import { WalletService } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
+import { PredictionMarketIdSchema } from '@babylon/shared';
+import { PredictionMarketTradeSchema } from '@babylon/shared';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -316,7 +318,7 @@ export const POST = withErrorHandling(
         // Create market on-chain if it doesn't have onChainMarketId (non-blocking)
         if (!market.onChainMarketId) {
           const { ensureMarketOnChain } = await import(
-            '@/lib/services/onchain-market-service'
+            '@babylon/engine/services/onchain-market-service'
           );
           await ensureMarketOnChain(market.id).catch((error) => {
             logger.warn(

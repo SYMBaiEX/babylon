@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
 import { encodeFunctionData, pad } from 'viem';
-import { CHAIN } from '@/constants/chains';
+import { CHAIN } from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { getContractAddresses } from '@/lib/deployment/addresses';
-import { logger } from '@/lib/logger';
+import { getContractAddresses } from '@babylon/contracts';
+import { logger } from '@babylon/shared';
 
 /**
  * Result of an on-chain betting transaction.

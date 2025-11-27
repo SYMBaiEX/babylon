@@ -60,11 +60,11 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const AdminActionSchema = z.object({
   action: z.enum(['promote', 'demote']),

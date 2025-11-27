@@ -7,8 +7,10 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
-import { SimulationEngine } from '@/lib/benchmark/SimulationEngine';
+import {
+  SimulationA2AInterface,
+  SimulationEngine,
+} from '@babylon/training';
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -329,7 +331,7 @@ async function main() {
     } else {
       console.log(`✅ Perp metrics match action count (${perpActions})`);
     }
-  } catch (error) {
+  } catch (_error) {
     console.log('⚠️  No saved results to validate (run comparison first)');
   }
 

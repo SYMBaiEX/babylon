@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
-import { logger } from '@/lib/logger';
+import { logger } from '@babylon/shared';
 
 /**
  * Referral capture provider component for capturing referral codes from URL.

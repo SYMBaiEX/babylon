@@ -169,25 +169,25 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { and, count, db, desc, eq, inArray, notifications, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
+import { and, count, db, desc, eq, inArray, notifications, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
 import {
   CACHE_KEYS,
   getCacheOrFetch,
   invalidateCachePattern,
-} from '@/lib/cache-service';
-import { InternalServerError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/api';
+import { InternalServerError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import {
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
-} from '@/lib/moderation/filters';
+} from '@babylon/db';
 import {
   MarkNotificationsReadSchema,
   NotificationsQuerySchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * GET /api/notifications - Get user notifications

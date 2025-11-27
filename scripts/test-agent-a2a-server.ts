@@ -5,7 +5,7 @@
  */
 
 import { ethers } from 'ethers';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 import { generateSnowflakeId } from '../src/lib/snowflake';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

@@ -13,10 +13,10 @@ import {
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { apiFetch } from '@/lib/api/fetch';
-import { logger } from '@/lib/logger';
-import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
-import { cn } from '@/lib/utils';
+import { apiFetch } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /**
  * Imported profile data structure from social platforms.

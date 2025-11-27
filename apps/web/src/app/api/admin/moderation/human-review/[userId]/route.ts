@@ -69,13 +69,13 @@
 
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import type { JsonValue } from '@/db';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { createNotification } from '@/lib/services/notification-service';
-import { WalletService } from '@/lib/services/wallet-service';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { createNotification } from '@babylon/api';
+import { WalletService } from '@babylon/engine';
 
 const HumanReviewActionSchema = z.object({
   action: z.enum(['approve', 'deny']),

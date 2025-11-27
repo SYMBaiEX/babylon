@@ -1,12 +1,12 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { Heart, Laugh, Frown } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
-import { useInteractionStore } from '@/stores/interactionStore';
-import type { LikeButtonProps } from '@/types/interactions';
+import { Frown, Heart, Laugh } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useSocialTracking } from '@/hooks/usePostHog';
+import { cn } from '@babylon/shared';
+import { useInteractionStore } from '@/stores/interactionStore';
+import type { LikeButtonProps } from '@babylon/shared';
 
 /**
  * Reaction configuration type for like button reactions.
@@ -65,21 +65,21 @@ type ReactionType = keyof typeof REACTION_TYPES;
 
 /**
  * Like button component for posts and comments with reaction picker.
- * 
+ *
  * Displays a like button with reaction picker (like, love, laugh, sad).
  * Supports long-press to open reaction picker. Manages state via
  * Zustand store with optimistic updates. Tracks reactions with PostHog.
- * 
+ *
  * Features:
  * - Multiple reaction types (like, love, laugh, sad)
  * - Long-press to open reaction picker
  * - Optimistic UI updates
  * - Real-time count updates
  * - Loading states
- * 
+ *
  * @param props - LikeButton component props
  * @returns Like button element
- * 
+ *
  * @example
  * ```tsx
  * <LikeButton
@@ -118,21 +118,29 @@ export function LikeButton({
   showCount = true,
   className,
 }: LikeButtonProps & { initialReactionType?: ReactionType }) {
-  const [currentReaction, setCurrentReaction] = useState<ReactionType>(initialReactionType);
+  const [currentReaction, setCurrentReaction] =
+    useState<ReactionType>(initialReactionType);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressStartTime = useRef<number>(0);
 
-  const { toggleLike, toggleCommentLike, postInteractions, commentInteractions, loadingStates } = useInteractionStore();
+  const {
+    toggleLike,
+    toggleCommentLike,
+    postInteractions,
+    commentInteractions,
+    loadingStates,
+  } = useInteractionStore();
   const { trackPostLike } = useSocialTracking();
 
   // Get state from store instead of local state
-  const storeData = targetType === 'post' 
-    ? postInteractions.get(targetId)
-    : commentInteractions.get(targetId);
-  
+  const storeData =
+    targetType === 'post'
+      ? postInteractions.get(targetId)
+      : commentInteractions.get(targetId);
+
   const isLiked = storeData?.isLiked ?? initialLiked;
   const likeCount = storeData?.likeCount ?? initialCount;
   const isLoading = loadingStates.get(targetId) ?? false;
@@ -223,12 +231,12 @@ export function LikeButton({
             'bg-transparent hover:opacity-70',
             isLiked ? fallbackReaction.color : 'text-muted-foreground',
             sizeClasses[size],
-            isLoading && 'opacity-50 cursor-wait',
+            isLoading && 'cursor-wait opacity-50',
             className
           )}
         >
           {isLoading ? (
-            <Skeleton className={cn("rounded", skeletonSizes[size])} />
+            <Skeleton className={cn('rounded', skeletonSizes[size])} />
           ) : (
             <FallbackIcon
               size={iconSizes[size]}
@@ -261,12 +269,12 @@ export function LikeButton({
           isLiked ? reaction.color : 'text-muted-foreground',
           sizeClasses[size],
           isAnimating && 'scale-110',
-          isLoading && 'opacity-50 cursor-wait',
+          isLoading && 'cursor-wait opacity-50',
           className
         )}
       >
         {isLoading ? (
-          <Skeleton className={cn("rounded", skeletonSizes[size])} />
+          <Skeleton className={cn('rounded', skeletonSizes[size])} />
         ) : (
           <Icon
             size={iconSizes[size]}
@@ -294,10 +302,10 @@ export function LikeButton({
           {/* Reaction Options */}
           <div
             className={cn(
-              'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50',
+              '-translate-x-1/2 absolute bottom-full left-1/2 z-50 mb-2',
               'flex items-center gap-2 p-2',
-              'bg-popover border border-border rounded-full shadow-lg',
-              'animate-in fade-in slide-in-from-bottom-2 duration-200'
+              'rounded-full border border-border bg-popover shadow-lg',
+              'fade-in slide-in-from-bottom-2 animate-in duration-200'
             )}
           >
             {(Object.keys(REACTION_TYPES) as ReactionType[]).map((type) => {
@@ -311,7 +319,7 @@ export function LikeButton({
                   type="button"
                   onClick={() => handleReactionSelect(type)}
                   className={cn(
-                    'p-2 rounded-full transition-all duration-200',
+                    'rounded-full p-2 transition-all duration-200',
                     'hover:scale-125 active:scale-110',
                     reactionOption.hoverColor,
                     isSelected && cn(reactionOption.bgColor, 'scale-110')

@@ -25,7 +25,7 @@ import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 
 interface PerpMarket {
   ticker: string;

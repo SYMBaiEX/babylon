@@ -195,7 +195,7 @@
 - [lib/storage/s3-client](lib/storage/s3-client/README.md)
 - [lib/swagger/auto-generator](lib/swagger/auto-generator/README.md)
 - [lib/swagger/config](lib/swagger/config/README.md)
-- [lib/swagger/generator](lib/swagger/generator/README.md)
+- [lib/swagger/generator](lib/swagger/engine/README.md)
 - [lib/swagger](lib/swagger/README.md)
 - [lib/swagger/types](lib/swagger/types/README.md)
 - [lib/testing/auth-helper](lib/testing/auth-helper/README.md)

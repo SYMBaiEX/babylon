@@ -66,7 +66,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { loadActorsData } from '@/lib/data/actors-loader';
+import { loadActorsData } from '@babylon/engine';
 
 /**
  * GET /api/actors

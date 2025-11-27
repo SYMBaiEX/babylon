@@ -74,9 +74,9 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { db } from '@babylon/db';
+import { getReputationBreakdown } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
 
 interface RouteParams {
   params: Promise<{

@@ -84,28 +84,28 @@ import {
   posts,
   reactions,
   users,
-} from '@/db';
-import { authenticate, optionalAuth } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { hasBlocked } from '@/lib/moderation/filters';
+} from '@babylon/db';
+import { authenticate, optionalAuth } from '@babylon/api';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { hasBlocked } from '@babylon/db';
 import {
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
+} from '@babylon/api';
 import {
   notifyCommentOnPost,
   notifyMention,
   notifyReplyToComment,
-} from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
+} from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
+import { ensureUserForAuth, getCanonicalUserId } from '@babylon/api';
 import {
   CreateCommentSchema,
   PostIdParamSchema,
-} from '@/lib/validation/schemas';
+} from '@babylon/shared';
 
 /**
  * Build threaded comment structure recursively

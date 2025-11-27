@@ -1,157 +1,194 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Bell, LogOut, Coins, Copy, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
-import { usePathname, useSearchParams } from 'next/navigation'
-import { Avatar } from '@/components/shared/Avatar'
-import { getReferralUrl, getDisplayReferralUrl } from '@/lib/referral/referral-utils'
-import { Suspense } from 'react'
+import {
+  Bell,
+  Check,
+  Coins,
+  Copy,
+  Gift,
+  Home,
+  LogOut,
+  MessageCircle,
+  TrendingUp,
+  Trophy,
+  X,
+} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { Avatar } from '@/components/shared/Avatar';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  getDisplayReferralUrl,
+  getReferralUrl,
+} from '@babylon/shared';
+import { cn } from '@babylon/shared';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
  * Mobile header content component for mobile devices.
- * 
+ *
  * Provides a fixed header with logo, profile menu trigger, and slide-out
  * side menu. Shows user profile, navigation links, points balance, referral
  * code, and logout. Automatically hides on production home page unless dev
  * mode is enabled via URL parameter.
- * 
+ *
  * @returns Mobile header element or null if hidden
  */
 function MobileHeaderContent() {
-  const { authenticated, logout } = useAuth()
-  const { user, setUser } = useAuthStore()
-  const [showSideMenu, setShowSideMenu] = useState(false)
-  const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
-  const [copiedReferral, setCopiedReferral] = useState(false)
-  const [unreadNotifications, setUnreadNotifications] = useState(0)
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const { authenticated, logout } = useAuth();
+  const { user, setUser } = useAuthStore();
+  const [showSideMenu, setShowSideMenu] = useState(false);
+  const [pointsData, setPointsData] = useState<{
+    available: number;
+    total: number;
+  } | null>(null);
+  const [copiedReferral, setCopiedReferral] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Check if dev mode is enabled via URL parameter
-  const isDevMode = searchParams.get('dev') === 'true'
-  
+  const isDevMode = searchParams.get('dev') === 'true';
+
   // Hide mobile header on production (babylon.market) on home page unless ?dev=true
-  const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
-  const isHomePage = pathname === '/'
-  const shouldHide = isProduction && isHomePage && !isDevMode
+  const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'babylon.market';
+  const isHomePage = pathname === '/';
+  const shouldHide = isProduction && isHomePage && !isDevMode;
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
     if (!authenticated || !user?.id || user.profileImageUrl) {
-      return
+      return;
     }
 
-    const controller = new AbortController()
+    const controller = new AbortController();
 
     const hydrateProfileImage = async () => {
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
-        signal: controller.signal,
-      }).catch((error: Error) => {
-        if (error.name === 'AbortError') return null
-        throw error
-      })
-      
-      if (!response || !response.ok) return
-      const data = await response.json()
-      const profileUrl = data?.user?.profileImageUrl as string | undefined
-      const coverUrl = data?.user?.coverImageUrl as string | undefined
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/profile`,
+        {
+          signal: controller.signal,
+        }
+      ).catch((error: Error) => {
+        if (error.name === 'AbortError') return null;
+        throw error;
+      });
+
+      if (!response || !response.ok) return;
+      const data = await response.json();
+      const profileUrl = data?.user?.profileImageUrl as string | undefined;
+      const coverUrl = data?.user?.coverImageUrl as string | undefined;
       if (profileUrl || coverUrl) {
         setUser({
           ...user,
           profileImageUrl: profileUrl ?? user.profileImageUrl,
           coverImageUrl: coverUrl ?? user.coverImageUrl,
-        })
+        });
       }
-    }
+    };
 
-    void hydrateProfileImage()
+    void hydrateProfileImage();
 
-    return () => controller.abort()
-  }, [authenticated, setUser, user?.id, user?.profileImageUrl, user?.coverImageUrl])
+    return () => controller.abort();
+  }, [
+    authenticated,
+    setUser,
+    user?.id,
+    user?.profileImageUrl,
+    user?.coverImageUrl,
+    user,
+  ]);
 
   useEffect(() => {
     const fetchPoints = async () => {
       if (!authenticated || !user?.id) {
-        setPointsData(null)
-        return
+        setPointsData(null);
+        return;
       }
 
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
       if (!token) {
         // No token available yet, skip fetching protected data
-        return
+        return;
       }
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      };
 
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/balance`,
+        { headers }
+      );
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json();
         setPointsData({
           available: Number(data.balance || 0),
           total: Number(data.totalDeposited || 0),
-        })
+        });
       }
-    }
+    };
 
-    fetchPoints()
-    const interval = setInterval(fetchPoints, 30000)
-    return () => clearInterval(interval)
-  }, [authenticated, user?.id])
+    fetchPoints();
+    const interval = setInterval(fetchPoints, 30000);
+    return () => clearInterval(interval);
+  }, [authenticated, user?.id]);
 
   // Poll for unread notifications
   useEffect(() => {
     if (!authenticated || !user) {
-      setUnreadNotifications(0)
-      return
+      setUnreadNotifications(0);
+      return;
     }
 
     const fetchUnreadCount = async () => {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+
       if (!token) {
-        return
+        return;
       }
 
-      const response = await fetch('/api/notifications?unreadOnly=true&limit=1', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      const response = await fetch(
+        '/api/notifications?unreadOnly=true&limit=1',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (response.ok) {
-        const data = await response.json()
-        setUnreadNotifications(data.unreadCount || 0)
+        const data = await response.json();
+        setUnreadNotifications(data.unreadCount || 0);
       }
-    }
+    };
 
-    fetchUnreadCount()
+    fetchUnreadCount();
 
     // Refresh every 1 minute
-    const interval = setInterval(fetchUnreadCount, 60000) // 60 seconds = 1 minute
-    return () => clearInterval(interval)
-  }, [authenticated, user])
+    const interval = setInterval(fetchUnreadCount, 60000); // 60 seconds = 1 minute
+    return () => clearInterval(interval);
+  }, [authenticated, user]);
 
   const copyReferralCode = async () => {
-    if (!user?.referralCode) return
-    
-    const referralUrl = getReferralUrl(user.referralCode)
-    await navigator.clipboard.writeText(referralUrl)
-    setCopiedReferral(true)
-    setTimeout(() => setCopiedReferral(false), 2000)
-  }
+    if (!user?.referralCode) return;
+
+    const referralUrl = getReferralUrl(user.referralCode);
+    await navigator.clipboard.writeText(referralUrl);
+    setCopiedReferral(true);
+    setTimeout(() => setCopiedReferral(false), 2000);
+  };
 
   // Render nothing if should be hidden (after all hooks)
   if (shouldHide) {
-    return null
+    return null;
   }
 
   const menuItems = [
@@ -191,29 +228,29 @@ function MobileHeaderContent() {
       icon: Bell,
       active: pathname === '/notifications',
     },
-  ]
+  ];
 
   return (
     <>
       <header
         className={cn(
           'md:hidden',
-          'fixed top-0 left-0 right-0 z-40',
-          'bg-sidebar/95',
+          'fixed top-0 right-0 left-0 z-40',
+          'bg-sidebar/95'
         )}
       >
-        <div className="flex items-center justify-between h-14 px-4">
+        <div className="flex h-14 items-center justify-between px-4">
           {/* Left: Profile Picture (when authenticated) */}
-          <div className="shrink-0 w-8">
+          <div className="w-8 shrink-0">
             {authenticated && user ? (
               <button
                 onClick={() => setShowSideMenu(true)}
-                className="hover:opacity-80 transition-opacity"
+                className="transition-opacity hover:opacity-80"
                 aria-label="Open profile menu"
               >
-                <Avatar 
-                  id={user.id} 
-                  name={user.displayName || user.email || 'User'} 
+                <Avatar
+                  id={user.id}
+                  name={user.displayName || user.email || 'User'}
                   type="user"
                   size="sm"
                   src={user.profileImageUrl || undefined}
@@ -226,20 +263,23 @@ function MobileHeaderContent() {
           </div>
 
           {/* Center: Logo */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
-            <Link href="/feed" className="hover:scale-105 transition-transform duration-300">
+          <div className="-translate-x-1/2 absolute left-1/2 transform">
+            <Link
+              href="/feed"
+              className="transition-transform duration-300 hover:scale-105"
+            >
               <Image
                 src="/assets/logos/logo.svg"
                 alt="Babylon Logo"
                 width={28}
                 height={28}
-                className="w-7 h-7"
+                className="h-7 w-7"
               />
             </Link>
           </div>
 
           {/* Right: Empty space for balance */}
-          <div className="shrink-0 w-8" />
+          <div className="w-8 shrink-0" />
         </div>
       </header>
 
@@ -248,43 +288,43 @@ function MobileHeaderContent() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 md:hidden"
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden"
             onClick={() => setShowSideMenu(false)}
           />
 
           {/* Menu Panel - slides in from left */}
-          <div className="fixed top-0 left-0 bottom-0 z-50 md:hidden bg-sidebar w-[280px] animate-in slide-in-from-left duration-300 flex flex-col">
+          <div className="slide-in-from-left fixed top-0 bottom-0 left-0 z-50 flex w-[280px] animate-in flex-col bg-sidebar duration-300 md:hidden">
             {/* Header - User Profile */}
-            <Link 
+            <Link
               href="/profile"
               onClick={() => setShowSideMenu(false)}
-              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors shrink-0"
+              className="flex shrink-0 items-center justify-between p-4 transition-colors hover:bg-sidebar-accent"
             >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Avatar 
-                  id={user?.id} 
-                  name={user?.displayName || user?.email || 'User'} 
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Avatar
+                  id={user?.id}
+                  name={user?.displayName || user?.email || 'User'}
                   type="user"
                   size="md"
                   src={user?.profileImageUrl || undefined}
                   imageUrl={user?.profileImageUrl || undefined}
                   className="shrink-0"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-foreground truncate">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-bold text-foreground text-sm">
                     {user?.displayName || user?.email || 'User'}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">
+                  <div className="truncate text-muted-foreground text-xs">
                     @{user?.username || `user${user?.id.slice(0, 8)}`}
                   </div>
                 </div>
               </div>
               <button
                 onClick={(e) => {
-                  e.preventDefault()
-                  setShowSideMenu(false)
+                  e.preventDefault();
+                  setShowSideMenu(false);
                 }}
-                className="p-2 hover:bg-muted transition-colors shrink-0"
+                className="shrink-0 p-2 transition-colors hover:bg-muted"
               >
                 <X size={20} style={{ color: '#0066FF' }} />
               </button>
@@ -292,14 +332,19 @@ function MobileHeaderContent() {
 
             {/* Points Display */}
             {pointsData && (
-              <div className="px-4 py-4 bg-muted/30 shrink-0">
+              <div className="shrink-0 bg-muted/30 px-4 py-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#0066FF' }}>
-                    <Coins className="w-5 h-5 text-foreground" />
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: '#0066FF' }}
+                  >
+                    <Coins className="h-5 w-5 text-foreground" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</div>
-                    <div className="font-bold text-base text-foreground mt-1">
+                    <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+                      Balance
+                    </div>
+                    <div className="mt-1 font-bold text-base text-foreground">
                       {pointsData.available.toLocaleString()} pts
                     </div>
                   </div>
@@ -308,73 +353,78 @@ function MobileHeaderContent() {
             )}
 
             {/* Menu Items - Scrollable */}
-            <nav className="flex-1 overflow-y-auto min-h-0">
+            <nav className="min-h-0 flex-1 overflow-y-auto">
               {menuItems.map((item) => {
-                const Icon = item.icon
-                const hasNotifications = item.name === 'Notifications' && unreadNotifications > 0
+                const Icon = item.icon;
+                const hasNotifications =
+                  item.name === 'Notifications' && unreadNotifications > 0;
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     onClick={() => setShowSideMenu(false)}
                     className={cn(
-                      'flex items-center gap-4 px-4 py-3 transition-colors relative',
-                      item.active 
-                        ? 'bg-[#0066FF] text-primary-foreground font-bold' 
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent font-semibold'
+                      'relative flex items-center gap-4 px-4 py-3 transition-colors',
+                      item.active
+                        ? 'bg-[#0066FF] font-bold text-primary-foreground'
+                        : 'font-semibold text-sidebar-foreground hover:bg-sidebar-accent'
                     )}
                   >
                     <div className="relative">
-                      <Icon className="w-5 h-5" />
+                      <Icon className="h-5 w-5" />
                       {hasNotifications && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-sidebar" />
+                        <span className="-top-1 -right-1 absolute h-2 w-2 rounded-full bg-blue-500 ring-2 ring-sidebar" />
                       )}
                     </div>
                     <span className="text-base">{item.name}</span>
                   </Link>
-                )
+                );
               })}
             </nav>
 
             {/* Bottom Section - Referral & Logout */}
-            <div className="shrink-0 border-t border-border bg-sidebar pb-20">
-            {/* Referral Code Button */}
-            {user?.referralCode && (
-              <button
-                onClick={copyReferralCode}
-                className="flex items-center gap-4 px-4 py-3 w-full text-left hover:bg-sidebar-accent transition-colors font-semibold"
-              >
-                {copiedReferral ? (
-                  <>
-                    <Check className="w-5 h-5 text-green-500" />
-                    <span className="text-base text-green-500">Referral Link Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-5 h-5" style={{ color: '#0066FF' }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base text-foreground">Copy Referral Link</div>
-                      <div className="text-xs text-muted-foreground font-mono truncate">
-                        {getDisplayReferralUrl(user.referralCode)}
+            <div className="shrink-0 border-border border-t bg-sidebar pb-20">
+              {/* Referral Code Button */}
+              {user?.referralCode && (
+                <button
+                  onClick={copyReferralCode}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left font-semibold transition-colors hover:bg-sidebar-accent"
+                >
+                  {copiedReferral ? (
+                    <>
+                      <Check className="h-5 w-5 text-green-500" />
+                      <span className="text-base text-green-500">
+                        Referral Link Copied!
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-5 w-5" style={{ color: '#0066FF' }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base text-foreground">
+                          Copy Referral Link
+                        </div>
+                        <div className="truncate font-mono text-muted-foreground text-xs">
+                          {getDisplayReferralUrl(user.referralCode)}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
-              </button>
-            )}
-            
-            {/* Separator */}
-            {user?.referralCode && <div className="border-t border-border" />}
-              
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Separator */}
+              {user?.referralCode && <div className="border-border border-t" />}
+
               {/* Logout Button */}
               <button
                 onClick={() => {
-                  setShowSideMenu(false)
-                  logout()
+                  setShowSideMenu(false);
+                  logout();
                 }}
-                className="flex items-center gap-4 px-4 py-3 w-full text-left text-destructive hover:bg-destructive/10 transition-colors font-semibold"
+                className="flex w-full items-center gap-4 px-4 py-3 text-left font-semibold text-destructive transition-colors hover:bg-destructive/10"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="h-5 w-5" />
                 <span className="text-base">Logout</span>
               </button>
             </div>
@@ -382,15 +432,15 @@ function MobileHeaderContent() {
         </>
       )}
     </>
-  )
+  );
 }
 
 /**
  * Mobile header component wrapper with Suspense boundary.
- * 
+ *
  * Wraps MobileHeaderContent in a Suspense boundary to handle async navigation
  * hooks gracefully. Provides mobile header for the application.
- * 
+ *
  * @returns Mobile header element wrapped in Suspense
  */
 export function MobileHeader() {
@@ -398,5 +448,5 @@ export function MobileHeader() {
     <Suspense fallback={null}>
       <MobileHeaderContent />
     </Suspense>
-  )
+  );
 }

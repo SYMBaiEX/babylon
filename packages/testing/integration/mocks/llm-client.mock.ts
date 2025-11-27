@@ -2,7 +2,7 @@ import { mock } from 'bun:test';
 
 // Mock LLM client for game tick tests
 // This avoids hitting real APIs during tests which causes timeouts and flakes
-mock.module('@/generator/llm/openai-client', () => {
+mock.module('@/engine/llm/openai-client', () => {
   const createMockClient = () => ({
     getStats: () => ({ provider: 'mock', model: 'mock-model' }),
     getProvider: () => 'mock',

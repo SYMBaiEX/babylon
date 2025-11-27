@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { babylonAgentCard } from '@/lib/a2a/babylon-agent-card';
+import { babylonAgentCard } from '@babylon/a2a';
 
 export async function GET() {
   return NextResponse.json(babylonAgentCard, {

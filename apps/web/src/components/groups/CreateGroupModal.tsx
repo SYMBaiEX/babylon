@@ -1,30 +1,30 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Avatar } from '@/components/shared/Avatar'
-import { Loader2, Search, X, Check, Users } from 'lucide-react'
-import { usePrivy } from '@privy-io/react-auth'
-import { useAuthStore } from '@/stores/authStore'
-import { cn } from '@/lib/utils'
+import { usePrivy } from '@privy-io/react-auth';
+import { Check, Loader2, Search, Users, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Avatar } from '@/components/shared/Avatar';
+import { cn } from '@babylon/shared';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
  * User structure for group creation modal.
  */
 interface User {
-  id: string
-  displayName: string | null
-  username: string | null
-  profileImageUrl: string | null
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  profileImageUrl: string | null;
 }
 
 /**
  * Create group modal component for creating new user groups.
- * 
+ *
  * Provides a form interface for creating groups with name input and
  * member selection. Includes user search functionality and automatic
  * group name generation from members. Creates both group and associated
  * chat on creation.
- * 
+ *
  * Features:
  * - Group name input
  * - User search
@@ -34,10 +34,10 @@ interface User {
  * - Loading states
  * - Error handling
  * - Body scroll lock and escape key handling
- * 
+ *
  * @param props - CreateGroupModal component props
  * @returns Create group modal element or null if not open
- * 
+ *
  * @example
  * ```tsx
  * <CreateGroupModal
@@ -48,97 +48,106 @@ interface User {
  * ```
  */
 interface CreateGroupModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onGroupCreated: (groupId: string, chatId: string) => void
+  isOpen: boolean;
+  onClose: () => void;
+  onGroupCreated: (groupId: string, chatId: string) => void;
 }
 
-export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGroupModalProps) {
-  const { getAccessToken } = usePrivy()
-  const { user } = useAuthStore()
-  const [groupName, setGroupName] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<User[]>([])
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([])
-  const [searching, setSearching] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function CreateGroupModal({
+  isOpen,
+  onClose,
+  onGroupCreated,
+}: CreateGroupModalProps) {
+  const { getAccessToken } = usePrivy();
+  const { user } = useAuthStore();
+  const [groupName, setGroupName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setGroupName('')
-      setSearchQuery('')
-      setSearchResults([])
-      setSelectedUsers([])
-      setError(null)
+      setGroupName('');
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedUsers([]);
+      setError(null);
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   // Search for users
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
-      setSearchResults([])
-      return
+      setSearchResults([]);
+      return;
     }
 
     const searchUsers = async () => {
-      setSearching(true)
-      const token = await getAccessToken()
-      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      setSearching(true);
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/users/search?q=${encodeURIComponent(searchQuery)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (response.ok) {
-        const data = await response.json()
-        setSearchResults(data.users || [])
+        const data = await response.json();
+        setSearchResults(data.users || []);
       }
-      setSearching(false)
-    }
+      setSearching(false);
+    };
 
-    const debounce = setTimeout(searchUsers, 300)
-    return () => clearTimeout(debounce)
-  }, [searchQuery, getAccessToken])
+    const debounce = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery, getAccessToken]);
 
   const handleAddUser = (user: User) => {
     if (!selectedUsers.find((u) => u.id === user.id)) {
-      setSelectedUsers([...selectedUsers, user])
+      setSelectedUsers([...selectedUsers, user]);
     }
-    setSearchQuery('')
-    setSearchResults([])
-  }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   const handleRemoveUser = (userId: string) => {
-    setSelectedUsers(selectedUsers.filter((u) => u.id !== userId))
-  }
+    setSelectedUsers(selectedUsers.filter((u) => u.id !== userId));
+  };
 
   const handleCreateGroup = async () => {
     // Generate group name if not provided
-    let finalGroupName = groupName.trim()
-    
+    let finalGroupName = groupName.trim();
+
     if (!finalGroupName) {
       // Auto-generate from members
-      const memberNames = selectedUsers.slice(0, 2).map(u => u.displayName || u.username || 'User')
-      const currentUserName = user?.displayName || user?.username || 'You'
-      
+      const memberNames = selectedUsers
+        .slice(0, 2)
+        .map((u) => u.displayName || u.username || 'User');
+      const currentUserName = user?.displayName || user?.username || 'You';
+
       if (selectedUsers.length === 0) {
-        setError('Please add at least one member or enter a group name')
-        return
+        setError('Please add at least one member or enter a group name');
+        return;
       } else if (selectedUsers.length === 1) {
-        finalGroupName = `${currentUserName}, ${memberNames[0]}`
+        finalGroupName = `${currentUserName}, ${memberNames[0]}`;
       } else if (selectedUsers.length === 2) {
-        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`
+        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`;
       } else {
-        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`
+        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`;
       }
     }
 
-    setCreating(true)
-    setError(null)
+    setCreating(true);
+    setError(null);
 
-    const token = await getAccessToken()
+    const token = await getAccessToken();
     const response = await fetch('/api/groups', {
       method: 'POST',
       headers: {
@@ -149,48 +158,48 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         name: finalGroupName,
         memberIds: selectedUsers.map((u) => u.id),
       }),
-    })
+    });
 
     if (!response.ok) {
-      const data = await response.json()
-      setCreating(false)
-      throw new Error(data.error || 'Failed to create group')
+      const data = await response.json();
+      setCreating(false);
+      throw new Error(data.error || 'Failed to create group');
     }
 
-    const data = await response.json()
-    onGroupCreated(data.group.id, data.group.chatId)
-    onClose()
-  }
+    const data = await response.json();
+    onGroupCreated(data.group.id, data.group.chatId);
+    onClose();
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleClose = () => {
-    if (creating) return // Prevent closing during creation
-    onClose()
-  }
+    if (creating) return; // Prevent closing during creation
+    onClose();
+  };
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          handleClose()
+          handleClose();
         }
       }}
     >
       <div
-        className="bg-background border border-border rounded-xl w-full max-w-md shadow-2xl"
+        className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
+        <div className="flex items-center justify-between border-border border-b p-6">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-bold">Create New Group</h2>
+            <h2 className="font-bold text-xl">Create New Group</h2>
           </div>
           <button
             onClick={handleClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground transition-colors hover:text-foreground"
             disabled={creating}
           >
             <X className="h-5 w-5" />
@@ -200,16 +209,19 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         {/* Content */}
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-sm text-red-500">{error}</p>
+            <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+              <p className="text-red-500 text-sm">{error}</p>
             </div>
           )}
 
           <div className="space-y-4">
             {/* Group Name (Optional) */}
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Group Name <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+              <label className="mb-2 block font-medium text-sm">
+                Group Name{' '}
+                <span className="font-normal text-muted-foreground text-xs">
+                  (Optional)
+                </span>
               </label>
               <input
                 id="groupName"
@@ -218,11 +230,11 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 maxLength={100}
-                className="w-full px-4 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:border-primary transition-colors"
+                className="w-full rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors focus:border-primary focus:outline-none"
                 disabled={creating}
               />
               {groupName && (
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-muted-foreground text-xs">
                   {groupName.length}/100 characters
                 </p>
               )}
@@ -231,14 +243,14 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
             {/* Selected Users */}
             {selectedUsers.length > 0 && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium">
+                <label className="block font-medium text-sm">
                   Members ({selectedUsers.length})
                 </label>
-                <div className="flex flex-wrap gap-2 p-3 bg-sidebar border border-border rounded-lg">
+                <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-sidebar p-3">
                   {selectedUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-full border border-border"
+                      className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                     >
                       <Avatar
                         imageUrl={user.profileImageUrl || undefined}
@@ -250,9 +262,9 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
                       </span>
                       <button
                         onClick={() => handleRemoveUser(user.id)}
-                        className="text-muted-foreground hover:text-foreground ml-1"
+                        className="ml-1 text-muted-foreground hover:text-foreground"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="h-3 w-3" />
                       </button>
                     </div>
                   ))}
@@ -262,37 +274,39 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
 
             {/* User Search */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="mb-2 block font-medium text-sm">
                 Add Members
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by username or name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-10 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:border-primary transition-colors"
+                  className="w-full rounded-lg border border-border bg-sidebar py-3 pr-10 pl-9 transition-colors focus:border-primary focus:outline-none"
                 />
                 {searching && (
-                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />
+                  <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 animate-spin text-primary" />
                 )}
               </div>
             </div>
 
             {/* Search Results */}
             {searchResults.length > 0 && (
-              <div className="border border-border rounded-lg overflow-hidden max-h-[200px] overflow-y-auto">
+              <div className="max-h-[200px] overflow-hidden overflow-y-auto rounded-lg border border-border">
                 {searchResults.map((user) => {
-                  const isSelected = selectedUsers.find((u) => u.id === user.id)
+                  const isSelected = selectedUsers.find(
+                    (u) => u.id === user.id
+                  );
                   return (
                     <button
                       key={user.id}
                       onClick={() => !isSelected && handleAddUser(user)}
                       className={cn(
-                        'w-full flex items-center gap-3 p-3 transition-colors text-left',
+                        'flex w-full items-center gap-3 p-3 text-left transition-colors',
                         isSelected
-                          ? 'bg-muted/50 cursor-not-allowed opacity-50'
+                          ? 'cursor-not-allowed bg-muted/50 opacity-50'
                           : 'hover:bg-sidebar'
                       )}
                       disabled={!!isSelected}
@@ -302,52 +316,60 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
                         name={user.username || user.displayName || '?'}
                         size="sm"
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-sm">
                           {user.displayName || user.username || 'Unknown'}
                         </div>
                         {user.username && (
-                          <div className="text-xs text-muted-foreground truncate">
+                          <div className="truncate text-muted-foreground text-xs">
                             @{user.username}
                           </div>
                         )}
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-green-500" />}
+                      {isSelected && (
+                        <Check className="h-4 w-4 text-green-500" />
+                      )}
                     </button>
-                  )
+                  );
                 })}
               </div>
             )}
 
-            {searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                No users found
-              </div>
-            )}
+            {searchQuery.length >= 2 &&
+              searchResults.length === 0 &&
+              !searching && (
+                <div className="py-4 text-center text-muted-foreground text-sm">
+                  No users found
+                </div>
+              )}
 
             {!searchQuery && selectedUsers.length === 0 && (
-              <div className="text-center py-4 text-sm text-muted-foreground bg-sidebar border border-dashed border-border rounded-lg">
+              <div className="rounded-lg border border-border border-dashed bg-sidebar py-4 text-center text-muted-foreground text-sm">
                 <p>Search for users to add to your group</p>
-                <p className="text-xs mt-1">Group name will auto-generate if not specified</p>
+                <p className="mt-1 text-xs">
+                  Group name will auto-generate if not specified
+                </p>
               </div>
             )}
           </div>
 
           {/* Preview of auto-generated name */}
           {!groupName && selectedUsers.length > 0 && (
-            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Auto-name preview:</strong>{' '}
-                {(() => {
-                  const memberNames = selectedUsers.slice(0, 2).map(u => u.displayName || u.username || 'User')
-                  const currentUserName = user?.displayName || user?.username || 'You'
-                  
+            <div className="mt-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+              <p className="text-blue-700 text-xs dark:text-blue-300">
+                <strong>Auto-name preview:</strong> {(() => {
+                  const memberNames = selectedUsers
+                    .slice(0, 2)
+                    .map((u) => u.displayName || u.username || 'User');
+                  const currentUserName =
+                    user?.displayName || user?.username || 'You';
+
                   if (selectedUsers.length === 1) {
-                    return `${currentUserName}, ${memberNames[0]}`
+                    return `${currentUserName}, ${memberNames[0]}`;
                   } else if (selectedUsers.length === 2) {
-                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`
+                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`;
                   } else {
-                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`
+                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`;
                   }
                 })()}
               </p>
@@ -355,10 +377,10 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-3 mt-6">
+          <div className="mt-6 flex gap-3">
             <button
               onClick={handleClose}
-              className="flex-1 px-4 py-3 bg-sidebar border border-border rounded-lg hover:bg-accent transition-colors"
+              className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors hover:bg-accent"
               disabled={creating}
             >
               Cancel
@@ -367,14 +389,14 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
               onClick={handleCreateGroup}
               disabled={creating || selectedUsers.length === 0}
               className={cn(
-                'flex-1 px-4 py-3 rounded-lg font-medium transition-colors',
+                'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               {creating ? (
                 <>
-                  <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
+                  <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (
@@ -385,5 +407,5 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         </div>
       </div>
     </div>
-  )
+  );
 }

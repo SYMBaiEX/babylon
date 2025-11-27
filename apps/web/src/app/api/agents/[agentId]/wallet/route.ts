@@ -143,10 +143,10 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { agentService } from '@/lib/agents/services/AgentService';
-import { logger } from '@/lib/logger';
-import { authenticateUser } from '@/lib/server-auth';
+import { db } from '@babylon/db';
+import { agentService } from '@babylon/agents';
+import { logger } from '@babylon/shared';
+import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,

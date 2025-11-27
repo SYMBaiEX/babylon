@@ -80,11 +80,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { TrendingPostsQuerySchema } from '@/lib/validation/schemas';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { TrendingPostsQuerySchema } from '@babylon/shared';
 
 interface TrendingPost {
   id: string;

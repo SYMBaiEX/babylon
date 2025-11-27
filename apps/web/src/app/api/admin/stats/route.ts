@@ -61,10 +61,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db } from '@/db';
-import { requireAdmin } from '@/lib/api/admin-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { requireAdmin } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication

@@ -52,14 +52,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@/db';
-import { authenticate, successResponse } from '@/lib/api/auth-middleware';
-import { AuthorizationError, NotFoundError } from '@/lib/errors';
-import { withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { getOrCreateReferralCode } from '@/lib/services/referral-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { db, eq, users } from '@babylon/db';
+import { authenticate, successResponse } from '@babylon/api';
+import { AuthorizationError, NotFoundError } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { getOrCreateReferralCode } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
+import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET /api/users/[userId]/referral-code

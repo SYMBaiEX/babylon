@@ -10,9 +10,8 @@
  *   bun run scripts/collect-trajectories.ts 100   # Collect 100 trajectories
  */
 
-import { db } from '@/db';
-import { autonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
+import { agentRuntimeManager, autonomousCoordinator } from '@babylon/agents';
+import { db } from '@babylon/db';
 
 async function collectTrajectories(count = 10) {
   console.log('╔════════════════════════════════════════════════════════╗');
@@ -62,7 +61,7 @@ async function collectTrajectories(count = 10) {
   console.log(`Collecting ${count} trajectories...\n`);
 
   const recordTrajectories = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-  let trajectoriesCollected = 0;
+  let _trajectoriesCollected = 0;
   let errors = 0;
 
   // Get initial count
@@ -91,7 +90,7 @@ async function collectTrajectories(count = 10) {
         );
         if (result.trajectoryId) {
           console.log(`  📊 Trajectory ID: ${result.trajectoryId}`);
-          trajectoriesCollected++;
+          _trajectoriesCollected++;
         }
       } else {
         console.log('  ⚠️  Completed but not successful');

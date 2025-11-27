@@ -93,10 +93,10 @@ import {
   userInteractions,
   users,
   withTransaction,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 
 const DeleteAccountSchema = z.object({
   confirmation: z.literal('DELETE MY ACCOUNT'),

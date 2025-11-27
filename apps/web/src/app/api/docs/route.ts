@@ -41,7 +41,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { generateAutoSpec } from '@/lib/swagger/auto-generator';
+import { generateAutoSpec } from '@babylon/api';
 
 /**
  * GET /api/docs

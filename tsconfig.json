@@ -42,6 +42,8 @@
     // Path aliases - pointing to new location
     "baseUrl": ".",
     "paths": {
+      "@babylon/db": ["./packages/db/src/index.ts"],
+      "@babylon/db/*": ["./packages/db/src/*"],
       "@/shared/constants": ["./apps/web/src/shared/constants.ts"],
       "@/shared/types": ["./apps/web/src/shared/types.ts"],
       "@/shared/utils": ["./apps/web/src/shared/utils.ts"],
@@ -57,8 +59,10 @@
   "include": [
     "apps/web/src/**/*",
     "scripts/**/*",
+    "packages/db/src/**/*",
+    "packages/engine/src/**/*",
     "packages/testing/**/*",
-    "packages/types/**/*",
+    "packages/shared/**/*",
     "apps/web/.next/types/**/*.ts",
     "apps/web/.next/dev/types/**/*.ts",
     "apps/web/types/**/*.d.ts"

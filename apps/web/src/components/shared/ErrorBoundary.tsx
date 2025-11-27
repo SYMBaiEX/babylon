@@ -1,10 +1,10 @@
 'use client';
 
-import { logger } from '@/lib/logger'
+import * as Sentry from '@sentry/nextjs';
+import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Component } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@babylon/shared';
 
 /**
  * Props for the ErrorBoundary component.
@@ -30,11 +30,11 @@ interface ErrorBoundaryState {
 
 /**
  * Error boundary component for catching React errors.
- * 
+ *
  * Catches JavaScript errors anywhere in the child component tree,
  * logs them to Sentry, and displays a fallback UI. Prevents the
  * entire app from crashing when a component throws an error.
- * 
+ *
  * @example
  * ```tsx
  * <ErrorBoundary fallback={<ErrorFallback />}>
@@ -42,7 +42,10 @@ interface ErrorBoundaryState {
  * </ErrorBoundary>
  * ```
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -53,8 +56,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    logger.error('ErrorBoundary caught an error:', { error, errorInfo }, 'ErrorBoundary');
-    
+    logger.error(
+      'ErrorBoundary caught an error:',
+      { error, errorInfo },
+      'ErrorBoundary'
+    );
+
     // Capture error in Sentry
     Sentry.withScope((scope) => {
       scope.setContext('react', {
@@ -62,7 +69,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       });
       Sentry.captureException(error);
     });
-    
+
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
@@ -75,11 +82,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
-          <div className="text-center max-w-md">
-            <AlertTriangle className="w-16 h-16 text-destructive mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
-            <p className="text-muted-foreground mb-6">
+        <div className="flex min-h-[400px] flex-col items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <AlertTriangle className="mx-auto mb-4 h-16 w-16 text-destructive" />
+            <h2 className="mb-2 font-bold text-2xl">Something went wrong</h2>
+            <p className="mb-6 text-muted-foreground">
               {this.state.error?.message || 'An unexpected error occurred'}
             </p>
             <button
@@ -87,7 +94,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 this.setState({ hasError: false, error: null });
                 window.location.reload();
               }}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              className="rounded-md bg-primary px-6 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Reload Page
             </button>
@@ -99,4 +106,3 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return this.props.children;
   }
 }
-

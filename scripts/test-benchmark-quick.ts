@@ -4,15 +4,17 @@
  * Simplified benchmark runner with progress feedback and timeout handling
  */
 
-import { db } from '@/db';
-import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
-import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager';
-import { BenchmarkDataGenerator } from '@/lib/benchmark/BenchmarkDataGenerator';
-import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 import {
+  agentRuntimeManager,
+  AutonomousCoordinator,
+} from '@babylon/agents';
+import { db } from '@babylon/db';
+import {
+  BenchmarkDataGenerator,
+  SimulationA2AInterface,
   type SimulationConfig,
   SimulationEngine,
-} from '@/lib/benchmark/SimulationEngine';
+} from '@babylon/training';
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -120,7 +122,7 @@ async function main() {
         );
         actionsCount += actions;
       }
-    } catch (error) {
+    } catch (_error) {
       errorsCount++;
       // Continue even on error
     }

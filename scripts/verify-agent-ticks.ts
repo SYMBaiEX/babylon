@@ -12,8 +12,8 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
 
 interface AgentStatus {
   id: string;

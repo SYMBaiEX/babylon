@@ -5,7 +5,7 @@
  */
 
 import { SDK } from 'agent0-sdk';
-import { db } from '@/db';
+import { db } from '@babylon/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 

@@ -48,7 +48,7 @@ import { useChatMessages } from '@/hooks/useChatMessages';
 import { useChatParam } from '@/hooks/useChatParam';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSSE } from '@/hooks/useSSE';
-import { cn } from '@/lib/utils';
+import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 type ChatFilter = 'all' | 'dms' | 'groups';

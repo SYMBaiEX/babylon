@@ -65,11 +65,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { getCache, setCache } from '@/lib/cache-service';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { WaitlistService } from '@/lib/services/waitlist-service';
+import { authenticate } from '@babylon/api';
+import { getCache, setCache } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { WaitlistService } from '@babylon/api';
 
 type PositionResponse = {
   position: number | null;
@@ -179,7 +179,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   // Calculate weekly referral count and fetch referral details
-  const { db, users, eq, and, desc } = await import('@/db');
+  const { db, users, eq, and, desc } = await import('@babylon/db');
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   // Get completed referrals (qualified users) - limit to prevent unbounded payloads

@@ -4,11 +4,11 @@
  * Downloads and sets up Foundry/Soldeer dependencies automatically
  */
 
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
-const ROOT_DIR = join(import.meta.dir, "..");
-const DEPS_DIR = join(ROOT_DIR, "packages", "contracts", "dependencies");
+const ROOT_DIR = join(import.meta.dir, '..');
+const DEPS_DIR = join(ROOT_DIR, 'packages', 'contracts', 'dependencies');
 
 interface SoldeerPackage {
   name: string;
@@ -19,16 +19,16 @@ interface SoldeerPackage {
 
 const PACKAGES: SoldeerPackage[] = [
   {
-    name: "forge-std",
-    version: "1.9.4",
-    folderName: "forge-std-1.9.4",
-    url: "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_4_25-10-2024_14:36:59_forge-std-1.9.zip",
+    name: 'forge-std',
+    version: '1.9.4',
+    folderName: 'forge-std-1.9.4',
+    url: 'https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_4_25-10-2024_14:36:59_forge-std-1.9.zip',
   },
   {
-    name: "@openzeppelin-contracts",
-    version: "5.2.0",
-    folderName: "@openzeppelin-contracts-5.2.0",
-    url: "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_2_0_11-01-2025_09:30:20_contracts.zip",
+    name: '@openzeppelin-contracts',
+    version: '5.2.0',
+    folderName: '@openzeppelin-contracts-5.2.0',
+    url: 'https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_2_0_11-01-2025_09:30:20_contracts.zip',
   },
 ];
 
@@ -50,16 +50,16 @@ async function downloadAndExtract(pkg: SoldeerPackage): Promise<boolean> {
     }
 
     const zipBuffer = await response.arrayBuffer();
-    const tempZip = join(DEPS_DIR, `${pkg.name.replace("/", "-")}.zip`);
+    const tempZip = join(DEPS_DIR, `${pkg.name.replace('/', '-')}.zip`);
 
     // Write zip file
     await Bun.write(tempZip, zipBuffer);
 
     // Extract using unzip command
-    const proc = Bun.spawn(["unzip", "-o", "-q", tempZip, "-d", targetDir], {
+    const proc = Bun.spawn(['unzip', '-o', '-q', tempZip, '-d', targetDir], {
       cwd: DEPS_DIR,
-      stdout: "ignore",
-      stderr: "pipe",
+      stdout: 'ignore',
+      stderr: 'pipe',
     });
 
     await proc.exited;
@@ -85,9 +85,9 @@ async function downloadAndExtract(pkg: SoldeerPackage): Promise<boolean> {
 
 async function checkForge(): Promise<boolean> {
   try {
-    const proc = Bun.spawn(["forge", "--version"], {
-      stdout: "pipe",
-      stderr: "ignore",
+    const proc = Bun.spawn(['forge', '--version'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
     });
     await proc.exited;
     return proc.exitCode === 0;
@@ -97,16 +97,16 @@ async function checkForge(): Promise<boolean> {
 }
 
 async function main() {
-  console.log("\n🔧 Setting up Solidity dependencies...");
+  console.log('\n🔧 Setting up Solidity dependencies...');
 
   // Check if Forge is installed
   const hasForge = await checkForge();
   if (!hasForge) {
     console.log(
-      "   ⚠️  Foundry (forge) not installed. Skipping Solidity setup."
+      '   ⚠️  Foundry (forge) not installed. Skipping Solidity setup.'
     );
     console.log(
-      "   💡 Install Foundry: curl -L https://foundry.paradigm.xyz | bash && foundryup"
+      '   💡 Install Foundry: curl -L https://foundry.paradigm.xyz | bash && foundryup'
     );
     return;
   }
@@ -124,12 +124,11 @@ async function main() {
   }
 
   if (allSuccess) {
-    console.log("   ✅ Solidity dependencies ready\n");
+    console.log('   ✅ Solidity dependencies ready\n');
   } else {
-    console.log("   ⚠️  Some dependencies failed to install\n");
-    console.log("   💡 Try running: forge soldeer update\n");
+    console.log('   ⚠️  Some dependencies failed to install\n');
+    console.log('   💡 Try running: forge soldeer update\n');
   }
 }
 
 main().catch(console.error);
-

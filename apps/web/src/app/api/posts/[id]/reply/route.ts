@@ -98,19 +98,21 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { comments, db, eq, posts, users } from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { BusinessLogicError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { parsePostId } from '@/lib/post-id-parser';
-import { FollowingMechanics } from '@/lib/services/following-mechanics';
-import { GroupChatInvite } from '@/lib/services/group-chat-invite';
-import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
-import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
-import { PostIdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
+import { comments, db, eq, posts, users } from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { BusinessLogicError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { parsePostId } from '@babylon/engine';
+import {
+  FollowingMechanics,
+  GroupChatInvite,
+  MessageQualityChecker,
+  ReplyRateLimiter,
+} from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
+import { ensureUserForAuth } from '@babylon/api';
+import { PostIdParamSchema, ReplyToPostSchema } from '@babylon/shared';
 
 /**
  * POST /api/posts/[id]/reply

@@ -89,10 +89,10 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { getCache, setCache } from '@/lib/cache-service';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { WaitlistService } from '@/lib/services/waitlist-service';
+import { getCache, setCache } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { WaitlistService } from '@babylon/api';
 
 type LeaderboardResponse = {
   leaderboard: Awaited<ReturnType<typeof WaitlistService.getTopWaitlistUsers>>;

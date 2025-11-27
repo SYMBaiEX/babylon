@@ -8,8 +8,8 @@
  *   npx tsx scripts/verify-trajectory-data.ts --trajectory-id abc-123
  */
 
-import { db } from '@/db';
-import type { TrajectoryStep } from '@/lib/agents/plugins/plugin-trajectory-logger/src/types';
+import type { TrajectoryStep } from '@babylon/agents';
+import { db } from '@babylon/db';
 
 interface VerificationResult {
   overall: 'PASS' | 'FAIL' | 'WARN';

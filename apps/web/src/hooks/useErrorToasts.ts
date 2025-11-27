@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { InteractionError } from '@/types/interactions';
+import type { InteractionError } from '@babylon/shared';
 
 /**
  * Hook to display toast notifications for interaction errors.

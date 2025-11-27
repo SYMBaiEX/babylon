@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { posthog } from '@/lib/posthog/client';
+import { posthog } from '@babylon/shared';
 
 /**
  * Main PostHog analytics hook for tracking events throughout the app.

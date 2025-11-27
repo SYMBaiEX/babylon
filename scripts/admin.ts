@@ -14,7 +14,7 @@
  *   bun run scripts/admin.ts list
  */
 
-import { asc, closeDatabase, db, eq, or, sql, users } from '@/db';
+import { asc, closeDatabase, db, eq, or, sql, users } from '@babylon/db';
 
 const command = process.argv[2];
 const identifier = process.argv[3];

@@ -123,13 +123,13 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { asSystem, asUser } from '@/lib/db/context';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { notifyGroupChatInvite } from '@/lib/services/notification-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { authenticate } from '@babylon/api';
+import { asSystem, asUser } from '@babylon/db';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { notifyGroupChatInvite } from '@babylon/api';
+import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * POST /api/chats/[id]/participants

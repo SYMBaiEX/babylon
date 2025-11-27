@@ -1,15 +1,24 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useTransition } from 'react'
-import { Search, Users, Shield, RefreshCw, Ban, CheckCircle, DollarSign, VolumeX } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Avatar } from '@/components/shared/Avatar'
-import { toast } from 'sonner'
-import { Skeleton } from '@/components/shared/Skeleton'
-import { AdminSendMoneyModal } from '@/components/admin/AdminSendMoneyModal'
-import { BlockUserModal } from '@/components/moderation/BlockUserModal'
-import { MuteUserModal } from '@/components/moderation/MuteUserModal'
-import { z } from 'zod'
+import {
+  Ban,
+  CheckCircle,
+  DollarSign,
+  RefreshCw,
+  Search,
+  Shield,
+  Users,
+  VolumeX,
+} from 'lucide-react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { AdminSendMoneyModal } from '@/components/admin/AdminSendMoneyModal';
+import { BlockUserModal } from '@/components/moderation/BlockUserModal';
+import { MuteUserModal } from '@/components/moderation/MuteUserModal';
+import { Avatar } from '@/components/shared/Avatar';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { cn } from '@babylon/shared';
 
 /**
  * User schema for validation.
@@ -38,46 +47,60 @@ const UserSchema = z.object({
   hasTwitter: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  _count: z.object({
-    comments: z.number(),
-    reactions: z.number(),
-    positions: z.number(),
-    following: z.number(),
-    followedBy: z.number(),
-    reportsReceived: z.number().optional(),
-    blocksReceived: z.number().optional(),
-    mutesReceived: z.number().optional(),
-    reportsSent: z.number().optional(),
-  }).optional(),
-  _moderation: z.object({
-    reportsReceived: z.number(),
-    blocksReceived: z.number(),
-    mutesReceived: z.number(),
-    reportsSent: z.number(),
-    reportRatio: z.number(),
-    blockRatio: z.number(),
-    muteRatio: z.number(),
-    badUserScore: z.number(),
-  }).optional(),
+  _count: z
+    .object({
+      comments: z.number(),
+      reactions: z.number(),
+      positions: z.number(),
+      following: z.number(),
+      followedBy: z.number(),
+      reportsReceived: z.number().optional(),
+      blocksReceived: z.number().optional(),
+      mutesReceived: z.number().optional(),
+      reportsSent: z.number().optional(),
+    })
+    .optional(),
+  _moderation: z
+    .object({
+      reportsReceived: z.number(),
+      blocksReceived: z.number(),
+      mutesReceived: z.number(),
+      reportsSent: z.number(),
+      reportRatio: z.number(),
+      blockRatio: z.number(),
+      muteRatio: z.number(),
+      badUserScore: z.number(),
+    })
+    .optional(),
 });
 type User = z.infer<typeof UserSchema>;
 
 /**
  * Filter type for user management tab.
  */
-type FilterType = 'all' | 'actors' | 'users' | 'banned' | 'admins'
+type FilterType = 'all' | 'actors' | 'users' | 'banned' | 'admins';
 /**
  * Sort by type for user management tab.
  */
-type SortByType = 'created' | 'balance' | 'reputation' | 'username' | 'reports_received' | 'blocks_received' | 'mutes_received' | 'report_ratio' | 'block_ratio' | 'bad_user_score'
+type SortByType =
+  | 'created'
+  | 'balance'
+  | 'reputation'
+  | 'username'
+  | 'reports_received'
+  | 'blocks_received'
+  | 'mutes_received'
+  | 'report_ratio'
+  | 'block_ratio'
+  | 'bad_user_score';
 
 /**
  * User management tab component for managing users and actors.
- * 
+ *
  * Displays a comprehensive list of users and actors with filtering, sorting,
  * and search functionality. Provides user management actions including ban,
  * mute, block, and send money. Shows user statistics and moderation metrics.
- * 
+ *
  * Features:
  * - User/actor list display
  * - Filtering (all, actors, users, banned, admins)
@@ -90,31 +113,27 @@ type SortByType = 'created' | 'balance' | 'reputation' | 'username' | 'reports_r
  * - Moderation metrics display
  * - Loading states
  * - Error handling
- * 
+ *
  * @returns User management tab element
  */
 export function UserManagementTab() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, startRefresh] = useTransition();
-  const [filter, setFilter] = useState<FilterType>('all')
-  const [sortBy, setSortBy] = useState<SortByType>('created')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [showBanModal, setShowBanModal] = useState(false)
-  const [showSendMoneyModal, setShowSendMoneyModal] = useState(false)
-  const [showMuteModal, setShowMuteModal] = useState(false)
-  const [showBlockModal, setShowBlockModal] = useState(false)
-  const [banReason, setBanReason] = useState('')
-  const [isScammer, setIsScammer] = useState(false)
-  const [isCSAM, setIsCSAM] = useState(false)
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [sortBy, setSortBy] = useState<SortByType>('created');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [showSendMoneyModal, setShowSendMoneyModal] = useState(false);
+  const [showMuteModal, setShowMuteModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [isScammer, setIsScammer] = useState(false);
+  const [isCSAM, setIsCSAM] = useState(false);
   const [isBanning, startBanning] = useTransition();
 
-  useEffect(() => {
-    fetchUsers()
-  }, [filter, sortBy, searchQuery])
-
-  const fetchUsers = (showRefreshing = false) => {
+  const fetchUsers = useCallback((showRefreshing = false) => {
     const fetchLogic = async () => {
       const params = new URLSearchParams({
         limit: '50',
@@ -140,7 +159,11 @@ export function UserManagementTab() {
     } else {
       fetchLogic();
     }
-  };
+  }, [filter, sortBy, searchQuery]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleBanUser = (user: User, action: 'ban' | 'unban') => {
     if (action === 'ban' && !banReason.trim()) {
@@ -165,7 +188,11 @@ export function UserManagementTab() {
         throw new Error(error.message || 'Failed to update user');
       }
 
-      toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully');
+      toast.success(
+        action === 'ban'
+          ? 'User banned successfully'
+          : 'User unbanned successfully'
+      );
       setShowBanModal(false);
       setBanReason('');
       setIsScammer(false);
@@ -176,25 +203,25 @@ export function UserManagementTab() {
   };
 
   const formatCurrency = (value: string) => {
-    const num = parseFloat(value)
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`
-    return `$${num.toFixed(2)}`
-  }
+    const num = parseFloat(value);
+    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
+    return `$${num.toFixed(2)}`;
+  };
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    })
-  }
+    });
+  };
 
   const UserRow = ({ user }: { user: User }) => {
-    const displayName = user.displayName || user.username || 'Anonymous'
+    const displayName = user.displayName || user.username || 'Anonymous';
 
     return (
-      <div className="bg-card border border-border rounded-2xl p-4 hover:border-primary/50 transition-colors">
+      <div className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50">
         <div className="flex items-start gap-4">
           {/* Avatar and Basic Info */}
           <Avatar
@@ -203,49 +230,57 @@ export function UserManagementTab() {
             size="md"
           />
 
-          <div className="flex-1 min-w-0 space-y-2">
+          <div className="min-w-0 flex-1 space-y-2">
             {/* Name and Badges */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-lg truncate">{displayName}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate font-bold text-lg">{displayName}</span>
               {user.username && user.displayName !== user.username && (
-                <span className="text-sm text-muted-foreground">@{user.username}</span>
+                <span className="text-muted-foreground text-sm">
+                  @{user.username}
+                </span>
               )}
               {user.isAdmin && (
-                <span className="px-2 py-0.5 text-xs rounded bg-orange-500/20 text-orange-500 flex items-center gap-1">
-                  <Shield className="w-3 h-3" />
+                <span className="flex items-center gap-1 rounded bg-orange-500/20 px-2 py-0.5 text-orange-500 text-xs">
+                  <Shield className="h-3 w-3" />
                   Admin
                 </span>
               )}
               {user.isActor && (
-                <span className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-500">
+                <span className="rounded bg-purple-500/20 px-2 py-0.5 text-purple-500 text-xs">
                   NPC
                 </span>
               )}
               {user.isBanned && (
-                <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-500 flex items-center gap-1">
-                  <Ban className="w-3 h-3" />
+                <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-red-500 text-xs">
+                  <Ban className="h-3 w-3" />
                   Banned
                 </span>
               )}
               {user.onChainRegistered && (
-                <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-500">
+                <span className="rounded bg-green-500/20 px-2 py-0.5 text-green-500 text-xs">
                   On-chain
                 </span>
               )}
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
               <div>
                 <div className="text-muted-foreground text-xs">Balance</div>
-                <div className="font-bold text-green-600">{formatCurrency(user.virtualBalance)}</div>
+                <div className="font-bold text-green-600">
+                  {formatCurrency(user.virtualBalance)}
+                </div>
               </div>
               <div>
                 <div className="text-muted-foreground text-xs">P&L</div>
-                <div className={cn(
-                  'font-bold',
-                  parseFloat(user.lifetimePnL) >= 0 ? 'text-green-600' : 'text-red-600'
-                )}>
+                <div
+                  className={cn(
+                    'font-bold',
+                    parseFloat(user.lifetimePnL) >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  )}
+                >
                   {formatCurrency(user.lifetimePnL)}
                 </div>
               </div>
@@ -260,7 +295,7 @@ export function UserManagementTab() {
             </div>
 
             {/* Activity Stats */}
-            <div className="flex gap-4 text-xs text-muted-foreground">
+            <div className="flex gap-4 text-muted-foreground text-xs">
               <span>Posts: {user._count?.comments ?? 0}</span>
               <span>Reactions: {user._count?.reactions ?? 0}</span>
               <span>Positions: {user._count?.positions ?? 0}</span>
@@ -269,60 +304,80 @@ export function UserManagementTab() {
             </div>
 
             {/* Moderation Metrics */}
-            {user._moderation && (user._moderation.reportsReceived > 0 || user._moderation.blocksReceived > 0 || user._moderation.mutesReceived > 0) && (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 space-y-2">
-                <div className="text-xs font-medium text-yellow-600 flex items-center gap-2">
-                  <Shield className="w-3 h-3" />
-                  Moderation Metrics
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <div className="text-muted-foreground">Reports</div>
-                    <div className="font-bold text-red-500">{user._moderation.reportsReceived}</div>
+            {user._moderation &&
+              (user._moderation.reportsReceived > 0 ||
+                user._moderation.blocksReceived > 0 ||
+                user._moderation.mutesReceived > 0) && (
+                <div className="space-y-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                  <div className="flex items-center gap-2 font-medium text-xs text-yellow-600">
+                    <Shield className="h-3 w-3" />
+                    Moderation Metrics
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Blocks</div>
-                    <div className="font-bold text-orange-500">{user._moderation.blocksReceived}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Mutes</div>
-                    <div className="font-bold text-yellow-600">{user._moderation.mutesReceived}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Bad Score</div>
-                    <div className={cn(
-                      'font-bold',
-                      user._moderation.badUserScore > 10 ? 'text-red-500' :
-                      user._moderation.badUserScore > 5 ? 'text-orange-500' :
-                      'text-yellow-600'
-                    )}>
-                      {user._moderation.badUserScore.toFixed(1)}
+                  <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                    <div>
+                      <div className="text-muted-foreground">Reports</div>
+                      <div className="font-bold text-red-500">
+                        {user._moderation.reportsReceived}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Blocks</div>
+                      <div className="font-bold text-orange-500">
+                        {user._moderation.blocksReceived}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Mutes</div>
+                      <div className="font-bold text-yellow-600">
+                        {user._moderation.mutesReceived}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Bad Score</div>
+                      <div
+                        className={cn(
+                          'font-bold',
+                          user._moderation.badUserScore > 10
+                            ? 'text-red-500'
+                            : user._moderation.badUserScore > 5
+                              ? 'text-orange-500'
+                              : 'text-yellow-600'
+                        )}
+                      >
+                        {user._moderation.badUserScore.toFixed(1)}
+                      </div>
                     </div>
                   </div>
+                  {(user._moderation.reportRatio > 0 ||
+                    user._moderation.blockRatio > 0) && (
+                    <div className="flex gap-3 border-yellow-500/20 border-t pt-1 text-muted-foreground text-xs">
+                      <span>
+                        Report Ratio: {user._moderation.reportRatio.toFixed(2)}
+                      </span>
+                      <span>
+                        Block Ratio: {user._moderation.blockRatio.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {(user._moderation.reportRatio > 0 || user._moderation.blockRatio > 0) && (
-                  <div className="flex gap-3 text-xs text-muted-foreground pt-1 border-t border-yellow-500/20">
-                    <span>Report Ratio: {user._moderation.reportRatio.toFixed(2)}</span>
-                    <span>Block Ratio: {user._moderation.blockRatio.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
 
             {/* Wallet Address */}
             {user.walletAddress && (
-              <div className="text-xs text-muted-foreground font-mono">
+              <div className="font-mono text-muted-foreground text-xs">
                 {user.walletAddress}
               </div>
             )}
 
             {/* Ban Info */}
             {user.isBanned && user.bannedReason && (
-              <div className="text-sm bg-red-500/10 border border-red-500/20 rounded p-2">
+              <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-sm">
                 <div className="font-medium text-red-500">Ban Reason:</div>
-                <div className="text-xs text-muted-foreground">{user.bannedReason}</div>
+                <div className="text-muted-foreground text-xs">
+                  {user.bannedReason}
+                </div>
                 {user.bannedAt && (
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className="mt-1 text-muted-foreground text-xs">
                     Banned on {formatDate(user.bannedAt)}
                   </div>
                 )}
@@ -335,56 +390,56 @@ export function UserManagementTab() {
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => {
-                  setSelectedUser(user)
-                  setShowSendMoneyModal(true)
+                  setSelectedUser(user);
+                  setShowSendMoneyModal(true);
                 }}
-                className="px-3 py-1.5 text-sm font-medium rounded bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors flex items-center gap-1"
+                className="flex items-center gap-1 rounded bg-green-500/20 px-3 py-1.5 font-medium text-green-500 text-sm transition-colors hover:bg-green-500/30"
                 title="Send money via escrow"
               >
-                <DollarSign className="w-4 h-4" />
+                <DollarSign className="h-4 w-4" />
                 Cash
               </button>
               <button
                 onClick={() => {
-                  setSelectedUser(user)
-                  setShowMuteModal(true)
+                  setSelectedUser(user);
+                  setShowMuteModal(true);
                 }}
-                className="px-3 py-1.5 text-sm font-medium rounded bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 transition-colors flex items-center gap-1"
+                className="flex items-center gap-1 rounded bg-blue-500/20 px-3 py-1.5 font-medium text-blue-500 text-sm transition-colors hover:bg-blue-500/30"
                 title="Mute user"
               >
-                <VolumeX className="w-4 h-4" />
+                <VolumeX className="h-4 w-4" />
                 Mute
               </button>
               <button
                 onClick={() => {
-                  setSelectedUser(user)
-                  setShowBlockModal(true)
+                  setSelectedUser(user);
+                  setShowBlockModal(true);
                 }}
-                className="px-3 py-1.5 text-sm font-medium rounded bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 transition-colors flex items-center gap-1"
+                className="flex items-center gap-1 rounded bg-orange-500/20 px-3 py-1.5 font-medium text-orange-500 text-sm transition-colors hover:bg-orange-500/30"
                 title="Block user"
               >
-                <Ban className="w-4 h-4" />
+                <Ban className="h-4 w-4" />
                 Block
               </button>
               {user.isBanned ? (
                 <button
                   onClick={() => handleBanUser(user, 'unban')}
                   disabled={isBanning}
-                  className="px-3 py-1.5 text-sm font-medium rounded bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  className="flex items-center gap-1 rounded bg-green-500/20 px-3 py-1.5 font-medium text-green-500 text-sm transition-colors hover:bg-green-500/30 disabled:opacity-50"
                 >
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="h-4 w-4" />
                   Unban
                 </button>
               ) : (
                 <button
                   onClick={() => {
-                    setSelectedUser(user)
-                    setShowBanModal(true)
+                    setSelectedUser(user);
+                    setShowBanModal(true);
                   }}
                   disabled={isBanning}
-                  className="px-3 py-1.5 text-sm font-medium rounded bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  className="flex items-center gap-1 rounded bg-red-500/20 px-3 py-1.5 font-medium text-red-500 text-sm transition-colors hover:bg-red-500/30 disabled:opacity-50"
                 >
-                  <Ban className="w-4 h-4" />
+                  <Ban className="h-4 w-4" />
                   Ban
                 </button>
               )}
@@ -392,19 +447,19 @@ export function UserManagementTab() {
           )}
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="space-y-3 w-full">
+      <div className="flex h-64 items-center justify-center">
+        <div className="w-full space-y-3">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -413,41 +468,43 @@ export function UserManagementTab() {
       <div className="space-y-3">
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search by username, display name, or wallet address..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg focus:outline-none focus:border-border"
+            className="w-full rounded-lg border border-border bg-card py-2 pr-4 pl-10 focus:border-border focus:outline-none"
           />
         </div>
 
         {/* Filter and Sort */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-2">
-            {(['all', 'users', 'actors', 'banned', 'admins'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium rounded transition-colors',
-                  filter === f
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                )}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
+            {(['all', 'users', 'actors', 'banned', 'admins'] as const).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    'rounded px-3 py-1.5 font-medium text-sm transition-colors',
+                    filter === f
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  )}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              )
+            )}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <span className="text-muted-foreground text-sm">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortByType)}
-              className="px-3 py-1.5 text-sm bg-card border border-border rounded-lg focus:outline-none focus:border-border"
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm focus:border-border focus:outline-none"
             >
               <optgroup label="General">
                 <option value="created">Join Date</option>
@@ -469,9 +526,11 @@ export function UserManagementTab() {
           <button
             onClick={() => fetchUsers(true)}
             disabled={isRefreshing}
-            className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
+            className="ml-auto flex items-center gap-2 rounded bg-muted px-3 py-1.5 font-medium text-sm transition-colors hover:bg-muted/80 disabled:opacity-50"
           >
-            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+            <RefreshCw
+              className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
+            />
             Refresh
           </button>
         </div>
@@ -479,8 +538,8 @@ export function UserManagementTab() {
 
       {/* Users List */}
       {users.length === 0 ? (
-        <div className="text-center text-muted-foreground py-12">
-          <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <div className="py-12 text-center text-muted-foreground">
+          <Users className="mx-auto mb-3 h-12 w-12 opacity-50" />
           <p>No users found</p>
         </div>
       ) : (
@@ -496,15 +555,17 @@ export function UserManagementTab() {
         <AdminSendMoneyModal
           isOpen={showSendMoneyModal}
           onClose={() => {
-            setShowSendMoneyModal(false)
-            setSelectedUser(null)
+            setShowSendMoneyModal(false);
+            setSelectedUser(null);
           }}
           recipientId={selectedUser.id}
-          recipientName={selectedUser.displayName || selectedUser.username || 'User'}
+          recipientName={
+            selectedUser.displayName || selectedUser.username || 'User'
+          }
           recipientUsername={selectedUser.username}
           recipientWalletAddress={selectedUser.walletAddress}
           onSuccess={() => {
-            fetchUsers(true)
+            fetchUsers(true);
           }}
         />
       )}
@@ -514,13 +575,15 @@ export function UserManagementTab() {
         <BlockUserModal
           isOpen={showBlockModal}
           onClose={() => {
-            setShowBlockModal(false)
-            setSelectedUser(null)
+            setShowBlockModal(false);
+            setSelectedUser(null);
           }}
           targetUserId={selectedUser.id}
-          targetDisplayName={selectedUser.displayName || selectedUser.username || 'User'}
+          targetDisplayName={
+            selectedUser.displayName || selectedUser.username || 'User'
+          }
           onSuccess={() => {
-            fetchUsers(true)
+            fetchUsers(true);
           }}
         />
       )}
@@ -530,35 +593,41 @@ export function UserManagementTab() {
         <MuteUserModal
           isOpen={showMuteModal}
           onClose={() => {
-            setShowMuteModal(false)
-            setSelectedUser(null)
+            setShowMuteModal(false);
+            setSelectedUser(null);
           }}
           targetUserId={selectedUser.id}
-          targetDisplayName={selectedUser.displayName || selectedUser.username || 'User'}
+          targetDisplayName={
+            selectedUser.displayName || selectedUser.username || 'User'
+          }
           onSuccess={() => {
-            fetchUsers(true)
+            fetchUsers(true);
           }}
         />
       )}
 
       {/* Ban Modal */}
       {showBanModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Ban User</h2>
-            <p className="text-muted-foreground mb-4">
-              Are you sure you want to ban <strong>{selectedUser.displayName || selectedUser.username}</strong>?
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
+            <h2 className="mb-4 font-bold text-xl">Ban User</h2>
+            <p className="mb-4 text-muted-foreground">
+              Are you sure you want to ban{' '}
+              <strong>
+                {selectedUser.displayName || selectedUser.username}
+              </strong>
+              ?
             </p>
-            
+
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
+              <label className="mb-2 block font-medium text-sm">
                 Reason for ban <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
                 placeholder="Explain why this user is being banned..."
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-border resize-none"
+                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 focus:border-border focus:outline-none"
                 rows={3}
               />
             </div>
@@ -570,11 +639,14 @@ export function UserManagementTab() {
                   id="isScammer"
                   checked={isScammer}
                   onChange={(e) => setIsScammer(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                  className="mt-1 h-4 w-4 rounded border-border text-red-500 focus:ring-red-500"
                 />
-                <label htmlFor="isScammer" className="text-sm font-medium cursor-pointer">
+                <label
+                  htmlFor="isScammer"
+                  className="cursor-pointer font-medium text-sm"
+                >
                   Mark as Scammer
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 text-muted-foreground text-xs">
                     This user is engaging in fraudulent or deceptive behavior
                   </p>
                 </label>
@@ -586,12 +658,16 @@ export function UserManagementTab() {
                   id="isCSAM"
                   checked={isCSAM}
                   onChange={(e) => setIsCSAM(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-border text-red-500 focus:ring-red-500"
+                  className="mt-1 h-4 w-4 rounded border-border text-red-500 focus:ring-red-500"
                 />
-                <label htmlFor="isCSAM" className="text-sm font-medium cursor-pointer">
+                <label
+                  htmlFor="isCSAM"
+                  className="cursor-pointer font-medium text-sm"
+                >
                   Mark as CSAM (Child Sexual Abuse Material)
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This user is sharing or promoting child sexual abuse material
+                  <p className="mt-1 text-muted-foreground text-xs">
+                    This user is sharing or promoting child sexual abuse
+                    material
                   </p>
                 </label>
               </div>
@@ -600,29 +676,27 @@ export function UserManagementTab() {
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowBanModal(false)
-                  setBanReason('')
-                  setIsScammer(false)
-                  setIsCSAM(false)
-                  setSelectedUser(null)
+                  setShowBanModal(false);
+                  setBanReason('');
+                  setIsScammer(false);
+                  setIsCSAM(false);
+                  setSelectedUser(null);
                 }}
                 disabled={isBanning}
-                className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-50"
+                className="flex-1 rounded-lg bg-muted px-4 py-2 text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleBanUser(selectedUser, 'ban')}
                 disabled={isBanning || !banReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-500 text-primary-foreground rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-primary-foreground transition-colors hover:bg-red-600 disabled:opacity-50"
               >
                 {isBanning ? (
-                  <>
-                    Banning...
-                  </>
+                  <>Banning...</>
                 ) : (
                   <>
-                    <Ban className="w-4 h-4" />
+                    <Ban className="h-4 w-4" />
                     Ban User
                   </>
                 )}
@@ -632,6 +706,5 @@ export function UserManagementTab() {
         </div>
       )}
     </div>
-  )
+  );
 }
-

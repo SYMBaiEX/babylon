@@ -51,12 +51,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asPublic, asUser } from '@/lib/db/context';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { UpcomingEventsQuerySchema } from '@/lib/validation/schemas';
-import { FEED_WIDGET_CONFIG } from '@/shared/constants';
+import { optionalAuth } from '@babylon/api';
+import { asPublic, asUser } from '@babylon/db';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { UpcomingEventsQuerySchema } from '@babylon/shared';
+import { FEED_WIDGET_CONFIG } from '@babylon/shared';
 
 interface UpcomingEvent {
   id: string;

@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { Users, Check, X, Loader2 } from 'lucide-react'
-import { usePrivy } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth';
+import { Check, Loader2, Users, X } from 'lucide-react';
+import { useState } from 'react';
 
 /**
  * Group invite card component for displaying and responding to group invitations.
- * 
+ *
  * Displays a card for a group invitation with group details and accept/decline
  * actions. Shows success/declined states after response. Handles API calls
  * for accepting or declining invitations.
- * 
+ *
  * Features:
  * - Group information display
  * - Accept functionality
@@ -18,10 +18,10 @@ import { usePrivy } from '@privy-io/react-auth'
  * - Status indicators
  * - Loading states
  * - Error handling
- * 
+ *
  * @param props - GroupInviteCard component props
  * @returns Group invite card element
- * 
+ *
  * @example
  * ```tsx
  * <GroupInviteCard
@@ -34,14 +34,14 @@ import { usePrivy } from '@privy-io/react-auth'
  * ```
  */
 interface GroupInviteCardProps {
-  inviteId: string
-  groupId: string
-  groupName: string
-  groupDescription?: string | null
-  memberCount: number
-  invitedAt: Date | string
-  onAccepted?: (groupId: string, chatId?: string) => void
-  onDeclined?: () => void
+  inviteId: string;
+  groupId: string;
+  groupName: string;
+  groupDescription?: string | null;
+  memberCount: number;
+  invitedAt: Date | string;
+  onAccepted?: (groupId: string, chatId?: string) => void;
+  onDeclined?: () => void;
 }
 
 export function GroupInviteCard({
@@ -54,109 +54,111 @@ export function GroupInviteCard({
   onAccepted,
   onDeclined,
 }: GroupInviteCardProps) {
-  const { getAccessToken } = usePrivy()
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'pending' | 'accepted' | 'declined'>('pending')
-  const [error, setError] = useState<string | null>(null)
+  const { getAccessToken } = usePrivy();
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<'pending' | 'accepted' | 'declined'>(
+    'pending'
+  );
+  const [error, setError] = useState<string | null>(null);
 
   const handleAccept = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
-    const token = await getAccessToken()
+    const token = await getAccessToken();
     const response = await fetch(`/api/groups/invites/${inviteId}/accept`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    })
+    });
 
     if (!response.ok) {
-      const data = await response.json()
-      setLoading(false)
-      throw new Error(data.error || 'Failed to accept invite')
+      const data = await response.json();
+      setLoading(false);
+      throw new Error(data.error || 'Failed to accept invite');
     }
 
-    const data = await response.json()
-    setStatus('accepted')
-    onAccepted?.(groupId, data.chatId)
-    setLoading(false)
-  }
+    const data = await response.json();
+    setStatus('accepted');
+    onAccepted?.(groupId, data.chatId);
+    setLoading(false);
+  };
 
   const handleDecline = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
-    const token = await getAccessToken()
+    const token = await getAccessToken();
     const response = await fetch(`/api/groups/invites/${inviteId}/decline`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    })
+    });
 
     if (!response.ok) {
-      const data = await response.json()
-      setLoading(false)
-      throw new Error(data.error || 'Failed to decline invite')
+      const data = await response.json();
+      setLoading(false);
+      throw new Error(data.error || 'Failed to decline invite');
     }
 
-    setStatus('declined')
-    onDeclined?.()
-    setLoading(false)
-  }
+    setStatus('declined');
+    onDeclined?.();
+    setLoading(false);
+  };
 
   if (status === 'accepted') {
     return (
-      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg shadow-sm">
+      <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-            <Check className="w-5 h-5 text-green-500" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
+            <Check className="h-5 w-5 text-green-500" />
           </div>
           <div className="flex-1">
             <p className="font-medium text-sm">Invitation Accepted</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               You are now a member of {groupName}
             </p>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (status === 'declined') {
     return (
-      <div className="p-4 bg-muted/50 border border-muted rounded-lg shadow-sm">
+      <div className="rounded-lg border border-muted bg-muted/50 p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-            <X className="w-5 h-5 text-muted-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <X className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="flex-1">
             <p className="font-medium text-sm">Invitation Declined</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               You declined the invitation to {groupName}
             </p>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="p-4 bg-sidebar border border-border rounded-lg shadow-sm">
+    <div className="rounded-lg border border-border bg-sidebar p-4 shadow-sm">
       <div className="space-y-3">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5 text-primary" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <Users className="h-5 w-5 text-primary" />
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm mb-1">{groupName}</h3>
+          <div className="min-w-0 flex-1">
+            <h3 className="mb-1 font-semibold text-sm">{groupName}</h3>
             {groupDescription && (
-              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+              <p className="mb-2 line-clamp-2 text-muted-foreground text-xs">
                 {groupDescription}
               </p>
             )}
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-muted-foreground text-xs">
               <span>{memberCount} members</span>
               <span>·</span>
               <span>
@@ -170,8 +172,8 @@ export function GroupInviteCard({
         </div>
 
         {error && (
-          <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p className="text-xs text-red-500">{error}</p>
+          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-2">
+            <p className="text-red-500 text-xs">{error}</p>
           </div>
         )}
 
@@ -179,13 +181,13 @@ export function GroupInviteCard({
           <button
             onClick={handleAccept}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="flex-1 rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? (
-              <Loader2 className="w-4 h-4 inline animate-spin" />
+              <Loader2 className="inline h-4 w-4 animate-spin" />
             ) : (
               <>
-                <Check className="w-4 h-4 inline mr-1" />
+                <Check className="mr-1 inline h-4 w-4" />
                 Accept
               </>
             )}
@@ -193,13 +195,13 @@ export function GroupInviteCard({
           <button
             onClick={handleDecline}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-sidebar border border-border hover:bg-accent transition-colors disabled:opacity-50"
+            className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-2.5 font-medium transition-colors hover:bg-accent disabled:opacity-50"
           >
             {loading ? (
-              <Loader2 className="w-4 h-4 inline animate-spin" />
+              <Loader2 className="inline h-4 w-4 animate-spin" />
             ) : (
               <>
-                <X className="w-4 h-4 inline mr-1" />
+                <X className="mr-1 inline h-4 w-4" />
                 Decline
               </>
             )}
@@ -207,6 +209,5 @@ export function GroupInviteCard({
         </div>
       </div>
     </div>
-  )
+  );
 }
-

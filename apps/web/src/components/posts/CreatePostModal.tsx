@@ -4,8 +4,8 @@ import { Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@/lib/logger';
-import { cn } from '@/lib/utils';
+import { logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /**
  * Create post modal component for composing new posts.

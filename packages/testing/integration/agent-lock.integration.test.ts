@@ -18,13 +18,13 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { db } from '@/db';
-import { createTestAgent } from '@/lib/agents/utils/createTestAgent';
+import { db } from '@babylon/db';
+import { createTestAgent } from '@babylon/agents';
 import {
   acquireAgentLock,
   checkAgentLock,
   releaseAgentLock,
-} from '@/lib/services/agent-lock-service';
+} from '@babylon/agents/services/agent-lock-service';
 import type {
   AgentTickResponse,
   AgentTickResultItem,
@@ -469,7 +469,7 @@ describe('Agent Tick Endpoint Lock Integration', () => {
       if (testAgentId) {
         await db.user.delete({ where: { id: testAgentId } }).catch(() => {});
       }
-    } catch (error) {
+    } catch (_error) {
       // Cleanup errors not critical
     }
   });

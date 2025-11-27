@@ -88,13 +88,13 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { callGroqDirect } from '@/lib/agents/llm/direct-groq';
-import { logger } from '@/lib/logger';
+import { callGroqDirect } from '@babylon/agents';
+import { logger } from '@babylon/shared';
 import {
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
-} from '@/lib/rate-limiting';
-import { authenticateUser } from '@/lib/server-auth';
+} from '@babylon/api';
+import { authenticateUser } from '@babylon/api';
 
 export const maxDuration = 30;
 

@@ -13,17 +13,17 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getCommunicationHub } from '@/lib/agents/communication/CommunicationHub';
-import { agentRegistry } from '@/lib/services/agent-registry.service';
-// import { verifyApiKey } from '@/lib/crypto/api-keys'
-// import { db } from '@/db'
-import type {
-  JsonRpcError,
-  JsonRpcRequest,
-  JsonRpcResponse,
-} from '@/types/a2a';
-import { ErrorCode } from '@/types/a2a';
-import type { JsonValue } from '@/types/common';
+import { getCommunicationHub } from '@babylon/agents';
+import { agentRegistry } from '@babylon/agents';
+// import { verifyApiKey } from '@babylon/shared'
+// import { db } from '@babylon/db'
+import {
+  type JsonRpcError,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  type JsonValue,
+  ErrorCode,
+} from '@babylon/a2a';
 
 // Message part type for A2A protocol
 interface MessagePart {

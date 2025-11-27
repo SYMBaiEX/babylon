@@ -55,9 +55,9 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { gameService } from '@/lib/game-service';
-import { logger } from '@/lib/logger';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { gameService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   const stats = await gameService.getStats();

@@ -6,10 +6,11 @@
  * pipeline with actual LLM judge calls.
  */
 
-import { db } from '@/db';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { rulerScoringService } from '@/lib/training/RulerScoringService';
-import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';
+import { db, generateSnowflakeId } from '@babylon/db';
+import {
+  rulerScoringService,
+  trajectoryRecorder,
+} from '@babylon/training';
 
 async function main() {
   console.log('\n━━━ TESTING RULER SCORING WITH REAL LLM ━━━\n');

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { PerpPosition } from '@/shared/perps-types';
+import type { PerpPosition } from '@babylon/shared';
 
 /**
  * Represents a user's position in a prediction market.

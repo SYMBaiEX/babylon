@@ -89,21 +89,23 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
-import { FEE_CONFIG } from '@/lib/config/fees';
-import { asUser } from '@/lib/db/context';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PredictionPricing } from '@/lib/prediction-pricing';
-import { FeeService } from '@/lib/services/fee-service';
-import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
-import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
-import { WalletService } from '@/lib/services/wallet-service';
-import { PredictionMarketIdSchema } from '@/lib/validation/schemas';
-import { PredictionMarketSellSchema } from '@/lib/validation/schemas/trade';
+import { authenticate } from '@babylon/api';
+import { invalidateAfterPredictionTrade } from '@babylon/engine';
+import { FEE_CONFIG } from '@babylon/engine';
+import { asUser } from '@babylon/db';
+import { BusinessLogicError, NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { trackServerEvent } from '@babylon/shared';
+import { PredictionPricing } from '@babylon/engine';
+import { FeeService } from '@babylon/engine';
+import {
+  PredictionMarketEventService,
+  PredictionPriceHistoryService,
+} from '@babylon/engine';
+import { WalletService } from '@babylon/engine';
+import { PredictionMarketIdSchema } from '@babylon/shared';
+import { PredictionMarketSellSchema } from '@babylon/shared';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position

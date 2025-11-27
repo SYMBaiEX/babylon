@@ -7,9 +7,9 @@
  *   npx ts-node scripts/benchmark-rl-model.ts --model=babylon-agent-v1.0.0
  */
 
-import { db } from '@/db';
-import { ModelBenchmarkService } from '@/lib/benchmark/ModelBenchmarkService';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/engine';
+import { ModelBenchmarkService } from '@babylon/training';
 
 async function main() {
   const args = process.argv.slice(2);

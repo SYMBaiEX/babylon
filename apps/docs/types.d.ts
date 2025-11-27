@@ -1,7 +1,7 @@
 // Type declarations for swagger-ui-react
 declare module 'swagger-ui-react' {
   import type { ComponentType } from 'react';
-  
+
   interface SwaggerUIProps {
     spec?: object;
     url?: string;
@@ -24,4 +24,3 @@ declare module 'swagger-ui-react' {
   const SwaggerUI: ComponentType<SwaggerUIProps>;
   export default SwaggerUI;
 }
-

@@ -115,9 +115,9 @@ import {
   userGroupMembers,
   userGroups,
   users,
-} from '@/db';
-import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling } from '@/lib/errors/error-handler';
+} from '@babylon/db';
+import { authenticate } from '@babylon/api';
+import { withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/user-groups/[id]

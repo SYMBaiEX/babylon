@@ -79,12 +79,12 @@ import {
   positions,
   reactions,
   users,
-} from '@/db';
-import { optionalAuth } from '@/lib/api/auth-middleware';
-import { NotFoundError } from '@/lib/errors';
-import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
-import { logger } from '@/lib/logger';
-import { UsernameParamSchema } from '@/lib/validation/schemas';
+} from '@babylon/db';
+import { optionalAuth } from '@babylon/api';
+import { NotFoundError } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import { UsernameParamSchema } from '@babylon/shared';
 
 /**
  * GET /api/users/by-username/[username]

@@ -11,10 +11,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@/db';
-import { createTestAgent } from '@/lib/agents/utils/createTestAgent';
-import { asSystem } from '@/lib/db/context';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { db } from '@babylon/db';
+import { createTestAgent } from '@babylon/agents';
+import { asSystem } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared/utils/snowflake';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -179,7 +179,7 @@ describe('Agent Autonomous Tick Integration', () => {
     if (createdGameId) {
       try {
         await db.game.delete({ where: { id: createdGameId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }
@@ -188,7 +188,7 @@ describe('Agent Autonomous Tick Integration', () => {
     if (testAgentId) {
       try {
         await db.user.delete({ where: { id: testAgentId } });
-      } catch (error) {
+      } catch (_error) {
         // Cleanup errors not critical
       }
     }

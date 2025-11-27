@@ -94,14 +94,14 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { logger } from '@/lib/logger';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import {
   periodicReputationSync,
   syncUserReputationNow,
-} from '@/lib/reputation/agent0-reputation-sync';
-import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+} from '@babylon/agents';
+import { getReputationBreakdown } from '@babylon/api';
+import { requireUserByIdentifier } from '@babylon/api';
 
 interface SyncRequest {
   userId?: string;
