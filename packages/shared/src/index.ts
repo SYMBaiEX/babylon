@@ -45,9 +45,6 @@ export * from './auth';
 // Contracts (ABIs and addresses)
 export * from './contracts';
 
-// Moderation utilities (empty - services exported from @babylon/api)
-// export * from './moderation';
-
 // Monitoring utilities
 export * from './monitoring';
 
@@ -66,17 +63,8 @@ export * from './services';
 // Rate limiting utilities
 export * from './rate-limiting';
 
-// On-chain betting (empty - services exported from @babylon/api)
-// export * from './onchain-betting';
-
-// Portfolio utilities (empty - functions exported from @babylon/engine)
-// export * from './portfolio';
-
 // Referral utilities
 export * from './referral';
-
-// Oracle utilities
-export * from './oracle';
 
 // PostHog server utilities
 export * from './posthog';

@@ -79,13 +79,14 @@ from .archetype_trainer import (
 )
 
 # Lazy imports for torch-dependent modules
+# These imports are dynamically returned via __getattr__ - not unused  # noqa: F401
 def __getattr__(name: str):
     """Lazy import for torch-dependent modules."""
     if name in (
         "BabylonAtroposTrainer",
         "AtroposTrainingConfig",
     ):
-        from .atropos_trainer import (
+        from .atropos_trainer import (  # noqa: F401
             BabylonAtroposTrainer,
             AtroposTrainingConfig,
         )
@@ -95,7 +96,7 @@ def __getattr__(name: str):
         "BabylonRLAIFEnv",
         "BabylonEnvConfig",
     ):
-        from .babylon_env import (
+        from .babylon_env import (  # noqa: F401
             BabylonRLAIFEnv,
             BabylonEnvConfig,
         )
@@ -109,7 +110,7 @@ def __getattr__(name: str):
         "RolloutQualityValidator",
         "AgentRunner",
     ):
-        from .rollout_generator import (
+        from .rollout_generator import (  # noqa: F401
             FastRolloutGenerator,
             RolloutConfig,
             RolloutResult,
@@ -125,7 +126,7 @@ def __getattr__(name: str):
         "SimulatorMetrics",
         "GameState",
     ):
-        from .fast_simulator import (
+        from .fast_simulator import (  # noqa: F401
             FastSimulator,
             SimulatorConfig,
             SimulatorMetrics,

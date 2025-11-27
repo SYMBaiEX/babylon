@@ -427,10 +427,11 @@ You receive market updates and must analyze, reason, and then act."""
                     
                     # Build rich user content from the actual prompt
                     user_prompt = llm_call.get('userPrompt', llm_call.get('user_prompt', ''))
-                    system_prompt = llm_call.get('systemPrompt', llm_call.get('system_prompt', ''))
                     
                     # Combine system context with user prompt for training
                     # (since we're training to predict assistant response)
+                    # Note: system_prompt is captured in the trajectory but not used here
+                    # as the user message builds context from environment state
                     user_content = f"[Step {step_idx + 1}, {purpose.upper()}]\n"
                     
                     # Add environment state context

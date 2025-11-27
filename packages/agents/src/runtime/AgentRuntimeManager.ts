@@ -15,7 +15,7 @@ import {
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { getAIModelConfig, loadActorById, type ActorData } from '@babylon/engine';
+import { loadActorById, type ActorData } from '@babylon/engine';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import {
@@ -210,55 +210,32 @@ export class AgentRuntimeManager {
     let useWandb = false;
 
     if (process.env.WANDB_API_KEY) {
-      try {
-        // First check system settings for configured WANDB model
-        const aiConfig = await getAIModelConfig();
-        if (aiConfig.wandbEnabled) {
-          wandbModel =
-            aiConfig.wandbModel ||
-            process.env.WANDB_MODEL ||
-            'unsloth/Qwen3-4B-128K';
-          useWandb = true;
-          logger.info(
-            `Agent will use configured WANDB model: ${wandbModel}`,
-            { agentId: agentUserId },
-            'AgentRuntimeManager'
-          );
-        }
-        if (!useWandb) {
-          // Check for latest trained RL model from database
-          const latestModel = await getLatestRLModel();
-          if (latestModel && latestModel.modelPath) {
-            // modelPath contains the WANDB model identifier (entity/project/model-name:step)
-            // This is the format WANDB API expects for inference
-            wandbModel = latestModel.modelPath;
-            useWandb = true;
-            logger.info(
-              `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
-              {
-                agentId: agentUserId,
-                modelId: latestModel.modelPath,
-                version: latestModel.version,
-                avgReward: latestModel.metadata.avgReward,
-              },
-              'AgentRuntimeManager'
-            );
-          }
-        }
-        // Fall back to env model if no DB/systems entry but WANDB key exists
-        if (!useWandb && process.env.WANDB_MODEL) {
-          wandbModel = process.env.WANDB_MODEL;
-          useWandb = true;
-          logger.info(
-            `Agent will use WANDB model from env: ${wandbModel}`,
-            { agentId: agentUserId },
-            'AgentRuntimeManager'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          'Could not load WANDB model config, falling back to qwen 32b',
-          { error },
+      // Check for latest trained RL model from database
+      const latestModel = await getLatestRLModel();
+      if (latestModel && latestModel.modelPath) {
+        // modelPath contains the WANDB model identifier (entity/project/model-name:step)
+        // This is the format WANDB API expects for inference
+        wandbModel = latestModel.modelPath;
+        useWandb = true;
+        logger.info(
+          `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
+          {
+            agentId: agentUserId,
+            modelId: latestModel.modelPath,
+            version: latestModel.version,
+            avgReward: latestModel.metadata.avgReward,
+          },
+          'AgentRuntimeManager'
+        );
+      }
+
+      // Fall back to env model if no DB model but WANDB key exists
+      if (!useWandb && process.env.WANDB_MODEL) {
+        wandbModel = process.env.WANDB_MODEL;
+        useWandb = true;
+        logger.info(
+          `Agent will use WANDB model from env: ${wandbModel}`,
+          { agentId: agentUserId },
           'AgentRuntimeManager'
         );
       }
@@ -677,54 +654,31 @@ export class AgentRuntimeManager {
     let modelVersion: string | undefined;
 
     if (process.env.WANDB_API_KEY) {
-      try {
-        // First check system settings for configured WANDB model
-        const aiConfig = await getAIModelConfig();
-        if (aiConfig.wandbEnabled) {
-          wandbModel =
-            aiConfig.wandbModel ||
-            process.env.WANDB_MODEL ||
-            'unsloth/Qwen3-4B-128K';
-          useWandb = true;
-          logger.info(
-            `Agent will use configured WANDB model: ${wandbModel}`,
-            { agentId },
-            'AgentRuntimeManager'
-          );
-        }
-        if (!useWandb) {
-          // Check for latest trained RL model from database
-          const latestModel = await getLatestRLModel();
-          if (latestModel && latestModel.modelPath) {
-            wandbModel = latestModel.modelPath;
-            modelVersion = latestModel.version;
-            useWandb = true;
-            logger.info(
-              `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
-              {
-                agentId,
-                modelId: latestModel.modelPath,
-                version: latestModel.version,
-                avgReward: latestModel.metadata.avgReward,
-              },
-              'AgentRuntimeManager'
-            );
-          }
-        }
-        // Fall back to env model if no DB/systems entry but WANDB key exists
-        if (!useWandb && process.env.WANDB_MODEL) {
-          wandbModel = process.env.WANDB_MODEL;
-          useWandb = true;
-          logger.info(
-            `Agent will use WANDB model from env: ${wandbModel}`,
-            { agentId },
-            'AgentRuntimeManager'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          'Could not load WANDB model config, falling back to Groq',
-          { error },
+      // Check for latest trained RL model from database
+      const latestModel = await getLatestRLModel();
+      if (latestModel && latestModel.modelPath) {
+        wandbModel = latestModel.modelPath;
+        modelVersion = latestModel.version;
+        useWandb = true;
+        logger.info(
+          `Agent will use latest trained RL model: ${latestModel.modelPath} (v${latestModel.version})`,
+          {
+            agentId,
+            modelId: latestModel.modelPath,
+            version: latestModel.version,
+            avgReward: latestModel.metadata.avgReward,
+          },
+          'AgentRuntimeManager'
+        );
+      }
+
+      // Fall back to env model if no DB model but WANDB key exists
+      if (!useWandb && process.env.WANDB_MODEL) {
+        wandbModel = process.env.WANDB_MODEL;
+        useWandb = true;
+        logger.info(
+          `Agent will use WANDB model from env: ${wandbModel}`,
+          { agentId },
           'AgentRuntimeManager'
         );
       }

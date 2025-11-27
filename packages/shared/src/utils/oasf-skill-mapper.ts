@@ -11,7 +11,7 @@
  * @see https://sdk.ag0.xyz/ for Agent0 SDK documentation
  */
 
-import type { ActorData } from '@babylon/shared';
+import type { ActorData } from '../game-types';
 
 /**
  * OASF Skill Categories

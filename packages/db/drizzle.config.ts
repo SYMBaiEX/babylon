@@ -1,7 +1,7 @@
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
-  schema: './packages/db/src/schema/index.ts',
+  schema: './src/schema/index.ts',
   out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
@@ -10,3 +10,4 @@ export default defineConfig({
   verbose: true,
   strict: true,
 });
+

@@ -383,27 +383,17 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
   teardown?: () => Promise<void>
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (req: NextRequest, context?: TContext) => {
-    // Run setup if provided
     if (setup) {
       await setup();
     }
 
-    // Run the main handler
     if (!handler) {
       throw new Error('Handler function is required');
     }
 
     try {
-      const response = await handler(req, context);
-
-      // Run teardown if provided (only on success)
-      if (teardown) {
-        await teardown();
-      }
-
-      return response;
+      return await handler(req, context);
     } finally {
-      // Run teardown even on error (if provided)
       if (teardown) {
         await teardown();
       }

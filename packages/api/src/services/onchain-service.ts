@@ -643,16 +643,16 @@ export async function processOnchainRegistration({
   );
 
   const agentRegisteredLog = contractLogs.find((log) => {
-    try {
-      const decodedLog = decodeEventLog({
-        abi: identityRegistryAbi,
-        data: log.data,
-        topics: log.topics,
-      });
-      return decodedLog.eventName === 'AgentRegistered';
-    } catch {
+    if (log.topics.length === 0) {
       return false;
     }
+    const decodedLog = decodeEventLog({
+      abi: identityRegistryAbi,
+      data: log.data,
+      topics: log.topics,
+      strict: false,
+    });
+    return decodedLog.eventName === 'AgentRegistered';
   });
 
   if (!agentRegisteredLog) {
@@ -1056,20 +1056,27 @@ export async function confirmOnchainProfileUpdate({
     '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
   for (const log of receipt.logs) {
-    try {
-      const decoded = decodeEventLog({
-        abi: identityRegistryAbi,
-        data: log.data,
-        topics: log.topics,
-      });
+    // Skip logs that aren't from our contract or don't have enough topics
+    if (log.address.toLowerCase() !== IDENTITY_REGISTRY.toLowerCase()) {
+      continue;
+    }
+    if (log.topics.length === 0) {
+      continue;
+    }
 
-      if (decoded.eventName === 'AgentUpdated') {
-        tokenId = Number(decoded.args.tokenId);
-        endpoint = decoded.args.endpoint;
-        capabilitiesHash = decoded.args.capabilitiesHash as `0x${string}`;
-        break;
-      }
-    } catch {}
+    const decoded = decodeEventLog({
+      abi: identityRegistryAbi,
+      data: log.data,
+      topics: log.topics,
+      strict: false,
+    });
+
+    if (decoded.eventName === 'AgentUpdated') {
+      tokenId = Number(decoded.args.tokenId);
+      endpoint = decoded.args.endpoint ?? '';
+      capabilitiesHash = decoded.args.capabilitiesHash as `0x${string}`;
+      break;
+    }
   }
 
   // Verify that the transaction updated the correct token ID

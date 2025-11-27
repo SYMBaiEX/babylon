@@ -209,7 +209,7 @@ export async function runAdminCommand(args: string[]): Promise<void> {
 
   if (wantsHelp(parsed)) {
     printHelp();
-    return;
+    process.exit(0);
   }
 
   try {

@@ -128,7 +128,6 @@ export { gameService } from './game-service';
 export {
   clearAIModelConfigCache,
   getAIModelConfig,
-  getWandbModel,
 } from './ai-model-config';
 
 // Serverless Game Tick

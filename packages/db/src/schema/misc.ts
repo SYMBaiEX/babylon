@@ -202,8 +202,6 @@ export const worldFacts = pgTable(
 // SystemSettings
 export const systemSettings = pgTable('SystemSettings', {
   id: text('id').primaryKey().default('system'),
-  wandbModel: text('wandbModel'),
-  wandbEnabled: boolean('wandbEnabled').notNull().default(false),
   createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
 });

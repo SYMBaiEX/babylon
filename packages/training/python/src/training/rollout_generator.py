@@ -32,7 +32,6 @@ from .quality_utils import (
     build_trajectory_from_ticks,
     state_to_observation,
     state_to_env_state,
-    validate_trajectory_quality,
 )
 
 logger = logging.getLogger(__name__)

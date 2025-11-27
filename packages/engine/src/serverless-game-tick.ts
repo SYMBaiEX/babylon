@@ -72,7 +72,6 @@ import { characterMappingService } from './services/character-mapping-service';
 import { MarketContextService } from './services/market-context-service';
 import { PredictionPriceHistoryService } from './services/prediction-price-history-service';
 import { worldFactsService } from './world-facts-service';
-import { getWandbModel } from './ai-model-config';
 import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
 import { PriceUpdateService } from './services/price-update-service';
@@ -197,20 +196,8 @@ export async function executeGameTick(
     // Bootstrap initial content if this is a fresh setup
     await bootstrapContentIfNeeded(timestamp);
 
-    // Note: Wandb model configuration is loaded but not used in game tick
-    // Wandb models should ONLY be used for agent operations, not game tick operations
-    // This is kept for logging/debugging purposes only
-    const wandbModel = await getWandbModel();
-    if (wandbModel) {
-      logger.debug(
-        'Wandb model configured (not used in game tick - reserved for agents)',
-        { model: wandbModel },
-        'GameTick'
-      );
-    }
-
-    // Initialize LLM client for game tick operations (excludes Wandb)
-    // Wandb models should ONLY be used for agent operations, not game tick
+    // Initialize LLM client for game tick operations
+    // Priority: Groq > Claude > OpenAI
     const llmClient = BabylonLLMClient.forGameTick();
     const stats = llmClient.getStats();
     logger.info(

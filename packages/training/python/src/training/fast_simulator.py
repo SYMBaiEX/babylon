@@ -271,8 +271,6 @@ class FastSimulator:
         
         This is the core fast path - uses asyncio.gather for true parallel execution.
         """
-        tick_start = time.time()
-        
         # Get observation once (shared across agents)
         observation = self.get_observation()
         

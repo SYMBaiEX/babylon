@@ -252,7 +252,7 @@ export async function runStatusCommand(args: string[]): Promise<void> {
 
   if (wantsHelp(parsed)) {
     printHelp();
-    return;
+    process.exit(0);
   }
 
   try {

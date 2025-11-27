@@ -16,4 +16,3 @@ export interface OnboardingProfilePayload {
   privacyPolicyAccepted?: boolean;
 }
 
-

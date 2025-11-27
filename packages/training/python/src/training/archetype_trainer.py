@@ -523,7 +523,7 @@ class ArchetypeTrainer:
         Returns:
             ArchetypeTrainingResult with training metrics and checkpoint path
         """
-        from .babylon_env import BabylonEnvConfig, BabylonRLAIFEnv
+        from .babylon_env import BabylonEnvConfig
         from .atropos_trainer import BabylonAtroposTrainer, AtroposTrainingConfig
         
         logger.info(f"Starting training for archetype: {archetype}")
@@ -532,7 +532,9 @@ class ArchetypeTrainer:
         rubric = get_rubric(archetype)
         
         # Configure environment with archetype rubric
-        env_config = BabylonEnvConfig(
+        # Note: env_config is prepared for when the BabylonRLAIFEnv is started
+        # In the full pipeline, this would be passed to the environment server
+        _ = BabylonEnvConfig(
             scoring_rubric=rubric,
             judge_model=self.config.judge_model,
             lookback_hours=self.config.lookback_hours,

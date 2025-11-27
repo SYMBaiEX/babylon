@@ -20,7 +20,13 @@
   },
   "scripts": {
     "lint": "biome lint .",
-    "typecheck": "tsc -b ."
+    "typecheck": "tsc -b .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:pull": "drizzle-kit pull",
+    "db:studio": "drizzle-kit studio",
+    "db:check": "drizzle-kit check"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",
@@ -33,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "drizzle-kit": "^0.31.4",
     "typescript": "^5.9.3"
   }
 }

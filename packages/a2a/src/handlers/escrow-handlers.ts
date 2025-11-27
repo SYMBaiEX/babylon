@@ -242,10 +242,6 @@ export async function handleCreateEscrowPayment(
       throw new Error('Failed to create escrow record');
     }
 
-    if (!escrow) {
-      throw new Error('Failed to create escrow record');
-    }
-
     logger.info('A2A Escrow payment created', {
       agentId,
       escrowId: escrow.id,

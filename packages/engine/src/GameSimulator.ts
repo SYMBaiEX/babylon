@@ -367,10 +367,6 @@ export class GameSimulator
       liquidityB: config.liquidityB || 100,
       insiderPercentage: config.insiderPercentage || 0.3,
     };
-
-    console.warn(
-      '⚠️ GameSimulator is deprecated. Use GameLoop for accurate simulations.'
-    );
   }
 
   /**

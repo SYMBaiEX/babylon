@@ -227,12 +227,6 @@ export interface MarketData {
   winningOutcome?: number;
 }
 
-export interface MarketSubscription {
-  marketId: string;
-  agentId: string;
-  subscribedAt: number;
-}
-
 // x402 Micropayment Types
 export interface PaymentRequest {
   requestId: string;

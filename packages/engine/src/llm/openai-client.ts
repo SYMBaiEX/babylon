@@ -1,7 +1,7 @@
 /**
  * LLM Client for Babylon Game Generation
  * Supports multiple providers with intelligent fallback
- * Priority: Wandb > Groq > Claude > OpenAI
+ * Priority: Groq > Claude > OpenAI
  *
  * IMPORTANT: Always requires an API key - never falls back to mock mode
  */
@@ -18,7 +18,7 @@ import {
 import { parseXML } from './xml-parser';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
-type LLMProvider = 'wandb' | 'groq' | 'claude' | 'openai';
+type LLMProvider = 'groq' | 'claude' | 'openai';
 
 /**
  * Simple JSON schema for validation
@@ -38,18 +38,16 @@ interface JsonSchemaProperty {
 export class BabylonLLMClient {
   private client: OpenAI;
   private provider: LLMProvider;
-  private wandbKey: string | undefined;
   private groqKey: string | undefined;
   private claudeKey: string | undefined;
   private openaiKey: string | undefined;
-  private wandbModel: string | undefined;
 
   /**
-   * Create a BabylonLLMClient configured to use Groq provider (Priority #1 for game NPCs)
+   * Create a BabylonLLMClient configured to use Groq provider (Priority #1)
    * This is a convenience factory method for forcing Groq without passing undefined parameters
    */
   static forGroq(): BabylonLLMClient {
-    return new BabylonLLMClient('', '', 'groq');
+    return new BabylonLLMClient('', 'groq');
   }
 
   /**
@@ -57,7 +55,7 @@ export class BabylonLLMClient {
    * This is a convenience factory method for forcing Claude without passing undefined parameters
    */
   static forClaude(): BabylonLLMClient {
-    return new BabylonLLMClient('', '', 'claude');
+    return new BabylonLLMClient('', 'claude');
   }
 
   /**
@@ -65,41 +63,27 @@ export class BabylonLLMClient {
    * This is a convenience factory method for forcing OpenAI without passing undefined parameters
    */
   static forOpenAI(apiKey?: string): BabylonLLMClient {
-    return new BabylonLLMClient(apiKey || '', '', 'openai');
+    return new BabylonLLMClient(apiKey || '', 'openai');
   }
 
   /**
-   * Create a BabylonLLMClient configured to use a specific Wandb model
-   * This is a convenience factory method for testing Wandb models
-   *
-   * ⚠️ WARNING: Wandb models should ONLY be used for agent operations, not game tick operations
-   */
-  static forWandb(modelName: string): BabylonLLMClient {
-    return new BabylonLLMClient('', modelName, undefined);
-  }
-
-  /**
-   * Create a BabylonLLMClient for game tick operations (excludes Wandb)
+   * Create a BabylonLLMClient for game tick operations
    * Priority: Groq > Claude > OpenAI
-   *
-   * ⚠️ IMPORTANT: Wandb models should ONLY be used for agent operations.
-   * Game tick operations (content generation, market decisions, etc.) should use this method.
    */
   static forGameTick(): BabylonLLMClient {
-    // Check providers in order, skipping Wandb
+    // Check providers in order
     if (process.env.GROQ_API_KEY) {
-      return new BabylonLLMClient('', '', 'groq');
+      return new BabylonLLMClient('', 'groq');
     }
     if (process.env.ANTHROPIC_API_KEY) {
-      return new BabylonLLMClient('', '', 'claude');
+      return new BabylonLLMClient('', 'claude');
     }
     if (process.env.OPENAI_API_KEY) {
-      return new BabylonLLMClient('', '', 'openai');
+      return new BabylonLLMClient('', 'openai');
     }
-    // Fallback: throw error if no non-Wandb providers available
+    // Fallback: throw error if no providers available
     throw new Error(
       '❌ No API key found for game tick operations!\n' +
-        '   Game tick operations cannot use Wandb (Wandb is reserved for agents only).\n' +
         '   Set one of these environment variables:\n' +
         '   - GROQ_API_KEY (recommended for game tick)\n' +
         '   - ANTHROPIC_API_KEY\n' +
@@ -108,18 +92,11 @@ export class BabylonLLMClient {
     );
   }
 
-  constructor(
-    apiKey?: string,
-    wandbModelOverride?: string,
-    forceProvider?: LLMProvider
-  ) {
-    // Priority: Wandb > Groq > Claude > OpenAI (unless forceProvider is set)
-    this.wandbKey = process.env.WANDB_API_KEY;
+  constructor(apiKey?: string, forceProvider?: LLMProvider) {
+    // Priority: Groq > Claude > OpenAI (unless forceProvider is set)
     this.groqKey = process.env.GROQ_API_KEY;
     this.claudeKey = process.env.ANTHROPIC_API_KEY;
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
-    this.wandbModel =
-      wandbModelOverride || process.env.WANDB_MODEL || undefined; // Can be configured via admin
 
     // Timeout and retry configuration - shorter in test environments to fail fast
     const isTestEnv =
@@ -130,7 +107,7 @@ export class BabylonLLMClient {
     // Production: 2 retries
     const sdkMaxRetries = isTestEnv ? 0 : 2;
 
-    // Force specific provider if requested (only for special cases, e.g., testing specific providers)
+    // Force specific provider if requested
     if (forceProvider === 'groq' && this.groqKey) {
       logger.info('Using Groq (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
@@ -140,19 +117,23 @@ export class BabylonLLMClient {
         maxRetries: sdkMaxRetries,
       });
       this.provider = 'groq';
-    } else if (this.wandbKey && !forceProvider) {
-      logger.info(
-        'Using Weights & Biases inference API (primary)',
-        { model: this.wandbModel || 'default' },
-        'BabylonLLMClient'
-      );
+    } else if (forceProvider === 'claude' && this.claudeKey) {
+      logger.info('Using Claude (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
-        apiKey: this.wandbKey,
-        baseURL: 'https://api.inference.wandb.ai/v1',
+        apiKey: this.claudeKey,
+        baseURL: 'https://api.anthropic.com/v1',
         timeout: timeoutMs,
         maxRetries: sdkMaxRetries,
       });
-      this.provider = 'wandb';
+      this.provider = 'claude';
+    } else if (forceProvider === 'openai' && this.openaiKey) {
+      logger.info('Using OpenAI (forced)', undefined, 'BabylonLLMClient');
+      this.client = new OpenAI({
+        apiKey: this.openaiKey,
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
+      });
+      this.provider = 'openai';
     } else if (this.groqKey) {
       logger.info('Using Groq (fast inference)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
@@ -187,11 +168,10 @@ export class BabylonLLMClient {
       throw new Error(
         '❌ No API key found!\n' +
           '   Set one of these environment variables (in priority order):\n' +
-          '   - WANDB_API_KEY (Weights & Biases inference)\n' +
           '   - GROQ_API_KEY (fast inference)\n' +
           '   - ANTHROPIC_API_KEY (Claude)\n' +
           '   - OPENAI_API_KEY (fallback)\n' +
-          '   Example: export WANDB_API_KEY=your_key_here'
+          '   Example: export GROQ_API_KEY=your_key_here'
       );
     }
   }
@@ -575,7 +555,6 @@ export class BabylonLLMClient {
     }
   ): Promise<void> {
     try {
-
       if (!isPromptLoggingEnabled()) {
         return;
       }
@@ -627,10 +606,6 @@ export class BabylonLLMClient {
    */
   private getDefaultModel(): string {
     switch (this.provider) {
-      case 'wandb':
-        // Use configured model or default to our trained Qwen model
-        // Content generation code explicitly specifies moonshotai/Kimi-K2-Instruct-0905 when needed
-        return this.wandbModel || 'unsloth/Qwen3-4B-128K';
       case 'groq':
         // Use qwen3-32b as workhorse model for most operations
         return 'qwen/qwen3-32b';
@@ -648,29 +623,6 @@ export class BabylonLLMClient {
    */
   getProvider(): LLMProvider {
     return this.provider;
-  }
-
-  /**
-   * Get the current wandb model if using wandb
-   */
-  getWandbModel(): string | undefined {
-    return this.provider === 'wandb' ? this.wandbModel : undefined;
-  }
-
-  /**
-   * Set wandb model (useful for dynamic configuration)
-   */
-  setWandbModel(model: string): void {
-    if (this.provider === 'wandb') {
-      this.wandbModel = model;
-      logger.info('Updated wandb model', { model }, 'BabylonLLMClient');
-    } else {
-      logger.warn(
-        'Cannot set wandb model - not using wandb provider',
-        undefined,
-        'BabylonLLMClient'
-      );
-    }
   }
 
   getStats() {

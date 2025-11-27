@@ -195,6 +195,3 @@ export function calculateMarkPrice(
 
   return baseMarkPrice * (1 + fundingAdjustment);
 }
-
-
-

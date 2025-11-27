@@ -31,27 +31,12 @@ export const JsonValueSchema: JsonValueSchema = z.lazy(() =>
 );
 
 /**
- * Generic key-value record with string keys
- */
-export type StringRecord<T = JsonValue> = Record<string, T>;
-
-/**
- * Log data payload - structured data for logging
- */
-export type LogData =
-  | JsonValue
-  | StringRecord
-  | Error
-  | { [key: string]: JsonValue | unknown }
-  | unknown;
-
-/**
  * Parameters for JSON-RPC requests
  */
-export type JsonRpcParams = StringRecord<JsonValue> | JsonValue[];
+export type JsonRpcParams = Record<string, JsonValue> | JsonValue[];
 
 /**
  * Result type for JSON-RPC responses
  */
-export type JsonRpcResult = JsonValue | StringRecord<JsonValue> | JsonValue[];
+export type JsonRpcResult = JsonValue | Record<string, JsonValue> | JsonValue[];
 

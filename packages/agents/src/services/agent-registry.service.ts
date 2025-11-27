@@ -31,7 +31,7 @@ import {
   type User,
   users,
 } from '@babylon/db';
-import { verifyApiKey } from '@babylon/shared';
+import { logger, verifyApiKey } from '@babylon/shared';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
@@ -703,26 +703,33 @@ export class AgentRegistryService {
     for (const agent of agents) {
       if (!agent.authCredentials) continue;
 
+      // Decrypt and verify credentials - continue to next agent if this one fails
+      let credentials: { apiKeyHash?: string };
       try {
         const decrypted = this.decryptCredentials(agent.authCredentials);
-        const credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
+        credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
+      } catch {
+        // Decryption or JSON parsing failed - skip this agent
+        continue;
+      }
 
-        if (
-          credentials?.apiKeyHash &&
-          verifyApiKey(apiKey, credentials.apiKeyHash)
-        ) {
-          const registry = await this.getRegistryWithRelations(
-            agent.externalId
+      if (
+        credentials?.apiKeyHash &&
+        verifyApiKey(apiKey, credentials.apiKeyHash)
+      ) {
+        const registry = await this.getRegistryWithRelations(
+          agent.externalId
+        );
+        if (!registry) {
+          logger.warn(
+            `Valid key for external agent ${agent.externalId} but missing AgentRegistry link`,
+            undefined,
+            'AgentRegistryService'
           );
-          if (!registry) {
-            console.warn(
-              `[Auth] Valid key for external agent ${agent.externalId} but missing AgentRegistry link`
-            );
-            return null;
-          }
-          return this.mapToUnifiedRegistration(registry);
+          return null;
         }
-      } catch {}
+        return this.mapToUnifiedRegistration(registry);
+      }
     }
 
     return null;

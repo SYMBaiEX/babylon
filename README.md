@@ -64,35 +64,6 @@ Visit `http://localhost:3000` - everything runs and generates content automatica
 
 ---
 
-## 🤖 ML Training (Optional)
-
-**Enable continuous RL training for self-improving agents:**
-
-### Setup GitHub Actions Training:
-
-**1. Add GitHub Secrets:**
-```
-Settings → Secrets → Actions
-Add: DATABASE_URL (your PostgreSQL URL)
-Add: WANDB_API_KEY (from https://wandb.ai/authorize)
-```
-
-**2. Push workflow:**
-```bash
-# Workflow already included in .github/workflows/rl-training.yml
-git push
-```
-
-**3. Training runs automatically:**
-- Daily at 2 AM UTC via GitHub Actions cron
-- Trains with W&B on cloud GPUs (free GitHub Actions + pay-per-use W&B)
-- Models improve continuously
-- Agents automatically use latest trained models
-
-**See:** [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full details
-
----
-
 ### Development Modes
 
 **Default Mode** (Recommended):

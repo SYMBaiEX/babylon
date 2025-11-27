@@ -658,4 +658,3 @@ if (typeof setInterval !== 'undefined') {
   }, 60000);
 }
 
-

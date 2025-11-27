@@ -93,4 +93,3 @@ export function getReferralShareText(
   return `${message}\n\n${url}`;
 }
 
-

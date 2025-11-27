@@ -30,36 +30,24 @@
  * ```
  */
 export function toSafeString(value: unknown, defaultValue = '0'): string {
-  // Handle null/undefined
   if (value === null || value === undefined) {
     return defaultValue;
   }
 
-  // Already a string - return as-is
   if (typeof value === 'string') {
     return value;
   }
 
-  // Number - convert to string
   if (typeof value === 'number') {
     return value.toString();
   }
 
   // Object with toString method (like Decimal)
-  if (typeof value === 'object' && value !== null && 'toString' in value) {
-    try {
-      return (value as { toString: () => string }).toString();
-    } catch {
-      // If toString fails, fall through to default handling
-    }
+  if (typeof value === 'object' && 'toString' in value) {
+    return (value as { toString: () => string }).toString();
   }
 
-  // Fallback: coerce to string
-  try {
-    return String(value);
-  } catch {
-    return defaultValue;
-  }
+  return String(value);
 }
 
 /**
@@ -81,40 +69,29 @@ export function toSafeString(value: unknown, defaultValue = '0'): string {
  * ```
  */
 export function toSafeNumber(value: unknown, defaultValue = 0): number {
-  // Handle null/undefined
   if (value === null || value === undefined) {
     return defaultValue;
   }
 
-  // Already a number - return as-is
   if (typeof value === 'number') {
     return value;
   }
 
-  // String - parse as float
   if (typeof value === 'string') {
     const parsed = Number.parseFloat(value);
     return Number.isNaN(parsed) ? defaultValue : parsed;
   }
 
   // Object with toString method - convert to string then parse
-  if (typeof value === 'object' && value !== null && 'toString' in value) {
-    try {
-      const str = (value as { toString: () => string }).toString();
-      const parsed = Number.parseFloat(str);
-      return Number.isNaN(parsed) ? defaultValue : parsed;
-    } catch {
-      // If conversion fails, fall through to default handling
-    }
+  if (typeof value === 'object' && 'toString' in value) {
+    const str = (value as { toString: () => string }).toString();
+    const parsed = Number.parseFloat(str);
+    return Number.isNaN(parsed) ? defaultValue : parsed;
   }
 
-  // Fallback: try to coerce to number
-  try {
-    const num = Number(value);
-    return Number.isNaN(num) ? defaultValue : num;
-  } catch {
-    return defaultValue;
-  }
+  // Fallback: coerce to number
+  const num = Number(value);
+  return Number.isNaN(num) ? defaultValue : num;
 }
 
 /**

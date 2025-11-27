@@ -56,9 +56,6 @@ training_data/datasets/
 training_recording/
 /storage/
 
-# Weights & Biases
-wandb/
-
 # Test results
 test-results/
 playwright-report/
@@ -88,3 +85,4 @@ python/trained_models
 # Soldeer (Solidity package manager)
 packages/contracts/dependencies/
 packages/training/python/trained_models
+_docs/

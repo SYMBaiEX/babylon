@@ -44,13 +44,14 @@ from .training import (
 
 
 # Lazy imports for torch-dependent modules
+# These imports are dynamically returned via __getattr__ - not unused  # noqa: F401
 def __getattr__(name: str):
     """Lazy import for torch-dependent modules."""
     if name in (
         "BabylonAtroposTrainer",
         "AtroposTrainingConfig",
     ):
-        from .training.atropos_trainer import (
+        from .training.atropos_trainer import (  # noqa: F401
             BabylonAtroposTrainer,
             AtroposTrainingConfig,
         )
@@ -60,7 +61,7 @@ def __getattr__(name: str):
         "BabylonRLAIFEnv",
         "BabylonEnvConfig",
     ):
-        from .training.babylon_env import (
+        from .training.babylon_env import (  # noqa: F401
             BabylonRLAIFEnv,
             BabylonEnvConfig,
         )

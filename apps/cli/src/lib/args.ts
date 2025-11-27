@@ -34,13 +34,27 @@ export function parseArgs(args: string[]): ParsedArgs {
         if (value !== undefined) {
           result.options[key] = value;
         } else {
-          result.flags[key] = true;
+          // Check if next arg is a value (not starting with -)
+          const nextArg = args[i + 1];
+          if (nextArg && !nextArg.startsWith('-')) {
+            result.options[key] = nextArg;
+            i++; // Skip next arg
+          } else {
+            result.flags[key] = true;
+          }
         }
       }
     } else if (arg.startsWith('-') && arg.length === 2) {
-      // Short flags like -v, -h
+      // Short option like -a value or -v (flag)
       const key = arg.slice(1);
-      result.flags[key] = true;
+      const nextArg = args[i + 1];
+      // If next arg exists and doesn't start with -, treat as option value
+      if (nextArg && !nextArg.startsWith('-')) {
+        result.options[key] = nextArg;
+        i++; // Skip next arg
+      } else {
+        result.flags[key] = true;
+      }
     } else if (!result.command) {
       result.command = arg;
     } else {

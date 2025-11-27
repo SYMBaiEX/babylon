@@ -27,6 +27,12 @@
  *   babylon agent spawn --count 5
  */
 
+// Load environment variables from project root before any other imports
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(process.cwd(), '.env') });
+config({ path: resolve(process.cwd(), '.env.local') });
+
 import { runDbCommand } from './commands/db.js';
 import { runAdminCommand } from './commands/admin.js';
 import { runStatusCommand } from './commands/status.js';
@@ -127,6 +133,8 @@ async function main(): Promise<void> {
         console.log("\nRun 'babylon --help' for usage information.");
         process.exit(1);
     }
+    // Ensure clean exit after successful command
+    process.exit(0);
   } catch (error) {
     if (error instanceof Error) {
       console.error(`\n❌ Error: ${error.message}`);

@@ -53,16 +53,8 @@ export async function openFarcasterOnboardingPopup(
     });
 
     if (!response.ok) {
-      let error;
-      try {
-        error = await response.json();
-      } catch {
-        throw new Error('Failed to verify Farcaster authentication');
-      }
-      throw new Error(
-        (error as { error?: string }).error ||
-          'Failed to verify Farcaster authentication'
-      );
+      const errorData = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(errorData.error || 'Failed to verify Farcaster authentication');
     }
 
     return {

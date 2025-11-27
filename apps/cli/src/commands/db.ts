@@ -258,7 +258,7 @@ export async function runDbCommand(args: string[]): Promise<void> {
 
   if (wantsHelp(parsed)) {
     printHelp();
-    return;
+    process.exit(0);
   }
 
   switch (parsed.command) {
