@@ -55,7 +55,6 @@ loadEnvFile('.env.local');
 
 // Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
-  (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
   (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
   (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
@@ -77,7 +76,7 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
   beforeAll(async () => {
     if (!hasLLMKey) {
       console.log(
-        '⏭️  Skipping all tests - No LLM API key available (WANDB_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required)'
+        '⏭️  Skipping all tests - No LLM API key available (GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required)'
       );
       skipped = true;
       skipReason = 'No LLM API key';

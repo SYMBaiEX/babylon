@@ -359,7 +359,6 @@ mock.module('@babylon/engine', async () => {
       forGroq: createMockClient,
       forClaude: createMockClient,
       forOpenAI: createMockClient,
-      forWandb: createMockClient,
     },
   };
 });

@@ -97,8 +97,8 @@ export class NPCGroupDynamicsService {
       'NPCGroupDynamicsService'
     );
 
-    // Initialize LLM client for message generation (excludes Wandb)
-    // Wandb models should ONLY be used for agent operations, not game tick operations
+    // Initialize LLM client for message generation
+    // Priority: Groq > Claude > OpenAI
     let llm: BabylonLLMClient | null = null;
     try {
       llm = BabylonLLMClient.forGameTick();

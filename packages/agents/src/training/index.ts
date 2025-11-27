@@ -1,7 +1,7 @@
 /**
  * Training Module Exports
  *
- * RL model configuration, fetching, and scoring utilities.
+ * RL model configuration utilities.
  */
 
 export {
@@ -11,12 +11,6 @@ export {
   type RLModelConfig,
 } from './RLModelConfig';
 
-export {
-  downloadModelWeights,
-  getLatestRLModel,
-  getModelForInference,
-  getRLModelByVersion,
-  shouldUseRLModel,
-  type ModelArtifact,
-} from './WandbModelFetcher';
-
+// WandbModelFetcher exports moved to @babylon/training package
+// Import from there if needed:
+// import { getLatestRLModel, ... } from '@babylon/training';

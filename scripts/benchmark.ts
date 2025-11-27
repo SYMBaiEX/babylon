@@ -136,7 +136,7 @@ For detailed docs, see:
   switch (command) {
     case 'setup':
       console.log('Creating test agents...\n');
-      await runCommand('scripts/ensure-test-agents.ts');
+      await runCommand('apps/cli/src/index.ts', ['agent', 'spawn']);
       console.log('\n✅ Setup complete! Test agents ready.\n');
       break;
 
@@ -206,7 +206,7 @@ For detailed docs, see:
       console.log('Running system verification...\n');
 
       // Check test agents exist
-      await runCommand('scripts/ensure-test-agents.ts');
+      await runCommand('apps/cli/src/index.ts', ['agent', 'spawn']);
 
       // Check benchmark files exist
       const benchmarkDir = path.join(process.cwd(), 'benchmarks');

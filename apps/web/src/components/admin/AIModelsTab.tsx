@@ -1,13 +1,10 @@
 'use client';
 
-// @ts-nocheck
-
 import {
   AlertCircle,
   Bot,
   Check,
   RefreshCw,
-  Sparkles,
   Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -15,9 +12,9 @@ import { toast } from 'sonner';
 import { cn } from '@babylon/shared';
 
 /**
- * Wandb model structure for AI models tab.
+ * AI model info structure.
  */
-interface WandbModel {
+interface ModelInfo {
   id: string;
   name: string;
   description?: string;
@@ -27,32 +24,23 @@ interface WandbModel {
  * AI models data structure from API.
  */
 interface AIModelsData {
-  currentSettings: {
-    wandbModel: string | null;
-    wandbEnabled: boolean;
-  };
   providers: {
-    wandb: boolean;
     groq: boolean;
     claude: boolean;
     openai: boolean;
   };
-  activeProvider: 'wandb' | 'groq' | 'claude' | 'openai';
-  wandbModels: WandbModel[];
-  recommendedModels: WandbModel[];
+  activeProvider: 'groq' | 'claude' | 'openai';
+  recommendedModels: ModelInfo[];
 }
 
 /**
  * AI models tab component for managing AI model settings.
  *
- * Provides interface for configuring AI model providers and Wandb models.
- * Allows enabling/disabling Wandb and selecting specific models. Includes
- * model testing functionality and provider status display.
+ * Provides interface for viewing AI provider status.
+ * Includes model testing functionality and provider status display.
  *
  * Features:
  * - Provider status display
- * - Wandb enable/disable toggle
- * - Model selection
  * - Model testing
  * - Recommended models display
  * - Loading states
@@ -63,13 +51,10 @@ interface AIModelsData {
 export function AIModelsTab() {
   const [data, setData] = useState<AIModelsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(
     null
   );
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [wandbEnabled, setWandbEnabled] = useState(false);
 
   const fetchData = useCallback(async () => {
     const token =
@@ -94,56 +79,12 @@ export function AIModelsTab() {
 
     const result = await response.json();
     setData(result.data);
-    setSelectedModel(result.data.currentSettings.wandbModel);
-    setWandbEnabled(result.data.currentSettings.wandbEnabled);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const handleSave = async () => {
-    if (wandbEnabled && !selectedModel) {
-      toast.error('Please select a model to enable Wandb');
-      return;
-    }
-
-    setSaving(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
-    if (!token) {
-      toast.error('Not authenticated');
-      setSaving(false);
-      return;
-    }
-
-    const response = await fetch('/api/admin/ai-models', {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        wandbModel: selectedModel,
-        wandbEnabled,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      toast.error(
-        (error as { error?: string }).error || 'Failed to save configuration'
-      );
-      setSaving(false);
-      return;
-    }
-
-    toast.success('AI model configuration updated successfully');
-    setTestResult(null); // Clear previous test result
-    await fetchData(); // Refresh data
-    setSaving(false);
-  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -177,8 +118,6 @@ export function AIModelsTab() {
 
   const getProviderIcon = (provider: string) => {
     switch (provider) {
-      case 'wandb':
-        return <Sparkles className="h-4 w-4" />;
       case 'groq':
         return <Zap className="h-4 w-4" />;
       case 'claude':
@@ -192,8 +131,6 @@ export function AIModelsTab() {
 
   const getProviderName = (provider: string) => {
     switch (provider) {
-      case 'wandb':
-        return 'Weights & Biases';
       case 'groq':
         return 'Groq';
       case 'claude':
@@ -228,7 +165,7 @@ export function AIModelsTab() {
         <div>
           <h2 className="font-bold text-2xl">AI Model Configuration</h2>
           <p className="mt-1 text-muted-foreground">
-            Configure which AI model serverless agents use for decision making
+            View AI provider status for agent decision making
           </p>
         </div>
         <button
@@ -253,22 +190,13 @@ export function AIModelsTab() {
               {getProviderName(data.activeProvider)}
             </span>
           </div>
-          {data.activeProvider === 'wandb' &&
-            data.currentSettings.wandbModel && (
-              <div className="text-muted-foreground text-sm">
-                Model:{' '}
-                <span className="font-mono text-foreground">
-                  {data.currentSettings.wandbModel}
-                </span>
-              </div>
-            )}
         </div>
       </div>
 
       {/* Available Providers */}
       <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
         <h3 className="mb-4 font-semibold text-lg">Available Providers</h3>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {Object.entries(data.providers).map(([provider, available]) => (
             <div
               key={provider}
@@ -304,141 +232,51 @@ export function AIModelsTab() {
         </div>
       </div>
 
-      {/* Wandb Configuration */}
-      {data.providers.wandb && (
-        <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-semibold text-lg">
-              <Sparkles className="h-5 w-5" />
-              Weights & Biases Configuration
-            </h3>
-            <label className="flex cursor-pointer items-center gap-2">
-              <span className="text-muted-foreground text-sm">
-                Enable Wandb
-              </span>
-              <input
-                type="checkbox"
-                checked={wandbEnabled}
-                onChange={(e) => setWandbEnabled(e.target.checked)}
-                className="h-4 w-4 rounded border-border"
-              />
-            </label>
-          </div>
-
-          {wandbEnabled && (
-            <>
-              {/* Recommended Models */}
-              <div className="mb-6">
-                <h4 className="mb-3 font-medium text-muted-foreground text-sm">
-                  Recommended Models
-                </h4>
-                <div className="grid grid-cols-1 gap-2">
-                  {data.recommendedModels.map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => setSelectedModel(model.id)}
-                      className={cn(
-                        'rounded-lg border p-4 text-left transition-all',
-                        selectedModel === model.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="mb-1 font-medium">{model.name}</div>
-                          <div className="text-muted-foreground text-sm">
-                            {model.description}
-                          </div>
-                          <div className="mt-2 font-mono text-muted-foreground text-xs">
-                            {model.id}
-                          </div>
-                        </div>
-                        {selectedModel === model.id && (
-                          <Check className="h-5 w-5 flex-shrink-0 text-primary" />
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+      {/* Recommended Models */}
+      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+        <h3 className="mb-4 font-semibold text-lg">Recommended Models</h3>
+        <div className="grid grid-cols-1 gap-2">
+          {data.recommendedModels.map((model) => (
+            <div
+              key={model.id}
+              className="rounded-lg border border-border p-4"
+            >
+              <div className="mb-1 font-medium">{model.name}</div>
+              <div className="text-muted-foreground text-sm">
+                {model.description}
               </div>
-
-              {/* All Available Models */}
-              {data.wandbModels.length > 0 && (
-                <div>
-                  <h4 className="mb-3 font-medium text-muted-foreground text-sm">
-                    All Available Models ({data.wandbModels.length})
-                  </h4>
-                  <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
-                    {data.wandbModels.map((model) => (
-                      <button
-                        key={model.id}
-                        onClick={() => setSelectedModel(model.id)}
-                        className={cn(
-                          'w-full border-border border-b p-3 text-left transition-colors last:border-b-0',
-                          selectedModel === model.id
-                            ? 'bg-primary/10'
-                            : 'hover:bg-accent'
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 truncate font-mono text-sm">
-                            {model.id}
-                          </div>
-                          {selectedModel === model.id && (
-                            <Check className="h-4 w-4 flex-shrink-0 text-primary" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Info Box */}
-          <div className="mt-6 rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
-            <div className="flex gap-3">
-              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
-              <div className="text-blue-200 text-sm">
-                <p className="mb-1 font-medium">About Wandb Models</p>
-                <p className="text-blue-200/80">
-                  Weights & Biases provides access to open-source models with
-                  fast inference. When enabled, all serverless agents will use
-                  the selected model for decision making. Changes take effect
-                  immediately for new agent actions.
-                </p>
+              <div className="mt-2 font-mono text-muted-foreground text-xs">
+                {model.id}
               </div>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Setup Instructions for Missing Providers */}
-      {!data.providers.wandb && (
+      {!data.providers.groq && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-6">
           <div className="flex gap-3">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
             <div className="text-sm">
               <p className="mb-2 font-medium text-yellow-200">
-                Weights & Biases Not Configured
+                Groq Not Configured
               </p>
               <p className="mb-3 text-yellow-200/80">
-                To use Wandb models, add your API key to the environment:
+                To use Groq models (recommended), add your API key to the environment:
               </p>
               <code className="block rounded bg-black/30 p-3 font-mono text-xs text-yellow-100">
-                WANDB_API_KEY=your_api_key_here
+                GROQ_API_KEY=your_api_key_here
               </code>
               <p className="mt-3 text-yellow-200/80">
                 Get your API key from:{' '}
                 <a
-                  href="https://wandb.ai/authorize"
+                  href="https://console.groq.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-yellow-400 hover:underline"
                 >
-                  https://wandb.ai/authorize
+                  https://console.groq.com
                 </a>
               </p>
             </div>
@@ -479,17 +317,6 @@ export function AIModelsTab() {
                   {String(testResult.latency || 0)}ms
                 </span>
               </div>
-              {testResult.wandbModelConfigured !== undefined &&
-                testResult.wandbModelConfigured !== null && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">
-                      Configured Wandb Model:
-                    </span>
-                    <span className="font-medium font-mono">
-                      {String(testResult.wandbModelConfigured)}
-                    </span>
-                  </div>
-                )}
               <div className="mt-3 rounded bg-black/20 p-3">
                 <div className="mb-1 text-muted-foreground">Response:</div>
                 <div className="font-mono text-sm">
@@ -519,13 +346,13 @@ export function AIModelsTab() {
       )}
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between gap-4 border-border border-t pt-4">
+      <div className="flex items-center justify-end gap-4 border-border border-t pt-4">
         <button
           onClick={handleTest}
           disabled={testing}
           className={cn(
             'rounded-lg px-6 py-2 font-medium transition-all',
-            'bg-blue-600 text-white hover:bg-blue-700',
+            'bg-primary text-primary-foreground hover:bg-primary/90',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
         >
@@ -539,24 +366,6 @@ export function AIModelsTab() {
               <Zap className="h-4 w-4" />
               Test Current Configuration
             </span>
-          )}
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving || (wandbEnabled && !selectedModel)}
-          className={cn(
-            'rounded-lg px-6 py-2 font-medium transition-all',
-            'bg-primary text-primary-foreground hover:bg-primary/90',
-            'disabled:cursor-not-allowed disabled:opacity-50'
-          )}
-        >
-          {saving ? (
-            <span className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Saving...
-            </span>
-          ) : (
-            'Save Configuration'
           )}
         </button>
       </div>

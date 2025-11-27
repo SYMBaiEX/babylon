@@ -113,7 +113,7 @@ export class InitialInvestmentService {
       'InitialInvestment'
     );
 
-    const llm = new BabylonLLMClient(undefined, undefined, 'groq');
+    const llm = BabylonLLMClient.forGroq();
 
     // Process NPCs in batches to optimize LLM calls
     const batchSize = 10;

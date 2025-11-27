@@ -1,7 +1,7 @@
 /**
  * Model Usage Verifier
  *
- * Verifies that agents are using trained W&B models instead of base models.
+ * Verifies that agents are using the correct models.
  * Provides assertions and logging for model usage verification.
  */
 
@@ -14,87 +14,69 @@ import {
   llmCallLogs,
   trajectories,
   users,
+  and,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '../utils/logger';
-import { getLatestRLModel } from './WandbModelFetcher';
 
 export interface ModelUsageStats {
   agentId: string;
   modelUsed: string;
-  modelSource: 'wandb' | 'groq' | 'unknown';
-  modelVersion?: string;
-  isTrainedModel: boolean;
+  modelSource: 'groq' | 'claude' | 'openai' | 'unknown';
   inferenceCount: number;
 }
 
 export interface VerificationResult {
   success: boolean;
   agentsChecked: number;
-  agentsUsingTrainedModel: number;
-  agentsUsingBaseModel: number;
   details: ModelUsageStats[];
   errors: string[];
 }
 
 export class ModelUsageVerifier {
   /**
-   * Verify that an agent runtime is using trained model
+   * Verify an agent's model usage
    *
    * Checks the agent's runtime configuration to determine which model
-   * is being used and whether it's a trained W&B model or base model.
+   * is being used.
    *
    * @param agentUserId - Unique identifier for the agent
    * @param runtime - Agent runtime to verify
    * @returns ModelUsageStats with model information and inference count
-   *
-   * @remarks
-   * - Checks WANDB_ENABLED and WANDB_MODEL settings
-   * - Falls back to Groq model if W&B not enabled
-   * - Counts inferences from last 24 hours
    */
   static async verifyAgentModelUsage(
     agentUserId: string,
     runtime: IAgentRuntime
   ): Promise<ModelUsageStats> {
-    const wandbEnabled = runtime.character?.settings?.WANDB_ENABLED === 'true';
-    const wandbModel = String(runtime.character?.settings?.WANDB_MODEL || '');
+    const settings = runtime.character?.settings;
+    
+    // Check for different model providers
     const groqModel = String(
-      runtime.character?.settings?.LARGE_GROQ_MODEL ||
-        runtime.character?.settings?.SMALL_GROQ_MODEL ||
+      settings?.LARGE_GROQ_MODEL ||
+        settings?.SMALL_GROQ_MODEL ||
         ''
     );
+    const claudeModel = String(settings?.CLAUDE_MODEL || '');
+    const openaiModel = String(settings?.OPENAI_MODEL || '');
 
     let modelUsed: string;
-    let modelSource: 'wandb' | 'groq' | 'unknown';
-    let modelVersion: string | undefined;
-    let isTrainedModel = false;
+    let modelSource: 'groq' | 'claude' | 'openai' | 'unknown';
 
-    if (wandbEnabled && wandbModel) {
-      modelUsed = wandbModel;
-      modelSource = 'wandb';
-
-      // Check if this is a trained model (not base)
-      const latestModel = await getLatestRLModel();
-      if (latestModel && latestModel.modelPath === wandbModel) {
-        isTrainedModel = true;
-        modelVersion = latestModel.version;
-      } else {
-        // Using W&B but not the trained model (could be base W&B model)
-        isTrainedModel = false;
-      }
+    if (claudeModel) {
+      modelUsed = claudeModel;
+      modelSource = 'claude';
+    } else if (openaiModel) {
+      modelUsed = openaiModel;
+      modelSource = 'openai';
     } else if (groqModel) {
       modelUsed = groqModel;
       modelSource = 'groq';
-      isTrainedModel = false; // Groq models are base models
     } else {
       modelUsed = 'unknown';
       modelSource = 'unknown';
-      isTrainedModel = false;
     }
 
-    // Count inferences from logs (using trajectoryId or other fields)
-    // Note: LLMCallLog may not have agentId field directly
+    // Count inferences from logs (using trajectoryId)
     const agentTrajectories = await db
       .select({ trajectoryId: trajectories.trajectoryId })
       .from(trajectories)
@@ -122,8 +104,6 @@ export class ModelUsageVerifier {
       agentId: agentUserId,
       modelUsed,
       modelSource,
-      modelVersion,
-      isTrainedModel,
       inferenceCount,
     };
   }
@@ -149,45 +129,36 @@ export class ModelUsageVerifier {
       details.push(stats);
     }
 
-    const agentsUsingTrainedModel = details.filter(
-      (d) => d.isTrainedModel
-    ).length;
-    const agentsUsingBaseModel = details.filter(
-      (d) => !d.isTrainedModel
-    ).length;
-
     return {
-      success: agentsUsingTrainedModel > 0,
+      success: details.length > 0,
       agentsChecked: details.length,
-      agentsUsingTrainedModel,
-      agentsUsingBaseModel,
       details,
       errors,
     };
   }
 
   /**
-   * Assert that agents are using trained model
+   * Assert that an agent is using a model
    */
-  static async assertTrainedModelUsage(
+  static async assertModelUsage(
     agentUserId: string,
     runtime: IAgentRuntime
   ): Promise<void> {
     const stats = await this.verifyAgentModelUsage(agentUserId, runtime);
 
-    if (!stats.isTrainedModel) {
+    if (stats.modelSource === 'unknown') {
       throw new Error(
-        `Agent ${agentUserId} is not using trained model. ` +
-          `Using: ${stats.modelUsed} (source: ${stats.modelSource})`
+        `Agent ${agentUserId} has no configured model. ` +
+          `Using: ${stats.modelUsed}`
       );
     }
 
     logger.info(
-      'Model usage assertion passed',
+      'Model usage verified',
       {
         agentId: agentUserId,
         model: stats.modelUsed,
-        version: stats.modelVersion,
+        source: stats.modelSource,
       },
       'ModelUsageVerifier'
     );
@@ -198,28 +169,14 @@ export class ModelUsageVerifier {
    */
   static async getModelUsageSummary(): Promise<{
     totalAgents: number;
-    usingTrainedModel: number;
-    usingBaseModel: number;
-    latestModelVersion?: string;
   }> {
     const agents = await db
       .select({ id: users.id })
       .from(users)
       .where(eq(users.isAgent, true));
 
-    const latestModel = await getLatestRLModel();
-
-    // Count agents using trained model (simplified check)
-    // In production, you'd check each agent's runtime settings
-    // For now, return summary
     return {
       totalAgents: agents.length,
-      usingTrainedModel: 0, // Would need to check each agent's runtime
-      usingBaseModel: agents.length,
-      latestModelVersion: latestModel?.version,
     };
   }
 }
-
-// Need to import and for the query
-import { and } from 'drizzle-orm';

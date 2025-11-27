@@ -10,14 +10,8 @@ import {
   type JsonValue,
   JsonValueSchema,
 } from '../shared/types';
-import type {
-  AgentCapabilities,
-  GameNetworkInfo,
-} from '@babylon/shared';
-import {
-  AgentCapabilitiesSchema,
-  GameNetworkInfoSchema,
-} from '@babylon/shared';
+import type { AgentCapabilities, GameNetworkInfo } from '@babylon/shared';
+import { AgentCapabilitiesSchema, GameNetworkInfoSchema } from '@babylon/shared';
 
 // Re-export common types
 export type { JsonRpcParams, JsonRpcResult, JsonValue };

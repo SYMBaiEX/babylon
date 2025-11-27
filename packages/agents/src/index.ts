@@ -55,6 +55,9 @@ export * from './types/agent-template';
 // Templates loader
 export * from './templates-loader';
 
+// Training utilities (RL model fetching, config)
+export * from './training';
+
 // Utils
 export * from './utils/createTestAgent';
 export * from './utils/prompt-builder';

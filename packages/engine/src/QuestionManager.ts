@@ -1156,9 +1156,6 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         {
           temperature: 0.9,
           maxTokens: 8000,
-          ...(this.llm.getProvider() === 'wandb'
-            ? { model: 'moonshotai/kimi-k2-instruct-0905' }
-            : {}),
           format: 'xml',
           promptType: 'question_generate_real_world',
         }

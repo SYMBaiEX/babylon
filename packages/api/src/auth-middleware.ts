@@ -13,27 +13,14 @@ import { db, eq, users } from '@babylon/db';
 import { verifyAgentSession } from './agent-auth';
 import { logger, extractErrorMessage } from '@babylon/shared';
 import type { AuthenticatedUser } from '@babylon/shared';
-import type { JsonValue } from './types';
+import { AuthenticationError, isAuthenticationError } from './errors';
 
 // Re-export types from shared for backwards compatibility
 export type { AuthenticatedUser } from '@babylon/shared';
 export { extractErrorMessage } from '@babylon/shared';
 
-// Define error types locally
-export type AuthenticationError = Error & {
-  code: 'AUTH_FAILED';
-};
-
-export function isAuthenticationError(
-  error: unknown
-): error is AuthenticationError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === 'AUTH_FAILED'
-  );
-}
+// Re-export from errors for backwards compatibility
+export { AuthenticationError, isAuthenticationError };
 
 // Lazy initialization of Privy client to prevent build-time errors
 let privyClient: PrivyClient | null = null;
@@ -87,11 +74,7 @@ export async function authenticate(
   }
 
   if (!token) {
-    const error = new Error(
-      'Missing or invalid authorization header or cookie'
-    ) as AuthenticationError;
-    error.code = 'AUTH_FAILED';
-    throw error;
+    throw new AuthenticationError('Missing or invalid authorization header or cookie');
   }
 
   // Try agent session authentication first (faster)
@@ -153,19 +136,11 @@ export async function authenticate(
           : { message: String(error) }
     );
     if (errorMessage.includes('expired') || errorMessage.includes('exp')) {
-      const authError = new Error(
-        'Authentication token has expired. Please refresh your session.'
-      ) as AuthenticationError;
-      authError.code = 'AUTH_FAILED';
-      throw authError;
+      throw new AuthenticationError('Authentication token has expired. Please refresh your session.');
     }
 
-    // Privy token verification failed - convert to AuthenticationError
-    const authError = new Error(
-      'Invalid or expired authentication token'
-    ) as AuthenticationError;
-    authError.code = 'AUTH_FAILED';
-    throw authError;
+    // Privy token verification failed
+    throw new AuthenticationError('Invalid or expired authentication token');
   }
 }
 
@@ -178,11 +153,7 @@ export async function authenticateWithDbUser(
   const authUser = await authenticate(request);
 
   if (!authUser.dbUserId) {
-    const error = new Error(
-      'User profile not found. Please complete onboarding first.'
-    ) as AuthenticationError;
-    error.code = 'AUTH_FAILED';
-    throw error;
+    throw new AuthenticationError('User profile not found. Please complete onboarding first.');
   }
 
   return authUser as AuthenticatedUser & { dbUserId: string };
@@ -289,18 +260,10 @@ export async function optionalAuthFromHeaders(
 }
 
 /**
- * Standard error responses
+ * Standard auth error response helper
  */
 export function authErrorResponse(message = 'Unauthorized') {
   return NextResponse.json({ error: message }, { status: 401 });
-}
-
-export function errorResponse(message: string, status = 500) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-export function successResponse<T = JsonValue>(data: T, status = 200) {
-  return NextResponse.json(data, { status });
 }
 
 /**

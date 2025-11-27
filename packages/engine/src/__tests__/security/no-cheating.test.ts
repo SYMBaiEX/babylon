@@ -94,7 +94,6 @@ loadEnvFile('.env.test');
 loadEnvFile('.env.local');
 
 const hasLLMKey = !!(
-  (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
   (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
   (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''

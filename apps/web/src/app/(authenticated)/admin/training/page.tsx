@@ -91,7 +91,6 @@ interface TrainingStatus {
     health: {
       database: boolean;
       storage: boolean;
-      wandb: boolean;
     };
   };
   readiness: {
@@ -227,18 +226,6 @@ export default function TrainingDashboard() {
                 Train Now
               </>
             )}
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() =>
-              window.open(
-                `https://wandb.ai/${automation.training.currentJob || 'latest'}`,
-                '_blank'
-              )
-            }
-          >
-            View W&B
           </Button>
         </div>
       </div>
@@ -437,14 +424,6 @@ export default function TrainingDashboard() {
                 variant={automation.health.storage ? 'default' : 'destructive'}
               >
                 {automation.health.storage ? '✅ Healthy' : '❌ Error'}
-              </Badge>
-            </div>
-            <div className="flex justify-between">
-              <span>W&B:</span>
-              <Badge
-                variant={automation.health.wandb ? 'default' : 'secondary'}
-              >
-                {automation.health.wandb ? '✅ Connected' : '⚠️ Not configured'}
               </Badge>
             </div>
           </div>

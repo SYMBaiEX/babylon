@@ -64,7 +64,7 @@ export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
 
 // Types
 export * from './types';
-export { getLatestRLModel } from './WandbModelFetcher';
+
 // Window utilities
 export {
   generateWindowIds,

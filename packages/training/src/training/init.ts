@@ -5,7 +5,6 @@
  */
 
 import { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
-import { getLatestRLModel } from './WandbModelFetcher';
 
 export async function initializeTrainingSystem(): Promise<void> {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -19,20 +18,10 @@ export async function initializeTrainingSystem(): Promise<void> {
   const available = isRLModelAvailable();
 
   if (available) {
-    const model = await getLatestRLModel();
-    if (model) {
-      console.log('\n✅ Latest RL Model:', {
-        version: model.version,
-        avgReward: model.metadata.avgReward,
-        benchmarkScore: model.metadata.benchmarkScore,
-        trainedAt: model.metadata.trainedAt.toISOString(),
-      });
-    } else {
-      console.log('\n⚠️  No trained models found in database');
-      console.log(
-        '   Run training to create models: POST /api/admin/training/trigger'
-      );
-    }
+    // Note: getLatestRLModel is available from @babylon/agents if needed
+    // Keeping init lightweight - model info available via agents package
+    console.log('\n✅ RL Model system available');
+    console.log('   Use @babylon/agents getLatestRLModel() to fetch model details');
   } else {
     console.log('\nℹ️  RL models not available - using base model');
   }

@@ -8,6 +8,7 @@
 
 import { and, db, eq, ne, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { NotFoundError, ConflictError, BadRequestError } from '../errors';
 
 /**
  * Get or create a referral code for a user
@@ -41,12 +42,12 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
   const user = result[0];
 
   if (!user) {
-    throw new Error(`User not found: ${userId}`);
+    throw new NotFoundError(`User not found: ${userId}`);
   }
 
   // Username is required during signup, so it should always exist
   if (!user.username) {
-    throw new Error(
+    throw new BadRequestError(
       `User ${userId} does not have a username. Username is required for referral codes.`
     );
   }
@@ -59,7 +60,7 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
     .limit(1);
 
   if (existingUserWithCode.length > 0) {
-    throw new Error(
+    throw new ConflictError(
       `Username "${user.username}" is already used as a referral code by another user`
     );
   }

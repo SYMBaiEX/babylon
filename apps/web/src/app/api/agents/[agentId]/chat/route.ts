@@ -285,7 +285,6 @@ export const POST = withErrorHandling(
       .join('\n');
 
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
-    // If WANDB_API_KEY is available, runtime will check for latest trained model
     const modelType = ModelType.TEXT_LARGE;
 
     const prompt = `${agent!.agentSystem}

@@ -54,19 +54,20 @@ DOMAINS:
   db        Database management (start, stop, status, migrate, reset)
   admin     Admin user management (check, grant, revoke, list)
   status    System status (game, wallet, agent0, all)
-  train     Training operations (archetype, collect, score)
-  model     Model management (upload, benchmark, list)
-  game      Game operations (generate, simulate, world)
-  agent     Agent management (spawn, list)
+  train     Training operations (list, pipeline, archetype, collect)
+  model     Model management (list, upload)
+  game      Game control (start, pause, status, generate, simulate)
+  agent     Agent management (spawn, list, enable, disable)
 
 EXAMPLES:
   babylon db start                 Start PostgreSQL container
   babylon db migrate               Run database migrations
   babylon admin grant alice        Grant admin to user 'alice'
   babylon status                   Show all system status
-  babylon train archetype -a scam  Train scammer archetype
-  babylon model upload --model v1  Upload model to HuggingFace
-  babylon game generate            Generate new game content
+  babylon game start               Start the continuous game
+  babylon game status              Check game runtime status
+  babylon train list               List available archetypes
+  babylon train pipeline -a trader Train trader archetype
   babylon agent spawn --count 5    Spawn 5 test agents
 
 OPTIONS:

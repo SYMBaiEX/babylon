@@ -27,19 +27,13 @@ on:
         required: false
         type: boolean
         default: false
-      use_local_backend:
-        description: 'Use LocalBackend instead of W&B Serverless (for testing with smaller models)'
-        required: false
-        type: boolean
-        default: false
       base_model:
-        description: 'Base model to use (e.g., Qwen/Qwen2.5-7B-Instruct for local, OpenPipe/Qwen3-14B-Instruct for serverless)'
+        description: 'Base model to use (e.g., Qwen/Qwen2.5-7B-Instruct)'
         required: false
         type: string
 
 env:
   PYTHON_VERSION: '3.11'
-  WANDB_PROJECT: 'babylon'
 
 # Prevent concurrent training runs
 concurrency:
@@ -73,7 +67,7 @@ jobs:
       - name: Verify installation
         run: |
           python --version
-          pip list | grep -E "(art|wandb|asyncpg)"
+          pip list | grep -E "(art|asyncpg)"
       
       - name: Check training readiness
         id: readiness
@@ -141,7 +135,6 @@ jobs:
           BATCH_ID_INPUT: ${{ inputs.batch_id || '' }}
           WINDOW_ID_INPUT: ${{ inputs.window_id || '' }}
           FORCE_INPUT: ${{ inputs.force || 'false' }}
-          USE_LOCAL_INPUT: ${{ inputs.use_local_backend || 'false' }}
           BASE_MODEL_INPUT: ${{ inputs.base_model || '' }}
           # From repository_dispatch payload:
           BATCH_ID_PAYLOAD: ${{ github.event.client_payload.batch_id || '' }}
@@ -175,22 +168,11 @@ jobs:
             echo "force=false" >> $GITHUB_OUTPUT
           fi
           
-          # Determine backend
-          if [ "$USE_LOCAL_INPUT" = "true" ]; then
-            echo "use_local=true" >> $GITHUB_OUTPUT
-            echo "Backend: LocalBackend (local GPU simulation - will fail without GPU)"
-          else
-            echo "use_local=false" >> $GITHUB_OUTPUT
-            echo "Backend: ServerlessBackend (W&B cloud)"
-          fi
-          
           # Determine base model
           if [ -n "$BASE_MODEL_INPUT" ]; then
             echo "base_model=$BASE_MODEL_INPUT" >> $GITHUB_OUTPUT
-          elif [ "$USE_LOCAL_INPUT" = "true" ]; then
-            echo "base_model=Qwen/Qwen2.5-7B-Instruct" >> $GITHUB_OUTPUT
           else
-            echo "base_model=OpenPipe/Qwen3-14B-Instruct" >> $GITHUB_OUTPUT
+            echo "base_model=Qwen/Qwen2.5-7B-Instruct" >> $GITHUB_OUTPUT
           fi
           
           # Generate model version
@@ -278,7 +260,6 @@ jobs:
         if: steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          USE_LOCAL: ${{ steps.batch.outputs.use_local }}
           BASE_MODEL_OVERRIDE: ${{ steps.batch.outputs.base_model }}
         run: |
           python -c "
@@ -290,7 +271,6 @@ jobs:
           async def select_model():
               try:
                   pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
-                  use_local = os.getenv('USE_LOCAL', 'false') == 'true'
                   base_model_override = os.getenv('BASE_MODEL_OVERRIDE', '')
                   
                   # Count training bundles
@@ -305,20 +285,14 @@ jobs:
                   ''')
                   
                   print(f'📊 Bundle count: {bundle_count}')
-                  print(f'🔧 Use local backend: {use_local}')
                   
-                  # Use override if provided
+                  # Use override if provided, otherwise use default
                   if base_model_override:
                       base_model = base_model_override
                       strategy = 'override'
-                  elif use_local:
-                      # LocalBackend: use smaller model
-                      base_model = 'Qwen/Qwen2.5-7B-Instruct'
-                      strategy = 'local'
                   else:
-                      # ServerlessBackend: only OpenPipe/Qwen3-14B-Instruct is supported
-                      base_model = 'OpenPipe/Qwen3-14B-Instruct'
-                      strategy = 'serverless'
+                      base_model = 'Qwen/Qwen2.5-7B-Instruct'
+                      strategy = 'default'
                   
                   print(f'📦 Selected model: {base_model}')
                   print(f'📋 Strategy: {strategy}')
@@ -333,7 +307,7 @@ jobs:
               except Exception as e:
                   print(f'❌ Model selection failed: {e}', file=sys.stderr)
                   with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
-                      f.write('base_model=OpenPipe/Qwen3-14B-Instruct\\n')
+                      f.write('base_model=Qwen/Qwen2.5-7B-Instruct\\n')
                       f.write('strategy=fallback\\n')
                   sys.exit(1)
           
@@ -345,14 +319,10 @@ jobs:
         if: steps.readiness.outputs.ready == 'true' || steps.batch.outputs.force == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_PROJECT: ${{ env.WANDB_PROJECT }}
-          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY || 'eliza-labs' }}
           BATCH_ID: ${{ steps.batch.outputs.batch_id }}
           WINDOW_ID: ${{ steps.batch.outputs.window_id }}
           MODEL_VERSION: ${{ steps.batch.outputs.model_version }}
           BASE_MODEL: ${{ steps.model_selection.outputs.base_model }}
-          USE_LOCAL_BACKEND: ${{ steps.batch.outputs.use_local }}
           MODE: single
           MAX_EXAMPLES: "2000"
           MAX_STEPS_PER_TRAJECTORY: "20"
@@ -365,7 +335,6 @@ jobs:
           echo "Model Version: $MODEL_VERSION"
           echo "Strategy: ${{ steps.model_selection.outputs.strategy }}"
           echo "Base Model: $BASE_MODEL"
-          echo "Use Local Backend: $USE_LOCAL_BACKEND"
           echo "Trajectories available: ${{ steps.readiness.outputs.count }}"
           echo "Bundle count: ${{ steps.model_selection.outputs.bundle_count }}"
           
@@ -444,5 +413,4 @@ jobs:
           echo "Window ID: ${{ steps.batch.outputs.window_id }}"
           echo "Ready: ${{ steps.readiness.outputs.ready }}"
           echo "Trajectories: ${{ steps.readiness.outputs.count }}"
-          echo "Backend: ${{ steps.batch.outputs.use_local == 'true' && 'LocalBackend' || 'ServerlessBackend' }}"
           echo "Model: ${{ steps.model_selection.outputs.base_model }}"

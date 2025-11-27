@@ -81,7 +81,6 @@ describe('Autonomous Coordinator', () => {
       ),
       getSetting: mock((key: string): string | undefined => {
         // Return mock settings
-        if (key === 'WANDB_ENABLED') return 'false';
         if (key === 'GROQ_API_KEY') return 'test-key';
         if (key === 'OPENROUTER_API_KEY') return undefined;
         return undefined;

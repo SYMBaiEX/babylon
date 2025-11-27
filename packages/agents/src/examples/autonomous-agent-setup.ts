@@ -71,7 +71,6 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
 
     settings: {
       // Always use TEXT_LARGE (qwen 32b) - free chat, 1pt per tick
-      // WANDB models are checked at runtime if available
       model: ModelType.TEXT_LARGE,
       temperature: 0.7,
       maxTokens: 1000,

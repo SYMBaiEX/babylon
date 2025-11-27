@@ -4,12 +4,14 @@
  * Game Commands
  *
  * Commands:
+ *   start      - Start the continuous game
+ *   pause      - Pause the continuous game
+ *   status     - Show game runtime status
  *   generate   - Generate a new game with scenarios and questions
  *   simulate   - Run game simulation
- *   world      - Generate world data
  */
 
-import { db } from '@babylon/db';
+import { db, eq, games, generateSnowflakeId as dbGenerateSnowflakeId } from '@babylon/db';
 import { GameGenerator, GameSimulator, loadActorsData } from '@babylon/engine';
 import { nanoid } from 'nanoid';
 import { writeFile } from 'fs/promises';
@@ -26,9 +28,11 @@ USAGE:
   babylon game <command> [options]
 
 COMMANDS:
+  start       Start the continuous game
+  pause       Pause the continuous game
+  status      Show game runtime status
   generate    Generate a new game with scenarios and questions
   simulate    Run game simulation
-  world       Generate world data
 
 OPTIONS (generate):
   -v, --verbose    Enable detailed logging
@@ -41,16 +45,111 @@ OPTIONS (simulate):
   --json            Output JSON only
 
 EXAMPLES:
-  babylon game generate
-  babylon game generate --verbose
-  babylon game simulate
-  babylon game simulate --outcome=NO --count=100 --fast
-  babylon game simulate --save=output.json
+  babylon game start              Start the game
+  babylon game pause              Pause the game
+  babylon game status             Check if game is running
+  babylon game generate           Generate new game content
+  babylon game simulate --count=10
 `);
 }
 
 async function generateSnowflakeId(): Promise<string> {
   return nanoid(21);
+}
+
+// ============================================================================
+// Game Control Commands (start, pause, status)
+// ============================================================================
+
+async function controlGame(action: 'start' | 'pause'): Promise<void> {
+  logger.header(action === 'start' ? 'Starting Game' : 'Pausing Game');
+
+  // Get the continuous game
+  const result = await db
+    .select()
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  let game = result[0];
+
+  if (!game) {
+    // Create the game if it doesn't exist
+    const gameId = await dbGenerateSnowflakeId();
+    const created = await db
+      .insert(games)
+      .values({
+        id: gameId,
+        isContinuous: true,
+        isRunning: action === 'start',
+        currentDay: 1,
+        startedAt: action === 'start' ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .returning();
+    game = created[0]!;
+    logger.success(`Game created and ${action === 'start' ? 'started' : 'paused'}`);
+    console.log(`  Game ID: ${game.id}`);
+  } else {
+    // Update the existing game
+    const isRunning = action === 'start';
+    const updateData: Record<string, Date | boolean | null> = {
+      isRunning,
+      updatedAt: new Date(),
+    };
+
+    if (action === 'start') {
+      updateData.startedAt = new Date();
+      updateData.pausedAt = null;
+    } else {
+      updateData.pausedAt = new Date();
+    }
+
+    await db.update(games).set(updateData).where(eq(games.id, game.id));
+
+    logger.success(`Game ${action === 'start' ? 'started' : 'paused'}`);
+    console.log(`  Game ID: ${game.id}`);
+    console.log(`  Current Day: ${game.currentDay}`);
+  }
+}
+
+async function showGameStatus(): Promise<void> {
+  logger.header('Game Status');
+
+  const result = await db
+    .select()
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  const game = result[0];
+
+  if (!game) {
+    console.log('No continuous game found.');
+    console.log('\nCreate one with: babylon game start');
+    return;
+  }
+
+  console.log(`Game ID:        ${game.id}`);
+  console.log(`Status:         ${game.isRunning ? '✅ RUNNING' : '⏸️  PAUSED'}`);
+  console.log(`Current Day:    ${game.currentDay}`);
+  console.log(`Current Date:   ${game.currentDate?.toLocaleString() || 'N/A'}`);
+  console.log(`Speed:          ${game.speed}ms between ticks`);
+  console.log(`Active Qs:      ${game.activeQuestions || 0}`);
+
+  if (game.startedAt) {
+    console.log(`Started At:     ${game.startedAt.toLocaleString()}`);
+  }
+  if (game.pausedAt) {
+    console.log(`Paused At:      ${game.pausedAt.toLocaleString()}`);
+  }
+  if (game.lastTickAt) {
+    console.log(`Last Tick:      ${game.lastTickAt.toLocaleString()}`);
+  }
+
+  if (!game.isRunning) {
+    console.log('\n💡 To start the game: babylon game start');
+  }
 }
 
 function validateGameHistory(value: JsonValue): GameHistory {
@@ -392,20 +491,24 @@ export async function runGameCommand(args: string[]): Promise<void> {
 
   try {
     switch (parsed.command) {
+      case 'start':
+        await controlGame('start');
+        break;
+
+      case 'pause':
+        await controlGame('pause');
+        break;
+
+      case 'status':
+        await showGameStatus();
+        break;
+
       case 'generate':
         await generateGame(parsed);
         break;
 
       case 'simulate':
         await runSimulation(parsed);
-        break;
-
-      case 'world':
-        logger.header('World Generation');
-        console.log('World generation is run via:');
-        console.log('  babylon game generate');
-        console.log('\nOr directly:');
-        console.log('  bun run apps/cli/src/generate-world.ts');
         break;
 
       default:

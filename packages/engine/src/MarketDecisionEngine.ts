@@ -204,38 +204,18 @@ export class MarketDecisionEngine {
     } = {}
   ) {
     // Use provider-appropriate model, or let LLM client use its default
-    // NOTE: Wandb models should ONLY be used for agent ticks, not for market decisions
     const provider = llm.getProvider();
     let model: string | undefined;
 
     if (options.model) {
       // User explicitly provided a model - use it
       model = options.model;
+    } else if (provider === 'groq') {
+      // Use qwen3-32b for Groq - fast and reliable
+      model = 'qwen/qwen3-32b';
     } else {
-      // Only use provider-specific models if provider matches
-      if (provider === 'groq') {
-        model = 'qwen/qwen3-32b'; // Fast and reliable on Groq
-      } else if (provider === 'wandb') {
-        // Wandb should not be used for market decisions - this is a fallback case
-        // Let LLM client use its default, but log a warning
-        logger.warn(
-          'MarketDecisionEngine received Wandb provider - Wandb should only be used for agent ticks',
-          {
-            provider,
-          },
-          'MarketDecisionEngine'
-        );
-        model = undefined; // Let LLM client use its default
-      } else if (provider === 'claude') {
-        // Use Claude default model (will be set by LLM client)
-        model = undefined;
-      } else if (provider === 'openai') {
-        // Use OpenAI default model (will be set by LLM client)
-        model = undefined;
-      } else {
-        // Unknown provider - let LLM client use its default
-        model = undefined;
-      }
+      // Let LLM client use its default for other providers
+      model = undefined;
     }
 
     // Set output token limits based on model and provider:

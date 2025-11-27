@@ -1,13 +1,12 @@
 /**
  * RL Training System Test
  *
- * Verifies the complete RL training and inference loop:
+ * Verifies the RL training and inference setup:
  * 1. Agent generates trajectory data
  * 2. RULER scores trajectory
  * 3. Training uses scored data
- * 4. Model is deployed
- * 5. Agent uses trained model for inference
- * 6. Agent takes actions in game
+ * 4. Agent uses model for inference
+ * 5. Agent takes actions in game
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -16,7 +15,6 @@ import {
   truncateToTokenLimitSync,
 } from '@babylon/engine';
 import { getRLModelConfig } from '../training/RLModelConfig';
-import { getLatestRLModel } from '../training/WandbModelFetcher';
 
 describe('RL Training System', () => {
   describe('Configuration', () => {
@@ -31,28 +29,6 @@ describe('RL Training System', () => {
       if (config.enabled) {
         expect(config.atroposApiUrl).toBeDefined();
         expect(config.vllmPort).toBeDefined();
-      }
-    });
-  });
-
-  describe('Model Loading', () => {
-    it('should load latest RL model from database', async () => {
-      const model = await getLatestRLModel();
-
-      // Model might not exist yet (new deployment)
-      if (model) {
-        expect(model.version).toBeDefined();
-        expect(model.modelId).toBeDefined();
-        expect(model.modelPath).toBeDefined();
-
-        // Should be W&B model path format
-        expect(model.modelPath).toContain('/'); // entity/project/model format
-
-        console.log(`✅ Found trained model: ${model.version}`);
-        console.log(`   Model ID: ${model.modelId}`);
-        console.log(`   Path: ${model.modelPath}`);
-      } else {
-        console.log('ℹ️  No trained models yet (expected for new deployment)');
       }
     });
   });
@@ -146,15 +122,11 @@ describe('RL Training System', () => {
       );
       expect(trajectoryLogger.TrajectoryLoggerService).toBeDefined();
 
-      // 2. Model fetching (from package-local training module)
-      const fetcher = await import('../training/WandbModelFetcher');
-      expect(fetcher.getLatestRLModel).toBeDefined();
-
-      // 3. RL Model config
+      // 2. RL Model config
       const config = await import('../training/RLModelConfig');
       expect(config.getRLModelConfig).toBeDefined();
 
-      // 4. Agent runtime
+      // 3. Agent runtime
       const runtime = await import('../runtime/AgentRuntimeManager');
       expect(runtime.AgentRuntimeManager).toBeDefined();
 

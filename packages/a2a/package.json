@@ -16,6 +16,11 @@
       "import": "./src/types/index.ts",
       "require": "./src/types/index.ts"
     },
+    "./types/a2a": {
+      "types": "./src/types/a2a.ts",
+      "import": "./src/types/a2a.ts",
+      "require": "./src/types/a2a.ts"
+    },
     "./validation": {
       "types": "./src/validation.ts",
       "import": "./src/validation.ts",
@@ -45,11 +50,6 @@
       "types": "./src/sdk/index.ts",
       "import": "./src/sdk/index.ts",
       "require": "./src/sdk/index.ts"
-    },
-    "./shared": {
-      "types": "./src/shared/index.ts",
-      "import": "./src/shared/index.ts",
-      "require": "./src/shared/index.ts"
     },
     "./utils": {
       "types": "./src/utils/index.ts",

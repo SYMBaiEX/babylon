@@ -76,10 +76,9 @@ export class AgentServiceV2 {
     const agentUserId = await generateSnowflakeId();
 
     // Model selection happens at runtime via cascade:
-    // 1. WANDB RL model (if WANDB_API_KEY available and model exists)
-    // 2. Qwen 32b from Groq (if GROQ_API_KEY available)
-    // 3. Claude (if ANTHROPIC_API_KEY available)
-    // 4. OpenAGI (if OPENAI_API_KEY available)
+    // 1. Qwen 32b from Groq (if GROQ_API_KEY available)
+    // 2. Claude (if ANTHROPIC_API_KEY available)
+    // 3. OpenAI (if OPENAI_API_KEY available)
 
     const agent = await withTransaction(async (tx) => {
       const newAgentResult = await tx

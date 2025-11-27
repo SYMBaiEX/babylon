@@ -6,7 +6,7 @@
  *
  * @description
  * Tests the current AI model configuration with a simple completion request.
- * Verifies wandb integration and model availability. Returns test response
+ * Verifies provider integration and model availability. Returns test response
  * and performance metrics.
  *
  * @openapi
@@ -63,7 +63,7 @@ import { logger } from '@babylon/shared';
  */
 export async function POST(_req: NextRequest) {
   try {
-    // Initialize client with default provider priority: Groq > Claude > OpenAI
+    // Initialize client (uses Groq by default for game tick operations)
     const client = BabylonLLMClient.forGameTick();
     const stats = client.getStats();
 

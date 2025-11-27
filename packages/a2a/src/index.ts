@@ -38,11 +38,7 @@ export {
   generateAgentCardSync,
 } from './sdk/agent-card-generator';
 
-// Shared utilities (logger, snowflake, types)
-// Note: Don't export types from ./shared to avoid duplicates with @babylon/shared
-export * from './shared/types';
-
-// Types
+// Types (includes JsonValue, JsonRpcParams, etc. re-exported from shared/types)
 export * from './types';
 
 // Utilities (auth, rate limiting)

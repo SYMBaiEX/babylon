@@ -71,9 +71,6 @@ async function listModels(): Promise<void> {
     if (model.huggingFaceRepo) {
       console.log(`HuggingFace: ${model.huggingFaceRepo}`);
     }
-    if (model.wandbRunId) {
-      console.log(`W&B Run:     ${model.wandbRunId}`);
-    }
     if (model.benchmarkScore !== null) {
       console.log(`Benchmark:   ${model.benchmarkScore.toFixed(2)}`);
     }

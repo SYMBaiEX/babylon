@@ -40,10 +40,6 @@ Return your response as XML in this exact format:
   <post>your post content here</post>
 </response>`;
 
-  const model =
-    llmClient.getProvider() === 'wandb'
-      ? 'moonshotai/kimi-k2-instruct-0905'
-      : undefined;
   const response = await llmClient.generateJSON<
     { post: string } | { response: { post: string } }
   >(
@@ -57,7 +53,6 @@ Return your response as XML in this exact format:
     {
       temperature: 0.9,
       maxTokens: MAX_POST_TOKENS,
-      ...(model ? { model } : {}),
       format: 'xml',
     }
   );
@@ -124,10 +119,6 @@ Return your response as XML in this exact format:
   <post>your post content here</post>
 </response>`;
 
-  const model =
-    llmClient.getProvider() === 'wandb'
-      ? 'moonshotai/kimi-k2-instruct-0905'
-      : undefined;
   const response = await llmClient.generateJSON<
     { post: string } | { response: { post: string } }
   >(
@@ -141,7 +132,6 @@ Return your response as XML in this exact format:
     {
       temperature: 0.9,
       maxTokens: MAX_POST_TOKENS,
-      ...(model ? { model } : {}),
       format: 'xml',
     }
   );
@@ -216,10 +206,6 @@ Return your response as XML in this exact format:
   <article>full article body here with \\n\\n between paragraphs</article>
 </response>`;
 
-  const model =
-    llmClient.getProvider() === 'wandb'
-      ? 'moonshotai/kimi-k2-instruct-0905'
-      : undefined;
   const response = await llmClient.generateJSON<
     | { title: string; summary: string; article: string }
     | { response: { title: string; summary: string; article: string } }
@@ -236,7 +222,6 @@ Return your response as XML in this exact format:
     {
       temperature: 0.7,
       maxTokens: MAX_ARTICLE_TOKENS,
-      ...(model ? { model } : {}),
       format: 'xml',
       promptType: 'generate_org_article',
     }
@@ -311,4 +296,3 @@ Return your response as XML in this exact format:
   );
   return true;
 }
-

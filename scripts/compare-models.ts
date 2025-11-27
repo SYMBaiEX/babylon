@@ -177,7 +177,7 @@ Examples:
 
   if (!agent) {
     console.error(
-      '❌ Test agent not found. Run: bun run scripts/ensure-test-agents.ts'
+      '❌ Test agent not found. Run: babylon agent spawn'
     );
     process.exit(1);
   }
