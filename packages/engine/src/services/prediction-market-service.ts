@@ -222,3 +222,4 @@ export class PredictionMarketService {
 export { PredictionMarketService as PredictionMarketEventService };
 export { PredictionMarketService as PredictionPriceHistoryService };
 
+

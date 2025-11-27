@@ -232,8 +232,28 @@ def calculate_tick_quality_score(
     return score
 
 
-def calculate_trajectory_quality_score(ticks: list["AgentTickData"]) -> float:
-    """Calculate overall quality score for a trajectory (0-1)"""
+CurriculumLevel = Literal["easy", "medium", "hard"]
+
+
+@dataclass
+class TrajectoryDifficulty:
+    """Trajectory difficulty assessment for curriculum learning"""
+    level: CurriculumLevel
+    score: float  # 0-1, higher = harder
+    reasons: list[str]
+
+
+def calculate_trajectory_quality_score(
+    ticks: list["AgentTickData"],
+    archetype: str | None = None,
+) -> float:
+    """
+    Calculate overall quality score for a trajectory (0-1).
+    
+    Args:
+        ticks: List of tick data
+        archetype: Agent archetype for weight customization
+    """
     if not ticks:
         return 0.0
     
@@ -242,11 +262,114 @@ def calculate_trajectory_quality_score(ticks: list["AgentTickData"]) -> float:
             tick.llm_calls,
             tick.action,
             tick.feedback,
+            archetype=archetype,
         )
         for tick in ticks
     ]
     
     return sum(scores) / len(scores)
+
+
+def assess_trajectory_difficulty(
+    ticks: list["AgentTickData"],
+) -> TrajectoryDifficulty:
+    """
+    Assess difficulty of a trajectory for curriculum learning.
+    
+    Difficulty factors:
+    - Number of market changes
+    - Action complexity (leverage, size)
+    - Decision reversals
+    - Length of reasoning required
+    """
+    reasons = []
+    difficulty_score = 0.0
+    
+    if not ticks:
+        return TrajectoryDifficulty(level="easy", score=0.0, reasons=["Empty trajectory"])
+    
+    # Factor 1: Trajectory length (longer = harder)
+    if len(ticks) > 20:
+        difficulty_score += 0.2
+        reasons.append(f"Long trajectory ({len(ticks)} ticks)")
+    elif len(ticks) > 10:
+        difficulty_score += 0.1
+    
+    # Factor 2: Action diversity (more diverse = harder)
+    action_types = set()
+    for tick in ticks:
+        if tick.action:
+            action_types.add(tick.action.action_type)
+    
+    if len(action_types) >= 4:
+        difficulty_score += 0.2
+        reasons.append(f"High action diversity ({len(action_types)} types)")
+    elif len(action_types) >= 2:
+        difficulty_score += 0.1
+    
+    # Factor 3: Complex parameters (leverage, large sizes)
+    complex_actions = 0
+    for tick in ticks:
+        if tick.action and tick.action.parameters:
+            params = tick.action.parameters
+            if params.get("leverage", 1) > 1:
+                complex_actions += 1
+            if params.get("amount", 0) > 1000:
+                complex_actions += 1
+    
+    if complex_actions >= 3:
+        difficulty_score += 0.2
+        reasons.append(f"Complex action parameters ({complex_actions})")
+    elif complex_actions >= 1:
+        difficulty_score += 0.1
+    
+    # Factor 4: Decision reversals (buy -> sell in short time)
+    reversals = 0
+    prev_action = None
+    for tick in ticks:
+        if tick.action:
+            curr = tick.action.action_type
+            if prev_action:
+                if (prev_action in ["buy", "long"] and curr in ["sell", "short"]) or \
+                   (prev_action in ["sell", "short"] and curr in ["buy", "long"]):
+                    reversals += 1
+            prev_action = curr
+    
+    if reversals >= 2:
+        difficulty_score += 0.2
+        reasons.append(f"Multiple reversals ({reversals})")
+    elif reversals >= 1:
+        difficulty_score += 0.1
+    
+    # Factor 5: Reasoning depth required
+    total_reasoning_len = sum(
+        sum(len(c.reasoning or "") for c in tick.llm_calls) +
+        len((tick.action.reasoning or "") if tick.action else "")
+        for tick in ticks
+    )
+    
+    avg_reasoning = total_reasoning_len / len(ticks) if ticks else 0
+    if avg_reasoning > 200:
+        difficulty_score += 0.2
+        reasons.append(f"Deep reasoning required (avg {avg_reasoning:.0f} chars)")
+    elif avg_reasoning > 100:
+        difficulty_score += 0.1
+    
+    # Normalize and categorize
+    difficulty_score = min(difficulty_score, 1.0)
+    
+    if difficulty_score >= 0.6:
+        level: CurriculumLevel = "hard"
+    elif difficulty_score >= 0.3:
+        level = "medium"
+    else:
+        level = "easy"
+    
+    return TrajectoryDifficulty(
+        level=level,
+        score=difficulty_score,
+        reasons=reasons if reasons else ["Standard complexity"],
+    )
 
 
 def build_trajectory_from_ticks(

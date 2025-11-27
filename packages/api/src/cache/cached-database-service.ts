@@ -297,7 +297,7 @@ class CachedDatabaseService {
           .from(reactions)
           .where(eq(reactions.userId, userId));
 
-        // Count legacy actor follows
+        // Count user-initiated actor follows (stored in followStatuses table)
         const legacyActorFollowResult = await db
           .select({ count: count() })
           .from(followStatuses)
@@ -318,13 +318,13 @@ class CachedDatabaseService {
         const followers = Number(followersResult[0]?.count ?? 0);
         const following = Number(followingResult[0]?.count ?? 0);
         const actorFollows = Number(actorFollowsResult[0]?.count ?? 0);
-        const legacyActorFollows = Number(
+        const userInitiatedFollows = Number(
           legacyActorFollowResult[0]?.count ?? 0
         );
 
         return {
           followers,
-          following: following + actorFollows + legacyActorFollows,
+          following: following + actorFollows + userInitiatedFollows,
           positions: Number(positionsResult[0]?.count ?? 0),
           comments: Number(commentsResult[0]?.count ?? 0),
           reactions: Number(reactionsResult[0]?.count ?? 0),

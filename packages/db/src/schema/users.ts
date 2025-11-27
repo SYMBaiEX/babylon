@@ -672,3 +672,4 @@ export type UserInteraction = typeof userInteractions.$inferSelect;
 export type NewUserInteraction = typeof userInteractions.$inferInsert;
 
 
+

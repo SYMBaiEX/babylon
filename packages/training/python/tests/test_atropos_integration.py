@@ -8,22 +8,19 @@ Tests:
 4. Environment can be instantiated (mock mode)
 """
 
-import asyncio
-import json
 import pytest
 from datetime import datetime
-from typing import Dict, List
-from unittest.mock import MagicMock, AsyncMock, patch
+from typing import Dict
 
 # Check for optional dependencies
 try:
-    import torch
+    import torch  # noqa: F401
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
 
 try:
-    import wandb
+    import wandb  # noqa: F401
     HAS_WANDB = True
 except ImportError:
     HAS_WANDB = False
@@ -39,15 +36,7 @@ class TestImports:
     def test_import_models(self):
         from src.models import (
             BabylonTrajectory,
-            TrajectoryStep,
-            EnvironmentState,
-            Action,
-            LLMCall,
-            AtroposScoredItem,
             AtroposScoredGroup,
-            TrajectoryGroup,
-            JudgeScore,
-            JudgeResponse,
         )
         assert BabylonTrajectory is not None
         assert AtroposScoredGroup is not None
@@ -55,11 +44,7 @@ class TestImports:
     def test_import_converter(self):
         from src.data_bridge import (
             BabylonToAtroposConverter,
-            AtroposMessage,
-            AtroposTrajectory,
             ScoredGroupResult,
-            AtroposScoredGroup,
-            calculate_dropout_rate,
         )
         assert BabylonToAtroposConverter is not None
         assert ScoredGroupResult is not None
@@ -67,11 +52,6 @@ class TestImports:
     def test_import_rewards(self):
         from src.training.rewards import (
             pnl_reward,
-            risk_adjusted_reward,
-            efficiency_reward,
-            action_quality_reward,
-            composite_reward,
-            relative_scores,
             RewardNormalizer,
         )
         assert pnl_reward is not None
@@ -81,7 +61,6 @@ class TestImports:
     def test_import_trainer(self):
         from src.training import (
             BabylonAtroposTrainer,
-            AtroposTrainingConfig,
         )
         assert BabylonAtroposTrainer is not None
     
@@ -89,7 +68,6 @@ class TestImports:
     def test_import_environment(self):
         from src.training import (
             BabylonRLAIFEnv,
-            BabylonEnvConfig,
         )
         assert BabylonRLAIFEnv is not None
 
@@ -142,7 +120,7 @@ class TestRewardFunctions:
         assert 0.0 <= reward <= 1.0
         
     def test_relative_scores(self):
-        from src.training.rewards import relative_scores, pnl_reward
+        from src.training.rewards import relative_scores
         
         trajectories = [
             {"final_pnl": 1000.0, "episode_length": 10, "trades_executed": 5, "steps": []},

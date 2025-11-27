@@ -9,11 +9,8 @@ Tests:
 5. PromptTypeAnalyzer - correlation analysis
 """
 
-import asyncio
-import json
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
 
 import sys
 sys.path.insert(0, '.')
@@ -23,10 +20,10 @@ from src.models import (
     Action, LLMCall, AtroposScoredGroup
 )
 from src.training import (
-    FastSimulator, SimulatorConfig, SimulatorMetrics, GameState,
-    FastRolloutGenerator, RolloutConfig, RolloutResult, AgentTickData,
+    FastSimulator, SimulatorConfig, GameState,
+    RolloutResult, AgentTickData,
     RolloutQualityValidator,
-    MultiPromptDatasetBuilder, PromptDataset, PromptSample,
+    MultiPromptDatasetBuilder, PromptSample,
     prepare_multi_prompt_training_data, PromptTypeAnalyzer,
 )
 

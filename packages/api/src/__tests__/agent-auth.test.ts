@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
   cleanupExpiredSessions,
   createAgentSession,
@@ -107,7 +107,7 @@ describe('Agent Authentication', () => {
   describe('cleanupExpiredSessions', () => {
     it('removes expired sessions from in-memory store', async () => {
       // Create sessions directly in memory
-      const validSession = await createAgentSession('agent-valid', 'valid-token');
+      await createAgentSession('agent-valid', 'valid-token');
       
       // Verify it exists
       expect(await verifyAgentSession('valid-token')).not.toBeNull();

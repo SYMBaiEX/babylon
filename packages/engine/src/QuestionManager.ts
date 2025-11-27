@@ -1325,23 +1325,8 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         try {
           const contextService = new MarketContextService();
 
-          // Create LLM client for market decisions (same as used in main tick)
-          let marketDecisionLLM: BabylonLLMClient;
-          if (process.env.GROQ_API_KEY) {
-            marketDecisionLLM = BabylonLLMClientValue.forGroq();
-          } else if (process.env.ANTHROPIC_API_KEY) {
-            marketDecisionLLM = BabylonLLMClientValue.forClaude();
-          } else if (process.env.OPENAI_API_KEY) {
-            marketDecisionLLM = BabylonLLMClientValue.forOpenAI();
-          } else {
-            logger.warn(
-              'No API key for market decisions - skipping NPC betting on new question',
-              { questionId: question.id },
-              'QuestionManager'
-            );
-            questionsCreated++;
-            continue;
-          }
+          // Create LLM client for market decisions
+          const marketDecisionLLM = BabylonLLMClientValue.forGameTick();
 
           const modelName =
             process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';

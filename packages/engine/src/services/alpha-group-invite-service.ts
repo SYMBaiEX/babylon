@@ -22,7 +22,7 @@ import {
   gte,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { GroupChatInvite } from './group-chat-invite';
+import { GroupChatService as GroupChatInvite } from './group-chat-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
 
 export interface AlphaInviteResult {

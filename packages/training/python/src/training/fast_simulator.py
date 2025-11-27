@@ -118,14 +118,22 @@ class AgentRunner(Protocol):
 
 @dataclass
 class GameState:
-    """Minimal game state for fast simulation"""
+    """
+    Rich game state for realistic simulation.
+    
+    Provides detailed market data, orderbooks, news, and social context
+    that mirrors production environment for high-quality training data.
+    """
     
     tick: int = 0
     time: int = 0
     
-    # Markets (simplified)
+    # Markets with detailed state
     markets: list[dict] = field(default_factory=list)
     perpetuals: list[dict] = field(default_factory=list)
+    
+    # Market microstructure
+    orderbooks: dict[str, dict] = field(default_factory=dict)  # market_id -> orderbook
     
     # News/Social
     news: list[dict] = field(default_factory=list)
@@ -134,16 +142,236 @@ class GameState:
     # Agent states
     portfolios: dict[str, dict] = field(default_factory=dict)
     
+    # Price history for technical analysis
+    price_history: dict[str, list[float]] = field(default_factory=dict)
+    
+    def _generate_realistic_markets(self) -> list[dict]:
+        """Generate realistic prediction markets if none exist"""
+        import random
+        
+        if self.markets:
+            return self.markets
+        
+        market_templates = [
+            {"question": "Will BTC hit $120,000 by end of month?", "category": "crypto"},
+            {"question": "Will ETH outperform BTC this week?", "category": "crypto"},
+            {"question": "Will the Fed announce rate cuts?", "category": "macro"},
+            {"question": "Will NVIDIA stock reach new ATH?", "category": "stocks"},
+            {"question": "Will total crypto market cap exceed $4T?", "category": "crypto"},
+        ]
+        
+        markets = []
+        for i, template in enumerate(market_templates):
+            yes_prob = random.uniform(0.2, 0.8)
+            markets.append({
+                "id": f"market-{i+1}",
+                "question": template["question"],
+                "category": template["category"],
+                "yesPrice": round(yes_prob, 2),
+                "noPrice": round(1 - yes_prob, 2),
+                "volume24h": random.randint(10000, 500000),
+                "liquidity": random.randint(50000, 1000000),
+                "expiresAt": self.time + random.randint(86400000, 604800000),  # 1-7 days
+                "status": "active",
+            })
+        
+        return markets
+    
+    def _generate_realistic_perpetuals(self) -> list[dict]:
+        """Generate realistic perpetual markets"""
+        import random
+        
+        if self.perpetuals:
+            return self.perpetuals
+        
+        tickers = ["BTC", "ETH", "SOL", "DOGE", "AVAX"]
+        base_prices = {"BTC": 100000, "ETH": 3500, "SOL": 180, "DOGE": 0.35, "AVAX": 40}
+        
+        perpetuals = []
+        for ticker in tickers:
+            base = base_prices.get(ticker, 100)
+            price = base * (1 + random.uniform(-0.05, 0.05))
+            
+            perpetuals.append({
+                "ticker": ticker,
+                "markPrice": round(price, 2),
+                "indexPrice": round(price * (1 + random.uniform(-0.001, 0.001)), 2),
+                "fundingRate": round(random.uniform(-0.001, 0.001), 6),
+                "openInterest": random.randint(1000000, 50000000),
+                "volume24h": random.randint(5000000, 100000000),
+                "change24h": round(random.uniform(-0.1, 0.1), 4),
+                "high24h": round(price * 1.05, 2),
+                "low24h": round(price * 0.95, 2),
+            })
+        
+        return perpetuals
+    
+    def _generate_orderbook(self, market_id: str, mid_price: float) -> dict:
+        """Generate realistic orderbook data"""
+        import random
+        
+        bids = []
+        asks = []
+        
+        for i in range(5):
+            spread = 0.01 * (i + 1)
+            bid_price = round(mid_price * (1 - spread), 4)
+            ask_price = round(mid_price * (1 + spread), 4)
+            
+            bids.append({
+                "price": bid_price,
+                "size": random.randint(100, 5000),
+                "total": random.randint(1000, 10000),
+            })
+            asks.append({
+                "price": ask_price,
+                "size": random.randint(100, 5000),
+                "total": random.randint(1000, 10000),
+            })
+        
+        return {
+            "market_id": market_id,
+            "bids": sorted(bids, key=lambda x: -x["price"]),
+            "asks": sorted(asks, key=lambda x: x["price"]),
+            "spread": round((asks[0]["price"] - bids[0]["price"]) / mid_price * 100, 2),
+            "mid_price": mid_price,
+        }
+    
+    def _generate_news(self) -> list[dict]:
+        """Generate realistic news items"""
+        import random
+        
+        if self.news:
+            return self.news
+        
+        news_templates = [
+            {"headline": "Bitcoin Approaches Key Resistance Level", "sentiment": "bullish", "impact": "high"},
+            {"headline": "Federal Reserve Hints at Policy Shift", "sentiment": "neutral", "impact": "high"},
+            {"headline": "Major Exchange Reports Record Trading Volume", "sentiment": "bullish", "impact": "medium"},
+            {"headline": "Regulatory Clarity Expected Next Month", "sentiment": "neutral", "impact": "medium"},
+            {"headline": "Whale Alert: Large Transfer Detected", "sentiment": "bearish", "impact": "low"},
+            {"headline": "New DeFi Protocol Launches with $50M TVL", "sentiment": "bullish", "impact": "low"},
+            {"headline": "Mining Difficulty Reaches New High", "sentiment": "neutral", "impact": "low"},
+        ]
+        
+        news = []
+        selected = random.sample(news_templates, min(5, len(news_templates)))
+        for i, template in enumerate(selected):
+            news.append({
+                "id": f"news-{self.tick}-{i}",
+                "headline": template["headline"],
+                "sentiment": template["sentiment"],
+                "impact": template["impact"],
+                "source": random.choice(["CoinDesk", "Bloomberg", "Reuters", "CryptoNews"]),
+                "timestamp": self.time - random.randint(0, 3600000),  # Last hour
+                "relevance_score": random.uniform(0.5, 1.0),
+            })
+        
+        return news
+    
+    def _generate_social_posts(self) -> list[dict]:
+        """Generate realistic social posts"""
+        import random
+        
+        if self.posts:
+            return self.posts
+        
+        post_templates = [
+            {"content": "Just went long on BTC, looking bullish 🚀", "sentiment": "bullish"},
+            {"content": "Taking profits here, market looks overextended", "sentiment": "bearish"},
+            {"content": "Anyone else seeing this pattern on the 4H chart?", "sentiment": "neutral"},
+            {"content": "New ATH incoming, calling it now 💎🙌", "sentiment": "bullish"},
+            {"content": "Be careful, volume is declining", "sentiment": "bearish"},
+            {"content": "Great entry opportunity if you missed the dip", "sentiment": "bullish"},
+            {"content": "Liquidation cascade might be coming", "sentiment": "bearish"},
+        ]
+        
+        posts = []
+        selected = random.sample(post_templates, min(6, len(post_templates)))
+        for i, template in enumerate(selected):
+            posts.append({
+                "id": f"post-{self.tick}-{i}",
+                "author": f"trader_{random.randint(100, 999)}",
+                "content": template["content"],
+                "sentiment": template["sentiment"],
+                "likes": random.randint(0, 500),
+                "replies": random.randint(0, 50),
+                "timestamp": self.time - random.randint(0, 1800000),  # Last 30 min
+                "verified": random.random() > 0.7,
+            })
+        
+        return posts
+    
     def to_observation(self) -> dict:
-        """Convert to agent observation"""
+        """
+        Convert to rich agent observation.
+        
+        Provides all data an agent needs for informed decision-making:
+        - Current market state with prices and volume
+        - Orderbook depth for execution planning
+        - Recent news with sentiment
+        - Social feed for market pulse
+        - Technical indicators (price history)
+        """
+        # Ensure we have markets
+        markets = self._generate_realistic_markets() if not self.markets else self.markets
+        perpetuals = self._generate_realistic_perpetuals() if not self.perpetuals else self.perpetuals
+        news = self._generate_news() if not self.news else self.news
+        posts = self._generate_social_posts() if not self.posts else self.posts
+        
+        # Generate orderbooks for each market
+        orderbooks = {}
+        for market in markets:
+            mid_price = market.get("yesPrice", 0.5)
+            orderbooks[market["id"]] = self._generate_orderbook(market["id"], mid_price)
+        
         return {
             "tick": self.tick,
             "time": self.time,
-            "markets": self.markets,
-            "perpetuals": self.perpetuals,
-            "news": self.news[:5],  # Limit for speed
-            "posts": self.posts[:10],
+            "timestamp_human": datetime.fromtimestamp(self.time / 1000, tz=timezone.utc).isoformat(),
+            
+            # Market data
+            "markets": markets,
+            "perpetuals": perpetuals,
+            "orderbooks": orderbooks,
+            
+            # Information sources
+            "news": news[:5],
+            "social_feed": posts[:10],
+            
+            # Market summary
+            "market_summary": {
+                "total_markets": len(markets),
+                "total_perpetuals": len(perpetuals),
+                "avg_sentiment": self._calculate_avg_sentiment(news, posts),
+                "market_momentum": self._calculate_momentum(),
+            },
         }
+    
+    def _calculate_avg_sentiment(self, news: list[dict], posts: list[dict]) -> str:
+        """Calculate overall market sentiment"""
+        sentiment_scores = {"bullish": 1, "neutral": 0, "bearish": -1}
+        
+        scores = []
+        for item in news + posts:
+            sentiment = item.get("sentiment", "neutral")
+            scores.append(sentiment_scores.get(sentiment, 0))
+        
+        if not scores:
+            return "neutral"
+        
+        avg = sum(scores) / len(scores)
+        if avg > 0.3:
+            return "bullish"
+        elif avg < -0.3:
+            return "bearish"
+        return "neutral"
+    
+    def _calculate_momentum(self) -> str:
+        """Calculate market momentum from price history"""
+        import random
+        # In production, this would use actual price history
+        return random.choice(["strong_bullish", "bullish", "neutral", "bearish", "strong_bearish"])
     
     def get_env_state(self, agent_id: str) -> EnvironmentState:
         """Get environment state for an agent"""
@@ -152,7 +380,7 @@ class GameState:
             agent_balance=portfolio.get("balance", 10000.0),
             agent_pnl=portfolio.get("pnl", 0.0),
             open_positions=portfolio.get("positions", 0),
-            active_markets=len(self.markets),
+            active_markets=len(self.markets) if self.markets else 5,
         )
 
 

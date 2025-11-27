@@ -40,6 +40,8 @@ import { runTrainCommand } from './commands/train.js';
 import { runModelCommand } from './commands/model.js';
 import { runGameCommand } from './commands/game.js';
 import { runAgentCommand } from './commands/agent.js';
+import { runDeployCommand } from './commands/deploy.js';
+import { runTestCommand } from './commands/test.js';
 
 const VERSION = '0.2.0';
 
@@ -55,9 +57,11 @@ DOMAINS:
   admin     Admin user management (check, grant, revoke, list)
   status    System status (game, wallet, agent0, all)
   train     Training operations (list, pipeline, archetype, collect)
-  model     Model management (list, upload)
+  model     Model management (list, upload, collect-data)
   game      Game control (start, pause, status, generate, simulate)
   agent     Agent management (spawn, list, enable, disable)
+  deploy    Contract deployment (local, testnet, mainnet, setup)
+  test      Load & stress testing (load, a2a)
 
 EXAMPLES:
   babylon db start                 Start PostgreSQL container
@@ -127,6 +131,14 @@ async function main(): Promise<void> {
 
       case 'agent':
         await runAgentCommand(commandArgs);
+        break;
+
+      case 'deploy':
+        await runDeployCommand(commandArgs);
+        break;
+
+      case 'test':
+        await runTestCommand(commandArgs);
         break;
 
       default:

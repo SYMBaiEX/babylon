@@ -48,7 +48,9 @@
       "@babylon/a2a": ["../../packages/a2a/src/index.ts"],
       "@babylon/a2a/*": ["../../packages/a2a/src/*"],
       "@babylon/training": ["../../packages/training/src/index.ts"],
-      "@babylon/training/*": ["../../packages/training/src/*"]
+      "@babylon/training/*": ["../../packages/training/src/*"],
+      "@babylon/testing": ["../../packages/testing/src/index.ts"],
+      "@babylon/testing/*": ["../../packages/testing/*"]
     }
   },
   "include": ["src/**/*"],

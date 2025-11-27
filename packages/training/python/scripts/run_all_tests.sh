@@ -27,8 +27,6 @@ source .env.training
 MISSING=()
 [ -z "$DATABASE_URL" ] && MISSING+=("DATABASE_URL")
 [ -z "$OPENPIPE_API_KEY" ] && MISSING+=("OPENPIPE_API_KEY")
-[ -z "$WANDB_API_KEY" ] && MISSING+=("WANDB_API_KEY")
-[ -z "$WANDB_ENTITY" ] && MISSING+=("WANDB_ENTITY")
 [ -z "$TRAIN_RL_LOCAL" ] && MISSING+=("TRAIN_RL_LOCAL")
 
 if [ ${#MISSING[@]} -ne 0 ]; then
@@ -72,44 +70,35 @@ pytest tests/test_real_integration.py::TestRealOpenPipeRULER -v -s || {
 }
 echo ""
 
-# Test 4: W&B Integration
+# Test 4: Data Collection
 echo "═══════════════════════════════════════════════"
-echo "Test 4: W&B Integration"
-echo "═══════════════════════════════════════════════"
-pytest tests/test_real_integration.py::TestRealWandB -v -s || {
-    echo -e "${YELLOW}⚠️  W&B tests failed (check credentials)${NC}"
-}
-echo ""
-
-# Test 5: Data Collection
-echo "═══════════════════════════════════════════════"
-echo "Test 5: Data Collection from Database"
+echo "Test 4: Data Collection from Database"
 echo "═══════════════════════════════════════════════"
 pytest tests/test_real_integration.py::TestRealDataCollection -v -s || {
     echo -e "${YELLOW}⚠️  Data collection tests failed (may be no data yet)${NC}"
 }
 echo ""
 
-# Test 6: Environment Variables
+# Test 5: Environment Variables
 echo "═══════════════════════════════════════════════"
-echo "Test 6: Environment Validation"
+echo "Test 5: Environment Validation"
 echo "═══════════════════════════════════════════════"
 pytest tests/test_real_integration.py::test_environment_variables -v -s
 echo ""
 
-# Test 7: Model Endpoint (Optional)
+# Test 6: Model Endpoint (Optional)
 echo "═══════════════════════════════════════════════"
-echo "Test 7: Model Endpoint (Optional)"
+echo "Test 6: Model Endpoint (Optional)"
 echo "═══════════════════════════════════════════════"
 pytest tests/test_real_integration.py::TestModelEndpoint -v -s || {
     echo -e "${YELLOW}⚠️  Endpoint tests failed (endpoint may not be running)${NC}"
 }
 echo ""
 
-# Test 8: End-to-End Flow (Slow)
+# Test 7: End-to-End Flow (Slow)
 if [ "$RUN_E2E" = "true" ]; then
     echo "═══════════════════════════════════════════════"
-    echo "Test 8: End-to-End Flow (Slow)"
+    echo "Test 7: End-to-End Flow (Slow)"
     echo "═══════════════════════════════════════════════"
     pytest tests/test_real_integration.py::TestEndToEndFlow -v -s -m slow || {
         echo -e "${RED}❌ End-to-end test failed${NC}"
@@ -118,7 +107,7 @@ if [ "$RUN_E2E" = "true" ]; then
     echo -e "${GREEN}✓${NC} End-to-end flow works!"
 else
     echo "═══════════════════════════════════════════════"
-    echo "Test 8: End-to-End Flow (Skipped)"
+    echo "Test 7: End-to-End Flow (Skipped)"
     echo "═══════════════════════════════════════════════"
     echo "Run with: RUN_E2E=true ./scripts/run_all_tests.sh"
 fi
@@ -133,7 +122,6 @@ echo "Results:"
 echo -e "  ${GREEN}✓${NC} Unit tests"
 echo -e "  ${GREEN}✓${NC} Database integration"
 echo "  RULER API (check above)"
-echo "  W&B integration (check above)"
 echo "  Data collection (check above)"
 echo -e "  ${GREEN}✓${NC} Environment validation"
 echo "  Model endpoint (check above)"

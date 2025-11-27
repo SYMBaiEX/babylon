@@ -39,7 +39,7 @@ import {
   test,
 } from 'bun:test';
 import { existsSync, readFileSync } from 'fs';
-import { logger } from '../../logger';
+import { logger } from '@babylon/shared';
 // import { GameGenerator } from '@/engine/GameGenerator'; // Removed static import
 import type { FeedPost, GeneratedGame, WorldEvent } from '../../types/shared';
 

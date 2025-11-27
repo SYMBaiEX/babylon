@@ -71,7 +71,7 @@
  * const { history } = await response.json();
  * ```
  *
- * @see {@link /lib/services/prediction-price-history-service} Price history service
+ * @see {@link /lib/services/prediction-market-service} Prediction market service
  */
 
 import type { NextRequest } from 'next/server';

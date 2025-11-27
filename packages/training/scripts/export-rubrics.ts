@@ -50,3 +50,4 @@ console.log(`✓ Exported rubrics to ${outputPath}`);
 console.log(`  - ${Object.keys(RUBRICS).length} rubric entries`);
 console.log(`  - ${exportData.availableArchetypes.length} unique archetypes`);
 
+

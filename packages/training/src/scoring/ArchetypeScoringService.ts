@@ -365,7 +365,7 @@ export class ArchetypeScoringService {
       return { scored: 0, errors: 0 };
     }
 
-    const scores = await this.scoreTrajectoryGroup(trajectoryIds, { archetype });
+    const scores = await this.scoreTrajectoryGroup(trajectoryIds, { archetype, saveToDatabase: true });
 
     return {
       scored: scores.length,

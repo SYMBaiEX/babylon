@@ -124,12 +124,6 @@ export {
 // Game Service
 export { gameService } from './game-service';
 
-// AI Model Config
-export {
-  clearAIModelConfigCache,
-  getAIModelConfig,
-} from './ai-model-config';
-
 // Serverless Game Tick
 export {
   executeGameTick,
@@ -144,8 +138,8 @@ export {
   syncReputationIfAvailable,
   type ReputationSyncOptions,
   type ReputationSyncResult,
-  type ReputationSyncService,
-} from './services/reputation-sync-interface';
+  type ReputationSyncServiceInterface as ReputationSyncService,
+} from './services/reputation-service';
 
 // Logger
 export { Logger, logger, type LogLevel } from '@babylon/shared';
@@ -276,20 +270,20 @@ export {
 } from './services/market-impact-service';
 
 export {
-  PredictionPriceHistoryService,
+  PredictionMarketService as PredictionPriceHistoryService,
   type PredictionHistoryEventType,
   type PredictionHistorySource,
   type PredictionPriceSnapshot,
-} from './services/prediction-price-history-service';
+} from './services/prediction-market-service';
 
 export { EarnedPointsService } from './services/earned-points-service';
 
 export {
-  PredictionMarketEventService,
+  PredictionMarketService as PredictionMarketEventService,
   type BroadcasterFn,
   type PredictionResolutionEvent,
   type PredictionTradeEvent,
-} from './services/prediction-market-event-service';
+} from './services/prediction-market-service';
 
 export {
   RSSFeedService,
@@ -462,7 +456,7 @@ export {
   storeTrendingTags,
   getCurrentTrendingTags,
   getRelatedTags,
-} from './services/tag-storage-service';
+} from './services/tag-service';
 
 export {
   shouldRecalculateTrending,

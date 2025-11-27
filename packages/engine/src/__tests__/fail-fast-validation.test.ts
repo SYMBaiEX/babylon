@@ -6,13 +6,23 @@
  * propagating bad state. Critical for data integrity.
  */
 
-import { describe, expect, test } from 'bun:test';
-import { BabylonLLMClient } from '../llm/openai-client';
+import { describe, expect, test, mock } from 'bun:test';
 import { FeedGenerator } from '../FeedGenerator';
+import type { BabylonLLMClient } from '../llm/openai-client';
+
+// Create a minimal mock LLM client for validation tests
+function createMockLLMClient(): BabylonLLMClient {
+  return {
+    generateText: mock(() => Promise.resolve('')),
+    generateJSON: mock(() => Promise.resolve({})),
+    getProvider: () => 'groq',
+    getStats: () => ({ provider: 'groq' as const, model: 'test', totalTokens: 0, totalCost: 0 }),
+  } as unknown as BabylonLLMClient;
+}
 
 describe('Fail-Fast Validation', () => {
   test('generateDayFeed throws on invalid day number', async () => {
-    const llm = BabylonLLMClient.forGameTick();
+    const llm = createMockLLMClient();
     const feed = new FeedGenerator(llm);
 
     await expect(feed.generateDayFeed(0, [], [])).rejects.toThrow(
@@ -25,7 +35,7 @@ describe('Fail-Fast Validation', () => {
   });
 
   test('generateDayFeed throws on empty actors array', async () => {
-    const llm = BabylonLLMClient.forGameTick();
+    const llm = createMockLLMClient();
     const feed = new FeedGenerator(llm);
 
     await expect(feed.generateDayFeed(1, [], [])).rejects.toThrow(

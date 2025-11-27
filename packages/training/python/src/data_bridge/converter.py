@@ -105,20 +105,25 @@ class BabylonToAtroposConverter:
             steps = steps[-self.max_steps:]
         
         for step in steps:
-            # Each step: observation (user) + decision (assistant)
+            # Each step may contain multiple LLM calls (reasoning, action, evaluation, response)
+            # We include ALL calls to preserve the complete decision-making process
             if step.llm_calls:
-                # Use actual LLM prompts
-                llm_call = step.llm_calls[0]  # Primary LLM call
-                
-                messages.append(AtroposMessage(
-                    role="user",
-                    content=llm_call.user_prompt
-                ))
-                
-                messages.append(AtroposMessage(
-                    role="assistant",
-                    content=llm_call.response
-                ))
+                for llm_call in step.llm_calls:
+                    # Skip calls with empty prompts or responses
+                    if not llm_call.user_prompt or not llm_call.response:
+                        continue
+                    
+                    # Add the user prompt
+                    messages.append(AtroposMessage(
+                        role="user",
+                        content=llm_call.user_prompt
+                    ))
+                    
+                    # Add the assistant response
+                    messages.append(AtroposMessage(
+                        role="assistant",
+                        content=llm_call.response
+                    ))
             else:
                 # Fallback: build messages from environment state and action
                 env_state = step.environment_state
@@ -131,12 +136,13 @@ class BabylonToAtroposConverter:
                 messages.append(AtroposMessage(role="user", content=user_content))
                 
                 action = step.action
-                assistant_content = f"Action: {action.action_type}"
-                if action.parameters:
-                    assistant_content += f"\nParameters: {json.dumps(action.parameters)}"
-                if action.reasoning:
-                    assistant_content += f"\nReasoning: {action.reasoning[:200]}"
-                messages.append(AtroposMessage(role="assistant", content=assistant_content))
+                if action:
+                    assistant_content = f"Action: {action.action_type}"
+                    if action.parameters:
+                        assistant_content += f"\nParameters: {json.dumps(action.parameters)}"
+                    if action.reasoning:
+                        assistant_content += f"\nReasoning: {action.reasoning[:200]}"
+                    messages.append(AtroposMessage(role="assistant", content=assistant_content))
         
         if len(messages) < 3:  # Need at least system + user + assistant
             raise ValueError(
@@ -157,14 +163,9 @@ class BabylonToAtroposConverter:
             )
             tokens = tokenized.get("input_ids", [])
             
-            # Create mask: -100 for non-assistant tokens, token id for assistant tokens
-            # This requires knowing where assistant responses start/end
-            # Simplified: mask all tokens (actual masking done by environment)
-            masks = [-100] * len(tokens)
-            
-            # For now, mark all tokens as trainable (environment will handle proper masking)
-            # In production, this should identify assistant response boundaries
-            masks = tokens.copy()
+            # Create mask: -100 for non-assistant tokens, token_id for assistant tokens
+            # This ensures we only compute loss on model outputs (assistant responses)
+            masks = self._create_assistant_only_mask(tokens, messages, tokenizer)
         
         return AtroposTrajectory(
             messages=messages,
@@ -181,6 +182,100 @@ class BabylonToAtroposConverter:
                 "trades_executed": babylon_traj.trades_executed or 0,
             }
         )
+    
+    def _create_assistant_only_mask(
+        self,
+        tokens: List[int],
+        messages: List[AtroposMessage],
+        tokenizer,
+    ) -> List[int]:
+        """
+        Create mask that only includes loss on assistant tokens.
+        
+        This is CRITICAL for proper training - we should only train
+        on model outputs (assistant responses), not on user prompts
+        or system messages.
+        
+        Returns:
+            List of masks: -100 for non-trainable, token_id for trainable
+        """
+        # Strategy: Tokenize each message separately and find boundaries
+        masks = [-100] * len(tokens)
+        
+        # Track position in full sequence
+        current_pos = 0
+        
+        # Get special tokens for this tokenizer
+        # Most chat templates add tokens around role changes
+        has_bos = hasattr(tokenizer, 'bos_token_id') and tokenizer.bos_token_id is not None
+        
+        if has_bos:
+            current_pos = 1  # Skip BOS token
+        
+        for msg in messages:
+            # Tokenize this message in isolation to get its length
+            msg_dict = [msg.to_dict()]
+            try:
+                msg_tokens = tokenizer.apply_chat_template(
+                    msg_dict,
+                    tokenize=True,
+                    add_generation_prompt=False,
+                )
+                msg_len = len(msg_tokens)
+                
+                # Remove BOS if present (we only count it once)
+                if has_bos and msg_len > 0:
+                    msg_len -= 1
+                
+                if msg.role == "assistant":
+                    # Mark assistant tokens as trainable
+                    for i in range(current_pos, min(current_pos + msg_len, len(tokens))):
+                        masks[i] = tokens[i]
+                
+                current_pos += msg_len
+                
+            except Exception:
+                # Fallback: if tokenization fails, use heuristic
+                # Mark everything after "assistant" role as trainable
+                pass
+        
+        # Fallback: if we couldn't properly segment, use a heuristic
+        # Look for common assistant markers in the tokenized sequence
+        if sum(1 for m in masks if m != -100) == 0:
+            # Try to find assistant response boundaries
+            # This is tokenizer-specific, but many use similar patterns
+            assistant_markers = [
+                tokenizer.encode("assistant", add_special_tokens=False),
+                tokenizer.encode("<|assistant|>", add_special_tokens=False),
+                tokenizer.encode("[/INST]", add_special_tokens=False),
+            ]
+            
+            in_assistant = False
+            for i, token in enumerate(tokens):
+                # Simple heuristic: alternate between non-trainable and trainable
+                # based on role markers
+                for marker in assistant_markers:
+                    if i + len(marker) <= len(tokens):
+                        if tokens[i:i+len(marker)] == marker:
+                            in_assistant = True
+                            break
+                
+                # Mark user/system markers as end of assistant
+                user_markers = [
+                    tokenizer.encode("user", add_special_tokens=False),
+                    tokenizer.encode("<|user|>", add_special_tokens=False),
+                    tokenizer.encode("[INST]", add_special_tokens=False),
+                ]
+                for marker in user_markers:
+                    if i + len(marker) <= len(tokens):
+                        if tokens[i:i+len(marker)] == marker:
+                            in_assistant = False
+                            break
+                
+                if in_assistant:
+                    masks[i] = tokens[i]
+        
+        return masks
     
     def _build_system_message(
         self,

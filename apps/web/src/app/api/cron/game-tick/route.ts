@@ -349,7 +349,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       'Cron'
     );
 
-    // Use game tick LLM client (excludes Wandb - Wandb is reserved for agents only)
+    // Use game tick LLM client
     const llmClient = BabylonLLMClient.forGameTick();
     const lookaheadResult = await generateAheadIfNeeded(llmClient, 15);
 

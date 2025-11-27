@@ -5,8 +5,6 @@ Tests against actual services (not mocked)
 
 import os
 import pytest
-import asyncio
-from datetime import datetime, timedelta
 import httpx
 
 # Skip if no credentials
@@ -63,7 +61,7 @@ class TestRealDatabase:
                 assert 'id' in traj
                 assert 'agent_id' in traj
                 assert 'window_id' in traj
-                print(f"✓ Trajectory structure valid")
+                print("✓ Trajectory structure valid")
         else:
             print("⚠ No windows found (this is OK if no data yet)")
         
@@ -142,7 +140,7 @@ class TestRealJudgeModel:
         scores = scorer._fallback_scoring(contexts)
         assert len(scores) == 2
         assert all(0.0 <= s.score <= 1.0 for s in scores)
-        print(f"✓ RULER scoring service works (fallback)")
+        print("✓ RULER scoring service works (fallback)")
 
 
 class TestRealDataCollection:
@@ -248,8 +246,8 @@ class TestEndToEndFlow:
             database_url=db_url,
         )
         
-        trainer = BabylonAtroposTrainer(config)
-        print(f"✓ Atropos trainer configured")
+        _trainer = BabylonAtroposTrainer(config)  # Verify config works
+        print("✓ Atropos trainer configured")
         
         print("\n=== Pipeline Test Complete ===")
 

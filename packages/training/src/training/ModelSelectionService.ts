@@ -164,12 +164,12 @@ export class ModelSelectionService {
       'ModelSelectionService'
     );
 
-    // Use W&B model ID from storagePath
-    const wandbModelId = bestModel.storagePath || bestModel.modelId;
+    // Use storagePath for model path (e.g., HuggingFace URL)
+    const modelStoragePath = bestModel.storagePath || bestModel.modelId;
 
     return {
       modelId: bestModel.modelId,
-      modelPath: wandbModelId, // This is the W&B model identifier
+      modelPath: modelStoragePath,
       strategy: 'continue',
       reason: `Continuing from best model (score: ${bestModel.benchmarkScore?.toFixed(3) || 'N/A'})`,
       metadata: {

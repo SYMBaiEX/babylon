@@ -64,7 +64,7 @@
  * // trending[0] might have tags: ["OpenAGI", "Sam Altman"]
  * ```
  *
- * @see {@link /lib/services/tag-storage-service} Tag storage service
+ * @see {@link /lib/services/tag-service} Tag service
  * @see {@link /lib/services/trending-summary-service} Trending summary service
  * @see {@link /lib/services/trending-grouping-service} Trending grouping service
  */

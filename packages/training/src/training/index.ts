@@ -61,7 +61,10 @@ export {
 } from './storage/TrainingDataArchiver';
 export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
 export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
-export { getLatestRLModel, type ModelArtifact } from './WandbModelFetcher';
+
+// Model fetching
+export { getLatestRLModel } from './ModelFetcher';
+export type { ModelArtifact } from './ModelFetcher';
 
 // Types
 export * from './types';

@@ -238,3 +238,4 @@ export type NPCTrade = typeof npcTrades.$inferSelect;
 export type NewNPCTrade = typeof npcTrades.$inferInsert;
 
 
+

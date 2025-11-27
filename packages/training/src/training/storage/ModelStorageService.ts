@@ -21,7 +21,6 @@ export interface ModelVersion {
     trainingBatch?: string;
     accuracy?: number;
     avgReward?: number;
-    wandbRunId?: string;
     baseModel?: string;
     [key: string]: unknown;
   };
@@ -82,7 +81,6 @@ export class ModelStorageService {
         (options.metadata?.baseModel as string) ||
         'unsloth/Qwen3-4B-128K',
       storagePath: blob.url,
-      wandbRunId: (options.metadata?.wandbRunId as string) || null,
       accuracy: (options.metadata?.accuracy as number) || null,
       avgReward: (options.metadata?.avgReward as number) || null,
       status: 'ready',

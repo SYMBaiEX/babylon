@@ -6,8 +6,10 @@
  */
 
 export {
+  getLatestRLModel,
   getRLModelConfig,
   isRLModelAvailable,
   logRLModelConfig,
+  type ModelArtifact,
   type RLModelConfig,
 } from '@babylon/training';

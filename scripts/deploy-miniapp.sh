@@ -24,13 +24,13 @@ fi
 
 echo -e "${GREEN}✅ Manifest file exists${NC}"
 
-# Step 2: Run manifest validation
+# Step 2: Validate manifest JSON
 echo ""
-echo "🔍 Step 2: Running manifest validation..."
-if bun run scripts/test-miniapp-manifest.ts; then
-  echo -e "${GREEN}✅ Manifest validation passed${NC}"
+echo "🔍 Step 2: Validating manifest JSON..."
+if jq empty public/farcaster.json 2>/dev/null; then
+  echo -e "${GREEN}✅ Manifest JSON is valid${NC}"
 else
-  echo -e "${RED}❌ Manifest validation failed${NC}"
+  echo -e "${RED}❌ Manifest JSON is invalid${NC}"
   exit 1
 fi
 

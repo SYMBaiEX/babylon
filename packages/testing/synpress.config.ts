@@ -88,7 +88,7 @@ export default defineConfig({
   webServer: process.env.CI
     ? undefined
     : {
-        command: `cd ${rootDir} && bun run scripts/pre-dev/pre-dev-local.ts && bunx next dev --dir apps/web`,
+        command: `cd ${rootDir} && bunx next dev --dir apps/web`,
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,

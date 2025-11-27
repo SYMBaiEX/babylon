@@ -32,8 +32,10 @@ import {
   type AggregatedImpact,
   type TradeImpactInput,
 } from './market-impact-service';
-import { PredictionMarketEventService } from './prediction-market-event-service';
-import { PredictionPriceHistoryService } from './prediction-price-history-service';
+import {
+  PredictionMarketService as PredictionMarketEventService,
+  PredictionMarketService as PredictionPriceHistoryService,
+} from './prediction-market-service';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 export class TradeExecutionService {

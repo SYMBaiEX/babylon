@@ -95,7 +95,7 @@
  * });
  * ```
  *
- * @see {@link /scripts/run-eliza-benchmark.ts} CLI benchmark runner
+ * @see {@link babylon train} CLI benchmark runner
  * @see {@link /src/lib/benchmark/SimulationEngine.ts} Simulation engine
  * @see {@link /src/lib/agents/autonomous/AutonomousCoordinator.ts} Autonomous coordinator
  */

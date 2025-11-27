@@ -8,7 +8,6 @@ import {
   ConflictError,
   createErrorResponse,
   ErrorCodes,
-  ForbiddenError,
   InternalServerError,
   isAuthenticationError,
   isAuthorizationError,
@@ -17,7 +16,6 @@ import {
   NotFoundError,
   RateLimitError,
   ServiceUnavailableError,
-  UnauthorizedError,
   ValidationError,
 } from '../errors';
 

@@ -14,7 +14,7 @@ import {
   getModelTokenLimit,
   truncateToTokenLimitSync,
 } from '@babylon/engine';
-import { getRLModelConfig } from '../training/RLModelConfig';
+import { getRLModelConfig } from '@babylon/training';
 
 describe('RL Training System', () => {
   describe('Configuration', () => {
@@ -123,7 +123,7 @@ describe('RL Training System', () => {
       expect(trajectoryLogger.TrajectoryLoggerService).toBeDefined();
 
       // 2. RL Model config
-      const config = await import('../training/RLModelConfig');
+      const config = await import('@babylon/training');
       expect(config.getRLModelConfig).toBeDefined();
 
       // 3. Agent runtime

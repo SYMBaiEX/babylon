@@ -4,12 +4,15 @@
  * Agent Management Commands
  *
  * Commands:
- *   spawn   - Create test agents
- *   list    - List agents
- *   enable  - Enable autonomous features for an agent
- *   disable - Disable autonomous features for an agent
+ *   spawn        - Create test agents
+ *   list         - List agents
+ *   enable       - Enable autonomous features for an agent
+ *   disable      - Disable autonomous features for an agent
+ *   agent0-config - Configure Agent0 integration
  */
 
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { db, closeDatabase } from '@babylon/db';
 import { createTestAgent } from '@babylon/agents';
 import { parseArgs, wantsHelp, getOption, getFlag } from '../lib/args.js';
@@ -168,6 +171,107 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log(`${'─'.repeat(60)}`);
 }
 
+function getEnvValue(envContent: string, key: string): string | null {
+  const regex = new RegExp(`^${key}=(.*)$`, 'm');
+  const match = envContent.match(regex);
+  return match && match[1] ? match[1].trim().replace(/['"]/g, '') : null;
+}
+
+async function configureAgent0(): Promise<void> {
+  logger.header('Agent0 Configuration');
+
+  const envPath = join(process.cwd(), '.env.testnet');
+  let envContent = '';
+
+  if (existsSync(envPath)) {
+    envContent = readFileSync(envPath, 'utf-8');
+  }
+
+  // Check current configuration
+  console.log('Current Agent0 configuration:\n');
+
+  const currentConfig = {
+    enabled: getEnvValue(envContent, 'AGENT0_ENABLED'),
+    network: getEnvValue(envContent, 'AGENT0_NETWORK'),
+    rpcUrl: getEnvValue(envContent, 'BASE_SEPOLIA_RPC_URL'),
+    privateKey: getEnvValue(envContent, 'BABYLON_GAME_PRIVATE_KEY'),
+    subgraphUrl: getEnvValue(envContent, 'AGENT0_SUBGRAPH_URL'),
+    ipfsProvider: getEnvValue(envContent, 'AGENT0_IPFS_PROVIDER'),
+    pinataJwt: getEnvValue(envContent, 'PINATA_JWT'),
+  };
+
+  console.log(`  AGENT0_ENABLED:         ${currentConfig.enabled || 'not set'}`);
+  console.log(`  AGENT0_NETWORK:         ${currentConfig.network || 'not set'}`);
+  console.log(`  BASE_SEPOLIA_RPC_URL:   ${currentConfig.rpcUrl ? '✅ set' : '❌ not set'}`);
+  console.log(`  BABYLON_GAME_PRIVATE_KEY: ${currentConfig.privateKey ? '✅ set' : '❌ not set'}`);
+  console.log(`  AGENT0_SUBGRAPH_URL:    ${currentConfig.subgraphUrl || 'not set'}`);
+  console.log(`  AGENT0_IPFS_PROVIDER:   ${currentConfig.ipfsProvider || 'node'}`);
+
+  // Update configuration
+  const updates: Record<string, string> = {};
+
+  if (!currentConfig.enabled || currentConfig.enabled !== 'true') {
+    updates['AGENT0_ENABLED'] = 'true';
+  }
+
+  if (!currentConfig.network || currentConfig.network !== 'sepolia') {
+    updates['AGENT0_NETWORK'] = 'sepolia';
+  }
+
+  if (!currentConfig.rpcUrl) {
+    updates['AGENT0_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com';
+    updates['ETHEREUM_SEPOLIA_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com';
+  }
+
+  if (!currentConfig.subgraphUrl) {
+    updates['AGENT0_SUBGRAPH_URL'] = 'https://api.studio.thegraph.com/query/your-subgraph-id/agent0/version/latest';
+  }
+
+  if (!currentConfig.ipfsProvider) {
+    updates['AGENT0_IPFS_PROVIDER'] = 'node';
+  }
+
+  // Apply updates
+  if (Object.keys(updates).length > 0) {
+    console.log('\nApplying configuration updates...');
+
+    for (const [key, value] of Object.entries(updates)) {
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      if (envContent.match(regex)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        envContent += `\n${key}=${value}`;
+      }
+    }
+
+    writeFileSync(envPath, envContent);
+    logger.success('Configuration updated in .env.testnet');
+  } else {
+    console.log('\n✅ Configuration is already up to date');
+  }
+
+  // Show next steps
+  console.log('\n' + '─'.repeat(60));
+  console.log('Next steps:\n');
+
+  if (!currentConfig.privateKey) {
+    console.log('1. Set BABYLON_GAME_PRIVATE_KEY in .env.testnet');
+    console.log('   (Private key for game agent, needs ETH for registration)');
+  }
+
+  if (!currentConfig.subgraphUrl || currentConfig.subgraphUrl.includes('your-subgraph-id')) {
+    console.log('2. Update AGENT0_SUBGRAPH_URL in .env.testnet');
+    console.log('   (Get from The Graph Studio)');
+  }
+
+  if (!currentConfig.pinataJwt) {
+    console.log('3. (Optional) Set PINATA_JWT for Pinata IPFS');
+    console.log('   (Get from https://pinata.cloud)');
+  }
+
+  console.log('\n4. Start testnet dev: bun run dev:testnet');
+}
+
 async function toggleAgentFeatures(
   args: ReturnType<typeof parseArgs>,
   enable: boolean
@@ -256,6 +360,10 @@ export async function runAgentCommand(args: string[]): Promise<void> {
 
       case 'disable':
         await toggleAgentFeatures(parsed, false);
+        break;
+
+      case 'agent0-config':
+        await configureAgent0();
         break;
 
       default:

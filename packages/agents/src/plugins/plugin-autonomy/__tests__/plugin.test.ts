@@ -82,7 +82,7 @@ describe('Autonomy Plugin Tests', () => {
       getRoom: async () => null,
       sendMessageToTarget: async () => {},
       getService: (serviceName: string) => {
-        if (serviceName === 'autonomy') {
+        if (serviceName === 'AUTONOMY' || serviceName === 'autonomy') {
           return {
             getAutonomousRoomId: () => 'autonomous-room-id' as UUID,
             isLoopRunning: () => false,

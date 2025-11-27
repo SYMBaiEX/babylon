@@ -45,7 +45,43 @@ async function getTrainingImports() {
   return {
     archetypeScoringService: trainingMod.archetypeScoringService,
     trajectoryMetricsExtractor: trainingMod.trajectoryMetricsExtractor,
+    configureTrainingDependencies: trainingMod.configureTrainingDependencies,
   };
+}
+
+async function configureLLMCaller() {
+  const { BabylonLLMClient } = await import('@babylon/engine');
+  const { configureTrainingDependencies } = await getTrainingImports();
+
+  // Create LLM client for scoring
+  const llmClient = BabylonLLMClient.forGameTick();
+
+  // Create adapter that implements ILLMCaller interface
+  const llmCaller = {
+    callGroqDirect: async (params: {
+      prompt: string;
+      system: string;
+      modelSize?: 'small' | 'medium' | 'large';
+      temperature?: number;
+      maxTokens?: number;
+      actionType?: string;
+      responseFormat?: { type: 'json_object' };
+    }): Promise<string> => {
+      const fullPrompt = `${params.system}\n\n${params.prompt}`;
+      const response = await llmClient.generateJSON<{ result: string }>(
+        fullPrompt,
+        undefined,
+        {
+          maxTokens: params.maxTokens || 1000,
+          temperature: params.temperature || 0.3,
+          format: 'json',
+        }
+      );
+      return typeof response === 'string' ? response : JSON.stringify(response);
+    },
+  };
+
+  configureTrainingDependencies({ llmCaller });
 }
 
 async function getAgentImports() {
@@ -171,15 +207,22 @@ async function scoreArchetypeTrajectories(
 
   logger.step(`Scoring trajectories with ${archetype} rubric...`);
 
-  const { archetypeScoringService } = await getTrainingImports();
-  const result = await archetypeScoringService.scoreUnscoredTrajectories(archetype, 100);
+  try {
+    // Configure LLM for scoring
+    await configureLLMCaller();
 
-  console.log(`  ✅ Scored: ${result.scored}`);
-  if (result.errors > 0) {
-    console.log(`  ⚠️  Errors: ${result.errors}`);
+    const { archetypeScoringService } = await getTrainingImports();
+    console.log('   Calling scoring service...');
+    const result = await archetypeScoringService.scoreUnscoredTrajectories(archetype, 100);
+    console.log(`  ✅ Scored: ${result.scored}`);
+    if (result.errors > 0) {
+      console.log(`  ⚠️  Errors: ${result.errors}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('   ❌ Scoring error:', error);
+    return { scored: 0, errors: 1 };
   }
-
-  return result;
 }
 
 async function exportForTraining(
@@ -346,7 +389,7 @@ Next steps:
        --archetype ${archetype}
 
   2. Or run the full pipeline:
-     bun run scripts/run-full-rl-pipeline.ts --archetype ${archetype}
+     babylon train pipeline --archetype ${archetype}
 `);
     }
   } else {

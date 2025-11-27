@@ -1,10 +1,9 @@
 /**
- * Legacy broadcaster shim.
+ * SSE Event Broadcaster
  *
- * The previous design kept in-memory clients per instance. We now publish to
- * Redis Streams directly so SSE handlers can `XREAD` per-connection. This file
- * keeps the same public functions (`broadcastToChannel`, `broadcastChatMessage`)
- * to avoid touching all call sites.
+ * @description Publishes events to Redis Streams for SSE delivery. Events are
+ * broadcast to channels and consumed by SSE handlers via `XREAD` per-connection.
+ * Provides high-level functions for broadcasting to channels and chat rooms.
  */
 
 import { logger } from '@babylon/shared';

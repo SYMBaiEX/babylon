@@ -145,34 +145,16 @@ export class BenchmarkRunner {
         setSetting?: (key: string, value: string) => void;
       };
 
-      // Determine if it's a Groq model or W&B model
-      const isGroqModel =
-        config.forceModel.includes('qwen') ||
-        config.forceModel.includes('llama');
-
+      // Force Groq model configuration
       if (runtime.character?.settings) {
-        if (isGroqModel) {
-          // Force Groq model by disabling W&B
-          runtime.character.settings.WANDB_ENABLED = 'false';
-          runtime.character.settings.LARGE_GROQ_MODEL = config.forceModel;
-          runtime.character.settings.SMALL_GROQ_MODEL = config.forceModel;
-        } else {
-          // Force W&B model
-          runtime.character.settings.WANDB_ENABLED = 'true';
-          runtime.character.settings.WANDB_MODEL = config.forceModel;
-        }
+        runtime.character.settings.LARGE_GROQ_MODEL = config.forceModel;
+        runtime.character.settings.SMALL_GROQ_MODEL = config.forceModel;
       }
 
       // Also set via setSetting if available
       if (runtime.setSetting) {
-        if (isGroqModel) {
-          runtime.setSetting('WANDB_ENABLED', 'false');
-          runtime.setSetting('LARGE_GROQ_MODEL', config.forceModel);
-          runtime.setSetting('SMALL_GROQ_MODEL', config.forceModel);
-        } else {
-          runtime.setSetting('WANDB_ENABLED', 'true');
-          runtime.setSetting('WANDB_MODEL', config.forceModel);
-        }
+        runtime.setSetting('LARGE_GROQ_MODEL', config.forceModel);
+        runtime.setSetting('SMALL_GROQ_MODEL', config.forceModel);
       }
     }
 

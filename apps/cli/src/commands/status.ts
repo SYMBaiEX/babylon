@@ -12,7 +12,7 @@
 
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
-import { db } from '@babylon/db';
+import { db, closeDatabase } from '@babylon/db';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
@@ -279,7 +279,7 @@ export async function runStatusCommand(args: string[]): Promise<void> {
         process.exit(1);
     }
   } finally {
-    await db.$disconnect();
+    await closeDatabase();
   }
 }
 

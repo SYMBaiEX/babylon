@@ -9,8 +9,8 @@ env:
   # Group size for GRPO (number of trajectories compared at once)
   group_size: 4
   
-  # Weights & Biases settings
-  use_wandb: true
+  # Experiment tracking (disabled by default)
+  use_wandb: false
   wandb_name: "babylon-rlaif"
   
   # Worker settings

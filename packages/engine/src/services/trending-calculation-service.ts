@@ -11,7 +11,7 @@ import {
   getRelatedTags,
   getTagStatistics,
   storeTrendingTags,
-} from './tag-storage-service';
+} from './tag-service';
 
 const CALCULATION_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const TRENDING_WINDOW_DAYS = 7; // Look at last 7 days

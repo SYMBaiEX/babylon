@@ -88,7 +88,7 @@
  * ```
  *
  * @see {@link /lib/services/message-quality-checker} Quality checker
- * @see {@link /lib/services/group-chat-sweep} Group chat sweep
+ * @see {@link /lib/services/group-chat-service} Group chat service
  */
 
 import type { NextRequest } from 'next/server';

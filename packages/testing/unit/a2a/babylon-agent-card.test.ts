@@ -30,8 +30,8 @@ describe('Babylon Agent Card', () => {
 
   describe('Provider Information', () => {
     it('should have Babylon as provider', () => {
-      expect(babylonAgentCard.provider.organization).toBe('Babylon');
-      expect(babylonAgentCard.provider.url).toBe('https://babylon.game');
+      expect(babylonAgentCard.provider?.organization).toBe('Babylon');
+      expect(babylonAgentCard.provider?.url).toBe('https://babylon.game');
     });
   });
 
@@ -52,19 +52,19 @@ describe('Babylon Agent Card', () => {
   describe('Security Configuration', () => {
     it('should have API key security scheme', () => {
       expect(babylonAgentCard.securitySchemes).toBeDefined();
-      expect(babylonAgentCard.securitySchemes.babylonApiKey).toBeDefined();
+      expect(babylonAgentCard.securitySchemes?.babylonApiKey).toBeDefined();
     });
 
     it('should use header-based API key', () => {
-      const scheme = babylonAgentCard.securitySchemes.babylonApiKey;
-      expect(scheme.type).toBe('apiKey');
-      expect(scheme.in).toBe('header');
-      expect(scheme.name).toBe('X-Babylon-Api-Key');
+      const scheme = babylonAgentCard.securitySchemes?.babylonApiKey;
+      expect(scheme?.type).toBe('apiKey');
+      expect((scheme as { in?: string })?.in).toBe('header');
+      expect((scheme as { name?: string })?.name).toBe('X-Babylon-Api-Key');
     });
 
     it('should have security requirements', () => {
       expect(babylonAgentCard.security).toBeDefined();
-      expect(babylonAgentCard.security.length).toBeGreaterThan(0);
+      expect(babylonAgentCard.security?.length).toBeGreaterThan(0);
     });
   });
 
@@ -142,7 +142,7 @@ describe('Babylon Agent Card', () => {
     it('should have examples for each skill', () => {
       for (const skill of babylonAgentCard.skills) {
         expect(skill.examples).toBeDefined();
-        expect(skill.examples.length).toBeGreaterThan(0);
+        expect(skill.examples?.length).toBeGreaterThan(0);
       }
     });
 

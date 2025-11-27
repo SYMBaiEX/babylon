@@ -138,6 +138,17 @@ class PromptSample:
 
 
 @dataclass
+class DiversityMetrics:
+    """Diversity metrics for a dataset"""
+    unique_action_types: int = 0
+    unique_trajectories: int = 0
+    score_quartiles: list[float] = field(default_factory=list)  # [Q1, Q2, Q3]
+    action_type_distribution: dict[str, int] = field(default_factory=dict)
+    archetype_distribution: dict[str, int] = field(default_factory=dict)
+    curriculum_distribution: dict[str, int] = field(default_factory=lambda: {"easy": 0, "medium": 0, "hard": 0})
+
+
+@dataclass
 class PromptDataset:
     """Dataset of prompt samples grouped by purpose"""
     
@@ -148,9 +159,26 @@ class PromptDataset:
     avg_score: float = 0.0
     score_variance: float = 0.0
     
+    # Diversity tracking
+    _action_types: set[str] = field(default_factory=set)
+    _trajectory_ids: set[str] = field(default_factory=set)
+    _archetypes: dict[str, int] = field(default_factory=dict)
+    
     def add_sample(self, sample: PromptSample) -> None:
         """Add a sample to the dataset"""
         self.samples.append(sample)
+        
+        # Track diversity
+        if sample.action_type:
+            self._action_types.add(sample.action_type)
+        self._trajectory_ids.add(sample.trajectory_id)
+        
+        # Track archetype from trajectory_id (format: traj-agent-{archetype}-{n})
+        parts = sample.trajectory_id.split("-")
+        if len(parts) >= 3:
+            archetype = parts[2] if len(parts) > 3 else "unknown"
+            self._archetypes[archetype] = self._archetypes.get(archetype, 0) + 1
+        
         self._update_stats()
     
     def _update_stats(self) -> None:
@@ -161,6 +189,63 @@ class PromptDataset:
         self.avg_score = sum(scores) / len(scores)
         if len(scores) > 1:
             self.score_variance = sum((s - self.avg_score) ** 2 for s in scores) / len(scores)
+    
+    def get_diversity_metrics(self) -> DiversityMetrics:
+        """Calculate diversity metrics for this dataset"""
+        metrics = DiversityMetrics()
+        
+        if not self.samples:
+            return metrics
+        
+        # Unique counts
+        metrics.unique_action_types = len(self._action_types)
+        metrics.unique_trajectories = len(self._trajectory_ids)
+        
+        # Action type distribution
+        for sample in self.samples:
+            if sample.action_type:
+                metrics.action_type_distribution[sample.action_type] = \
+                    metrics.action_type_distribution.get(sample.action_type, 0) + 1
+        
+        # Archetype distribution
+        metrics.archetype_distribution = dict(self._archetypes)
+        
+        # Score quartiles
+        scores = sorted(s.get_weighted_score() for s in self.samples)
+        n = len(scores)
+        if n >= 4:
+            metrics.score_quartiles = [
+                scores[n // 4],      # Q1
+                scores[n // 2],      # Q2 (median)
+                scores[3 * n // 4],  # Q3
+            ]
+        
+        return metrics
+    
+    def is_diverse_enough(
+        self,
+        min_action_types: int = 2,
+        min_trajectories: int = 3,
+        min_score_variance: float = 0.01,
+    ) -> tuple[bool, list[str]]:
+        """
+        Check if dataset has sufficient diversity for good training.
+        
+        Returns:
+            (is_diverse, list of issues)
+        """
+        issues = []
+        
+        if len(self._action_types) < min_action_types:
+            issues.append(f"Low action diversity: {len(self._action_types)} < {min_action_types}")
+        
+        if len(self._trajectory_ids) < min_trajectories:
+            issues.append(f"Low trajectory diversity: {len(self._trajectory_ids)} < {min_trajectories}")
+        
+        if self.score_variance < min_score_variance:
+            issues.append(f"Low score variance: {self.score_variance:.4f} < {min_score_variance}")
+        
+        return len(issues) == 0, issues
     
     def get_training_groups(
         self,

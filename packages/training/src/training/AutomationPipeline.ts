@@ -283,7 +283,7 @@ export class AutomationPipeline {
     // Check readiness
     const readiness = await this.checkTrainingReadiness();
 
-    // If forcing, allow training even with 0 trajectories (for testing wandb integration)
+    // If forcing, allow training even with 0 trajectories (for testing)
     if (!readiness.ready && !options.force) {
       return {
         success: false,

@@ -30,13 +30,6 @@ export interface TrainingProgress {
   error?: string;
 }
 
-export interface WandBRunStatus {
-  status: string;
-  currentEpoch: number;
-  loss: number;
-  eta: number;
-}
-
 export class TrainingMonitor {
   /**
    * Start monitoring a training job
@@ -159,67 +152,6 @@ export class TrainingMonitor {
       loss: batch.trainingLoss ?? undefined,
       eta,
       error: batch.error ?? undefined,
-    };
-  }
-
-  /**
-   * Monitor W&B run via Weights & Biases API
-   * Requires WANDB_API_KEY environment variable
-   */
-  async monitorWandBRun(wandbRunId: string): Promise<WandBRunStatus | null> {
-    const wandbApiKey = process.env.WANDB_API_KEY;
-
-    if (!wandbApiKey) {
-      logger.warn(
-        'WANDB_API_KEY not configured - cannot monitor W&B runs',
-        undefined,
-        'TrainingMonitor'
-      );
-      return null;
-    }
-
-    logger.info('Monitoring W&B run', { wandbRunId }, 'TrainingMonitor');
-
-    // Call W&B API to get run status
-    const wandbResponse = await fetch(
-      `https://api.wandb.ai/runs/${wandbRunId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${wandbApiKey}`,
-        },
-      }
-    ).catch((error) => {
-      logger.error(
-        'Failed to fetch W&B run status',
-        { error, wandbRunId },
-        'TrainingMonitor'
-      );
-      return null;
-    });
-
-    if (!wandbResponse || !wandbResponse.ok) {
-      logger.warn(
-        'W&B API returned error',
-        { wandbRunId, status: wandbResponse?.status },
-        'TrainingMonitor'
-      );
-      return null;
-    }
-
-    const runData = (await wandbResponse.json()) as {
-      state?: string;
-      summary?: {
-        epoch?: number;
-        loss?: number;
-      };
-      runtime?: number;
-    };
-
-    return {
-      status: runData.state || 'unknown',
-      currentEpoch: runData.summary?.epoch || 0,
-      loss: runData.summary?.loss || 0,
-      eta: runData.runtime || 0,
     };
   }
 

@@ -19,7 +19,7 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
-import { GroupChatInvite } from './group-chat-invite';
+import { GroupChatService as GroupChatInvite } from './group-chat-service';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';

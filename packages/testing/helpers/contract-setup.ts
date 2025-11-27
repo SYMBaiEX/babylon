@@ -138,8 +138,8 @@ export async function deployContracts(): Promise<boolean> {
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
     process.env.ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || 'dummy';
 
-    // Run deployment script
-    await $`bun run scripts/deployment/deploy-localnet.ts`.quiet();
+    // Run deployment via CLI
+    await $`bun run apps/cli/src/index.ts deploy local`.quiet();
 
     // Wait a moment for files to be written
     await new Promise((resolve) => setTimeout(resolve, 2000));

@@ -7,13 +7,14 @@
  * Game engine services for NPCs, markets, content generation, and game mechanics.
  */
 
+// =============================================================================
 // NPC Services
+// =============================================================================
+
 export * from './ActorSocialActions';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
 export * from './following-mechanics';
-export * from './group-chat-invite';
-export * from './group-chat-sweep';
 export * from './initial-investment-service';
 export * from './InteractionTracker';
 export * from './lookahead-generation-service';
@@ -24,54 +25,107 @@ export * from './npc-persona-generator';
 export * from './RelationshipManager';
 export * from './reply-rate-limiter';
 
+// Group Chat Service (consolidated from group-chat-invite + group-chat-sweep)
+export {
+  GroupChatService,
+  GroupChatService as GroupChatInvite, // Backward compatibility
+  GroupChatService as GroupChatSweep, // Backward compatibility
+  type InviteChance,
+  type SweepDecision,
+} from './group-chat-service';
+
+// =============================================================================
 // Market Services
+// =============================================================================
+
 export {
   EventArcValidator,
   type EventArcValidationResult,
 } from './event-arc-validator';
 export * from './liquidity-health-service';
 export * from './onchain-market-service';
-export * from './perp-price-impact-service';
 export * from './perp-settlement-service';
 export * from './perp-trade-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './trajectory-market-engine';
 
+// Prediction Market Service (consolidated from prediction-market-event + prediction-price-history)
+export {
+  PredictionMarketService,
+  PredictionMarketService as PredictionMarketEventService, // Backward compatibility
+  PredictionMarketService as PredictionPriceHistoryService, // Backward compatibility
+  type PredictionTradeEvent,
+  type PredictionResolutionEvent,
+  type BroadcasterFn,
+  type PredictionPriceSnapshot,
+  type PredictionHistoryEventType,
+  type PredictionHistorySource,
+} from './prediction-market-service';
+
+// =============================================================================
 // Content Generation
+// =============================================================================
+
 export * from './event-generation-helpers';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
+export * from './parody-headline-generator';
+
+// Tag Service (consolidated from tag-generation + tag-storage)
 export {
   generateTagsFromPost,
-  type GeneratedTag as TagGenerationGeneratedTag,
-} from './tag-generation-service';
+  generateTagsForPosts,
+  storeTagsForPost,
+  getTagsForPost,
+  getPostsByTag,
+  getTagStatistics,
+  storeTrendingTags,
+  getCurrentTrendingTags,
+  getRelatedTags,
+  type GeneratedTag,
+} from './tag-service';
+
+// Trending Services (kept separate due to different concerns)
+export * from './trending-calculation-service';
 export * from './trending-grouping-service';
 
-// Existing services (re-exported)
+// =============================================================================
+// Core Services
+// =============================================================================
+
 export * from './character-mapping-service';
 export * from './earned-points-service';
 export * from './fee-service';
 export * from './market-context-service';
 export * from './market-impact-service';
-export * from './parody-headline-generator';
-export * from './prediction-market-event-service';
-export * from './prediction-price-history-service';
 export * from './rss-feed-service';
-export {
-  storeTagsForPost,
-  type GeneratedTag as TagStorageGeneratedTag,
-} from './tag-storage-service';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
-export * from './trending-calculation-service';
 export * from './wallet-service';
 
+// =============================================================================
 // Oracle & Portfolio Services
+// =============================================================================
+
 export { CommitmentStore } from './oracle-commitment-store';
-export { calculatePortfolioPnL, type PortfolioPnLSnapshot } from './portfolio-pnl';
+export {
+  calculatePortfolioPnL,
+  type PortfolioPnLSnapshot,
+} from './portfolio-pnl';
 export { getOracleService, OracleService } from './oracle/oracle-service';
 export * from './oracle/types';
 
-// Reputation Service
-export { ReputationService } from './reputation-service';
+// =============================================================================
+// Reputation Service (includes sync interface)
+// =============================================================================
+
+export {
+  ReputationService,
+  setReputationSyncService,
+  getReputationSyncService,
+  syncReputationIfAvailable,
+  type ReputationSyncResult,
+  type ReputationSyncOptions,
+  type ReputationSyncServiceInterface,
+} from './reputation-service';

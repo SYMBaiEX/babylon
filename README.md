@@ -54,7 +54,7 @@ bun run db:seed
 # AGENT0_ENABLED=true
 # BASE_SEPOLIA_RPC_URL=...
 # BABYLON_GAME_PRIVATE_KEY=...
-# Then register Babylon: bun run scripts/register-babylon-game.ts
+# Then configure Agent0: babylon agent agent0-config
 
 # 5. Start development
 bun run dev   # ← Automatically starts web + game engine!

@@ -47,7 +47,6 @@ loadEnvFile('.env.local');
 
 // Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
-  (process.env.WANDB_API_KEY?.trim() ?? '') !== '' ||
   (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
   (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''

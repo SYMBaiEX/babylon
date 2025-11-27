@@ -11,7 +11,7 @@
  *   simulate   - Run game simulation
  */
 
-import { db, eq, games, generateSnowflakeId as dbGenerateSnowflakeId } from '@babylon/db';
+import { db, eq, games, generateSnowflakeId as dbGenerateSnowflakeId, closeDatabase } from '@babylon/db';
 import { GameGenerator, GameSimulator, loadActorsData } from '@babylon/engine';
 import { nanoid } from 'nanoid';
 import { writeFile } from 'fs/promises';
@@ -519,7 +519,7 @@ export async function runGameCommand(args: string[]): Promise<void> {
         process.exit(parsed.command ? 1 : 0);
     }
   } finally {
-    await db.$disconnect();
+    await closeDatabase();
   }
 }
 

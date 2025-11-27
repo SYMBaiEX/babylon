@@ -2,7 +2,6 @@
  * HuggingFace Model Uploader
  *
  * Uploads trained RL models to HuggingFace Hub with benchmark results and model cards.
- * Handles conversion from WANDB format to HuggingFace format.
  */
 
 import {
