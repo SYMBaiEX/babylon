@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT_DIR = join(import.meta.dir, "..");
-const DEPS_DIR = join(ROOT_DIR, "lib", "contracts", "dependencies");
+const DEPS_DIR = join(ROOT_DIR, "packages", "contracts", "dependencies");
 
 interface SoldeerPackage {
   name: string;
