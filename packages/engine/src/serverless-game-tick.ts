@@ -501,31 +501,15 @@ export async function executeGameTick(
 
     const contextService = new MarketContextService();
 
-    // Create a separate LLM client for market decisions that skips Wandb
-    // Wandb models should ONLY be used for agent ticks, not for game tick market decisions
-    // Priority: Groq > Claude > OpenAI (skip Wandb)
-    let marketDecisionLLM: BabylonLLMClient;
-    if (process.env.GROQ_API_KEY) {
-      marketDecisionLLM = BabylonLLMClient.forGroq();
-      logger.info('Using Groq for market decisions', {}, 'GameTick');
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      marketDecisionLLM = BabylonLLMClient.forClaude();
-      logger.info('Using Claude for market decisions', {}, 'GameTick');
-    } else if (process.env.OPENAI_API_KEY) {
-      marketDecisionLLM = BabylonLLMClient.forOpenAI();
-      logger.info('Using OpenAI for market decisions', {}, 'GameTick');
-    } else {
-      // CRITICAL: Market decisions cannot use Wandb - throw error instead of falling back
-      throw new Error(
-        '❌ No API key found for market decisions!\n' +
-          '   Market decisions cannot use Wandb (Wandb is reserved for agents only).\n' +
-          '   Set one of these environment variables:\n' +
-          '   - GROQ_API_KEY (recommended for market decisions)\n' +
-          '   - ANTHROPIC_API_KEY\n' +
-          '   - OPENAI_API_KEY\n' +
-          '   Example: export GROQ_API_KEY=your_key_here'
-      );
-    }
+    // Create LLM client for market decisions
+    // Priority: Groq > Claude > OpenAI
+    const marketDecisionLLM = BabylonLLMClient.forGameTick();
+    const marketLLMStats = marketDecisionLLM.getStats();
+    logger.info(
+      `Using ${marketLLMStats.provider} for market decisions`,
+      { model: marketLLMStats.model },
+      'GameTick'
+    );
 
     // Configure decision engine with model and token limits from environment
     // Use qwen/qwen3-32b on Groq for background trading operations
@@ -2211,11 +2195,6 @@ Return your response as XML in this exact format:
   <article>full article body here with \\n\\n between paragraphs</article>
 </response>`;
 
-      // Only use Wandb-specific model if provider is Wandb, otherwise use default
-      const baselineModel =
-        llm.getProvider() === 'wandb'
-          ? 'moonshotai/kimi-k2-instruct-0905'
-          : undefined;
       const response = await llm.generateJSON<
         | { title: string; summary: string; article: string }
         | { response: { title: string; summary: string; article: string } }

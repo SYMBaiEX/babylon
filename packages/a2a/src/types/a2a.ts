@@ -258,34 +258,6 @@ export interface PaymentReceipt {
   confirmed: boolean;
 }
 
-// WebSocket Message Types
-export interface HandshakeRequest {
-  credentials: AgentCredentials;
-  capabilities: AgentCapabilities;
-  endpoint: string;
-}
-
-export interface HandshakeResponse {
-  agentId: string;
-  sessionToken: string;
-  serverCapabilities: string[];
-  expiresAt: number;
-}
-
-export interface DiscoverRequest {
-  filters?: {
-    strategies?: string[];
-    minReputation?: number;
-    markets?: string[];
-  };
-  limit?: number;
-}
-
-export interface DiscoverResponse {
-  agents: AgentProfile[];
-  total: number;
-}
-
 // Error Codes (following JSON-RPC 2.0 spec + custom)
 export enum ErrorCode {
   // JSON-RPC 2.0 Standard
@@ -306,19 +278,5 @@ export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = -32006,
   INVALID_SIGNATURE = -32007,
   EXPIRED_REQUEST = -32008,
-}
-
-// Event Types
-export interface A2AEvent {
-  type: string;
-  data: JsonValue | Record<string, JsonValue>;
-  timestamp: number;
-}
-
-export enum A2AEventType {
-  AGENT_CONNECTED = 'agent.connected',
-  AGENT_DISCONNECTED = 'agent.disconnected',
-  MARKET_UPDATE = 'market.update',
-  PAYMENT_RECEIVED = 'payment.received',
 }
 

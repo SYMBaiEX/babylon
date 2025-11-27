@@ -293,9 +293,10 @@ export class ExternalAgentAdapter {
           };
       }
     } catch (error) {
-      console.error(
-        `[ExternalAgentAdapter] Error sending message to ${externalId}:`,
-        error
+      logger.error(
+        `Error sending message to ${externalId}`,
+        error instanceof Error ? error : new Error(String(error)),
+        'ExternalAgentAdapter'
       );
       return {
         success: false,
@@ -528,8 +529,10 @@ export class ExternalAgentAdapter {
       }
     }, this.healthCheckIntervalMs);
 
-    console.log(
-      `[ExternalAgentAdapter] Health checks started (interval: ${this.healthCheckIntervalMs}ms)`
+    logger.info(
+      `Health checks started (interval: ${this.healthCheckIntervalMs}ms)`,
+      undefined,
+      'ExternalAgentAdapter'
     );
   }
 
@@ -540,7 +543,7 @@ export class ExternalAgentAdapter {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
-      console.log('[ExternalAgentAdapter] Health checks stopped');
+      logger.info('Health checks stopped', undefined, 'ExternalAgentAdapter');
     }
   }
 
@@ -775,7 +778,13 @@ export function getExternalAgentAdapter(): ExternalAgentAdapter {
   if (!adapterInstance) {
     adapterInstance = new ExternalAgentAdapter();
     // Initialize asynchronously (don't block)
-    adapterInstance.initialize().catch(console.error);
+    adapterInstance.initialize().catch((error) => {
+      logger.error(
+        'Failed to initialize ExternalAgentAdapter',
+        error instanceof Error ? error : new Error(String(error)),
+        'ExternalAgentAdapter'
+      );
+    });
   }
   return adapterInstance;
 }

@@ -104,7 +104,7 @@ async function generateGroqText(
     if (stepId) {
       params.trajectoryLogger.logLLMCall(stepId, {
         model,
-        modelVersion: params.modelVersion, // Use passed modelVersion
+        modelVersion: params.modelVersion,
         systemPrompt: params.system || '',
         userPrompt: params.prompt,
         response: result.text,
@@ -197,7 +197,6 @@ export const groqPlugin: Plugin = {
         'llama-3.1-8b-instant';
 
       // Get trajectory logger from runtime if available
-      // Runtime may have extended properties from AgentRuntimeManager
       interface RuntimeWithExtensions extends IAgentRuntime {
         trajectoryLogger?: TrajectoryLoggerService;
         currentTrajectoryId?: string;
@@ -206,7 +205,6 @@ export const groqPlugin: Plugin = {
       const extendedRuntime = runtime as RuntimeWithExtensions;
       const trajectoryLogger = extendedRuntime.trajectoryLogger;
       const trajectoryId = extendedRuntime.currentTrajectoryId;
-      // Extract model version from runtime if available
       const modelVersion = extendedRuntime.currentModelVersion;
 
       return await generateGroqText(groq, model, {
@@ -234,29 +232,8 @@ export const groqPlugin: Plugin = {
         presencePenalty = 0.7,
       }: GenerateTextParams
     ) => {
-      // Check if WANDB is enabled and model is available
-      const wandbEnabled = runtime.getSetting('WANDB_ENABLED') === 'true';
-      const wandbApiKey = runtime.getSetting('WANDB_API_KEY');
-      const wandbModel = runtime.getSetting('WANDB_MODEL');
-
-      let model: string;
-      let baseURL: string;
-      let apiKey: string;
-
-      if (wandbEnabled && wandbApiKey && wandbModel) {
-        // Use WANDB inference API
-        model = wandbModel;
-        baseURL = 'https://api.inference.wandb.ai/v1';
-        apiKey = wandbApiKey;
-      } else {
-        // Fallback to GROQ qwen 32b
-        model =
-          runtime.getSetting('GROQ_LARGE_MODEL') ??
-          runtime.getSetting('LARGE_MODEL') ??
-          'qwen/qwen3-32b';
-        baseURL = getBaseURL(runtime);
-        apiKey = runtime.getSetting('GROQ_API_KEY') || '';
-      }
+      const baseURL = getBaseURL(runtime);
+      const apiKey = runtime.getSetting('GROQ_API_KEY') || '';
 
       const groq = createGroq({
         apiKey,
@@ -264,17 +241,12 @@ export const groqPlugin: Plugin = {
         baseURL,
       });
 
-      // Determine if using W&B model (before logging)
-      const isWandbModel = wandbEnabled && wandbApiKey && wandbModel;
-
-      // Verify W&B API is being used
-      if (isWandbModel && baseURL === 'https://api.inference.wandb.ai/v1') {
-        // This confirms we're using W&B inference API, not Groq
-        // The model parameter will be passed to W&B API which expects W&B model identifiers
-      }
+      const model =
+        runtime.getSetting('GROQ_LARGE_MODEL') ??
+        runtime.getSetting('LARGE_MODEL') ??
+        'qwen/qwen3-32b';
 
       // Get trajectory logger from runtime if available
-      // Runtime may have optional properties for trajectory logging
       type RuntimeWithTrajectory = typeof runtime & {
         trajectoryLogger?: TrajectoryLoggerService;
         currentTrajectoryId?: string;
@@ -283,34 +255,16 @@ export const groqPlugin: Plugin = {
       const runtimeWithTrajectory = runtime as RuntimeWithTrajectory;
       const trajectoryLogger = runtimeWithTrajectory.trajectoryLogger;
       const trajectoryId = runtimeWithTrajectory.currentTrajectoryId;
-      // Extract model version from runtime if available
       const modelVersion = runtimeWithTrajectory.currentModelVersion;
 
-      // Log which model is being used (for verification)
-      // Always log at INFO level for W&B model usage verification
-      if (isWandbModel) {
-        logger.info(
-          'Using W&B RL model for inference',
-          {
-            model,
-            modelSource: 'wandb',
-            modelVersion,
-            baseURL,
-            wandbModel,
-          },
-          'GroqPlugin'
-        );
-      } else {
-        logger.debug(
-          'Using Groq model for inference',
-          {
-            model,
-            modelSource: 'groq',
-            groqModel: model,
-          },
-          'GroqPlugin'
-        );
-      }
+      logger.debug(
+        'Using Groq model for inference',
+        {
+          model,
+          modelSource: 'groq',
+        },
+        'GroqPlugin'
+      );
 
       return await generateGroqText(groq, model, {
         prompt,
