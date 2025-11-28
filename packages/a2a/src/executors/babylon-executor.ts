@@ -40,6 +40,181 @@ interface BabylonCommand {
   params: Record<string, JsonValue>;
 }
 
+/**
+ * Common response types for executor operations
+ */
+interface SuccessResponse {
+  success: boolean;
+  message?: string;
+}
+
+interface PostCreatedResponse extends SuccessResponse {
+  postId: string;
+  content: string;
+}
+
+interface FeedResponse {
+  posts: Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: Date;
+  }>;
+}
+
+interface MarketsResponse {
+  markets: Array<{
+    id: number | string;
+    question: string;
+    yesShares: number;
+    noShares: number;
+  }>;
+}
+
+interface UsersSearchResponse {
+  users: Array<{
+    id: string;
+    username: string | null;
+    displayName: string | null;
+    reputationPoints: number;
+  }>;
+}
+
+interface SystemStatsResponse {
+  users: number;
+  posts: number;
+  markets: number;
+}
+
+interface LeaderboardResponse {
+  leaderboard: Array<{
+    id: string;
+    username: string | null;
+    displayName: string | null;
+    reputationPoints: number;
+  }>;
+}
+
+interface BlockMuteResponse extends SuccessResponse {
+  block?: {
+    id: string;
+    blockerId: string;
+    blockedId: string;
+    reason: string | null;
+    createdAt: Date;
+  };
+  mute?: {
+    id: string;
+    muterId: string;
+    mutedId: string;
+    reason: string | null;
+    createdAt: Date;
+  };
+}
+
+interface ReportResponse extends SuccessResponse {
+  report: {
+    id: string;
+    reporterId: string;
+    reportedUserId?: string | null;
+    reportedPostId?: string | null;
+    reportType: string;
+    category: string;
+    reason: string;
+    evidence: string | null;
+    priority: string;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    resolution?: string | null;
+    resolvedAt?: Date | null;
+    resolvedBy?: string | null;
+  };
+}
+
+interface BlockedUserInfo {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  profileImageUrl: string | null;
+}
+
+interface BlockEntry {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  reason: string | null;
+  createdAt: Date;
+  blocked?: BlockedUserInfo;
+}
+
+interface BlocksListResponse {
+  blocks: BlockEntry[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+}
+
+interface MutedUserInfo {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  profileImageUrl: string | null;
+}
+
+interface MuteEntry {
+  id: string;
+  muterId: string;
+  mutedId: string;
+  reason: string | null;
+  createdAt: Date;
+  muted?: MutedUserInfo;
+}
+
+interface MutesListResponse {
+  mutes: MuteEntry[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+}
+
+interface BlockStatusResponse {
+  isBlocked: boolean;
+  block: {
+    id: string;
+    createdAt: Date;
+    reason: string | null;
+  } | null;
+}
+
+interface MuteStatusResponse {
+  isMuted: boolean;
+  mute: {
+    id: string;
+    createdAt: Date;
+    reason: string | null;
+  } | null;
+}
+
+type ExecutorOperationResult =
+  | PostCreatedResponse
+  | FeedResponse
+  | MarketsResponse
+  | UsersSearchResponse
+  | SystemStatsResponse
+  | LeaderboardResponse
+  | BlockMuteResponse
+  | ReportResponse
+  | BlocksListResponse
+  | MutesListResponse
+  | BlockStatusResponse
+  | MuteStatusResponse
+  | JsonValue;
+
 export class BabylonAgentExecutor implements AgentExecutor {
   async execute(
     requestContext: RequestContext,
@@ -415,7 +590,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (response.error) {
       throw new Error(response.error.message);
     }
-    return response.result;
+    return (response.result as JsonValue) ?? { success: true };
   }
 
   private async verifyEscrowPayment(
@@ -439,7 +614,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (response.error) {
       throw new Error(response.error.message);
     }
-    return response.result;
+    return (response.result as JsonValue) ?? { success: true };
   }
 
   private async refundEscrowPayment(
@@ -464,7 +639,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (response.error) {
       throw new Error(response.error.message);
     }
-    return response.result;
+    return (response.result as JsonValue) ?? { success: true };
   }
 
   private async listEscrowPayments(
@@ -489,7 +664,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (response.error) {
       throw new Error(response.error.message);
     }
-    return response.result;
+    return (response.result as JsonValue) ?? { success: true };
   }
 
   private async appealBanWithEscrow(
@@ -510,7 +685,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (response.error) {
       throw new Error(response.error.message);
     }
-    return response.result;
+    return (response.result as JsonValue) ?? { success: true };
   }
 
   // Basic Moderation Operations
