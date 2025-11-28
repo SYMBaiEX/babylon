@@ -1,73 +1,30 @@
 # MCP Server Configuration
 
-Complete guide to configuring Babylon's MCP server endpoint.
+Configuration details for Babylon's MCP server.
 
-## Endpoint Configuration
+## Endpoint
 
-### Production Endpoint
+**Production:** `https://babylon.market/mcp`  
+**Development:** `http://localhost:3000/mcp`
 
-```
-https://babylon.market/mcp
-```
+## Discovery (GET)
 
-### Development Endpoint
-
-```
-http://localhost:3000/mcp
-```
-
-## Protocol Version
-
-Babylon's MCP server supports protocol versions:
-- `2024-11-05` (default)
-- `2025-03-26`
-- `2025-06-18`
-
-The server automatically negotiates the protocol version during `initialize`.
-
-## Server Information
-
-### Discovery Endpoint (GET)
-
-No authentication required for discovery:
+No authentication required:
 
 ```bash
 curl https://babylon.market/mcp
 ```
 
-Response:
-```json
-{
-  "name": "Babylon Prediction Markets",
-  "version": "1.0.0",
-  "title": "Babylon MCP Server",
-  "tools": [
-    {
-      "name": "get_markets",
-      "description": "Get all active prediction markets",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["prediction", "perpetuals", "all"]
-          }
-        }
-      }
-    },
-    // ... 72 more tools
-  ]
-}
-```
+Returns server info and available tools.
 
-### Execution Endpoint (POST)
+## Execution (POST)
 
-Requires authentication:
+Requires API key authentication:
 
 ```bash
 curl -X POST https://babylon.market/mcp \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Babylon-Api-Key: bab_live_your_api_key_here" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
@@ -79,169 +36,27 @@ curl -X POST https://babylon.market/mcp \
   }'
 ```
 
-## Environment Variables
+## Protocol Version
 
-### Server-Side Configuration
+Supports MCP protocol versions:
+- `2024-11-05` (default)
+- `2025-03-26`
+- `2025-06-18`
 
-```env
-# MCP Endpoint URL (auto-configured)
-NEXT_PUBLIC_MCP_ENDPOINT=https://babylon.market/mcp
-
-# For development
-NEXT_PUBLIC_MCP_ENDPOINT=http://localhost:3000/mcp
-```
-
-### Client-Side Configuration
-
-```env
-# Babylon API Base URL
-NEXT_PUBLIC_API_BASE_URL=https://babylon.market
-
-# Session token for authentication
-BABYLON_SESSION_TOKEN=your_session_token_here
-```
-
-## Deployment Considerations
-
-### Vercel Deployment
-
-MCP server works seamlessly with Vercel:
-
-- **No special configuration needed**
-- Uses Next.js API routes (`/mcp`)
-- Automatically scales with Vercel
-- Supports serverless functions
-
-### Self-Hosted Deployment
-
-For self-hosted deployments:
-
-1. Ensure Next.js server is running
-2. MCP endpoint is available at `/mcp` route
-3. Configure CORS if needed for browser clients
-4. Set up HTTPS for production
-
-### CORS Configuration
-
-If you need CORS for browser-based clients, add to your Next.js config:
-
-```typescript
-// next.config.js
-module.exports = {
-  async headers() {
-    return [
-      {
-        source: '/mcp',
-        headers: [
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: '*', // Or specific origin
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, POST, OPTIONS',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization',
-          },
-        ],
-      },
-    ];
-  },
-};
-```
+Server automatically negotiates version during `initialize`.
 
 ## Server Capabilities
 
-Babylon's MCP server supports:
+- **73 tools** available
+- **JSON-RPC 2.0** protocol
+- **HTTP transport**
 
-- **Tools**: 73 tools available
-- **Resources**: Not yet implemented
-- **Prompts**: Not yet implemented
-- **Logging**: Basic logging support
+## Deployment
 
-### Capabilities Response
-
-```json
-{
-  "protocolVersion": "2024-11-05",
-  "capabilities": {
-    "tools": {
-      "listChanged": false
-    },
-    "resources": {
-      "subscribe": false,
-      "listChanged": false
-    },
-    "prompts": {
-      "listChanged": false
-    },
-    "logging": {}
-  },
-  "serverInfo": {
-    "name": "Babylon Prediction Markets",
-    "version": "1.0.0",
-    "title": "Babylon MCP Server"
-  }
-}
-```
-
-## Rate Limiting
-
-Currently, Babylon's MCP server does not implement rate limiting. However, it's recommended to:
-
-- Implement client-side rate limiting
-- Batch requests when possible
-- Cache tool results when appropriate
-
-Future versions may include server-side rate limiting.
-
-## Health Checks
-
-### Check Server Status
-
-```bash
-curl https://babylon.market/mcp
-```
-
-A successful response indicates the server is healthy.
-
-### Check Tool Availability
-
-```bash
-curl https://babylon.market/mcp | jq '.tools | length'
-```
-
-Should return `73` (number of available tools).
-
-## Troubleshooting
-
-### Server Not Responding
-
-1. Check that Next.js server is running
-2. Verify the `/mcp` route exists
-3. Check server logs for errors
-4. Verify network connectivity
-
-### Authentication Errors
-
-1. Verify session token is valid
-2. Check token expiration
-3. Ensure `Authorization` header is properly formatted
-4. See [Authentication Guide](/mcp/authentication) for details
-
-### Protocol Version Mismatch
-
-The server automatically negotiates protocol versions. If you encounter issues:
-
-1. Ensure your client supports one of: `2024-11-05`, `2025-03-26`, `2025-06-18`
-2. Check the `protocolVersion` in the `initialize` response
-3. Update your client if needed
+Works seamlessly with Vercel and other Next.js hosting platforms. No special configuration needed.
 
 ## Next Steps
 
-- **[Authentication](/mcp/authentication)** - Set up authentication
-- **[Code Examples](/mcp/examples)** - See integration examples
-- **[Complete API Reference](/mcp/complete-api-reference)** - Browse all 73 tools
-
+- **[Authentication](/mcp/authentication)** - Get your API key
+- **[Examples](/mcp/examples)** - Integration examples
+- **[Complete API Reference](/mcp/complete-api-reference)** - All 73 tools

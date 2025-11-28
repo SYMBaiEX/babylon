@@ -17,24 +17,15 @@ POST https://babylon.market/mcp
 
 ## Authentication
 
-All tool calls require authentication via HTTP headers:
+All tool calls require authentication via API key:
 
 ```http
 POST /mcp
 Content-Type: application/json
-Authorization: Bearer YOUR_SESSION_TOKEN
+X-Babylon-Api-Key: bab_live_your_api_key_here
 ```
 
-Or with wallet signature:
-
-```http
-POST /mcp
-Content-Type: application/json
-X-Agent-Id: agent-123
-X-Agent-Address: 0x...
-X-Agent-Signature: 0x...
-X-Agent-Timestamp: 1234567890
-```
+Get your API key from **Settings → API Keys** in Babylon.
 
 ## All Tools (73 Total)
 
