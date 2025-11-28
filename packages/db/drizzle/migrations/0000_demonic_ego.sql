@@ -1253,6 +1253,17 @@ CREATE TABLE "UserInteraction" (
 	"wasInvitedToChat" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "UserApiKey" (
+	"id" text PRIMARY KEY NOT NULL,
+	"userId" text NOT NULL,
+	"keyHash" text NOT NULL,
+	"name" text,
+	"lastUsedAt" timestamp,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"expiresAt" timestamp,
+	"revokedAt" timestamp
+);
+--> statement-breakpoint
 CREATE TABLE "UserMute" (
 	"id" text PRIMARY KEY NOT NULL,
 	"muterId" text NOT NULL,
@@ -1693,6 +1704,9 @@ CREATE INDEX "UserBlock_createdAt_idx" ON "UserBlock" USING btree ("createdAt");
 CREATE INDEX "UserInteraction_npcId_timestamp_idx" ON "UserInteraction" USING btree ("npcId","timestamp");--> statement-breakpoint
 CREATE INDEX "UserInteraction_userId_npcId_timestamp_idx" ON "UserInteraction" USING btree ("userId","npcId","timestamp");--> statement-breakpoint
 CREATE INDEX "UserInteraction_userId_timestamp_idx" ON "UserInteraction" USING btree ("userId","timestamp");--> statement-breakpoint
+CREATE INDEX "UserApiKey_userId_idx" ON "UserApiKey" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX "UserApiKey_keyHash_idx" ON "UserApiKey" USING btree ("keyHash");--> statement-breakpoint
+CREATE INDEX "UserApiKey_userId_revokedAt_idx" ON "UserApiKey" USING btree ("userId","revokedAt");--> statement-breakpoint
 CREATE INDEX "UserMute_muterId_idx" ON "UserMute" USING btree ("muterId");--> statement-breakpoint
 CREATE INDEX "UserMute_mutedId_idx" ON "UserMute" USING btree ("mutedId");--> statement-breakpoint
 CREATE INDEX "UserMute_createdAt_idx" ON "UserMute" USING btree ("createdAt");--> statement-breakpoint
@@ -1717,4 +1731,37 @@ CREATE INDEX "User_waitlistJoinedAt_idx" ON "User" USING btree ("waitlistJoinedA
 CREATE INDEX "User_waitlistPosition_idx" ON "User" USING btree ("waitlistPosition");--> statement-breakpoint
 CREATE INDEX "User_walletAddress_idx" ON "User" USING btree ("walletAddress");--> statement-breakpoint
 CREATE INDEX "User_registrationIpHash_idx" ON "User" USING btree ("registrationIpHash");--> statement-breakpoint
-CREATE INDEX "User_lastReferralIpHash_idx" ON "User" USING btree ("lastReferralIpHash");
+CREATE INDEX "User_lastReferralIpHash_idx" ON "User" USING btree ("lastReferralIpHash");--> statement-breakpoint
+ALTER TABLE "UserApiKey" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "Users can view their own API keys"
+ON "UserApiKey"
+FOR SELECT
+USING (
+  "userId" = current_setting('app.current_user_id', true)::text
+  OR current_setting('app.current_user_id', true) = 'system'
+);--> statement-breakpoint
+CREATE POLICY "Users can create their own API keys"
+ON "UserApiKey"
+FOR INSERT
+WITH CHECK (
+  "userId" = current_setting('app.current_user_id', true)::text
+  OR current_setting('app.current_user_id', true) = 'system'
+);--> statement-breakpoint
+CREATE POLICY "Users can update their own API keys"
+ON "UserApiKey"
+FOR UPDATE
+USING (
+  "userId" = current_setting('app.current_user_id', true)::text
+  OR current_setting('app.current_user_id', true) = 'system'
+)
+WITH CHECK (
+  "userId" = current_setting('app.current_user_id', true)::text
+  OR current_setting('app.current_user_id', true) = 'system'
+);--> statement-breakpoint
+CREATE POLICY "Users can delete their own API keys"
+ON "UserApiKey"
+FOR DELETE
+USING (
+  "userId" = current_setting('app.current_user_id', true)::text
+  OR current_setting('app.current_user_id', true) = 'system'
+);

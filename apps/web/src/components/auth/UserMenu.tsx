@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, Copy, LogOut } from 'lucide-react';
+import { Check, Copy, Key, LogOut } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +36,7 @@ let userMenuIntervalId: ReturnType<typeof setInterval> | null = null;
 export function UserMenu() {
   const { logout } = useAuth();
   const { user } = useAuthStore();
+  const router = useRouter();
   const [pointsData, setPointsData] = useState<{
     available: number;
     total: number;
@@ -240,6 +242,13 @@ export function UserMenu() {
           </div>
         </DropdownItem>
       )}
+
+      <DropdownItem onClick={() => router.push('/settings?tab=api')}>
+        <div className="flex items-center gap-3 py-2">
+          <Key className="h-5 w-5" style={{ color: '#0066FF' }} />
+          <span className="font-semibold text-foreground text-sm">API Keys</span>
+        </div>
+      </DropdownItem>
 
       <DropdownItem onClick={logout}>
         <div className="flex items-center gap-3 py-2 text-destructive hover:text-destructive/90">

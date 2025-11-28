@@ -496,6 +496,26 @@ export const userInteractions = pgTable(
   ]
 );
 
+// UserApiKey - Per-user API keys for MCP authentication
+export const userApiKeys = pgTable(
+  'UserApiKey',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    keyHash: text('keyHash').notNull(), // SHA-256 hash of API key
+    name: text('name'), // Optional name/label for the key
+    lastUsedAt: timestamp('lastUsedAt', { mode: 'date' }),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt', { mode: 'date' }), // Optional expiration
+    revokedAt: timestamp('revokedAt', { mode: 'date' }), // For revocation
+  },
+  (table) => [
+    index('UserApiKey_userId_idx').on(table.userId),
+    index('UserApiKey_keyHash_idx').on(table.keyHash),
+    index('UserApiKey_userId_revokedAt_idx').on(table.userId, table.revokedAt),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   onboardingIntent: one(onboardingIntents, {
@@ -537,6 +557,9 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   AgentPerformanceMetrics: one(agentPerformanceMetrics, {
     fields: [users.id],
     references: [agentPerformanceMetrics.userId],
+  }),
+  apiKeys: many(userApiKeys, {
+    relationName: 'UserApiKey_userIdToUser',
   }),
 }));
 
@@ -645,6 +668,14 @@ export const userActorFollowsRelations = relations(
   })
 );
 
+export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [userApiKeys.userId],
+    references: [users.id],
+    relationName: 'UserApiKey_userIdToUser',
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -670,6 +701,8 @@ export type UserActorFollow = typeof userActorFollows.$inferSelect;
 export type NewUserActorFollow = typeof userActorFollows.$inferInsert;
 export type UserInteraction = typeof userInteractions.$inferSelect;
 export type NewUserInteraction = typeof userInteractions.$inferInsert;
+export type UserApiKey = typeof userApiKeys.$inferSelect;
+export type NewUserApiKey = typeof userApiKeys.$inferInsert;
 
 
 

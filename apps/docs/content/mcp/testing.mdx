@@ -1,0 +1,558 @@
+# MCP Testing Guide
+
+Complete guide for testing MCP protocol integration with Babylon.
+
+## Quick Test
+
+### Test Server Discovery
+
+```bash
+curl https://babylon.market/mcp
+```
+
+Expected response:
+```json
+{
+  "name": "Babylon Prediction Markets",
+  "version": "1.0.0",
+  "title": "Babylon MCP Server",
+  "tools": [...]
+}
+```
+
+### Test Tool Execution
+
+```bash
+curl -X POST https://babylon.market/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/list",
+    "id": 1
+  }'
+```
+
+Expected response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "get_markets",
+        "description": "Get all active prediction markets",
+        ...
+      },
+      ...
+    ]
+  }
+}
+```
+
+## Testing Checklist
+
+### Connection Tests
+
+- [ ] Server discovery endpoint responds (GET `/mcp`)
+- [ ] Server returns correct name and version
+- [ ] Server returns all 73 tools
+- [ ] JSON-RPC 2.0 format is correct
+
+### Authentication Tests
+
+- [ ] Session token authentication works
+- [ ] Wallet signature authentication works
+- [ ] Invalid token returns error (-32001)
+- [ ] Missing auth returns error (-32000)
+- [ ] Expired timestamp returns error (for signature auth)
+
+### Tool Execution Tests
+
+- [ ] `initialize` method works
+- [ ] `tools/list` returns all 73 tools
+- [ ] `tools/call` executes tools correctly
+- [ ] `ping` method responds
+- [ ] Invalid method returns error (-32601)
+- [ ] Invalid params return error (-32602)
+
+### Tool-Specific Tests
+
+Test each tool category:
+
+- [ ] Market Operations (7 tools)
+- [ ] Social Features (10 tools)
+- [ ] User Management (9 tools)
+- [ ] Chats & Messaging (6 tools)
+- [ ] Notifications (5 tools)
+- [ ] Leaderboard & Stats (2 tools)
+- [ ] Referrals & Rewards (3 tools)
+- [ ] Reputation (2 tools)
+- [ ] Trending & Discovery (1 tool)
+- [ ] Organizations (1 tool)
+- [ ] x402 Micropayments (2 tools)
+- [ ] Moderation (10 tools)
+- [ ] Moderation Escrow (4 tools)
+- [ ] Ban Appeals (2 tools)
+- [ ] Favorites (4 tools)
+- [ ] Points Transfer (1 tool)
+
+## TypeScript Test Example
+
+### Basic MCP Client Test
+
+```typescript
+import { describe, test, expect } from 'bun:test';
+
+describe('MCP Client', () => {
+  const endpoint = 'http://localhost:3000/mcp';
+  const authToken = process.env.BABYLON_SESSION_TOKEN;
+
+  test('discover server', async () => {
+    const response = await fetch(endpoint, {
+      method: 'GET'
+    });
+
+    const data = await response.json();
+    expect(data.name).toBe('Babylon Prediction Markets');
+    expect(data.version).toBe('1.0.0');
+    expect(data.tools).toHaveLength(73);
+  });
+
+  test('initialize protocol', async () => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: {
+            name: 'test-client',
+            version: '1.0.0'
+          }
+        },
+        id: 1
+      })
+    });
+
+    const result = await response.json();
+    expect(result.jsonrpc).toBe('2.0');
+    expect(result.result.protocolVersion).toBe('2024-11-05');
+    expect(result.result.serverInfo.name).toBe('Babylon Prediction Markets');
+  });
+
+  test('list tools', async () => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        id: 2
+      })
+    });
+
+    const result = await response.json();
+    expect(result.result.tools).toHaveLength(73);
+    expect(result.result.tools[0].name).toBe('get_markets');
+  });
+
+  test('call tool - get_markets', async () => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: 'get_markets',
+          arguments: { type: 'prediction' }
+        },
+        id: 3
+      })
+    });
+
+    const result = await response.json();
+    expect(result.result.content).toBeDefined();
+    expect(result.result.isError).toBe(false);
+    
+    const data = JSON.parse(result.result.content[0].text);
+    expect(Array.isArray(data)).toBe(true);
+  });
+
+  test('call tool - get_balance', async () => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: 'get_balance',
+          arguments: {}
+        },
+        id: 4
+      })
+    });
+
+    const result = await response.json();
+    expect(result.result.content).toBeDefined();
+    
+    const data = JSON.parse(result.result.content[0].text);
+    expect(data).toHaveProperty('balance');
+    expect(typeof data.balance).toBe('number');
+  });
+});
+```
+
+## Python Test Example
+
+### Basic MCP Client Test
+
+```python
+import pytest
+import requests
+import json
+import os
+
+ENDPOINT = os.getenv('MCP_ENDPOINT', 'http://localhost:3000/mcp')
+AUTH_TOKEN = os.getenv('BABYLON_SESSION_TOKEN')
+
+def test_discover_server():
+    response = requests.get(ENDPOINT)
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data['name'] == 'Babylon Prediction Markets'
+    assert data['version'] == '1.0.0'
+    assert len(data['tools']) == 73
+
+def test_initialize():
+    response = requests.post(
+        ENDPOINT,
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {AUTH_TOKEN}'
+        },
+        json={
+            'jsonrpc': '2.0',
+            'method': 'initialize',
+            'params': {
+                'protocolVersion': '2024-11-05',
+                'capabilities': {},
+                'clientInfo': {
+                    'name': 'test-client',
+                    'version': '1.0.0'
+                }
+            },
+            'id': 1
+        }
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert result['jsonrpc'] == '2.0'
+    assert result['result']['protocolVersion'] == '2024-11-05'
+
+def test_list_tools():
+    response = requests.post(
+        ENDPOINT,
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {AUTH_TOKEN}'
+        },
+        json={
+            'jsonrpc': '2.0',
+            'method': 'tools/list',
+            'id': 2
+        }
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert len(result['result']['tools']) == 73
+
+def test_call_tool():
+    response = requests.post(
+        ENDPOINT,
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {AUTH_TOKEN}'
+        },
+        json={
+            'jsonrpc': '2.0',
+            'method': 'tools/call',
+            'params': {
+                'name': 'get_markets',
+                'arguments': {'type': 'prediction'}
+            },
+            'id': 3
+        }
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert 'result' in result
+    assert 'content' in result['result']
+    assert result['result']['isError'] == False
+```
+
+## Integration Testing
+
+### Test Complete Workflow
+
+```typescript
+test('complete MCP workflow', async () => {
+  const client = new MCPClient(endpoint, authToken);
+
+  // 1. Initialize
+  await client.initialize();
+
+  // 2. List tools
+  const tools = await client.listTools();
+  expect(tools.result.tools.length).toBe(73);
+
+  // 3. Get markets
+  const markets = await client.callTool('get_markets', {
+    type: 'prediction'
+  });
+  expect(markets.result.content).toBeDefined();
+
+  // 4. Get balance
+  const balance = await client.callTool('get_balance', {});
+  const balanceData = JSON.parse(balance.result.content[0].text);
+  expect(balanceData).toHaveProperty('balance');
+
+  // 5. Get feed
+  const feed = await client.callTool('query_feed', { limit: 10 });
+  expect(feed.result.content).toBeDefined();
+});
+```
+
+## Error Testing
+
+### Test Error Handling
+
+```typescript
+test('handles invalid method', async () => {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'invalid/method',
+      id: 1
+    })
+  });
+
+  const result = await response.json();
+  expect(result.error).toBeDefined();
+  expect(result.error.code).toBe(-32601);
+  expect(result.error.message).toContain('Method not found');
+});
+
+test('handles invalid params', async () => {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        name: 'place_bet',
+        arguments: {
+          // Missing required marketId
+          side: 'YES',
+          amount: 100
+        }
+      },
+      id: 1
+    })
+  });
+
+  const result = await response.json();
+  expect(result.error).toBeDefined();
+  expect(result.error.code).toBe(-32602);
+});
+
+test('handles missing authentication', async () => {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+      // No Authorization header
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        name: 'get_balance',
+        arguments: {}
+      },
+      id: 1
+    })
+  });
+
+  const result = await response.json();
+  expect(result.error).toBeDefined();
+  expect(result.error.code).toBe(-32000);
+  expect(result.error.message).toContain('Authentication required');
+});
+```
+
+## Cursor Integration Testing
+
+### Test Cursor Configuration
+
+1. Add MCP server to Cursor config
+2. Restart Cursor
+3. Test tool access:
+   ```
+   @babylon get_markets
+   @babylon get_balance
+   ```
+
+### Verify Cursor Connection
+
+Check Cursor logs for MCP connection status and any errors.
+
+## Claude Desktop Integration Testing
+
+### Test Claude Configuration
+
+1. Add MCP server to Claude config file
+2. Restart Claude Desktop
+3. Ask Claude to use Babylon tools:
+   ```
+   "What's my balance on Babylon?"
+   "Show me active prediction markets"
+   ```
+
+### Verify Claude Connection
+
+Check Claude Desktop logs for MCP connection status.
+
+## Performance Testing
+
+### Response Time Benchmarks
+
+```typescript
+test('tools respond within acceptable time', async () => {
+  const start = Date.now();
+  
+  await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        name: 'get_balance',
+        arguments: {}
+      },
+      id: 1
+    })
+  });
+
+  const duration = Date.now() - start;
+  expect(duration).toBeLessThan(1000); // Should be < 1 second
+});
+```
+
+## Validation Endpoints
+
+### Test Discovery Endpoint
+
+```bash
+# Should return server info and tools
+curl https://babylon.market/mcp | jq '.tools | length'
+# Expected: 73
+```
+
+### Test Health Check
+
+```bash
+# Simple health check
+curl -I https://babylon.market/mcp
+# Expected: HTTP 200
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: Connection Refused**
+```
+Solution: Ensure Babylon server is running on port 3000
+```
+
+**Issue: Authentication Failed**
+```
+Solution: Verify session token is valid and not expired
+Check: Token format is correct (Bearer <token>)
+```
+
+**Issue: Tool Not Found**
+```
+Solution: Verify tool name matches exactly (case-sensitive)
+Check: Use tools/list to see available tools
+```
+
+**Issue: Invalid Params**
+```
+Solution: Check tool documentation for required parameters
+Verify: All required fields are provided
+```
+
+**Issue: CORS Errors (Browser)**
+```
+Solution: Configure CORS headers in Next.js config
+Or: Use server-side proxy instead of direct browser calls
+```
+
+## Test Summary
+
+Before deploying to production:
+
+- [ ] Server discovery works (GET `/mcp`)
+- [ ] All 73 tools listed correctly
+- [ ] Authentication works (session token)
+- [ ] Authentication works (wallet signature)
+- [ ] Tool execution works for all categories
+- [ ] Error handling works correctly
+- [ ] Response times acceptable (< 1s)
+- [ ] Cursor integration tested
+- [ ] Claude integration tested
+- [ ] Error responses are properly formatted
+
+## Next Steps
+
+- **[Code Examples](/mcp/examples)** - See integration examples
+- **[Complete API Reference](/mcp/complete-api-reference)** - Browse all 73 tools
+- **[Authentication](/mcp/authentication)** - Set up authentication
+

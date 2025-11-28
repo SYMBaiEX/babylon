@@ -2,7 +2,7 @@
  * Next.js Instrumentation
  *
  * Runs on server startup to register Babylon in Agent0 registry and initialize Sentry.
- * For Next.js 16.0.1, this file handles server-side Sentry initialization.
+ * This file handles server-side Sentry initialization.
  *
  * Note: Client-side Sentry is initialized via instrumentation-client.ts
  */
@@ -28,13 +28,23 @@ export async function register() {
     // Initialize shared moderation services with web app implementations
     setPointsService({
       awardPoints: async (userId, amount, reason, metadata) => {
-        return await PointsService.awardPoints(userId, amount, reason as never, metadata);
+        // Cast metadata from Record<string, unknown> to Record<string, JsonValue>
+        // JsonValue is a subset of unknown, so this cast is safe
+        // JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+        return await PointsService.awardPoints(
+          userId,
+          amount,
+          reason as never,
+          metadata as Parameters<typeof PointsService.awardPoints>[3]
+        );
       },
     });
 
     setNotificationService({
       createNotification: async (params) => {
-        return await createNotification(params);
+        // Cast params to match CreateNotificationParams type
+        // setNotificationService interface uses string for type, but createNotification expects NotificationType
+        return await createNotification(params as Parameters<typeof createNotification>[0]);
       },
     });
   }
@@ -54,9 +64,7 @@ export async function register() {
   if (process.env.AGENT0_ENABLED === 'true' && process.env.NEXT_RUNTIME === 'nodejs') {
     try {
       const { setReputationSyncService } = await import('@babylon/engine');
-      const { createReputationSyncAdapter } = await import(
-        '@babylon/agents/agent0/reputation/reputation-sync-adapter'
-      );
+      const { createReputationSyncAdapter } = await import('@babylon/agents');
       setReputationSyncService(createReputationSyncAdapter());
     } catch (error) {
       // Don't fail startup if agents package isn't available
@@ -76,7 +84,7 @@ export async function register() {
     process.env.NODE_ENV === 'production' // Only in production to avoid blocking dev
   ) {
     try {
-      const { registerBabylonGame } = await import('@babylon/agents/agent0');
+      const { registerBabylonGame } = await import('@babylon/agents');
       await registerBabylonGame().catch((error: Error) => {
         // Don't fail startup if registration fails - log and continue
         console.error(

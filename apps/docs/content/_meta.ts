@@ -5,6 +5,7 @@ export default {
   'agent-examples': 'Agent Examples',
   agents: 'Agents (Advanced)',
   a2a: 'A2A Protocol',
+  mcp: 'MCP Protocol',
   deployment: 'Deployment',
   contracts: 'Smart Contracts',
   cli: 'CLI Commands',

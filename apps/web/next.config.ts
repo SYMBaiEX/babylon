@@ -1,9 +1,15 @@
 import type { NextConfig } from 'next';
 import * as path from 'path';
+import { config } from 'dotenv';
 
 // Use process.cwd() which works reliably in Next.js config context
 // This is the app directory (apps/web), so go up two levels to get monorepo root
 const monorepoRoot = path.resolve(process.cwd(), '../..');
+
+// Load .env files from monorepo root before Next.js processes them
+// This ensures env vars are available during config evaluation and at runtime
+config({ path: path.join(monorepoRoot, '.env') });
+config({ path: path.join(monorepoRoot, '.env.local') });
 
 const waitlistFlag =
   process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? 'false';

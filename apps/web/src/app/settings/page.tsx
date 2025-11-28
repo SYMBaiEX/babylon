@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowLeft, Palette, Save, Shield, User } from 'lucide-react';
+import { ArrowLeft, Key, Palette, Save, Shield, User } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -230,6 +231,7 @@ export default function SettingsPage() {
     { id: 'theme', label: 'Theme', icon: Palette },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'privacy', label: 'Privacy', icon: Shield },
+    { id: 'api', label: 'API Keys', icon: Key },
   ];
 
   return (
@@ -387,6 +389,9 @@ export default function SettingsPage() {
 
           {/* Privacy Tab */}
           {activeTab === 'privacy' && <PrivacyTab />}
+
+          {/* API Keys Tab */}
+          {activeTab === 'api' && <ApiKeysTab />}
 
           {/* Save Button - Only show for profile tab (theme saves automatically) */}
           {activeTab === 'profile' && (

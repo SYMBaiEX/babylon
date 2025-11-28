@@ -9,6 +9,7 @@
     { "path": "./packages/engine" },
     { "path": "./packages/api" },
     { "path": "./packages/a2a" },
+    { "path": "./packages/mcp" },
     { "path": "./packages/training" },
     { "path": "./packages/agents" }
   ]
