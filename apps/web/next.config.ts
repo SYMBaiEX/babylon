@@ -234,19 +234,14 @@ const nextConfig: NextConfig = {
       // For server-side, ensure packages in serverExternalPackages are externalized
       // They're already in serverExternalPackages, but we also configure webpack
       // to externalize them so they're resolved at runtime from node_modules
+      // NOTE: Do NOT externalize @babylon/* packages - they are TypeScript source files
+      // and must be transpiled by webpack via transpilePackages
       const serverExternalPackagesList = [
         'postgres',
         'drizzle-orm',
         'drizzle-orm/postgres-js',
         'ioredis',
         'swagger-jsdoc',
-        '@babylon/api',
-        '@babylon/db',
-        '@babylon/engine',
-        '@babylon/agents',
-        '@babylon/training',
-        '@babylon/contracts',
-        '@babylon/shared',
       ];
       
       if (!Array.isArray(config.externals)) {

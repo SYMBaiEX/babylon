@@ -1063,7 +1063,6 @@ export function generateOpenApiSpec() {
         },
       },
 
-      // Debug
       '/api/debug/clear-agent-cache': {
         post: {
           summary: 'Clear agent runtime cache',
